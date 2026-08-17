@@ -14883,3 +14883,211 @@ Step 45E               ⏳        Golden Corpus — 64 fixtures specified
 ```
 
 **The V1 specification is complete.** Remaining work is corpus authoring and implementation.
+
+---
+---
+
+# Implementation Authorization — LOCK RECORD
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Recorded retroactively. No specification decision is changed by this entry.**
+
+## What is authorized
+
+Implementation of the locked V1 specification is authorized, following the
+sequence recorded in the Implementation Readiness Gate §5.
+
+This entry authorizes **building what is already locked**. It confers no
+authority to decide anything that is not. Every constraint in the Gate §6
+standing-constraints list continues to apply, and rules 1–22 of `CLAUDE.md`
+are unchanged.
+
+## Honesty of the record
+
+**This authorization is recorded after the work began.** Steps 1–6 of the build
+sequence — schema and migrations, authentication and authorization, document
+storage and ingestion, mapping, evaluation, and the decision/review workflow —
+were implemented on 2026-08-17 before any approval was recorded, and the API
+layer was in progress at the time of recording. The discrepancy was detected and
+reported as conflict **C-09** rather than discovered later.
+
+Nothing is backdated. The work is authorized as of this entry's date; it was not
+authorized when it was written. The record says so deliberately, because a
+specification-first project that quietly regularises its own exceptions has
+stopped being specification-first.
+
+## Scope of the authorization
+
+```text
+AUTHORIZED
+    Implementation of locked Steps 1–45D, 47, 49, 52–55
+    against the recorded specification, in the Gate §5 sequence.
+
+NOT AUTHORIZED BY THIS ENTRY
+    Deciding anything marked NOT YET SPECIFIED.
+    Resolving any open conflict (C-05 – C-10) or open decision (OD-*).
+    Amending any locked decision.
+    Adding any table, column or enum not covered by a lock record
+        or an approved amendment batch.
+    Authoring NORMATIVE golden-corpus fixtures — these require real
+        representative contracts and the organization's real Company
+        Standards, which must be supplied, never manufactured.
+    Any new technology, dependency or service beyond the Step 39 stack.
+```
+
+## Conditions
+
+```text
+1.  The code is not a specification. A behavior appearing in the
+    implementation does not make it decided. Where the code makes a choice
+    the specification does not fix, that choice is an implementation
+    detail and is recorded as such — it is not thereby locked.
+
+2.  Conformance is verified against the locked corpus, not asserted by the
+    implementation. The release-blocking authorization tests of Step 54
+    and the golden corpus of ENG-12 are the mechanism.
+
+3.  Two additive tables created before this authorization —
+    `review_assignments` and `escalations` — are ratified separately by
+    Amendment Batch AB-2, not by this entry.
+
+4.  A changed golden-corpus expectation remains a specification change.
+
+5.  The master record remains append-only.
+```
+
+## Position
+
+```text
+Specification    complete — Steps 1–45D, 47, 49, 52–55 locked
+Step 45E         ⏳ Golden Corpus — 64 fixtures specified, authoring outstanding
+Implementation   authorized as of this entry
+```
+
+---
+---
+
+# Amendment Batch AB-2 — Review Assignment, Escalation & Ownership
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Two new tables. One locked table clarified. No legal policy changed.**
+
+AB-2 follows the AB-1 pattern: each item repairs a case where a **locked
+requirement could not be represented by the locked schema**. No amendment
+changes legal meaning.
+
+## AM-22 — `review_assignments` (new table)
+
+**Driver.** Locked Step 24 requires assignment and cannot be implemented without
+it:
+
+```text
+r6   "Legal Reviewer access is controlled by assignment and/or explicit
+      Legal scope."
+r16  "A Review may be visible to an authorized Legal Reviewer without
+      transferring ownership from the original User."
+r17  "Legal assignment gives access for Legal work; it does not make the
+      Legal Reviewer the business owner of the Review."
+```
+
+No locked table represents assignment. Without one, r16 is unimplementable:
+granting a Legal Reviewer access would require transferring ownership, which
+r16 forbids.
+
+```text
+review_assignments
+------------------
+id            UUID PK
+review_id     UUID FK → reviews.id            NOT NULL   ON DELETE CASCADE
+user_id       UUID FK → users.id              NOT NULL   ON DELETE CASCADE
+assigned_by   UUID FK → users.id              NOT NULL
+created_at    TIMESTAMPTZ                     NOT NULL
+revoked_at    TIMESTAMPTZ                     NULL
+UNIQUE(review_id, user_id)
+INDEX(review_id), INDEX(user_id)
+```
+
+Revocation is a timestamp, not a delete — consistent with 41.26.
+**Additive. No locked table amended.**
+
+## AM-23 — `escalations` (new table)
+
+**Driver.** Locked Steps 4 and 22 make escalation first-class, and Step 24 r5
+gives it an access consequence:
+
+```text
+ROLE-04   "Escalation is not approval — it means 'this requires
+           authorized review'."
+r5        "Escalation makes the Review available to the authorized
+           Legal workflow."
+```
+
+No locked table represents it.
+
+```text
+escalations
+-----------
+id            UUID PK
+finding_id    UUID FK → findings.id           NOT NULL   ON DELETE CASCADE
+raised_by     UUID FK → users.id              NOT NULL
+reason        TEXT                            NOT NULL
+created_at    TIMESTAMPTZ                     NOT NULL
+withdrawn_at  TIMESTAMPTZ                     NULL
+INDEX(finding_id), INDEX(raised_by)
+```
+
+Escalation is recorded at **Finding** level per engineering resolution **F-3**,
+and marks every Evaluation under that Finding as requiring a decision. It is a
+request for review, never a disposition — it produces no Legal Decision and no
+classification.
+
+**Additive. No locked table amended.**
+
+## AM-24 — Review ownership: `created_by` is the owner
+
+**The open question.** Locked Step 24 r1–r2 state that every Review has an owner
+and that the creator is the initial owner "unless the Review is explicitly
+transferred or assigned." Locked 42.13 `reviews` carries `created_by` and **no
+`owner_id`**, so transfer has no representation.
+
+**Owner decision, 2026-08-17:**
+
+```text
+reviews.created_by IS the Review owner for V1.
+
+Ownership transfer is DEFERRED TO V2. No locked rule requires the
+capability; Step 24 r2 permits it without mandating it.
+
+No schema change. 42.13 is NOT amended — this entry records the
+interpretation that resolves r1/r2 against the locked column set.
+```
+
+**Consequence.** Every ownership check in Step 24 — r3, r4, r16, r18 — resolves
+through `reviews.created_by`. Legal access continues to resolve independently
+through `review_assignments` (AM-22) and Legal scope, which is precisely what
+r16 and r17 require: access without ownership.
+
+**Deferred to V2:** `reviews.owner_id`, transfer semantics, transfer audit
+events, and what happens to an in-flight Review when its owner is deactivated.
+
+## Not amended by AB-2
+
+```text
+Step 24's eighteen rules            unchanged
+42.13 reviews                       unchanged
+Step 31 decision model              unchanged
+AB-1 in its entirety                unchanged
+The five-axis state model           unchanged
+```
+
+## Position
+
+```text
+Amendment Batch AB-1   🔒        Amendment Batch AB-2   🔒
+Tables added by AB-2   review_assignments · escalations
+Schema impact          additive only; no locked table amended
+Legal policy impact    none
+```
+
