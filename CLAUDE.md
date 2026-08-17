@@ -122,7 +122,7 @@ Lifecycle state — specified · locked · implemented · tested · verified · 
 **Still requires explicit approval — `IMPL-01` grants none of it:**
 
 * deciding anything marked `NOT YET SPECIFIED`
-* resolving any open conflict (C-05–C-08, C-10) or open decision (`OD-*`)
+* resolving any open conflict (C-05–C-08, C-10, C-11) or open decision (`OD-*`)
 * amending any locked decision
 * adding any table, column or enum not covered by a lock record or an approved amendment batch
 * authoring `NORMATIVE` golden-corpus fixtures — these need real representative contracts and the organization's real Company Standards, which **must be supplied, never manufactured** (rule 21)
@@ -144,7 +144,7 @@ Two evaluators are specified: `LIABILITY-001` (`NUMERIC_COMPARISON`) and the gen
 
 **Before naming any state value, read [docs/02-legal-domain/DECISION_STATE_MODEL.md](docs/02-legal-domain/DECISION_STATE_MODEL.md).** It is the canonical cross-layer reference for all five controlled state vocabularies. Mapping State, Finding Classification, Rule Outcome, Legal Decision, and Review Lifecycle are five separate axes and must never share a status field or enum — `AMBIGUOUS` in particular means three different things on three different layers.
 
-Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09 was resolved on 2026-08-17** by `IMPL-01` and AB-2. **Five remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): C-05–C-08 (low severity) and **C-10 (MEDIUM)**. The `REC-*` decisions are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions".
+Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09 was resolved on 2026-08-17** by `IMPL-01` and AB-2. **Six remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): C-05–C-08 and C-11 (low severity) and **C-10 (MEDIUM)**. The `REC-*` decisions are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions".
 
 The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authentication) was closed by Step 47. The rest are tracked in [EXTERNAL_REFERENCE_AUDIT.md](docs/00-project/EXTERNAL_REFERENCE_AUDIT.md) §16 — do not resolve one yourself.
 
