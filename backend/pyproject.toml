@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "legalmind"
 version = "0.1.0"
@@ -17,3 +21,11 @@ dev = ["pytest>=8.0"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+# `backend/` is a flat layout holding three top-level directories — legalmind,
+# alembic and tests. Without an explicit list setuptools refuses to guess which
+# are distributable ("Multiple top-level packages discovered in a flat-layout")
+# and the build fails before any test runs. Only the application package ships;
+# migrations and tests are repository artefacts, not distribution contents.
+[tool.setuptools.packages.find]
+include = ["legalmind*"]
