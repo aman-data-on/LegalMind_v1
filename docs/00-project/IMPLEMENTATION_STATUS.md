@@ -6,7 +6,7 @@
 
 Documents under [`09-implementation/`](../09-implementation/) remain *specifications of a target*. Where code and specification disagree, the specification wins — `IMPL-01` condition 1: *the code is not a specification.*
 
-Last synchronized against `all_lock.md` at **15,093 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-07`, Amendment Batches AB-1 and AB-2, Implementation Authorization).
+Last synchronized against `all_lock.md` at **15,196 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-08`, Amendment Batches AB-1 and AB-2, Implementation Authorization).
 
 ---
 
@@ -60,7 +60,7 @@ The `review_assignments` and `escalations` tables and Review ownership were prev
 | — | **No analysis calibration.** Mapping weights and thresholds are uncalibrated; locked 35.10 requires validation against a representative contract test set | Release gate |
 | — | **Playwright not set up.** Locked Step 39/54 make it the browser-workflow tier | Outstanding in unit 11 |
 | — | **Analysis runs synchronously in the API.** Locked 55.1 makes it a worker job on the same image; Celery/Redis are in the locked Step 39 stack and the compose file provisions the queue, but no consumer is wired. The orchestrator is a plain service function so moving it changes the caller, not the analysis | Outstanding in unit 11 |
-| — | **A CI pipeline exists; whether its tooling is settled does not.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) defines eight jobs, and `main` is protected on `3 · Authorization matrix (RELEASE-BLOCKING)`. Two locked records disagree on whether the tooling choice was already made: the Step 39 stack table names **GitHub Actions** for CI/CD, while locked 55.6 lists CI/CD tooling among **NOT YET SPECIFIED** operational choices. Registered as **C-11** and deliberately not resolved here | Owner decision — [CONFLICTS.md](CONFLICTS.md) C-11 |
+| — | **CI pipeline — no longer blocking.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) defines eight jobs and `main` is protected on `3 · Authorization matrix (RELEASE-BLOCKING)`. `REC-08` (2026-08-17) locks **GitHub Actions** as the V1 CI/CD tooling, resolving **C-11**, so the workflow is an authorized use of the locked Step 39 stack rather than an unratified choice | ✅ Resolved — `REC-08` |
 | — | **`GET /auth/oidc/*` and `POST /reviews/{id}/export` not implemented.** OIDC needs an approved JWT/JWKS dependency plus IdP configuration; export formats are locked NOT YET SPECIFIED | Recorded in `api/permission_map.py` `NOT_IMPLEMENTED` |
 
 #### `F-4` — what was wrong, what was done, how it was checked
@@ -112,6 +112,7 @@ Build state is reported in the **Build state** table above, which is the only pl
 | **Steps 1–44** | 🔒 LOCKED |
 | **Step 45A — LIABILITY-001** | 🔒 LOCKED |
 | **`REC-01`–`REC-07`** | 🔒 LOCKED (reconciliation) |
+| **`REC-08` — CI/CD tooling** | 🔒 LOCKED 2026-08-17 — GitHub Actions; resolves C-11 |
 | **Amendment Batch AB-1** | 🔒 LOCKED |
 | **Step 45B — Evaluator Data Contract** | 🔒 LOCKED (revised — `REC-05`, `REC-07`, AB-1) |
 | **Step 45C — Liability Edge Cases** | 🔒 LOCKED |
@@ -219,6 +220,8 @@ Do not assume, infer, or invent any of the following. Each requires its own spec
 **C-01 through C-04 were reconciled on 2026-08-16** (`REC-01`–`REC-06`). None was a true contradiction. The finding-type enum is no longer blocked: the Step 36 seven-value set is canonical for Finding Classification, and `EXTRA`/`ADDITIONAL` became the document-level `UNMATCHED_PROVISION` observation.
 
 **C-09 was resolved on 2026-08-17** by `IMPL-01` and Amendment Batch AB-2 — implementation authorized retroactively, with the lock record stating plainly that the work preceded the authorization; `review_assignments` and `escalations` ratified as `AM-22` and `AM-23`; Review ownership resolved by `AM-24`. The technical findings that review surfaced are **not** closed by it — they are tracked under **Blocking the VERIFIED state** above.
+
+**C-11 was resolved on 2026-08-17** by `REC-08`: the Step 39 stack table's CI/CD row governs and GitHub Actions is the V1 tooling. Step 55.6's other NOT YET SPECIFIED line items — hosting platform, orchestration, object-storage provider, monitoring stack, DR objectives — are untouched by it.
 
 Four low-severity items remain open (C-05–C-08), tracked in [CONFLICTS.md](CONFLICTS.md), along with **C-10** (MEDIUM — the `roles` seed list vs the canonical role matrix).
 

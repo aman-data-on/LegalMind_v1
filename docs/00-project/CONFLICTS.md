@@ -4,7 +4,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-01 through C-04 were reconciled by the project owner on 2026-08-16** (registry entries `REC-01`–`REC-06` in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md)). The analysis found that **none of the four was a true contradiction** — each was a supersession chain, a layer migration, a refinement, or different terminology for different stages. No historical locked text was modified.
 
-**C-05 – C-08, C-10 and C-11 remain open.** Do not resolve any open item without explicit approval.
+**C-05 – C-08 and C-10 remain open.** **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
 
@@ -20,7 +20,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-08 | Reviewer role authority | ⏳ Open (low) |
 | C-09 | `backend/` source code vs "no implementation exists" | ✅ **RESOLVED** — authorized retroactively (`IMPL-01`, AB-2) |
 | C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
-| C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ⏳ Open (LOW) |
+| C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ✅ **RESOLVED** — GitHub Actions is the V1 choice (`REC-08`) |
 
 ---
 
@@ -252,6 +252,20 @@ Documented at: [USER_ROLES.md](../01-product/USER_ROLES.md), [DATABASE_MIGRATION
 ---
 
 ## C-11 — Is CI/CD tooling locked by Step 39, or NOT YET SPECIFIED by Step 55?
+
+## ✅ RESOLVED 2026-08-17 — `REC-08`
+
+**Verdict: the Step 39 stack table governs.** The project owner explicitly confirmed on 2026-08-17 that **GitHub Actions is the approved CI/CD tooling for LegalMind V1**, and that the Step 39 row is the intended tooling decision.
+
+Step 55.6's inclusion of "CI/CD tooling" in its NOT YET SPECIFIED list is **superseded for that one line item only**. The 55.6 text stays exactly where it is and is annotated as superseded in [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) §55.6; `all_lock.md` was appended, never rewritten.
+
+**Consequence.** `.github/workflows/ci.yml` is an authorized use of the locked Step 39 stack — `IMPL-01` permits the Step 39 stack — and is therefore **not** an unratified implementation choice and **not** a Pending-ratification item. The workflow is retained unchanged.
+
+**Deliberately still open.** `REC-08` is narrow. Every other item in 55.6's list remains locked as NOT YET SPECIFIED: hosting platform, container orchestration, object-storage provider, monitoring stack, disaster-recovery objectives. `REC-08` confers no authority over any of them and authorizes no technology beyond GitHub Actions.
+
+Lock record: [`all_lock.md`](../../all_lock.md) under "Reconciliation Decision REC-08 — CI/CD tooling" · Registry: [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) §R.
+
+### Original finding (retained for the record)
 
 **Severity: LOW — two locked records, opposite answers. Recorded 2026-08-17 while correcting a false "No CI pipeline" claim in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).**
 

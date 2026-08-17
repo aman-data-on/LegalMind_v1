@@ -15091,3 +15091,106 @@ Schema impact          additive only; no locked table amended
 Legal policy impact    none
 ```
 
+---
+---
+
+# Reconciliation Decision REC-08 — CI/CD tooling
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Resolves conflict C-11. No legal policy changed. No schema impact. No new
+technology introduced.**
+
+## The contradiction
+
+Two locked records answered the same question in opposite ways.
+
+**Step 39 — technology stack table** (this file, line 6049):
+
+```text
+| CI/CD | **GitHub Actions** | Straightforward automated testing/deployment |
+```
+
+**Step 55.6 — production blockers** (this file, line 14871):
+
+```text
+NOT YET SPECIFIED: hosting platform, orchestration, CI/CD tooling,
+object-storage provider, monitoring stack, DR objectives.
+```
+
+The consequence was governance-visible rather than technical. `IMPL-01` forbids
+"any technology, dependency or service **beyond the Step 39 stack**". Under the
+Step 39 reading, a GitHub Actions workflow is inside the authorized stack and
+needs no ratification. Under the 55.6 reading it is an implementation choice made
+where the specification is silent, which `IMPL-01` condition 4 leaves unratified.
+The same file therefore belonged in two different governance categories at once.
+
+The usual tie-breaker did not apply: both sources are Step-numbered lock records,
+not a Step document versus an older topic document.
+
+## Owner decision, 2026-08-17
+
+```text
+GitHub Actions IS the approved CI/CD tooling for LegalMind V1.
+
+The Step 39 stack table row is the intended CI/CD tooling decision and
+GOVERNS. GitHub is already the repository host and GitHub Actions is
+already the CI system; this entry makes that the official V1 choice.
+
+Step 55.6's inclusion of "CI/CD tooling" in its NOT YET SPECIFIED list
+is SUPERSEDED FOR THAT ONE LINE ITEM ONLY. The 55.6 text stays exactly
+where it is and is annotated as superseded elsewhere.
+
+No schema change. No new technology. The existing
+.github/workflows/ci.yml implementation is retained as-is.
+```
+
+## What this settles
+
+```text
+CI/CD tooling            GitHub Actions — 🔒 LOCKED for V1
+ci.yml                   an authorized use of the locked Step 39 stack;
+                         NOT an unratified implementation choice, and
+                         therefore NOT a Pending-ratification item
+C-11                     RESOLVED
+```
+
+## What this does NOT settle
+
+Every other item in 55.6's list remains exactly as locked. This entry is
+deliberately narrow, and confers no authority over any of them:
+
+```text
+Hosting platform             NOT YET SPECIFIED
+Container orchestration      NOT YET SPECIFIED
+Object-storage provider      NOT YET SPECIFIED
+Monitoring stack             NOT YET SPECIFIED
+Disaster-recovery objectives NOT YET SPECIFIED
+```
+
+Nor does it authorize any technology beyond GitHub Actions, alter the release
+sequence locked in 55.5, change the production blockers register, or ratify
+anything else registered under Pending ratification.
+
+## Not changed by REC-08
+
+```text
+Step 39 stack table          unchanged (this entry affirms its CI/CD row)
+Step 55.5 release sequence   unchanged
+Step 55.6 other line items   unchanged
+IMPL-01 and its conditions   unchanged
+AB-1, AB-2                   unchanged
+The five-axis state model    unchanged
+Every locked legal rule      unchanged
+```
+
+## Position
+
+```text
+REC-01 – REC-07   🔒        REC-08   🔒
+Resolves          C-11
+Conflicts open    C-05 · C-06 · C-07 · C-08 · C-10
+Legal policy      none affected
+Schema impact     none
+```
+

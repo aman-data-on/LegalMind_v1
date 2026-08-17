@@ -99,3 +99,11 @@ Adapted from the external reference's most transferable practice — an explicit
 | Export formats (locked as NOT YET SPECIFIED) | Blocks export feature only |
 
 **NOT YET SPECIFIED:** hosting platform, container orchestration, CI/CD tooling, object-storage provider, monitoring stack, disaster-recovery objectives. None is determined by a locked decision; each is an operational choice at deployment time.
+
+> ⚠️ **`CI/CD tooling` in the line above is SUPERSEDED — `REC-08`, 🔒 2026-08-17.**
+>
+> The original text is retained exactly as locked and is **not** rewritten. One line item of its list no longer holds: **CI/CD tooling is GitHub Actions**, by explicit owner decision. The Step 39 stack table's `CI/CD` row was the intended tooling decision and governs; this resolved conflict **C-11**.
+>
+> **Every other item in the list above stands unchanged** and remains NOT YET SPECIFIED — hosting platform, container orchestration, object-storage provider, monitoring stack, disaster-recovery objectives. `REC-08` is deliberately narrow and confers no authority over any of them.
+>
+> Lock record: [`all_lock.md`](../../all_lock.md) under "Reconciliation Decision REC-08 — CI/CD tooling" · Registry: [LOCKED_DECISIONS.md](../00-project/LOCKED_DECISIONS.md) §R · Conflict: [CONFLICTS.md](../00-project/CONFLICTS.md) C-11
