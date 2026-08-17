@@ -13,10 +13,18 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     "psycopg2-binary>=2.9",
+    # Document parsing (locked Step 39 stack). Imported lazily inside
+    # parse_pdf()/parse_docx(), so their absence surfaces only when a document
+    # is actually parsed — not at import time. Runtime dependencies, not dev:
+    # ingestion is application behaviour.
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# httpx is required by starlette.testclient, which fastapi.testclient re-exports;
+# without it every test using the API harness errors at fixture setup.
+dev = ["pytest>=8.0", "httpx>=0.27"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
