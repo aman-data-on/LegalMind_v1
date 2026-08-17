@@ -15,34 +15,59 @@ from legalmind.domain import enums as E
 
 @pytest.fixture(scope="session")
 def engine():
-    """Build the test schema by running the REAL Alembic migration.
+    """Build the test schema by running the REAL Alembic migration, into a
+    schema private to this test process.
 
-    Tests must exercise what ships. Using metadata.create_all() here would
-    bypass the hand-written trigger DDL (EV-MIN, append-only) and silently
-    stop testing the invariants that matter most.
+    Tests must exercise what ships. Using ``metadata.create_all()`` here would
+    bypass the hand-written trigger DDL (EV-MIN, append-only) and silently stop
+    testing the invariants that matter most.
+
+    **Why a private schema.** Earlier revisions shared ``public`` and reset it
+    with ``DROP SCHEMA public CASCADE``. That made the suite non-deterministic
+    (`F-4`) in two different ways, and the second was caused by the fix for the
+    first:
+
+    * a backend left by an interrupted run held locks, so the DROP raced and
+      occasionally left a half-built schema;
+    * adding ``pg_terminate_backend`` to clear those locks then killed the
+      *live* connections of any concurrently running suite, surfacing as
+      ``SSL connection has been closed unexpectedly`` in whichever process lost.
+
+    Both disappear once no process touches another's objects. Each run creates
+    ``t_<random>``, points ``search_path`` at it for its own connections and for
+    Alembic's, and drops only that schema at teardown — so two suites (or an
+    xdist worker pool) can share one database safely and nothing needs killing.
+
+    Note this also means the recorded `F-4` diagnosis — a module-global engine in
+    ``api/deps.py`` pointed at the *dev* database — is not the mechanism.
+    Verified by running the suite green with ``LEGALMIND_DATABASE_URL`` pointed
+    at a nonexistent host: nothing in the test path opens the dev database.
     """
     from alembic import command
     from alembic.config import Config
 
-    url = test_database_url()
-    eng = create_engine(url, future=True)
-    with eng.begin() as c:
-        # A leftover backend from an interrupted run holds locks on these tables,
-        # which made the DROP below race and occasionally leave the schema
-        # half-built. Scoped to THIS database by current_database(), so a stray
-        # connection to another LegalMind database is never touched.
-        c.execute(text(
-            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-            "WHERE datname = current_database() AND pid <> pg_backend_pid()"))
-        c.execute(text("DROP SCHEMA public CASCADE"))
-        c.execute(text("CREATE SCHEMA public"))
+    base_url = test_database_url()
+    schema = f"t_{uuid.uuid4().hex[:12]}"
+    # psycopg2 accepts libpq `options` in the DSN, which is how Alembic's own
+    # engine — built inside env.py from this URL — lands in the same schema.
+    scoped_url = f"{base_url}?options=-csearch_path%3D{schema}"
+
+    admin = create_engine(base_url, future=True)
+    with admin.begin() as c:
+        c.execute(text(f'CREATE SCHEMA "{schema}"'))
 
     cfg = Config("alembic.ini")
-    cfg.set_main_option("sqlalchemy.url", url)
+    # Alembic reads options through configparser, which treats `%` as
+    # interpolation — the percent-encoded `=` has to be escaped for it.
+    cfg.set_main_option("sqlalchemy.url", scoped_url.replace("%", "%%"))
     command.upgrade(cfg, "head")
 
+    eng = create_engine(scoped_url, future=True)
     yield eng
     eng.dispose()
+    with admin.begin() as c:
+        c.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+    admin.dispose()
 
 
 @pytest.fixture
@@ -195,10 +220,21 @@ def api(db, tmp_path):
     api_storage.set_storage(LocalFilesystemStorage(tmp_path / "objects"))
     auth_router.limiter = ratelimit.InProcessRateLimiter()   # fresh per test
 
+    # TestClient runs the ASGI app on its own portal thread. The overridden
+    # get_db hands that thread the *test's* Session, which is bound to a
+    # connection the main thread also uses. Leaving the client open lets the
+    # portal outlive the test, so a later test can find the connection torn
+    # down mid-statement ("SSL connection has been closed unexpectedly").
+    # Closing the client joins the portal thread before the db fixture
+    # rolls back and closes the connection.
     client = TestClient(app, base_url="https://testserver")
     client.app_instance = app
-    yield client
-    api_storage.set_storage(None)
+    try:
+        yield client
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+        api_storage.set_storage(None)
 
 
 def sign_in(api, db, user):

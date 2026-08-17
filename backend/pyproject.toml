@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "legalmind"
 version = "0.1.0"
@@ -9,11 +13,27 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     "psycopg2-binary>=2.9",
+    # Document parsing (locked Step 39 stack). Imported lazily inside
+    # parse_pdf()/parse_docx(), so their absence surfaces only when a document
+    # is actually parsed — not at import time. Runtime dependencies, not dev:
+    # ingestion is application behaviour.
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# httpx is required by starlette.testclient, which fastapi.testclient re-exports;
+# without it every test using the API harness errors at fixture setup.
+dev = ["pytest>=8.0", "httpx>=0.27"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+# `backend/` is a flat layout holding three top-level directories — legalmind,
+# alembic and tests. Without an explicit list setuptools refuses to guess which
+# are distributable ("Multiple top-level packages discovered in a flat-layout")
+# and the build fails before any test runs. Only the application package ships;
+# migrations and tests are repository artefacts, not distribution contents.
+[tool.setuptools.packages.find]
+include = ["legalmind*"]

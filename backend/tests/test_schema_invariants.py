@@ -269,3 +269,53 @@ def test_each_axis_has_its_own_enum_type(db):
     # extraction_status is a separate type from finding_classification even
     # though both contain AMBIGUOUS
     assert got["extraction_status"] == 4
+
+
+# ------------------------------------------------- trigger presence (CI gate)
+def test_locked_invariants_are_enforced_by_triggers_not_convention(db):
+    """The append-only and EV-MIN guarantees exist as DATABASE triggers.
+
+    F-5 chose a constraint trigger over service-layer validation precisely
+    because "a migration or backfill can bypass service code". A refactor that
+    dropped the trigger DDL from the migration would leave every other test in
+    this file still passing — they exercise behaviour through the ORM, which
+    would simply start succeeding where it used to raise. This asserts the
+    mechanism itself is present.
+
+    Scoped to ``current_schema()``: each run migrates into its own private
+    schema, so an unscoped pg_trigger query would also see triggers belonging
+    to other runs' schemas and pass even if this run's migration produced none.
+    """
+    rows = db.execute(text("""
+        SELECT cl.relname, t.tgname
+        FROM pg_trigger t
+        JOIN pg_class cl ON cl.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE NOT t.tgisinternal
+          AND n.nspname = current_schema()""")).all()
+    by_table = {table for table, _ in rows}
+
+    assert "audit_events" in by_table, "AUD-01: audit_events must be append-only"
+    assert "legal_decisions" in by_table, "Step 31 r14: decisions must be append-only"
+    assert "findings" in by_table, "AB-1.6: EV-MIN must be enforced at COMMIT"
+
+
+def test_ev_min_trigger_is_deferred_to_commit(db):
+    """EV-MIN must be DEFERRABLE INITIALLY DEFERRED (AB-1.6).
+
+    Checked at COMMIT, so insert order is irrelevant: a Finding may legitimately
+    exist without its Evaluation for the duration of the transaction that
+    creates both. A non-deferred trigger would reject that valid sequence.
+    """
+    row = db.execute(text("""
+        SELECT t.tgdeferrable, t.tginitdeferred
+        FROM pg_trigger t
+        JOIN pg_class cl ON cl.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE NOT t.tgisinternal
+          AND n.nspname = current_schema()
+          AND cl.relname = 'findings'""")).first()
+    assert row is not None, "EV-MIN trigger missing from findings"
+    deferrable, initially_deferred = row
+    assert deferrable, "EV-MIN trigger must be DEFERRABLE"
+    assert initially_deferred, "EV-MIN trigger must be INITIALLY DEFERRED"
