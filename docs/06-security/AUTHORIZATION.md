@@ -1,5 +1,8 @@
 # Authorization
 
+> **See [STEP_47_SECURITY_SPECIFICATION.md](STEP_47_SECURITY_SPECIFICATION.md)** for the permission catalogue (§47.4), super-role boundary (§47.2), multi-role model (§47.3), object-level authorization (§47.6) and denial semantics (§47.7).
+
+
 Source: all_lock.md Steps 23, 24 (authorization mechanics only). Canonical source: all_lock.md (Steps 23-24).
 
 Related: [../01-product/USER_ROLES.md](../01-product/USER_ROLES.md) is the **canonical** source for the full role/permission matrix and role summaries — this file focuses on authorization mechanics and principles, not the full table. See also [OWNERSHIP.md](./OWNERSHIP.md) for ownership-specific rules.

@@ -35,17 +35,11 @@ Legal analysis in V1 is **deterministic**: same inputs + same configuration snap
 
 ## Current project phase
 
-**SPECIFICATION / DESIGN. Implementation has not begun.**
+**SPECIFICATION / DESIGN. Implementation is not authorized.**
 
-| | |
-|---|---|
-| Steps 1–44 | 🔒 LOCKED |
-| Step 45A — `LIABILITY-001` | 🔒 LOCKED |
-| Step 45B — Evaluator Data Contract | 🔒 LOCKED |
-| `REC-01`–`REC-07` — reconciliation | 🔒 LOCKED |
-| Step 45C — Liability Edge Cases | ⏳ IN PROGRESS |
+The V1 specification is complete. **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) is the authoritative statement of what is locked, what is open, and what is not yet specified** — it is not restated here, because a second copy drifts.
 
-Full detail: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+Readiness is assessed in [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md), which reports readiness but does not grant it. Beginning implementation requires explicit approval ([CLAUDE.md](../../CLAUDE.md)).
 
 ---
 
@@ -59,12 +53,15 @@ Full detail: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 | **Known conflicts that must not be silently resolved** | [CONFLICTS.md](CONFLICTS.md) |
 | **Terminology** | [GLOSSARY.md](GLOSSARY.md) |
 | **Rules for working on this project** | [CLAUDE.md](../../CLAUDE.md) |
+| **How to propose a change** | [CONTRIBUTING.md](../../CONTRIBUTING.md) |
 
 `all_lock.md` remains the authoritative historical record. This `docs/` tree is the **organized implementation reference** derived from it. Where the two disagree, `all_lock.md` wins and the discrepancy must be reported.
 
 ---
 
 ## Documentation map
+
+**File-level navigation lives in [docs/README.md](../README.md) — the documentation index.** The table below is the section-level orientation.
 
 | Section | Contains |
 |---------|----------|
@@ -91,13 +88,14 @@ The analysis engine is specified across [04-analysis-engine/](../04-analysis-eng
 * [RULE_ENGINE.md](../04-analysis-engine/RULE_ENGINE.md) — evaluator architecture and what is configurable vs code
 * [CONFLICT_DETECTION.md](../04-analysis-engine/CONFLICT_DETECTION.md) — conflict, ambiguity, missing, unresolved
 * [EXPLAINABILITY.md](../04-analysis-engine/EXPLAINABILITY.md) — the explainability contract and fail-closed philosophy
-* [EDGE_CASES/](../04-analysis-engine/EDGE_CASES/) — per-requirement evaluators; only `LIABILITY-001` is specified so far
+* [EVALUATOR_EDGE_CASES.md](../04-analysis-engine/EVALUATOR_EDGE_CASES.md) — the evaluator-agnostic structural contract (Step 45D)
+* [EDGE_CASES/](../04-analysis-engine/EDGE_CASES/) — the specified evaluators: `LIABILITY-001` (`NUMERIC_COMPARISON`) and the generic `PRESENCE` evaluator. Termination, Indemnification and Governing Law are **NOT YET SPECIFIED** — no locked decision requires them
 
 ---
 
 ## Where testing specifications live
 
-[08-testing/](../08-testing/) — test strategy, the mandatory [golden corpus](../08-testing/GOLDEN_CORPUS.md), and [regression testing](../08-testing/REGRESSION_TESTING.md) that guards engine changes.
+[08-testing/](../08-testing/) — the locked [test strategy](../08-testing/STEP_54_TESTING_STRATEGY.md) (Step 54), the mandatory golden corpus ([requirement](../08-testing/GOLDEN_CORPUS.md), [64 specified fixtures](../08-testing/GOLDEN_CORPUS_45E.md)), and [regression testing](../08-testing/REGRESSION_TESTING.md) that guards engine changes.
 
 ---
 

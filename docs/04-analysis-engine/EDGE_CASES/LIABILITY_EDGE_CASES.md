@@ -1,8 +1,8 @@
 # Step 45C — LIABILITY-001 Edge Cases
 
-**Status: ⏳ REVIEW — NOT LOCKED.**
+**Status: 🔒 LOCKED (2026-08-17).**
 
-Authored by the project owner, 2026-08-16. Text preserved verbatim below. Not yet appended to [`all_lock.md`](../../../all_lock.md).
+Authored by the project owner, 2026-08-16. Text preserved verbatim below. Locked 2026-08-17; lock record in [`all_lock.md`](../../../all_lock.md) under "Step 45C — LOCK RECORD", which adds 45C.27 (detected-but-unresolvable precedence), 45C.28 (heterogeneous scoped outcomes), 45C.29 (widen-only configuration) and lock rules 18–19.
 
 Related: [LIABILITY.md](LIABILITY.md) (Step 45A — policy, 🔒 LOCKED) · [LIABILITY_EVALUATOR_CONTRACT.md](LIABILITY_EVALUATOR_CONTRACT.md) (Step 45B — data contract, 🔒 LOCKED) · [../../02-legal-domain/DECISION_STATE_MODEL.md](../../02-legal-domain/DECISION_STATE_MODEL.md)
 
@@ -10,11 +10,11 @@ Related: [LIABILITY.md](LIABILITY.md) (Step 45A — policy, 🔒 LOCKED) · [LIA
 
 ---
 
-# ⚠ REVIEW FINDINGS — must be resolved before 45C can be locked
+# REVIEW FINDINGS — ✅ ALL RESOLVED (Amendment Batch AB-1, 2026-08-17)
 
 45C is substantively consistent with locked Steps 44/45A and contradicts none of them. Its decision matrix (45C.21) matches the locked 45A §17 matrix exactly on every shared row.
 
-**However, four locked-decision amendments are required.** 45C states behavior the locked 45B contract cannot represent. Per [CLAUDE.md](../../../CLAUDE.md) rule 6, these are named here rather than assumed, and require explicit approval.
+**Four locked-decision amendments were required.** All four were resolved through Amendment Batch AB-1: A-1 and A-3 by the generalized `caps[]` structure and `evaluation_kind`; A-2 by the locked 42.8 configuration JSONB (no schema change needed); A-4 by the Evaluation-level decision model. The original findings are retained below as the record of why.
 
 ## A-1 — `facts` must represent multiple caps
 
@@ -63,11 +63,11 @@ If different scopes and carve-outs are evaluated *separately*, one Requirement o
 
 The locked corpus does not settle this: Step 27 rule 16 allows multiple Findings per *Review*, and Step 28 rule 2 allows multiple clauses per *Requirement*, but **nothing states whether one Requirement may produce multiple Findings in one Review.**
 
-**Open question — the most structurally significant one in 45C:** does `LIABILITY-001` produce one Finding with multiple scoped evaluations, or multiple Findings? This determines the shape of both the evaluator output and the findings table.
+**RESOLVED:** one Finding per Requirement, grouping one or more scoped Evaluations. Confirmed by locked 41.19/42.15 (`evaluations.finding_id`) and 42.14's single `classification` column.
 
 ## Dependency note
 
-45C.2 and 45C.22 permit precedence resolution via "a configured precedence rule" — which lives in `rule_configuration`, whose shape remains **NOT YET SPECIFIED**. 45C's conflict-resolution behavior is therefore partly dependent on an unspecified field.
+45C.2 and 45C.22 permit precedence resolution via a configured precedence rule in `rule_configuration`, whose minimum shape is specified in J-5. Narrowed by F-6: **configured precedence only** — in-document precedence language is detected, evidenced and reported, never applied (45C.27).
 
 ## Triage mapping
 
@@ -75,13 +75,13 @@ How 45C resolves the edge cases identified in the opening triage:
 
 | Triage ID | Resolved by | Status |
 |-----------|-------------|--------|
-| EC-1 Multiple caps | 45C.1, 45C.5, 45C.6 | ✅ Policy resolved — **requires A-1** |
-| EC-2 Carve-outs | 45C.3, 45C.4, 45C.21 | ✅ Policy resolved — **requires A-3** |
-| EC-3 Per-claim vs aggregate | 45C.5, 45C.6, 45C.20 | ✅ Policy resolved — **requires A-2** |
+| EC-1 Multiple caps | 45C.1, 45C.5, 45C.6 | ✅ Resolved (A-1 via AB-1) |
+| EC-2 Carve-outs | 45C.3, 45C.4, 45C.21 | ✅ Resolved (A-3 via AB-1) |
+| EC-3 Per-claim vs aggregate | 45C.5, 45C.6, 45C.20 | ✅ Resolved (A-2 — 42.8 JSONB, no schema change) |
 | EC-4 Monetary bases | 45C.7, 45C.8, 45C.9, 45C.23 | ✅ Fully resolved |
 | EC-5 Cross-references | 45C.10, 45C.11 | ✅ Fully resolved |
 | EC-6 Conflicting schedules | 45C.2, 45C.22 | ✅ Resolved — depends on `rule_configuration` |
-| EC-7 Malformed/ambiguous | 45C.13, 45C.18, 45C.19 | ⚠ Largely resolved — `AMBIGUOUS` vs `UNRESOLVED` boundary still soft |
+| EC-7 Malformed/ambiguous | 45C.13, 45C.18, 45C.19 | ✅ Resolved — boundary defined by AM-7 and the J-6 discriminator (`AMBIGUOUS` = too many candidates; `UNRESOLVED` = no usable answer) |
 
 ---
 
@@ -769,7 +769,7 @@ This is consistent with the master specification's evidence-first architecture.
 
 # 45C.26 Proposed lock
 
-**Status: PROPOSED — not locked.** Blocked pending amendments A-1 through A-4 above.
+**Status: 🔒 LOCKED.** Amendments A-1 – A-4 were resolved through Amendment Batch AB-1.
 
 I recommend locking Step 45C with these rules:
 

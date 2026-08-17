@@ -1,12 +1,34 @@
 # Implementation Status
 
+**This document records reality, never intent.** It is the authoritative answer to "what state is this in?" — no other document should assert build state.
+
 **Project phase: SPECIFICATION / DESIGN.**
 
-**No implementation has begun. No application code, database migration, API endpoint, frontend component, or infrastructure exists in this repository.**
+**No implementation has been authorized. No application code, database migration, API endpoint, frontend component, or infrastructure is part of this project.**
 
 The presence of documents under [`09-implementation/`](../09-implementation/) does **not** mean implementation has started. Those documents are *specifications of a target*, not records of built work.
 
-Last synchronized against `all_lock.md` at **13,941 lines** (Steps 1–45B + the appended "Post-Step-44 Cross-Document Reconciliation Decisions" section, `REC-01`–`REC-07`).
+> ⚠️ **Contradicted by the working tree.** An untracked `backend/` directory containing Python source (`pyproject.toml` with FastAPI/SQLAlchemy/Alembic dependencies, a SQLAlchemy declarative base and column helpers, empty `api/`, `domain/`, `services/`, `alembic/versions/`, `tests/`) exists alongside these documents. No approval to begin implementation appears in `all_lock.md`. Recorded as **C-09** in [CONFLICTS.md](CONFLICTS.md) and **not resolved** — the statements above remain the project's position until the owner decides otherwise.
+
+Last synchronized against `all_lock.md` at **14,885 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-07`, Amendment Batch AB-1).
+
+---
+
+## Status vocabulary
+
+These seven states describe *lifecycle*. They are a documentation convention only — they are **not** one of the five controlled legal-domain state axes in [DECISION_STATE_MODEL.md](../02-legal-domain/DECISION_STATE_MODEL.md) and must never share a field or enum with one.
+
+| State | Meaning | Evidence required |
+|---|---|---|
+| **SPECIFIED** | The behavior is written down and internally consistent, but not settled — `PROVISIONAL` or `UNDER REVIEW` | A specification document |
+| 🔒 **LOCKED** | Settled. Changing it requires explicit owner approval | An entry in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) and a lock record in `all_lock.md` |
+| **IMPLEMENTED** | Code exists that realizes the locked specification | Merged code, referencing the decision IDs it implements |
+| **TESTED** | Automated tests cover it, including its golden-corpus fixtures where applicable | Passing tests in CI |
+| **VERIFIED** | Behavior confirmed against the specification, not merely against the tests — the golden-corpus expectations hold and the explainability chain reconstructs | A recorded verification run |
+| **BLOCKED** | Cannot advance until a named decision or dependency resolves | The blocking ID (`OD-*`, `C-*`, `N-*`) |
+| **PRODUCTION-READY** | Verified, plus the deployment blockers register is clear | [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) §55.6 |
+
+**Nothing in LegalMind is currently past LOCKED.** No area is IMPLEMENTED, TESTED, VERIFIED, or PRODUCTION-READY. The table below therefore reports specification status only; add an implementation column when — and only when — implementation is authorized.
 
 ---
 
@@ -17,12 +39,19 @@ Last synchronized against `all_lock.md` at **13,941 lines** (Steps 1–45B + the
 | **Steps 1–44** | 🔒 LOCKED |
 | **Step 45A — LIABILITY-001** | 🔒 LOCKED |
 | **`REC-01`–`REC-07`** | 🔒 LOCKED (reconciliation) |
-| **Step 45B — Evaluator Data Contract** | 🔒 LOCKED (incl. `REC-05` R1 + `REC-07`) |
-| **Step 45C — Liability Edge Cases** | ⏳ IN PROGRESS — triage complete, decisions pending |
+| **Amendment Batch AB-1** | 🔒 LOCKED |
+| **Step 45B — Evaluator Data Contract** | 🔒 LOCKED (revised — `REC-05`, `REC-07`, AB-1) |
+| **Step 45C — Liability Edge Cases** | 🔒 LOCKED |
+| **Step 45D — Cross-Evaluator Edge Cases** | 🔒 LOCKED |
+| **Step 45E — Golden Corpus** | ⏳ IN PROGRESS — [64 fixtures specified](../08-testing/GOLDEN_CORPUS_45E.md) |
+| **Implementation Readiness Gate** | ✅ [PASSED](../09-implementation/IMPLEMENTATION_READINESS_GATE.md) — all nine criteria met; implementation awaits explicit approval |
 
-The master specification's closing recommendation:
 
-> **I recommend locking 45B after one final check, then moving to 45C — Liability Edge Cases.** That is where we test whether this contract survives the difficult real-world cases: multiple caps, carve-outs, per-claim vs aggregate caps, different monetary bases, cross-references, conflicting schedules, and malformed/ambiguous clauses.
+The master specification's closing position (`all_lock.md`, "Current position"):
+
+> **The V1 specification is complete.** Remaining work is corpus authoring and implementation.
+
+Two evaluators are specified: `LIABILITY-001` (`NUMERIC_COMPARISON`) and the generic `PRESENCE` evaluator. **No specific legal Requirement beyond `LIABILITY-001` is required by any locked decision.**
 
 ---
 
@@ -51,21 +80,30 @@ The master specification's closing recommendation:
 | Explainability | LOCKED | [EXPLAINABILITY.md](../04-analysis-engine/EXPLAINABILITY.md) |
 | System architecture & domains | LOCKED | [SYSTEM_ARCHITECTURE.md](../05-architecture/SYSTEM_ARCHITECTURE.md) |
 | Technology stack | LOCKED (stack table only) | [BACKEND_ARCHITECTURE.md](../05-architecture/BACKEND_ARCHITECTURE.md) |
-| Frontend architecture | RECOMMENDED / thin | [FRONTEND_ARCHITECTURE.md](../05-architecture/FRONTEND_ARCHITECTURE.md) |
-| API architecture | LOCKED | [API_ARCHITECTURE.md](../05-architecture/API_ARCHITECTURE.md) |
+| Frontend architecture | 🔒 LOCKED (Step 52) | [FRONTEND_ARCHITECTURE.md](../05-architecture/FRONTEND_ARCHITECTURE.md) |
+| API architecture | LOCKED (Step 43) + Step 49 specified | [API_ARCHITECTURE.md](../05-architecture/API_ARCHITECTURE.md) |
 | Database domain model & schema | LOCKED | [DATABASE_ARCHITECTURE.md](../05-architecture/DATABASE_ARCHITECTURE.md) |
 | Exact schema & ERD | LOCKED (spec only, unbuilt) | [DATABASE_MIGRATIONS.md](../09-implementation/DATABASE_MIGRATIONS.md) |
 | Storage architecture | LOCKED (responsibilities) | [STORAGE_ARCHITECTURE.md](../05-architecture/STORAGE_ARCHITECTURE.md) |
 | Authorization & ownership | LOCKED | [AUTHORIZATION.md](../06-security/AUTHORIZATION.md), [OWNERSHIP.md](../06-security/OWNERSHIP.md) |
 | Security model | LOCKED (boundaries) | [SECURITY_MODEL.md](../06-security/SECURITY_MODEL.md) |
-| Authentication | **PARTIALLY SPECIFIED** | [AUTHENTICATION.md](../06-security/AUTHENTICATION.md) |
+| Authentication | 🔒 LOCKED — OIDC primary, password fallback (OD-9) | [STEP_47_SECURITY_SPECIFICATION.md](../06-security/STEP_47_SECURITY_SPECIFICATION.md) |
+| **Step 47 — Security/Authn/Authz** | 🔒 LOCKED | [STEP_47_SECURITY_SPECIFICATION.md](../06-security/STEP_47_SECURITY_SPECIFICATION.md) |
+| **Step 49 — API Finalization** | 🔒 LOCKED | [STEP_49_API_FINALIZATION.md](../05-architecture/STEP_49_API_FINALIZATION.md) |
+| **Step 52 — Frontend Architecture** | 🔒 LOCKED | [STEP_52_FRONTEND_ARCHITECTURE.md](../05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md) |
+| **Step 53 — Observability** | 🔒 LOCKED | [STEP_53_OBSERVABILITY.md](../09-implementation/STEP_53_OBSERVABILITY.md) |
+| **Step 54 — Testing Strategy** | 🔒 LOCKED | [STEP_54_TESTING_STRATEGY.md](../08-testing/STEP_54_TESTING_STRATEGY.md) |
+| **Step 55 — Deployment** | 🔒 LOCKED | [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) |
 | Audit trail | LOCKED | [AUDIT_TRAIL.md](../07-audit/AUDIT_TRAIL.md) |
 | Reproducibility | LOCKED | [REPRODUCIBILITY.md](../07-audit/REPRODUCIBILITY.md) |
-| Test strategy, golden corpus, regression | LOCKED (corpus mandatory) | [08-testing/](../08-testing/) |
+| Test strategy, golden corpus, regression | 🔒 LOCKED (Step 54) | [08-testing/](../08-testing/) |
 | `LIABILITY-001` evaluator policy | LOCKED | [LIABILITY.md](../04-analysis-engine/EDGE_CASES/LIABILITY.md) |
-| `LIABILITY-001` evaluator data contract | 🔒 LOCKED | [LIABILITY_EVALUATOR_CONTRACT.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) |
+| `LIABILITY-001` evaluator data contract | 🔒 LOCKED (revised, AB-1) | [LIABILITY_EVALUATOR_CONTRACT.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) |
+| `PRESENCE` generic evaluator | 🔒 LOCKED (Step 45D) | [PRESENCE_EVALUATOR.md](../04-analysis-engine/EDGE_CASES/PRESENCE_EVALUATOR.md) |
+| Cross-evaluator structural contract | 🔒 LOCKED (Step 45D) | [EVALUATOR_EDGE_CASES.md](../04-analysis-engine/EVALUATOR_EDGE_CASES.md) |
+| Liability edge cases | 🔒 LOCKED (Step 45C) | [LIABILITY_EDGE_CASES.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EDGE_CASES.md) |
 | Termination / Indemnification / Governing Law evaluators | **NOT YET SPECIFIED** | [EDGE_CASES/](../04-analysis-engine/EDGE_CASES/) |
-| Implementation plan & deployment | **NOT YET SPECIFIED** | [09-implementation/](../09-implementation/) |
+| Deployment / infrastructure | 🔒 LOCKED (Step 55) | [09-implementation/](../09-implementation/) |
 
 ---
 
@@ -75,7 +113,6 @@ Do not assume, infer, or invent any of the following. Each requires its own spec
 
 **Legal domain**
 * Every requirement evaluator other than `LIABILITY-001` — including Termination, Indemnification, Governing Law
-* Step 45C liability edge-case *resolutions* — triage is complete (see [LIABILITY_EDGE_CASES.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EDGE_CASES.md)); no edge case is yet decided
 * Risk classification rules
 * Regulatory reference workflow (DPDP Act, IT Act, GDPR, etc. as *applied* rules)
 * Exact legal approval thresholds beyond those locked in `LIABILITY-001`
@@ -106,6 +143,6 @@ Do not assume, infer, or invent any of the following. Each requires its own spec
 
 **C-01 through C-04 were reconciled on 2026-08-16** (`REC-01`–`REC-06`). None was a true contradiction. The finding-type enum is no longer blocked: the Step 36 seven-value set is canonical for Finding Classification, and `EXTRA`/`ADDITIONAL` became the document-level `UNMATCHED_PROVISION` observation.
 
-Four low-severity items remain open (C-05–C-08), tracked in [CONFLICTS.md](CONFLICTS.md).
+Four low-severity items remain open (C-05–C-08), tracked in [CONFLICTS.md](CONFLICTS.md), along with **C-09** (HIGH — application source in the working tree vs the "no implementation" state above) and **C-10** (MEDIUM — the `roles` seed list vs the canonical role matrix).
 
 One item was **deliberately left unspecified**: the scoring-band → mapping-state mapping (C-02 sub-item). Do not infer it.

@@ -6,6 +6,8 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-05 through C-08 remain open.** Do not resolve any open item without explicit approval.
 
+**All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
+
 | ID | Subject | Status |
 |----|---------|--------|
 | C-01 | Finding-type vocabularies | ✅ **RESOLVED** — supersession chain (`REC-01`, `REC-02`) |
@@ -16,6 +18,8 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-06 | Two "Step 29" sections | ⏳ Open (low) |
 | C-07 | Superseded draft lists | ⏳ Informational |
 | C-08 | Reviewer role authority | ⏳ Open (low) |
+| C-09 | `backend/` source code vs "no implementation exists" | ⏳ **Open (HIGH)** |
+| C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
 
 ---
 
@@ -120,7 +124,7 @@ Two defects found and corrected in revision **R1**:
 
 Still open: the **shape of `rule_configuration`** (named in 45B.9 but never specified).
 
-**Step 45B remains UNLOCKED** pending final review.
+~~**Step 45B remains UNLOCKED** pending final review.~~ **Superseded:** Step 45B was re-locked on 2026-08-17 incorporating Amendment Batch AB-1. See [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) §K and `all_lock.md` "Step 45B — RE-LOCK RECORD". The shape of `rule_configuration` remains `NOT YET SPECIFIED`.
 
 → [LIABILITY_EVALUATOR_CONTRACT.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) § REVISION R1
 
@@ -181,6 +185,65 @@ Step 3 lists `Reviewer` as a proposed role, while Step 4 explicitly leaves open 
 
 ---
 
+## C-09 — Application source code exists while the project asserts no implementation
+
+**Severity: HIGH — a process conflict, not a specification conflict. Recorded 2026-08-17; scope re-verified the same day.**
+
+> **Updated.** First recorded as a five-file skeleton. On re-verification it is a **substantial implementation**: 58 Python modules, **8,717 lines**, three Alembic migrations, 13 test files, and a `.pytest_cache` showing the suite has been run. `backend/README.md` reports **six of ten build steps complete** — schema, security, ingestion, mapping, evaluation, workflow — with the API layer next.
+
+The work is **specification-disciplined**, not ad-hoc: it cites locked decisions throughout, implements EV-MIN as a deferred constraint trigger, enforces append-only audit and decisions by database trigger, keeps mapping weights as configuration rather than code, structurally prevents the `PRESENCE` evaluator from reading clause text, declines to implement Step 35's deferred band vocabulary, and records its own limitations rather than working around them.
+
+Two additive tables were created that no locked table represents — `review_assignments` (Step 24 r5/r6/r16/r17) and `escalations` (Steps 4, 22, Step 24 r5). `backend/README.md` states no locked table was amended. **This has not been independently verified against Step 42 and is not ratified by any lock record.**
+
+**The conflict:**
+
+| Source | Statement |
+|---|---|
+| [CLAUDE.md](../../CLAUDE.md) | "No implementation exists, and implementation must not begin without explicit approval." Do not, without explicit approval: "write application code, database migrations… install dependencies or select additional technologies… generate scaffolding 'to get started'" |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | "**No implementation has begun. No application code, database migration, API endpoint, frontend component, or infrastructure exists in this repository.**" |
+| [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md) | "Implementation **may** be authorized… This document reports readiness; it does not grant it." |
+| Working tree | `backend/` exists, with declared dependencies and a database layer |
+
+No approval to begin implementation appears in `all_lock.md`; a search for one returns nothing.
+
+**Not resolved here.** Three readings are possible and only the owner can choose:
+
+1. Implementation **was** approved outside the repository record — then `IMPLEMENTATION_STATUS.md` and `CLAUDE.md` are stale and the approval belongs in `all_lock.md`.
+2. It is unauthorized scaffolding — then it should be removed, and the "no scaffolding" rule reaffirmed.
+3. It is a private local experiment, deliberately untracked — then it should be git-ignored and explicitly labelled as non-authoritative.
+
+**Until this is decided:** do not treat `backend/` as specifying anything — code is not a specification, and a behavior appearing there does not make it decided. In particular, `review_assignments` and `escalations` are **unratified additive tables**, and the second-person-approval co-signature mechanism is an implementation choice where Step 31 r15 specifies a requirement but no mechanism.
+
+**Resolved sub-item:** the repository had **no `.gitignore`**, leaving 70 `.pyc` files and a `.pytest_cache` one `git add -A` away from being committed. A `.gitignore` was added on 2026-08-17 covering Python, Node, secrets, editor and OS artefacts — and, per Step 54, contract file types so real counterparty documents cannot be committed by accident. This is repository hygiene and decides nothing about C-09 itself.
+
+---
+
+## C-10 — The `roles` seed list does not match the canonical role matrix
+
+**Severity: MEDIUM — two locked steps, two role vocabularies. Recorded 2026-08-17 during architecture-reference verification.**
+
+| Source | Status | Roles |
+|---|---|---|
+| **Step 23** (`ROLE-06`) | LOCKED — "supersedes the Step 3 draft groups" | `User` · `Legal Reviewer` · `Legal Admin` · `Super Admin` |
+| **Step 42.2** (`DATA-04`), `all_lock.md` lines 7421–7427 and 8342–8348 | LOCKED | `USER` · `ADMIN` · `SUPER_ADMIN` |
+
+The schema's seed list **omits `Legal Reviewer` and `Legal Admin`** and introduces `ADMIN`, which does not appear in the canonical matrix. The list is introduced as "Initial roles" — not labelled `RECOMMENDED`, unlike the `users.status` values immediately above it, which *are* ("Recommended statuses").
+
+**Why it matters:** Step 47 locks the permission catalogue and states "**Default grants follow Step 23's locked role summary.**" A team seeding `roles` from 42.2 would produce a role set the Step 47 default grants cannot be mapped onto, and `ADMIN` would have no defined legal authority boundary — precisely the area `ROLE-05` and `SEC-02` guard.
+
+**Not resolved here.** Two readings are available:
+
+1. 42.2's list is illustrative seed data that Step 23 supersedes — then the schema document should say so, as it does for `users.status`.
+2. `ADMIN` is a distinct system role separate from the Legal roles — then its relationship to `Legal Admin`, and its `legal.*` boundary, need stating.
+
+**Until decided:** treat **Step 23 / `ROLE-06` as the canonical role matrix** — it is the later locked decision on the subject and the one Step 47 explicitly builds on — and do not seed `ADMIN` without a decision. Report rather than assume.
+
+Documented at: [USER_ROLES.md](../01-product/USER_ROLES.md), [DATABASE_MIGRATIONS.md](../09-implementation/DATABASE_MIGRATIONS.md) §42.2, [STEP_47_SECURITY_SPECIFICATION.md](../06-security/STEP_47_SECURITY_SPECIFICATION.md).
+
+---
+
 ## Provenance note — the master specification changed during documentation
 
-While this documentation structure was being built, `all_lock.md` grew from 12,481 lines to 13,510 lines: Step 45A's lock was confirmed and Step 45B (Evaluator Data Contract) was added. The docs tree reflects the 13,510-line state. Any future session should re-check the tail of `all_lock.md` against [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before assuming the docs are current.
+While this documentation structure was being built, `all_lock.md` grew from 12,481 lines to 13,510 lines: Step 45A's lock was confirmed and Step 45B (Evaluator Data Contract) was added. It has since grown to **14,885 lines** — AB-1, the 45B re-lock, Steps 45C/45D, and Steps 47, 49 and 52–55. Growth has been append-only throughout; no historical locked text has been modified.
+
+Any future session should re-check the tail of `all_lock.md` against [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before assuming the docs are current.

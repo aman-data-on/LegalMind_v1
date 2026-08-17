@@ -1,5 +1,7 @@
 # Frontend Architecture
 
+> ⚠️ **Superseded for anything beyond the Step 39 stack extract.** The frontend is now specified and 🔒 LOCKED by **Step 52** — see [STEP_52_FRONTEND_ARCHITECTURE.md](STEP_52_FRONTEND_ARCHITECTURE.md), which is authoritative. The "RECOMMENDED (not yet locked)" labels below describe the Step 39 state and are retained for that record only.
+
 Source: all_lock.md lines 6024-6363 approx. (Step 39 - Recommended Technology Stack, frontend-relevant sections). Canonical source: all_lock.md (Steps 36-39)
 
 Status: RECOMMENDED (not yet locked) for the rationale below, EXCEPT that "Next.js + TypeScript" as the frontend choice is part of the stack table the source explicitly locks under "Step 39 - Technology Stack: LOCKED" (see BACKEND_ARCHITECTURE.md for the full locked stack listing, which names `Frontend: Next.js + TypeScript`). The frontend section of Step 39 itself is brief and framed as a recommendation ("I recommend: Next.js + TypeScript").

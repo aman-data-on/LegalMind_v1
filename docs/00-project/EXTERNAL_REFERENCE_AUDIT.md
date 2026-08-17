@@ -1,5 +1,7 @@
 # External Reference Audit — MoS documentation
 
+> 📁 **Working document — analysis only, nothing locked here.** It records *how* a conclusion was reached, and its status lines describe the state **at the time of writing**, which has since changed. A conclusion is authoritative only where it appears in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) and `all_lock.md`. Do not implement from this file.
+
 **Status: ⏳ ANALYSIS ONLY — NOTHING LOCKED, NOTHING ADOPTED.**
 
 Prepared 2026-08-16. `all_lock.md` unmodified (13,941 lines, md5 `66591e62`). No locked decision changed. No LegalMind requirement created.

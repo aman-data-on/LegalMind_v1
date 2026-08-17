@@ -1,0 +1,47 @@
+[
+  {
+    "id": "STRUCT-PRES-01",
+    "provenance": "STRUCTURAL",
+    "description": "Confirmed mapping with expected presence yields MATCH.",
+    "evaluator_type": "PRESENCE",
+    "requirement_code": "STRUCTURAL-PRESENCE-001",
+    "company_standard": {"expected_presence": "PRESENT", "scope_key": "DEFAULT"},
+    "legal_rule": null,
+    "mapping_state": "CONFIRMED",
+    "evidence_count": 1,
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {"scope_key": "DEFAULT", "classification": "MATCH", "rule_outcome": "NOT_APPLICABLE", "evidence_ref_count": 1}
+    ]
+  },
+  {
+    "id": "STRUCT-PRES-02",
+    "provenance": "STRUCTURAL",
+    "description": "Ambiguous mapping must NEVER become MISSING (Step 28 r6).",
+    "evaluator_type": "PRESENCE",
+    "requirement_code": "STRUCTURAL-PRESENCE-001",
+    "company_standard": {"expected_presence": "PRESENT", "scope_key": "DEFAULT"},
+    "legal_rule": null,
+    "mapping_state": "AMBIGUOUS",
+    "evidence_count": 2,
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {"scope_key": "DEFAULT", "classification": "UNABLE_TO_EVALUATE", "rule_outcome": "NOT_APPLICABLE", "evidence_ref_count": 2}
+    ]
+  },
+  {
+    "id": "STRUCT-PRES-03",
+    "provenance": "STRUCTURAL",
+    "description": "Required and absent yields MISSING with zero evidence.",
+    "evaluator_type": "PRESENCE",
+    "requirement_code": "STRUCTURAL-PRESENCE-001",
+    "company_standard": {"expected_presence": "PRESENT", "scope_key": "DEFAULT"},
+    "legal_rule": null,
+    "mapping_state": "NONE",
+    "evidence_count": 0,
+    "expect_finding_classification": "MISSING",
+    "expect_evaluations": [
+      {"scope_key": "DEFAULT", "classification": "MISSING", "rule_outcome": "NOT_APPLICABLE", "evidence_ref_count": 0}
+    ]
+  }
+]

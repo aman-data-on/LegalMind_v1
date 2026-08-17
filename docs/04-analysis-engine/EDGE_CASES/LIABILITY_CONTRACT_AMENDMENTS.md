@@ -1,5 +1,7 @@
 # A-1 – A-4 — Evaluator Contract Amendment Analysis
 
+> 📁 **Working document — analysis only, nothing locked here.** It records *how* a conclusion was reached, and its status lines describe the state **at the time of writing**, which has since changed. A conclusion is authoritative only where it appears in [LOCKED_DECISIONS.md](../../00-project/LOCKED_DECISIONS.md) and `all_lock.md`. Do not implement from this file.
+
 **Status: ⏳ PROPOSAL — NOT LOCKED. No locked decision has been modified.**
 
 Prepared 2026-08-16 in response to the Step 45C review. Resolves A-4 first, then derives the minimum contract changes for A-1, A-2, A-3.

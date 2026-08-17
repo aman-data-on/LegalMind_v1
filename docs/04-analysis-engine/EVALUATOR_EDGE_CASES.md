@@ -1,23 +1,14 @@
 # Step 45D — Cross-Evaluator Edge Cases
 
-**Status: ⏳ DRAFT SPECIFICATION — NOTHING LOCKED.** `all_lock.md` unmodified (13,941 lines, md5 `66591e62`). No locked decision changed. **No new legal requirement invented.**
+**Status: 🔒 LOCKED (2026-08-17).** Lock record in [`all_lock.md`](../../all_lock.md) under "Step 45D — LOCK RECORD". **No legal requirement invented** — 45D specifies evaluator-agnostic behavior only.
 
-Prepared 2026-08-16. Related: [EDGE_CASES/LIABILITY.md](EDGE_CASES/LIABILITY.md) (45A 🔒) · [EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md](EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) (45B 🔒) · [EDGE_CASES/LIABILITY_EDGE_CASES.md](EDGE_CASES/LIABILITY_EDGE_CASES.md) (45C ⏳) · [EDGE_CASES/RECONCILIATION_PASS_3.md](EDGE_CASES/RECONCILIATION_PASS_3.md) · [ANALYSIS_ENGINE.md](ANALYSIS_ENGINE.md)
+Prepared 2026-08-16. Related: [EDGE_CASES/LIABILITY.md](EDGE_CASES/LIABILITY.md) (45A 🔒) · [EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md](EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) (45B 🔒) · [EDGE_CASES/LIABILITY_EDGE_CASES.md](EDGE_CASES/LIABILITY_EDGE_CASES.md) (45C 🔒) · [EDGE_CASES/RECONCILIATION_PASS_3.md](EDGE_CASES/RECONCILIATION_PASS_3.md) · [ANALYSIS_ENGINE.md](ANALYSIS_ENGINE.md)
 
 ---
 
-# ⚠ 45D.0 — Scope discrepancy, reported not resolved
+# 45D.0 — Scope, resolved
 
-**The master specification and the current instruction disagree about what 45D is.**
-
-`all_lock.md` (45C.26, and the Step 45B lock record) states:
-
-> **Next after 45C:** **Step 45D — Liability Golden Test Cases.**
-> That will turn these rules into concrete input → expected output tests, which is the final validation layer before we lock the complete `LIABILITY-001` evaluator and move to the next Requirement.
-
-The current instruction defines 45D as **"Other Evaluator Edge Cases."**
-
-These are different deliverables with different prerequisites. Recorded as **N-21**; this document proceeds on the instruction's definition, and the golden-test work is treated as displaced rather than cancelled (see 45D.10).
+`all_lock.md` (45C.26) originally anticipated 45D as "Liability Golden Test Cases." 45D was redefined as **Cross-Evaluator Edge Cases**, and the golden-test work became **Step 45E — Golden Corpus**, covering liability and presence together. Resolved as F-7; see [../00-project/DECISION_FINALIZATION.md](../00-project/DECISION_FINALIZATION.md).
 
 ---
 
@@ -34,7 +25,7 @@ Step 45D specifies the **evaluator-agnostic** behavior every Requirement evaluat
 This is a hard constraint, not a stylistic choice:
 
 * [CLAUDE.md](../../CLAUDE.md) rule 7 — never invent legal requirements.
-* Step 37's V1 scope freeze lists *capabilities* (`Requirement configuration`, `Deterministic evaluation`) but **never enumerates which Requirements V1 must support** — so no locked decision obliges LegalMind to specify a second evaluator, and none authorizes inventing one (**N-24**).
+* Step 37's V1 scope freeze lists *capabilities* but **never enumerates which Requirements V1 must support**. No locked decision obliges LegalMind to specify any legal-domain Requirement beyond `LIABILITY-001`, and none authorizes inventing one. Which Requirements ship is configuration (N-24b, open by direction).
 
 Where this document needs a non-liability example to test whether a contract generalizes, it uses an explicitly labelled **structural probe** — an abstract shape used to test the *contract*, carrying no legal content and asserting no rule.
 
@@ -95,7 +86,7 @@ Every 45C rule classified. This is the substantive work of 45D: separating what 
 
 # 45D.4 The structural evaluator contract
 
-**Status: PROPOSED — not locked.** Every Requirement evaluator must satisfy these. `LIABILITY-001` already does; each is traceable to a locked rule.
+**Status: 🔒 LOCKED.** Every Requirement evaluator must satisfy these. `LIABILITY-001` already does; each is traceable to a locked rule.
 
 ### 45D.4.1 — Multiplicity
 A Requirement may be governed by more than one provision. The evaluator produces one Evaluation Result per distinct governed scope. Multiple provisions covering the same scope are one Evaluation with multiple evidence references, or `CONFLICT` where incompatible. *(45C.1, 45C.2, 45C.16, 45C.17; A-4)*
@@ -124,14 +115,39 @@ Absence yields `MISSING`; it never manufactures a substantive legal position. A 
 ### 45D.4.9 — Fail closed on unreliable input
 Extraction failure, unresolvable ambiguity or unreliable evidence yields `UNABLE_TO_EVALUATE` or the appropriate uncertainty state — never a guess. *(45C.18, 45C.19, 45B.7; ENG-09)*
 
-### 45D.4.10 — Evidence survives every branch
-Every outcome, including failures, retains its supporting evidence at the scope granularity that produced it. *(45C.25, 45B.18; requires `evaluation_evidence`, B-8)*
+### 45D.4.10 — Evidence survives every branch *(revised — N-34 approved)*
+Every outcome, including failures, retains its supporting evidence at the scope granularity that produced it.
+
+**Cardinality rule:** evidence references are preserved **whenever evidence exists**. `MATCH`, `DEVIATION`, `CONFLICT` and `AMBIGUOUS` evaluations must not carry empty evidence references where supporting evidence exists. `MISSING` arising from **established absence** may legitimately carry **zero** references. **No synthetic evidence may be created solely to satisfy a database or API cardinality rule.**
+
+This supersedes the "≥1 evidence_refs" constraint stated in earlier passes, which would have made locked 45C.15 unrepresentable. Note the distinction 45C.14 vs 45C.15: a provision that exists but carries no qualifying value yields `MISSING` **with** evidence; a wholly absent provision yields `MISSING` **without**.
+
+*(45C.14, 45C.15, 45C.25, 45B.18, EV-MIN; requires `evaluation_evidence` permitting zero rows — B-8, N-37)*
 
 ### 45D.4.11 — The evaluator produces no Legal Decision
 Universal and already locked. *(36.15, 45A r18, 45B.14)*
 
 ### 45D.4.12 — Reproducibility
 Every Evaluation retains its evaluator version, configuration versions, extracted facts and evidence. *(45B.10, ENG-11 — **currently unrepresentable, N-12/N-13**)*
+
+---
+
+# 45D.4bis Approved decisions incorporated
+
+Owner-approved 2026-08-17. Recorded here; **not locked**.
+
+| ID | Decision | Effect on 45D |
+|----|----------|---------------|
+| **R-1** | A Company Standard may express that a qualifying provision must exist. Present → `MATCH`; absent → `MISSING`; absence may legitimately carry zero evidence. Not a general legal-policy rule | Enables the presence evaluator; requires `standard_kind` (AM-18) |
+| **N-34** | Evidence cardinality corrected — see 45D.4.10 above | Corrects a defect in earlier passes |
+| **N-11** | Analytical classification and workflow status are distinct axes; no amendment to 44.22; AM-7 proceeds | Recorded in [DECISION_STATE_MODEL.md](../02-legal-domain/DECISION_STATE_MODEL.md) terms |
+| **N-30** | `TEXT_PATTERN` removed from the evaluator vocabulary; mapping and extraction retain their locked pattern mechanisms | Vocabulary reduces to 6 (45D.5) |
+| **N-27** | V1 minimum coverage = `LIABILITY-001` + one generic presence-mode evaluator + configured Requirements | Scope settled |
+| **N-24b** | Which Requirements ship in V1 stays **OPEN**; no legal Requirement invented from examples | No change |
+| **N-32** | Risk classification stays **out** of the evaluator specification | Moved out of 45D |
+| **N-33** | Overall alignment is a reporting/aggregation concern | Moved out of 45D |
+
+**Presence-mode evaluator specification: [EDGE_CASES/PRESENCE_EVALUATOR.md](EDGE_CASES/PRESENCE_EVALUATOR.md).**
 
 ---
 
@@ -256,7 +272,11 @@ Recorded as **N-22** — no such template exists today; 45A/45B/45C's structure 
 | **N-23** | Only `NUMERIC_COMPARISON` has ever been exercised. Eight recommended evaluator types are untested by any specification | HIGH |
 | **N-24** | **Step 37's scope freeze never enumerates which Requirements V1 must support.** Whether `LIABILITY-001` alone satisfies V1 is undecided — this governs whether any further evaluator is needed at all | HIGH |
 | **N-25** | 45D.4.3 asserts the general/exception split is structural, but the only evidence is liability. If it is in fact domain-specific, option 1 in 45D.6 is wrong | MEDIUM |
-| **N-26** | `MULTI_CLAUSE` and `CONFLICT_DETECTION` appear in 36.12 as *evaluator types*, yet 45D.4.1 and 45D.4.5 treat multi-provision handling and conflict detection as **universal structural behavior**. Either they are engine-wide behavior or they are selectable types — not both | MEDIUM |
+| **N-26** | `MULTI_CLAUSE` and `CONFLICT_DETECTION` appear in 36.12 as *evaluator types*, yet 45D.4.1 and 45D.4.5 treat multi-provision handling and conflict detection as **universal structural behavior** | **RESOLVED** — engine behaviors, not types |
+| **N-35** | **An `OPTIONAL` Requirement with no mapped provision has no specified classification.** Step 28 r5 covers only "A **required** Requirement" | **HIGH — new** |
+| **N-36** | **Composite Requirements** — may one Requirement carry both a presence Standard and value criteria, and does it then produce two Evaluations? | **HIGH — new** |
+| **N-37** | `evaluation_evidence` must permit **zero** rows per Evaluation, or locked 45C.15 becomes unrepresentable | **MEDIUM — new** |
+| **AM-18** | `company_standard_versions.standard_kind` (`PRESENCE \| VALUE`) — minimal representation of approved R-1; amends locked 42.8 | **Amendment, unapproved** |
 
 ### Second-order dependency check (per the standing audit rule)
 

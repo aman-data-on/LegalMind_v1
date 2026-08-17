@@ -1,0 +1,53 @@
+[
+  {
+    "id": "STRUCT-NUM-01",
+    "provenance": "STRUCTURAL",
+    "description": "Value equal to the configured preferred value. Structural only: these numbers are arbitrary and carry no legal meaning.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {"preferred": 10, "unit": "UNIT_X", "basis": "BASIS_P", "scope_key": "SCOPE_A"},
+    "legal_rule": {
+      "configuration": {"acceptable_max": 20, "approval_required_above": 20, "unlimited_outcome": "UNACCEPTABLE"},
+      "rule_configuration": {"scope_required": true, "comparable_scopes": ["SCOPE_A"], "comparable_bases": ["BASIS_P"]}
+    },
+    "caps": [{"scope": "SCOPE_A", "cap_status": "FINITE", "cap_value": 10, "cap_unit": "UNIT_X", "cap_basis": "BASIS_P", "evidence_count": 1}],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {"scope_key": "SCOPE_A", "classification": "MATCH", "rule_outcome": "NOT_APPLICABLE", "evidence_ref_count": 1}
+    ]
+  },
+  {
+    "id": "STRUCT-NUM-02",
+    "provenance": "STRUCTURAL",
+    "description": "Wholly absent provision: MISSING with zero evidence (45C.15, N-34).",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {"preferred": 10, "unit": "UNIT_X", "basis": "BASIS_P", "scope_key": "SCOPE_A"},
+    "legal_rule": null,
+    "caps": [],
+    "expect_finding_classification": "MISSING",
+    "expect_evaluations": [
+      {"scope_key": "SCOPE_A", "classification": "MISSING", "rule_outcome": "NOT_APPLICABLE", "evidence_ref_count": 0}
+    ]
+  },
+  {
+    "id": "STRUCT-NUM-03",
+    "provenance": "STRUCTURAL",
+    "description": "Same-scope incompatible values produce CONFLICT with all evidence retained (45C.2).",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {"preferred": 10, "unit": "UNIT_X", "basis": "BASIS_P", "scope_key": "SCOPE_A"},
+    "legal_rule": {
+      "configuration": {"acceptable_max": 20},
+      "rule_configuration": {"scope_required": true, "comparable_scopes": ["SCOPE_A"], "comparable_bases": ["BASIS_P"]}
+    },
+    "caps": [
+      {"scope": "SCOPE_A", "cap_status": "FINITE", "cap_value": 10, "cap_unit": "UNIT_X", "cap_basis": "BASIS_P", "evidence_count": 1},
+      {"scope": "SCOPE_A", "cap_status": "FINITE", "cap_value": 20, "cap_unit": "UNIT_X", "cap_basis": "BASIS_P", "evidence_count": 1}
+    ],
+    "expect_finding_classification": "CONFLICT",
+    "expect_evaluations": [
+      {"scope_key": "SCOPE_A", "classification": "CONFLICT", "rule_outcome": "NOT_APPLICABLE", "evidence_ref_count": 2}
+    ]
+  }
+]

@@ -1,5 +1,7 @@
 # Test Strategy
 
+> ⚠️ **Superseded.** The testing strategy is now specified and 🔒 LOCKED by **Step 54** — see [STEP_54_TESTING_STRATEGY.md](STEP_54_TESTING_STRATEGY.md), which is authoritative (tiers, the golden corpus as Tier 1, release-blocking authorization tests). This file is retained as the record of the earlier Step 39 tooling recommendation.
+
 Source: all_lock.md lines 6543-6612 (Step 39 - Testing strategy section). Canonical source: all_lock.md (Steps 36-39)
 
 Status: RECOMMENDED (not yet locked) for the strategy narrative below, EXCEPT that the testing tools named (Pytest, Vitest, Playwright) are part of the stack table the source explicitly locks under "Step 39 - Technology Stack: LOCKED" (see ../05-architecture/BACKEND_ARCHITECTURE.md for the full locked stack listing).

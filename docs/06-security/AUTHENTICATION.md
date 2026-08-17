@@ -1,5 +1,8 @@
 # Authentication
 
+> **Step 47 supersedes this file's open items.** The identity contract, session model and revocation are specified in [STEP_47_SECURITY_SPECIFICATION.md](STEP_47_SECURITY_SPECIFICATION.md) §47.1. The authentication *mechanism* remains escalated as **OD-9**.
+
+
 Canonical source: `all_lock.md` (Step 43.3 `auth` module; Step 39 "Security")
 
 **Status: PARTIALLY SPECIFIED.** The *responsibilities* of the authentication layer are locked (Step 43). The *implementation mechanism* — identity provider, session vs token strategy, password/SSO policy, integration with any existing corporate authentication or API — is explicitly listed among the not-yet-locked decisions in the master specification.

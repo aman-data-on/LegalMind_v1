@@ -1,0 +1,437 @@
+name: CI
+
+# Enforces what Step 54 already locks. This workflow introduces no policy —
+# every gate below traces to a locked decision, cited in its job description.
+#
+# Jobs 1–5 are conventional. Jobs 6–8 are specific to LegalMind: they guard the
+# append-only master record, the normative golden corpus, and the rule that real
+# counterparty contracts never enter the repository.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  LEGALMIND_TEST_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@127.0.0.1:5432/legalmind_v1_test
+  LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@127.0.0.1:5432/legalmind_v1_dev
+
+jobs:
+
+  # ── 1 ──────────────────────────────────────────────────────────────────────
+  lint:
+    name: 1 · Lint and type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+          pip install ruff mypy
+      # NOTE: continue-on-error until a clean baseline exists across the
+      # existing ~8.7k lines. Flip to blocking once the baseline is green —
+      # leaving it advisory forever defeats the point.
+      - name: ruff
+        working-directory: backend
+        continue-on-error: true
+        run: ruff check . && ruff format --check .
+      - name: mypy
+        working-directory: backend
+        continue-on-error: true
+        run: mypy legalmind
+
+  # ── 2 ──────────────────────────────────────────────────────────────────────
+  schema-invariants:
+    name: 2 · Schema invariants (EV-MIN, append-only, uniqueness)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+
+      # The suite builds its schema by running the real Alembic migration
+      # (conftest.engine), so the hand-written trigger DDL is genuinely tested.
+      # metadata.create_all() would silently skip it.
+      - name: Invariant tests
+        working-directory: backend
+        run: python -m pytest tests/test_schema_invariants.py -q
+
+      # AB-1.6 / F-5: EV-MIN is load-bearing precisely because a migration or
+      # backfill can bypass service code. Assert the constraint exists in the
+      # built database, not merely that service code checks it.
+      - name: Assert database-level enforcement is present
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import sys
+          from sqlalchemy import create_engine, text
+          from legalmind import config
+
+          e = create_engine(config.test_database_url())
+          with e.connect() as c:
+              trg = {(r[0], r[1]) for r in c.execute(text("""
+                  select cl.relname, t.tgname
+                  from pg_trigger t join pg_class cl on cl.oid = t.tgrelid
+                  where not t.tgisinternal"""))}
+
+          missing = []
+          if not any(tbl == 'audit_events'    for tbl, _ in trg): missing.append('audit_events append-only (AUD-01)')
+          if not any(tbl == 'legal_decisions' for tbl, _ in trg): missing.append('legal_decisions append-only (Step 31 r14)')
+          if not any(tbl == 'findings'        for tbl, _ in trg): missing.append('findings EV-MIN (AB-1.6)')
+
+          # F-1, open at time of writing: EV-MIN is enforced AFTER INSERT on
+          # findings only. Deleting the last Evaluation orphans the Finding.
+          # Advisory until the delete-path trigger lands, then make it fatal.
+          if not any(tbl == 'evaluations' for tbl, _ in trg):
+              print("::warning title=F-1::EV-MIN has no trigger on `evaluations`; "
+                    "deleting the last Evaluation leaves a Finding with zero Evaluations")
+
+          if missing:
+              print("::error::missing database-level enforcement: " + "; ".join(missing))
+              sys.exit(1)
+          print("database-level enforcement present")
+          PY
+
+  # ── 3 ──────────────────────────────────────────────────────────────────────
+  authorization:
+    name: 3 · Authorization matrix (RELEASE-BLOCKING)
+    runs-on: ubuntu-latest
+    # Step 54: "AUTHORIZATION TESTS ARE RELEASE-BLOCKING." This job must never
+    # be made advisory, and must never be marked continue-on-error.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+
+      - name: Service-layer authorization and sessions
+        working-directory: backend
+        run: python -m pytest tests/test_authorization.py tests/test_sessions.py -q
+
+      # The Step 54 list includes properties that only exist at HTTP level:
+      # "permission matrix: every endpoint x every role" and "out-of-scope 404
+      # and non-existent 404 byte-identical". Those cannot be discharged by
+      # service-layer tests.
+      - name: API-level authorization
+        working-directory: backend
+        run: python -m pytest tests/test_api_authz.py tests/test_api_contract.py -q
+
+      # Every endpoint declares exactly one required permission (Step 49).
+      # No endpoint is implicitly public — assert the map covers the routes.
+      - name: Every route declares a permission
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import sys
+          from legalmind.api.app import create_app
+          from legalmind.api import permission_map as pm
+
+          declared = getattr(pm, 'PERMISSION_MAP', None) or getattr(pm, 'ENDPOINT_PERMISSIONS', {})
+          app = create_app()
+          routes = [r for r in app.routes if getattr(r, 'methods', None) and str(getattr(r, 'path', '')).startswith('/api/')]
+
+          undeclared = []
+          for r in routes:
+              for m in sorted(r.methods - {'HEAD', 'OPTIONS'}):
+                  if not any(k in str(declared) for k in (r.path,)):
+                      undeclared.append(f"{m} {r.path}")
+
+          print(f"routes: {len(routes)} | declared permissions: {len(declared)}")
+          if undeclared:
+              print("::error title=Undeclared endpoint::no endpoint may be implicitly public (Step 49)")
+              for u in sorted(set(undeclared)):
+                  print("  ", u)
+              sys.exit(1)
+          PY
+
+  # ── 4 ──────────────────────────────────────────────────────────────────────
+  golden-corpus:
+    name: 4 · Golden corpus (Tier 1, normative)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+
+      # ENG-12 / Step 54: the corpus runs IN FULL on any mapping, extraction or
+      # evaluation change. It is cheap; it runs on every push regardless.
+      - name: Corpus and evaluation suites
+        working-directory: backend
+        run: |
+          python -m pytest \
+            tests/test_golden_corpus.py \
+            tests/test_evaluation_numeric.py \
+            tests/test_evaluation_presence.py \
+            tests/test_evaluation_service.py \
+            tests/test_mapping.py tests/test_mapping_service.py \
+            tests/test_ingestion.py -q
+
+      # 45E.1: every fixture asserts BOTH the scoped Evaluation set AND the
+      # derived Finding summary. A fixture asserting the roll-up alone is
+      # rejected by the loader; surface the count so silent shrinkage is visible.
+      - name: Report corpus size and provenance
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from legalmind.evaluation import corpus
+          fx = corpus.load_fixtures(Path('tests/corpus'))
+          prov = {}
+          for f in fx:
+              prov[f.provenance] = prov.get(f.provenance, 0) + 1
+          print(f"fixtures: {len(fx)}  by provenance: {prov}")
+          print("::notice title=Corpus coverage::"
+                f"{len(fx)} of the 64 fixtures specified in Step 45E are present. "
+                "NORMATIVE fixtures require real representative contracts and the "
+                "organization's real Company Standards — they must be supplied, never authored.")
+          PY
+
+  # ── 5 ──────────────────────────────────────────────────────────────────────
+  determinism:
+    name: 5 · Determinism (ENG-11)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+
+      # "Identical inputs + configuration snapshot + evaluator version ->
+      # BYTE-IDENTICAL output. No clock, random source, locale or environment
+      # variable may affect a result." Run under a deliberately hostile locale
+      # and timezone so an environment dependency shows up here, not in court.
+      - name: Corpus output is byte-identical across runs
+        working-directory: backend
+        env:
+          TZ: Pacific/Kiritimati
+          LC_ALL: tr_TR.UTF-8
+        run: |
+          python - <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          from legalmind.evaluation import corpus
+
+          fx = corpus.load_fixtures(Path('tests/corpus'))
+          digests = []
+          for _ in range(3):
+              out = corpus.run_corpus(fx)
+              blob = json.dumps([o.__dict__ for o in out], sort_keys=True, default=str)
+              digests.append(hashlib.sha256(blob.encode()).hexdigest())
+
+          for i, d in enumerate(digests, 1):
+              print(f"  run{i}: {d}")
+          if len(set(digests)) != 1:
+              print("::error title=ENG-11 violated::corpus output is not byte-identical across runs")
+              sys.exit(1)
+          print("byte-identical across 3 runs")
+          PY
+
+      # F-4, open at time of writing: the suite itself is non-deterministic —
+      # five identical runs produced 0, 2, 3 and 62 errors. A flaky suite makes
+      # every gate above unreadable. Surface it rather than re-running to green.
+      - name: Suite stability probe
+        working-directory: backend
+        run: |
+          set +e
+          fails=0
+          for i in 1 2 3; do
+            python -m pytest -q > "/tmp/run$i.txt" 2>&1
+            code=$?
+            tail -1 "/tmp/run$i.txt"
+            [ $code -ne 0 ] && fails=$((fails+1))
+          done
+          if [ $fails -gt 0 ] && [ $fails -lt 3 ]; then
+            echo "::error title=F-4 flaky suite::the suite passed some runs and failed others on identical code — results from every other job are unreliable until this is fixed"
+            exit 1
+          fi
+          exit 0
+
+  # ── 6 ──────────────────────────────────────────────────────────────────────
+  append-only-record:
+    name: 6 · all_lock.md is append-only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The master record is append-only. Twelve documents assert that prior
+      # line counts are byte-identical, and historical reproducibility depends
+      # on it. Additions at EOF only; any deletion or modification fails.
+      - name: Reject any modification to existing lines
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if ! git diff --quiet "$base" -- all_lock.md; then
+            deletions=$(git diff --numstat "$base" -- all_lock.md | awk '{print $2}')
+            echo "lines added: $(git diff --numstat "$base" -- all_lock.md | awk '{print $1}') | removed: $deletions"
+            if [ "${deletions:-0}" -ne 0 ]; then
+              echo "::error title=all_lock.md is append-only::this diff removes or modifies $deletions existing line(s). Approved changes are APPENDED as a new lock record; superseded text stays where it is."
+              git diff "$base" -- all_lock.md | head -40
+              exit 1
+            fi
+            # Additions must be at EOF: the old file must be a byte-exact prefix.
+            git show "$base:all_lock.md" > /tmp/base_all_lock.md
+            old=$(wc -l < /tmp/base_all_lock.md)
+            head -n "$old" all_lock.md > /tmp/new_prefix.md
+            if ! cmp -s /tmp/base_all_lock.md /tmp/new_prefix.md; then
+              echo "::error title=Not an append::the first $old lines are no longer byte-identical. Changes must be appended at end of file."
+              exit 1
+            fi
+            echo "append verified: first $old lines byte-identical"
+          else
+            echo "all_lock.md unchanged"
+          fi
+
+  # ── 7 ──────────────────────────────────────────────────────────────────────
+  golden-expectation-guard:
+    name: 7 · Changed corpus expectation = specification change
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 54: "A changed expected output is a SPECIFICATION CHANGE, reviewed
+      # as such, never edited to make a build pass." Override requires the
+      # explicit `specification-change` label — a conscious act, reviewable in
+      # the PR record.
+      - name: Guard fixture expectations
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          changed=$(git diff --name-only "$base" -- 'backend/tests/corpus/**' || true)
+          if [ -z "$changed" ]; then
+            echo "no corpus fixtures changed"
+            exit 0
+          fi
+          echo "changed fixtures:"; echo "$changed" | sed 's/^/  /'
+          labels='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          if echo "$labels" | grep -q 'specification-change'; then
+            echo "::notice title=Specification change::corpus expectations changed under an explicit \`specification-change\` label"
+            exit 0
+          fi
+          echo "::error title=Golden expectation changed::a changed expected output is a specification change, not a test fix (Step 54). If this is intended, apply the \`specification-change\` label and say in the PR which decision it follows from."
+          exit 1
+
+  # ── 8 ──────────────────────────────────────────────────────────────────────
+  no-real-contracts:
+    name: 8 · No real legal source material
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 54: "Synthetic or cleared text only. Real counterparty contracts
+      # never enter the repository." Step 55: real contracts never leave
+      # production. .gitignore already excludes these types; this catches a
+      # deliberate `git add -f`.
+      - name: Reject contract file types
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          added=$(git diff --diff-filter=A --name-only "$base" | grep -iE '\.(pdf|docx?|xlsx?|rtf)$' | grep -v '^docs/' || true)
+          if [ -n "$added" ]; then
+            echo "::error title=Contract file added::real counterparty contracts never enter the repository (Step 54). Corpus fixtures are synthetic or cleared text only."
+            echo "$added" | sed 's/^/  /'
+            exit 1
+          fi
+          echo "no contract file types added"
+
+      # A NORMATIVE fixture asserts a real legal position and requires real
+      # representative contracts plus the organization's real Company Standards.
+      # One appearing in a PR without a recorded source is how invented legal
+      # content becomes normative.
+      - name: Flag NORMATIVE fixtures without a recorded source
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          changed=$(git diff --diff-filter=AM --name-only "$base" -- 'backend/tests/corpus/**' || true)
+          fail=0
+          for f in $changed; do
+            [ -f "$f" ] || continue
+            if grep -q '"provenance"[[:space:]]*:[[:space:]]*"NORMATIVE"' "$f"; then
+              if ! grep -qE '"source"|"source_document"|"supplied_by"' "$f"; then
+                echo "::error title=Unsourced NORMATIVE fixture::$f asserts a real legal position with no recorded source"
+                fail=1
+              fi
+            fi
+          done
+          [ $fail -eq 0 ] && echo "no unsourced NORMATIVE fixtures"
+          exit $fail

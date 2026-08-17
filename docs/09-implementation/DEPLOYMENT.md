@@ -1,8 +1,10 @@
 # Deployment
 
+> ⚠️ **Superseded.** Deployment is now specified and 🔒 LOCKED by **Step 55** — see [STEP_55_DEPLOYMENT.md](STEP_55_DEPLOYMENT.md), which is authoritative and answers most of the "NOT YET SPECIFIED" list below. This file is retained as the record of the earlier Step 39 recommendation.
+
 Canonical source: `all_lock.md` (Step 39 "Deployment")
 
-**Status: RECOMMENDED (not yet locked).** The source presents the deployment shape below as a recommendation. No deployment decision has been locked, and nothing has been deployed.
+**Status: RECOMMENDED (not yet locked) — as of Step 39.** The source presents the deployment shape below as a recommendation. Nothing has been deployed.
 
 ---
 

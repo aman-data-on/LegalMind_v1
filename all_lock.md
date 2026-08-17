@@ -13939,3 +13939,947 @@ Step 45C         ⏳ IN PROGRESS
 ```
 
 Next: **Step 45C — Liability Edge Cases.**
+
+---
+---
+
+# Amendment Batch AB-1 — Evaluator & Decision Model
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Approved by: project owner**
+**Nature: representational repair. No legal policy is changed by any amendment in this batch.**
+
+## Scope and authority
+
+This section amends specific locked decisions. Per the established pattern of the Post-Step-44 Reconciliation section:
+
+1. **No historical text above this section has been modified.** Every step remains exactly as originally written.
+2. Each amendment states its target, the original text, and the replacement.
+3. Every amendment repairs a case where a **locked requirement could not be represented by the locked schema**. None introduces, removes or reinterprets a legal rule.
+4. Where an amendment restates a locked rule, only the named rule changes; the remainder of that step is untouched.
+
+---
+
+## AB-1.1 — `legal_decisions` (amends 40.12, 41.21, 42.17)
+
+Three locked definitions of the Legal Decision record are amended consistently.
+
+### AM-1 · Decisions target a scoped Evaluation
+
+```text
+ADD    evaluation_id  UUID FK → evaluations.id  NOT NULL
+KEEP   finding_id     UUID FK → findings.id     NOT NULL
+
+CONSTRAINT
+    FOREIGN KEY (finding_id, evaluation_id)
+        REFERENCES evaluations(finding_id, id)
+    requires UNIQUE(id, finding_id) on evaluations
+```
+
+A Legal Decision resolves exactly one Evaluation and never implicitly disposes of another Evaluation under the same Finding.
+
+### AM-12 · Decision supersession is append-only
+
+```text
+ADD    version_number  INTEGER NOT NULL
+       UNIQUE(evaluation_id, version_number)
+       INDEX(evaluation_id, version_number DESC)
+```
+
+The current decision for an Evaluation is the row with the highest `version_number`. Prior rows are never updated and never deleted. This implements locked Step 31 r14 ("creates a new decision version rather than overwriting") and r20 ("the current decision must always be distinguishable from historical decisions") — **neither of which is amended.**
+
+### AM-15 · A reason is mandatory
+
+```text
+CHANGE decision_text TEXT           →  justification TEXT NOT NULL
+```
+
+Locked Step 31 r11 requires every Legal Decision to carry a reason. The locked schema left the column nullable, leaving r11 unenforced. `justification` is the canonical field name; `decision_text` (41.21, 42.17) and `justification` (40.12) are reconciled to it. `metadata` (40.12 only) is dropped from the canonical schema.
+
+### AM-13 · 41.21 aligned
+
+`evaluation_id`, `version_number`, `justification NOT NULL` added, keeping Steps 41 and 42 consistent.
+
+### AM-14 · 40.12 aligned
+
+`LegalDecision` gains `evaluationId` and `versionNumber`.
+
+### Canonical record
+
+```text
+legal_decisions
+---------------
+id                UUID PK
+finding_id        UUID FK → findings.id        NOT NULL
+evaluation_id     UUID FK → evaluations.id     NOT NULL
+decision_type     DECISION_TYPE                NOT NULL
+justification     TEXT                         NOT NULL
+decided_by        UUID FK → users.id           NOT NULL
+version_number    INTEGER                      NOT NULL
+created_at        TIMESTAMPTZ                  NOT NULL
+
+UNIQUE(evaluation_id, version_number)
+FOREIGN KEY (finding_id, evaluation_id) REFERENCES evaluations(finding_id, id)
+INDEX(evaluation_id, version_number DESC)
+INDEX(decided_by)
+INDEX(created_at)
+```
+
+### Vocabulary reconciliation (no amendment)
+
+41.21 lists `REQUIRE_STANDARD` under "For example" and defers to the Legal Decision workflow. Step 31 is that workflow and locks `REQUIRE_COMPANY_STANDARD`. **Step 31 governs. 41.21 is not amended** — it was illustrative.
+
+---
+
+## AB-1.2 — `evaluations` (amends 42.15)
+
+### AM-8′ · Scoped evaluation discriminators and rule outcome
+
+```text
+ADD    scope_key        VARCHAR           NOT NULL
+ADD    scope_label      VARCHAR           NULL
+ADD    evaluation_kind  EVALUATION_KIND   NOT NULL     PRIMARY | EXCEPTION
+ADD    rule_outcome     RULE_OUTCOME      NOT NULL     ACCEPTABLE | APPROVAL_REQUIRED |
+                                                        UNACCEPTABLE | NOT_APPLICABLE
+```
+
+`scope_key` is validated against the Requirement's configured scope vocabulary (`rule_configuration.comparable_scopes`), not against a global enum — different Requirements have different sub-scopes. `UNKNOWN` remains reserved for undetermined scope. These are relational columns, not JSONB, because they are core discriminators (42.1 r10).
+
+Rule outcome exists **only** at Evaluation level. No Finding-level rule outcome is persisted; any Finding-level notion is derived.
+
+### AM-19 · Evaluator version
+
+```text
+ADD    evaluator_version  VARCHAR  NOT NULL
+```
+
+Locked 45B.10 requires every evaluation to identify the exact evaluator version. No column existed.
+
+### AM-20 · Legal Rule version
+
+```text
+ADD    legal_rule_version_id  UUID FK → legal_rule_versions.id  NULL
+```
+
+The existing `rule_version_id` targets `evaluation_rule_versions` (42.11), a different table from `legal_rule_versions` (42.9). Without this column, locked Step 32's audit question 4 — "Which Legal Rule was used?" — is unanswerable. Nullable because locked Step 20 r4 permits a Requirement with no Pre-approved Legal Rule.
+
+### AM-16 · `EVALUATOR_TYPE` defined
+
+Referenced as `NOT NULL` in 42.7, 42.11 and 42.15; never defined. Defined now as:
+
+```text
+EVALUATOR_TYPE
+
+NUMERIC_COMPARISON   Ordinal comparison of an extracted magnitude against
+                     one or more configured thresholds.
+                     Occupant: LIABILITY-001.
+
+PRESENCE             Comparison of provision existence against the configured
+                     expectation.
+                     Parameter: expected_presence = PRESENT | ABSENT
+                     Occupant: presence-mode Requirements.
+```
+
+36.12's wider list was explicitly a recommendation ("such as"). `MULTI_CLAUSE` and `CONFLICT_DETECTION` are engine behaviors, not selectable types (Step 28 r2, 44.18). `TEXT_PATTERN` belongs to mapping (35.4, 35.5, 35.10) and extraction (44.16) — an evaluator matching raw text would produce a Result without a Fact, breaking locked 44.33 explainability. `EXACT_MATCH` is a configuration of set-membership; `RANGE_COMPARISON` is multi-threshold numeric. Additional types are additive amendments when a Requirement needs one.
+
+### Canonical record
+
+```text
+evaluations
+-----------
+id                     UUID PK
+finding_id             UUID FK → findings.id                    NOT NULL
+evaluator_type         EVALUATOR_TYPE                           NOT NULL
+evaluator_version      VARCHAR                                  NOT NULL
+scope_key              VARCHAR                                  NOT NULL
+scope_label            VARCHAR                                  NULL
+evaluation_kind        EVALUATION_KIND                          NOT NULL
+classification         FINDING_CLASSIFICATION                   NOT NULL
+rule_outcome           RULE_OUTCOME                             NOT NULL
+expected_value         JSONB
+actual_value           JSONB
+operator               VARCHAR
+result                 JSONB                                    NOT NULL
+rule_version_id        UUID FK → evaluation_rule_versions.id
+legal_rule_version_id  UUID FK → legal_rule_versions.id         NULL
+created_at             TIMESTAMPTZ                              NOT NULL
+
+UNIQUE(id, finding_id)
+```
+
+Extraction diagnostics are carried inside `result` (variable free-form data, sanctioned by 42.1 r10), satisfying REC-07. The Company Standard version is derived through the Review's configuration snapshot; no column is added.
+
+---
+
+## AB-1.3 — Step 31 restatements
+
+Only the named rules change. Step 31's decision vocabulary, definitions, and rules 1–3, 5–15 and 18–20 are **untouched**.
+
+### AM-2 · Rule 17
+
+```text
+WAS  A Legal Decision resolves the relevant Finding; it does not automatically
+     constitute approval of the entire contract.
+
+NOW  A Legal Decision resolves the relevant Evaluation; a Finding is resolved
+     when every Evaluation requiring a decision has a current decision. It does
+     not automatically constitute approval of the entire contract.
+```
+
+### AM-5 · Rule 4
+
+```text
+WAS  ACCEPT_DEVIATION applies only to the specific Review/Finding.
+NOW  ACCEPT_DEVIATION applies only to the specific Review/Finding/Evaluation.
+```
+
+### AM-6 · Rule 16
+
+```text
+WAS  Before deciding, Legal must be shown the underlying evidence, Requirement,
+     Company Standard, applicable Legal Rule, and Finding.
+
+NOW  Before deciding, Legal must be shown the underlying evidence, Requirement,
+     Company Standard, applicable Legal Rule, and Finding — including every
+     scoped Evaluation under that Finding with its own applicable Legal Rule.
+```
+
+---
+
+## AB-1.4 — Step 36.7 restatement
+
+### AM-7
+
+```text
+WAS  36.7 UNRESOLVED
+     The system has identified an issue but cannot complete the evaluation
+     because required information or a required action is missing.
+     This is different from AMBIGUOUS.
+
+NOW  36.7 UNRESOLVED
+     The system has identified relevant material but no usable answer can
+     currently be established from the available information. This is different
+     from AMBIGUOUS, where multiple plausible candidates exist but none can be
+     confidently selected.
+
+     Requirements for human action or clarification are workflow states —
+     Finding status or Legal Decision — and are never expressed as a
+     Classification.
+```
+
+**44.22 is NOT amended.** Its closing sentence — "This is different from the analytical classification" — already distinguishes the workflow state it describes from the axis-2 classification. The two are distinct concepts that shared a word; the workflow vocabulary is Finding status.
+
+---
+
+## AB-1.5 — New tables (no amendment to any locked table)
+
+```text
+evaluation_evidence
+-------------------
+evaluation_id      UUID FK → evaluations.id
+evidence_id        UUID FK → document_evidence.id
+relationship_type  EVIDENCE_RELATIONSHIP_TYPE NOT NULL   PRIMARY | SUPPORTING | CONFLICTING
+PRIMARY KEY(evaluation_id, evidence_id)
+
+No minimum-row constraint. Zero rows is a valid state.
+```
+
+Required because locked `finding_evidence` (42.16) cannot attribute evidence to a specific scoped Evaluation, which locked 45B.18 and 45C.25 require once a Finding carries several Evaluations. `finding_evidence` is retained unchanged as the Finding-level roll-up.
+
+```text
+unmatched_provisions
+--------------------
+id            UUID PK
+review_id     UUID FK → reviews.id        NOT NULL
+evidence_id   UUID FK → document_evidence.id NOT NULL
+created_at    TIMESTAMPTZ                 NOT NULL
+UNIQUE(review_id, evidence_id)
+```
+
+Implements REC-02: `UNMATCHED_PROVISION` is a document-level observation and must never occupy a Finding's `classification`.
+
+---
+
+## AB-1.6 — Additional constraints
+
+```text
+findings            UNIQUE(review_id, requirement_version_id)
+evaluations         UNIQUE(id, finding_id)          -- supports the composite FK
+EV-MIN              every Finding has ≥ 1 Evaluation
+                    enforced by DEFERRABLE INITIALLY DEFERRED constraint trigger
+                    (checked at COMMIT; service validation retained as fast-fail)
+```
+
+Evidence cardinality invariant (service-enforced, spans two tables per 42.21):
+
+> Non-empty evidence is required for `MATCH`, `DEVIATION`, `CONFLICT` and `AMBIGUOUS`. Empty is permitted **only** for `MISSING` arising from established absence. **No synthetic evidence is ever created.**
+
+---
+
+## AB-1.7 — Engineering resolutions recorded
+
+Determined from locked decisions and prior analysis; no legal policy invented.
+
+```text
+F-1   Optional Requirement with no mapped provision → NO Finding, NO Evaluation.
+      MISSING excluded by 36.4 ("the Requirement is expected"); MATCH excluded
+      by 36.2 ("customer provision conforms"). Coverage reporting satisfies
+      Step 8's "which clauses were reviewed".
+
+F-2   Second-person approval (Step 31 r15) operates at Evaluation level.
+
+F-3   Escalation is recorded at Finding level (Steps 4, 22) and marks every
+      Evaluation under that Finding as requiring a decision.
+
+F-4   Configuration may only WIDEN decision requirements, never narrow them
+      (reconciles Step 27 r12 with ENG-09 fail-closed).
+
+F-6   45C.22 is narrowed to configured precedence only. In-document precedence
+      language is detected, evidenced and reported — never applied.
+
+F-8   Risk is a configured display mapping from (classification, rule_outcome)
+      owned by the reporting layer. The evaluator emits no risk field.
+      Honours 36.10 and Step 27 r12; Step 9's report element is satisfied.
+
+F-9   Overall alignment is a reporting aggregation, not an evaluator output.
+
+F-10  UNMATCHED_PROVISION persisted in its own table (AB-1.5).
+```
+
+---
+
+## AB-1.8 — Withdrawn proposals
+
+```text
+AM-18  company_standard_versions.standard_kind
+       WITHDRAWN — redundant. The kind is determined by
+       requirement_versions.evaluator_type (42.7), and values live in
+       company_standard_versions.configuration JSONB (42.8).
+
+AM-21  company_standard_version_id on evaluations
+       WITHDRAWN — derivable via the Review's configuration snapshot.
+
+A-2    company_standard.scope as a schema change
+       WITHDRAWN — it is a key inside the locked 42.8 configuration JSONB.
+```
+
+---
+---
+
+# Step 45B — RE-LOCK RECORD
+
+**Status: 🔒 LOCKED (revised)**
+**Date: 2026-08-17**
+
+Step 45B is re-locked comprising 45B.1–45B.28 as originally written, plus REC-05 (R1), REC-07, and Amendment Batch AB-1.
+
+## Locked evaluator input — `LIABILITY-001`
+
+```text
+{
+    requirement:      { id, code, version_id },
+    evidence:         [ { evidence_id, document_version_id,
+                          page_number, section_number, section_title } ],
+    facts: {
+        caps: [ { cap_kind, scope, scope_label, cap_status,
+                  cap_value, cap_unit, cap_basis, evidence_refs[] } ],
+        extraction_status,
+        extraction_diagnostics
+    },
+    company_standard: { version_id, configuration },
+    legal_rule:       { version_id, acceptable_max, acceptable_max_unit,
+                        approval_required_above, unlimited_outcome,
+                        rule_configuration },
+    evaluator_version
+}
+```
+
+`company_standard.configuration` carries evaluator-specific values (scope, preferred value, unit) per locked 42.8.
+
+## Locked evaluator output
+
+```text
+{
+    evaluations: [ { scope_key, scope_label, evaluation_kind,
+                     classification, rule_outcome,
+                     expected_value, actual_value, comparison,
+                     evaluated_facts, evidence_refs[],
+                     explanation, diagnostics } ],
+    finding_classification,
+    evaluator_version
+}
+```
+
+`finding_classification` is a **derived, non-authoritative summary**. The scoped Evaluation results are authoritative.
+
+## Locked roll-up derivation
+
+```text
+TIER 1 (result cannot be relied upon — fail closed, ENG-09)
+    UNABLE_TO_EVALUATE > CONFLICT > AMBIGUOUS > UNRESOLVED
+TIER 2 (evaluated positions)
+    MISSING > DEVIATION > MATCH
+
+Any Tier-1 scope dominates every Tier-2 scope.
+```
+
+The tier split is derived from ENG-09: a Finding must never read `MATCH` while any scope is unevaluable, contradictory or absent. **The ordering within Tier 1 is an engineering determinism convention only — it is NOT a legal hierarchy.** All four Tier-1 states route to human review and are legally equivalent in consequence; the order exists solely to satisfy ENG-11 determinism.
+
+## Explicitly NOT locked
+
+```text
+rule_configuration — shape and contents beyond the fields named in J-5.
+    An explicit extension point. Contents must not be invented.
+```
+
+---
+---
+
+# Step 45C — LOCK RECORD
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+
+Step 45C — Liability Edge Cases is locked as written (45C.1–45C.25, 45C.21 matrix, 45C.22–45C.25 hard rules), plus:
+
+```text
+45C.27  Detected-but-unresolvable precedence
+        classification = CONFLICT, rule_outcome = NOT_APPLICABLE
+        Every conflicting provision attached as CONFLICTING evidence
+        The precedence clause itself attached as SUPPORTING evidence
+        Diagnostics record that precedence language was detected and
+        no configured rule applied
+        The evaluator NEVER applies the document's precedence language.
+
+45C.28  Heterogeneous scoped outcomes
+        One Finding may carry Evaluations with different classifications and
+        rule outcomes. Each is decided independently. No Evaluation is ever
+        implicitly disposed of by a decision on another.
+
+45C.29  Configuration may only widen decision requirements, never narrow them.
+```
+
+Locked rules 1–17 of 45C.26 stand, with two additions:
+
+```text
+18. A Legal Decision resolves exactly one scoped Evaluation and never
+    implicitly disposes of another.
+19. Detected precedence language that cannot be deterministically resolved
+    produces CONFLICT, with the precedence clause retained as evidence.
+```
+
+---
+---
+
+# Step 45D — LOCK RECORD
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+
+Step 45D — Cross-Evaluator Edge Cases specifies evaluator-agnostic behavior. **It specifies no legal Requirement.**
+
+## Locked structural evaluator contract
+
+Every Requirement evaluator must satisfy all twelve.
+
+```text
+45D.4.1   Multiplicity — one Evaluation per distinct governed scope; multiple
+          provisions in one scope are one Evaluation with multiple evidence
+          references, or CONFLICT where incompatible.
+45D.4.2   Scope precedes value — no extracted value is treated as a legal
+          position before what it applies to is established.
+45D.4.3   General position and exceptions are separate; an exception's position
+          applies only within its own scope and never generalizes.
+45D.4.4   No silent commensurability — differing units, bases or scopes are
+          never equated without a configured deterministic conversion rule and
+          its required inputs.
+45D.4.5   No silent precedence — no positional, ordinal, source-based or
+          confidence-based heuristic may resolve competing provisions.
+45D.4.6   Deterministic cross-reference only — preserved always, resolved only
+          when deterministic; the referent's content is never inferred.
+45D.4.7   Negative and exception patterns are first-class.
+45D.4.8   Absence is not a position — absence yields MISSING and never
+          manufactures a substantive legal position.
+45D.4.9   Fail closed on unreliable input.
+45D.4.10  Evidence survives every branch. Evidence references are preserved
+          whenever evidence exists. MATCH, DEVIATION, CONFLICT and AMBIGUOUS
+          must not carry empty evidence where supporting evidence exists.
+          MISSING from established absence may legitimately carry zero.
+          No synthetic evidence is ever created.
+45D.4.11  The evaluator produces no Legal Decision.
+45D.4.12  Reproducibility — every Evaluation retains its evaluator version and
+          Legal Rule version relationally, its Company Standard version via the
+          Review's configuration snapshot, its extracted facts, its extraction
+          diagnostics, and its evidence.
+```
+
+## Locked boundary
+
+```text
+Requirement-specific   the evaluator's fact model and input contract (44.11)
+Shared / structural    Finding, Evaluation, classification, rule outcome,
+                       scope discriminator, evidence, decision
+```
+
+## Locked `PRESENCE` evaluator
+
+```text
+Presence is established by the MAPPING layer, never by the evaluator.
+The evaluator reads no clause text and no patterns.
+
+mapping_state  applicability   classification          evidence
+-------------------------------------------------------------------
+CONFIRMED      any             MATCH                   ≥1 required
+NONE           REQUIRED        MISSING                 0 permitted
+NONE           OPTIONAL        no Finding produced     —
+AMBIGUOUS      any             UNABLE_TO_EVALUATE      ≥1 required
+UNRESOLVED     any             UNABLE_TO_EVALUATE      ≥1 if candidates exist
+
+An ambiguous or unresolved mapping must NEVER be recorded as absence.
+DEVIATION is not producible by this evaluator.
+```
+
+A Requirement carrying both a presence condition and value criteria is modelled as **two Requirements over the same clause** (Step 28 r1); `requirement_versions.evaluator_type` is singular (42.7).
+
+## Locked Requirement Specification Template
+
+```text
+R.1  identity          R.2  what it determines    R.3  evaluator type
+R.4  fact model        R.5  sub-scopes            R.6  units/bases
+R.7  exceptions        R.8  Company Standard      R.9  Legal Rule outcomes
+R.10 rule_configuration R.11 patterns             R.12 cross-references
+R.13 worked example per outcome                   R.14 conflict conditions
+R.15 ambiguity/failure R.16 golden cases          R.17 lock statement
+```
+
+Structural conformance to 45D.4 is inherited, not restated.
+
+---
+
+## Current position
+
+```text
+Steps 1–44        🔒 LOCKED
+Step 45A          🔒 LOCKED
+REC-01 – REC-07   🔒 LOCKED
+Amendment Batch AB-1  🔒 LOCKED
+Step 45B          🔒 LOCKED (revised)
+Step 45C          🔒 LOCKED
+Step 45D          🔒 LOCKED
+Step 45E          ⏳ IN PROGRESS — Golden Corpus
+```
+
+**V1 minimum evaluator coverage:** `LIABILITY-001` (`NUMERIC_COMPARISON`) + one generic `PRESENCE` evaluator + configured Requirements. No additional legal-domain evaluator is required by any locked decision.
+
+Next: **Step 45E — Golden Corpus**, then the Implementation Readiness Review.
+
+---
+---
+
+# Step 47 — LOCK RECORD — Security / Authentication / Authorization
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**No locked decision amended. Two new tables.**
+
+## OD-9 — Authentication (owner decision)
+
+```text
+Primary authentication    Corporate SSO via OIDC
+Fallback authentication   Password-based login, controlled fallback
+Session model             Server-side sessions
+Session contents          identity (user_id) ONLY
+Authority resolution      fresh from the database on every request
+Revocation                immediate, server-side
+Rejected                  stateless JWT model
+Hard rule                 the authentication mechanism NEVER confers
+                          Legal Decision authority
+```
+
+Legal authority remains permission/role based under Steps 4, 23 and 31.
+
+## Locked security model
+
+```text
+IDENTITY CONTRACT
+    Only user_id is trusted from the session.
+    Roles, permissions and Legal authority resolve fresh per request.
+    The session establishes identity, never authority.
+    Revoked/expired session is indistinguishable from signed out.
+    No account enumeration on any identity response.
+
+SUPER-ROLE BOUNDARY                             (from Step 23, ROLE-05)
+    A super-role bypass may cover administrative permissions.
+    It MUST exclude legal.decision and legal.approve_customization.
+    Enforced in the permission resolver, not by convention.
+
+ROLE MODEL                                       (from 42.3)
+    Multi-role, union semantics.
+    Legal Decision Authority is carried as an additional role assignment,
+    which is how two users holding the same primary role can differ
+    in legal authority (Step 4).
+
+LEGAL DECISION AUTHORITY                         (from Steps 4, 23, 31)
+    Requires an explicit grant. Never inherited, never implied,
+    never reachable by bypass.
+    legal.review does NOT confer legal.decision.
+    Legal Configuration authority does NOT confer Legal Decision authority.
+    Checked at Evaluation level (AB-1).
+    Second-person approval evaluated at Evaluation level, different user.
+    A configuration change must never leave zero users holding
+    legal.decision.
+
+OBJECT-LEVEL AUTHORIZATION                       (from 41.24, 43.23, Step 24)
+    Legal Decision → Evaluation → Finding → Review → Contract
+                   → owner/scope → User → Roles → Permissions
+    Knowing an ID is never sufficient.
+    The UI performs presentation-only gating.
+
+DENIAL SEMANTICS                                 (from 41.24, LEGAL-02, 43.22)
+    401  no valid session
+    404  object outside the user's ownership/visibility scope
+         (existence is not disclosed)
+    403  object visible, operation permission absent
+    409/422  business-rule rejection
+```
+
+## Permission catalogue
+
+```text
+contract.view | create | update | delete
+document.upload | view | download
+review.create | view
+finding.view | comment
+evaluation.view
+legal.review | legal.decision | legal.approve_customization      (Step 23)
+legal_position.view
+configuration.view | draft | publish | deprecate
+report.view | generate | export.generate
+audit.view
+user.manage | role.manage | platform.manage
+```
+
+Default grants follow Step 23's locked role summary. Catalogue additions are idempotent and are never auto-granted to non-super roles.
+
+## Security invariants S-1 – S-10
+
+```text
+S-1   Authority resolved fresh per request; never trusted from the session
+S-2   Sessions revocable server-side; revocation immediate
+S-3   HttpOnly/Secure/SameSite cookies; CSRF protection on state changes
+S-4   Credential material never returned; excluded at the repository layer
+S-5   Rate limiting on authentication and expensive analysis endpoints
+S-6   Secrets outside source control; keys rotatable
+S-7   No account enumeration
+S-8   A user may not grant an authority they do not themselves hold
+S-9   The escalation guard covers granting, editing AND deleting a
+      more-privileged account
+S-10  Role–permission changes are transactional
+```
+
+## New tables
+
+```text
+sessions            id, user_id, created_at, last_seen_at, expires_at,
+                    revoked_at, revoked_reason
+
+user_identities     id, user_id, provider (OIDC|PASSWORD), provider_subject,
+                    credential_hash, created_at, last_used_at
+                    UNIQUE(provider, provider_subject)
+                    UNIQUE(user_id, provider)
+```
+
+Authentication and authorization events are recorded in the existing locked `audit_events` (42.18); `actor_id` is null for pre-authentication events. No new audit table.
+
+## NOT YET SPECIFIED
+
+```text
+Granular legal-approval limits      deferred by locked Step 4
+Password policy / reset flow        implementation-phase, fallback path only
+MFA                                 delegated to the identity provider
+Multi-tenancy                       no locked requirement
+```
+
+## Current position
+
+```text
+Steps 1–44             🔒
+Step 45A               🔒
+REC-01 – REC-07        🔒
+Amendment Batch AB-1   🔒
+Steps 45B / 45C / 45D  🔒
+Step 47                🔒
+Step 45E               ⏳ Golden Corpus
+Step 49                ⏳ API Finalization
+```
+
+---
+---
+
+# Step 49 — LOCK RECORD — API Finalization
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Schema impact: none. No locked decision amended.**
+
+Step 49 completes the API surface left open by locked Steps 38 and 43. It changes nothing already locked: 43.21's envelope, 43.22's status semantics, 43.23's authorization ordering, 43.28's idempotency requirement, 43.30's `/api/v1/` base path and 43.31's frontend boundary are carried forward unchanged and extended.
+
+## Locked conventions
+
+```text
+Base path     /api/v1/                                    (43.30)
+Resources     plural nouns, kebab-case, UUID identifiers
+Verbs         GET / POST / PATCH / DELETE. PUT is not used.
+Timestamps    ISO-8601 UTC                                (41.27)
+Envelope      { data } | { data, pagination } | { error } (43.21)
+Every response carries X-Request-Id.
+```
+
+Endpoint **naming** remains outside the locked boundary (38.24). The **permission mapping** is normative.
+
+## Locked: every endpoint declares exactly one required permission
+
+No endpoint is implicitly public. `legal.approve_customization` is required in addition to `legal.decision` when `decision_type = APPROVE_CUSTOMIZATION`.
+
+## Locked: error taxonomy and denial semantics
+
+```text
+401  no valid session
+403  object visible, operation permission absent
+404  object outside the caller's ownership/visibility scope
+     — existence is NOT disclosed
+409  conflict, including decision version collision
+422  business-rule rejection
+429  rate limit exceeded
+
+A 404 for an out-of-scope object and a 404 for a non-existent object
+are byte-identical. Any difference is an enumeration oracle.
+
+Error bodies never disclose internal legal position.
+```
+
+## Locked: Finding / Evaluation / Decision surface
+
+```text
+1. Evaluations are NESTED under the Finding, never flat siblings.
+2. findings.classification is a DERIVED SUMMARY and is never returned
+   without its evaluations.
+3. No Finding-level rule_outcome field exists in any response.
+   requires_decision is derived.
+4. evidence_refs is always an array and MAY BE EMPTY (MISSING from
+   established absence). It is never null.
+5. rule_outcome, thresholds and rule_configuration are OMITTED — not
+   nulled — for callers without legal_position.view.
+6. No response field can express a Legal Decision produced by the engine.
+```
+
+## Locked: decisions
+
+```text
+POST /evaluations/{id}/decisions      create, requires legal.decision
+GET  /evaluations/{id}/decisions      full version chain
+
+There is NO Finding-level decision endpoint.
+There is NO decision update endpoint — supersession is a create.
+justification is mandatory.
+A UNIQUE(evaluation_id, version_number) violation surfaces as 409,
+which provides optimistic concurrency without a separate ETag mechanism.
+Prior versions are never modified.
+Resolving a Finding directly is rejected — resolution is derived.
+```
+
+## Locked: pagination, idempotency, correlation
+
+```text
+page_size clamped server-side, maximum 100, regardless of client input.
+Ordering explicit and stable, with a deterministic tiebreaker on id.
+Filters are an allow-list per endpoint.
+Collections apply the same object-level scope as single-resource reads.
+
+Idempotency (43.28): analysis submission accepts Idempotency-Key;
+Review creation idempotent on (document_version_id, configuration_snapshot_id);
+Finding/Evaluation duplication prevented by unique constraints.
+Decision creation is deliberately NOT idempotent by key — it is versioned,
+so a duplicate submission is a 409 rather than a silent no-op.
+
+X-Request-Id is echoed on every response, included in every error body,
+recorded in the metadata of every audit event the request produces, and
+propagated into background analysis jobs.
+```
+
+## NOT specified
+
+```text
+Exact endpoint paths      adjustable; naming outside the locked boundary (38.24)
+Export formats            NOT YET SPECIFIED
+Rate-limit thresholds     deployment configuration
+OpenAPI generation        implementation task
+```
+
+---
+---
+
+# Steps 52–55 — LOCK RECORD
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Schema impact: none. No locked decision amended.**
+
+## Step 52 — Frontend Architecture
+
+```text
+1. The frontend NEVER touches the database (38.22). All data via /api/v1/.
+2. The frontend NEVER implements legal logic (38.23) — no classification,
+   roll-up, rule evaluation or requires_decision computation.
+3. UI permission gating is PRESENTATION ONLY (47.6, 49.11).
+
+CONFIDENTIALITY RENDERING (LEGAL-02)
+   A field omitted for lack of legal_position.view renders as ABSENT.
+   No placeholder, no "hidden", no lock icon — a marker would disclose
+   that an internal legal position exists.
+   An out-of-scope 404 renders identically to a non-existent one.
+
+REVIEW SCREEN (Step 31 r16 as amended by AM-6)
+   A Finding shows its derived classification AND expands to its
+   Evaluations. Never presented as a single verdict.
+   Decision controls attach to the EVALUATION, not the Finding.
+   A Finding cannot be resolved while any Evaluation requiring a
+   decision lacks one.
+   Decision history shows current vs superseded (Step 31 r20).
+   RESOLVED ≠ MATCH remains visible.
+
+No optimistic UI for Legal Decisions — a 409 is a real outcome.
+NOT YET SPECIFIED: visual design, component library, accessibility
+target, internationalisation.
+```
+
+## Step 53 — Observability / Error Handling
+
+```text
+THREE RECORD TYPES, NEVER CONFLATED
+   Audit events      what legally happened     append-only (AUD-01)
+   Diagnostics       why the engine concluded  immutable (REC-07)
+   Operational logs  what the system did       retention-bound
+
+   An operational log is NEVER a substitute for an audit event.
+   Log expiry must never remove auditable history.
+
+CORRELATION
+   X-Request-Id joins logs, audit_events.metadata and background jobs.
+
+NEVER LOGGED
+   Credentials, credential_hash, session ids, OIDC tokens/codes;
+   contract text or clause content; thresholds, rule outcomes,
+   rule_configuration; anything making failed logins an enumeration oracle.
+
+ERROR HANDLING
+   User-facing: stable code, safe message, request_id.
+   Operator-facing: trace and context, logs only. Never leaked to a response.
+
+   ANALYSIS_FAILED (Step 30) is an operational failure.
+   UNABLE_TO_EVALUATE is CORRECT fail-closed behavior and must NOT
+   be alerted as an error.
+
+SIGNALS
+   Pipeline stage durations; evaluator runs by type/version;
+   classification distribution; fail-closed rate (a FALLING rate may
+   indicate guessing, not improvement); ANALYSIS_FAILED rate;
+   auth failures and permission denials; decision throughput/age.
+
+NOT YET SPECIFIED: retention policy (41.26 defers it), log aggregation
+technology, alert thresholds.
+```
+
+## Step 54 — Testing Strategy
+
+```text
+THE GOLDEN CORPUS IS TIER 1 AND NORMATIVE (ENG-12).
+   Every fixture asserts BOTH the exact scoped Evaluation set AND the
+   derived Finding summary — never the roll-up alone.
+   Every fixture pins configuration versions and evaluator_version.
+   A changed expected output is a SPECIFICATION CHANGE, reviewed as such,
+   never edited to make a build pass.
+   The corpus runs in full on any mapping/extraction/evaluation change.
+
+DETERMINISM (ENG-11)
+   Identical inputs + configuration snapshot + evaluator version →
+   BYTE-IDENTICAL output. No clock, random source, locale or environment
+   variable may affect a result.
+
+REPRODUCIBILITY
+   An historical Evaluation replays from persisted facts, evidence,
+   evaluator_version and legal_rule_version_id.
+
+AUTHORIZATION TESTS ARE RELEASE-BLOCKING
+   IDOR matrix → 404 for out-of-scope objects.
+   Out-of-scope 404 and non-existent 404 byte-identical.
+   Permission matrix: every endpoint × every role.
+   A super-role holder without legal.decision cannot decide by any route.
+   legal.review alone does not permit deciding.
+   Escalation guard covers grant, edit AND delete.
+   A change leaving zero legal.decision holders is rejected.
+   Without legal_position.view, confidential fields are ABSENT not null.
+   A revoked session fails on the next request.
+
+INVARIANTS
+   EV-MIN; evidence cardinality (no synthetic evidence);
+   decision version collision; append-only enforcement; uniqueness;
+   idempotency.
+
+TEST DATA
+   Synthetic or cleared text only. Real counterparty contracts never
+   enter the repository. The corpus contract set is the SAME set used to
+   calibrate Step 35's provisional thresholds.
+
+NOT YET SPECIFIED: coverage targets, framework selection, CI topology.
+```
+
+## Step 55 — Deployment / Infrastructure
+
+```text
+SHAPE (Step 39; no new technology, no microservices per 38.26)
+   Next.js → FastAPI → PostgreSQL + object storage + worker/queue
+   → external OIDC provider.
+   Workers run the SAME image as the API — a version skew would break
+   evaluator_version reproducibility, so they deploy together.
+
+SECURITY CONFIGURATION (Step 39 checklist)
+   TLS; secrets outside source control and rotatable; encrypted storage;
+   upload validation; sandboxed resource-limited parsing; malware
+   scanning where available; rate limiting at edge AND application;
+   automated backups with VERIFIED restore; application DB role holds
+   no DDL rights.
+
+ENVIRONMENTS
+   Real contracts never leave production. Debugging uses correlation
+   identifiers and diagnostics, never data copies.
+
+MIGRATION DISCIPLINE
+   Historical legal records are never rewritten.
+   Migrations touching legal data are forward-only and additive;
+   destructive migrations require explicit approval.
+   Reproducibility must survive migration — verified as a release gate.
+   Configuration versions are never mutated in place.
+
+PRODUCTION BLOCKERS REGISTER
+   OIDC configured; secrets management; backup + verified restore;
+   rate limiting; TLS and secure cookie flags; malware scanning
+   available or explicitly accepted as absent; retention policy
+   (NOT YET SPECIFIED); export formats (NOT YET SPECIFIED).
+
+NOT YET SPECIFIED: hosting platform, orchestration, CI/CD tooling,
+object-storage provider, monitoring stack, DR objectives.
+```
+
+## Current position
+
+```text
+Steps 1–44             🔒        Amendment Batch AB-1   🔒
+Step 45A               🔒        Steps 45B / 45C / 45D  🔒
+REC-01 – REC-07        🔒        Step 47                🔒
+Step 49                🔒        Steps 52 / 53 / 54 / 55 🔒
+Step 45E               ⏳        Golden Corpus — 64 fixtures specified
+```
+
+**The V1 specification is complete.** Remaining work is corpus authoring and implementation.

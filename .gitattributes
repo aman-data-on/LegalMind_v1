@@ -1,0 +1,26 @@
+# Normalize line endings — a CRLF/LF flip would rewrite the master record's
+# diff and break the "prior N lines byte-identical" verification the project
+# relies on.
+* text=auto eol=lf
+
+*.py    text eol=lf diff=python
+*.md    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.ini   text eol=lf
+*.sh    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+
+# Binary — never diffed, never line-ending converted
+*.pdf   binary
+*.docx  binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+
+# The master specification is append-only. A merge is never correct here:
+# conflicting appends must be resolved by hand, in order, by the owner.
+all_lock.md merge=binary linguist-documentation

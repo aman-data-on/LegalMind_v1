@@ -1,6 +1,6 @@
 Source: all_lock.md lines 12482-13510 (Step 45B). Canonical source: all_lock.md (Step 45B).
 
-Status: **PROPOSED LOCK — ⏳ REVIEW** (the source records `Step 45B ⏳ REVIEW` and a "🔒 45B proposed lock" recommendation; 45B is **not** locked).
+Status: **🔒 LOCKED (revised 2026-08-17)** — comprising 45B.1–45B.28 as written, plus `REC-05` (R1), `REC-07`, and Amendment Batch **AB-1**. Re-lock record in [`all_lock.md`](../../../all_lock.md) under "Step 45B — RE-LOCK RECORD".
 
 # Step 45B — Evaluator Data Contract
 
@@ -10,7 +10,7 @@ Cross-reference: see [LIABILITY.md](LIABILITY.md) for Step 45A — the `LIABILIT
 
 # ⚠ REVISION R1 — corrections pending final review
 
-**Status: PROPOSED CORRECTIONS — not yet locked, and NOT yet reflected in `all_lock.md`.**
+**Status: 🔒 LOCKED — incorporated into the 45B re-lock and recorded in `all_lock.md`.**
 
 Applied 2026-08-16 under owner-approved reconciliation item 5 (`REC-05`). The verbatim Step 45B transcription follows below and is **unmodified**; these corrections are recorded as a revision layer over it. They must be folded into `all_lock.md` when 45B is locked.
 

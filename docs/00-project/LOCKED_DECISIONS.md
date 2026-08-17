@@ -29,6 +29,63 @@ These decisions were made by the project owner during a cross-step reconciliatio
 
 ---
 
+## AB. Amendment Batch AB-1 — Evaluator & Decision Model
+
+**Approved and locked 2026-08-17.** Recorded in [`all_lock.md`](../../all_lock.md) under "Amendment Batch AB-1". Representational repair only — no legal policy changed. Every amendment fixes a case where a **locked requirement could not be represented by the locked schema**.
+
+| ID | Target | Amendment | Driver |
+|----|--------|-----------|--------|
+| AM-1 | 40.12 / 41.21 / 42.17 | `legal_decisions.evaluation_id NOT NULL` + composite FK `(finding_id, evaluation_id)` | A decision resolves one scoped Evaluation |
+| AM-12 | 42.17 | `version_number` + `UNIQUE(evaluation_id, version_number)` — append-only supersession | Implements Step 31 r14/r20, which are **not** amended |
+| AM-15 | 42.17 | `justification TEXT NOT NULL` (was nullable `decision_text`) | Step 31 r11 was unenforced |
+| AM-13 / AM-14 | 41.21 / 40.12 | Aligned to the canonical record | Consistency |
+| AM-8′ | 42.15 | `scope_key`, `scope_label`, `evaluation_kind`, `rule_outcome` | Scoped evaluations; rule outcome at Evaluation level only |
+| AM-19 | 42.15 | `evaluator_version NOT NULL` | Locked 45B.10 required it; no column existed |
+| AM-20 | 42.15 | `legal_rule_version_id` FK → `legal_rule_versions` | Step 32 audit q4 was unanswerable |
+| AM-16 | 42.7 / 42.11 / 42.15 | `EVALUATOR_TYPE` defined: `NUMERIC_COMPARISON`, `PRESENCE` | Enum was `NOT NULL` and undefined |
+| AM-2 / AM-5 / AM-6 | Step 31 r17 / r4 / r16 | Decisions resolve Evaluations; Finding resolution derived | Evaluation-level decision model |
+| AM-7 | Step 36.7 | Workflow language removed from an analytical classification | 44.22 **not** amended — distinct axes |
+
+**New tables (no amendment):** `evaluation_evidence` (zero rows permitted), `unmatched_provisions` (REC-02).
+
+**Withdrawn as redundant:** AM-18 (`standard_kind` — determined by `evaluator_type` + 42.8 JSONB), AM-21 (derivable via configuration snapshot), A-2-as-schema-change (a 42.8 JSONB key).
+
+**Engineering resolutions recorded (F-1 – F-10):** optional Requirement absent → no Finding · second-person approval at Evaluation level · escalation at Finding level · configuration may only widen decision requirements · 45C.22 narrowed to configured precedence · risk is a configured reporting display mapping · alignment is a reporting aggregation.
+
+---
+
+## S47. Step 47 — Security / Authentication / Authorization
+
+**Locked 2026-08-17.** Record in [`all_lock.md`](../../all_lock.md) under "Step 47 — LOCK RECORD". No locked decision amended; two new tables (`sessions`, `user_identities`).
+
+| ID | Decision | Status | Source | Canonical Document |
+|----|----------|--------|--------|--------------------|
+| SEC-01 | **OD-9 — Authentication.** Corporate SSO via OIDC primary; password fallback. Server-side sessions; session carries `user_id` only; authority resolved fresh per request; immediate revocation. Stateless JWT rejected. **The authentication mechanism never confers Legal Decision authority.** | LOCKED | Owner, 2026-08-17 | [STEP_47_SECURITY_SPECIFICATION.md](../06-security/STEP_47_SECURITY_SPECIFICATION.md) |
+| SEC-02 | **Super-role boundary.** A bypass may cover administrative permissions but MUST exclude `legal.decision` and `legal.approve_customization`, enforced in the resolver | LOCKED | Step 23, ROLE-05 | same |
+| SEC-03 | **Multi-role, union semantics.** Legal Decision Authority carried as an additional role assignment — how two users with the same primary role differ (Step 4) | LOCKED | 42.3, Step 4 | same |
+| SEC-04 | **Permission catalogue** — 11 groups; default grants mapped to Step 23's locked role summary; additions never auto-granted to non-super roles | LOCKED | Step 23 | same |
+| SEC-05 | **Legal Decision authority separation.** Explicit grant only; `legal.review` does not confer it; checked at Evaluation level; second-person approval at Evaluation level; never zero authorities | LOCKED | Steps 4, 23, 31 | same |
+| SEC-06 | **Object-level authorization** — Decision → Evaluation → Finding → Review → Contract → owner/scope. Knowing an ID is never sufficient | LOCKED | 41.24, 43.23, Step 24 | same |
+| SEC-07 | **Denial semantics** — 401 / 404 (out-of-scope, existence not disclosed) / 403 / 409 / 422 | LOCKED | 41.24, LEGAL-02, 43.22 | same |
+| SEC-08 | **Security invariants S-1 – S-10** | LOCKED | Step 39, 43.26 | same |
+| SEC-09 | **Auth/security events** recorded in the existing locked `audit_events`; no new audit table; `actor_id` null pre-authentication | LOCKED | 42.18, AUD-01 | same |
+
+---
+
+## S49–55. API, Frontend, Observability, Testing, Deployment
+
+**Locked 2026-08-17.** Records in [`all_lock.md`](../../all_lock.md). **No schema impact; no locked decision amended.**
+
+| ID | Decision | Status | Canonical Document |
+|----|----------|--------|--------------------|
+| API-10 | **Step 49 — API Finalization.** Per-endpoint permission mapping; denial semantics (401/403/404/409/422/429) with byte-identical 404s; Evaluations nested under Findings; derived summary never returned alone; confidential fields omitted not nulled; decisions versioned via create-only with 409 on collision; page_size clamped; `X-Request-Id` correlation | LOCKED | [STEP_49_API_FINALIZATION.md](../05-architecture/STEP_49_API_FINALIZATION.md) |
+| FE-01 | **Step 52 — Frontend.** No UI→DB; no UI legal logic; permission gating presentation-only; omitted confidential fields render as absent; decision controls at Evaluation level | LOCKED | [STEP_52_FRONTEND_ARCHITECTURE.md](../05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md) |
+| OBS-01 | **Step 53 — Observability.** Audit / diagnostics / logs never conflated; log expiry never removes auditable history; `UNABLE_TO_EVALUATE` is correct behavior and not alerted | LOCKED | [STEP_53_OBSERVABILITY.md](../09-implementation/STEP_53_OBSERVABILITY.md) |
+| TEST-10 | **Step 54 — Testing.** Golden corpus is Tier 1 and normative; a changed expected output is a specification change; authorization tests are release-blocking | LOCKED | [STEP_54_TESTING_STRATEGY.md](../08-testing/STEP_54_TESTING_STRATEGY.md) |
+| DEP-01 | **Step 55 — Deployment.** No new technology; API and workers deploy together; migrations forward-only over legal data; reproducibility verified post-migration; production blockers register | LOCKED | [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) |
+
+---
+
 ## A. Product & scope
 
 | ID | Decision | Status | Source Step | Canonical Document |
@@ -167,9 +224,9 @@ These decisions were made by the project owner during a cross-step reconciliatio
 | ID | Decision | Status | Source Step | Canonical Document |
 |----|----------|--------|-------------|--------------------|
 | LIABILITY-001 | Canonical Limitation of Liability requirement — full 21-rule lock: 6-month Company Standard; 6mo→`MATCH`; 12mo→`DEVIATION`+`ACCEPTABLE`; >12mo→`DEVIATION`+`APPROVAL_REQUIRED`; `UNLIMITED`→`DEVIATION`+`UNACCEPTABLE`; missing→`MISSING`; insufficient extraction→`UNABLE_TO_EVALUATE`; contradictory provisions→`CONFLICT`; ambiguity never silently resolved; carve-outs never discarded; cross-references resolved only where deterministic; evaluator makes no Legal Decision; no LLM/RAG/embeddings | LOCKED | Step 45A | [EDGE_CASES/LIABILITY.md](../04-analysis-engine/EDGE_CASES/LIABILITY.md) |
-| LIABILITY-001-CONTRACT | Evaluator data contract for `LIABILITY-001` — precise input/output field schema (incl. `extraction_diagnostics`, `rule_configuration`), seven worked examples, "evidence must survive the evaluator", "no arbitrary NULL semantics", persistence model | 🔒 LOCKED | Step 45B (+ REC-05, REC-07) | [EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) |
+| LIABILITY-001-CONTRACT | Evaluator data contract for `LIABILITY-001` — precise input/output field schema (incl. `extraction_diagnostics`, `rule_configuration`), seven worked examples, "evidence must survive the evaluator", "no arbitrary NULL semantics", persistence model | 🔒 LOCKED (revised) | Step 45B (+ REC-05, REC-07, AB-1) | [EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md](../04-analysis-engine/EDGE_CASES/LIABILITY_EVALUATOR_CONTRACT.md) |
 
-> **Step 45B was LOCKED on 2026-08-16**, comprising 45B.1–45B.28 unmodified plus the `REC-05` (R1) corrections and the `REC-07` persistence decision. The lock record is appended to `all_lock.md` as "Step 45B — LOCK RECORD". **`rule_configuration` remains `NOT YET SPECIFIED`** — the field is locked as an explicit extension point; its contents are not, and must not be invented.
+> **Step 45B was RE-LOCKED on 2026-08-17** incorporating Amendment Batch AB-1. Originally locked 2026-08-16, comprising 45B.1–45B.28 unmodified plus the `REC-05` (R1) corrections and the `REC-07` persistence decision. The lock record is appended to `all_lock.md` as "Step 45B — LOCK RECORD". **`rule_configuration` remains `NOT YET SPECIFIED`** — the field is locked as an explicit extension point; its contents are not, and must not be invented.
 >
 > Note also that an earlier status block inside Step 45A still reads `READY TO LOCK`; the file's final block supersedes it. See [CONFLICTS.md](CONFLICTS.md).
 

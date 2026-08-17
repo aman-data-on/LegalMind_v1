@@ -1,5 +1,8 @@
 # Security Model
 
+> **See [STEP_47_SECURITY_SPECIFICATION.md](STEP_47_SECURITY_SPECIFICATION.md)** for session/security invariants S-1 – S-10 and audit/security events (§47.8–47.9).
+
+
 Canonical source: `all_lock.md` (Steps 5, 24, 38.21–38.24, 39 "Security", 41.24, 43.23)
 
 **Status: LOCKED** for the architectural boundary rules (Steps 38, 41, 43).
