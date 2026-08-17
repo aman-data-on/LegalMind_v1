@@ -57,6 +57,14 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
 
     # ---- 49.3 reviews, findings, evaluations, decisions -----------------
     ("POST", f"{API_PREFIX}/reviews"): P.REVIEW_CREATE,
+    # ⚠️ INTERPRETATION, not a locked mapping. Locked 49.3's table has no analysis
+    # row, but 49.8 ("Analysis job submission accepts an Idempotency-Key") and
+    # 49.10 ("rate limiting ... analysis submission") both presuppose the endpoint.
+    # Endpoint naming is outside the locked boundary (38.24) while the permission
+    # mapping is normative, so the closest locked grant is used rather than a new
+    # permission name being invented: the caller is causing their own Review's
+    # analysis to run. Flagged for owner confirmation.
+    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/analyze"): P.REVIEW_CREATE,
     ("GET", f"{API_PREFIX}/reviews"): P.REVIEW_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}"): P.REVIEW_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/findings"): P.FINDING_VIEW,

@@ -144,6 +144,49 @@ def _evaluator_type_of(db: DBSession, requirement_version_id: UUID):
     ).scalar_one()
 
 
+# --------------------------------------------------------------------------
+# Requirement applicability — owner decision D-3
+# --------------------------------------------------------------------------
+APPLICABILITY = "applicability"
+REQUIRED = "REQUIRED"
+OPTIONAL = "OPTIONAL"
+
+
+def requirement_applicability(
+    standard_configuration: dict | None,
+) -> tuple[bool, str | None]:
+    """Read REQUIRED / OPTIONAL from a Company Standard configuration (42.8 JSONB).
+
+    Locked Step 28's Requirement model lists "Required / Optional", and locked 45D
+    makes applicability a direct input to the ``PRESENCE`` evaluator:
+
+        NONE + REQUIRED  -> MISSING
+        NONE + OPTIONAL  -> no Finding produced   (F-1)
+
+    No locked table carries it, so owner decision **D-3** places it in the Company
+    Standard configuration — which is where it belongs: whether a provision is
+    required *is* a statement of what the organization wants, and it is then
+    versioned and snapshot-pinned with the rest of the Standard.
+
+    Returns ``(required, diagnostic)``. **Absence fails closed to REQUIRED**, with a
+    diagnostic, because that direction produces a Finding for authorized review
+    rather than silently producing nothing at all. Reversing it would let a
+    configuration typo suppress a Finding, which is the more dangerous failure.
+    """
+    raw = (standard_configuration or {}).get(APPLICABILITY)
+    if raw == REQUIRED:
+        return True, None
+    if raw == OPTIONAL:
+        return False, None
+    if raw is None:
+        return True, (
+            f"Company Standard states no {APPLICABILITY}; treated as {REQUIRED} "
+            "(fail closed)")
+    return True, (
+        f"Company Standard states an unrecognised {APPLICABILITY} value; treated "
+        f"as {REQUIRED} (fail closed)")
+
+
 def build_presence_input(
     *,
     requirement: RequirementContext,

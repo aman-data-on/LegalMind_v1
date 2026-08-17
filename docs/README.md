@@ -126,7 +126,9 @@ Declared at the top of every specification document. Never mix states without la
 | [PRESENCE_EVALUATOR.md](04-analysis-engine/EDGE_CASES/PRESENCE_EVALUATOR.md) | 🔒 Step 45D — the generic `PRESENCE` evaluator |
 | [TERMINATION.md](04-analysis-engine/EDGE_CASES/TERMINATION.md) · [INDEMNIFICATION.md](04-analysis-engine/EDGE_CASES/INDEMNIFICATION.md) · [GOVERNING_LAW.md](04-analysis-engine/EDGE_CASES/GOVERNING_LAW.md) | **NOT YET SPECIFIED** — placeholders. No locked decision requires these |
 
-Working documents in this directory — analysis only, nothing locked: [OPEN_DECISIONS_ANALYSIS.md](04-analysis-engine/EDGE_CASES/OPEN_DECISIONS_ANALYSIS.md), [LIABILITY_CONTRACT_AMENDMENTS.md](04-analysis-engine/EDGE_CASES/LIABILITY_CONTRACT_AMENDMENTS.md), [V1_SCOPE_AUDIT.md](04-analysis-engine/EDGE_CASES/V1_SCOPE_AUDIT.md), and `RECONCILIATION_PASS_2.md` – `RECONCILIATION_PASS_6.md`. They record how conclusions were reached. Their outcomes are in [LOCKED_DECISIONS.md](00-project/LOCKED_DECISIONS.md); do not implement from them directly.
+Working documents in this directory — analysis only, nothing locked: [OPEN_DECISIONS_ANALYSIS.md](04-analysis-engine/EDGE_CASES/OPEN_DECISIONS_ANALYSIS.md), [LIABILITY_CONTRACT_AMENDMENTS.md](04-analysis-engine/EDGE_CASES/LIABILITY_CONTRACT_AMENDMENTS.md), [V1_SCOPE_AUDIT.md](04-analysis-engine/EDGE_CASES/V1_SCOPE_AUDIT.md), [ANALYSIS_ORCHESTRATOR_GAP.md](04-analysis-engine/EDGE_CASES/ANALYSIS_ORCHESTRATOR_GAP.md), and `RECONCILIATION_PASS_2.md` – `RECONCILIATION_PASS_6.md`. They record how conclusions were reached. Their outcomes are in [LOCKED_DECISIONS.md](00-project/LOCKED_DECISIONS.md); do not implement from them directly.
+
+[ANALYSIS_ORCHESTRATOR_GAP.md](04-analysis-engine/EDGE_CASES/ANALYSIS_ORCHESTRATOR_GAP.md) is the current one: it establishes that the deferred Step 35 band → mapping-state mapping does **not** block the analysis orchestrator, and isolates the four items that do (`D-1` – `D-4`, awaiting owner decision).
 
 ### [05-architecture/](05-architecture/) — how the system is built
 

@@ -1,0 +1,25 @@
+{
+  "name": "legalmind-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LegalMind V1 frontend — locked Step 52. Next.js + TypeScript (Step 39). No component library: 52.6 leaves visual design unspecified and rule 19 forbids adding a technology without approval.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "16.3.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

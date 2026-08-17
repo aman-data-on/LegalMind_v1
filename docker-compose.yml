@@ -1,0 +1,83 @@
+# Locked 55.1's deployment shape, for development and as a staging reference.
+#
+#   Browser -> Next.js (frontend) -> FastAPI (API + services)
+#                                      +- PostgreSQL      system of record
+#                                      +- Object storage  original documents
+#                                      +- Worker + queue  processing, analysis
+#                                   -> OIDC provider (external, Step 47)
+#
+# Locked 38.26: NO microservice decomposition in V1. The api and worker services below
+# are the SAME IMAGE with different commands, per 55.1.
+#
+# Locked 55.6 records hosting platform, container orchestration and object-storage
+# provider as NOT YET SPECIFIED — this file chooses none of them for production. It
+# exists so 55.3's "development: synthetic data only" environment is reproducible.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: legalmind
+      POSTGRES_PASSWORD: legalmind          # development only; 55.2/S-6 require
+      POSTGRES_DB: legalmind_v1_dev         # injected secrets in staging/production
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legalmind"]
+      interval: 5s
+      retries: 10
+
+  # Locked Step 39 includes Celery/Redis. Present so the worker shape is real rather
+  # than notional; analysis is still synchronous in the API — see backend/README.md.
+  queue:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db: {condition: service_healthy}
+      queue: {condition: service_started}
+    environment:
+      LEGALMIND_ENVIRONMENT: development
+      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
+      LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
+      LEGALMIND_LOG_LEVEL: INFO
+    volumes:
+      - documents:/var/lib/legalmind/documents
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: ./backend
+    depends_on:
+      db: {condition: service_healthy}
+      queue: {condition: service_started}
+    environment:
+      LEGALMIND_ENVIRONMENT: development
+      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
+      LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
+      LEGALMIND_LOG_LEVEL: INFO
+    volumes:
+      # The SAME object store as the api: a worker parses documents the api stored.
+      - documents:/var/lib/legalmind/documents
+    # Placeholder command. The queue consumer is not wired yet, and idling is honest:
+    # pretending to consume would be worse than visibly not consuming.
+    command: ["python", "-c", "import time; print('worker: queue consumer not wired; see backend/README.md', flush=True); time.sleep(2**31)"]
+
+  frontend:
+    build: ./frontend
+    depends_on: [api]
+    environment:
+      # Same-origin in production (55.1); the dev rewrite reproduces that so the
+      # Secure/SameSite=Strict session cookie is never weakened to suit development.
+      LEGALMIND_API_ORIGIN: http://api:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
+  documents:

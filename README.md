@@ -16,13 +16,13 @@ Status:  Requires review
 
 ## Project phase
 
-**SPECIFICATION / DESIGN. Implementation is not authorized.**
+**IMPLEMENTATION. Authorized 2026-08-17 (`IMPL-01`).**
 
-The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-07` and Amendment Batch AB-1 are locked. Step 45E (Golden Corpus) is in progress. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — **it reports readiness, it does not grant it.**
+The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-07` and Amendment Batch AB-1 are locked. Step 45E (Golden Corpus) is in progress. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — it reports readiness; `IMPL-01` is what grants it.
 
-Current state is authoritative in [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), never here.
+`IMPL-01` authorizes **building what is already locked** and confers no authority to decide what is not. It is recorded retroactively and **not backdated**: the build preceded the authorization and the lock record says so.
 
-> ⚠️ A `backend/` directory containing Python source exists in the working tree and is untracked by git. It contradicts the "no implementation" state declared throughout the specification. It is recorded as **C-09** in [docs/00-project/CONFLICTS.md](docs/00-project/CONFLICTS.md) and awaits an owner decision.
+Current state is authoritative in [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), never here — including what is built, what is only tested, and what remains **unratified**.
 
 ---
 
@@ -85,7 +85,7 @@ Full text in [CLAUDE.md](CLAUDE.md); these are the ones most often violated by a
 
 ## Development
 
-No build, test, or run instructions exist because no implementation is authorized. When implementation is approved, the target is specified in:
+`backend/` and `frontend/` carry their own READMEs with setup, test and run instructions. The specifications they implement are:
 
 * Stack — [docs/05-architecture/BACKEND_ARCHITECTURE.md](docs/05-architecture/BACKEND_ARCHITECTURE.md)
 * Schema — [docs/09-implementation/DATABASE_MIGRATIONS.md](docs/09-implementation/DATABASE_MIGRATIONS.md)

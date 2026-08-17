@@ -285,7 +285,9 @@ def test_draft_and_publish_produces_a_stable_snapshot(api, db, seeded):
         "name": "Limitation of Liability",
         "evaluator_type": "NUMERIC_COMPARISON",
         "company_standard": {"unit": "months"},
-        "mapping_rules": {"exact_phrase": []},
+        # confirm_threshold is required configuration (D-1): publishing without
+        # one is refused, so the happy path must state it.
+        "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
         "evaluation_rules": {"scope_required": True},
         "legal_rule": {"rule_type": "THRESHOLD", "configuration": {}},
     })
@@ -304,6 +306,39 @@ def test_draft_and_publish_produces_a_stable_snapshot(api, db, seeded):
     again = api.post(f"{V1}/configuration/publish", json={})
     assert again.json()["data"]["id"] == first.json()["data"]["id"]
     assert again.json()["data"]["reused_existing"] is True
+
+
+def test_publish_refuses_mapping_rules_without_a_confirm_threshold(api, db, seeded):
+    """D-1 / ENG-09 — an unusable mapping rule version is as incomplete as an
+    absent one.
+
+    Refusing at publish keeps it out of every snapshot, so analysis never faces the
+    case. The alternative — mapping as UNRESOLVED — produces UNABLE_TO_EVALUATE,
+    which is Tier 1 and therefore *requires a Legal Decision* under D-3.5(b): a
+    missing configuration number would create work in the Legal queue, clearable
+    only by an authorized person ruling on a Requirement that was never evaluated.
+    """
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+
+    requirement_id = api.post(f"{V1}/requirements",
+                              json={"code": "LIABILITY-002"}).json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "Limitation of Liability",
+        "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {},
+        "mapping_rules": {"exact_phrases": ["limitation of liability"]},
+        "evaluation_rules": {},
+    })
+
+    response = api.post(f"{V1}/configuration/publish",
+                        json={"requirement_codes": ["LIABILITY-002"]})
+    assert response.status_code == 422
+    body = response.json()["error"]
+    assert "LIABILITY-002" in body["message"]
+    assert "confirm_threshold" in body["message"]
+    # Nothing was pinned: an incomplete Requirement cannot enter a snapshot.
+    assert db.execute(select(M.ConfigurationSnapshot)).first() is None
 
 
 def test_a_new_requirement_version_never_edits_the_previous_one(api, db, seeded):

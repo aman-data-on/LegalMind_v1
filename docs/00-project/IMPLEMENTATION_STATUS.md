@@ -4,7 +4,7 @@
 
 **Project phase: IMPLEMENTATION.** The V1 specification is complete; implementation is **authorized** (`IMPL-01`, 2026-08-17) and underway.
 
-Documents under [`09-implementation/`](../09-implementation/) remain *specifications of a target*. Where code and specification disagree, the specification wins.
+Documents under [`09-implementation/`](../09-implementation/) remain *specifications of a target*. Where code and specification disagree, the specification wins — `IMPL-01` condition 1: *the code is not a specification.*
 
 Last synchronized against `all_lock.md` at **15,093 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-07`, Amendment Batches AB-1 and AB-2, Implementation Authorization).
 
@@ -12,50 +12,78 @@ Last synchronized against `all_lock.md` at **15,093 lines** (Steps 1–45D, 47, 
 
 ## Build state
 
-**Authorized 2026-08-17** (`IMPL-01`). First commit of the implementation: `0730d39`.
+**Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
 | Unit | Basis | State | Evidence |
 |---|---|---|---|
-| 1 · Database schema & migrations | Steps 41–42, AB-1, AB-2, Step 47 | IMPLEMENTED · TESTED | 30 tables; invariant tests |
-| 2 · Authentication & authorization | Step 47 | IMPLEMENTED · TESTED | service-layer + API authz tests |
-| 3 · Document storage & ingestion | Step 34 | IMPLEMENTED · TESTED | ingestion tests |
-| 4 · Mapping layer | Steps 28, 35 | IMPLEMENTED · TESTED | mapping tests |
-| 5 · Evaluation engine | Steps 44, 45A–45D | IMPLEMENTED · TESTED | evaluation + corpus tests |
-| 6 · Decision & review workflow | Steps 4, 22, 30, 31 | IMPLEMENTED · TESTED | workflow tests |
-| 7 · HTTP API | Steps 43, 47, 49 | IMPLEMENTED · TESTED | 38 endpoints; API tests |
-| 8 · Golden corpus harness | Steps 45E, 54 | PARTIAL | 6 `STRUCTURAL` fixtures of 64 specified; **no `NORMATIVE` fixture exists** |
-| 9 · Frontend | Step 52 | IMPLEMENTED · TESTED | Next.js + TypeScript; all ten 52.6 screens except export; 46 Vitest tests. **Playwright is not set up** — browser-level workflow testing belongs to unit 10 |
-| 10 · Observability & deployment | Steps 53, 55 | NOT STARTED | — |
+| 1 · Database schema & migrations | Steps 41–42, AB-1, AB-2, Step 47 | IMPLEMENTED · TESTED | 30 tables; 21 invariant tests |
+| 2 · Authentication & authorization | Step 47 | IMPLEMENTED · TESTED | 24 authorization + 15 session tests, 21 API authz tests |
+| 3 · Document storage & ingestion | Step 34 | IMPLEMENTED · TESTED | 20 ingestion tests |
+| 4 · Mapping layer | Steps 28, 35 | IMPLEMENTED · TESTED | 24 mapping + 5 mapping-service tests |
+| 5 · Evaluation engine | Steps 44, 45A–45D | IMPLEMENTED · TESTED | 62 evaluation + 16 corpus tests |
+| 6 · Decision & review workflow | Steps 4, 22, 30, 31 | IMPLEMENTED · TESTED | 28 workflow tests |
+| 7 · HTTP API | Steps 43, 47, 49 | IMPLEMENTED · TESTED | 39 endpoints; 139 API tests |
+| 8 · Frontend | Step 52 | IMPLEMENTED · TESTED | 10 of 10 locked 52.6 screens except export; 46 Vitest tests. **Playwright not set up** |
+| 9 · Analysis orchestrator | Steps 28, 34, 35, 44 | IMPLEMENTED · TESTED | 20 orchestrator + 19 extraction tests |
+| 10 · Golden corpus harness | Steps 45E, 54 | PARTIAL | 6 `STRUCTURAL` fixtures of 64 specified; **no `NORMATIVE` fixture exists** |
+| 11 · Observability & deployment | Steps 53, 55 | PARTIAL | Step 53 observability implemented (26 tests); Step 55 preflight register + Dockerfiles + compose (19 tests). **Queue-backed workers, Playwright and CI not wired** |
 
-**Nothing is VERIFIED or PRODUCTION-READY.** `TESTED` here means automated tests exist and pass locally; it does not mean behavior has been confirmed against the specification independently of those tests.
+Backend: **446 tests**. Frontend: **46 tests**. Both green.
+
+**Nothing is VERIFIED or PRODUCTION-READY.** `TESTED` means automated tests exist and pass locally; it does not mean behavior has been confirmed against the specification independently of those tests.
+
+### Pending ratification
+
+`IMPL-01` condition 4 leaves these explicitly unratified. None is locked; each is open to revision without amending anything.
+
+The `review_assignments` and `escalations` tables and Review ownership were previously listed here under `IMPL-01` condition 3. All three were **ratified on 2026-08-17 by Amendment Batch AB-2** (`AM-22`, `AM-23`, `AM-24`) and are no longer pending.
+
+| Item | What it is | Why it needs approval |
+|---|---|---|
+| `D-1` mapping threshold | An absent `confirm_threshold` refuses at publish time, with a second check at analysis time | An `ENG-09` conformance choice; the *value* still needs 35.10 calibration |
+| `D-2` Mapping State persistence | Recorded in `evaluations.result.evaluated_facts`; both evaluators write it | `REC-03` calls the states "persisted" but no locked table carries them |
+| `D-3` Requirement applicability | `company_standard_versions.configuration` → `{"applicability": …}`, failing closed to `REQUIRED` | Locked Step 28 lists "Required / Optional"; nothing sourced it |
+| `D-4` `UNMATCHED_PROVISION` | The orchestrator writes no rows | `REC-02` defers persistence and surfacing |
+| `M-2` mapping `AMBIGUOUS` semantics | Tied supporting clauses are `CONFIRMED` and all retained (Step 28 r2, 35.12); contradiction is caught by the conflict evaluator, producing `CONFLICT` / `DECISION_REQUIRED` | Interprets what locked Step 28's `AMBIGUOUS` means. **Consequence: nothing in V1 produces `MappingState.AMBIGUOUS`** — cross-Requirement ambiguity detection is unimplemented and no producer was invented |
+| `tie_margin` | Unread since `M-2`; audited as unused and safe to remove, retained pending owner review | Removal is a configuration-shape change; evidence in [ANALYSIS_ORCHESTRATOR_GAP.md](../04-analysis-engine/EDGE_CASES/ANALYSIS_ORCHESTRATOR_GAP.md) §9 |
+| `POST /reviews/{id}/analyze` permission | Mapped to `review.create` | Locked 49.3's table has no analysis row, though 49.8 and 49.10 presuppose the endpoint |
+| Second-person approval mechanism | Co-signature within the append-only decision chain | Step 31 r15 permits the requirement without specifying the mechanism |
 
 ### Blocking the VERIFIED state
 
 | ID | Item | Severity |
 |---|---|---|
-| **F-1** | EV-MIN is enforced `AFTER INSERT` on `findings` only. No trigger on `evaluations` — deleting the last Evaluation orphans the Finding, undetected. `F-5` chose a database trigger precisely because a migration or backfill can bypass service code | HIGH |
-| **F-3** | **Mapping State (axis 1) is not persisted.** No `mapping_state` column or enum exists. `ENG-01`/`REC-03` describe `CONFIRMED`/`AMBIGUOUS`/`UNRESOLVED` as the canonical *persisted* states, and a replay cannot show what mapping concluded | MEDIUM — needs an owner ruling, not a patch |
-| **F-4** | **The test suite is non-deterministic.** Five identical runs produced 0, 2, 3 and 62 errors. Recorded diagnosis: `api/deps.py` builds a module-global engine against the *dev* database while `conftest` drops and rebuilds the *test* schema | ⚙️ **Fix landed 2026-08-17 — awaiting independent verification.** See below |
+| **F-1** | EV-MIN was enforced `AFTER INSERT` on `findings` only, so deleting the last Evaluation orphaned the Finding undetected | ✅ **FIXED 2026-08-17** — migration `9c2f41ab77e3` adds `AFTER DELETE` and `AFTER UPDATE` constraint triggers on `evaluations`, both `DEFERRABLE INITIALLY DEFERRED`. 5 new invariant tests; the preflight verifies all three triggers exist. Migration round-trips twice cleanly |
+| **F-3** | Mapping State (axis 1) has no column or enum | ✅ **ANSWERED by `D-2`** — the owner chose JSONB persistence in `evaluations.result.evaluated_facts`, written by **both** evaluators, so a replay can show what mapping concluded. Recorded under Pending ratification rather than left as a blocker |
+| **F-4** | **Test suite non-determinism.** ⚙️ **Fixed and verified 2026-08-17** — see below |
 | **45E** | Golden corpus is 6 of 64 fixtures, all `STRUCTURAL`. `NORMATIVE` fixtures require real representative contracts and real Company Standards, which must be supplied | Release gate |
+| — | **No analysis calibration.** Mapping weights and thresholds are uncalibrated; locked 35.10 requires validation against a representative contract test set | Release gate |
+| — | **Playwright not set up.** Locked Step 39/54 make it the browser-workflow tier | Outstanding in unit 11 |
+| — | **Analysis runs synchronously in the API.** Locked 55.1 makes it a worker job on the same image; Celery/Redis are in the locked Step 39 stack and the compose file provisions the queue, but no consumer is wired. The orchestrator is a plain service function so moving it changes the caller, not the analysis | Outstanding in unit 11 |
+| — | **No CI pipeline.** Locked 55.5 fixes the release sequence and 55.6 records CI/CD tooling as NOT YET SPECIFIED, so the sequence exists as `python -m legalmind.deploy.preflight` plus the test suites rather than as a pipeline definition | Owner decision on tooling |
+| — | **`GET /auth/oidc/*` and `POST /reviews/{id}/export` not implemented.** OIDC needs an approved JWT/JWKS dependency plus IdP configuration; export formats are locked NOT YET SPECIFIED | Recorded in `api/permission_map.py` `NOT_IMPLEMENTED` |
 
-**`F-4` — what the fix was, and why the recorded diagnosis was wrong.**
+#### `F-4` — what was wrong, what was done, how it was checked
 
-The *symptom* was real; the stated *mechanism* was not. Two checks:
+The *symptom* was real; the *recorded diagnosis* was not. Two checks disproved it:
 
-* The suite runs green with `LEGALMIND_DATABASE_URL` pointed at a nonexistent host. Nothing in the test path opens the dev database — `api/deps.py`'s lazy engine is never constructed, because `get_db` is overridden by the harness.
-* The actual mechanism was that every run shared the `public` schema and reset it with `DROP SCHEMA public CASCADE`. A backend left behind by an interrupted run held locks, so the reset raced and sometimes left a half-built schema. An intermediate fix that cleared those locks with `pg_terminate_backend` then killed the *live* connections of any concurrently running suite — surfacing as `SSL connection has been closed unexpectedly` in whichever process lost. The second failure mode was introduced by the fix for the first.
+* the suite runs green with `LEGALMIND_DATABASE_URL` pointed at a nonexistent host, so nothing in the test path opens the dev database — `api/deps.py`'s lazy engine is never constructed, because `get_db` is overridden by the harness;
+* the actual mechanism was that every run shared the `public` schema and reset it with `DROP SCHEMA public CASCADE`. A backend left by an interrupted run held locks, so the reset raced and sometimes left a half-built schema. An intermediate fix using `pg_terminate_backend` then killed the *live* connections of any concurrent suite — `SSL connection has been closed unexpectedly` in whichever process lost. **The second failure mode was introduced by the fix for the first.**
 
-Each run now migrates into a schema private to that process (`t_<random>`), points `search_path` at it for both its own connections and Alembic's, and drops only that schema at teardown. No process touches another's objects and nothing is terminated. `test_each_axis_has_its_own_enum_type` was scoped to `current_schema()` in the same change — unscoped, it counted identically-named enum types belonging to other runs.
+Each run now migrates into a schema private to that process (`t_<epoch>_<random>`), points `search_path` at it for both its own connections and Alembic's, and drops only that schema at teardown. Nothing is terminated. A conservative sweep drops run schemas older than six hours, so debris from a crashed run cannot accumulate indefinitely while a live run — seconds old — is never a candidate. `test_each_axis_has_its_own_enum_type` was scoped to `current_schema()` in the same change; unscoped, it counted identically-named enum types belonging to other runs.
 
-Evidence: two suites run concurrently both report `339 passed`, which was previously impossible. The row stays open because a fix asserted by its own author is not a verification (`IMPL-01` condition 2).
+Verification, by concurrency rather than by assertion — the shared-schema design could not survive any of these:
 
-### Also blocking VERIFIED, recorded 2026-08-17
-
-| Item | Detail |
+| Check | Result |
 |---|---|
-| **No analysis orchestrator** | Nothing joins mapping → fact extraction → evaluation into "analyse this Review". Fact extraction from evidence does not exist (`LiabilityFacts` is only constructed by the corpus runner), and Step 35's scoring-band → mapping-state mapping is **deliberately deferred by owner decision** and must not be inferred. Consequence: a Review created through the API or the UI stays in `DRAFT` and never acquires Findings. Every Finding-facing surface is therefore exercised against fixtures, not against a real analysis run. |
-| **Playwright not set up** | Locked Step 39 and Step 54 make Playwright the browser-workflow tier. It needs browser binaries and a running stack; deferred to unit 10 with CI. Frontend coverage is currently Vitest rendering and source-level assertions only. |
-| **`GET /auth/oidc/*` and `POST /reviews/{id}/export` not implemented** | Both are locked 49.3 endpoints. OIDC needs a JWT/JWKS client dependency (approval required) plus IdP configuration; export formats are locked NOT YET SPECIFIED. Recorded in `backend/legalmind/api/permission_map.py` under `NOT_IMPLEMENTED`. |
+| Four concurrent full suites | 4 × `385 passed` |
+| Staggered starts, so one run's setup overlaps another's teardown | 4 × `385 passed` |
+| A run `kill -9`'d mid-suite, then a clean run | `385 passed` |
+| Ten sequential runs | 10 × `385 passed` |
+| Suite with the dev database URL pointed at a nonexistent host | `385 passed` |
+| A run against a freshly emptied database | `385 passed` |
+
+**24 consecutive clean runs, including 8 concurrent.** This is the author's verification, not an independent one: the row stays visible so CI or a reviewer can confirm it (`IMPL-01` condition 2). The run counts above are the suite size at the time of that verification; the suite has since grown to 446.
 
 ---
 
@@ -91,7 +119,7 @@ Build state is reported in the **Build state** table above, which is the only pl
 | **Step 45E — Golden Corpus** | ⏳ IN PROGRESS — [64 fixtures specified](../08-testing/GOLDEN_CORPUS_45E.md) |
 | **Amendment Batch AB-2** | 🔒 LOCKED — `AM-22` `review_assignments`, `AM-23` `escalations`, `AM-24` Review ownership |
 | **Implementation Readiness Gate** | ✅ [PASSED](../09-implementation/IMPLEMENTATION_READINESS_GATE.md) — all nine criteria met |
-| **Implementation Authorization** | 🔒 LOCKED (`IMPL-01`, 2026-08-17) — recorded retroactively; see **Build state** above |
+| **Implementation Authorization** | 🔒 LOCKED (`IMPL-01`, 2026-08-17) — retroactive, not backdated; see **Build state** above |
 
 
 The master specification's closing position (`all_lock.md`, "Current position"):
@@ -190,7 +218,7 @@ Do not assume, infer, or invent any of the following. Each requires its own spec
 
 **C-01 through C-04 were reconciled on 2026-08-16** (`REC-01`–`REC-06`). None was a true contradiction. The finding-type enum is no longer blocked: the Step 36 seven-value set is canonical for Finding Classification, and `EXTRA`/`ADDITIONAL` became the document-level `UNMATCHED_PROVISION` observation.
 
-**C-09 was resolved on 2026-08-17** by `IMPL-01` and Amendment Batch AB-2 — implementation authorized retroactively, with the lock record stating plainly that the work preceded the authorization; `review_assignments` and `escalations` ratified as `AM-22` and `AM-23`; Review ownership resolved by `AM-24`. The three technical findings that review surfaced are **not** closed by it — they are tracked under **Blocking the VERIFIED state** above.
+**C-09 was resolved on 2026-08-17** by `IMPL-01` and Amendment Batch AB-2 — implementation authorized retroactively, with the lock record stating plainly that the work preceded the authorization; `review_assignments` and `escalations` ratified as `AM-22` and `AM-23`; Review ownership resolved by `AM-24`. The technical findings that review surfaced are **not** closed by it — they are tracked under **Blocking the VERIFIED state** above.
 
 Four low-severity items remain open (C-05–C-08), tracked in [CONFLICTS.md](CONFLICTS.md), along with **C-10** (MEDIUM — the `roles` seed list vs the canonical role matrix).
 

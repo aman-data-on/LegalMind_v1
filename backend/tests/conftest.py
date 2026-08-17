@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -13,6 +14,37 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 
 
+# --------------------------------------------------------------------------
+# `F-4` — test isolation
+# --------------------------------------------------------------------------
+# Schemas are named `t_<epoch-seconds>_<random>`. The timestamp is not decoration:
+# it is what lets a later run sweep debris left by a crashed one without any risk
+# of touching a live run's schema (see `_sweep_stale_schemas`).
+_SCHEMA_PREFIX = "t_"
+# A run older than this cannot still be executing — the whole suite takes ~20s.
+_STALE_AFTER_SECONDS = 6 * 60 * 60
+
+
+def _sweep_stale_schemas(admin) -> None:
+    """Drop schemas abandoned by crashed runs, and only those.
+
+    A run killed mid-suite leaves its schema behind. Without a sweep those
+    accumulate indefinitely, which is how a harness becomes un-robust over time.
+    Age is read from the schema name rather than from catalogue metadata, so the
+    decision is explicit and a live run — seconds old — is never a candidate.
+    """
+    cutoff = int(time.time()) - _STALE_AFTER_SECONDS
+    names = admin.execute(text(
+        "SELECT nspname FROM pg_namespace WHERE nspname LIKE :p"
+    ), {"p": f"{_SCHEMA_PREFIX}%"}).scalars().all()
+    for name in names:
+        parts = name.split("_")
+        if len(parts) != 3 or not parts[1].isdigit():
+            continue                     # not ours; leave it alone
+        if int(parts[1]) < cutoff:
+            admin.execute(text(f'DROP SCHEMA IF EXISTS "{name}" CASCADE'))
+
+
 @pytest.fixture(scope="session")
 def engine():
     """Build the test schema by running the REAL Alembic migration, into a
@@ -22,38 +54,39 @@ def engine():
     bypass the hand-written trigger DDL (EV-MIN, append-only) and silently stop
     testing the invariants that matter most.
 
-    **Why a private schema.** Earlier revisions shared ``public`` and reset it
-    with ``DROP SCHEMA public CASCADE``. That made the suite non-deterministic
-    (`F-4`) in two different ways, and the second was caused by the fix for the
-    first:
+    **Why a private schema — `F-4`.** Earlier revisions shared ``public`` and reset
+    it with ``DROP SCHEMA public CASCADE``. That made the suite non-deterministic in
+    two ways, the second caused by the fix for the first:
 
     * a backend left by an interrupted run held locks, so the DROP raced and
-      occasionally left a half-built schema;
-    * adding ``pg_terminate_backend`` to clear those locks then killed the
-      *live* connections of any concurrently running suite, surfacing as
+      occasionally left a half-built schema — runs reported 0, 2, 3 and 62 errors
+      from identical input;
+    * adding ``pg_terminate_backend`` to clear those locks then killed the *live*
+      connections of any concurrently running suite, surfacing as
       ``SSL connection has been closed unexpectedly`` in whichever process lost.
 
     Both disappear once no process touches another's objects. Each run creates
-    ``t_<random>``, points ``search_path`` at it for its own connections and for
-    Alembic's, and drops only that schema at teardown — so two suites (or an
-    xdist worker pool) can share one database safely and nothing needs killing.
+    ``t_<epoch>_<random>``, points ``search_path`` at it for its own connections and
+    for Alembic's, and drops only that schema at teardown. Nothing is terminated, so
+    two suites — or an xdist worker pool — can share one database safely.
 
-    Note this also means the recorded `F-4` diagnosis — a module-global engine in
-    ``api/deps.py`` pointed at the *dev* database — is not the mechanism.
-    Verified by running the suite green with ``LEGALMIND_DATABASE_URL`` pointed
-    at a nonexistent host: nothing in the test path opens the dev database.
+    Note this also means the diagnosis originally recorded for `F-4` (a module-global
+    engine in ``api/deps.py`` pointed at the *dev* database) is **not** the
+    mechanism. Verified by running the suite green with ``LEGALMIND_DATABASE_URL``
+    pointed at a nonexistent host: nothing in the test path opens the dev database.
     """
     from alembic import command
     from alembic.config import Config
 
     base_url = test_database_url()
-    schema = f"t_{uuid.uuid4().hex[:12]}"
-    # psycopg2 accepts libpq `options` in the DSN, which is how Alembic's own
-    # engine — built inside env.py from this URL — lands in the same schema.
+    schema = f"{_SCHEMA_PREFIX}{int(time.time())}_{uuid.uuid4().hex[:10]}"
+    # psycopg2 accepts libpq `options` in the DSN, which is how Alembic's own engine
+    # — built inside env.py from this URL — lands in the same schema.
     scoped_url = f"{base_url}?options=-csearch_path%3D{schema}"
 
-    admin = create_engine(base_url, future=True)
-    with admin.begin() as c:
+    admin_engine = create_engine(base_url, future=True)
+    with admin_engine.begin() as c:
+        _sweep_stale_schemas(c)
         c.execute(text(f'CREATE SCHEMA "{schema}"'))
 
     cfg = Config("alembic.ini")
@@ -63,11 +96,15 @@ def engine():
     command.upgrade(cfg, "head")
 
     eng = create_engine(scoped_url, future=True)
-    yield eng
-    eng.dispose()
-    with admin.begin() as c:
-        c.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
-    admin.dispose()
+    try:
+        yield eng
+    finally:
+        # Teardown runs even on a keyboard interrupt or a collection error, so the
+        # ordinary exit path does not itself become a source of debris.
+        eng.dispose()
+        with admin_engine.begin() as c:
+            c.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        admin_engine.dispose()
 
 
 @pytest.fixture
@@ -193,6 +230,7 @@ def api(db, tmp_path):
     from legalmind.api.app import create_app
     from legalmind.api.deps import get_db
     from legalmind.api.routers import auth as auth_router
+    from legalmind.api.routers import reviews as reviews_router
     from legalmind.ingestion.storage import LocalFilesystemStorage
 
     def request_scoped_db():
@@ -218,7 +256,10 @@ def api(db, tmp_path):
     app = create_app()
     app.dependency_overrides[get_db] = request_scoped_db
     api_storage.set_storage(LocalFilesystemStorage(tmp_path / "objects"))
-    auth_router.limiter = ratelimit.InProcessRateLimiter()   # fresh per test
+    # Fresh limiters per test. A shared window would leak across tests and make the
+    # suite order-dependent — the class of non-determinism F-4 is about.
+    auth_router.limiter = ratelimit.InProcessRateLimiter()
+    reviews_router._limiter = ratelimit.InProcessRateLimiter()
 
     # TestClient runs the ASGI app on its own portal thread. The overridden
     # get_db hands that thread the *test's* Session, which is bound to a

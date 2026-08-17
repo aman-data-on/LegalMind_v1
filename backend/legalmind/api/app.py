@@ -20,7 +20,12 @@ from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
 
 from legalmind.api import errors
-from legalmind.api.context import CsrfMiddleware, RequestContextMiddleware
+from legalmind.api.context import (
+    CsrfMiddleware,
+    RequestContextMiddleware,
+    RequestLoggingMiddleware,
+)
+from legalmind.observability import configure_logging
 from legalmind.api.permission_map import API_PREFIX
 from legalmind.api.routers import (
     admin,
@@ -61,9 +66,13 @@ def create_app() -> FastAPI:
         redirect_slashes=False,
     )
 
-    # Order matters: the request id must exist before CSRF can put it in an error
-    # body, and Starlette runs middleware in reverse registration order.
+    configure_logging()
+
+    # Order matters, and Starlette runs middleware in reverse registration order —
+    # so the LAST registered runs first. The request id must exist before CSRF can
+    # put it in an error body and before anything is logged against it.
     app.add_middleware(CsrfMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestContextMiddleware)
 
     errors.install(app)

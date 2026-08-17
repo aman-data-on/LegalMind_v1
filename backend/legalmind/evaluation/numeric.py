@@ -53,7 +53,16 @@ SCOPE_KEY = "scope_key"
 
 
 def evaluate_numeric(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
-    """Evaluate every scoped cap, producing one Evaluation per scope."""
+    """Evaluate every scoped cap, producing one Evaluation per scope.
+
+    Mapping provenance is stamped here, at the single entry point, rather than at
+    each result construction site — there are four return paths and three of them are
+    fail-closed, which are precisely the ones a per-site stamp would miss (D-2).
+    """
+    return _with_mapping_state(_evaluate(evaluator_input), evaluator_input)
+
+
+def _evaluate(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
     facts = evaluator_input.facts
     standard = evaluator_input.company_standard.configuration or {}
     legal_rule = evaluator_input.legal_rule
@@ -360,3 +369,31 @@ def _single(result: EvaluationResult, version: str) -> EvaluatorOutput:
     return EvaluatorOutput(evaluations=(result,),
                            finding_classification=roll_up([result.classification]),
                            evaluator_version=version)
+
+
+# --------------------------------------------------------- mapping provenance
+def _with_mapping_state(output: EvaluatorOutput,
+                        evaluator_input: EvaluatorInput) -> EvaluatorOutput:
+    """Record which Mapping State this evaluation was built on — owner decision D-2.
+
+    `REC-03` calls `CONFIRMED`/`AMBIGUOUS`/`UNRESOLVED` the canonical **persisted**
+    mapping vocabulary, but no locked table carries a column for it. D-2 keeps it in
+    `evaluations.result.evaluated_facts`, which the append-only Evaluation record
+    already preserves — so a replay can show what mapping concluded without an
+    amendment. `PRESENCE` has always written it; this is the numeric side.
+
+    **Provenance only.** Nothing here reads the state to influence a classification:
+    presence is the mapping layer's business (45D) and this evaluator's inputs are
+    facts. Stamped in one place, after every result is built, so no construction
+    path can omit it.
+    """
+    mapping = evaluator_input.mapping
+    if mapping is None:
+        return output
+    stamped = tuple(
+        replace(result,
+                evaluated_facts={**(result.evaluated_facts or {}),
+                                 "mapping_state": mapping.mapping_state.value})
+        for result in output.evaluations
+    )
+    return replace(output, evaluations=stamped)

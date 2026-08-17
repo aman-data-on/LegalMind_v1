@@ -44,6 +44,63 @@ def test_ev_min_satisfied_when_evaluation_present(db, review, requirement_versio
     assert db.get(M.Finding, f.id) is not None
 
 
+# --------------------------------------------------- EV-MIN on the removal path
+# `F-1`. The INSERT-side trigger enforces AB-1.6 when a Finding is created and never
+# again, so an existing Finding could be orphaned by deleting its last Evaluation.
+# `F-5` chose a database trigger precisely because "a migration or backfill can
+# bypass service code" — these assert the removal path is covered too.
+def test_ev_min_deleting_the_last_evaluation_fails(db, review, requirement_version):
+    f = make_finding(db, review, requirement_version)
+    ev = make_evaluation(db, f)
+    _force_deferred(db)                       # the Finding is valid at this point
+
+    db.delete(ev)
+    with pytest.raises(Exception) as exc:
+        _force_deferred(db)
+    assert "EV-MIN violated" in str(exc.value)
+
+
+def test_ev_min_deleting_one_of_several_evaluations_is_allowed(
+        db, review, requirement_version):
+    """One Requirement may produce several scoped Evaluations (45C.1). Removing one
+    while others remain leaves the invariant intact."""
+    f = make_finding(db, review, requirement_version)
+    make_evaluation(db, f, scope_key="AGGREGATE")
+    doomed = make_evaluation(db, f, scope_key="CATEGORY")
+    _force_deferred(db)
+
+    db.delete(doomed)
+    _force_deferred(db)                       # passes: one Evaluation remains
+    assert db.get(M.Finding, f.id) is not None
+
+
+def test_ev_min_reparenting_the_last_evaluation_fails(
+        db, review, requirement_version, user):
+    """Moving an Evaluation to another Finding vacates the first one. Covered by the
+    same guard, because otherwise the delete check would be trivially bypassable."""
+    import uuid as _uuid
+    from legalmind.domain import enums as _E
+
+    other_req = M.Requirement(code=f"R-{_uuid.uuid4().hex[:6]}",
+                              status=_E.ConfigStatus.ACTIVE)
+    db.add(other_req); db.flush()
+    other_rv = M.RequirementVersion(
+        requirement_id=other_req.id, version_number=1, name="Other",
+        evaluator_type=_E.EvaluatorType.PRESENCE, created_by=user.id)
+    db.add(other_rv); db.flush()
+
+    first = make_finding(db, review, requirement_version)
+    ev = make_evaluation(db, first)
+    second = make_finding(db, review, other_rv)
+    make_evaluation(db, second, scope_key="OTHER")
+    _force_deferred(db)
+
+    ev.finding_id = second.id                 # vacates `first`
+    with pytest.raises(Exception) as exc:
+        _force_deferred(db)
+    assert "EV-MIN violated" in str(exc.value)
+
+
 # ------------------------------------------------- decisions target Evaluations
 def test_decision_requires_evaluation_id(db, review, requirement_version, user):
     """AM-1: evaluation_id is NOT NULL — a decision resolves one Evaluation."""
@@ -300,22 +357,44 @@ def test_locked_invariants_are_enforced_by_triggers_not_convention(db):
     assert "findings" in by_table, "AB-1.6: EV-MIN must be enforced at COMMIT"
 
 
-def test_ev_min_trigger_is_deferred_to_commit(db):
-    """EV-MIN must be DEFERRABLE INITIALLY DEFERRED (AB-1.6).
+def test_ev_min_triggers_are_deferred_to_commit(db):
+    """All three EV-MIN triggers are DEFERRABLE INITIALLY DEFERRED — asserted against
+    `pg_trigger` rather than by behaviour, and deliberately so.
 
-    Checked at COMMIT, so insert order is irrelevant: a Finding may legitimately
-    exist without its Evaluation for the duration of the transaction that
-    creates both. A non-deferred trigger would reject that valid sequence.
+    Deferral is what makes two legitimate sequences legal inside one transaction:
+    deleting an Evaluation and inserting a replacement, and deleting a Finding
+    together with its Evaluations. Neither can be demonstrated behaviourally in this
+    suite, because `_force_deferred` issues `SET CONSTRAINTS ALL IMMEDIATE`, which
+    applies for the remainder of the transaction — after that first call nothing is
+    deferred any more. Rather than build a committing-session fixture whose real
+    COMMITs would leak rows into the shared per-run schema and contaminate tests
+    that count rows, this asserts the property that produces the behaviour.
+
+    `F-5` chose a trigger over a service invariant; this is the part of that choice
+    which makes the trigger usable rather than merely strict.
+
+    Scoped to ``current_schema()``: each run migrates into its own private schema, so
+    an unscoped pg_trigger query would also match triggers belonging to other runs.
     """
-    row = db.execute(text("""
-        SELECT t.tgdeferrable, t.tginitdeferred
+    rows = db.execute(text("""
+        SELECT t.tgname, t.tgdeferrable, t.tginitdeferred
         FROM pg_trigger t
         JOIN pg_class cl ON cl.oid = t.tgrelid
         JOIN pg_namespace n ON n.oid = cl.relnamespace
         WHERE NOT t.tgisinternal
           AND n.nspname = current_schema()
-          AND cl.relname = 'findings'""")).first()
-    assert row is not None, "EV-MIN trigger missing from findings"
-    deferrable, initially_deferred = row
-    assert deferrable, "EV-MIN trigger must be DEFERRABLE"
-    assert initially_deferred, "EV-MIN trigger must be INITIALLY DEFERRED"
+          AND t.tgname IN ('trg_findings_ev_min',
+                           'trg_evaluations_ev_min_delete',
+                           'trg_evaluations_ev_min_reparent')
+        ORDER BY t.tgname
+    """)).all()
+
+    found = {r[0]: (r[1], r[2]) for r in rows}
+    assert set(found) == {
+        "trg_findings_ev_min",              # insert side (original)
+        "trg_evaluations_ev_min_delete",    # F-1: removal side
+        "trg_evaluations_ev_min_reparent",  # F-1: re-parenting side
+    }
+    for name, (deferrable, initially_deferred) in found.items():
+        assert deferrable, f"{name} is not DEFERRABLE"
+        assert initially_deferred, f"{name} is not INITIALLY DEFERRED"

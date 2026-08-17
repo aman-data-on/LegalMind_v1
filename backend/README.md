@@ -75,12 +75,14 @@ script can violate them:
 | 4. Mapping layer | ✅ Complete — 25 mapping tests |
 | 5. Evaluation engine | ✅ Complete — 78 evaluation tests |
 | 6. Decision & review workflow | ✅ Complete — 28 workflow tests |
-| 7. API | ✅ Complete — 38 routes, 134 API tests |
+| 7. API | ✅ Complete — 39 routes, 139 API tests |
 | 8. Frontend | ⏳ Next |
 | 9. Golden corpus & full test harness | ⛔ Blocked — needs real legal source material |
 | 10. Observability & deployment | Not started |
 
-Total: **339 tests**, all passing.
+| Analysis orchestrator | ✅ Complete — 26 orchestrator + 19 extraction tests |
+
+Total: **445 tests**, all passing.
 
 ### Security layer (Step 47)
 
@@ -199,12 +201,14 @@ column would amend locked 42.17.
 * **Review ownership transfer is not implemented.** Locked 42.13 carries
   `created_by` and no `owner_id`; Step 24 r2 permits transfer but no locked rule
   requires the capability. Adding it would amend a locked table.
-* **`review_assignments` is a new table**, added because Step 24 r5/r6/r16/r17
-  require assignment and no locked table represents it. Additive — no locked
-  table amended.
-* **Escalation is a new table** (`escalations`), added because locked Steps 4/22
-  and Step 24 r5 make escalation first-class but no locked table represents it.
-  Additive — no locked table amended.
+* **`review_assignments` and `escalations` are UNRATIFIED additive tables**, and
+  `IMPL-01` condition 3 says so explicitly rather than leaving it implied. They were
+  added because locked Step 24 r5/r6/r16/r17 and locked Steps 4/22 make assignment
+  and escalation load-bearing while no locked table represents either — but a locked
+  rule *requiring* a concept is not a lock record *authorizing* a table. Registered
+  in `../docs/00-project/IMPLEMENTATION_STATUS.md` § Pending ratification, together
+  with every implementation choice made where the specification is silent. Do not
+  treat any of them as settled because code exists for them.
 * **No NORMATIVE golden fixtures exist yet.** The 64 fixtures specified in
   Step 45E require real representative contracts and the organization's real
   Company Standards. A test guards against one appearing unverified.
@@ -346,3 +350,196 @@ Recorded in `permission_map.NOT_IMPLEMENTED`, and reported rather than filled:
 | `test_api_findings.py` (12) | evaluations always nested · no Finding-level `rule_outcome` · empty-but-never-null `evidence_refs` · legal position omitted not nulled · no threshold anywhere in a normal user's payload · audit payload gating |
 | `test_api_decisions.py` (18) | routes that must not exist · version chain and 409 · mandatory justification · `REQUEST_CLARIFICATION` never effective · second-person co-signature · RESOLVED derived · RESOLVED ≠ MATCH · escalation is not approval |
 | `test_api_resources.py` (27) | upload/duplicate/download and magic-byte rejection · review idempotency · report with no risk field · publish failing closed · append-only configuration versions · S-8/S-9/SEC-05/S-10 over HTTP · login rate limiting |
+
+---
+
+## Analysis orchestrator (Steps 28, 34, 35, 44; owner decisions D-1 – D-4)
+
+The stage that joins ingestion → mapping → extraction → evaluation → persistence →
+lifecycle. Until this existed, a Review created through the API or the UI stayed in
+`DRAFT` forever and every Finding surface was exercised only against fixtures.
+
+```
+legalmind/extraction/liability.py   44.10/44.11/44.17 — text -> facts.caps[]
+legalmind/analysis/service.py       44.2/44.40 — run_analysis(db, review)
+POST /api/v1/reviews/{id}/analyze   49.8 Idempotency-Key, 49.10 rate limited
+```
+
+**The deferred Step 35 band → mapping-state mapping was not needed and was not
+touched.** `REC-03` already establishes that Step 35's band labels are internal
+scoring-stage labels and not persisted states; only a component that must *convert*
+between them needs the correspondence, and none does. `mapping/engine.py` derives
+Step 28's states from Step 28's own semantic definitions and emits no band
+vocabulary. The deferral stands.
+
+### The four owner decisions this implements
+
+| | Decision | Where |
+|---|---|---|
+| **D-1** | An absent mapping `confirm_threshold` refuses at **publish** time, with a second check at analysis time | `mapping/rules.py`, `api/routers/configuration.py` |
+| **D-2** | Mapping State persists in `evaluations.result.evaluated_facts`; **both** evaluators write it | `evaluation/numeric.py`, `evaluation/presence.py` |
+| **D-3** | Applicability comes from `company_standard_versions.configuration` → `{"applicability": "REQUIRED"\|"OPTIONAL"}`, failing closed to REQUIRED | `evaluation/service.requirement_applicability` |
+| **D-4** | The orchestrator writes **no** `UNMATCHED_PROVISION` rows (`REC-02` defers them) | `analysis/service.py` |
+
+No schema change and no migration: D-2 and D-3 were decided in favour of JSONB
+precisely to avoid an amendment.
+
+### Why D-1's refusal is at publish time
+
+`MappingRules` is `kw_only` with `confirm_threshold` **required**, so the object
+cannot be constructed without one by any route — `from_config` raises
+`MappingMisconfigured` and direct construction is a `TypeError`. Publishing validates
+the payload and refuses with a 422 naming the Requirement, reusing the fail-closed
+publish path that already existed for a missing Company Standard.
+
+The alternative — mapping as `UNRESOLVED` — is fail-closed in the legal sense but has
+a worse consequence: `UNABLE_TO_EVALUATE` is Tier 1, so `D-3.5(b)` makes it *require a
+Legal Decision*. A missing configuration number would create work in the Legal queue,
+clearable only by an authorized person ruling on a Requirement that was never
+evaluated. Configuration errors belong in the configuration workflow (Step 29).
+
+### The 44.17 rule that shapes the extractor
+
+Locked 44.17: *"LegalMind should not flatten this into liability_cap = 6 months only.
+It should preserve: General Rule + Exceptions / Carve-outs."*
+
+So a general cap becomes one `Cap` with `cap_kind = PRIMARY` and **each carve-out
+becomes its own `Cap`** with `cap_kind = EXCEPTION` and a scope. That is what makes
+the hidden-carve-out case visible: a conforming aggregate figure cannot mask an
+unacceptable exception, because 45C evaluates each governed scope separately.
+
+`extraction/liability.py` ships **no legal content** — no cap phrase, no carve-out
+term, no unit, no basis. All of it is configuration read from the Company Standard's
+`extraction` block (44.29), and an absent block yields `extraction_status = FAILED`,
+which `evaluate_numeric` already turns into `UNABLE_TO_EVALUATE` (45B.7).
+
+### Facts are extracted only from a CONFIRMED mapping
+
+Locked Step 28 r6: *"An ambiguous or unresolved mapping may produce
+UNABLE_TO_EVALUATE rather than a guessed classification."* Extracting from candidates
+the mapping layer refused to choose between would do exactly the choosing that
+`AMBIGUOUS` exists to prevent, and would let a genuinely ambiguous provision surface
+as a clean `MATCH`. So no facts are supplied and the evaluator fails closed.
+
+### One defect found while verifying
+
+The mapping-state stamp initially covered only the numeric evaluator's happy path.
+The evaluator has four return paths and three are fail-closed — the ones a per-site
+stamp misses, and the ones where knowing *why* mapping delivered no facts matters
+most. It is now applied once at the entry point, and a test covers the
+`AMBIGUOUS → UNABLE_TO_EVALUATE` path specifically.
+
+### What still needs real legal material
+
+The pipeline runs, but a *meaningful* liability result needs `LIABILITY-001`'s real
+Company Standard, its real extraction terminology, and calibrated mapping weights and
+thresholds. Locked 35.10 requires the last of these to be validated against a
+representative contract set. See the live-run note in the analysis section of
+`../docs/04-analysis-engine/EDGE_CASES/ANALYSIS_ORCHESTRATOR_GAP.md`.
+
+### Mapping `AMBIGUOUS` semantics — owner decision `M-2`
+
+Tied clauses supporting the same Requirement are **`CONFIRMED`** and all are retained
+as evidence (Step 28 r2, 35.12: *"one Requirement may be supported by multiple
+clauses"*). The previous rule treated a tie as `AMBIGUOUS`, and it mis-fired
+constantly — a real three-paragraph liability clause scored 5/5/5 because each
+paragraph matched one configured phrase, and the whole Requirement came out
+`UNABLE_TO_EVALUATE`.
+
+**Mapping `CONFIRMED` never means legal compliance.** It means only that these
+provisions govern this Requirement, and `map_requirement`'s explanation says so in as
+many words.
+
+**Contradiction is caught one layer down, by locked code.** Step 28 r8 keeps mapping
+separate from evaluation and 44.18 puts conflict detection at layer 7, so mapping —
+which has no facts — cannot and must not assess it. Two clauses stating incompatible
+caps in one scope reach `_resolve_same_scope`, which returns `None` absent configured
+precedence, producing **`CONFLICT`** with both provisions retained as `CONFLICTING`
+evidence (45C.2, 45C.22, 45C.27). `CONFLICT` is Tier 1, so `D-3.5(b)` requires a
+Legal Decision.
+
+`M-2` makes conflict detection *reachable* rather than weaker: previously the tie
+fired first, so 45C.2's design was unreachable and contradictory clauses produced
+"we could not tell" instead of "these contradict".
+
+**Consequence, recorded not worked around:** nothing in V1 produces
+`MappingState.AMBIGUOUS`. Cross-Requirement ambiguity is unimplemented and no
+producer was invented; the enum value stays because locked Step 28 defines it.
+
+`tie_margin` is now unread. Audited as unused across the specification, persisted
+configuration, fixtures, API schema and migrations — **retained pending owner review**
+rather than deleted, and labelled as such in `rules.py`.
+
+---
+
+## Observability (Step 53)
+
+```
+legalmind/observability/
+  logs.py        structured JSON, correlated by X-Request-Id (53.2)
+  redaction.py   53.3's prohibitions, enforced by construction
+  metrics.py     53.5's signals — and which of them may be alerted on
+```
+
+**53.3 is enforced, not documented.** Every field passes through `redact_fields`
+before it can reach a log record, and `log_event` takes an event name plus keyword
+fields — there is deliberately no raw-string payload, so a caller cannot smuggle
+clause text through an f-string. Credentials, session material, contract text,
+internal legal position and account identifiers are dropped; a forbidden key is
+**dropped, not marked**, because `rule_outcome=[redacted]` would still disclose that a
+legal position exists (the same reasoning as 49.7 r4's omit-don't-null).
+
+A length guard implements 53.3's design rule directly — *"log records carry
+identifiers, not content"* — so an over-long value is treated as content whatever it
+is called.
+
+**Two over-broad-redaction defects were found and fixed while building this**, both
+by the tests: matching a forbidden name as a *prefix* dropped `clause_count`, and
+suffix-matching OIDC's `state` dropped `mapping_state`. Over-broad redaction is its
+own failure mode — it silently removes the operational signal 53.5 asks for. Positional
+matching is now limited to words that cannot appear innocently (`password`, `secret`,
+`credential`, `token`), and `state`/`code`/`nonce` are exact-match only with
+`before_state`/`after_state` denied explicitly.
+
+**A fail-closed outcome is never an error.** `metrics.is_operational_failure` is the
+single place that decides what may be alerted on, and it returns `False` for every
+Tier-1 classification. Locked 53.5: *"Do not alert on `UNABLE_TO_EVALUATE` — it is the
+system working as locked"*, and the fail-closed rate is *"the engine's honesty metric.
+A falling rate may mean guessing, not improvement."* `ANALYSIS_FAILED` is alertable;
+a Finding of `UNABLE_TO_EVALUATE` is not, and 53.4 forbids collapsing the two.
+
+No log line is load-bearing (53.1). A test asserts the package imports neither the
+audit writer nor the models, so losing logs cannot lose legal history.
+
+## Deployment (Step 55)
+
+```
+backend/Dockerfile     one image for API and workers (55.1, 55.5)
+frontend/Dockerfile    no database driver, no connection string (38.22)
+docker-compose.yml     55.1's shape; development environment (55.3)
+python -m legalmind.deploy.preflight
+```
+
+**The preflight makes 55.6's register runnable.** Locked 55.6 wants "an explicit
+register rather than an implicit assumption", and a register nobody runs is an
+assumption with extra steps. Four outcomes, and **`ATTEST` and `BLOCKED` are not
+passes**:
+
+| | |
+|---|---|
+| `PASS` | checked here and satisfied |
+| `FAIL` | checked here and not satisfied |
+| `ATTEST` | not checkable from inside the process — 55.2's *"Restore is verified, not assumed"* is the clearest case |
+| `BLOCKED` | depends on something the specification records as NOT YET SPECIFIED |
+
+It verifies rather than trusts: migrations at head, all five invariant triggers
+present (55.4 r4 — including `F-1`'s removal-path triggers), and that the application
+role holds no DDL rights (55.2) — which currently **fails** in development, correctly.
+
+Every check cites the locked rule it enforces; a test asserts that, because a blocker
+without a citation is folklore.
+
+**Not wired, and named rather than implied:** queue-backed workers (the compose file
+provisions Redis and the worker service idles visibly rather than pretending to
+consume), Playwright, and a CI pipeline — 55.6 records CI/CD tooling as NOT YET
+SPECIFIED, so the 55.5 release sequence exists as the preflight plus the suites.

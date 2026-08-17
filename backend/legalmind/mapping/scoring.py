@@ -37,22 +37,32 @@ class CandidateScore:
         return [f"{s.kind}: {s.matched!r} ({s.delta:+d})" for s in self.signals]
 
 
-def _normalize(text: str) -> str:
+def normalize(text: str) -> str:
     """Case and whitespace folding only. No stemming, no synonym expansion:
-    terminology is configuration (35.4), not something the engine invents."""
+    terminology is configuration (35.4), not something the engine invents.
+
+    Public because the fact extractor matches configured phrases too, and the
+    boundary semantics below must be identical in both layers rather than
+    reimplemented.
+    """
     return re.sub(r"\s+", " ", text or "").strip().lower()
 
 
-def _contains_phrase(haystack: str, needle: str) -> bool:
+def contains_phrase(haystack: str, needle: str) -> bool:
     """Whole-phrase containment on word boundaries.
 
     Boundaries matter: without them 'lien' would match inside 'client', which is
     exactly the false-positive class locked 35.5 exists to prevent.
     """
-    n = _normalize(needle)
+    n = normalize(needle)
     if not n:
         return False
     return re.search(rf"(?<!\w){re.escape(n)}(?!\w)", haystack) is not None
+
+
+# Retained as private aliases so existing call sites and tests keep working.
+_normalize = normalize
+_contains_phrase = contains_phrase
 
 
 def score_clause(

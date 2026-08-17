@@ -16,9 +16,11 @@ from __future__ import annotations
 from collections import Counter
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import func, or_, select
 
+from legalmind.analysis.service import AnalysisNotPermitted, run_analysis
+from legalmind.api import ratelimit
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
@@ -31,6 +33,10 @@ from legalmind.security import permissions as P
 from legalmind.security.authorization import require_contract_visible
 
 router = APIRouter(tags=["reviews"])
+
+# Module-level so a deployment can swap in the Redis-backed limiter without
+# touching a route (see ratelimit.InProcessRateLimiter).
+_limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
 
 
 def _visible_reviews(guard: Guard):
@@ -123,6 +129,76 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
 @router.get("/reviews/{review_id}")
 def get_review(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     return data(serialize_review(guard.review(review_id, P.REVIEW_VIEW)))
+
+
+@router.post("/reviews/{review_id}/analyze", status_code=201)
+def analyze_review(
+    review_id: UUID,
+    guard: Guard = Depends(get_guard),
+    idempotency_key: str | None = Header(default=None, max_length=200),
+) -> dict:
+    """Run the locked analysis pipeline over this Review — 44.2/44.40, 49.8, 49.10.
+
+    **Permission is an interpretation.** Locked 49.3's table has no analysis row,
+    though 49.8 and 49.10 both presuppose the endpoint; `review.create` is the
+    closest locked grant. Recorded in ``permission_map`` and flagged there.
+
+    **Runs synchronously.** Locked Step 39 includes Celery/Redis and Step 30's
+    `PROCESSING` state exists for the asynchronous case, but no worker is deployed —
+    so this is honestly synchronous rather than pretending to be a queued job. The
+    orchestrator is a plain service function precisely so moving it behind a worker
+    later changes the caller, not the analysis.
+
+    **Idempotency (43.28, 49.8).** A repeat returns the original outcome rather than
+    re-running: the orchestrator refuses a Review that already has Findings, and that
+    refusal is reported as the already-analysed state, not as an error. Duplicating
+    legal output would be the worse failure.
+    """
+    review = guard.review(review_id, P.REVIEW_CREATE)
+
+    # S-5 / 49.10 — analysis is the expensive path. Keyed per user so one caller
+    # cannot exhaust the limit for everyone.
+    _limiter.check(f"analysis:{guard.user_id}", ratelimit.ANALYSIS)
+
+    try:
+        run = run_analysis(guard.db, review, actor_id=guard.user_id,
+                           request_id=guard.request_id)
+    except AnalysisNotPermitted as exc:
+        # 49.8 — a repeat is not an error. Report what already exists so a retry is
+        # indistinguishable from the original call's aftermath.
+        return data({
+            "review_id": str(review.id),
+            "review_status": review.status.value,
+            "already_analysed": True,
+            "detail": str(exc),
+            "idempotency_key": idempotency_key,
+        })
+
+    return data({
+        "review_id": str(run.review_id),
+        # Step 30 is the single source of progress (52.7) — no separate job state.
+        "review_status": run.review_status,
+        "requirements_in_snapshot": run.requirements_in_snapshot,
+        "findings_created": run.findings_created,
+        # Locked F-1 — coverage, not a gap: nothing was required and nothing found.
+        "skipped_as_optional": run.skipped_as_optional,
+        "requirements": [
+            {
+                "requirement_code": outcome.requirement_code,
+                "mapping_state": outcome.mapping_state,
+                "finding_id": str(outcome.finding_id) if outcome.finding_id else None,
+                "classification": outcome.classification,
+                "evaluation_count": outcome.evaluation_count,
+                "skipped_as_optional": outcome.skipped_as_optional,
+                # A configuration failure, never a legal conclusion.
+                "failure": outcome.failure,
+                # REC-07 — diagnostic metadata only; cannot alter a Finding.
+                "diagnostics": outcome.diagnostics,
+            }
+            for outcome in run.outcomes
+        ],
+        "idempotency_key": idempotency_key,
+    })
 
 
 @router.get("/reviews/{review_id}/findings")

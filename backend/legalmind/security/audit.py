@@ -26,6 +26,9 @@ AUTH_SESSION_REVOKED = "auth.session_revoked"
 # Authorization
 AUTHZ_PERMISSION_DENIED = "authz.permission_denied"
 AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"
+# Analysis
+ANALYSIS_RUN_RECORDED = "analysis.run_recorded"
+ANALYSIS_RUN_FAILED = "analysis.run_failed"
 # Legal workflow
 LEGAL_DECISION_RECORDED = "legal.decision_recorded"
 LEGAL_FINDING_ESCALATED = "legal.finding_escalated"

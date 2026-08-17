@@ -32,6 +32,7 @@ from legalmind.api.schemas import (
 from legalmind.api.serializers import serialize_requirement
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
@@ -197,6 +198,17 @@ def publish(body: ConfigurationPublish,
                                   ("evaluation rules", er)) if v is None]
         if missing:
             incomplete.append(f"{req.code}: missing {', '.join(missing)}")
+            continue
+
+        # D-1 — a mapping rule version that cannot be used is as incomplete as an
+        # absent one. Refusing here keeps an unusable Requirement out of every
+        # snapshot, so analysis never has to decide what to do about it: locked
+        # 35.9 fixes no threshold, and an assumed one would produce mapping states
+        # and therefore Findings from a number nobody chose (ENG-09).
+        try:
+            MappingRules.from_config(mr.rules)
+        except MappingMisconfigured as exc:
+            incomplete.append(f"{req.code}: {exc}")
             continue
         items.append({
             "requirement_version_id": str(rv.id),

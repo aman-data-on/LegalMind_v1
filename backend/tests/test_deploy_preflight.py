@@ -1,0 +1,229 @@
+"""Production preflight — locked 55.2, 55.6, 55.4.
+
+The rule under test is that **"unknown" is never reported as "ready"**. Locked 55.6
+presents the production blockers as "an explicit register rather than an implicit
+assumption", and locked 55.2 says of backups that "Restore is verified, not assumed".
+A preflight that awarded itself a pass for anything it could not check would recreate
+the assumption the register exists to remove.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from legalmind.deploy.preflight import (
+    ATTEST,
+    BLOCKED,
+    FAIL,
+    PASS,
+    Check,
+    Severity,
+    format_report,
+    is_ready,
+    run_preflight,
+)
+
+
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    """Each test states its own environment, so none inherits the developer's."""
+    for name in ("LEGALMIND_ENVIRONMENT", "LEGALMIND_DATABASE_URL",
+                 "LEGALMIND_ENABLE_DOCS", "LEGALMIND_OIDC_ISSUER",
+                 "LEGALMIND_OIDC_CLIENT_ID", "LEGALMIND_OIDC_CLIENT_SECRET",
+                 "LEGALMIND_MALWARE_SCANNING",
+                 "LEGALMIND_BACKUP_RESTORE_VERIFIED_AT"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def by_name(checks):
+    return {c.name: c for c in checks}
+
+
+# =====================================================================
+# The governing rule
+# =====================================================================
+def test_unknown_is_never_ready():
+    """ATTEST and BLOCKED both count as not-ready.
+
+    This is the whole point of the module. An operator reading "ready" while a
+    blocker sits unexamined is precisely what locked 55.6 replaces.
+    """
+    for status in (ATTEST, BLOCKED, FAIL):
+        assert is_ready([Check("x", PASS, ""), Check("y", status, "")]) is False
+    assert is_ready([Check("x", PASS, ""), Check("y", PASS, "")]) is True
+
+
+def test_a_development_checkout_is_not_production_ready():
+    checks = run_preflight()
+    assert is_ready(checks) is False
+    # And the report says so in as many words, rather than listing green ticks.
+    report = format_report(checks)
+    assert "NOT READY" in report
+    assert "an unexamined blocker is not a satisfied one" in report
+
+
+# =====================================================================
+# 55.2 / S-6 — secrets
+# =====================================================================
+def test_an_unset_database_url_is_a_failure():
+    """S-6 — secrets injected at runtime. The development default existing for
+    convenience must not silently become a production credential."""
+    assert by_name(run_preflight())["secrets"].status == FAIL
+
+
+def test_the_development_credential_pair_is_rejected(monkeypatch):
+    monkeypatch.setenv("LEGALMIND_DATABASE_URL",
+                       "postgresql+psycopg2://legalmind:legalmind@db/legalmind")
+    check = by_name(run_preflight())["secrets"]
+    assert check.status == FAIL
+    assert "development credential" in check.detail
+
+
+def test_an_injected_url_passes(monkeypatch):
+    monkeypatch.setenv("LEGALMIND_DATABASE_URL",
+                       "postgresql+psycopg2://app:from-vault@db/legalmind")
+    assert by_name(run_preflight())["secrets"].status == PASS
+
+
+# =====================================================================
+# 47.7 / 49.12 — the schema document
+# =====================================================================
+def test_serving_the_openapi_document_is_a_failure(monkeypatch):
+    """An unauthenticated schema document sits oddly beside 47.7's 404-over-403
+    posture, so switching it on is caught rather than assumed intentional."""
+    monkeypatch.setenv("LEGALMIND_ENABLE_DOCS", "1")
+    assert by_name(run_preflight())["api_docs"].status == FAIL
+
+
+# =====================================================================
+# S-3 — cookie flags are not weakenable by configuration
+# =====================================================================
+def test_cookie_flags_pass_because_they_are_not_configurable():
+    check = by_name(run_preflight())["cookie_flags"]
+    assert check.status == PASS
+    assert "not configurable" in check.detail
+
+
+def test_weakened_cookie_flags_would_be_caught(monkeypatch):
+    """Guards the guard: if a future change made the flags configurable and someone
+    turned Secure off, the preflight must fail rather than keep passing."""
+    from legalmind.api.routers import auth as auth_router
+
+    monkeypatch.setitem(auth_router._COOKIE_KW, "secure", False)
+    assert by_name(run_preflight())["cookie_flags"].status == FAIL
+
+
+# =====================================================================
+# S-5 / 55.2 — rate limiting
+# =====================================================================
+def test_in_process_rate_limiting_is_an_attestation_not_a_pass():
+    """55.2 requires limiting "at the edge (reverse proxy) **and** in the
+    application". The in-process limiter is correct for one worker only, and the
+    edge cannot be verified from here — so this is ATTEST, never PASS."""
+    check = by_name(run_preflight())["rate_limiting"]
+    assert check.status == ATTEST
+    assert "in-process" in check.detail
+    assert "edge" in check.detail
+
+
+def test_disabled_rate_limiting_is_a_failure(monkeypatch):
+    from legalmind.api import ratelimit
+    from legalmind.api.routers import auth as auth_router
+
+    monkeypatch.setattr(auth_router, "limiter", ratelimit.NullRateLimiter())
+    check = by_name(run_preflight())["rate_limiting"]
+    assert check.status == FAIL
+    assert "auth" in check.detail
+
+
+# =====================================================================
+# 55.6 — the blockers that are not ours to close
+# =====================================================================
+def test_oidc_is_blocked_not_failed():
+    """BLOCKED, because it is not a misconfiguration: OIDC is the locked primary
+    mechanism (47.1.3) and is genuinely unimplemented, needing an approved
+    dependency and provider configuration."""
+    check = by_name(run_preflight())["oidc"]
+    assert check.status == BLOCKED
+    assert "NOT IMPLEMENTED" in check.detail
+
+
+def test_oidc_stays_blocked_even_when_configured(monkeypatch):
+    """Configuration alone does not implement the flow, and the preflight must not
+    imply otherwise."""
+    for name in ("LEGALMIND_OIDC_ISSUER", "LEGALMIND_OIDC_CLIENT_ID",
+                 "LEGALMIND_OIDC_CLIENT_SECRET"):
+        monkeypatch.setenv(name, "x")
+    assert by_name(run_preflight())["oidc"].status == BLOCKED
+
+
+def test_retention_policy_is_blocked_on_the_owner():
+    """Locked 41.26 defers it; 53.6 requires that log expiry never remove auditable
+    history. Not a deployment choice."""
+    check = by_name(run_preflight())["retention_policy"]
+    assert check.status == BLOCKED
+    assert "NOT YET SPECIFIED" in check.detail
+
+
+def test_malware_scanning_is_a_recorded_decision(monkeypatch):
+    """55.6: "available or explicitly accepted as absent — Decision required at
+    deployment." Absence is a decision to record, not a defect to fix — but it must
+    be recorded, so silence is ATTEST."""
+    check = by_name(run_preflight())["malware_scanning"]
+    assert check.status == ATTEST
+    assert check.severity is Severity.DECISION
+
+    monkeypatch.setenv("LEGALMIND_MALWARE_SCANNING", "accepted-absent")
+    accepted = by_name(run_preflight())["malware_scanning"]
+    assert accepted.status == PASS
+    assert "accepted as absent" in accepted.detail
+
+
+def test_backup_restore_is_always_an_attestation_until_declared(monkeypatch):
+    """55.2 — "Restore is verified, not assumed." A process cannot verify its own
+    restore, so the application never awards itself this pass."""
+    check = by_name(run_preflight())["backup_restore"]
+    assert check.status == ATTEST
+    assert "not assumed" in check.detail
+
+    monkeypatch.setenv("LEGALMIND_BACKUP_RESTORE_VERIFIED_AT", "2026-08-17")
+    assert by_name(run_preflight())["backup_restore"].status == PASS
+
+
+# =====================================================================
+# 55.4 — database controls, verified rather than trusted
+# =====================================================================
+def test_invariant_triggers_are_verified_not_assumed(db):
+    """55.4 r4 — "Deferred constraint triggers (EV-MIN) must be created with their
+    tables; a backfill cannot bypass them." Includes the `F-1` removal-path
+    triggers, so a regression that dropped them would fail the preflight."""
+    checks = by_name(run_preflight())
+    if "invariant_triggers" not in checks:      # no database reachable
+        pytest.skip("database not reachable from this environment")
+    check = checks["invariant_triggers"]
+    assert check.status == PASS
+    assert "delete" in check.detail and "re-parent" in check.detail
+
+
+def test_migrations_must_be_at_head(db):
+    checks = by_name(run_preflight())
+    if "migrations" not in checks:
+        pytest.skip("database not reachable from this environment")
+    assert checks["migrations"].status == PASS
+
+
+def test_environment_must_be_declared(monkeypatch):
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", "prod")     # not one of the three
+    check = by_name(run_preflight())["environment"]
+    assert check.status == FAIL
+    assert "55.3" in check.basis
+
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", "production")
+    assert by_name(run_preflight())["environment"].status == PASS
+
+
+def test_every_check_cites_its_basis():
+    """A blocker without a citation is folklore. Each must name the locked rule it
+    enforces, so a reader can check the preflight against the specification."""
+    for check in run_preflight():
+        assert check.basis, check.name

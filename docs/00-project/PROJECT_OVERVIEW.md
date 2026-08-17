@@ -35,11 +35,11 @@ Legal analysis in V1 is **deterministic**: same inputs + same configuration snap
 
 ## Current project phase
 
-**SPECIFICATION / DESIGN. Implementation is not authorized.**
+**IMPLEMENTATION. Authorized 2026-08-17 (`IMPL-01`).**
 
-The V1 specification is complete. **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) is the authoritative statement of what is locked, what is open, and what is not yet specified** — it is not restated here, because a second copy drifts.
+The V1 specification is complete. **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) is the authoritative statement of what is locked, what is built, what is open and what is not yet specified** — it is not restated here, because a second copy drifts.
 
-Readiness is assessed in [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md), which reports readiness but does not grant it. Beginning implementation requires explicit approval ([CLAUDE.md](../../CLAUDE.md)).
+`IMPL-01` authorizes building what is locked and nothing more. Deciding anything `NOT YET SPECIFIED`, amending a locked decision, adding a table not covered by a lock record, or authoring `NORMATIVE` golden-corpus fixtures each still require explicit approval ([CLAUDE.md](../../CLAUDE.md)).
 
 ---
 

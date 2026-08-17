@@ -1,0 +1,124 @@
+/*
+ * Locked 52.6 records visual design, component library, accessibility target and
+ * internationalisation as NOT YET SPECIFIED: "None is determined by a locked
+ * decision; each is an implementation-phase choice."
+ *
+ * This stylesheet is therefore deliberately plain and dependency-free. No design
+ * system is invented and no CSS framework is added — rule 19 forbids adding a
+ * technology without approval, and choosing one here would quietly make it the
+ * project's answer to a question the owner has not decided.
+ *
+ * What the styling DOES carry is the one presentational rule that is locked:
+ * 52.5 requires an Evaluation needing a decision to be visually distinct. There
+ * is deliberately no style for "a field was withheld" — 52.4 forbids any such
+ * marker, so no class exists that could produce one.
+ */
+
+:root {
+  --ink: #1a1c1f;
+  --muted: #5b6169;
+  --line: #d8dce1;
+  --surface: #ffffff;
+  --page: #f6f7f9;
+  --attention: #8a4b00;
+  --attention-bg: #fff6e8;
+  --error: #8a1414;
+  --error-bg: #fdeeee;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
+.shell--bare { padding: 3rem 1.5rem; max-width: 34rem; margin: 0 auto; }
+
+.topbar {
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: 0.75rem 1.5rem; background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.topbar__brand { font-weight: 650; letter-spacing: -0.01em; }
+.topbar__nav { display: flex; gap: 1rem; flex: 1; }
+.topbar__nav a { color: var(--muted); text-decoration: none; padding: 0.25rem 0; }
+.topbar__nav a.active { color: var(--ink); box-shadow: inset 0 -2px 0 var(--ink); }
+.topbar__identity { display: flex; align-items: center; gap: 0.75rem; color: var(--muted); }
+
+.content { flex: 1; padding: 1.5rem; max-width: 68rem; width: 100%; margin: 0 auto; }
+.footer { padding: 1rem 1.5rem; border-top: 1px solid var(--line); }
+
+h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }
+h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+h3 { font-size: 1rem; margin: 0; }
+
+.hint { color: var(--muted); font-size: 0.86rem; margin: 0.25rem 0; }
+.empty { color: var(--muted); padding: 1rem 0; }
+.error { color: var(--error); }
+.warning { color: var(--attention); }
+
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+th, td { text-align: left; padding: 0.5rem 0.65rem; border-bottom: 1px solid var(--line); }
+th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+
+button { font: inherit; padding: 0.4rem 0.8rem; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); cursor: pointer; }
+button:disabled { color: var(--muted); cursor: not-allowed; }
+button.link { border: none; background: none; padding: 0; color: #1b4f9c; text-decoration: underline; }
+label { display: block; margin-bottom: 0.6rem; font-size: 0.9rem; }
+input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--line); border-radius: 4px; }
+
+form.inline { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+form.inline label { flex: 1 1 12rem; margin: 0; }
+
+.badge, .status, .outcome, .tag, .evaluation__flag {
+  display: inline-block; padding: 0.1rem 0.45rem; border-radius: 3px;
+  font-size: 0.78rem; border: 1px solid var(--line);
+}
+.badge--match { background: #eef7ee; }
+.badge--deviation, .badge--missing { background: #fff6e8; }
+.badge--conflict, .badge--ambiguous, .badge--unresolved, .badge--unable_to_evaluate { background: #f3eefb; }
+.outcome--unacceptable, .outcome--approval_required { background: var(--attention-bg); color: var(--attention); }
+.status--escalated { background: var(--attention-bg); color: var(--attention); }
+.evaluation__flag { background: var(--attention-bg); color: var(--attention); }
+.tag--superseded { color: var(--muted); }
+
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+.finding__head { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
+.finding__states { display: flex; gap: 0.4rem; align-items: center; }
+.finding__note { color: var(--muted); font-size: 0.82rem; margin: 0.35rem 0 0.75rem; }
+
+.evaluations { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.65rem; }
+.evaluation { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 4px; padding: 0.7rem 0.85rem; }
+/* 52.5 — APPROVAL_REQUIRED / UNACCEPTABLE must be visually distinct. */
+.evaluation--attention { border-left-color: var(--attention); background: var(--attention-bg); }
+.evaluation__head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.evaluation__scope { font-weight: 600; }
+.evaluation__kind, .evaluation__provenance { color: var(--muted); font-size: 0.8rem; }
+.evaluation__facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.75rem; margin: 0.55rem 0; font-size: 0.9rem; }
+.evaluation__facts dt { color: var(--muted); }
+.evaluation__facts dd { margin: 0; }
+.evaluation__explanation { margin: 0.5rem 0; padding-left: 1.2rem; font-size: 0.9rem; }
+
+.evidence__location { color: var(--muted); font-size: 0.82rem; margin: 0.5rem 0 0.15rem; }
+.evidence__text { margin: 0 0 0.5rem; padding-left: 0.75rem; border-left: 2px solid var(--line); white-space: pre-wrap; }
+.evidence--none { color: var(--muted); font-size: 0.86rem; }
+
+.decision { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--line); }
+.decision__form { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+.decision__conflict { background: var(--error-bg); border: 1px solid #e5b3b3; border-radius: 4px; padding: 0.6rem; margin-top: 0.5rem; }
+.decision-history { padding-left: 1.1rem; font-size: 0.9rem; }
+.decision-history--superseded { color: var(--muted); }
+.decision-history blockquote { margin: 0.2rem 0; padding-left: 0.6rem; border-left: 2px solid var(--line); }
+
+.banner { border-radius: 4px; padding: 0.7rem 0.9rem; margin-bottom: 1rem; }
+.banner--error { background: var(--error-bg); border: 1px solid #e5b3b3; color: var(--error); }
+.banner__fields { margin: 0.3rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; }
+
+.access-restricted { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; }
+.pager { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; color: var(--muted); font-size: 0.88rem; }

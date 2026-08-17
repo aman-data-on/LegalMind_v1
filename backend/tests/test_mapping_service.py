@@ -28,6 +28,7 @@ LIABILITY_CONFIG = MappingRules(
     keyword_groups=(("liability", "shall not exceed"),),
     section_heading_terms=("liability",),
     negative_patterns=("shall not be limited",),
+    confirm_threshold=5,
 ).to_config()
 
 

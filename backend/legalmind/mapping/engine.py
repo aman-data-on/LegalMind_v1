@@ -16,15 +16,58 @@ This engine therefore **does not implement Step 35's band vocabulary at all.**
 It derives state directly from locked Step 28's own definitions:
 
   CONFIRMED   "sufficient deterministic evidence to map the clause to the
-              Requirement"                          -> exactly one clear winner
-  AMBIGUOUS   "More than one plausible mapping exists and LegalMind must not
-              silently choose one"                  -> tied plausible candidates
+              Requirement"           -> one or more clauses reach the threshold
   UNRESOLVED  "The system cannot establish the mapping reliably"
-                                                    -> nothing reaches threshold
+                                     -> nothing reaches the threshold
+  NONE        mapping completed, no provision mapped (45D)
+                                     -> no clause produced any positive signal
 
 No `CANDIDATE`, `CANDIDATE-REVIEW`, `NOT MAPPED` or `NO_CONFIDENT_MAPPING` value
 is produced or persisted. When the band mapping is decided it can be layered on
 without revisiting these semantics.
+
+--------------------------------------------------------------------------
+Owner decision M-2 — several supporting clauses are CONFIRMED, not AMBIGUOUS
+--------------------------------------------------------------------------
+An earlier revision treated several qualifying clauses whose scores tied as
+`AMBIGUOUS`, reasoning that choosing a single governing clause would be arbitrary.
+Two locked rules stand against that:
+
+    Step 28 r2   "One Requirement may be supported by multiple clauses."
+    35.12        the same, restated.
+
+If multiple supporting clauses are normal, no single governing clause has to be
+chosen — and this function already retains *every* qualifying candidate rather
+than picking one, so the arbitrary choice the tie rule guarded against was never
+actually made. In practice the rule also mis-fired constantly: a real
+three-paragraph liability clause scored 5/5/5 because each paragraph matched one
+configured phrase, and the whole Requirement came out `UNABLE_TO_EVALUATE`.
+
+**`CONFIRMED` here means "this Requirement is mapped to these provisions". It
+never means the provisions are compliant, consistent with each other, or legally
+acceptable.** Those are later questions and this layer does not answer them.
+
+**Contradiction is not assessed here, and must not be.** Locked Step 28 r8 keeps
+Requirement mapping separate from Company Standard evaluation, and locked 44.18
+places conflict detection at layer 7 — after fact extraction. Contradiction is a
+property of *facts*, not of scores or text, so detecting it here would require
+facts this layer must not have. Two clauses stating incompatible caps are mapped
+as `CONFIRMED`, both retained as evidence, and the evaluator resolves them: same
+scope, materially different, no configured precedence -> `CONFLICT`, which is
+Tier 1 and requires a Legal Decision (45C.2, 45C.22, 45C.27, D-3.5(b)).
+
+M-2 therefore makes conflict detection *reachable* rather than weaker. Under the
+old rule, tied contradictory clauses produced `AMBIGUOUS` -> no facts -> "we could
+not tell"; 45C.2's design of retaining every conflicting provision as
+`CONFLICTING` evidence was unreachable because the tie fired first.
+
+**Consequence, recorded rather than worked around:** nothing in V1 produces
+`MappingState.AMBIGUOUS`. Cross-Requirement ambiguity — one clause plausibly
+mapping to two different Requirements — is the case Step 28's wording most
+naturally describes, and it is **not implemented**: `map_document` scores each
+Requirement independently. The enum value remains because locked Step 28 defines
+it and locked 45D's `PRESENCE` table has a row for it; no producer is invented
+here.
 """
 
 from __future__ import annotations
@@ -125,66 +168,31 @@ def map_requirement(
             explanation=explanation,
         )
 
-    # AMBIGUOUS when two candidates are equally plausible for the SAME
-    # Requirement and differ in substance. Locked Step 28: "LegalMind must not
-    # silently choose one."
-    ambiguous = _is_ambiguous(qualifying, rules)
-
-    if ambiguous:
-        return MappingResult(
-            requirement_version_id=requirement_version_id,
-            state=MappingState.AMBIGUOUS,
-            candidates=tuple(qualifying),
-            evidence_ids=tuple(c.clause.evidence_id for c in qualifying),
-            explanation=(
-                f"{len(qualifying)} candidates within the tie margin "
-                f"({rules.tie_margin}); the engine must not choose between them",
-            ) + tuple(
-                f"candidate {c.clause.section_number or c.clause.evidence_id}: "
-                f"score {c.value}" for c in qualifying
-            ),
-        )
-
+    # M-2 — every qualifying clause supports the Requirement, and all are
+    # retained (Step 28 r2, 35.12). Tied scores are not ambiguity: no single
+    # governing clause has to be chosen, so nothing arbitrary is being decided.
+    #
+    # The explanation states explicitly that contradiction was not assessed, so
+    # the record cannot be read as a claim this layer did not make.
+    supporting = (
+        f"{len(qualifying)} clause(s) reached the confirm threshold "
+        f"({rules.confirm_threshold}); all are retained as supporting evidence "
+        "(Step 28 r2, 35.12)",
+        "mapping establishes only that these provisions govern this Requirement "
+        "— not that they are consistent with one another or acceptable; "
+        "contradiction is assessed by the evaluator (Step 28 r8, 44.18)",
+    )
     return MappingResult(
         requirement_version_id=requirement_version_id,
         state=MappingState.CONFIRMED,
         candidates=tuple(qualifying),
         evidence_ids=tuple(c.clause.evidence_id for c in qualifying),
-        explanation=tuple(
+        explanation=supporting + tuple(
             f"clause {c.clause.section_number or c.clause.evidence_id} "
             f"score {c.value}: " + "; ".join(c.score.explanation)
             for c in qualifying
         ),
     )
-
-
-def _is_ambiguous(qualifying: list[Candidate], rules: MappingRules) -> bool:
-    """Whether the engine faces a choice it is forbidden to make.
-
-    Multiple qualifying clauses are NOT automatically ambiguous — locked 35.12
-    and Step 28 r2 permit one Requirement to be supported by several clauses.
-    Ambiguity arises when candidates are tied closely enough that selecting a
-    single governing clause would be arbitrary, AND they are not simply
-    restatements of one another.
-    """
-    if len(qualifying) < 2:
-        return False
-    best = qualifying[0].value
-    tied = [c for c in qualifying if best - c.value <= rules.tie_margin]
-    if len(tied) < 2:
-        return False
-    # Materially identical clauses are one position stated twice, not a
-    # conflict of candidates (45C.17 for the evaluation layer; the same
-    # reasoning applies here).
-    distinct = {_fingerprint_clause(c.clause) for c in tied}
-    return len(distinct) > 1
-
-
-def _fingerprint_clause(clause: Clause) -> str:
-    import hashlib
-    import re
-    normalized = re.sub(r"\s+", " ", (clause.content or "").strip().lower())
-    return hashlib.sha256(normalized.encode()).hexdigest()
 
 
 def map_document(

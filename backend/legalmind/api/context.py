@@ -12,11 +12,15 @@ from __future__ import annotations
 import hmac
 import re
 import secrets
+import time
 from uuid import uuid4
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
+
+from legalmind.observability import log_event
+from legalmind.observability.logs import log_exception
 
 REQUEST_ID_HEADER = "X-Request-Id"
 CSRF_HEADER = "X-CSRF-Token"
@@ -50,6 +54,54 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers[REQUEST_ID_HEADER] = rid
         return response
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """One operational log line per request — locked 53.1, 53.2, 53.4.
+
+    Carries identifiers only: method, route template, status, duration and the
+    correlation id. Deliberately NOT the query string or any body — locked 53.3 keeps
+    contract text and internal legal position out of logs, and a query value can hold
+    either.
+
+    The route *template* rather than the concrete path, so an object id never reaches
+    a log line and a searchable index cannot become an enumeration aid (S-7 in
+    spirit).
+
+    Nothing here is load-bearing: 53.1 requires that losing logs never loses legal
+    history, so no audit event and no Evaluation depends on this line.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        started = time.monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            # 53.4 — the traceback is operator-facing and stays here. The API's own
+            # exception handler produces the safe user-facing envelope.
+            log_exception("http.request_failed",
+                          request_id=request_id_of(request),
+                          method=request.method,
+                          route=_route_template(request),
+                          duration_ms=round((time.monotonic() - started) * 1000, 2))
+            raise
+        log_event("http.request",
+                  request_id=request_id_of(request),
+                  method=request.method,
+                  route=_route_template(request),
+                  status=response.status_code,
+                  duration_ms=round((time.monotonic() - started) * 1000, 2))
+        return response
+
+
+def _route_template(request: Request) -> str:
+    """The matched route pattern, e.g. `/api/v1/findings/{finding_id}`.
+
+    Falls back to the literal path only when nothing matched — an unmatched path
+    cannot contain a real object id, because no object was resolved.
+    """
+    route = request.scope.get("route")
+    return getattr(route, "path", None) or request.url.path
 
 
 class CsrfMiddleware(BaseHTTPMiddleware):
