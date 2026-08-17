@@ -88,7 +88,7 @@ jobs:
 
       # The trigger-presence assertion now lives in the suite itself
       # (test_locked_invariants_are_enforced_by_triggers_not_convention and
-      # test_ev_min_trigger_is_deferred_to_commit), so it runs inside the same
+      # test_ev_min_triggers_are_deferred_to_commit), so it runs inside the same
       # fixtures and inspects the private schema this run actually migrated.
       #
       # The standalone probe that used to sit here opened its own connection,
@@ -97,11 +97,13 @@ jobs:
       # machine it found stale tables from earlier runs and passed. Neither
       # answer was about this run.
 
-      # F-1, open at time of writing: EV-MIN is enforced AFTER INSERT on findings
-      # only. Deleting the last Evaluation orphans the Finding. Surfaced as a
-      # warning until the delete-path trigger lands.
-      - name: Note open invariant gaps
-        run: echo "::warning title=F-1 EV-MIN delete path::No trigger on evaluations; deleting the last Evaluation leaves a Finding with zero Evaluations. Tracked in IMPLEMENTATION_STATUS.md."
+      # F-1 closed 2026-08-17. Migration 9c2f41ab77e3 added the deferred
+      # AFTER DELETE and AFTER UPDATE constraint triggers on evaluations, so the
+      # removal path is covered. The warning step that stood here is gone rather
+      # than reworded: it asserted nothing, and a CI annotation stating that a
+      # fixed bug is still open is worse than no annotation. The guarantee is
+      # now enforced by test_ev_min_triggers_are_deferred_to_commit, which fails
+      # if any of the three triggers is missing.
 
   # ── 3 ──────────────────────────────────────────────────────────────────────
   authorization:

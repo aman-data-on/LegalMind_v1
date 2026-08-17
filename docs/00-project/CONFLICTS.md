@@ -4,7 +4,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-01 through C-04 were reconciled by the project owner on 2026-08-16** (registry entries `REC-01`–`REC-06` in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md)). The analysis found that **none of the four was a true contradiction** — each was a supersession chain, a layer migration, a refinement, or different terminology for different stages. No historical locked text was modified.
 
-**C-05 through C-08 remain open.** Do not resolve any open item without explicit approval.
+**C-05 – C-08, C-10 and C-11 remain open.** Do not resolve any open item without explicit approval.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
 
@@ -20,6 +20,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-08 | Reviewer role authority | ⏳ Open (low) |
 | C-09 | `backend/` source code vs "no implementation exists" | ✅ **RESOLVED** — authorized retroactively (`IMPL-01`, AB-2) |
 | C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
+| C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ⏳ Open (LOW) |
 
 ---
 
@@ -247,6 +248,30 @@ The schema's seed list **omits `Legal Reviewer` and `Legal Admin`** and introduc
 **Until decided:** treat **Step 23 / `ROLE-06` as the canonical role matrix** — it is the later locked decision on the subject and the one Step 47 explicitly builds on — and do not seed `ADMIN` without a decision. Report rather than assume.
 
 Documented at: [USER_ROLES.md](../01-product/USER_ROLES.md), [DATABASE_MIGRATIONS.md](../09-implementation/DATABASE_MIGRATIONS.md) §42.2, [STEP_47_SECURITY_SPECIFICATION.md](../06-security/STEP_47_SECURITY_SPECIFICATION.md).
+
+---
+
+## C-11 — Is CI/CD tooling locked by Step 39, or NOT YET SPECIFIED by Step 55?
+
+**Severity: LOW — two locked records, opposite answers. Recorded 2026-08-17 while correcting a false "No CI pipeline" claim in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).**
+
+| Source | Status | Says |
+|---|---|---|
+| **Step 39** technology stack table, `all_lock.md` line 6049 | LOCKED (stack table only) | `CI/CD` → **GitHub Actions** — "Straightforward automated testing/deployment" |
+| **Step 55.6** production blockers, `all_lock.md` line 14871 and [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) §55.6 | LOCKED | "**NOT YET SPECIFIED:** hosting platform, container orchestration, **CI/CD tooling**, object-storage provider, monitoring stack, disaster-recovery objectives. None is determined by a locked decision; each is an operational choice at deployment time." |
+
+**Why it matters:** `.github/workflows/ci.yml` exists and `main` is protected on one of its jobs. Under the first reading it is an authorized use of the locked Step 39 stack — `IMPL-01` forbids "any technology, dependency or service **beyond the Step 39 stack**", and GitHub Actions is inside it. Under the second reading it is an implementation choice made where the specification is silent, which `IMPL-01` condition 4 leaves unratified and which therefore belongs under **Pending ratification** in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). The two readings put the same file in two different governance categories.
+
+Note that the "a later Step document beats an older topic document" heuristic in [CLAUDE.md](../../CLAUDE.md) does **not** settle this: both sources are Step-numbered lock records, not a Step versus an older topic document.
+
+**Not resolved here.** Two readings are available:
+
+1. Step 39's table is the locked stack and names GitHub Actions, so the tooling *is* chosen; 55.6's list is about *deployment-time* operational choices (hosting, orchestration, DR) and sweeps CI/CD in by association.
+2. Step 55 is the later locked decision on deployment and deliberately reopens CI/CD as an operational choice, superseding the Step 39 table's row for this one line item.
+
+**Until decided:** the workflow stays as it is — it is relied on by branch protection and by the release-blocking check, and removing it would reduce enforcement. Do not record the tooling question as settled in either direction, and do not cite this conflict as authority for adding any *other* technology.
+
+Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Blocking the VERIFIED state, [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) §55.6, [BACKEND_ARCHITECTURE.md](../05-architecture/BACKEND_ARCHITECTURE.md) (stack table).
 
 ---
 
