@@ -18,7 +18,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-06 | Two "Step 29" sections | ⏳ Open (low) |
 | C-07 | Superseded draft lists | ⏳ Informational |
 | C-08 | Reviewer role authority | ⏳ Open (low) |
-| C-09 | `backend/` source code vs "no implementation exists" | ⏳ **Open (HIGH)** |
+| C-09 | `backend/` source code vs "no implementation exists" | ✅ **RESOLVED** — authorized retroactively (`IMPL-01`, AB-2) |
 | C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
 
 ---
@@ -186,6 +186,14 @@ Step 3 lists `Reviewer` as a proposed role, while Step 4 explicitly leaves open 
 ---
 
 ## C-09 — Application source code exists while the project asserts no implementation
+
+## ✅ RESOLVED 2026-08-17 — `IMPL-01`, Amendment Batch AB-2
+
+**Verdict: authorized retroactively, and the record says so.** The owner authorized implementation on 2026-08-17; the lock record states plainly that the work preceded the authorization and that nothing is backdated. The two additive tables were ratified separately as **AM-22** (`review_assignments`) and **AM-23** (`escalations`), with ownership resolved by **AM-24** (`created_by` is the owner; transfer deferred to V2).
+
+The three technical findings the review surfaced — `F-1` EV-MIN delete path, `F-3` mapping state not persisted, `F-4` non-deterministic suite — are **not closed by this resolution**. They are tracked in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Blocking the VERIFIED state.
+
+### Original finding (retained for the record)
 
 **Severity: HIGH — a process conflict, not a specification conflict. Recorded 2026-08-17; scope re-verified the same day.**
 

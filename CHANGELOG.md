@@ -4,7 +4,7 @@ Notable changes to the LegalMind repository. Format follows [Keep a Changelog](h
 
 **This is not the decision record.** Every decision, its reasoning and its exact locked text live in [`all_lock.md`](all_lock.md), indexed by ID in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md). This file records *what changed in the repository and when*, at milestone granularity, and links out. Decision history is deliberately not duplicated here.
 
-No version has been released. LegalMind is in the specification phase and no implementation is authorized.
+No version has been released. The V1 specification is complete and implementation is authorized (`IMPL-01`, 2026-08-17). Build state is reported in [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), which is the only document that asserts it.
 
 ---
 
@@ -14,13 +14,19 @@ No version has been released. LegalMind is in the specification phase and no imp
 
 * Repository-level documentation system: [README.md](README.md), [docs/README.md](docs/README.md) (documentation index), [CONTRIBUTING.md](CONTRIBUTING.md) (change management), [AGENTS.md](AGENTS.md), and this changelog.
 
+* Frontend implementation of locked Step 52 — Next.js + TypeScript, ten screens, the API as its only data path (38.22), permission-driven rendering as presentation only (47.6), omitted-not-nulled confidentiality rendering (52.4), and no optimistic Legal Decision UI (52.7). Vitest suite. Detail in `frontend/README.md`.
+
 * Backend implementation of the locked specification, on the owner's instruction of 2026-08-17 ("LegalMind V1 has now passed the Implementation Readiness Gate. Begin implementation"), in the sequence the owner set. Complete through unit 7: database schema and migrations · authentication and authorization (Step 47) · document storage and ingestion (Step 34) · mapping (Steps 28, 35) · evaluation engine (`LIABILITY-001` and `PRESENCE`, Steps 44, 45A–45D) · decision and review workflow (Steps 4, 22, 30, 31) · HTTP API (Steps 43, 47, 49). 339 tests. No locked decision amended; five additive tables (`sessions`, `user_identities`, `evaluation_evidence`, `unmatched_provisions`, `review_assignments`, `escalations`) all traced to locked requirements the locked schema does not represent. Detail in `backend/README.md`.
+
+### Changed
+
+* [CLAUDE.md](CLAUDE.md), [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) and this file synchronized against `IMPL-01` and Amendment Batch AB-2. They previously asserted that implementation was unauthorized and that nothing was past LOCKED, which contradicted both `all_lock.md` and the working tree. CLAUDE.md's "What 'no implementation' means concretely" section became "What implementation authorization does and does not cover", carrying `IMPL-01`'s own list of what it does **not** grant. No locked text was altered — `all_lock.md` remains append-only at 15,093 lines.
 
 ### Flagged
 
-* **C-09** — a `backend/` directory containing Python source (`pyproject.toml`, SQLAlchemy declarative base, `alembic/`, `api/`, `domain/`, `services/`, `tests/`) exists in the working tree, untracked, contradicting the "no implementation exists" state asserted in [CLAUDE.md](CLAUDE.md) and [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md). Recorded in [CONFLICTS.md](docs/00-project/CONFLICTS.md); awaiting an owner decision. **Note:** implementation has since been authorized by the owner (see Added, above), so C-09's *authorization* question is answered while its *provenance* question — whose code the pre-existing untracked `backend/` was, and whether any of it survives — is not.
+* **`F-*` is an overloaded namespace.** [DECISION_FINALIZATION.md](docs/00-project/DECISION_FINALIZATION.md) §1 uses `F-1`–`F-12` for engineering resolutions; [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) § Blocking the VERIFIED state uses `F-1`/`F-3`/`F-4` for code-review findings. `AM-23` cites "engineering resolution `F-3`" (escalation at Finding level), which is not the `F-3` in the build-state table (Mapping State not persisted). Flagged in [CLAUDE.md](CLAUDE.md); merging or renumbering the two series is an owner decision.
 
-* **Stale authorization statements.** The line "LegalMind is in the specification phase and no implementation is authorized" near the top of this file, the equivalent statements in [CLAUDE.md](CLAUDE.md), and the build state in [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) all predate the owner's 2026-08-17 authorization and are now out of date. Left as written rather than rewritten unilaterally: [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) is the only document permitted to assert build state, and how the authorization should be recorded there is an owner decision.
+* **Build-sequence numbering differs across three documents.** [IMPLEMENTATION_READINESS_GATE.md](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) §5 is a twelve-step list with the frontend at 10; [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md)'s build table is a ten-unit list with the frontend at 9; the owner's build instruction put the frontend at 8. The *order* agrees in every case — only the numbers differ. Left as written; no document was renumbered.
 
 ---
 

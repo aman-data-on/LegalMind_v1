@@ -13,6 +13,36 @@ Authoritative source: [`all_lock.md`](../../all_lock.md) — the historical mast
 
 ---
 
+## IMPL. Implementation Authorization
+
+**Locked 2026-08-17.** Record in [`all_lock.md`](../../all_lock.md) under "Implementation Authorization — LOCK RECORD". No specification decision changed.
+
+| ID | Decision | Status | Source | Canonical Document |
+|----|----------|--------|--------|--------------------|
+| IMPL-01 | **Implementation of the locked V1 specification is authorized**, in the Implementation Readiness Gate §5 sequence. Recorded **retroactively** — Steps 1–6 of the build sequence were implemented before approval was recorded, and the record says so rather than backdating. Authorizes building what is locked; confers no authority to decide what is not. | LOCKED | Owner, 2026-08-17 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) |
+
+**Not authorized by IMPL-01:** deciding anything `NOT YET SPECIFIED` · resolving any open conflict or `OD-*` · amending any locked decision · adding any table, column or enum not covered by a lock record or approved amendment · authoring `NORMATIVE` golden-corpus fixtures · any technology beyond the Step 39 stack.
+
+---
+
+## AB2. Amendment Batch AB-2 — Review Assignment, Escalation & Ownership
+
+**Approved and locked 2026-08-17.** Recorded in [`all_lock.md`](../../all_lock.md) under "Amendment Batch AB-2". Follows the AB-1 pattern: each item repairs a case where a **locked requirement could not be represented by the locked schema**. No legal policy changed.
+
+| ID | Target | Amendment | Driver |
+|----|--------|-----------|--------|
+| AM-22 | *(new table)* | `review_assignments` — `review_id`, `user_id`, `assigned_by`, `created_at`, `revoked_at`; `UNIQUE(review_id, user_id)`. Revocation is a timestamp, not a delete (41.26) | Step 24 r6, r16, r17 — assignment has no locked representation, making r16 unimplementable |
+| AM-23 | *(new table)* | `escalations` — `finding_id`, `raised_by`, `reason`, `created_at`, `withdrawn_at`. Recorded at **Finding** level per `F-3`; marks every Evaluation under it as requiring a decision | Steps 4, 22 · `ROLE-04` · Step 24 r5 |
+| AM-24 | Step 24 r1–r2 | **`reviews.created_by` IS the Review owner for V1.** Ownership transfer **deferred to V2**. **No schema change — 42.13 is NOT amended**; this records the interpretation that resolves r1/r2 against the locked column set | 42.13 carries `created_by` and no `owner_id`, so transfer had no representation |
+
+**Consequence of AM-24:** every ownership check in Step 24 — r3, r4, r16, r18 — resolves through `reviews.created_by`. Legal access resolves independently through `review_assignments` and Legal scope, which is exactly what r16/r17 require: access without ownership.
+
+**Deferred to V2:** `reviews.owner_id`, transfer semantics, transfer audit events, and the fate of an in-flight Review whose owner is deactivated.
+
+**Not amended by AB-2:** Step 24's eighteen rules · 42.13 `reviews` · the Step 31 decision model · AB-1 · the five-axis state model.
+
+---
+
 ## R. Reconciliation & canonicalization decisions
 
 These decisions were made by the project owner during a cross-step reconciliation session on **2026-08-16**. They are recorded in [`all_lock.md`](../../all_lock.md) under **"Post-Step-44 Cross-Document Reconciliation Decisions"** (appended after Step 45B; the original 13,512 lines are byte-identical and unmodified). They resolve *how existing locked decisions relate to each other*; they do not overturn any locked rule.
