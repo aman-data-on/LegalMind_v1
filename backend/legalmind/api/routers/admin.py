@@ -19,7 +19,7 @@ summary gives Super Admin none and the resolver has no bypass at all.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -115,7 +115,7 @@ def update_user(user_id: UUID, body: UserUpdate,
         user.name = body.name
     if body.status is not None:
         user.status = body.status
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
     guard.db.flush()
 
     if body.status is not None and body.status is not E.UserStatus.ACTIVE:

@@ -6,7 +6,7 @@
 
 Documents under [`09-implementation/`](../09-implementation/) remain *specifications of a target*. Where code and specification disagree, the specification wins — `IMPL-01` condition 1: *the code is not a specification.*
 
-Last synchronized against `all_lock.md` at **15,196 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-08`, Amendment Batches AB-1 and AB-2, Implementation Authorization).
+Last synchronized against `all_lock.md` at **15,358 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, Implementation Authorization).
 
 ---
 
@@ -23,12 +23,14 @@ Last synchronized against `all_lock.md` at **15,196 lines** (Steps 1–45D, 47, 
 | 5 · Evaluation engine | Steps 44, 45A–45D | IMPLEMENTED · TESTED | 62 evaluation + 16 corpus tests |
 | 6 · Decision & review workflow | Steps 4, 22, 30, 31 | IMPLEMENTED · TESTED | 28 workflow tests |
 | 7 · HTTP API | Steps 43, 47, 49 | IMPLEMENTED · TESTED | 39 endpoints; 139 API tests |
-| 8 · Frontend | Step 52 | IMPLEMENTED · TESTED | 10 of 10 locked 52.6 screens except export; 46 Vitest tests. **Playwright not set up** |
+| 8 · Frontend | Step 52 | IMPLEMENTED · TESTED | 10 of 10 locked 52.6 screens except export; 53 Vitest tests + 22 Playwright browser-workflow tests (26 runner items, including 4 setup steps) |
 | 9 · Analysis orchestrator | Steps 28, 34, 35, 44 | IMPLEMENTED · TESTED | 20 orchestrator + 19 extraction tests |
-| 10 · Golden corpus harness | Steps 45E, 54 | PARTIAL | 6 `STRUCTURAL` fixtures of 64 specified; **no `NORMATIVE` fixture exists** |
-| 11 · Observability & deployment | Steps 53, 55 | PARTIAL | Step 53 observability implemented (26 tests); Step 55 preflight register + Dockerfiles + compose (19 tests). **Queue-backed workers, Playwright and CI not wired** |
+| 10 · Golden corpus harness | Steps 45E, 54 | PARTIAL | Runner complete; 16 `STRUCTURAL` fixtures (10 added 2026-08-17 covering 44.17 carve-out splitting, `UNLIMITED`, `UNKNOWN`, `FAILED`/`PARTIAL` extraction, unit and basis refusal, scope-required, Tier-1 dominance and no-Legal-Rule). **No `NORMATIVE` fixture exists** and none may be authored without real material |
+| 11 · Observability & deployment | Steps 53, 55 | IMPLEMENTED · TESTED | **Step 53 complete** — 53.1–53.5 implemented, all seven named signals now have emission sites (36 tests). **Step 55 complete as specifiable** — 18-check preflight register covering every 55.2 row, the 55.4 r3 / 55.5 post-migration reproducibility gate (`tools/verify_reproducibility`), queue-backed worker, Dockerfiles, compose (24 tests). CI: 12 jobs, job 1 blocking at a zero baseline. **Retention policy, export formats, OIDC, log aggregation, alert thresholds and the monitoring stack remain NOT YET SPECIFIED** and are reported as `BLOCKED`/`ATTEST` rather than assumed |
 
-Backend: **446 tests**. Frontend: **46 tests**. Both green.
+Backend: **508 tests**. Frontend: **53 Vitest + 22 Playwright** (26 runner items with setup). All green. `ruff` and `mypy` are at **zero** and CI job 1 is blocking.
+
+**Verified independently of those tests**, by raw SQL, real worker processes and real log output: see [INDEPENDENT_VERIFICATION.md](../08-testing/INDEPENDENT_VERIFICATION.md) — **12 PASS**, including the 55.4 r3 post-migration reproducibility gate. It has now found **six** defects the suite could not, among them `acks_late` set while crash recovery was an hour away, and a database error writing contract text into an operational log. That is *not* third-party verification and changes nothing about the statement below.
 
 **Nothing is VERIFIED or PRODUCTION-READY.** `TESTED` means automated tests exist and pass locally; it does not mean behavior has been confirmed against the specification independently of those tests.
 
@@ -56,11 +58,12 @@ The `review_assignments` and `escalations` tables and Review ownership were prev
 | **F-1** | EV-MIN was enforced `AFTER INSERT` on `findings` only, so deleting the last Evaluation orphaned the Finding undetected | ✅ **FIXED 2026-08-17** — migration `9c2f41ab77e3` adds `AFTER DELETE` and `AFTER UPDATE` constraint triggers on `evaluations`, both `DEFERRABLE INITIALLY DEFERRED`. 5 new invariant tests; the preflight verifies all three triggers exist. Migration round-trips twice cleanly |
 | **F-3** | Mapping State (axis 1) has no column or enum | ✅ **ANSWERED by `D-2`** — the owner chose JSONB persistence in `evaluations.result.evaluated_facts`, written by **both** evaluators, so a replay can show what mapping concluded. Recorded under Pending ratification rather than left as a blocker |
 | **F-4** | **Test suite non-determinism.** ⚙️ **Fixed and verified 2026-08-17** — see below |
-| **45E** | Golden corpus is 6 of 64 fixtures, all `STRUCTURAL`. `NORMATIVE` fixtures require real representative contracts and real Company Standards, which must be supplied | Release gate |
+| **F-6** | **A Legal Reviewer could reach no Review.** Visibility was ownership or an active `review_assignments` row, and no operation creates that row; "explicit Legal scope" (Step 24 r6) was named in two locked rules and defined in none, so **both** branches of r6 were unimplementable. The backend suite hid it — nine test sites insert the row with `db.add()`, so every Legal-workflow test ran against a state the product could not produce | ✅ **RESOLVED 2026-08-17 by `REC-09`** — Legal scope defined (non-withdrawn escalation **or** `LEGAL_REVIEW` status); `legal.review` holders may view, with no ownership and no decision authority. Implemented in `can_see_review` and the mirroring list scope; **no new permission, endpoint, table or schema change**. 15 new tests including a browser spec that cannot fake a database row. Per-user assignment (G1) **deferred to V2**; Contract/Document access unchanged and owner-only. Analysis: [LEGAL_ACCESS_GAP.md](../06-security/EDGE_CASES/LEGAL_ACCESS_GAP.md) |
+| **45E** | Golden corpus is **16 `STRUCTURAL`** fixtures against 64 specified, and **0 `NORMATIVE`**. The runner is complete and normative authoring is what remains; it requires real representative contracts and real Company Standards, which must be supplied and never manufactured | Release gate — **blocked on owner-supplied material** |
 | — | **No analysis calibration.** Mapping weights and thresholds are uncalibrated; locked 35.10 requires validation against a representative contract test set | Release gate |
-| — | **Playwright not set up.** Locked Step 39/54 make it the browser-workflow tier | Outstanding in unit 11 |
-| — | **Analysis runs synchronously in the API.** Locked 55.1 makes it a worker job on the same image; Celery/Redis are in the locked Step 39 stack and the compose file provisions the queue, but no consumer is wired. The orchestrator is a plain service function so moving it changes the caller, not the analysis | Outstanding in unit 11 |
-| — | **CI pipeline — no longer blocking.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) defines eight jobs and `main` is protected on `3 · Authorization matrix (RELEASE-BLOCKING)`. `REC-08` (2026-08-17) locks **GitHub Actions** as the V1 CI/CD tooling, resolving **C-11**, so the workflow is an authorized use of the locked Step 39 stack rather than an unratified choice | ✅ Resolved — `REC-08` |
+| — | **Playwright not set up.** Locked Step 39/54 make it the browser-workflow tier | ✅ **DONE 2026-08-17** — 22 browser tests in [`frontend/e2e/`](../../frontend/e2e/), CI job 10. Scoped to what only a browser can prove: S-3's `HttpOnly` session cookie, `LEGAL-02` omission surviving to the page, 52.7's no-optimistic-UI rule including the 409 path, and SEC-02. **Supporting, not a locked tier and not a release gate** — locked 54.1 has no browser tier and 54.7's gate does not list one (see **C-12**) |
+| — | **Analysis ran synchronously in the API.** Locked 55.1 makes it a worker job on the same image | ✅ **FIXED 2026-08-17** — `legalmind/worker/` dispatches to Celery when `LEGALMIND_BROKER_URL` is set (`202`) and runs inline when it is not (`201`), both through the same `run_analysis`. Dispatch performs no writes, so a lost message cannot strand a Review in `PROCESSING` — which Step 30 can only leave for `ANALYSIS_COMPLETE` or the terminal `ANALYSIS_FAILED`. The message carries identifiers only, and carries the dispatcher's evaluator-version fingerprint so a skewed worker refuses the job (55.1). The preflight fails a deployment with no broker. 23 tests plus a real Redis/Celery end-to-end run |
+| — | **CI pipeline — no longer blocking.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) defines **twelve** jobs and `main` is protected on `3 · Authorization matrix (RELEASE-BLOCKING)`. `REC-08` (2026-08-17) locks **GitHub Actions** as the V1 CI/CD tooling, resolving **C-11**, so the workflow is an authorized use of the locked Step 39 stack rather than an unratified choice | ✅ Resolved — `REC-08` |
 | — | **`GET /auth/oidc/*` and `POST /reviews/{id}/export` not implemented.** OIDC needs an approved JWT/JWKS dependency plus IdP configuration; export formats are locked NOT YET SPECIFIED | Recorded in `api/permission_map.py` `NOT_IMPLEMENTED` |
 
 #### `F-4` — what was wrong, what was done, how it was checked
@@ -72,7 +75,7 @@ The *symptom* was real; the *recorded diagnosis* was not. Two checks disproved i
 
 Each run now migrates into a schema private to that process (`t_<epoch>_<random>`), points `search_path` at it for both its own connections and Alembic's, and drops only that schema at teardown. Nothing is terminated. A conservative sweep drops run schemas older than six hours, so debris from a crashed run cannot accumulate indefinitely while a live run — seconds old — is never a candidate. `test_each_axis_has_its_own_enum_type` was scoped to `current_schema()` in the same change; unscoped, it counted identically-named enum types belonging to other runs.
 
-Verification, by concurrency rather than by assertion — the shared-schema design could not survive any of these:
+Verification, by concurrency rather than by assertion — the shared-schema design could not survive any of these. **The counts below are as of 2026-08-17 when the checks were run** (the suite was 385 tests then, 508 now); the property verified is stability under concurrency, not the number:
 
 | Check | Result |
 |---|---|

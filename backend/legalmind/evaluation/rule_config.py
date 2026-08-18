@@ -77,9 +77,7 @@ class RuleConfiguration:
         """A scope is comparable only when configuration says so (45C.5/45C.6)."""
         if standard_scope is None:
             return False
-        if scope != standard_scope and scope not in self.comparable_scopes:
-            return False
-        return True
+        return scope == standard_scope or scope in self.comparable_scopes
 
     def basis_is_comparable(self, basis: str | None,
                             standard_basis: str | None) -> bool:

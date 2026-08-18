@@ -24,6 +24,7 @@ from legalmind.api.envelope import data
 from legalmind.api.schemas import DecisionCreate
 from legalmind.api.serializers import serialize_decision, serialize_decision_chain
 from legalmind.db import models as M
+from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType, ReviewStatus
 from legalmind.security import permissions as P
 from legalmind.workflow.decisions import decision_history, record_decision
@@ -67,8 +68,10 @@ def create_decision(evaluation_id: UUID, body: DecisionCreate,
         request_id=guard.request_id,
     )
 
-    finding = guard.db.get(M.Finding, evaluation.finding_id)
-    review = guard.db.get(M.Review, finding.review_id)
+    finding = must_exist(guard.db.get(M.Finding, evaluation.finding_id),
+                         "findings row", evaluation.finding_id)
+    review = must_exist(guard.db.get(M.Review, finding.review_id),
+                        "reviews row", finding.review_id)
     _advance_if_resolved(guard, review)
 
     return data({

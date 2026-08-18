@@ -13,13 +13,14 @@ compare, view and escalate, but never decide.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.db.lookup import must_exist
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.authorization import require_review_visible
@@ -30,10 +31,8 @@ from legalmind.security.resolver import has_permission
 def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
                      reason: str, request_id: str | None = None) -> M.Escalation:
     """Raise a Finding for authorized review."""
-    finding = db.get(M.Finding, finding_id)
-    if finding is None:
-        from legalmind.security.errors import NotVisible
-        raise NotVisible("finding not found")
+    finding = must_exist(db.get(M.Finding, finding_id),
+                         "findings row", finding_id)
     require_review_visible(db, actor_id, finding.review_id)
 
     # A normal User may escalate (ROLE-03); review.view is the gate, deliberately
@@ -65,11 +64,12 @@ def withdraw_escalation(db: DBSession, *, actor_id: UUID, finding_id: UUID,
     escalation = _active_escalation(db, finding_id)
     if escalation is None:
         return
-    escalation.withdrawn_at = datetime.now(timezone.utc)
+    escalation.withdrawn_at = datetime.now(UTC)
     db.flush()
     A.record(db, action=A.LEGAL_ESCALATION_WITHDRAWN, entity_type="finding",
              entity_id=finding_id, actor_id=actor_id, request_id=request_id)
-    finding = db.get(M.Finding, finding_id)
+    finding = must_exist(db.get(M.Finding, finding_id),
+                         "findings row", finding_id)
     _refresh_status(db, finding)
 
 

@@ -67,22 +67,14 @@ script can violate them:
 
 ## Status
 
-| Step | State |
-|---|---|
-| 1. Database schema and migrations | ✅ Complete — 28 tables, 16 invariant tests |
-| 2. Authentication and authorization | ✅ Complete — 39 security tests (24 authorization, 15 session/audit) |
-| 3. Document storage and ingestion | ✅ Complete — 20 ingestion tests |
-| 4. Mapping layer | ✅ Complete — 25 mapping tests |
-| 5. Evaluation engine | ✅ Complete — 78 evaluation tests |
-| 6. Decision & review workflow | ✅ Complete — 28 workflow tests |
-| 7. API | ✅ Complete — 39 routes, 139 API tests |
-| 8. Frontend | ⏳ Next |
-| 9. Golden corpus & full test harness | ⛔ Blocked — needs real legal source material |
-| 10. Observability & deployment | Not started |
+**Read [IMPLEMENTATION_STATUS.md](../docs/00-project/IMPLEMENTATION_STATUS.md)** — it
+is the only document that may assert build state, and `CLAUDE.md` says so explicitly.
 
-| Analysis orchestrator | ✅ Complete — 26 orchestrator + 19 extraction tests |
-
-Total: **445 tests**, all passing.
+A build-state table lived here until 2026-08-17 and had already drifted: it still read
+"Frontend ⏳ Next" and "Observability & deployment — Not started" after both were
+built. A second copy of a fact that changes is a second answer, so it was removed
+rather than corrected. Everything below this line describes *how* the code works,
+which is what a code README is for.
 
 ### Security layer (Step 47)
 
@@ -509,7 +501,31 @@ A falling rate may mean guessing, not improvement."* `ANALYSIS_FAILED` is alerta
 a Finding of `UNABLE_TO_EVALUATE` is not, and 53.4 forbids collapsing the two.
 
 No log line is load-bearing (53.1). A test asserts the package imports neither the
-audit writer nor the models, so losing logs cannot lose legal history.
+audit writer nor the models, so losing logs cannot lose legal history — and that test
+caught a query being put in the wrong package while this was being completed.
+
+**An exception is logged as structure, not as a formatted traceback.** 53.3 forbids
+contract text in logs and 53.4 requires the operator-facing stack trace to reach them;
+`exc_info` was the one path that skipped the redactor, and a driver embeds the failing
+statement **and its bound parameters** in its message — so a failure while writing
+`document_evidence` logged the clause. Confirmed against a real `IntegrityError`. Frames
+and the exception type are identifiers and survive in full; the message is cut at the
+payload marker and then length-guarded like any other value. Rendering happens in the
+formatter, so no caller can bypass it.
+
+**Every signal 53.5 names has an emission site.** Three had none: authentication
+failures (without the submitted email — 53.3's enumeration-oracle rule), permission
+denials (*with* the object id, because 53.5 asks for "repeated denials on one object"),
+and decision throughput and age, emitted where a decision is recorded so no scheduler is
+needed. `workflow.decisions.outstanding_decisions` answers the "stuck in
+`DECISION_REQUIRED`" half on demand; nothing publishes it on a timer, because 53.6
+leaves the monitoring stack and alert thresholds NOT YET SPECIFIED. A test asserts no
+named signal exists only in a document.
+
+**Migrations must not switch logging off.** `alembic/env.py` passes
+`disable_existing_loggers=False`; `fileConfig`'s default would disable the `legalmind`
+logger for the rest of the process, and migrations run in-process in the harness, in both
+verification tools, and in any deployment that migrates from the application image.
 
 ## Deployment (Step 55)
 
@@ -536,10 +552,118 @@ It verifies rather than trusts: migrations at head, all five invariant triggers
 present (55.4 r4 — including `F-1`'s removal-path triggers), and that the application
 role holds no DDL rights (55.2) — which currently **fails** in development, correctly.
 
+Eighteen checks now cover every row of 55.2's checklist. Where a row is a property of
+the environment rather than of the code, it is an `ATTEST` naming what *is* enforced in
+process: safe parsing reports the upload ceiling as the in-process bound and asks the
+operator to confirm container limits. **No parse-time page or element cap was invented** —
+no locked decision fixes one, and choosing a number would be inventing a threshold.
+
 Every check cites the locked rule it enforces; a test asserts that, because a blocker
 without a citation is folklore.
 
-**Not wired, and named rather than implied:** queue-backed workers (the compose file
-provisions Redis and the worker service idles visibly rather than pretending to
-consume), Playwright, and a CI pipeline — 55.6 records CI/CD tooling as NOT YET
-SPECIFIED, so the 55.5 release sequence exists as the preflight plus the suites.
+## Tooling (`tools/`)
+
+```
+python3 -m tools.e2e_bootstrap --recreate      prepare the browser suite's database
+python3 -m tools.verify_invariants             re-check the guarantees independently
+python3 -m tools.verify_reproducibility        the 55.4 r3 / 55.5 release gate
+```
+
+`verify_reproducibility` is locked 55.4 r3's gate — "after any migration, historical
+Reviews must still replay identically … this is a release-gate test, not an assumption",
+placed by 55.5 between the migration and the deploy. It round-trips the latest migration
+and checks both properties the locked rules state: that the historical legal record is
+**unchanged** (55.4 r1), and that the same Document Version and configuration snapshot
+still produce an **identical** legal record (55.4 r3, AUD-04, ENG-11). It re-runs the
+whole pipeline rather than reconstructing an `EvaluatorInput` from persisted rows —
+an inference that was subtly wrong would report reproducibility it had not verified.
+
+`e2e_bootstrap` does the one thing the API cannot: locked 47.1.3 r3 forbids
+self-provisioning, so `POST /users` cannot set a credential and the first administrator
+must be created outside the API. It also emits the `STRUCTURAL` fixture the browser specs
+apply *through the real endpoints* — it is a fixture description, not a data loader.
+
+`verify_invariants` re-checks each critical guarantee by a mechanism **other than** the
+test that asserts it: raw SQL rather than the ORM, real worker processes and a real
+`SIGKILL` rather than in-process calls, a grep of real log output rather than asking the
+redactor. It found a defect the suite could not — see
+[INDEPENDENT_VERIFICATION.md](../docs/08-testing/INDEPENDENT_VERIFICATION.md). It is not
+third-party verification and makes nothing `VERIFIED`.
+
+## Lint and types
+
+```
+ruff check .    zero findings, BLOCKING in CI job 1
+mypy            zero errors,   BLOCKING in CI job 1
+```
+
+The measured baseline was 228 ruff findings and 33 mypy errors. Roughly half the ruff
+findings were rules wrong for this codebase rather than defects — `B008` flags FastAPI's
+`Depends()` in a default, and `PLC0415` flags 105 deliberate lazy imports — so the rule
+set is configured in `pyproject.toml` with the reason beside each exclusion. Two
+exclusions matter: `UP042` is refused because `class X(str, Enum)` → `enum.StrEnum`
+changes `str(member)`, and these enums are serialized into payloads and audit rows; and
+`ruff format` is not run at all, because reflowing 85 files of hand-aligned tables and
+locked-rule citations is a large risk for no correctness gain.
+
+Two findings were real: an authorization call whose result was bound to an unused name
+(which read as a lookup rather than a check), and ten `db.get()` results used unnarrowed
+on paths a NOT NULL foreign key already guarantees — now `db.lookup.must_exist`, which
+fails loudly instead of letting `None` reach the decision path.
+
+## Queued analysis (Step 55.1, Step 39)
+
+```
+api      uvicorn legalmind.api.app:app
+worker   celery -A legalmind.worker.app worker -Q analysis
+```
+
+Locked 55.1: *"Workers run the SAME image as the API — a version skew would break
+`evaluator_version` reproducibility, so they deploy together."* So `legalmind.worker`
+is part of the application, not a service beside it, and the queued and inline paths
+call the **same** `run_analysis` — if they could differ, `ENG-11` determinism would
+depend on how a Review happened to be submitted.
+
+| | |
+|---|---|
+| `LEGALMIND_BROKER_URL` set | `202` · a worker runs it |
+| unset | `201` · it runs inline in the request |
+
+Inline is a development convenience, not the locked shape, so the preflight **fails**
+a deployment configured that way: the difference is invisible from outside, since the
+same 2xx comes back either way.
+
+**Dispatch writes nothing before it enqueues.** Marking the Review `PROCESSING` first
+would be a Postgres write paired with a Redis send that cannot commit together, and
+locked Step 30 gives `PROCESSING` no way out but `ANALYSIS_COMPLETE` or the
+**terminal** `ANALYSIS_FAILED` — so a lost message would strand a Review permanently.
+Dispatch therefore only reads, and the worker's own transaction owns every state
+change. A message lost before pickup costs a re-submission, which is the recoverable
+direction to fail in. The visible cost is that a queued Review shows its pre-analysis
+state until pickup; locked Step 30 has no `QUEUED` state and none was invented.
+
+**The transaction is the serialization point, not the queue.** `acks_late` means a
+crashed worker's job is redelivered, and a caller can submit twice — neither can
+duplicate legal output, because `assert_analysable` refuses a Review that already has
+Findings (43.28) and `UNIQUE(review_id, requirement_version_id)` makes a genuine race
+collide, rolling the loser back entirely.
+
+**A failed job leaves the Review alone.** No infrastructure fault ever writes
+`ANALYSIS_FAILED`, because it is terminal; that state is set only where it always was,
+for a document that genuinely cannot be analysed (34.9, Step 30 r13).
+
+**Version skew is refused, not absorbed.** The message carries the dispatcher's
+`EVALUATOR_VERSIONS` fingerprint; a worker whose own differs retries instead of
+recording Evaluations under a version the caller never ran. The check runs before any
+write, so refusing costs nothing.
+
+**No result backend.** Locked 52.7 makes the Review lifecycle the single source of
+progress, so a second store of job state — capable of disagreeing with it — would be
+the wrong shape, not a convenience.
+
+Two failures found by running a real worker against a real Redis rather than by
+reading the code: the worker connected to Celery's `amqp://localhost` default and
+consumed nothing (the broker was configured only on dispatch, which a worker never
+calls), and a `worker_init` signal handler could not fail startup because Celery
+signals swallow receiver exceptions by design. The guard is now a bootstep, and a
+broker-less worker exits non-zero.

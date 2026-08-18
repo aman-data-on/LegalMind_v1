@@ -95,3 +95,25 @@ def fail_closed_rate(counts: dict[FindingClassification, int]) -> float | None:
     failed_closed = sum(n for c, n in counts.items()
                         if c in FAIL_CLOSED_CLASSIFICATIONS)
     return round(failed_closed / total, 4)
+
+def decision_wait_seconds(evaluation_created_at, decision_created_at) -> float | None:
+    """How long an Evaluation waited for its decision — locked 53.5's "decision
+    throughput and age".
+
+    Derived from two timestamps the schema already carries, so nothing is stored for
+    it. Reported per decision at the moment it is recorded, which needs no scheduler:
+    53.6 records the monitoring stack as NOT YET SPECIFIED, so a periodic sweep of
+    still-outstanding Evaluations has nowhere to publish to yet. `outstanding_decisions`
+    below computes that other half on demand, for whoever eventually asks.
+
+    Returns `None` rather than a guess when either timestamp is absent.
+
+    The other half of the signal — "Reviews stuck in DECISION_REQUIRED" — is a query
+    over the legal record, so it lives in `workflow.decisions.outstanding_decisions`
+    rather than here. This package deliberately imports neither the audit writer nor
+    the models, which is what keeps 53.1's "an operational log is never a substitute
+    for an audit event" structural rather than aspirational; a test asserts it.
+    """
+    if evaluation_created_at is None or decision_created_at is None:
+        return None
+    return round((decision_created_at - evaluation_created_at).total_seconds(), 3)

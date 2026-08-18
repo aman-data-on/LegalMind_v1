@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-from legalmind.domain.enums import FindingClassification as C
 from legalmind.evaluation.corpus import (
     NORMATIVE,
     STRUCTURAL,

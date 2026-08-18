@@ -42,8 +42,8 @@ from legalmind.domain.enums import (
 from legalmind.evaluation.contracts import (
     Cap,
     CompanyStandard,
-    EvidenceRef,
     EvaluatorInput,
+    EvidenceRef,
     LegalRule,
     LiabilityFacts,
     MappingInput,

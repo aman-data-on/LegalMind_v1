@@ -122,7 +122,7 @@ Lifecycle state — specified · locked · implemented · tested · verified · 
 **Still requires explicit approval — `IMPL-01` grants none of it:**
 
 * deciding anything marked `NOT YET SPECIFIED`
-* resolving any open conflict (C-05–C-08, C-10) or open decision (`OD-*`)
+* resolving any open conflict (C-05–C-08, C-10, C-12) or open decision (`OD-*`)
 * amending any locked decision
 * adding any table, column or enum not covered by a lock record or an approved amendment batch
 * authoring `NORMATIVE` golden-corpus fixtures — these need real representative contracts and the organization's real Company Standards, which **must be supplied, never manufactured** (rule 21)
@@ -136,7 +136,9 @@ Documents under [docs/09-implementation/](docs/09-implementation/) still describ
 
 ## Current state
 
-**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-08`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **15,196 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified, 6 authored, all `STRUCTURAL`).
+**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **15,358 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified, **16 authored, all `STRUCTURAL`**; **0 `NORMATIVE`**).
+
+**The locked build sequence is complete and the project is in stabilization.** Every unit of the Gate §5 sequence is implemented; unit 10 (golden corpus) is the one unit still `PARTIAL`, blocked on owner-supplied legal material. Read [HANDOFF.md](HANDOFF.md) first — it is the single entry point for review, and names every open decision and every input still required from the owner.
 
 **Implementation is authorized and underway.** For what is built, what is merely tested, and what blocks the VERIFIED state, read [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) — never `backend/README.md` or the code itself.
 
@@ -144,7 +146,7 @@ Two evaluators are specified: `LIABILITY-001` (`NUMERIC_COMPARISON`) and the gen
 
 **Before naming any state value, read [docs/02-legal-domain/DECISION_STATE_MODEL.md](docs/02-legal-domain/DECISION_STATE_MODEL.md).** It is the canonical cross-layer reference for all five controlled state vocabularies. Mapping State, Finding Classification, Rule Outcome, Legal Decision, and Review Lifecycle are five separate axes and must never share a status field or enum — `AMBIGUOUS` in particular means three different things on three different layers.
 
-Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09 was resolved on 2026-08-17** by `IMPL-01` and AB-2, and **C-11 on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). **Five remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): C-05–C-08 (low severity) and **C-10 (MEDIUM)**. `REC-01`–`REC-07` are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions"; `REC-08` has its own lock record appended after AB-2.
+Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09** was resolved on 2026-08-17 by `IMPL-01` and AB-2, and **C-11** by `REC-08` (CI/CD tooling is GitHub Actions). **`REC-09`** (2026-08-17) defines Step 24 r6's "explicit Legal scope" and resolves finding **`F-6`** — before it, a Legal Reviewer could reach no Review at all. **Six remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): C-05–C-08 (low), **C-10 (MEDIUM)**, and **C-12** (low; Step 39 names Playwright while 54.7 lists framework selection as NOT YET SPECIFIED — registered, and blocking nothing). `REC-01`–`REC-07` are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions"; `REC-08` and `REC-09` each carry their own lock record appended after AB-2.
 
 The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authentication) was closed by Step 47. The rest are tracked in [EXTERNAL_REFERENCE_AUDIT.md](docs/00-project/EXTERNAL_REFERENCE_AUDIT.md) §16 — do not resolve one yourself.
 
@@ -152,7 +154,7 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 
 ## Working a session
 
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **15,196 lines**; if it is longer, the docs may be stale and you should say so.
+1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **15,358 lines**; if it is longer, the docs may be stale and you should say so.
 2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
 3. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.
 4. **Keep the record in sync.** A specification change lands as one synchronized operation — `all_lock.md` appended, plus the registry, status, conflicts and every affected specification. Record repository changes in [CHANGELOG.md](CHANGELOG.md) and decisions in `all_lock.md` and the registry; the two are not interchangeable. When you add a document, add it to [docs/README.md](docs/README.md) in the same change.

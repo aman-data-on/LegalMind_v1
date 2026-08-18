@@ -32,6 +32,11 @@ import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted"
 import { DecisionPanel } from "@/components/DecisionPanel";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
 import { FindingCard } from "@/components/FindingCard";
+import {
+  QUEUE_POLL_MS,
+  isAnalysable,
+  shouldPollForAnalysis,
+} from "@/lib/analysis";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -182,12 +187,19 @@ export default function ReviewPage({
 }
 
 /**
- * Run the analysis — locked 44.2/44.40, 49.8, Step 30, 52.3, 52.7.
+ * Run the analysis — locked 44.2/44.40, 49.8, 55.1, Step 30, 52.3, 52.7.
  *
  * Locked 52.7: "the Review lifecycle state (Step 30) is the single source of
  * progress." So this component keeps no progress state of its own beyond "a request
  * is in flight": what happened is read back from the Review, and there is no spinner
  * or percentage that could disagree with the lifecycle.
+ *
+ * Locked 55.1 makes analysis a worker job, so a submission may return `202 accepted`
+ * before any Finding exists. The component then **re-reads the Review** on a bounded
+ * interval — it does not invent a `QUEUED` state, because Step 30 has none and a
+ * client-side one would be the second source of progress 52.7 forbids. If the
+ * lifecycle has not moved after `QUEUE_POLL_ATTEMPTS` looks, it says so plainly
+ * rather than animating indefinitely.
  *
  * Nothing here is interpreted. Counts, mapping states and the skipped-as-optional
  * figure are rendered as the server reported them (38.23), and a per-Requirement
@@ -205,7 +217,25 @@ function AnalyseControl({
   const { can } = useSession();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AnalysisSubmission | null>(null);
+  const [attempts, setAttempts] = useState(0);
   const [error, setError] = useState<unknown>(null);
+
+  const waiting = shouldPollForAnalysis({
+    mode: result?.mode,
+    reviewStatus,
+    attempts,
+  });
+
+  // Every hook runs before the early returns below — a conditional return placed
+  // above a hook would change the hook order between renders.
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => {
+      setAttempts((n) => n + 1);
+      onAnalysed();
+    }, QUEUE_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [waiting, attempts, onAnalysed]);
 
   // 52.3 — a control the user cannot invoke is not rendered. Hiding it is a
   // usability affordance; the server refuses the call regardless.
@@ -213,9 +243,7 @@ function AnalyseControl({
 
   // Step 30 — analysis belongs to the pre-review part of the lifecycle. A terminal
   // Review is not re-analysable, and offering the control would be misleading.
-  const analysable = reviewStatus === null
-    || ["DRAFT", "UPLOADED", "PROCESSING"].includes(reviewStatus);
-  if (!analysable) {
+  if (!isAnalysable(reviewStatus)) {
     return (
       <p className="hint">
         This Review is {reviewStatus} and is not awaiting analysis.
@@ -226,6 +254,7 @@ function AnalyseControl({
   async function analyse() {
     setBusy(true);
     setError(null);
+    setAttempts(0);
     try {
       setResult(await api.analyzeReview(reviewId));
       onAnalysed();
@@ -245,8 +274,8 @@ function AnalyseControl({
         same snapshot always produce the same Findings.
       </p>
       <ErrorBanner error={error} />
-      <button type="button" onClick={() => void analyse()} disabled={busy}>
-        {busy ? "Analysing…" : "Run analysis"}
+      <button type="button" onClick={() => void analyse()} disabled={busy || waiting}>
+        {busy || waiting ? "Analysing…" : "Run analysis"}
       </button>
 
       {result ? (
@@ -256,6 +285,24 @@ function AnalyseControl({
               This Review had already been analysed. Nothing was re-run, so no Finding
               was duplicated.
             </p>
+          ) : result.mode === "queued" ? (
+            /*
+             * 55.1 — queued, so nothing has been evaluated yet. No count is shown:
+             * "0 Findings" would be a statement about the contract, and the only true
+             * statement available here is about the Review's lifecycle state.
+             */
+            waiting ? (
+              <p className="hint">
+                Submitted for analysis. Status is <strong>{reviewStatus}</strong> —
+                this page re-reads the Review until the lifecycle moves.
+              </p>
+            ) : (
+              <p className="warning">
+                Submitted for analysis, but the Review is still {reviewStatus} and has
+                not been picked up. The work is not lost — it stays queued — but a
+                worker may not be running.
+              </p>
+            )
           ) : (
             <>
               <p>

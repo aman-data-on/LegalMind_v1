@@ -4,7 +4,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-01 through C-04 were reconciled by the project owner on 2026-08-16** (registry entries `REC-01`–`REC-06` in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md)). The analysis found that **none of the four was a true contradiction** — each was a supersession chain, a layer migration, a refinement, or different terminology for different stages. No historical locked text was modified.
 
-**C-05 – C-08 and C-10 remain open.** **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
+**C-05 – C-08, C-10 and C-12 remain open.** **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
 
@@ -21,6 +21,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-09 | `backend/` source code vs "no implementation exists" | ✅ **RESOLVED** — authorized retroactively (`IMPL-01`, AB-2) |
 | C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
 | C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ✅ **RESOLVED** — GitHub Actions is the V1 choice (`REC-08`) |
+| C-12 | Step 39 stack table names Playwright for testing vs locked 54.7 listing test framework selection NOT YET SPECIFIED | ⏳ Open (LOW) — **blocks nothing**; both readings permit Playwright |
 
 ---
 
@@ -286,6 +287,36 @@ Note that the "a later Step document beats an older topic document" heuristic in
 **Until decided:** the workflow stays as it is — it is relied on by branch protection and by the release-blocking check, and removing it would reduce enforcement. Do not record the tooling question as settled in either direction, and do not cite this conflict as authority for adding any *other* technology.
 
 Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Blocking the VERIFIED state, [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) §55.6, [BACKEND_ARCHITECTURE.md](../05-architecture/BACKEND_ARCHITECTURE.md) (stack table).
+
+---
+
+## C-12 — Is the test framework locked by Step 39, or NOT YET SPECIFIED by Step 54?
+
+**Severity: LOW. Recorded 2026-08-17 while adding the browser-workflow suite. Not resolved. It blocks nothing — see "Why it does not block" below.**
+
+The same shape as **C-11**, one document over.
+
+| Source | Status | Says |
+|---|---|---|
+| **Step 39** technology stack table, `all_lock.md` line 6047 | LOCKED (stack table only) | `Testing` → **Pytest + Playwright** — "Backend/domain + real browser workflow testing"; `Frontend testing` → **Vitest** |
+| **Step 54.7**, `all_lock.md` line ~14832 and [STEP_54_TESTING_STRATEGY.md](../08-testing/STEP_54_TESTING_STRATEGY.md) §54.7 | LOCKED | "**NOT YET SPECIFIED:** coverage targets, **test framework selection**, CI topology — implementation-phase choices, **none determined by a locked decision.**" |
+
+Step 54's closing clause is the sharper half: it does not merely omit the choice, it asserts that *no locked decision determines it* — while a locked table names two frameworks and a third.
+
+**Why `REC-08` does not settle it.** `REC-08` resolved C-11 in favour of the Step 39 row, but its own text limits the supersession to "that one line item only". Extending it to test frameworks would be exactly the kind of quiet generalization rule 5 forbids.
+
+**Why it does not block.** Both readings permit the framework actually used:
+
+1. Step 39 governs → Playwright is the locked browser tier, and building it is building what is locked.
+2. Step 54.7 governs → framework selection is an implementation-phase choice, and Playwright is *still* inside the Step 39 stack, so `IMPL-01`'s bar on "any technology, dependency or service **beyond the Step 39 stack**" is not crossed either way.
+
+Pytest and Vitest have been in use on identical reasoning since the first unit. Whichever way this is ruled, **no code changes** — which is why it is registered rather than escalated.
+
+**Two consequences observed, not decided.** Locked 54.1's six tiers contain no browser tier, and 54.7's release gate does not list one. So `frontend/e2e/` is documented as **supporting**, is not described as a locked tier, and is not part of the release gate; CI job 10 says so in its own comment. Coverage targets remain unset.
+
+**Until decided:** do not describe the browser suite as a locked tier or a release gate, and do not cite this conflict as authority for adding any other framework.
+
+Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Build state, [STEP_54_TESTING_STRATEGY.md](../08-testing/STEP_54_TESTING_STRATEGY.md) §54.7, [`frontend/playwright.config.ts`](../../frontend/playwright.config.ts).
 
 ---
 

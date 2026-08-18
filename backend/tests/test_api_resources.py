@@ -7,7 +7,6 @@ F-8, F-9, S-8, S-9, S-10, SEC-05.
 from __future__ import annotations
 
 import io
-import zipfile
 
 import pytest
 from sqlalchemy import select

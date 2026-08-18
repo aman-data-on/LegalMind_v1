@@ -16,10 +16,10 @@ from __future__ import annotations
 from collections import Counter
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
 
-from legalmind.analysis.service import AnalysisNotPermitted, run_analysis
+from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.api import ratelimit
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
@@ -31,6 +31,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import permissions as P
 from legalmind.security.authorization import require_contract_visible
+from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 
 router = APIRouter(tags=["reviews"])
 
@@ -40,15 +41,36 @@ _limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
 
 
 def _visible_reviews(guard: Guard):
-    """The list-scope counterpart of ``can_see_review`` (Step 24 r2, r6)."""
+    """The list-scope counterpart of ``can_see_review`` (Step 24 r2, r6, `REC-09`).
+
+    These are two implementations of one locked rule, and a test asserts they cannot
+    disagree — if the list returned one row a `GET` would 404 on, that is the same
+    defect as an IDOR (49.6).
+
+    The third branch is locked `REC-09`'s Legal scope. It is also the **Legal queue**:
+    `REC-09` creates no queue resource, because Step 24's "Legal Queue" is named once
+    in an example diagram and specified nowhere, so Legal work is found through this
+    list under the same scope rule as every other caller.
+    """
     assigned = (
         select(M.ReviewAssignment.review_id)
         .where(M.ReviewAssignment.user_id == guard.user_id,
                M.ReviewAssignment.revoked_at.is_(None))
     )
-    return select(M.Review).where(
-        or_(M.Review.created_by == guard.user_id, M.Review.id.in_(assigned))
-    )
+    scopes = [M.Review.created_by == guard.user_id, M.Review.id.in_(assigned)]
+
+    # Permission first, then resource scope — locked Step 24 r12's own ordering. A
+    # caller without `legal.review` never widens beyond ownership and assignment.
+    if P.LEGAL_REVIEW in guard.permissions:
+        escalated = (
+            select(M.Finding.review_id)
+            .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+            .where(M.Escalation.withdrawn_at.is_(None))
+        )
+        scopes.append(M.Review.status == E.ReviewStatus.LEGAL_REVIEW)
+        scopes.append(M.Review.id.in_(escalated))
+
+    return select(M.Review).where(or_(*scopes))
 
 
 @router.get("/reviews")
@@ -134,25 +156,32 @@ def get_review(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
 @router.post("/reviews/{review_id}/analyze", status_code=201)
 def analyze_review(
     review_id: UUID,
+    response: Response,
     guard: Guard = Depends(get_guard),
     idempotency_key: str | None = Header(default=None, max_length=200),
 ) -> dict:
-    """Run the locked analysis pipeline over this Review — 44.2/44.40, 49.8, 49.10.
+    """Submit this Review for analysis — 44.2/44.40, 55.1, 49.8, 49.10.
 
     **Permission is an interpretation.** Locked 49.3's table has no analysis row,
     though 49.8 and 49.10 both presuppose the endpoint; `review.create` is the
     closest locked grant. Recorded in ``permission_map`` and flagged there.
 
-    **Runs synchronously.** Locked Step 39 includes Celery/Redis and Step 30's
-    `PROCESSING` state exists for the asynchronous case, but no worker is deployed —
-    so this is honestly synchronous rather than pretending to be a queued job. The
-    orchestrator is a plain service function precisely so moving it behind a worker
-    later changes the caller, not the analysis.
+    **Queued when a broker is configured (55.1), inline when not.** The two modes call
+    the same `run_analysis`, so submission mode cannot change a legal outcome — only
+    who waits for it. `worker.dispatch` chooses; the caller does not.
+
+    ```text
+    202 + mode=queued    a worker will run it; poll GET /reviews/{id} for progress
+    201 + mode=inline    it already ran, and the outcome is in this response
+    ```
+
+    Progress is the Review lifecycle and nothing else (52.7), which is why the queued
+    response carries no job state to poll instead.
 
     **Idempotency (43.28, 49.8).** A repeat returns the original outcome rather than
-    re-running: the orchestrator refuses a Review that already has Findings, and that
-    refusal is reported as the already-analysed state, not as an error. Duplicating
-    legal output would be the worse failure.
+    re-running: analysis refuses a Review that already has Findings, and that refusal
+    is reported as the already-analysed state, not as an error. Duplicating legal
+    output would be the worse failure.
     """
     review = guard.review(review_id, P.REVIEW_CREATE)
 
@@ -161,8 +190,8 @@ def analyze_review(
     _limiter.check(f"analysis:{guard.user_id}", ratelimit.ANALYSIS)
 
     try:
-        run = run_analysis(guard.db, review, actor_id=guard.user_id,
-                           request_id=guard.request_id)
+        dispatch = dispatch_analysis(guard.db, review, actor_id=guard.user_id,
+                                     request_id=guard.request_id)
     except AnalysisNotPermitted as exc:
         # 49.8 — a repeat is not an error. Report what already exists so a retry is
         # indistinguishable from the original call's aftermath.
@@ -174,7 +203,26 @@ def analyze_review(
             "idempotency_key": idempotency_key,
         })
 
+    if dispatch.mode is DispatchMode.QUEUED:
+        # 202: accepted, not complete. Reporting 201 here would claim Findings exist.
+        response.status_code = 202
+        return data({
+            "review_id": str(dispatch.review_id),
+            # The Review's *current* lifecycle state — unchanged until a worker picks
+            # the job up. Locked Step 30 has no QUEUED state and none is invented.
+            "review_status": dispatch.review_status,
+            "mode": dispatch.mode.value,
+            "task_id": dispatch.task_id,
+            "idempotency_key": idempotency_key,
+        })
+
+    # INLINE mode always carries a run; `AnalysisDispatch` types it optionally because
+    # QUEUED mode genuinely has none. Asserting here states the invariant instead of
+    # leaving six unguarded attribute reads for a reader to verify.
+    run = dispatch.run
+    assert run is not None, "INLINE dispatch must carry an AnalysisRun"
     return data({
+        "mode": dispatch.mode.value,
         "review_id": str(run.review_id),
         # Step 30 is the single source of progress (52.7) — no separate job state.
         "review_status": run.review_status,

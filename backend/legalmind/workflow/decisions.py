@@ -23,12 +23,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.domain.enums import DecisionType
+from legalmind.db.lookup import must_exist
+from legalmind.domain.enums import DecisionType, FindingStatus
 from legalmind.evaluation.workflow import (
-    current_decision,
     derive_finding_status,
-    evaluation_requires_decision,
 )
+from legalmind.observability.logs import log_event
+from legalmind.observability.metrics import decision_wait_seconds
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.authorization import require_review_visible
@@ -71,8 +72,12 @@ def record_decision(
         from legalmind.security.errors import NotVisible
         raise NotVisible("evaluation not found")
 
-    finding = db.get(M.Finding, evaluation.finding_id)
-    review = require_review_visible(db, actor_id, finding.review_id)
+    finding = must_exist(db.get(M.Finding, evaluation.finding_id),
+                         "findings row", evaluation.finding_id)
+    # The CALL is the authorization check — it raises `NotVisible` (→ 404) when the
+    # Review is out of scope. Its return value is deliberately unused; binding it to a
+    # name suggested the check was a lookup, which is the opposite of the point.
+    require_review_visible(db, actor_id, finding.review_id)
 
     # SEC-02/SEC-05 — legal.decision is only ever an EXPLICIT grant; no bypass
     # reaches it, so a Super Admin without it cannot decide by any route.
@@ -129,6 +134,18 @@ def record_decision(
     status = derive_finding_status(db, finding)
     finding.status = status
     db.flush()
+
+    # Locked 53.5 — "decision throughput and age". The wait is derived from two
+    # timestamps the schema already carries. Deliberately WITHOUT `decision_type`:
+    # 53.5 asks for throughput and age, and a disposition is closer to the internal
+    # legal position LEGAL-02 protects than a count is.
+    log_event("legal.decision_recorded", request_id=request_id,
+              evaluation_id=str(evaluation_id),
+              version_number=next_version,
+              is_effective=effective,
+              waited_seconds=decision_wait_seconds(evaluation.created_at,
+                                                   decision.created_at),
+              signal="decision.outstanding_age")
 
     return DecisionRecorded(decision=decision, finding_status=status.value,
                             is_effective=effective)
@@ -194,3 +211,25 @@ def _audit_denied(db: DBSession, actor_id: UUID, evaluation_id: UUID,
                   request_id: str | None) -> None:
     A.record(db, action=A.AUTHZ_PERMISSION_DENIED, entity_type="evaluation",
              entity_id=evaluation_id, actor_id=actor_id, request_id=request_id)
+
+
+def outstanding_decisions(db: DBSession) -> dict[str, object]:
+    """Locked 53.5's other decision signal — "Reviews stuck in `DECISION_REQUIRED`".
+
+    A query, not a stored counter: Finding status is derived (Step 30 r16), so a
+    materialized "stuck count" would be a second source of truth for something the
+    database can answer directly.
+
+    Nothing emits this on a timer, deliberately. Locked 53.6 leaves the monitoring
+    stack and alert thresholds NOT YET SPECIFIED, so inventing a scheduler and a
+    threshold would be inventing the operational decision. It is available for an
+    operator command or for whichever backend is eventually chosen; the per-decision
+    half of the signal is emitted where a decision is recorded, which needs no timer.
+    """
+    count, oldest = db.execute(
+        select(func.count(), func.min(M.Finding.created_at))
+        .where(M.Finding.status == FindingStatus.DECISION_REQUIRED)
+    ).one()
+    return {"signal": "decision.outstanding_age",
+            "outstanding": count,
+            "oldest_created_at": oldest.isoformat() if oldest else None}

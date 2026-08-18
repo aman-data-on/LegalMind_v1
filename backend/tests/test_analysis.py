@@ -352,8 +352,8 @@ def test_conflicting_provisions_are_all_retained_as_conflicting_evidence(build, 
         .where(M.EvaluationEvidence.evaluation_id == evaluation.id)
     ).scalars().all()
     assert len(links) == 2
-    assert all(l.relationship_type is E.EvidenceRelationshipType.CONFLICTING
-               for l in links)
+    assert all(link.relationship_type is E.EvidenceRelationshipType.CONFLICTING
+               for link in links)
     # Both figures survive in the record; neither was chosen or dropped.
     caps = (evaluation.actual_value or {}).get("caps") or []
     assert sorted(c["cap_value"] for c in caps) == [6.0, 24.0]
@@ -487,10 +487,10 @@ def test_the_general_cap_and_its_carveout_are_evaluated_separately(build, db):
 
     scopes = {e.scope_key for e in evaluations}
     assert scopes == {"GENERAL", "SCOPE_X"}
-    exception = [e for e in evaluations if e.scope_key == "SCOPE_X"][0]
+    exception = next(e for e in evaluations if e.scope_key == "SCOPE_X")
     assert exception.evaluation_kind is E.EvaluationKind.EXCEPTION
     # 45C.4 — the unlimited carve-out applies only to its own scope.
-    general = [e for e in evaluations if e.scope_key == "GENERAL"][0]
+    general = next(e for e in evaluations if e.scope_key == "GENERAL")
     assert general.evaluation_kind is E.EvaluationKind.PRIMARY
     # The Finding summary is a roll-up over both, never the general cap alone.
     assert finding.classification is not E.FindingClassification.MATCH

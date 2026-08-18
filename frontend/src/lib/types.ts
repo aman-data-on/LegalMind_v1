@@ -285,6 +285,17 @@ export interface Role {
 export interface AnalysisSubmission {
   review_id: string;
   review_status: string;
+  /**
+   * How the submission was handled — locked 55.1.
+   *
+   * `"queued"` (HTTP 202) means a worker will run it and **no Finding exists yet**,
+   * so the count fields below are absent rather than zero: reporting zero Findings
+   * would be a legal statement about the contract rather than a statement about the
+   * job. `"inline"` (201) means it already ran and they are present.
+   */
+  mode?: "queued" | "inline";
+  /** Correlation only. Not a progress resource — 52.7 keeps that on the Review. */
+  task_id?: string | null;
   /** Present and true when the Review had already been analysed (49.8). */
   already_analysed?: boolean;
   detail?: string;

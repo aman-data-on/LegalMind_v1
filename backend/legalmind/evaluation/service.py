@@ -21,15 +21,14 @@ from legalmind.domain.enums import (
 )
 from legalmind.evaluation.contracts import (
     CompanyStandard,
-    EvidenceRef,
     EvaluatorInput,
     EvaluatorOutput,
+    EvidenceRef,
     LegalRule,
     MappingInput,
     RequirementContext,
 )
-from legalmind.evaluation.presence import OptionalRequirementAbsent
-from legalmind.evaluation.registry import evaluate, version_for
+from legalmind.evaluation.registry import version_for
 from legalmind.evaluation.workflow import derive_finding_status
 
 # Classifications for which empty evidence is legitimate (N-34, 45C.15).

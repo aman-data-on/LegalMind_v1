@@ -1,14 +1,15 @@
 """initial locked schema
 
 Revision ID: 80dccb65caf6
-Revises: 
+Revises:
 Create Date: 2026-08-17 12:22:59.716111
 """
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = '80dccb65caf6'
 down_revision = None

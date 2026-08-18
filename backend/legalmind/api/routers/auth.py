@@ -14,6 +14,8 @@ deployment's issuer, client id and secret. Both are reported gaps; see
 
 from __future__ import annotations
 
+import logging
+from typing import Literal, TypedDict
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
@@ -29,10 +31,11 @@ from legalmind.api.context import (
 )
 from legalmind.api.deps import Guard, get_db, get_guard, get_principal
 from legalmind.api.envelope import data
-from legalmind.api.serializers import serialize_session_identity
 from legalmind.api.schemas import LoginRequest
+from legalmind.api.serializers import serialize_session_identity
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.observability.logs import log_event
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.errors import Unauthenticated
@@ -52,7 +55,36 @@ limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
 
 # S-3 — the session cookie is HttpOnly so script cannot read it; the CSRF cookie
 # deliberately is not, because our own script must echo it in a header.
-_COOKIE_KW = dict(secure=True, samesite="strict", path="/")
+#
+# A `TypedDict` rather than `dict[str, object]`: these are the locked S-3 attributes,
+# and typing them means a change that weakened `secure` or mistyped `samesite` fails
+# the typecheck instead of only the preflight. The `Literal` on `samesite` is the
+# load-bearing part — "Strict" or a typo would silently become a laxer cookie.
+class _CookieKeywords(TypedDict):
+    secure: bool
+    samesite: Literal["lax", "strict", "none"]
+    path: str
+
+
+_COOKIE_KW: _CookieKeywords = {
+    "secure": True,
+    "samesite": "strict",
+    "path": "/",
+}
+
+
+def _signal_auth_failure(client: str, request_id: str) -> None:
+    """Locked 53.5 — "authentication failures … security posture (S-5, S-7)".
+
+    Named as a signal so a spike is detectable, and deliberately **without the
+    submitted email**: 53.3's fourth prohibition is "anything that turns a
+    failed-login record into an enumeration oracle", and a searchable log index is
+    exactly such a surface. The source address is carried instead, which is what makes
+    a spike attributable and is already what S-5's limiter keys on. `email` is a
+    forbidden key in the redactor besides, so passing one would be dropped.
+    """
+    log_event("auth.login_failed", level=logging.WARNING, request_id=request_id,
+              client=client, signal="auth.failure_count")
 
 
 def _set_session_cookies(response: Response, session_id: UUID,
@@ -102,6 +134,7 @@ def login(request: Request, response: Response, body: LoginRequest,
         # view must not become an enumeration oracle.
         A.record(db, action=A.AUTH_LOGIN_FAILED, entity_type="authentication",
                  actor_id=user.id if user else None, request_id=rid)
+        _signal_auth_failure(client, rid)
         db.commit()          # the request is about to abort; the event must survive
         raise Unauthenticated("authentication failed")
 
@@ -110,6 +143,7 @@ def login(request: Request, response: Response, body: LoginRequest,
         # indistinguishable from a wrong credential.
         A.record(db, action=A.AUTH_LOGIN_FAILED, entity_type="authentication",
                  actor_id=user.id, request_id=rid)
+        _signal_auth_failure(client, rid)
         db.commit()
         raise Unauthenticated("authentication failed")
 

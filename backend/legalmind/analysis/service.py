@@ -39,6 +39,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import (
     EvaluatorType,
     FindingClassification,
@@ -76,6 +77,7 @@ from legalmind.observability.metrics import (
 )
 from legalmind.security import audit as A
 from legalmind.workflow.review_lifecycle import advance_after_analysis, transition
+
 
 class AnalysisNotPermitted(Exception):
     """The Review is not in a state where analysis may run.
@@ -134,7 +136,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
     (Step 28 r15, AUD-04) — nothing is read from *current* configuration, and no
     wall-clock value affects an outcome.
     """
-    _require_analysable(db, review)
+    assert_analysable(db, review)
 
     _to_processing(db, review, actor_id=actor_id, request_id=request_id)
 
@@ -392,13 +394,18 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
 # ==========================================================================
 # Preconditions and lifecycle
 # ==========================================================================
-def _require_analysable(db: DBSession, review: M.Review) -> None:
+def assert_analysable(db: DBSession, review: M.Review) -> None:
     """43.28 — a retry must not duplicate Findings.
 
     `UNIQUE(review_id, requirement_version_id)` would collide anyway, but colliding
     mid-run would leave a partially analysed Review. Refusing up front is cleaner and
     says what happened. Re-analysis of an already-analysed Review is a separate
     concern and is deliberately not implemented.
+
+    Public because the queue dispatcher runs the same check *before* enqueueing
+    (`worker.dispatch`): a refusal the caller can see is worth more than a job the
+    worker would silently discard. Both paths must refuse on identical grounds, which
+    is why there is one function rather than two.
     """
     existing = db.execute(
         select(func.count()).select_from(M.Finding)
@@ -455,19 +462,29 @@ def _snapshot_items(db: DBSession, snapshot_id: UUID) -> list[_SnapshotItem]:
 
     items: list[_SnapshotItem] = []
     for snapshot_item, rv, requirement in rows:
+        # 42.12 makes all three NOT NULL on a snapshot item, so a missing row here is
+        # a corrupt snapshot rather than a Requirement the analysis may skip. Refusing
+        # loudly is the fail-closed reading: skipping one would silently produce a
+        # Review that analysed fewer Requirements than its snapshot pinned.
         items.append(_SnapshotItem(
             requirement=requirement,
             requirement_version=rv,
-            company_standard=db.get(
-                M.CompanyStandardVersion,
-                snapshot_item.company_standard_version_id),
-            mapping_rules=db.get(
-                M.MappingRuleVersion, snapshot_item.mapping_rule_version_id),
-            evaluation_rules=db.get(
-                M.EvaluationRuleVersion,
-                snapshot_item.evaluation_rule_version_id),
+            company_standard=must_exist(
+                db.get(M.CompanyStandardVersion,
+                       snapshot_item.company_standard_version_id),
+                "company_standard_version", snapshot_item.requirement_version_id),
+            mapping_rules=must_exist(
+                db.get(M.MappingRuleVersion,
+                       snapshot_item.mapping_rule_version_id),
+                "mapping_rule_version", snapshot_item.requirement_version_id),
+            evaluation_rules=must_exist(
+                db.get(M.EvaluationRuleVersion,
+                       snapshot_item.evaluation_rule_version_id),
+                "evaluation_rule_version", snapshot_item.requirement_version_id),
+            # Genuinely optional — locked Step 20 r4.
             legal_rule=(db.get(M.LegalRuleVersion,
                                snapshot_item.legal_rule_version_id)
                         if snapshot_item.legal_rule_version_id else None),
         ))
     return items
+

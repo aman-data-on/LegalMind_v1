@@ -15194,3 +15194,165 @@ Legal policy      none affected
 Schema impact     none
 ```
 
+---
+---
+
+# Reconciliation Decision REC-09 — "Explicit Legal scope" for Review visibility
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-17**
+**Defines a term two locked rules use and none defined. Resolves finding `F-6`.
+No new permission. No new endpoint. No new table. No schema change. No legal
+policy changed.**
+
+## The gap
+
+Locked Step 24 r6 makes Legal Reviewer access depend on a term the specification
+never defines:
+
+```text
+r6   "Legal Reviewer access is controlled by assignment and/or
+      explicit Legal scope."
+```
+
+Locked Step 23 r12 names the same term as one of four scope kinds — "own,
+assigned, **Legal scope**, or system scope" — and also gives no criterion. No
+other locked record supplies one.
+
+Both branches of r6 were therefore unimplementable:
+
+```text
+assignment            `review_assignments` exists and is ratified (AM-22),
+                      but NO operation creates a row: Step 49 specifies no
+                      endpoint and the SEC-04 catalogue of 27 permissions
+                      contains nothing that would authorize one.
+explicit Legal scope  never defined anywhere in this file.
+```
+
+The consequence was not cosmetic. Object visibility resolved on ownership alone,
+`LEGAL_REVIEWER` does not hold `review.create`, and so a Legal Reviewer could
+reach **no Review at all** — every Legal-facing surface returned 404 to the roles
+that exist to use them. Locked Step 24 r5, r6, r7, r16, r17 and r18 and locked
+Step 22's escalation path were all unreachable in consequence.
+
+Recorded as `F-6`. Note also that `legal.review` was granted by Step 23's default
+grants and enforced at no call site — a locked permission that granted nothing.
+
+## Why an assignment operation could not have fixed it alone
+
+Whoever assigns a Review must first be able to **see** it. Locked Step 24 r8
+denies Super Admin access to Legal content, so a platform administrator cannot be
+the assigner; locked r7 gives Legal Admin "authorized **Legal-scope** access" —
+which is the very term left undefined. The Legal-scope definition was therefore
+required either way, and once made, the locked workflow functions without any new
+endpoint or permission.
+
+## Owner decision, 2026-08-17
+
+```text
+A Review is IN LEGAL SCOPE when either:
+
+  (a) any of its Findings has an escalation that has not been
+      withdrawn                                    (Step 24 r5, AM-23)
+
+  (b) its Review lifecycle status is LEGAL_REVIEW   (Step 30)
+
+A holder of `legal.review` MAY VIEW a Review that is in Legal scope.
+
+This grants NEITHER ownership NOR Legal Decision authority.
+
+Per-user assignment is NOT an access path in V1. `review_assignments`
+(AM-22) remains ratified and remains read for access as locked, but
+nothing populates it; scoping Legal access to individually assigned
+Reviews is DEFERRED TO V2.
+```
+
+Both conditions are required, and each traces to a locked rule:
+
+```text
+(b) alone is insufficient — a user may escalate a Finding on a RESOLVED
+    Review, and Step 30's state machine has NO RESOLVED -> LEGAL_REVIEW
+    transition. Without (a) that escalation would be invisible to Legal,
+    and ROLE-04 fixes escalation's meaning as "this requires authorized
+    review".
+
+(a) alone is insufficient — the engine derives LEGAL_REVIEW with no human
+    escalation (Step 30 r6), and Step 30 defines that status as "one or
+    more Findings require an authorized Legal decision". Without (b) a
+    Review the ENGINE says needs a Legal Decision would wait for a human
+    to escalate it first.
+```
+
+## What this settles
+
+```text
+Step 24 r6 "explicit Legal scope"   DEFINED for V1, as above
+Step 24 r5                          IMPLEMENTABLE — escalation is
+                                    condition (a)
+Legal Reviewer / Legal Admin        can reach the Reviews their locked
+                                    roles exist to review
+`legal.review`                      now has an enforcement site: it is
+                                    the permission half of Legal scope
+F-6                                 RESOLVED
+```
+
+## What this does NOT settle
+
+```text
+Per-user assignment (G1)     DEFERRED TO V2. No endpoint, no permission,
+                             no rule naming who may assign. Precedent:
+                             AM-24 deferred ownership TRANSFER on the same
+                             reasoning — r6's "and/or" permits the
+                             assignment branch without mandating it.
+"Legal Queue" as an object   NOT SPECIFIED. The phrase occurs once in this
+                             file, inside Step 24's example diagram. Legal
+                             work is found through the existing Review
+                             list under the same scope rule; no queue
+                             resource is created.
+Contract and Document access Unchanged and OWNER-ONLY. This entry governs
+                             Reviews, Findings and Evaluations reached
+                             through a Review. Whether Legal scope extends
+                             to the underlying Contract or to downloading
+                             the original document is NOT decided here.
+Least privilege (r13)        A `legal.review` holder sees every in-scope
+                             Review, which is coarser than Step 23's
+                             illustrative `review.scope = assigned`. This
+                             is accepted for V1 and narrowing it is the
+                             V2 assignment work.
+```
+
+## Not changed by REC-09
+
+```text
+Ownership (Step 24 r1-r4, AM-24)   unchanged — created_by is the owner
+Legal access confers no ownership  unchanged (r16, r17) — REQUIRED by this
+                                   entry, not weakened
+SEC-02 / ROLE-05                   unchanged — no super-role bypass reaches
+                                   legal.decision, and Legal scope confers
+                                   no decision authority
+SEC-05                             unchanged — legal.review does NOT confer
+                                   legal.decision
+LEGAL-02 / SEC-07                  unchanged — internal legal position stays
+                                   gated on legal_position.view, and is
+                                   OMITTED not nulled
+41.24 / SEC-06                     unchanged — knowing an ID is never
+                                   sufficient; out-of-scope stays a 404
+The SEC-04 permission catalogue    unchanged — 27 permissions, none added
+Step 49's endpoint table           unchanged — no endpoint added
+Every locked table                 unchanged — no schema impact
+Step 45E golden corpus             untouched — 58 NORMATIVE fixtures remain
+                                   unauthored and blocked on real material
+Every locked legal rule            unchanged
+```
+
+## Position
+
+```text
+REC-01 - REC-08   🔒        REC-09   🔒
+Resolves          F-6
+Defers to V2      per-user Legal assignment (G1); Legal scope for
+                  Contract and Document access
+Conflicts open    C-05 · C-06 · C-07 · C-08 · C-10 · C-12
+Legal policy      none affected
+Schema impact     none
+```

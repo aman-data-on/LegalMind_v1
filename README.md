@@ -16,9 +16,11 @@ Status:  Requires review
 
 ## Project phase
 
-**IMPLEMENTATION. Authorized 2026-08-17 (`IMPL-01`).**
+**STABILIZATION. Implementation authorized 2026-08-17 (`IMPL-01`); the locked build sequence is complete.**
 
-The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-07` and Amendment Batch AB-1 are locked. Step 45E (Golden Corpus) is in progress. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — it reports readiness; `IMPL-01` is what grants it.
+The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09` and Amendment Batches AB-1 and AB-2 are locked. Step 45E (Golden Corpus) is in progress: **16 `STRUCTURAL` fixtures of 64 specified, and 0 `NORMATIVE`**, which is blocked on owner-supplied legal material rather than on engineering.
+
+**For final review, read [HANDOFF.md](HANDOFF.md) first** — what exists, how to verify it, what is honestly not done, every decision still open, and the exact material required to finish. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — it reports readiness; `IMPL-01` is what grants it.
 
 `IMPL-01` authorizes **building what is already locked** and confers no authority to decide what is not. It is recorded retroactively and **not backdated**: the build preceded the authorization and the lock record says so.
 
@@ -30,6 +32,7 @@ Current state is authoritative in [docs/00-project/IMPLEMENTATION_STATUS.md](doc
 
 | | |
 |---|---|
+| **Reviewing the project?** | [HANDOFF.md](HANDOFF.md) — state, verification evidence, limitations, open decisions, required inputs |
 | **Where do I find X?** | [docs/README.md](docs/README.md) — the documentation index |
 | What LegalMind is | [docs/00-project/PROJECT_OVERVIEW.md](docs/00-project/PROJECT_OVERVIEW.md) |
 | What is settled | [docs/00-project/LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) |

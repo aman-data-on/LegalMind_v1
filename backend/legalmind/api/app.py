@@ -14,7 +14,7 @@ authorization logic even if it wanted to. The permission array from
 from __future__ import annotations
 
 import os
-from typing import Iterator
+from collections.abc import Iterator
 
 from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
@@ -25,7 +25,6 @@ from legalmind.api.context import (
     RequestContextMiddleware,
     RequestLoggingMiddleware,
 )
-from legalmind.observability import configure_logging
 from legalmind.api.permission_map import API_PREFIX
 from legalmind.api.routers import (
     admin,
@@ -38,6 +37,7 @@ from legalmind.api.routers import (
     reviews,
 )
 from legalmind.api.routers import auth as auth_router
+from legalmind.observability import configure_logging
 
 
 def _docs_enabled() -> bool:

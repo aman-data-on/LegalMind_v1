@@ -248,8 +248,8 @@ def test_legal_review_does_not_confer_legal_decision(api, db, owner,
                         json={"decision_type": "ACCEPT_DEVIATION",
                               "justification": "reviewed and accepted"})
     assert response.status_code == 403
-    assert P.LEGAL_REVIEW in {
-        p for p in api.get(f"{V1}/auth/session").json()["data"]["permissions"]}
+    assert P.LEGAL_REVIEW in set(
+        api.get(f"{V1}/auth/session").json()["data"]["permissions"])
 
 
 def test_approve_customization_needs_the_additional_grant(
@@ -437,3 +437,121 @@ def test_signed_out_client_gets_401_not_403(api, db, seeded):
     assert api.get(f"{V1}/audit-events").status_code == 200
     sign_out(api)
     assert api.get(f"{V1}/audit-events").status_code == 401
+
+
+# =====================================================================
+# REC-09 — Legal scope over HTTP (resolves F-6)
+# =====================================================================
+def test_a_legal_reviewer_reaches_an_in_scope_review_over_http(
+        api, db, owner, owned_review, requirement_version):
+    """`REC-09`, end to end through the API — the case that returned 404 to every
+    Legal role before it, making the locked Legal workflow unreachable (`F-6`).
+
+    Note the Review belongs to `owner` and the reader is a different user with no
+    assignment: this is cross-user Legal access, which is exactly what locked Step 24
+    r16 requires to be possible without transferring ownership.
+    """
+    finding = make_finding(db, owned_review, requirement_version)
+    make_evaluation(db, finding)
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    assert api.get(f"{V1}/reviews/{owned_review.id}").status_code == 200
+    assert api.get(f"{V1}/reviews/{owned_review.id}/findings").status_code == 200
+    assert api.get(f"{V1}/findings/{finding.id}").status_code == 200
+    # The owner is unchanged — access for Legal work is not ownership (r16, r17).
+    assert owned_review.created_by == owner.id
+
+
+def test_an_out_of_scope_review_is_still_404_for_legal(api, db, owner, owned_review):
+    """The widening is bounded. A `DRAFT` Review with no escalation is in no Legal
+    scope, so `SEC-07`'s non-disclosure still applies to a Legal Reviewer."""
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    assert api.get(f"{V1}/reviews/{owned_review.id}").status_code == 404
+
+
+def test_legal_scope_yields_403_not_404_when_deciding_without_authority(
+        api, db, owner, owned_review, requirement_version):
+    """SEC-02 / SEC-05 over HTTP: the object is visible and the operation is refused.
+
+    47.7's table distinguishes the two — a 404 would mean the Review was out of scope,
+    a 403 means `REC-09` granted sight and `legal.decision` was still required.
+    """
+    finding = make_finding(db, owned_review, requirement_version)
+    evaluation = make_evaluation(
+        db, finding, classification=E.FindingClassification.DEVIATION,
+        rule_outcome=E.RuleOutcome.APPROVAL_REQUIRED)
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)     # no legal.decision
+    sign_in(api, db, counsel)
+
+    assert api.get(f"{V1}/evaluations/{evaluation.id}/decisions").status_code == 200
+    refused = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
+                       json={"decision_type": "ACCEPT_DEVIATION",
+                             "justification": "structural probe",
+                             "expected_version": 0})
+    assert refused.status_code == 403
+    assert "legal.decision" in refused.json()["error"]["message"]
+
+
+def test_the_legal_queue_is_the_review_list(api, db, owner, requirement_version):
+    """`REC-09` creates no queue resource — Step 24's "Legal Queue" is named once in an
+    example diagram and specified nowhere, so Legal work is found through the existing
+    list under the same scope rule.
+
+    Also re-asserts the property that matters most about the list: it must agree with
+    `can_see_review` exactly, or it discloses a row a `GET` would 404 on (49.6).
+    """
+    from legalmind.security.authorization import can_see_review
+
+    in_scope = make_review_for(db, owner)
+    in_scope.status = E.ReviewStatus.LEGAL_REVIEW
+    escalated = make_review_for(db, owner)
+    escalated.status = E.ReviewStatus.RESOLVED
+    finding = make_finding(db, escalated, requirement_version)
+    make_evaluation(db, finding)
+    db.add(M.Escalation(finding_id=finding.id, raised_by=owner.id,
+                        reason="structural escalation"))
+    invisible = make_review_for(db, owner)             # DRAFT, never escalated
+    db.flush()
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    listed = {item["id"] for item in
+              api.get(f"{V1}/reviews", params={"page_size": 100}).json()["data"]}
+    assert str(in_scope.id) in listed                  # REC-09 (b)
+    assert str(escalated.id) in listed                 # REC-09 (a)
+    assert str(invisible.id) not in listed
+
+    every = db.execute(select(M.Review)).scalars().all()
+    expected = {str(r.id) for r in every if can_see_review(db, counsel.id, r)}
+    assert listed == expected
+
+
+def test_the_review_list_does_not_widen_for_ordinary_users(
+        api, db, owner, requirement_version):
+    """The permission half of Step 24 r12, at list scope. An ordinary User's list must
+    not gain someone else's Review because it entered `LEGAL_REVIEW`."""
+    other = make_review_for(db, owner)
+    other.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    stranger = make_user(db)
+    grant_role(db, stranger, P.ROLE_USER)
+    sign_in(api, db, stranger)
+
+    listed = {item["id"] for item in
+              api.get(f"{V1}/reviews", params={"page_size": 100}).json()["data"]}
+    assert str(other.id) not in listed

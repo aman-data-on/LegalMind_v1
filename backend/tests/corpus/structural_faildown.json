@@ -1,0 +1,530 @@
+[
+  {
+    "id": "STRUCT-FC-01",
+    "provenance": "STRUCTURAL",
+    "description": "44.17 — a general cap and its carve-outs are NEVER flattened. One PRIMARY plus two EXCEPTION Evaluations, each with its own scope. Structural only: these numbers, scopes and outcomes carry no legal meaning.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20,
+        "approval_required_above": 30,
+        "unlimited_outcome": "UNACCEPTABLE"
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A",
+          "SCOPE_B",
+          "SCOPE_C"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 10,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "SCOPE_B",
+        "scope_label": "Carve-out B",
+        "cap_status": "FINITE",
+        "cap_value": 25,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "SCOPE_C",
+        "scope_label": "Carve-out C",
+        "cap_status": "UNLIMITED",
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 2
+      }
+    ],
+    "expect_finding_classification": "DEVIATION",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "evaluation_kind": "PRIMARY",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "SCOPE_B",
+        "scope_label": "Carve-out B",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "APPROVAL_REQUIRED",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "SCOPE_C",
+        "scope_label": "Carve-out C",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "UNACCEPTABLE",
+        "evidence_ref_count": 2
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-02",
+    "provenance": "STRUCTURAL",
+    "description": "45C.4 — an UNLIMITED carve-out applies only to its own scope and never generalizes. The conforming general cap stays MATCH; only the carve-out deviates. This is the 'hidden carve-out' failure the scoped model exists to prevent.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20,
+        "unlimited_outcome": "UNACCEPTABLE"
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A",
+          "SCOPE_B"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 10,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "SCOPE_B",
+        "scope_label": "Unlimited carve-out",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "DEVIATION",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "evaluation_kind": "PRIMARY",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "SCOPE_B",
+        "scope_label": "Unlimited carve-out",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "UNACCEPTABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-03",
+    "provenance": "STRUCTURAL",
+    "description": "45B.7 — a FAILED extraction produces UNABLE_TO_EVALUATE, never a guess. The fail-closed path that matters most: an unusable input must not become a clean finding. Note evidence_count is 1, not 0: a failed extraction means a clause WAS mapped and could not be interpreted, so the evidence survives the failure (rule 11, N-34). An earlier draft of this fixture said 0 and the runner rejected it — correctly, since only MISSING-by-absence may carry no evidence.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "extraction_status": "FAILED",
+    "extraction_diagnostics": [
+      "extraction configuration absent (STRUCTURAL)"
+    ],
+    "caps": [],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ],
+    "evidence_count": 1
+  },
+  {
+    "id": "STRUCT-FC-04",
+    "provenance": "STRUCTURAL",
+    "description": "A cap whose magnitude could not be interpreted is UNKNOWN, and UNKNOWN is UNABLE_TO_EVALUATE — never a guessed number (ENG-09, rule 15).",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "UNKNOWN",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-05",
+    "provenance": "STRUCTURAL",
+    "description": "45C.20 — the comparison requires a scope and the scope could not be determined. AGGREGATE is never assumed, so this fails closed rather than comparing against the general standard.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "UNKNOWN",
+        "cap_status": "FINITE",
+        "cap_value": 10,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "UNKNOWN",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-06",
+    "provenance": "STRUCTURAL",
+    "description": "45C.23 — units are not silently converted. A cap in a different unit from the Company Standard fails closed instead of being coerced.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 10,
+        "cap_unit": "UNIT_Y",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-07",
+    "provenance": "STRUCTURAL",
+    "description": "45B.4 / 45C.23 — bases are not assumed equivalent. Without a configured conversion rule the comparison fails closed.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 10,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_Q",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-08",
+    "provenance": "STRUCTURAL",
+    "description": "Tier 1 dominates Tier 2 in the roll-up: one scope fails closed while another MATCHes, and the Finding summary is UNABLE_TO_EVALUATE rather than the friendlier of the two. Asserts the scoped set as well as the summary, because the roll-up is lossy by design (45E.1).",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A",
+          "SCOPE_B"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 10,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "SCOPE_B",
+        "scope_label": "Uninterpretable carve-out",
+        "cap_status": "UNKNOWN",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "evaluation_kind": "PRIMARY",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "SCOPE_B",
+        "scope_label": "Uninterpretable carve-out",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-09",
+    "provenance": "STRUCTURAL",
+    "description": "REC-07 — extraction diagnostics travel with the evaluation but cannot alter a legal finding. A PARTIAL extraction whose cap is usable still evaluates; only FAILED fails closed.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": {
+      "configuration": {
+        "acceptable_max": 20
+      },
+      "rule_configuration": {
+        "scope_required": true,
+        "comparable_scopes": [
+          "SCOPE_A"
+        ],
+        "comparable_bases": [
+          "BASIS_P"
+        ]
+      }
+    },
+    "extraction_status": "PARTIAL",
+    "extraction_diagnostics": [
+      "one candidate clause was not interpretable (STRUCTURAL)"
+    ],
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 15,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "DEVIATION",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "classification": "DEVIATION",
+        "rule_outcome": "ACCEPTABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "STRUCT-FC-10",
+    "provenance": "STRUCTURAL",
+    "description": "Step 20 r4 — not every Requirement has a Legal Rule. Without one a deviation stands as NOT_APPLICABLE and a human decides; the engine never invents a tolerance. DEVIATION is not 'unacceptable' (rule 14).",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "STRUCTURAL-NUMERIC-001",
+    "company_standard": {
+      "preferred": 10,
+      "unit": "UNIT_X",
+      "basis": "BASIS_P",
+      "scope_key": "SCOPE_A"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "cap_kind": "PRIMARY",
+        "scope": "SCOPE_A",
+        "cap_status": "FINITE",
+        "cap_value": 99,
+        "cap_unit": "UNIT_X",
+        "cap_basis": "BASIS_P",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "DEVIATION",
+    "expect_evaluations": [
+      {
+        "scope_key": "SCOPE_A",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  }
+]

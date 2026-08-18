@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
-
 from legalmind.domain.enums import EvaluationKind, ExtractionStatus
 from legalmind.extraction.liability import (
     FINITE,

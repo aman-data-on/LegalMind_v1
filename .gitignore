@@ -99,3 +99,17 @@ logs/
 celerybeat-schedule
 celerybeat.pid
 *.pid
+
+# ─── Browser-suite artefacts (Playwright, Step 39) ──────────────────────────
+# `e2e/.auth/` holds real session cookies for the synthetic e2e accounts, and
+# `.fixture.json` holds their credentials. Neither is a production secret (55.3:
+# development is synthetic data only) and neither belongs in the repository.
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/e2e/.auth/
+frontend/e2e/.fixture.json
+frontend/e2e/.fixture-snapshot.json
+# Generated STRUCTURAL document, the e2e object store and verification logs. The
+# document is also caught by `*.docx` above, which CI job 8 enforces separately.
+backend/.e2e/

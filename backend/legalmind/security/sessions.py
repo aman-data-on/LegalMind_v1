@@ -10,7 +10,7 @@ The session carries IDENTITY ONLY. Authority is resolved per request (S-1).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -33,7 +33,7 @@ class Principal:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def create_session(db: DBSession, user: M.User,

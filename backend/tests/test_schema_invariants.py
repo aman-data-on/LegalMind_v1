@@ -79,6 +79,7 @@ def test_ev_min_reparenting_the_last_evaluation_fails(
     """Moving an Evaluation to another Finding vacates the first one. Covered by the
     same guard, because otherwise the delete check would be trivially bypassable."""
     import uuid as _uuid
+
     from legalmind.domain import enums as _E
 
     other_req = M.Requirement(code=f"R-{_uuid.uuid4().hex[:6]}",
@@ -307,11 +308,20 @@ def test_each_axis_has_its_own_enum_type(db):
 
     AMBIGUOUS means three different things on three layers; if they shared a
     type the distinction would be unenforceable.
+
+    Scoped to `current_schema()`. `pg_type` is database-wide, and each test run
+    migrates into a schema private to itself (see `conftest`), so an unscoped count
+    sums identically-named enum types belonging to *other* concurrent runs and reports
+    21 labels for a 7-label enum. That is the `F-4` failure class exactly: a test that
+    passes alone and fails beside a sibling.
     """
     rows = db.execute(text("""
         SELECT t.typname, count(e.enumlabel)
-        FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid
-        WHERE t.typname IN ('finding_classification','rule_outcome','decision_type',
+        FROM pg_type t
+        JOIN pg_enum e ON e.enumtypid = t.oid
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = current_schema()
+          AND t.typname IN ('finding_classification','rule_outcome','decision_type',
                             'review_status','finding_status','extraction_status',
                             'evaluator_type','evaluation_kind')
         GROUP BY t.typname ORDER BY t.typname""")).all()

@@ -13,8 +13,14 @@ import pytest
 
 from legalmind.domain.enums import (
     EvaluatorType,
+)
+from legalmind.domain.enums import (
     FindingClassification as C,
+)
+from legalmind.domain.enums import (
     MappingState as S,
+)
+from legalmind.domain.enums import (
     RuleOutcome as O,
 )
 from legalmind.evaluation.contracts import (
@@ -27,7 +33,6 @@ from legalmind.evaluation.contracts import (
 from legalmind.evaluation.presence import (
     OptionalRequirementAbsent,
     PresenceMisconfigured,
-    evaluate_presence,
 )
 from legalmind.evaluation.registry import evaluate
 from legalmind.evaluation.service import build_presence_input

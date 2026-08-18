@@ -66,12 +66,13 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
                           else FindingClassification.DEVIATION)
         outcome = (RuleOutcome.ACCEPTABLE if has_legal_rule
                    else RuleOutcome.NOT_APPLICABLE)
-        explanation = (
+        explanation: tuple[str, ...] = (
             f"mapping CONFIRMED for {evaluator_input.requirement.code}",
             f"expected {expected}; a qualifying provision is present",
         )
-        diagnostics = ("presence established by the mapping layer",
-                       f"{len(evidence)} provision(s) mapped")
+        diagnostics: tuple[str, ...] = (
+            "presence established by the mapping layer",
+            f"{len(evidence)} provision(s) mapped")
 
     elif state is MappingState.NONE:
         actual = ABSENT
@@ -123,7 +124,7 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
                     "mapping_state": state.value},
         evaluated_facts={"mapping_state": state.value},
         evidence_refs=evidence,
-        evidence_relationships={eid: "PRIMARY" for eid in evidence},
+        evidence_relationships=dict.fromkeys(evidence, "PRIMARY"),
         explanation=explanation,
         diagnostics=diagnostics,
     )

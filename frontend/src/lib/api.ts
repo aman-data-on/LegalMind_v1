@@ -270,9 +270,13 @@ export const api = {
       },
     }),
   /**
-   * Run the analysis pipeline. Progress afterwards is read from the Review's
+   * Submit the Review for analysis. Progress afterwards is read from the Review's
    * lifecycle status and nothing else (52.7) — there is deliberately no separate
    * job-state resource that could disagree with Step 30.
+   *
+   * Two outcomes, distinguished by `mode` (locked 55.1): `queued` when a worker will
+   * run it, `inline` when it already ran. The caller reloads the Review either way,
+   * so the difference is in what the response can report, not in what it means.
    *
    * A repeat returns `already_analysed` rather than duplicating Findings (49.8).
    */

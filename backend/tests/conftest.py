@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from legalmind.config import test_database_url
-from legalmind.db.base import Base
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-
 
 # --------------------------------------------------------------------------
 # `F-4` — test isolation
@@ -75,8 +73,9 @@ def engine():
     mechanism. Verified by running the suite green with ``LEGALMIND_DATABASE_URL``
     pointed at a nonexistent host: nothing in the test path opens the dev database.
     """
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     base_url = test_database_url()
     schema = f"{_SCHEMA_PREFIX}{int(time.time())}_{uuid.uuid4().hex[:10]}"
@@ -122,7 +121,7 @@ def db(engine) -> Session:
 
 # ---------------------------------------------------------------- fixtures
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @pytest.fixture
@@ -226,7 +225,8 @@ def api(db, tmp_path):
     """
     from fastapi.testclient import TestClient
 
-    from legalmind.api import ratelimit, storage as api_storage
+    from legalmind.api import ratelimit
+    from legalmind.api import storage as api_storage
     from legalmind.api.app import create_app
     from legalmind.api.deps import get_db
     from legalmind.api.routers import auth as auth_router

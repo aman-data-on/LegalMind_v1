@@ -6,7 +6,7 @@ amendment, not a code-only change (AM-16).
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from legalmind.domain.enums import EvaluatorType
 from legalmind.evaluation.contracts import EvaluatorInput, EvaluatorOutput

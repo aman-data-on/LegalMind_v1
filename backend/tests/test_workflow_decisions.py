@@ -5,15 +5,18 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.enums import (
     DecisionType as D,
+)
+from legalmind.domain.enums import (
     FindingStatus,
+)
+from legalmind.domain.enums import (
     ReviewStatus as RS,
-    RuleOutcome as O,
 )
 from legalmind.evaluation.registry import evaluate
 from legalmind.evaluation.service import persist_evaluation
@@ -99,7 +102,7 @@ def test_decision_requires_explicit_legal_authority(db, case):
     """Locked Step 23 — decisions only "when explicitly permitted"."""
     owner, review, p = case
     reviewer = legal_user(db, review, with_authority=False)
-    with pytest.raises(Forbidden, match="legal.decision"):
+    with pytest.raises(Forbidden, match=r"legal\.decision"):
         record_decision(db, actor_id=reviewer.id,
                         evaluation_id=p.evaluations[0].id,
                         decision_type=D.ACCEPT_DEVIATION, justification="x")
@@ -119,7 +122,7 @@ def test_super_admin_cannot_decide(db, case):
 def test_normal_user_cannot_decide_on_own_review(db, case):
     """ROLE-03 — a User can escalate but never decide, even on their own Review."""
     owner, review, p = case
-    with pytest.raises(Forbidden, match="legal.decision"):
+    with pytest.raises(Forbidden, match=r"legal\.decision"):
         record_decision(db, actor_id=owner.id, evaluation_id=p.evaluations[0].id,
                         decision_type=D.ACCEPT_DEVIATION, justification="x")
 

@@ -205,7 +205,8 @@ def test_legal_reviewer_sees_the_full_position(api, db, owner, scoped):
     reviewer = _legal_reviewer(db, review, owner)
     sign_in(api, db, reviewer)
     body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
-    exception = [e for e in body["evaluations"] if e["scope_key"] == "CATEGORY"][0]
+    exception = next(e for e in body["evaluations"]
+                     if e["scope_key"] == "CATEGORY")
 
     assert exception["rule_outcome"] == "UNACCEPTABLE"
     assert exception["expected_value"] == {"months": 6}

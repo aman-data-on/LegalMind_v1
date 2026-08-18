@@ -11,9 +11,12 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.enums import (
     DecisionType,
-    FindingClassification as C,
     FindingStatus,
-    MappingState as S,
+)
+from legalmind.domain.enums import (
+    FindingClassification as C,
+)
+from legalmind.domain.enums import (
     RuleOutcome as O,
 )
 from legalmind.evaluation.registry import evaluate
