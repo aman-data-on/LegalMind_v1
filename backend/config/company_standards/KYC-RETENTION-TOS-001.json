@@ -1,0 +1,26 @@
+{
+  "_about": [
+    "RATIFIED Company Standard KYC-RETENTION-TOS-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "KYC-RETENTION-TOS-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) \u2014 TOS-leapswitch.pdf",
+  "source_clause": "8 KYC \u2014 Data Retention",
+  "source_quote": "All KYC records and subscriber information shall be maintained for a minimum period of five (5) years after the cancellation or withdrawal of the subscriber's registration",
+  "configuration": {
+    "document_type": "TOS",
+    "preferred": 5,
+    "unit": "YEARS",
+    "basis": "KYC_RECORD_RETENTION",
+    "scope_key": "GENERAL"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ]
+}

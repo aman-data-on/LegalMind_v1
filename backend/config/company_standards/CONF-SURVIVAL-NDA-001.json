@@ -1,0 +1,33 @@
+{
+  "_about": [
+    "RATIFIED Company Standard \u2014 NDA document type. OWNER DESIGNATION 2026-08-19:",
+    "the executed NDA of 17 June 2026 IS the LeapSwitch NDA, i.e. the positions",
+    "LeapSwitch accepts AS RECEIVING PARTY. Under the manager's whatever-is-stated",
+    "rule those accepted positions are the baseline for reviewing counterparty NDAs",
+    "(where LeapSwitch is again the receiving party).",
+    "",
+    "DIRECTION CAVEAT, recorded once: this document states LeapSwitch's",
+    "RECEIVING-party positions. If a review ever concerns LeapSwitch DISCLOSING its",
+    "own information, these standards do not state that position.",
+    "",
+    "CONFIDENTIALITY: the source is executed with a real counterparty. Cite the",
+    "document only as above; never name the counterparty or signatories anywhere."
+  ],
+  "requirement_code": "CONF-SURVIVAL-NDA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
+  "source_clause": "9 Term and Survival",
+  "source_quote": "confidentiality obligations ... shall survive for two (2) years from the date of termination or expiry of this Agreement or of the underlying partnership relationship, whichever is later; provided ... trade secret ... for so long as such information remains a trade secret.",
+  "configuration": {
+    "document_type": "NDA",
+    "preferred": 2,
+    "unit": "YEARS",
+    "basis": "CONFIDENTIALITY_SURVIVAL",
+    "scope_key": "GENERAL"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "_about": [
+    "RATIFIED Company Standard CONF-SURVIVAL-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "CONF-SURVIVAL-MSA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "12.3 Confidentiality \u2014 survival",
+  "source_quote": "Obligations under this Clause shall survive for a period of three (3) years post-termination.",
+  "configuration": {
+    "document_type": "MSA",
+    "preferred": 3,
+    "unit": "YEARS",
+    "basis": "CONFIDENTIALITY_SURVIVAL",
+    "scope_key": "GENERAL"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ]
+}

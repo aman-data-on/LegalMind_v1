@@ -220,7 +220,7 @@ exists.
 * **Nothing is implemented.** `can_see_review` is unchanged, and the browser suite still
   works around `F-6` with the workaround labelled as one (`tools/e2e_bootstrap.py`).
 * **No new endpoint, permission or table** exists or is drafted in code.
-* **The STRUCTURAL corpus is unchanged** at 16 fixtures; the 58 `NORMATIVE` fixtures are
+* **The STRUCTURAL corpus is unchanged** at 16 fixtures *(as of this record, 2026-08-17; nine `DOCUMENT_SUPPORTED` fixtures were added on 2026-08-18 — see [SOURCE_MATERIAL_INTAKE.md](../../00-project/SOURCE_MATERIAL_INTAKE.md))*; the 58 `NORMATIVE` fixtures are
   untouched and remain blocked on real material.
 * **`C-12` remains registered and open**, and is treated as blocking nothing.
 

@@ -44,6 +44,7 @@ ACCEPTABLE_MAX = "acceptable_max"
 ACCEPTABLE_MAX_UNIT = "acceptable_max_unit"
 APPROVAL_REQUIRED_ABOVE = "approval_required_above"
 UNLIMITED_OUTCOME = "unlimited_outcome"
+DEVIATION_OUTCOME = "deviation_outcome"
 
 # Company Standard configuration keys (locked 42.8 JSONB)
 PREFERRED = "preferred"
@@ -249,6 +250,28 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
     if legal_rule is None:
         return RuleOutcome.NOT_APPLICABLE, "no Legal Rule configured"
     cfg = legal_rule.configuration or {}
+
+    # `deviation_outcome` — the ZERO-TOLERANCE key (manager ruling, recorded
+    # 2026-08-19: "whatever is stated in our approved legal documents is the
+    # final position"; any deviation -> UNACCEPTABLE -> Legal Decision). It
+    # exists because the threshold keys CANNOT express zero tolerance:
+    # `acceptable_max = preferred` would wrongly ACCEPT below-preferred values.
+    # Checked first, deliberately: a blanket disposition and a threshold band in
+    # one rule would contradict each other, and the blanket one is the stated
+    # policy. This only maps an ALREADY-DETECTED deviation onto an outcome —
+    # the comparison itself is untouched, and MATCH never reaches here.
+    blanket = cfg.get(DEVIATION_OUTCOME)
+    if blanket is not None:
+        try:
+            return (RuleOutcome(blanket),
+                    f"deviation_outcome {blanket} (zero-tolerance rule)")
+        except ValueError:
+            # An unrecognised outcome is a misconfiguration, not permission to
+            # guess: fall through to NOT_APPLICABLE and a human (ENG-09).
+            return (RuleOutcome.NOT_APPLICABLE,
+                    f"deviation_outcome {blanket!r} is not a valid RuleOutcome; "
+                    "treated as unruled")
+
     approval_above = cfg.get(APPROVAL_REQUIRED_ABOVE)
     acceptable_max = cfg.get(ACCEPTABLE_MAX)
 

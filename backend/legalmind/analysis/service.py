@@ -40,6 +40,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
+from legalmind.domain.document_types import is_document_type
 from legalmind.domain.enums import (
     EvaluatorType,
     FindingClassification,
@@ -109,6 +110,11 @@ class AnalysisRun:
     review_id: UUID
     review_status: str
     requirements_in_snapshot: int
+    #: Declared Document Type of the paper under review (locked Step 6), and how
+    #: many of the pinned Requirements apply to it (locked Step 28 scoping).
+    #: None / equal-to-snapshot until the scoping stage has run.
+    document_type: str | None = None
+    requirements_applicable: int = 0
     outcomes: list[RequirementOutcome] = field(default_factory=list)
 
     @property
@@ -155,26 +161,59 @@ def run_analysis(db: DBSession, review: M.Review, *,
         requirements_in_snapshot=len(items),
     )
 
-    if not clauses:
-        # 34.9 / Step 30 r13 — a document with no usable text is a PROCESSING
-        # failure, not a set of legal conclusions. Nothing is evaluated and no
-        # Finding is invented.
+    def _refuse(reason: str, reason_code: str) -> AnalysisRun:
+        """ANALYSIS_FAILED, uniformly — Step 30 r13, 53.4/53.5.
+
+        One shape for every pre-evaluation refusal so the audit record and the
+        alertable log line cannot drift apart between failure causes.
+        """
         transition(db, review, ReviewStatus.ANALYSIS_FAILED,
                    actor_id=actor_id, request_id=request_id)
         run.review_status = review.status.value
         A.record(db, action=A.ANALYSIS_RUN_FAILED, entity_type="review",
                  entity_id=review.id, actor_id=actor_id, request_id=request_id,
-                 after={"reason": "no extracted clauses available"})
+                 after={"reason": reason})
         # 53.5 — ANALYSIS_FAILED is a genuine operational failure and IS alertable,
-        # unlike any fail-closed classification.
+        # unlike any fail-closed classification. `reason_code` is a code, not
+        # user text, so 53.3 permits it.
         log_event("analysis.failed", request_id=request_id,
                   review_id=str(review.id),
                   review_status=run.review_status,
-                  # `reason` is denied by 53.3 (an escalation reason is user text);
-                  # this is a code, and named as one.
-                  reason_code="no_extracted_clauses",
+                  reason_code=reason_code,
                   operational_failure=True)
         return run
+
+    if not clauses:
+        # 34.9 / Step 30 r13 — a document with no usable text is a PROCESSING
+        # failure, not a set of legal conclusions. Nothing is evaluated and no
+        # Finding is invented.
+        return _refuse("no extracted clauses available", "no_extracted_clauses")
+
+    # ---- Document Type scoping — locked Step 6 + Step 28 ---------------------
+    # A Requirement applies only to the kind of paper its standard declares.
+    # Undeclared type on the Contract: REFUSE (owner decision Q9 — the type is
+    # declared by the uploader, never inferred), because the alternative is
+    # evaluating every Requirement against every document, which is precisely
+    # the defect this filter exists to close (an NDA flagged for having no
+    # liability cap). Untyped standard in the snapshot: REFUSE, because the
+    # snapshot predates the publish-time check and neither skipping nor
+    # evaluating it can be justified silently (ENG-09).
+    document_type = _review_document_type(db, review)
+    if document_type is None or not is_document_type(document_type):
+        return _refuse("contract declares no valid document type",
+                       "document_type_undeclared")
+    if untyped := _untyped_items(items):
+        return _refuse(
+            "snapshot predates document-type validation; untyped standard for: "
+            + ", ".join(sorted(untyped)),
+            "snapshot_standard_untyped")
+
+    items = _applicable_items(items, document_type)
+    # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
+    # state what was pinned, not what applied. The applicable count is its own
+    # field, so "2 pinned, 1 applicable to an MSA" reads as exactly that.
+    run.requirements_applicable = len(items)
+    run.document_type = document_type
 
     with timed("analysis.stage.evaluate", request_id=request_id,
                review_id=str(review.id)) as stage:
@@ -191,6 +230,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
     A.record(db, action=A.ANALYSIS_RUN_RECORDED, entity_type="review",
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
              after={"requirements_in_snapshot": run.requirements_in_snapshot,
+                    "document_type": run.document_type,
+                    "requirements_applicable": run.requirements_applicable,
                     "findings_created": run.findings_created,
                     "skipped_as_optional": run.skipped_as_optional,
                     "failures": len(run.failures),
@@ -438,6 +479,55 @@ def _to_processing(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     if review.status is not ReviewStatus.PROCESSING:
         raise AnalysisNotPermitted(
             f"a Review in {review.status.value} cannot enter PROCESSING")
+
+
+def _review_document_type(db: DBSession, review: M.Review) -> str | None:
+    """The declared Document Type of the paper under review — locked Step 6.
+
+    Resolved Review → DocumentVersion → Contract.contract_type, the field the
+    uploader declares (owner decision Q9, 2026-08-19: declared, never inferred
+    from content — a wrong guess would silently load the wrong baseline).
+    Returns None when undeclared; the caller refuses, it does not default.
+    """
+    dv = db.get(M.DocumentVersion, review.document_version_id)
+    if dv is None:
+        return None
+    contract = db.get(M.Contract, dv.contract_id)
+    return contract.contract_type if contract is not None else None
+
+
+def _applicable_items(items: list[_SnapshotItem],
+                      document_type: str) -> list[_SnapshotItem]:
+    """Keep the Requirements whose standard declares this Document Type.
+
+    Locked Step 28's Requirement Model scopes every Requirement to a Document
+    Type; per owner decision Q2 (2026-08-19) the value lives in the Company
+    Standard configuration, the same JSONB route D-3 used for Required/Optional.
+
+    A plain equality test is sufficient — and safe — because publish refuses any
+    standard that omits the type or names one outside Step 6's vocabulary, so an
+    untyped item here means a snapshot that predates the check. Fail-closed
+    reading (ENG-09): such an item is REFUSED by the caller rather than either
+    silently skipped or silently evaluated; skipping could hide a Requirement
+    that should have run, evaluating could flag an NDA for having no liability
+    cap, and neither mistake should be possible to make quietly.
+
+    Input order (Requirement code) is preserved — ENG-11 determinism.
+    """
+    return [
+        item for item in items
+        if (item.company_standard.configuration or {}).get("document_type")
+        == document_type
+    ]
+
+
+def _untyped_items(items: list[_SnapshotItem]) -> list[str]:
+    """Requirement codes whose pinned standard declares no valid Document Type."""
+    return [
+        item.requirement.code for item in items
+        if not is_document_type(
+            (item.company_standard.configuration or {}).get("document_type"))
+    ]
 
 
 def _snapshot_items(db: DBSession, snapshot_id: UUID) -> list[_SnapshotItem]:

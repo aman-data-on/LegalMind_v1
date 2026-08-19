@@ -99,6 +99,9 @@ STRUCTURAL_CONFIGURATION: dict[str, object] = {
     "description": "STRUCTURAL fixture for the browser suite. Not a legal position.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "company_standard": {
+        # Step 28 scoping (owner Q2/Q3, 2026-08-19): publish refuses an untyped
+        # standard. MSA matches the type the suite declares on its contracts.
+        "document_type": "MSA",
         "applicability": "REQUIRED",
         "preferred": 6,
         "unit": "months",

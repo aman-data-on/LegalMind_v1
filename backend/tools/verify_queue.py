@@ -60,6 +60,7 @@ def _docx() -> bytes:
 def _seed(db, storage, owner_id, snapshot_id) -> uuid.UUID:
     """One analysable Review. Not the thing under verification — the delivery is."""
     contract = M.Contract(owner_id=owner_id, name="Verify contract",
+                          contract_type="MSA",   # declared type — Step 6 / Q9
                           status=E.ContractStatus.ACTIVE)
     db.add(contract)
     db.flush()

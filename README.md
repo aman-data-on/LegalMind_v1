@@ -18,7 +18,7 @@ Status:  Requires review
 
 **STABILIZATION. Implementation authorized 2026-08-17 (`IMPL-01`); the locked build sequence is complete.**
 
-The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09` and Amendment Batches AB-1 and AB-2 are locked. Step 45E (Golden Corpus) is in progress: **16 `STRUCTURAL` fixtures of 64 specified, and 0 `NORMATIVE`**, which is blocked on owner-supplied legal material rather than on engineering.
+The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09` and Amendment Batches AB-1 and AB-2 are locked. Step 45E (Golden Corpus) is in progress: **28 fixtures of 64 specified — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED` — and 0 `NORMATIVE`**. The Company Standard for `LIABILITY-001` was ratified on 2026-08-18 (12 months of total fees); normative authoring remains blocked on an approved Legal Rule rather than on engineering.
 
 **For final review, read [HANDOFF.md](HANDOFF.md) first** — what exists, how to verify it, what is honestly not done, every decision still open, and the exact material required to finish. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — it reports readiness; `IMPL-01` is what grants it.
 
@@ -27,6 +27,25 @@ The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–
 Current state is authoritative in [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), never here — including what is built, what is only tested, and what remains **unratified**.
 
 ---
+
+## Legal source documents — `legal-docs/` (gitignored, never committed)
+
+The owner-supplied documents live in [`legal-docs/`](legal-docs/README.md) inside the
+project (owner ruling 2026-08-19). The directory is **gitignored**; locked 54.6 forbids
+these files entering version control, and `backend/tests/test_source_material.py`
+enforces it. Read via `LEGALMIND_SOURCE_MATERIAL_DIR` (defaults to this directory).
+
+| File | Document |
+|---|---|
+| `MSA.pdf` | Leapswitch MSA v2 template, July 2025 |
+| `MSA-Feb.pdf` | MSA template, February draft |
+| `MSA-GRP-2026-07-30.pdf` | **Executed** MSA, 28 July 2026 — real counterparty, never named |
+| `NDA.pdf` | **Executed** NDA, 17 June 2026 — the LeapSwitch NDA baseline (owner designation); counterparty never named |
+| `TOS-leapswitch.pdf` / `TOS-cloudpe.pdf` | Terms of Service, both brands |
+| `SLA-leapswitch.pdf` / `SLA-cloudpe.pdf` | Service Level Agreements |
+| `AUP-leapswitch.pdf` / `AUP-cloudpe.pdf` | Acceptable Usage Policies |
+| `PRIVACY-leapswitch.pdf` / `PRIVACY-cloudpe.pdf` | Privacy Policies |
+| `Indian_Laws_and_Acts/` (7 PDFs) | Background statutes — never a Standard or Rule |
 
 ## Start here
 

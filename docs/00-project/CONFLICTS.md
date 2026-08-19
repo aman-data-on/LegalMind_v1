@@ -22,6 +22,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
 | C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ✅ **RESOLVED** — GitHub Actions is the V1 choice (`REC-08`) |
 | C-12 | Step 39 stack table names Playwright for testing vs locked 54.7 listing test framework selection NOT YET SPECIFIED | ⏳ Open (LOW) — **blocks nothing**; both readings permit Playwright |
+| C-13 | Step 28's locked Requirement Model contains `Document Type`, and Step 23 locks "Document Types" as an Admin Configuration area — but locked 42.7's `requirements` table is exactly `id · code · status · created_at · updated_at`, and no `document_types` table exists anywhere in the locked schema | ⏳ Open (LOW) — **blocks nothing**: owner decision Q2 (2026-08-19) stores the type in the Company Standard `configuration` JSONB (the `D-3` route), validated in code against Step 6's vocabulary. A first-class column/table is a V2 option contingent on resolving this |
 
 ---
 
@@ -325,3 +326,23 @@ Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Build sta
 While this documentation structure was being built, `all_lock.md` grew from 12,481 lines to 13,510 lines: Step 45A's lock was confirmed and Step 45B (Evaluator Data Contract) was added. It has since grown to **14,885 lines** — AB-1, the 45B re-lock, Steps 45C/45D, and Steps 47, 49 and 52–55. Growth has been append-only throughout; no historical locked text has been modified.
 
 Any future session should re-check the tail of `all_lock.md` against [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before assuming the docs are current.
+
+---
+
+## C-13 — Document Type: locked concept, no locked storage
+
+**Registered 2026-08-19. Open (LOW). Blocks nothing.**
+
+* **Step 28** (`all_lock.md`, "Locked Requirement Model") — each Requirement conceptually
+  contains `Document Type`, and the worked example scopes `LIABILITY-001` to `MSA`.
+* **Step 6** locks the ten V1 Document Types and `Source = Organization | Counterparty`.
+* **Step 23** locks "Document Types" as a managed Admin Legal Configuration area.
+* **Step 42.7** locks the physical `requirements` table with no document-type column, and
+  the locked schema defines no `document_types` table (zero occurrences in `all_lock.md`).
+
+Not a contradiction in behaviour — a divergence between the conceptual model and the
+physical schema, of the same shape `D-3` resolved for Required/Optional. Owner decision Q2
+(2026-08-19) took the same route: the type lives in the Company Standard `configuration`
+JSONB, validated in tested code (`legalmind/domain/document_types.py`), enforced at publish
+and at analysis. Resolving C-13 properly (a column or a table) is a V2 schema decision and
+requires reconciling 42.7; nothing in V1 waits on it.

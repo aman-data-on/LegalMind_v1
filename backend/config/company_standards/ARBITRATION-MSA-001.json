@@ -1,0 +1,26 @@
+{
+  "_about": [
+    "RATIFIED Company Standard ARBITRATION-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "ARBITRATION-MSA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "19.3\u201319.4 Governing Law and Arbitration",
+  "source_quote": "such differences and disputes shall be referred, at the option of either Party, to arbitration by a single arbitrator ... The arbitration shall take place in Mumbai, India",
+  "configuration": {
+    "document_type": "MSA",
+    "expected_presence": "PRESENT",
+    "scope_key": "ARBITRATION",
+    "applicability": "REQUIRED"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ],
+  "evaluator_type": "PRESENCE"
+}

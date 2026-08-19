@@ -30,8 +30,12 @@ redactor what it would do.
 **This is not third-party verification.** It is verification by a mechanism independent
 of the unit test, which is stronger than "the suite is green" and weaker than "someone
 else confirmed it". Nothing here makes anything `VERIFIED`, and `IMPL-01` condition 2
-still governs: *conformance is verified against the locked corpus*, which remains 16
-`STRUCTURAL` fixtures with **no `NORMATIVE` fixture authored**.
+still governs: *conformance is verified against the locked corpus*, which as of 2026-08-18
+is 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED` and 3 `STANDARD_DERIVED` fixtures with **no
+`NORMATIVE` fixture authored**. Two assert `MATCH` against the ratified Company Standard,
+but **no fixture asserts any Rule Outcome but `NOT_APPLICABLE`**, because no Legal Rule
+exists — un-ruled deviations are routed to a human instead, which is fail-closed but is not
+conformance.
 
 ---
 
@@ -133,5 +137,8 @@ Six of these seven were invisible to a passing test suite.
   nothing about whether the algorithm reaches the organization's legal conclusions.
 * **No threshold is calibrated** (locked 35.10). The numbers in every fixture and every
   test are structural and carry no legal meaning.
-* Both need real representative contracts and the organization's real Company Standards,
-  which must be supplied and never manufactured (rule 21).
+* Both need the organization's real Company Standard and Legal Rule. The contracts
+  supplied on 2026-08-18 closed part of the first requirement — nine fixtures were authored
+  from them — but supplied nothing about what the organization will *accept*, which is what
+  a `MATCH` or a Rule Outcome requires. It must be supplied and never manufactured
+  (rule 21). See [../00-project/SOURCE_MATERIAL_INTAKE.md](../00-project/SOURCE_MATERIAL_INTAKE.md).

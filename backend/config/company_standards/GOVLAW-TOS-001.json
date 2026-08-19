@@ -1,0 +1,26 @@
+{
+  "_about": [
+    "RATIFIED Company Standard GOVLAW-TOS-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "GOVLAW-TOS-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) \u2014 TOS-leapswitch.pdf",
+  "source_clause": "22 Governing Law",
+  "source_quote": "These Terms and any disputes arising out of or in connection with them shall be governed by and construed in accordance with the laws of India",
+  "configuration": {
+    "document_type": "TOS",
+    "expected_presence": "PRESENT",
+    "scope_key": "GOVERNING_LAW",
+    "applicability": "REQUIRED"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ],
+  "evaluator_type": "PRESENCE"
+}

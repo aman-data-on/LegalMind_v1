@@ -258,27 +258,59 @@ def serialize_review(r: M.Review) -> dict[str, Any]:
 # ==========================================================================
 # Configuration
 # ==========================================================================
-def serialize_requirement(db: DBSession, req: M.Requirement) -> dict[str, Any]:
+def serialize_requirement(db: DBSession, req: M.Requirement,
+                          *, include_values: bool = False) -> dict[str, Any]:
+    """Requirement with its version list.
+
+    ``include_values=True`` additionally returns each version's Company Standard
+    and Legal Rule **configuration values** plus ``created_by`` — the read path an
+    admin screen needs ("current: 12 months; changed by X on Y"). Values were
+    previously write-only through this API, which made the stored configuration
+    unreviewable. Confidentiality holds because every caller is gated on
+    `configuration.view`, and both roles holding it (Legal Reviewer, Legal Admin)
+    also hold `legal.position.view` — the Legal Rule is the confidential Internal
+    Legal Position (LEGAL-02), and it is never serialized on any other surface.
+    """
     versions = db.execute(
         select(M.RequirementVersion)
         .where(M.RequirementVersion.requirement_id == req.id)
         .order_by(M.RequirementVersion.version_number)
     ).scalars().all()
+
+    def _version(v: M.RequirementVersion) -> dict[str, Any]:
+        row: dict[str, Any] = {
+            "id": str(v.id),
+            "version_number": v.version_number,
+            "name": v.name,
+            "description": v.description,
+            "evaluator_type": v.evaluator_type.value,
+            "created_at": _iso(v.created_at),
+        }
+        if include_values:
+            cs = db.execute(
+                select(M.CompanyStandardVersion)
+                .where(M.CompanyStandardVersion.requirement_version_id == v.id)
+                .order_by(M.CompanyStandardVersion.version_number.desc())
+                .limit(1)).scalars().first()
+            lr = db.execute(
+                select(M.LegalRuleVersion)
+                .where(M.LegalRuleVersion.requirement_version_id == v.id)
+                .order_by(M.LegalRuleVersion.version_number.desc())
+                .limit(1)).scalars().first()
+            row["created_by"] = str(v.created_by) if v.created_by else None
+            row["company_standard"] = cs.configuration if cs else None
+            # Omitted, not nulled, when absent (49.7 r4 pattern): a Legal Rule
+            # is genuinely optional (Step 20 r4).
+            if lr is not None:
+                row["legal_rule"] = {"rule_type": lr.rule_type.value,
+                                     "configuration": lr.configuration}
+        return row
+
     return {
         "id": str(req.id),
         "code": req.code,
         "status": req.status.value,
-        "versions": [
-            {
-                "id": str(v.id),
-                "version_number": v.version_number,
-                "name": v.name,
-                "description": v.description,
-                "evaluator_type": v.evaluator_type.value,
-                "created_at": _iso(v.created_at),
-            }
-            for v in versions
-        ],
+        "versions": [_version(v) for v in versions],
         "created_at": _iso(req.created_at),
     }
 

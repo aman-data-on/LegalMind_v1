@@ -1,0 +1,411 @@
+[
+  {
+    "id": "DOC-LIAB-01",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "17.2 Monetary Cap on Liability",
+    "covers": [
+      "L-01"
+    ],
+    "description": "A real finite aggregate cap, evaluated while the organization has published NO Company Standard. The clause states a cap of six months of fees paid for the affected Services. With no standard scope to compare against, 45C.5 forbids the comparison and the engine fails closed. This fixture asserts the fail-closed path ONLY; it asserts nothing about whether six months is acceptable, which is not determinable from the document.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {},
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": 6,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-02",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "13 Limitation of Liability, second bullet",
+    "covers": [
+      "L-02"
+    ],
+    "description": "The twelve-month aggregate cap, evaluated with the document's own vocabulary supplied (unit MONTHS, basis FEES_PAID, scope AGGREGATE \u2014 each taken verbatim from the clause) but with NO preferred value. Every comparability gate passes and the engine still refuses to conclude, because the acceptance position is absent. This is the fixture that demonstrates exactly what remains blocked: the engine is correct and complete here, and the missing input is the owner's.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": 12,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-03",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "17.7",
+    "covers": [
+      "L-25"
+    ],
+    "description": "A real cap whose period was left blank in the executed template: liability 'shall not exceed the total fees paid by Customer in the ____ months preceding the claim'. A cap phrase and a unit are present, the magnitude is not. 45C.19 makes a bare quantifier insufficient, so this is UNABLE_TO_EVALUATE and never a guess at the intended number.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": null,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-04",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "17.2 and 17.7 read together",
+    "covers": [
+      "L-06",
+      "L-27",
+      "F-01"
+    ],
+    "description": "Two clauses of one agreement both purport to cap Leapswitch's total aggregate liability, on different terms: 17.2 six months of fees for the affected Services, 17.7 an unfilled number of months of total fees. 45C.2 makes same-scope incompatibility CONFLICT, and both evidence references are retained. 17.2 opens 'Notwithstanding anything to the contrary contained in this Agreement' \u2014 in-document precedence language, which 45C.27 requires be detected and reported but NEVER applied. No configured precedence rule exists, so the engine does not pick a winner. Which clause governs is a legal question this fixture deliberately does not answer. OWNER RULING 2026-08-18: this one-scope reading is confirmed \u2014 the two clauses contradict rather than stacking, so CONFLICT is the ratified expectation and not merely the available one.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": 6,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+        "evidence_count": 1
+      },
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": null,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "CONFLICT",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "CONFLICT",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 2
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-05",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "13 Limitation of Liability, cap plus the three closing carve-outs",
+    "covers": [
+      "L-07",
+      "L-08",
+      "R-01"
+    ],
+    "description": "The twelve-month cap together with the clause's own carve-outs: 'Nothing in these Terms shall limit or exclude liability for: (a) death or personal injury caused by negligence; (b) fraud or fraudulent misrepresentation; or (c) any liability that cannot be limited or excluded under applicable law.' Each carve-out is liability that is NOT limited, so each is UNLIMITED for its own scope and no further. Four Evaluations are produced, never one flattened position, and 45C.4 is asserted: the whole provision is NOT classified UNLIMITED merely because a carve-out is. The general scope fails closed for want of a preferred value; the roll-up is UNABLE_TO_EVALUATE because Tier 1 dominates.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": 12,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "CARVEOUT_DEATH_OR_PERSONAL_INJURY",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "CARVEOUT_FRAUD_OR_FRAUDULENT_MISREPRESENTATION",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "CARVEOUT_NON_EXCLUDABLE_BY_LAW",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "CARVEOUT_DEATH_OR_PERSONAL_INJURY",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "CARVEOUT_FRAUD_OR_FRAUDULENT_MISREPRESENTATION",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "CARVEOUT_NON_EXCLUDABLE_BY_LAW",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-06",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "17.2, measured against the basis used in 17.7",
+    "covers": [
+      "L-11",
+      "F-02",
+      "F-04"
+    ],
+    "description": "Two bases appear in one agreement and they are not the same thing: 17.2 caps at 'the total amount actually paid ... for the specific Services giving rise to the claim', while 17.7 caps at 'the total fees paid by Customer'. The restriction to the affected Services is in the words, not inferred. 45B.4 forbids assuming equivalence between bases and 45C.23 forbids silent conversion, so with no configured conversion rule this is UNABLE_TO_EVALUATE rather than a comparison of two numbers that measure different quantities.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": 6,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-07",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "17.2 with 17.3 Exclusions from Limitation",
+    "covers": [
+      "L-07"
+    ],
+    "description": "Carve-out splitting in a second, independently drafted provision. 17.3 states 'The foregoing limitations shall not apply to the Customer's indemnity obligations ... the Customer's breach of payment obligations, or damages resulting from the Customer's fraud, willful misconduct, or gross negligence.' Three carve-out scopes are preserved separately from the general cap, which here fails closed on basis comparability rather than on a missing preferred value \u2014 a different branch from DOC-LIAB-05, reached from different real text.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "FINITE",
+        "cap_value": 6,
+        "cap_unit": "MONTHS",
+        "cap_basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "CARVEOUT_CUSTOMER_INDEMNITY_OBLIGATIONS",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "CARVEOUT_BREACH_OF_PAYMENT_OBLIGATIONS",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      },
+      {
+        "cap_kind": "EXCEPTION",
+        "scope": "CARVEOUT_FRAUD_WILFUL_MISCONDUCT_GROSS_NEGLIGENCE",
+        "cap_status": "UNLIMITED",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "UNABLE_TO_EVALUATE",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "CARVEOUT_CUSTOMER_INDEMNITY_OBLIGATIONS",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "CARVEOUT_BREACH_OF_PAYMENT_OBLIGATIONS",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      },
+      {
+        "scope_key": "CARVEOUT_FRAUD_WILFUL_MISCONDUCT_GROSS_NEGLIGENCE",
+        "evaluation_kind": "EXCEPTION",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-08",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "CloudPe Terms of Service (last updated 5 February 2026)",
+    "source_clause": "Warranties and Disclaimers",
+    "covers": [
+      "L-19"
+    ],
+    "description": "A real liability provision that excludes categories of damages and states no monetary cap at all: 'In no event shall CloudPe ... be liable for any special, incidental, indirect or consequential or other damages of any kind'. An exclusion of damages is not a cap. 45C.14 requires MISSING with the evidence retained \u2014 the clause was found and mapped, so it must remain attached, and the absence of a cap must never be reported as MATCH.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "AGGREGATE",
+        "cap_status": "ABSENT",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MISSING",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "MISSING",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "DOC-LIAB-09",
+    "provenance": "DOCUMENT_SUPPORTED",
+    "source_document": "Executed non-disclosure agreement, 17 June 2026 (counterparty deliberately not named in this repository)",
+    "source_clause": "whole agreement \u2014 no limitation of liability provision exists",
+    "covers": [
+      "L-20"
+    ],
+    "description": "The agreement contains no limitation-of-liability provision of any kind: fifteen clauses, none capping or excluding liability. 45C.15 requires MISSING with ZERO evidence, and the distinction from DOC-LIAB-08 is the whole point \u2014 there, a clause exists and its evidence survives; here nothing was extracted and none is invented. Asserting an absence requires quoting nothing, which is why this fixture can exist while the source document cannot enter the repository under locked 54.6.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LIABILITY-001",
+    "company_standard": {
+      "unit": "MONTHS",
+      "basis": "FEES_PAID",
+      "scope_key": "AGGREGATE"
+    },
+    "legal_rule": null,
+    "caps": [],
+    "expect_finding_classification": "MISSING",
+    "expect_evaluations": [
+      {
+        "scope_key": "AGGREGATE",
+        "classification": "MISSING",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 0
+      }
+    ]
+  }
+]

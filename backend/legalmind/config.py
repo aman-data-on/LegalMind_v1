@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 
 def database_url() -> str:
@@ -27,6 +28,29 @@ def storage_root() -> str:
     change.
     """
     return os.environ.get("LEGALMIND_STORAGE_ROOT", "/var/lib/legalmind/documents")
+
+
+def source_material_dir() -> str:
+    """Where the organization's own legal source documents live (untracked).
+
+    Locked 54.6: *"golden fixtures use synthetic or cleared contract text. Real
+    counterparty contracts do not enter the repository."* Owner ruling 2026-08-19:
+    the documents live INSIDE the project at ``legal-docs/`` for convenience, but
+    the directory is gitignored and must never be tracked — "the repository" means
+    version control, and nothing sensitive is ever committed.
+    ``tests/test_source_material.py`` enforces both halves.
+
+    Absence is normal and must never be an error: CI has no source material and the
+    document-level corpus fixtures skip when it is missing. A missing directory
+    means "those fixtures cannot run here", never "evaluate with less material".
+
+    Owner ruling, 2026-08-18: the six documents named in CLAUDE.md § Source material
+    are the ONLY source material for this project. Other document collections exist
+    elsewhere on this machine and belong to a different project; do not read from
+    them or use them to populate this directory.
+    """
+    return os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR",
+                          str(Path(__file__).resolve().parents[2] / "legal-docs"))
 
 
 def environment() -> str:

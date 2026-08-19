@@ -31,7 +31,12 @@ from legalmind.evaluation.workflow import (
     finding_is_resolved,
 )
 from tests.conftest import make_review_for, make_user
-from tests.evaluation_fixtures import cap, multi_scope_rule, numeric_input
+from tests.evaluation_fixtures import (
+    cap,
+    multi_scope_rule,
+    numeric_input,
+    structural_standard,
+)
 
 
 @pytest.fixture
@@ -172,7 +177,8 @@ def test_diagnostics_persisted_but_cannot_alter_the_finding(db, scenario):
 # ======================================================= D-3.5 requires-decision
 @pytest.mark.parametrize("outcome,expected", [
     (O.ACCEPTABLE, False),
-    (O.NOT_APPLICABLE, False),
+    # NOT_APPLICABLE was False until 2026-08-18; see the policy test below.
+    (O.NOT_APPLICABLE, True),
     (O.APPROVAL_REQUIRED, True),
     (O.UNACCEPTABLE, True),
 ])
@@ -180,6 +186,40 @@ def test_decision_required_by_rule_outcome(outcome, expected):
     assert evaluation_requires_decision(
         classification=C.DEVIATION, rule_outcome=outcome,
         requirement_required=True) is expected
+
+
+def test_an_unruled_deviation_is_routed_to_a_human():
+    """The owner's V1 fail-closed policy of 2026-08-18, and why it exists.
+
+    No approved Legal Rule exists, so nothing can tell LegalMind whether a
+    deviation is acceptable, needs approval, or is unacceptable. The owner's
+    instruction: the outcome stays NOT_APPLICABLE **and** it goes to human Legal
+    review.
+
+    D-3.5's four baseline conditions do not cover it — DEVIATION is Tier 2 — so
+    before this the Finding derived to OPEN, which means "nothing ever required a
+    decision". That contradicted locked Step 20 r4's own words, that with no rule
+    "the deviation stands and a human decides". F-4 permits configuration to WIDEN
+    the set and never to narrow it, which is what this is.
+    """
+    assert evaluation_requires_decision(
+        classification=C.DEVIATION, rule_outcome=O.NOT_APPLICABLE,
+        requirement_required=True) is True
+
+
+def test_the_policy_widens_and_never_narrows():
+    """The guard that matters: (e) must not make anything require LESS review.
+
+    A MATCH that no rule dispositioned is not a deviation and must stay out of
+    the decision queue, or every clean Finding would demand a Legal Decision.
+    """
+    assert evaluation_requires_decision(
+        classification=C.MATCH, rule_outcome=O.NOT_APPLICABLE,
+        requirement_required=True) is False
+    # And an ACCEPTABLE deviation — one a rule DID disposition — stays out too.
+    assert evaluation_requires_decision(
+        classification=C.DEVIATION, rule_outcome=O.ACCEPTABLE,
+        requirement_required=True) is False
 
 
 @pytest.mark.parametrize("classification", [
@@ -316,3 +356,80 @@ def test_decision_on_one_scope_does_not_dispose_of_another(db, scenario):
     db.flush()
     assert finding_is_resolved(db, p.finding) is False   # the other still open
     assert current_decision(db, p.evaluations[1].id) is None
+
+
+def test_an_unruled_deviation_reaches_DECISION_REQUIRED_end_to_end(db, scenario):
+    """The policy verified through persistence, not through the predicate.
+
+    `test_an_unruled_deviation_is_routed_to_a_human` asserts what the predicate
+    returns. That is not the same claim: `derive_finding_status` consults the
+    predicate, then looks for an existing decision, and the Finding status is what
+    a Legal reviewer actually sees. This asserts the visible outcome against a real
+    database, using the ratified 12-month standard and a real 24-month clause.
+
+    Before the 2026-08-18 widening this Finding derived to OPEN.
+    """
+    user, review, rv = scenario
+    ev = _evidence(db, review)
+    # The ratified standard: 12 MONTHS of FEES_PAID (ToS 13). Structural scope and
+    # unit names are reused so the shared `cap` helper applies; the assertion is
+    # about routing, not about the vocabulary.
+    ratified = structural_standard(preferred=12)
+    out = evaluate(numeric_input(
+        [cap(24, evidence=(ev.id,))], standard=ratified,
+        rule=None))                       # rule=None: NO Legal Rule configured
+
+    assert out.evaluations[0].classification is C.DEVIATION
+    assert out.evaluations[0].rule_outcome is O.NOT_APPLICABLE   # no Legal Rule
+
+    persisted = persist_evaluation(
+        db, review=review, requirement_version_id=rv.id, output=out)
+    assert persisted.finding.status is FindingStatus.DECISION_REQUIRED, (
+        "an un-ruled deviation must be routed to a human, not left OPEN")
+
+
+# ================================================== zero tolerance (2026-08-19)
+def test_deviation_outcome_maps_any_deviation_to_the_configured_outcome():
+    """The manager's zero-tolerance rule, wired: `deviation_outcome` disposes
+    EVERY deviation identically, because the threshold keys cannot express it —
+    `acceptable_max = preferred` would wrongly ACCEPT below-preferred values.
+    Structural values; the policy mapping is what is under test."""
+    from uuid import uuid4
+
+    from legalmind.evaluation.contracts import LegalRule
+
+    rule = LegalRule(version_id=uuid4(),
+                     configuration={"deviation_outcome": "UNACCEPTABLE"},
+                     rule_configuration={})
+    for actual in (5, 24):          # below AND above preferred=10: both unacceptable
+        out = evaluate(numeric_input([cap(actual)], rule=rule))
+        ev = out.evaluations[0]
+        assert ev.classification is C.DEVIATION
+        assert ev.rule_outcome is O.UNACCEPTABLE
+        assert evaluation_requires_decision(
+            classification=ev.classification, rule_outcome=ev.rule_outcome,
+            requirement_required=True) is True          # D-3.5(a): human decides
+
+    # MATCH is untouched by the blanket rule: it never reaches the deviation map.
+    out = evaluate(numeric_input([cap(10)], rule=rule))
+    assert out.evaluations[0].classification is C.MATCH
+    assert evaluation_requires_decision(
+        classification=C.MATCH, rule_outcome=out.evaluations[0].rule_outcome,
+        requirement_required=True) is False
+
+
+def test_an_invalid_deviation_outcome_fails_closed_to_a_human():
+    """Misconfiguration is never permission to guess (ENG-09): an unknown
+    outcome value degrades to NOT_APPLICABLE, which still routes to Legal."""
+    from uuid import uuid4
+
+    from legalmind.evaluation.contracts import LegalRule
+    rule = LegalRule(version_id=uuid4(),
+                     configuration={"deviation_outcome": "REJECT_HARD"},
+                     rule_configuration={})
+    out = evaluate(numeric_input([cap(24)], rule=rule))
+    ev = out.evaluations[0]
+    assert ev.rule_outcome is O.NOT_APPLICABLE
+    assert evaluation_requires_decision(
+        classification=ev.classification, rule_outcome=ev.rule_outcome,
+        requirement_required=True) is True

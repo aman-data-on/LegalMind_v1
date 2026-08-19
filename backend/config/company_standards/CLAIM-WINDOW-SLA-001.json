@@ -1,0 +1,26 @@
+{
+  "_about": [
+    "RATIFIED Company Standard CLAIM-WINDOW-SLA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "CLAIM-WINDOW-SLA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Service Level Agreement (dedicated server) \u2014 SLA-leapswitch.pdf",
+  "source_clause": "How to Request a Service Credit, paragraph 1",
+  "source_quote": "you must submit a support request within sixty (60) calendar days following the incident you believe warrants such a credit",
+  "configuration": {
+    "document_type": "SLA",
+    "preferred": 60,
+    "unit": "DAYS",
+    "basis": "SERVICE_CREDIT_CLAIM_WINDOW",
+    "scope_key": "GENERAL"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "_about": [
+    "RATIFIED Company Standard LATE-FEE-TOS-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "LATE-FEE-TOS-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) \u2014 TOS-leapswitch.pdf",
+  "source_clause": "7 Late Fees",
+  "source_quote": "Invoices overdue for more than 5 days will be charged a late fee/interest of up to 5% per month on the outstanding balance.",
+  "configuration": {
+    "document_type": "TOS",
+    "preferred": 5,
+    "unit": "PERCENT_PER_MONTH",
+    "basis": "LATE_PAYMENT_INTEREST",
+    "scope_key": "GENERAL"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ]
+}

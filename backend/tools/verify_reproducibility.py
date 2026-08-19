@@ -180,6 +180,7 @@ def _seed(db: DBSession, storage) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
     snapshot_id = _configuration(db, owner.id)
 
     contract = M.Contract(owner_id=owner.id, name="Repro contract",
+                          contract_type="MSA",   # declared type — Step 6 / Q9
                           status=E.ContractStatus.ACTIVE)
     db.add(contract)
     db.flush()

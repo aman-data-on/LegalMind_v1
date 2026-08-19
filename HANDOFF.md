@@ -25,7 +25,8 @@ not complete, and it is blocked on you** rather than on engineering:
 6  Evaluators                   IMPLEMENTED · TESTED   LIABILITY-001 + PRESENCE
 7  Findings/Evaluations/Decisions IMPLEMENTED · TESTED
 8  API surface                  IMPLEMENTED · TESTED   39 endpoints
-9  Golden corpus harness        PARTIAL  ← runner complete, fixtures blocked
+9  Golden corpus harness        PARTIAL  ← runner complete; 28 of 64 fixtures,
+                                          normative authoring blocked on you
 10 Frontend                     IMPLEMENTED · TESTED   10 of 10 locked screens but export
 11 Observability (Step 53)      IMPLEMENTED · TESTED
 12 Deployment (Step 55)         IMPLEMENTED · TESTED   as far as the specification allows
@@ -45,7 +46,7 @@ Everything below runs from a clean checkout. Expected results are stated so a di
 is visible rather than interpretable.
 
 ```bash
-# Backend — 508 tests
+# Backend — 626 tests, none skipped
 cd backend && python3 -m pytest tests/ -q
 
 # Lint and types — both at zero, and CI job 1 is blocking on them
@@ -77,7 +78,7 @@ makes release-blocking. Branch protection is yours and was not touched.
 
 Three tiers, deliberately distinguished.
 
-**Tests (508 + 53 + 22).** They assert what the code does against what the specification
+**Tests (626 + 53 + 22).** They assert what the code does against what the specification
 says, and they run under concurrency: four simultaneous full suites pass, which is the
 property `F-4` was fixed to guarantee.
 
@@ -96,9 +97,16 @@ sibling; and `F-6`, where a Legal Reviewer could reach no Review at all.
 
 **What is NOT verified — and this is the important line.** Locked `IMPL-01` condition 2:
 *conformance is verified against the locked corpus, not asserted by the implementation.*
-That corpus is **16 `STRUCTURAL` fixtures and 0 `NORMATIVE`**. Structural fixtures verify
-the algorithm; they assert nothing about whether it reaches **your** legal conclusions.
-No amount of the above substitutes for that, and none of it is third-party verification.
+That corpus is **28 fixtures — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3
+`STANDARD_DERIVED` — with 0 `NORMATIVE`**. Two fixtures assert `MATCH` against your ratified
+standard, so conformance to what your documents *say* is partly established.
+
+**Conformance to what you will *accept* is not established at all.** No fixture asserts any
+Rule Outcome but `NOT_APPLICABLE`, because no Legal Rule exists — so nothing in the
+repository says a deviation is acceptable, needs approval, or is unacceptable. Instead every
+un-ruled deviation is routed to a human, which is fail-closed and correct but is *not*
+conformance. That gap stays open until a Legal Rule is approved, and none of this is
+third-party verification.
 
 ---
 
@@ -108,7 +116,8 @@ Stated as limitations, not as work in progress.
 
 | | |
 |---|---|
-| **No normative conformance** | 0 of 58 `NORMATIVE` fixtures. The release gate of 54.7 cannot be met until they exist |
+| **No normative conformance** | 0 `NORMATIVE` fixtures. 15 of the 64 specified cases are authored and 4 partly, but every case needing an **acceptance policy** is blocked; 54.7's release gate cannot be met until they exist. Per-case status: `backend/tests/corpus_coverage.json` |
+| **Every deviation needs a Legal Decision** | A consequence of there being no Legal Rule, not a defect. `UNRULED_DEVIATION_REQUIRES_DECISION` routes `DEVIATION` + `NOT_APPLICABLE` to `DECISION_REQUIRED`, so a Review holding any deviation cannot complete until Legal rules. Expect real review workload before a Legal Rule exists |
 | **No calibration** | Mapping weights and `confirm_threshold` are uncalibrated; locked 35.10 requires validation against a representative contract set. Every threshold in the tree today is `STRUCTURAL` |
 | **`MappingState.AMBIGUOUS` is never produced** | A consequence of your `M-2` decision, recorded rather than hidden. Cross-Requirement ambiguity detection is unimplemented and no producer was invented |
 | **OIDC is not implemented** | Locked 47.1.3 makes it primary; only the password fallback exists. Needs an approved JWT/JWKS dependency and provider configuration |
@@ -204,36 +213,80 @@ Two pieces of work are blocked, and both are blocked on the same material. Locke
 the reason it cannot be improvised: *"golden fixtures use synthetic or cleared contract
 text. Real counterparty contracts do not enter the repository."*
 
-### 6.1 · To author the 58 `NORMATIVE` fixtures (Step 45E) and calibrate Step 35
+> **A first tranche of six documents was supplied on 2026-08-18 and assessed in
+> [SOURCE_MATERIAL_INTAKE.md](docs/00-project/SOURCE_MATERIAL_INTAKE.md).** It satisfies
+> item 4 substantially and item 1 partially. A **V1 interim policy** followed on the same
+> day — the supplied documents are authoritative for the positions they explicitly state —
+> which unblocked `MATCH`/`DEVIATION`. **Item 2 is settled, per document type since
+> 2026-08-19 (owner Q3=B)**: `LIABILITY-MSA-001` = 6 months of affected-service fees
+> (`MSA.pdf` §17.2) and `LIABILITY-TOS-001` = 12 months of total fees
+> (`TOS-leapswitch.pdf` §13 — the 2026-08-18 ratification, value unchanged), both under
+> `backend/config/company_standards/`. The corpus stands at **32 fixtures,
+> still 0 `NORMATIVE`**. **Item 3 (the Legal Rule / acceptance policy) and item 5 remain
+> entirely unsupplied** — the owner has stated no Legal Rule exists, so un-ruled deviations
+> are routed to a human rather than dispositioned. That document carries the remaining
+> requests and three storage decisions 54.6 requires;
+> `backend/tests/corpus_coverage.json` carries per-fixture status for all 64 cases.
+
+### 6.1 · Corpus and calibration — after the rulings of 2026-08-18
+
+**Six questions were settled that day. None is open.**
 
 ```text
-1  Representative contracts       3–10 documents of the kind you actually review
-                                  (MSAs, DPAs, or equivalent), PDF or DOCX.
-                                  CLEARED or SYNTHETIC — 54.6 bars real
-                                  counterparty documents from the repository, so
-                                  we must also agree where they live if they
-                                  cannot be committed.
-
-2  LIABILITY-001's Company        the preferred cap value, its unit, its basis,
-   Standard                       and the scope it applies to. This is the
-                                  organization's position, not an example.
-
-3  LIABILITY-001's Legal Rule     the acceptable maximum, the value above which
-                                  approval is required, how UNLIMITED is treated,
-                                  and which carve-out scopes are comparable.
-
-4  Extraction terminology         the cap phrases, unlimited phrases, unit names,
-                                  basis names and carve-out terms as they appear
-                                  in your documents. Everything in the tree today
-                                  is STRUCTURAL placeholder text.
-
-5  Requirement applicability      which Requirements are REQUIRED and which are
-                                  OPTIONAL (D-3 reads this from configuration and
-                                  fails closed to REQUIRED).
+Company Standard        RATIFIED — 12 months of total fees (ToS 13)
+Legal Rule              NONE, and specified as such: un-ruled deviations keep
+                        rule_outcome NOT_APPLICABLE and route to a human
+Basis comparability     FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES stay DISTINCT
+Requirement catalogue   liability cap only in V1
+MSA 17.2 vs 17.7        one scope, contradictory -> CONFLICT
+Source-material path    outside the repository, at an agreed local directory
 ```
 
-Locked 54.6 also notes that the corpus contract set and the Step 35 calibration set are
-**the same set** — one gathering exercise, two consumers.
+**The Legal Rule is DECIDED (manager ruling, recorded 2026-08-19): zero tolerance.**
+MATCH → `ACCEPTABLE`; any DEVIATION → `UNACCEPTABLE` → Legal Decision; no deviation is
+ever auto-approved, and there are deliberately no thresholds or tolerance bands. What
+remains is *implementation*, not a decision: a small engine addition (`deviation_outcome`
+Legal Rule key), after which the three `LEGAL_RULE` corpus cases (L-03, L-08 outcomes)
+and the `NORMATIVE` tier become reachable. Routing already conforms — every deviation
+reaches a human today.
+
+**Material still outstanding — a second tranche, and it is the one substantial gap.**
+
+Locked 54.6 is the constraint: *"golden fixtures use synthetic or cleared contract text.
+Real counterparty contracts do not enter the repository."*
+
+```text
+1  The six documents, placed at the agreed path
+   /root/Legalmind.v1/legal-docs/ (gitignored)   (LEGALMIND_SOURCE_MATERIAL_DIR)
+   Currently empty of documents, so the 7 DOCUMENT_LEVEL_HARNESS cases cannot
+   run — cross-reference resolution and parse-corruption normalisation, which
+   exercise ingestion rather than the evaluator. The 28 existing fixtures need
+   no file present; they were built from clause text quoted in conversation.
+
+2  A SECOND TRANCHE — 14 cases. Cleared or synthetic, per 54.6.
+   The six supplied documents contain no specimen of:
+     · a cap longer than 12 months                                  (L-03)
+     · unlimited-liability wording as a GENERAL position,
+       "liability shall not be limited"                (L-04, L-17, L-29a/b)
+     · a per-claim cap (L-09) or a per-event cap                     (L-10)
+     · a fixed monetary sum rather than a fee multiple               (L-12)
+     · a cap restated in materially identical terms                 (L-22)
+     · two caps on genuinely different scopes                       (L-05)
+     · a six-month cap on TOTAL fees — the ratified standard would
+       make this the first real DEVIATION                           (L-01)
+
+   COUNTERPARTY-DRAFTED paper serves better than more Leapswitch-issued paper.
+   All six documents you supplied state your own position, so measured against
+   your own standard they tend to MATCH — and DEVIATION is what most of the
+   45E table exists to test.
+
+3  One scope reading: are SLA service credits within LIABILITY-001's scope?
+   The SLAs call credits the "sole and exclusive remedy", which interacts with
+   the cap. Unblocks 1 case (L-13). Blocks nothing else.
+```
+
+Step 35.10 calibration needs the same set — locked 54.6 notes the corpus set and the
+calibration set are one set.
 
 ### 6.2 · To make a deployment possible
 
@@ -253,6 +306,13 @@ The eight pending-ratification items, the six conflicts (C-10 is the one with re
 consequences), and `REC-09`'s resolution-visibility question.
 
 ---
+
+### 6.4 · Scope note
+
+Only the six documents you supplied are v1 source material (owner ruling, 2026-08-18).
+Other document collections exist elsewhere on this machine; they belong to a different
+project and are **not** to be read from, derived from, or used to satisfy the
+second-tranche request above.
 
 ## 7 · Guardrails a reviewer should expect me to have kept
 

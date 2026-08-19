@@ -389,7 +389,9 @@ jobs:
       - name: Reject contract file types
         run: |
           base="${{ github.event.pull_request.base.sha }}"
-          added=$(git diff --diff-filter=A --name-only "$base" | grep -iE '\.(pdf|docx?|xlsx?|rtf)$' | grep -v '^docs/' || true)
+          # Archives included: a .zip of PDFs bypassed an extension-only rule
+          # on 2026-08-18. Blocking the container as well as the contents.
+          added=$(git diff --diff-filter=A --name-only "$base" | grep -iE '\.(pdf|docx?|xlsx?|rtf|zip|tar|tgz|gz|7z|rar)$' | grep -v '^docs/' || true)
           if [ -n "$added" ]; then
             echo "::error title=Contract file added::real counterparty contracts never enter the repository (Step 54). Corpus fixtures are synthetic or cleared text only."
             echo "$added" | sed 's/^/  /'

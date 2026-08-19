@@ -118,6 +118,9 @@ export async function createAnalysedReview(
 
   const contract = await postOk(page, "/contracts", {
     name: `Structural MSA ${Date.now()}`,
+    // Step 6 / owner Q9: the uploader declares the Document Type; analysis
+    // refuses an undeclared one rather than evaluating everything.
+    contract_type: "MSA",
   });
 
   const upload = await page.request.post(

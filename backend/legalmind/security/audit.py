@@ -34,6 +34,13 @@ LEGAL_DECISION_RECORDED = "legal.decision_recorded"
 LEGAL_FINDING_ESCALATED = "legal.finding_escalated"
 LEGAL_ESCALATION_WITHDRAWN = "legal.escalation_withdrawn"
 REVIEW_STATUS_CHANGED = "review.status_changed"
+# Legal configuration — closing the gap where every other privileged router
+# recorded audit events and configuration writes did not. A change to a
+# Company Standard is at least as consequential as a role grant.
+CONFIG_REQUIREMENT_CREATED = "config.requirement_created"
+CONFIG_VERSION_CREATED = "config.version_created"
+CONFIG_STANDARD_UPDATED = "config.standard_updated"
+CONFIG_PUBLISHED = "config.published"
 # Administration
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"

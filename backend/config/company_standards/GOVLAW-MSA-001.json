@@ -1,0 +1,27 @@
+{
+  "_about": [
+    "RATIFIED Company Standard GOVLAW-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended.",
+    "PRESENCE Requirement: verifies a governing-law clause EXISTS; the clause's VALUE (India vs elsewhere) goes to Legal with the evidence \u2014 categorical comparison is a V2 evaluator."
+  ],
+  "requirement_code": "GOVLAW-MSA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "19.1 Governing Law and Arbitration",
+  "source_quote": "This Agreement shall be governed by and construed in accordance with the laws of India, without regard to conflict of law principles.",
+  "configuration": {
+    "document_type": "MSA",
+    "expected_presence": "PRESENT",
+    "scope_key": "GOVERNING_LAW",
+    "applicability": "REQUIRED"
+  },
+  "_no_legal_rule": [
+    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
+    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
+    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  ],
+  "evaluator_type": "PRESENCE"
+}
