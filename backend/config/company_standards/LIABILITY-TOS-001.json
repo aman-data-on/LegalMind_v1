@@ -42,7 +42,10 @@
     "scope_key": "AGGREGATE",
     "extraction": {
       "cap_phrases": [
-        "shall not exceed"
+        "shall not exceed",
+        "will not exceed",
+        "not to exceed",
+        "is limited to"
       ],
       "unlimited_phrases": [
         "shall be unlimited",
@@ -99,10 +102,14 @@
   "mapping_rules": {
     "exact_phrases": [
       "shall not exceed",
-      "total aggregate liability"
+      "total aggregate liability",
+      "will not exceed",
+      "not to exceed"
     ],
     "aliases": [
-      "limitation of liability"
+      "limitation of liability",
+      "aggregate liability",
+      "limitation on damages"
     ],
     "keyword_groups": [
       [
@@ -144,5 +151,15 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_calibration": [
+    "CALIBRATION 2026-08-20 (locked 35.10 direction, owner-approved pass):",
+    "counterparty drafting variants added after probing the 8 public",
+    "counterparty specimens. 'will not exceed' / 'not to exceed' /",
+    "'is limited to' are generic drafting synonyms of the cap concept, and the",
+    "added basis terms are the same affected-services basis in other documents'",
+    "words (AWS 9.2, CtrlS 12.1(ii)). No position, threshold or tolerance",
+    "changed; composite formulas (greater-of/lesser-of/averages) still fail",
+    "closed rather than having one limb read as the cap (45B.4)."
   ]
 }

@@ -129,3 +129,18 @@ negotiated/customer-drafted paper; **(4)** EXTRA detection (Q13) is Phase 3.
 | 33 | L-13 CLOSED by ruling, pinned by a new analysis test (SLA → no liability Finding); L-08 AUTHORED (STD-LIAB-03 now asserts full 45E shape); L-04 blocked on SECOND_TRANCHE only | The ruling answers the scope question outright; the LEGAL_RULE half of L-04's blocker dissolved with the approval | The remaining SECOND_TRANCHE cases (L-03/04/09/10/17/22/29a/b) — owner supplies the paper |
 
 **Verification at close: 660 backend passed · ruff/mypy clean · corpus 51 fixtures with L-08 newly complete · `all_lock.md` untouched at 15,358 lines.**
+
+
+## Counterparty calibration pass, 2026-08-20 (owner: "go with your recommendation")
+
+First 35.10-direction calibration of the liability terminology against the 8-specimen
+counterparty set. Data-only: no engine change, no position/threshold/tolerance touched.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 34 | Liability mapping/extraction gained the counterparty drafting variants: exact phrases `will not exceed` / `not to exceed`, aliases `aggregate liability` / `limitation on damages`, cap phrases + `is limited to`; MSA basis FEES_PAID_FOR_AFFECTED_SERVICES gained the same concept in AWS's and CtrlS's words | The probe showed AWS and Microsoft caps scoring +3 (below threshold 5) and Google's cap extracting nothing — real counterparty paper was invisible. All added terms are generic drafting synonyms or the same basis concept verbatim from the cited clause | FEES_PAID's terms unchanged (`total fees paid` only) — service-scoped and product-scoped bases stay incomparable (45B.4) |
+| 35 | Composite formulas stay unread BY DESIGN: no reversed-parenthetical (`6(six) months`) reading, no limb of a greater-of/lesser-of/average read as the cap | Reading one limb produces a confident wrong value — the L-11/45B.4 flattening failure; UNKNOWN → UNABLE_TO_EVALUATE → human is the correct outcome and is now pinned by test | A future multi-limb representation — an engine/modelling decision |
+| 36 | CtrlS's same-clause "shall be unlimited" carve-out + composite cap resolves at clause level to UNLIMITED (→ Legal, evidence retained); the same-clause carve-out/cap split is recorded as an extraction-mechanics gap, not patched in a data pass | The document genuinely states the unlimited position; the outcome is fail-closed-to-human. Splitting one clause into carve-out + general caps needs reviewed mechanics work (44.17 at sub-clause granularity), not terminology | The mechanics change itself |
+| 37 | Calibration pinned by `tests/test_calibration_counterparty.py` — 5 CI-safe tests using short cited excerpts of the public specimens against the REAL ratified files | 54.6 permits short excerpts; without pins, the next terminology edit could silently un-map AWS again. `confirm_threshold` 5 validated in passing: real counterparty cap clauses now score 5–8 | 35.10 remains not fully discharged — this is the first pass, on liability only; the 19 non-liability Requirements await counterparty specimens of their clause types |
+
+**Verification at close: 666 backend passed · ruff/mypy clean · verify_terminology 21/21 PASS (own-document baseline held) · counterparty probe: AWS→first live-extracted DEVIATION vs the MSA standard, GCP/Microsoft/NYC fail closed on basis, CtrlS→CONFLICT, composites UNKNOWN · `all_lock.md` untouched at 15,358 lines.**
