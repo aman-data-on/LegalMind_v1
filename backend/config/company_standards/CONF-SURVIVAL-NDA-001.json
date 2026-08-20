@@ -26,7 +26,8 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "shall survive for"
+        "shall survive for",
+        "duty to protect confidential information expires"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -52,7 +53,8 @@
   "source_file": "NDA.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "shall survive for"
+      "shall survive for",
+      "duty to protect confidential information expires"
     ],
     "aliases": [
       "confidentiality obligations"

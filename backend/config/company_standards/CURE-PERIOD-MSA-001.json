@@ -19,17 +19,20 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "not cured within"
+        "not cured within",
+        "cure such breach within"
       ],
       "unlimited_phrases": [],
       "units": {
         "DAYS": [
-          "days after receipt of written notice"
+          "days after receipt of written notice",
+          "days (or such mutually agreeable period)"
         ]
       },
       "bases": {
         "BREACH_CURE_PERIOD": [
-          "cured"
+          "cured",
+          "cure"
         ]
       },
       "exceptions": []
@@ -42,7 +45,8 @@
   "source_file": "MSA.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "not cured within"
+      "not cured within",
+      "fails to cure"
     ],
     "aliases": [
       "termination for breach"

@@ -35,11 +35,16 @@
       "return or permanently destroy"
     ],
     "aliases": [
-      "return or destruction"
+      "return or destruction",
+      "destroy all copies"
     ],
     "keyword_groups": [
       [
         "return",
+        "destroy"
+      ],
+      [
+        "confidential",
         "destroy"
       ]
     ],

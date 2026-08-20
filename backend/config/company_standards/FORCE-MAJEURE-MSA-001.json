@@ -19,7 +19,8 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "continues for a period exceeding"
+        "continues for a period exceeding",
+        "continues for more than"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -48,7 +49,8 @@
       "force majeure event continues"
     ],
     "aliases": [
-      "extended force majeure"
+      "extended force majeure",
+      "force majeure"
     ],
     "keyword_groups": [
       [

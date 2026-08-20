@@ -24,7 +24,8 @@
       "unlimited_phrases": [],
       "units": {
         "DAYS": [
-          "days of termination"
+          "days of termination",
+          "days after written request"
         ]
       },
       "bases": {

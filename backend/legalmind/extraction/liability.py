@@ -88,6 +88,12 @@ class LiabilityExtractionConfig:
     cap_phrases: tuple[str, ...] = ()
     # Terminology marking an uncapped liability.
     unlimited_phrases: tuple[str, ...] = ()
+    # Terminology marking a MULTI-LIMB formula ("greater of", "whichever is
+    # less"). A clause stating one is never reduced to whichever limb happens to
+    # be readable: reading a limb that equals the Standard would produce a false
+    # MATCH — silent acceptance of a formula nobody compared (ENG-09, 45B.4).
+    # A match forces UNKNOWN, so the whole formula goes to a human as evidence.
+    composite_phrases: tuple[str, ...] = ()
     # 44.30 "regex/pattern matching for structured values" — the unit names that may
     # follow a magnitude. Configured, so no unit vocabulary is assumed.
     #
@@ -132,6 +138,7 @@ class LiabilityExtractionConfig:
         return cls(
             cap_phrases=tuple(block.get("cap_phrases") or ()),
             unlimited_phrases=tuple(block.get("unlimited_phrases") or ()),
+            composite_phrases=tuple(block.get("composite_phrases") or ()),
             units=units,
             bases={k: tuple(v) for k, v in (block.get("bases") or {}).items()},
             exceptions=tuple(
@@ -239,11 +246,23 @@ def _extract_from_clause(
     if not (states_unlimited or states_cap):
         return []
 
-    magnitude = _find_magnitude(body, config.units) if not states_unlimited else None
+    states_composite = any(
+        contains_phrase(body, phrase) for phrase in config.composite_phrases)
+    magnitude = (_find_magnitude(body, config.units)
+                 if not (states_unlimited or states_composite) else None)
     basis = _find_basis(body, config.bases)
 
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
+    elif states_composite:
+        # A multi-limb formula is never reduced to one readable limb — a limb
+        # equal to the Standard would otherwise MATCH silently. UNKNOWN sends
+        # the whole formula to a human with the clause as evidence.
+        status, value, unit = UNKNOWN, None, None
+        diagnostics.append(
+            f"clause {_label(clause)} states a multi-limb cap formula "
+            "(configured composite terminology matched); no single limb is "
+            "read as the cap")
     elif magnitude is not None:
         status, value, unit = FINITE, magnitude[0], magnitude[1]
     else:
@@ -295,10 +314,12 @@ def _find_magnitude(
     would be inventing terminology that 35.4/44.29 place in configuration.
 
     Legal drafting states magnitudes as ``twelve (12) months`` — the word, then the
-    digits in parentheses, then the unit. The digits ARE stated, so reading them is
-    pattern mechanics, not word-number interpretation: an optional closing
-    parenthesis may sit between the number and its unit. ``six months`` with no
-    digits remains unrecognisable, deliberately.
+    digits in parentheses, then the unit — or mirrored as ``15 (fifteen) calendar
+    days``. The digits ARE stated in both, so reading them is pattern mechanics,
+    not word-number interpretation: an optional closing parenthesis, or one
+    parenthesised word, may sit between the number and its unit. ``six months``
+    with no digits remains unrecognisable, deliberately — and a clause matching a
+    configured composite phrase never reaches this function at all.
 
     When ``units`` is a dict the matched term is reported as its canonical key (see
     ``LiabilityExtractionConfig.units``); terms are tried longest-first so a
@@ -323,9 +344,11 @@ def _find_magnitude(
         return None
     alternatives = "|".join(re.escape(t) for t in canonical_for)
     # Digits with optional thousands separators and decimals, then the unit. The
-    # optional `\)` is the "twelve (12) months" drafting convention above.
+    # optional `\)` is the "twelve (12) months" convention; the optional
+    # parenthesised word is its mirror, "15 (fifteen) calendar days".
     pattern = re.compile(
-        rf"(?<!\w)(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*\)?\s*"
+        rf"(?<!\w)(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*"
+        rf"(?:\)|\([a-z]+\))?\s*"
         rf"({alternatives})(?!\w)")
     match = pattern.search(body)
     if match is None:

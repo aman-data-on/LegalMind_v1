@@ -61,7 +61,15 @@
         ]
       },
       "exceptions": [],
-      "general_scope": "AGGREGATE"
+      "general_scope": "AGGREGATE",
+      "composite_phrases": [
+        "greater of",
+        "the lesser of",
+        "whichever is less",
+        "whichever is lower",
+        "whichever is higher",
+        "whichever is greater"
+      ]
     }
   },
   "_semantics": [

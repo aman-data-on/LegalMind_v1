@@ -144,3 +144,24 @@ counterparty set. Data-only: no engine change, no position/threshold/tolerance t
 | 37 | Calibration pinned by `tests/test_calibration_counterparty.py` — 5 CI-safe tests using short cited excerpts of the public specimens against the REAL ratified files | 54.6 permits short excerpts; without pins, the next terminology edit could silently un-map AWS again. `confirm_threshold` 5 validated in passing: real counterparty cap clauses now score 5–8 | 35.10 remains not fully discharged — this is the first pass, on liability only; the 19 non-liability Requirements await counterparty specimens of their clause types |
 
 **Verification at close: 666 backend passed · ruff/mypy clean · verify_terminology 21/21 PASS (own-document baseline held) · counterparty probe: AWS→first live-extracted DEVIATION vs the MSA standard, GCP/Microsoft/NYC fail closed on basis, CtrlS→CONFLICT, composites UNKNOWN · `all_lock.md` untouched at 15,358 lines.**
+
+
+## Full-catalogue counterparty calibration, 2026-08-20 (owner: "complete the system — own it")
+
+The 21-requirement probe matrix ran over every real document on this machine (own
+source docs, the 8-specimen tranche, the public-web corpus PDFs) plus three real
+executed agreements fetched from SEC EDGAR public filings. Every requirement now has
+counterparty evidence — real where a public specimen exists, synthetic real-pattern
+where none does (locked 54.6 expressly allows synthetic contract text; every synthetic
+test is labelled and asserts only what follows mechanically from a ratified position).
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 38 | Extraction gained a configured `composite_phrases` fail-closed guard: a clause matching multi-limb terminology ("greater of", "whichever is less"…) yields UNKNOWN, never one readable limb | The dangerous case was live: a composite limb EQUAL to the standard would have produced a silent false MATCH needing no decision. Previously composites went unread only by drafting luck (reversed parentheticals) | Any multi-limb representation — a V2 modelling decision; the formula goes to a human as evidence |
+| 39 | The mirrored digits-word convention ("15 (fifteen) calendar days") is now read — safe because composites are guarded first | The digits are stated; refusing them was blocking real specimens (ESDS's 15-day claim window). Word-only values ("one year", "a month prior") still refuse | Nothing: word-form values remain unread (44.24) |
+| 40 | Per-document unit anchors extended (CtrlS cure sentence, Castlight purge sentence) — the data-level answer to page-level segmentation | First-match-in-segment reads a neighbouring section's number otherwise; anchors are each clause's own contiguous words | The proper fix — sentence-level magnitude anchoring — is reviewed mechanics work, recorded as the known gap (with #36) |
+| 41 | SEC EDGAR full-text search adopted as an authorized public-filing source (Xerox/Global Imaging Mutual NDA; Castlight EX-10.11; Savvly EX-99.2K); documents stored outside the repository with the tranche | Real executed agreements, public by law — the owner's "excerpts from public filings" option. They supplied the NDA-side specimens no vendor page could | Nothing about the still-blocked liability patterns — negotiated paper remains the owner's supply |
+| 42 | Xerox's survival clause ("expires two years from the Effective Date") is mapped but its anchor is deliberately NOT added to the NDA survival basis terms | Same number as the ratified standard, different clock — adding the term would let '2 == 2' assert a false MATCH across anchors, the exact 45B.4 trap the catalogue documents. Mapped-but-unable is the correct outcome | — |
+| 43 | Four requirements pinned with SYNTHETIC real-pattern clauses only (DATA-RETRIEVAL, KYC-RETENTION, LATE-FEE value-variant, CONF-SURVIVAL-MSA value-variant) | Exhaustive search of public web terms and EDGAR found no third-party specimen stating a value for these (KYC retention is India-regulatory drafting; MSA survival years appear only as boilerplate). Synthetic pattern tests pin the mechanics; marked in the test file | The real-document requests, recorded in the session report — value-bearing counterparty specimens remain welcome but nothing is blocked on them |
+
+**Verification at close: 683 backend passed (17 new calibration/mechanics tests) · ruff/mypy clean · verify_terminology 21/21 (own-document baseline held throughout) · `all_lock.md` untouched at 15,358 lines.**

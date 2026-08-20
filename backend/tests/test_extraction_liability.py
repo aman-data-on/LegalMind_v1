@@ -106,6 +106,48 @@ def test_dict_units_report_the_canonical_key_longest_term_first():
     assert facts.caps[0].cap_unit == "DAYS"
 
 
+def test_the_mirrored_digits_word_unit_convention_is_read():
+    """The mirror of "twelve (12) months": "15 (fifteen) calendar days". The
+    digits are stated, so reading past ONE parenthesised word is mechanics."""
+    config = LiabilityExtractionConfig(
+        cap_phrases=("must submit within",),
+        units={"DAYS": ("calendar days", "days")},
+    )
+    facts = extract_liability_facts(
+        [clause("A claim must submit within 15 (fifteen) calendar days.")],
+        config)
+    assert facts.caps[0].cap_value == 15.0
+    assert facts.caps[0].cap_unit == "DAYS"
+
+
+def test_a_composite_formula_is_never_reduced_to_one_readable_limb():
+    """The dangerous case a composite guard exists for: a limb that happens to
+    EQUAL the standard must not become a clean FINITE reading (which would MATCH
+    silently and need no decision). Configured composite terminology forces
+    UNKNOWN, so the whole formula reaches a human as evidence."""
+    config = LiabilityExtractionConfig(
+        cap_phrases=("shall not exceed",),
+        composite_phrases=("whichever is less", "greater of"),
+        units=("months",),
+        bases={"BASIS_FEES": ("fees paid",)},
+    )
+    facts = extract_liability_facts(
+        [clause("Liability shall not exceed the annual contract value or "
+                "twelve (12) months of fees paid, whichever is less.")], config)
+    assert facts.caps[0].cap_status == UNKNOWN
+    assert facts.caps[0].cap_value is None
+    assert any("multi-limb" in d for d in facts.extraction_diagnostics)
+
+    # Without composite terminology the limb IS read — which is exactly why the
+    # ratified files configure the phrases; this pins the mechanism boundary.
+    bare = LiabilityExtractionConfig(
+        cap_phrases=("shall not exceed",), units=("months",))
+    facts = extract_liability_facts(
+        [clause("Liability shall not exceed the annual contract value or "
+                "twelve (12) months of fees paid, whichever is less.")], bare)
+    assert facts.caps[0].cap_status == FINITE
+
+
 def test_word_only_magnitudes_stay_unrecognised():
     """The convention above changes nothing for digitless text: "six months"
     still yields UNKNOWN, never a value (44.24)."""

@@ -19,13 +19,18 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "automatically renew for successive periods of"
+        "automatically renew for successive periods of",
+        "automatic renewal period"
       ],
       "unlimited_phrases": [],
       "units": {
         "MONTHS": [
           "months",
           "month"
+        ],
+        "DAYS": [
+          "days terms",
+          "day terms"
         ]
       },
       "bases": {
@@ -43,7 +48,8 @@
   "source_file": "MSA.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "automatically renew"
+      "automatically renew",
+      "automatic renewal period"
     ],
     "aliases": [
       "automatic renewal"

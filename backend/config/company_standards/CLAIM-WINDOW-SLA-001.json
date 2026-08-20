@@ -19,7 +19,10 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "must submit a support request within"
+        "must submit a support request within",
+        "credit request",
+        "must notify",
+        "submit a support request"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -32,7 +35,9 @@
       },
       "bases": {
         "SERVICE_CREDIT_CLAIM_WINDOW": [
-          "credit"
+          "credit",
+          "credit request",
+          "financial credit"
         ]
       },
       "exceptions": []
@@ -48,7 +53,9 @@
       "must submit a support request within"
     ],
     "aliases": [
-      "service credit"
+      "service credit",
+      "credit request",
+      "financial credit"
     ],
     "keyword_groups": [
       [
