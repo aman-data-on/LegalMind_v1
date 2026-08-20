@@ -165,3 +165,31 @@ test is labelled and asserts only what follows mechanically from a ratified posi
 | 43 | Four requirements pinned with SYNTHETIC real-pattern clauses only (DATA-RETRIEVAL, KYC-RETENTION, LATE-FEE value-variant, CONF-SURVIVAL-MSA value-variant) | Exhaustive search of public web terms and EDGAR found no third-party specimen stating a value for these (KYC retention is India-regulatory drafting; MSA survival years appear only as boilerplate). Synthetic pattern tests pin the mechanics; marked in the test file | The real-document requests, recorded in the session report — value-bearing counterparty specimens remain welcome but nothing is blocked on them |
 
 **Verification at close: 683 backend passed (17 new calibration/mechanics tests) · ruff/mypy clean · verify_terminology 21/21 (own-document baseline held throughout) · `all_lock.md` untouched at 15,358 lines.**
+
+
+## Requirement coverage-gap pass, 2026-08-20 (owner: audit, then "I am ready to approve all decisions — just implement")
+
+A clause-by-clause coverage audit of all six LeapSwitch-issued documents preceded this.
+Its finding was **not** that the catalogue was mis-scoped — document-type scoping,
+fail-closed refusal and basis separation all verified working — but that it was **shallow
+where the risk is highest**: `LIABILITY-MSA-001` read the cap number alone, so a
+counterparty MSA capping at six months with no consequential-damages exclusion and no
+fraud carve-out produced a clean `MATCH` and reached nobody. Eleven Requirements were
+ratified in response, taking the catalogue to **32** (MSA 15 · TOS 8 · NDA 8 · SLA 1).
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 44 | All 11 new Requirements are `PRESENCE`, never numeric — including the two liability-depth ones and `AUTORENEW-TOS-001` | Each reads whether a provision EXISTS. The values behind them are not magnitudes: §7.2's early-termination fee is a *formula* ("total fees that would have become payable for the remainder of the Term"), TOS §4 renews for "the same billing period" (self-referential), and a perpetual trade-secret obligation has no number at all. Extracting any of them as a numeric position would require flattening — the 45B.4 trap | Nothing about the clause CONTENT: direction, breadth, seat and scope all go to Legal with the evidence. Categorical value comparison stays a V2 evaluator |
+| 45 | Liability depth is **three separate Requirements**, not one enriched `LIABILITY-MSA-001`: cap value (existing), exclusion presence (§17.1/17.6), carve-out presence (§17.3) | A single Requirement cannot answer three questions without two of the answers becoming invisible — which is precisely the failure the audit found. Separate Requirements each produce their own Finding, their own evidence and their own Legal route | The existing `LIABILITY-MSA-001` is untouched: same clause, same basis, same 6-month position. Nothing was amended to add depth |
+| 46 | `RETURN-DESTRUCTION-MSA-001` reuses the NDA standard's `scope_key` (`RETURN_OR_DESTRUCTION`); `ARBITRATION-TOS-001` reuses `ARBITRATION` | It is the same question, and the document-type filter guarantees the two never meet in one evaluation. Presence carries no basis, so no 45B.4 comparability question arises — unlike `CONF-SURVIVAL`, where the differing anchors forced two distinct basis names | Nothing merges the standards themselves: two files, two document types, two independently versioned positions |
+| 47 | Absence is pinned with **STRUCTURAL** fixtures, not `DOCUMENT_SUPPORTED` ones | No supplied document omits these clauses, so there is no real material to cite and none is invented (45E.7 rule 1). The fixture asserts mechanics only: REQUIRED + mapping `NONE` → `MISSING`, zero evidence, `NOT_APPLICABLE` → human via D-3.5(b) | Nothing claims counterparty calibration for the new Requirements — 35.10 remains discharged only for the earlier 21 |
+
+**Recorded rather than resolved, three items the pass surfaced and deliberately left open:**
+the **CloudPe baseline** question (its TOS carries no liability cap and no arbitration
+clause, yet both TOS standards cite the Leapswitch-branded document); the **missing
+LeapSwitch NDA template**, which leaves the 2026-08-19 direction caveat unclosed; and
+`CLAUDE.md`'s catalogue row, which still reads "15 Requirements across MSA/TOS/SLA" —
+stale since the NDA block was added on 2026-08-19 and now doubly so. `CLAUDE.md` was
+excluded from this change by instruction, so the drift is reported, not fixed.
+
+**Verification at close: 699 backend passed (16 new corpus fixtures) · ruff/mypy clean · verify_terminology **32/32 PASS** on the real source documents · import gate accepts all 32 · document-type scoping tests 6/6 · `all_lock.md` untouched at 15,358 lines.**

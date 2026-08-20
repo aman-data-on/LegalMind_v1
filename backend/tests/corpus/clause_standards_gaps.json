@@ -1,0 +1,426 @@
+[
+ {
+  "id": "CLS-LIAB-EXCLUSIONS-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIAB-EXCLUSIONS-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "17.1 Exclusion of Certain Damages (restated at 17.6)",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: the indirect/consequential/punitive damages exclusion is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "LIAB-EXCLUSIONS-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "CONSEQUENTIAL_DAMAGES_EXCLUSION",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-LIAB-CARVEOUTS-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIAB-CARVEOUTS-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "17.3 Exclusions from Limitation",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: the cap carries carve-outs (indemnity, payment breach, fraud, wilful misconduct, gross negligence). Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "LIAB-CARVEOUTS-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "LIABILITY_CAP_CARVE_OUTS",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-INDEMNITY-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "INDEMNITY-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "16 Indemnification (16.1, 16.2)",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: a customer indemnity is present (defend, indemnify and hold harmless). Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "INDEMNITY-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "INDEMNIFICATION",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-RETURN-DESTRUCTION-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "RETURN-DESTRUCTION-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "12.2",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: a return-or-destroy obligation for Confidential Information is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "RETURN-DESTRUCTION-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "RETURN_OR_DESTRUCTION",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-IP-OWNERSHIP-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "IP-OWNERSHIP-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "13 Intellectual Property Rights in Services (13.1)",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: a supplier IP-ownership clause is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "IP-OWNERSHIP-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "IP_OWNERSHIP",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-WARRANTY-DISCLAIMER-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "WARRANTY-DISCLAIMER-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "14.3",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: a warranty disclaimer is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "WARRANTY-DISCLAIMER-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "WARRANTY_DISCLAIMER",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-EARLY-TERM-RESTRICTION-MSA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "EARLY-TERM-RESTRICTION-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "7.2 Restriction on Early Termination by Customer",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: the no-early-termination restriction is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "EARLY-TERM-RESTRICTION-MSA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "EARLY_TERMINATION_RESTRICTION",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-ARBITRATION-TOS-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "ARBITRATION-TOS-001",
+  "source_document": "Leapswitch Terms of Service, 26 February 2026",
+  "source_clause": "21 Dispute Resolution — Arbitration",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: an arbitration clause is present (sole arbitrator, seat Pune, ACA 1996). Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "ARBITRATION-TOS-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "ARBITRATION",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-AUTORENEW-TOS-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "AUTORENEW-TOS-001",
+  "source_document": "Leapswitch Terms of Service, 26 February 2026",
+  "source_clause": "4 Payment Terms — Auto-Renewal",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: an auto-renewal term is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "AUTORENEW-TOS-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "AUTO_RENEWAL",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-RESIDUALS-NDA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "RESIDUALS-NDA-001",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 (counterparty deliberately not named)",
+  "source_clause": "11 Residuals",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: a residuals clause is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "RESIDUALS-NDA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "RESIDUALS",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-TRADE-SECRET-CARVEOUT-NDA-001",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "TRADE-SECRET-CARVEOUT-NDA-001",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 (counterparty deliberately not named)",
+  "source_clause": "9 Term and Survival — trade-secret proviso",
+  "covers": [],
+  "description": "Coverage-gap Requirement ratified 2026-08-20: the perpetual trade-secret proviso is present. Mapping CONFIRMED, expected PRESENT -> MATCH, and with the ONE approved zero-tolerance Legal Rule attached verbatim the outcome is ACCEPTABLE — no Legal Decision needed when the counterparty paper matches. The clause's CONTENT still goes to Legal with the evidence; categorical value comparison is a V2 evaluator.",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "TRADE-SECRET-CARVEOUT-NDA-001",
+  "legal_rule": {
+   "rule_type": "PRESENCE",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "mapping_state": "CONFIRMED",
+  "evidence_count": 1,
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "TRADE_SECRET_CARVE_OUT",
+    "classification": "MATCH",
+    "rule_outcome": "ACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CLS-LIAB-EXCLUSIONS-MSA-001-ABSENT",
+  "provenance": "STRUCTURAL",
+  "company_standard_ref": "LIAB-EXCLUSIONS-MSA-001",
+  "covers": [],
+  "description": "Absence case for a coverage-gap Requirement ratified 2026-08-20. This is the case the 2026-08-20 audit was run to close: before this Requirement existed, a counterparty MSA capping at six months with NO consequential-damages exclusion produced a clean MATCH on LIABILITY-MSA-001 and reached nobody. It is now a MISSING Finding, Tier 1, and a Legal Decision is required (D-3.5(b)). Labelled STRUCTURAL, not DOCUMENT_SUPPORTED: no supplied document omits this clause, so there is no real material to cite and none is invented (45E.7 rule 1). Asserts mechanics only — REQUIRED plus mapping NONE yields MISSING, zero evidence (45C.15), rule_outcome NOT_APPLICABLE, which is the fail-closed state and not a placeholder (Step 20 r4).",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "LIAB-EXCLUSIONS-MSA-001",
+  "legal_rule": null,
+  "mapping_state": "NONE",
+  "evidence_count": 0,
+  "expect_finding_classification": "MISSING",
+  "expect_evaluations": [
+   {
+    "scope_key": "CONSEQUENTIAL_DAMAGES_EXCLUSION",
+    "classification": "MISSING",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 0
+   }
+  ]
+ },
+ {
+  "id": "CLS-LIAB-CARVEOUTS-MSA-001-ABSENT",
+  "provenance": "STRUCTURAL",
+  "company_standard_ref": "LIAB-CARVEOUTS-MSA-001",
+  "covers": [],
+  "description": "Absence case for a coverage-gap Requirement ratified 2026-08-20. A counterparty cap with no carve-out list is unbounded in exactly the cases LeapSwitch excludes from its own cap. Previously invisible to the value comparison; now MISSING -> human. Labelled STRUCTURAL, not DOCUMENT_SUPPORTED: no supplied document omits this clause, so there is no real material to cite and none is invented (45E.7 rule 1). Asserts mechanics only — REQUIRED plus mapping NONE yields MISSING, zero evidence (45C.15), rule_outcome NOT_APPLICABLE, which is the fail-closed state and not a placeholder (Step 20 r4).",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "LIAB-CARVEOUTS-MSA-001",
+  "legal_rule": null,
+  "mapping_state": "NONE",
+  "evidence_count": 0,
+  "expect_finding_classification": "MISSING",
+  "expect_evaluations": [
+   {
+    "scope_key": "LIABILITY_CAP_CARVE_OUTS",
+    "classification": "MISSING",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 0
+   }
+  ]
+ },
+ {
+  "id": "CLS-INDEMNITY-MSA-001-ABSENT",
+  "provenance": "STRUCTURAL",
+  "company_standard_ref": "INDEMNITY-MSA-001",
+  "covers": [],
+  "description": "Absence case for a coverage-gap Requirement ratified 2026-08-20. A counterparty MSA with no indemnity at all is now surfaced rather than passing unremarked. Labelled STRUCTURAL, not DOCUMENT_SUPPORTED: no supplied document omits this clause, so there is no real material to cite and none is invented (45E.7 rule 1). Asserts mechanics only — REQUIRED plus mapping NONE yields MISSING, zero evidence (45C.15), rule_outcome NOT_APPLICABLE, which is the fail-closed state and not a placeholder (Step 20 r4).",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "INDEMNITY-MSA-001",
+  "legal_rule": null,
+  "mapping_state": "NONE",
+  "evidence_count": 0,
+  "expect_finding_classification": "MISSING",
+  "expect_evaluations": [
+   {
+    "scope_key": "INDEMNIFICATION",
+    "classification": "MISSING",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 0
+   }
+  ]
+ },
+ {
+  "id": "CLS-RETURN-DESTRUCTION-MSA-001-ABSENT",
+  "provenance": "STRUCTURAL",
+  "company_standard_ref": "RETURN-DESTRUCTION-MSA-001",
+  "covers": [],
+  "description": "Absence case for a coverage-gap Requirement ratified 2026-08-20. Closes the MSA/NDA asymmetry: absence of a return-or-destroy obligation now reaches Legal on MSA paper as it already did on NDA paper. Labelled STRUCTURAL, not DOCUMENT_SUPPORTED: no supplied document omits this clause, so there is no real material to cite and none is invented (45E.7 rule 1). Asserts mechanics only — REQUIRED plus mapping NONE yields MISSING, zero evidence (45C.15), rule_outcome NOT_APPLICABLE, which is the fail-closed state and not a placeholder (Step 20 r4).",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "RETURN-DESTRUCTION-MSA-001",
+  "legal_rule": null,
+  "mapping_state": "NONE",
+  "evidence_count": 0,
+  "expect_finding_classification": "MISSING",
+  "expect_evaluations": [
+   {
+    "scope_key": "RETURN_OR_DESTRUCTION",
+    "classification": "MISSING",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 0
+   }
+  ]
+ },
+ {
+  "id": "CLS-ARBITRATION-TOS-001-ABSENT",
+  "provenance": "STRUCTURAL",
+  "company_standard_ref": "ARBITRATION-TOS-001",
+  "covers": [],
+  "description": "Absence case for a coverage-gap Requirement ratified 2026-08-20. A counterparty TOS with no arbitration clause is now surfaced. Note the CloudPe-branded TOS is exactly this shape — it carries governing law and jurisdiction but no arbitration clause — which is why the CloudPe baseline question is recorded as open rather than assumed. Labelled STRUCTURAL, not DOCUMENT_SUPPORTED: no supplied document omits this clause, so there is no real material to cite and none is invented (45E.7 rule 1). Asserts mechanics only — REQUIRED plus mapping NONE yields MISSING, zero evidence (45C.15), rule_outcome NOT_APPLICABLE, which is the fail-closed state and not a placeholder (Step 20 r4).",
+  "evaluator_type": "PRESENCE",
+  "requirement_code": "ARBITRATION-TOS-001",
+  "legal_rule": null,
+  "mapping_state": "NONE",
+  "evidence_count": 0,
+  "expect_finding_classification": "MISSING",
+  "expect_evaluations": [
+   {
+    "scope_key": "ARBITRATION",
+    "classification": "MISSING",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 0
+   }
+  ]
+ }
+]
