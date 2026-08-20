@@ -254,3 +254,36 @@ def test_every_ratified_standard_declares_a_document_type():
         # it scopes to, so a reader never has to open the file to know.
         assert declared.replace("_", "-") in path.stem or declared in path.stem, (
             f"{path.name}: code does not name its document type {declared}")
+
+
+def test_every_ratified_standard_is_publishable_as_written():
+    """Owner tasking 2026-08-19: every ratified file carries the mapping and
+    extraction terminology that makes its Requirement publishable — a usable
+    mapping rule set (D-1: integer confirm_threshold, no default), an
+    evaluation rule payload, and for NUMERIC standards a usable extraction
+    block whose bases include the ratified basis. The terms themselves are
+    verified against the real source documents by tools/verify_terminology
+    (which needs the gitignored documents and so cannot run here).
+    """
+    from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
+    from legalmind.extraction.liability import LiabilityExtractionConfig
+    from legalmind.mapping.rules import MappingRules
+
+    for path in sorted(RATIFIED_STANDARDS_DIR.glob("*.json")):
+        payload = json.loads(path.read_text())
+        MappingRules.from_config(payload.get("mapping_rules"))   # raises if unusable
+        assert payload.get("evaluation_rules"), (
+            f"{path.name}: no evaluation_rules — the publish gate would refuse")
+        assert payload.get("source_file"), (
+            f"{path.name}: no source_file — verify_terminology cannot locate "
+            "the document this standard cites")
+        if payload.get("evaluator_type", "NUMERIC_COMPARISON") != "PRESENCE":
+            config = payload["configuration"]
+            extraction = LiabilityExtractionConfig.from_config(config)
+            assert extraction.is_usable, (
+                f"{path.name}: numeric standard with no usable extraction "
+                "terminology would evaluate nothing (ENG-09)")
+            assert config["basis"] in extraction.bases, (
+                f"{path.name}: extraction cannot recognise the ratified basis "
+                f"{config['basis']!r}, so every live evaluation would fail "
+                "closed on basis comparability (45B.4)")

@@ -39,7 +39,29 @@
     "preferred": 12,
     "unit": "MONTHS",
     "basis": "FEES_PAID",
-    "scope_key": "AGGREGATE"
+    "scope_key": "AGGREGATE",
+    "extraction": {
+      "cap_phrases": [
+        "shall not exceed"
+      ],
+      "unlimited_phrases": [
+        "shall be unlimited",
+        "liability shall not be limited"
+      ],
+      "units": {
+        "MONTHS": [
+          "months",
+          "month"
+        ]
+      },
+      "bases": {
+        "FEES_PAID": [
+          "total fees paid"
+        ]
+      },
+      "exceptions": [],
+      "general_scope": "AGGREGATE"
+    }
   },
   "_semantics": [
     "unit MONTHS with preferred 12 encodes the LOOKBACK WINDOW the clause states",
@@ -69,16 +91,58 @@
     "conversion rule between the two, without a new owner ruling. Either would assert",
     "that a narrower measure equals a broader one, which usually understates exposure."
   ],
-  "_no_legal_rule": [
-    "SUPERSEDED 2026-08-19 by the manager's ZERO-TOLERANCE ruling: MATCH ->",
-    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
-    "deviation is ever auto-approved. There are deliberately NO thresholds and NO",
-    "tolerance bands -- do not add acceptable_max or approval_required_above, and",
-    "do not ask the owner for them; the policy is that none exists.",
-    "",
-    "The zero-tolerance label is not yet wired into the engine (needs a",
-    "deviation_outcome config key; the threshold keys cannot express it). Routing",
-    "is already correct: every deviation reaches a human via D-3.5(a) or",
-    "UNRULED_DEVIATION_REQUIRES_DECISION, so nothing is auto-approved today either."
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29); deviation disposition lives in the Legal Rule, never here"
+  },
+  "source_file": "TOS-leapswitch.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "shall not exceed",
+      "total aggregate liability"
+    ],
+    "aliases": [
+      "limitation of liability"
+    ],
+    "keyword_groups": [
+      [
+        "liability",
+        "shall not exceed"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "liability"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping and extraction terminology, added 2026-08-19 under the owner's",
+    "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",
+    "from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - positions live",
+    "in `configuration`, sourced above). confirm_threshold 5 is STRUCTURAL: one",
+    "exact phrase confirms, or a section heading plus a keyword group. Locked",
+    "35.9 fixes no threshold and 35.10 requires calibration against a",
+    "representative contract set before the value is trusted; recalibration is a",
+    "new mapping rule version (data), never a code change."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
+    "required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
   ]
 }

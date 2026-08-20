@@ -857,6 +857,35 @@ def test_an_nda_is_never_measured_against_an_msa_requirement(build, db):
     assert run.review_status != "ANALYSIS_FAILED"
 
 
+def test_an_sla_is_never_measured_against_a_liability_requirement(build, db):
+    """Owner ruling 2026-08-20 (closes the L-13 scope question): service credits
+    are a REMEDY, not a liability cap, so SLA service credits are outside
+    LIABILITY-001's scope and liability is not applicable to the SLA document
+    type. Mechanically identical to the NDA case — the type filter produces no
+    liability Finding at all — but pinned separately because the ruling is
+    separate: an SLA's credit percentages must never be read as caps, and no
+    SLA-typed liability standard may be created from them.
+    """
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Service Credits",
+        "Credits are the sole and exclusive remedy and shall not exceed fifty "
+        "percent of the monthly recurring fee. Liability shall not exceed the "
+        "credits due.",
+    ])
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = "SLA"
+    db.flush()
+
+    run = run_analysis(db, review)
+
+    assert run.document_type == "SLA"
+    assert run.requirements_applicable == 0
+    assert run.findings_created == 0
+    assert db.execute(select(M.Finding)).first() is None
+
+
 def test_a_matching_document_type_still_produces_the_finding(build, db):
     """The other half: scoping must not suppress a Requirement that applies."""
     build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,

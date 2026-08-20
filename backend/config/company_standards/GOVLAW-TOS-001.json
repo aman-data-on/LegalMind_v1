@@ -17,10 +17,58 @@
     "scope_key": "GOVERNING_LAW",
     "applicability": "REQUIRED"
   },
-  "_no_legal_rule": [
-    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
-    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
-    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "source_file": "TOS-leapswitch.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "governed by and construed in accordance with"
+    ],
+    "aliases": [
+      "governing law"
+    ],
+    "keyword_groups": [
+      [
+        "governed",
+        "laws of"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "governing law"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping and extraction terminology, added 2026-08-19 under the owner's",
+    "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",
+    "from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - positions live",
+    "in `configuration`, sourced above). confirm_threshold 5 is STRUCTURAL: one",
+    "exact phrase confirms, or a section heading plus a keyword group. Locked",
+    "35.9 fixes no threshold and 35.10 requires calibration against a",
+    "representative contract set before the value is trusted; recalibration is a",
+    "new mapping rule version (data), never a code change."
   ],
-  "evaluator_type": "PRESENCE"
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
+    "required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ]
 }

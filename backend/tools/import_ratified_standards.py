@@ -18,7 +18,10 @@ What this tool deliberately does NOT do:
   `evaluation_rules` blocks, or its Requirement is imported as DRAFT-only and
   reported as unpublishable (35.9 fixes no threshold; assuming one here would
   put a number nobody chose into every Review);
-* create a Legal Rule — none is approved (owner, 2026-08-18);
+* invent a Legal Rule — a `legal_rule` block is written only when the file
+  carries one, and only the approved zero-tolerance rule is accepted (owner
+  approval 2026-08-20): any tolerance band is refused, because the policy is
+  that none exists;
 * touch existing Reviews — publishing pins new snapshots only (rule 16).
 
 Usage:
@@ -72,6 +75,22 @@ def _validate(path: Path, payload: dict) -> None:
             raise ImportRefused(
                 f"{path.name}: missing {field} — a ratified standard without "
                 "provenance is indistinguishable from an invented one (rule 21)")
+    # Exactly one Legal Rule is approved (owner, 2026-08-20): the zero-tolerance
+    # blanket. Anything else — a tolerance band in particular — is an acceptance
+    # policy nobody approved, and importing it would put it into every Review.
+    lr = payload.get("legal_rule")
+    if lr is not None:
+        approved = {"deviation_outcome": "UNACCEPTABLE",
+                    "unlimited_outcome": "UNACCEPTABLE"}
+        if (lr.get("configuration") or {}) != approved:
+            raise ImportRefused(
+                f"{path.name}: legal_rule.configuration is not the approved "
+                f"zero-tolerance rule {approved}; no other Legal Rule is "
+                "approved and none is invented here (rule 21)")
+        if lr.get("rule_type") not in ("THRESHOLD", "ALLOWED_VALUES", "PRESENCE"):
+            raise ImportRefused(
+                f"{path.name}: legal_rule.rule_type {lr.get('rule_type')!r} is "
+                "not a locked rule type")
 
 
 def _resolve_actor(db: Session, email: str | None):
@@ -103,6 +122,7 @@ def import_standards(db: Session, *, actor_email: str | None = None,
         cfg = payload["configuration"]
         mapping_rules = payload.get("mapping_rules")
         evaluation_rules = payload.get("evaluation_rules")
+        legal_rule = payload.get("legal_rule")
 
         req = db.execute(
             select(M.Requirement).where(M.Requirement.code == code)
@@ -124,7 +144,19 @@ def import_standards(db: Session, *, actor_email: str | None = None,
                 .where(M.CompanyStandardVersion.requirement_version_id == latest.id)
                 .order_by(M.CompanyStandardVersion.version_number.desc())
                 .limit(1)).scalars().first()
-            if current is not None and current.configuration == cfg:
+            current_lr = db.execute(
+                select(M.LegalRuleVersion)
+                .where(M.LegalRuleVersion.requirement_version_id == latest.id)
+                .order_by(M.LegalRuleVersion.version_number.desc())
+                .limit(1)).scalars().first()
+            # Idempotence covers the Legal Rule too: a file that gained (or
+            # changed) its rule must append a new version, not be skipped.
+            lr_unchanged = (
+                (legal_rule is None and current_lr is None)
+                or (legal_rule is not None and current_lr is not None
+                    and current_lr.configuration == legal_rule["configuration"]))
+            if (current is not None and current.configuration == cfg
+                    and lr_unchanged):
                 report.append(f"{code}: unchanged (version {latest.version_number})")
                 if mapping_rules and evaluation_rules:
                     publishable.append(code)
@@ -155,6 +187,14 @@ def import_standards(db: Session, *, actor_email: str | None = None,
                     payload.get("evaluator_type", "NUMERIC_COMPARISON")),
                 rules=evaluation_rules, created_by=actor.id))
             publishable.append(code)
+        if legal_rule is not None:
+            db.add(M.LegalRuleVersion(
+                requirement_version_id=rv.id, version_number=1,
+                rule_type=E.RuleType(legal_rule["rule_type"]),
+                configuration=legal_rule["configuration"],
+                created_by=actor.id))
+            report.append(f"{code}: zero-tolerance Legal Rule written "
+                          "(owner approval 2026-08-20)")
         else:
             report.append(
                 f"{code}: NO mapping/evaluation rules in the file — imported as "

@@ -153,19 +153,23 @@ def test_no_normative_fixtures_are_present_yet():
         "Standard; verify each and update tests/corpus_coverage.json.")
 
 
-def test_no_fixture_asserts_an_acceptance_policy():
-    """The owner's V1 policy, checked across the whole corpus at once.
+def test_no_fixture_asserts_an_unapproved_acceptance_policy():
+    """The owner's acceptance policy, checked across the whole corpus at once.
 
-    No formally approved Company Acceptance Policy or Legal Rule exists
-    (2026-08-18), so nothing in the corpus may assert what Legal should do about a
-    deviation. Every Rule Outcome must be NOT_APPLICABLE, which locked Step 20 r4
-    defines as "no Pre-approved Legal Rule; the deviation stands and a human
-    decides".
+    Exactly ONE Legal Rule is approved (owner, 2026-08-20, confirming the
+    manager's zero-tolerance ruling of 2026-08-19): MATCH is acceptable, ANY
+    deviation is UNACCEPTABLE and goes to Legal. There are deliberately no
+    tolerance bands, so a traceable fixture may carry that rule VERBATIM
+    (`APPROVED_ZERO_TOLERANCE_RULE`) or no rule at all — never `acceptable_max`,
+    never `approval_required_above`, never any other disposition value. Rule
+    Outcomes are limited to what those two states can produce: NOT_APPLICABLE
+    always (Step 20 r4 — the deviation stands and a human decides), plus
+    ACCEPTABLE/UNACCEPTABLE only where the approved rule is pinned.
 
     This is the repository-wide form of the per-fixture guard in `load_fixture`:
     that one refuses a bad fixture at load time, this one catches a tolerance
     reaching the corpus by any other route, including a future NORMATIVE tier
-    added before the policy exists.
+    added before its policy exists.
 
     STRUCTURAL fixtures are deliberately exempt, and the exemption is the whole
     point of the tier: `STRUCT-FC-*` configure `acceptable_max` over `UNIT_X` and
@@ -174,14 +178,23 @@ def test_no_fixture_asserts_an_acceptance_policy():
     organization will accept. Only a fixture claiming to describe real material
     can misrepresent a policy.
     """
+    from legalmind.evaluation.corpus import APPROVED_ZERO_TOLERANCE_RULE
+
     offenders = []
     for fixture in load_fixtures(CORPUS_DIR):
         if fixture.provenance not in TRACEABLE_PROVENANCE:
             continue
-        if fixture.evaluator_input.legal_rule is not None:
-            offenders.append(f"{fixture.id}: carries a Legal Rule")
+        rule = fixture.evaluator_input.legal_rule
+        carries_approved = (rule is not None
+                            and rule.configuration == APPROVED_ZERO_TOLERANCE_RULE)
+        if rule is not None and not carries_approved:
+            offenders.append(f"{fixture.id}: carries a Legal Rule that is not "
+                             "the approved zero-tolerance rule")
+        allowed = {RuleOutcome.NOT_APPLICABLE}
+        if carries_approved:
+            allowed |= {RuleOutcome.ACCEPTABLE, RuleOutcome.UNACCEPTABLE}
         for x in fixture.expect_evaluations:
-            if x.rule_outcome is not RuleOutcome.NOT_APPLICABLE:
+            if x.rule_outcome not in allowed:
                 offenders.append(
                     f"{fixture.id}/{x.scope_key}: expects "
                     f"{x.rule_outcome.value}")

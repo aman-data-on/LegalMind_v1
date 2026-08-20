@@ -1,141 +1,147 @@
 [
-  {
-    "id": "STD-LIAB-01",
-    "provenance": "STANDARD_DERIVED",
-    "company_standard_ref": "LIABILITY-TOS-001",
-    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
-    "source_clause": "13 Limitation of Liability, second bullet",
-    "covers": [
-      "L-02"
-    ],
-    "description": "The ratified Company Standard (12 months of total fees, owner 2026-08-18) against the clause it was taken from: MATCH. The pair is the assertion \u2014 classification MATCH, rule_outcome NOT_APPLICABLE. The engine does NOT report ACCEPTABLE, because no Legal Rule exists and Step 20 r4 forbids inventing a tolerance. Note this supersedes 45E.2's illustrative expectation for L-02 (DEVIATION/ACCEPTABLE), which assumed a six-month standard.",
-    "evaluator_type": "NUMERIC_COMPARISON",
-    "requirement_code": "LIABILITY-TOS-001",
-    "legal_rule": null,
-    "caps": [
-      {
-        "scope": "AGGREGATE",
-        "cap_status": "FINITE",
-        "cap_value": 12,
-        "cap_unit": "MONTHS",
-        "cap_basis": "FEES_PAID",
-        "evidence_count": 1
-      }
-    ],
-    "expect_finding_classification": "MATCH",
-    "expect_evaluations": [
-      {
-        "scope_key": "AGGREGATE",
-        "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
-        "evidence_ref_count": 1
-      }
-    ]
+ {
+  "id": "STD-LIAB-01",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-TOS-001",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+  "source_clause": "13 Limitation of Liability, second bullet",
+  "covers": [
+   "L-02"
+  ],
+  "description": "The ratified Company Standard (12 months of total fees, owner 2026-08-18) against the clause it was taken from: MATCH. The pair is the assertion \u2014 classification MATCH, rule_outcome NOT_APPLICABLE. The engine does NOT report ACCEPTABLE, because no Legal Rule exists and Step 20 r4 forbids inventing a tolerance. Note this supersedes 45E.2's illustrative expectation for L-02 (DEVIATION/ACCEPTABLE), which assumed a six-month standard.",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-TOS-001",
+  "legal_rule": null,
+  "caps": [
+   {
+    "scope": "AGGREGATE",
+    "cap_status": "FINITE",
+    "cap_value": 12,
+    "cap_unit": "MONTHS",
+    "cap_basis": "FEES_PAID",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "AGGREGATE",
+    "classification": "MATCH",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "STD-LIAB-02",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-MSA-001",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+  "source_clause": "17.2 Monetary Cap on Liability, evaluated against the MSA standard drawn from the same clause",
+  "covers": [
+   "L-01"
+  ],
+  "description": "OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously UNABLE_TO_EVALUATE against the global 12-month/total-fees standard. MSA 17.2's six months of affected-service fees, measured against the MSA standard ratified FROM that clause: MATCH, with rule_outcome NOT_APPLICABLE because no Legal Rule exists. This is the per-type model's defining consequence \u2014 the organization's own template no longer deviates from its own position \u2014 and it is exactly 45E.2's stated L-01 expectation (six-month aggregate cap -> MATCH / NOT_APPLICABLE), reachable for the first time. Basis incomparability with FEES_PAID is still asserted, by DOC-LIAB-06 and CP-LIAB-04.",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-MSA-001",
+  "legal_rule": null,
+  "caps": [
+   {
+    "scope": "AGGREGATE",
+    "cap_status": "FINITE",
+    "cap_value": 6,
+    "cap_unit": "MONTHS",
+    "cap_basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "MATCH",
+  "expect_evaluations": [
+   {
+    "scope_key": "AGGREGATE",
+    "classification": "MATCH",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "STD-LIAB-03",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-TOS-001",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+  "source_clause": "13 Limitation of Liability \u2014 the cap and its three closing carve-outs",
+  "covers": [
+   "L-08",
+   "R-08"
+  ],
+  "description": "45E.2's L-08 shape, now reached IN FULL. The general cap MATCHES the ratified standard; each carve-out ('Nothing in these Terms shall limit or exclude liability for ... death or personal injury caused by negligence; fraud or fraudulent misrepresentation; any liability that cannot be limited or excluded under applicable law') is UNLIMITED for its own scope and so DEVIATION; the roll-up is DEVIATION because Tier 2 orders DEVIATION above MATCH. 45C.4 holds - the whole provision is never classified UNLIMITED. Under the APPROVED zero-tolerance Legal Rule (owner, 2026-08-20: any deviation is UNACCEPTABLE and goes to Legal; wired as deviation_outcome + unlimited_outcome), each unlimited carve-out carries UNACCEPTABLE and D-3.5(a) routes it to a Legal Decision. The general MATCH needs no decision. Before 2026-08-20 this fixture asserted NOT_APPLICABLE per Step 20 r4; the approval is the authorized expectation change.",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-TOS-001",
+  "legal_rule": {
+   "rule_type": "THRESHOLD",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
   },
-  {
-    "id": "STD-LIAB-02",
-    "provenance": "STANDARD_DERIVED",
-    "company_standard_ref": "LIABILITY-MSA-001",
-    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
-    "source_clause": "17.2 Monetary Cap on Liability, evaluated against the MSA standard drawn from the same clause",
-    "covers": [
-      "L-01"
-    ],
-    "description": "OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously UNABLE_TO_EVALUATE against the global 12-month/total-fees standard. MSA 17.2's six months of affected-service fees, measured against the MSA standard ratified FROM that clause: MATCH, with rule_outcome NOT_APPLICABLE because no Legal Rule exists. This is the per-type model's defining consequence \u2014 the organization's own template no longer deviates from its own position \u2014 and it is exactly 45E.2's stated L-01 expectation (six-month aggregate cap -> MATCH / NOT_APPLICABLE), reachable for the first time. Basis incomparability with FEES_PAID is still asserted, by DOC-LIAB-06 and CP-LIAB-04.",
-    "evaluator_type": "NUMERIC_COMPARISON",
-    "requirement_code": "LIABILITY-MSA-001",
-    "legal_rule": null,
-    "caps": [
-      {
-        "scope": "AGGREGATE",
-        "cap_status": "FINITE",
-        "cap_value": 6,
-        "cap_unit": "MONTHS",
-        "cap_basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
-        "evidence_count": 1
-      }
-    ],
-    "expect_finding_classification": "MATCH",
-    "expect_evaluations": [
-      {
-        "scope_key": "AGGREGATE",
-        "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
-        "evidence_ref_count": 1
-      }
-    ]
-  },
-  {
-    "id": "STD-LIAB-03",
-    "provenance": "STANDARD_DERIVED",
-    "company_standard_ref": "LIABILITY-TOS-001",
-    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
-    "source_clause": "13 Limitation of Liability \u2014 the cap and its three closing carve-outs",
-    "covers": [
-      "L-08",
-      "R-08"
-    ],
-    "description": "45E.2's L-08 shape, reached in full except the part that needs a policy. The general cap MATCHES the ratified standard; each carve-out ('Nothing in these Terms shall limit or exclude liability for ... death or personal injury caused by negligence; fraud or fraudulent misrepresentation; any liability that cannot be limited or excluded under applicable law') is UNLIMITED for its own scope and so DEVIATION; the roll-up is DEVIATION because Tier 2 orders DEVIATION above MATCH. 45C.4 holds \u2014 the whole provision is never classified UNLIMITED. Unlimited liability is NOT treated as automatically unacceptable: that needs `unlimited_outcome`, which does not exist, so each carve-out carries NOT_APPLICABLE and is routed to a human (UNRULED_DEVIATION_REQUIRES_DECISION).",
-    "evaluator_type": "NUMERIC_COMPARISON",
-    "requirement_code": "LIABILITY-TOS-001",
-    "legal_rule": null,
-    "caps": [
-      {
-        "scope": "AGGREGATE",
-        "cap_status": "FINITE",
-        "cap_value": 12,
-        "cap_unit": "MONTHS",
-        "cap_basis": "FEES_PAID",
-        "evidence_count": 1
-      },
-      {
-        "cap_kind": "EXCEPTION",
-        "scope": "CARVEOUT_DEATH_OR_PERSONAL_INJURY",
-        "cap_status": "UNLIMITED",
-        "evidence_count": 1
-      },
-      {
-        "cap_kind": "EXCEPTION",
-        "scope": "CARVEOUT_FRAUD_OR_FRAUDULENT_MISREPRESENTATION",
-        "cap_status": "UNLIMITED",
-        "evidence_count": 1
-      },
-      {
-        "cap_kind": "EXCEPTION",
-        "scope": "CARVEOUT_NON_EXCLUDABLE_BY_LAW",
-        "cap_status": "UNLIMITED",
-        "evidence_count": 1
-      }
-    ],
-    "expect_finding_classification": "DEVIATION",
-    "expect_evaluations": [
-      {
-        "scope_key": "AGGREGATE",
-        "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
-        "evidence_ref_count": 1
-      },
-      {
-        "scope_key": "CARVEOUT_DEATH_OR_PERSONAL_INJURY",
-        "evaluation_kind": "EXCEPTION",
-        "classification": "DEVIATION",
-        "rule_outcome": "NOT_APPLICABLE",
-        "evidence_ref_count": 1
-      },
-      {
-        "scope_key": "CARVEOUT_FRAUD_OR_FRAUDULENT_MISREPRESENTATION",
-        "evaluation_kind": "EXCEPTION",
-        "classification": "DEVIATION",
-        "rule_outcome": "NOT_APPLICABLE",
-        "evidence_ref_count": 1
-      },
-      {
-        "scope_key": "CARVEOUT_NON_EXCLUDABLE_BY_LAW",
-        "evaluation_kind": "EXCEPTION",
-        "classification": "DEVIATION",
-        "rule_outcome": "NOT_APPLICABLE",
-        "evidence_ref_count": 1
-      }
-    ]
-  }
+  "caps": [
+   {
+    "scope": "AGGREGATE",
+    "cap_status": "FINITE",
+    "cap_value": 12,
+    "cap_unit": "MONTHS",
+    "cap_basis": "FEES_PAID",
+    "evidence_count": 1
+   },
+   {
+    "cap_kind": "EXCEPTION",
+    "scope": "CARVEOUT_DEATH_OR_PERSONAL_INJURY",
+    "cap_status": "UNLIMITED",
+    "evidence_count": 1
+   },
+   {
+    "cap_kind": "EXCEPTION",
+    "scope": "CARVEOUT_FRAUD_OR_FRAUDULENT_MISREPRESENTATION",
+    "cap_status": "UNLIMITED",
+    "evidence_count": 1
+   },
+   {
+    "cap_kind": "EXCEPTION",
+    "scope": "CARVEOUT_NON_EXCLUDABLE_BY_LAW",
+    "cap_status": "UNLIMITED",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "DEVIATION",
+  "expect_evaluations": [
+   {
+    "scope_key": "AGGREGATE",
+    "classification": "MATCH",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   },
+   {
+    "scope_key": "CARVEOUT_DEATH_OR_PERSONAL_INJURY",
+    "evaluation_kind": "EXCEPTION",
+    "classification": "DEVIATION",
+    "rule_outcome": "UNACCEPTABLE",
+    "evidence_ref_count": 1
+   },
+   {
+    "scope_key": "CARVEOUT_FRAUD_OR_FRAUDULENT_MISREPRESENTATION",
+    "evaluation_kind": "EXCEPTION",
+    "classification": "DEVIATION",
+    "rule_outcome": "UNACCEPTABLE",
+    "evidence_ref_count": 1
+   },
+   {
+    "scope_key": "CARVEOUT_NON_EXCLUDABLE_BY_LAW",
+    "evaluation_kind": "EXCEPTION",
+    "classification": "DEVIATION",
+    "rule_outcome": "UNACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ }
 ]

@@ -354,6 +354,17 @@ ACCEPTANCE_POSITION_KEYS = ("preferred", "expected_presence")
 ACCEPTANCE_RULE_KEYS = ("acceptable_max", "approval_required_above",
                         "unlimited_outcome", "deviation_outcome")
 
+#: The ONE approved Legal Rule (owner approval, 2026-08-20, confirming the
+#: manager's zero-tolerance ruling of 2026-08-19): MATCH is acceptable, ANY
+#: deviation — unlimited included — is UNACCEPTABLE and goes to Legal. No
+#: tolerance band exists BY POLICY, so `acceptable_max` and
+#: `approval_required_above` remain forbidden on every pre-NORMATIVE tier: the
+#: approved rule is admitted EXACTLY as stated, never approximated.
+APPROVED_ZERO_TOLERANCE_RULE = {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE",
+}
+
 
 def _check_provenance_invariants(
         payload: dict[str, Any], provenance: str,
@@ -399,24 +410,37 @@ def _check_provenance_invariants(
             "from a stated Company Standard position, but none is present. If the "
             f"expectation follows from the document alone, use {DOCUMENT_SUPPORTED}.")
 
-    # Applies to both pre-NORMATIVE tiers: no approved Legal Rule exists, so no
-    # fixture may encode a tolerance or assert an outcome that needs one.
+    # Applies to both pre-NORMATIVE tiers. Since 2026-08-20 ONE Legal Rule is
+    # approved — the zero-tolerance blanket — and a fixture may carry it EXACTLY
+    # as approved, on the tier that states a position (STANDARD_DERIVED). No
+    # tolerance band exists by policy, so the threshold keys stay forbidden
+    # everywhere below NORMATIVE, and any other disposition value is refused.
     if provenance in {DOCUMENT_SUPPORTED, STANDARD_DERIVED}:
-        for key in ACCEPTANCE_RULE_KEYS:
-            if rule_cfg.get(key) is not None:
-                raise FixtureError(
-                    f"{fixture_id}: {provenance} must not supply "
-                    f"legal_rule.configuration.{key} — a configured tolerance is "
-                    "the organization's acceptance policy, and no approved Legal "
-                    "Rule exists (owner policy, 2026-08-18). Thresholds are never "
-                    "inferred from a document.")
+        carries_approved_rule = (
+            provenance == STANDARD_DERIVED
+            and rule_cfg == APPROVED_ZERO_TOLERANCE_RULE)
+        if rule_cfg and not carries_approved_rule:
+            raise FixtureError(
+                    f"{fixture_id}: {provenance} may carry a Legal Rule only as "
+                    f"the approved zero-tolerance rule, verbatim "
+                    f"({APPROVED_ZERO_TOLERANCE_RULE}), and only on "
+                    f"{STANDARD_DERIVED}. A tolerance band or any other "
+                    "disposition is an acceptance policy nobody approved "
+                    "(owner rulings 2026-08-18/2026-08-20); thresholds are "
+                    "never inferred from a document.")
+        allowed_outcomes = {RuleOutcome.NOT_APPLICABLE}
+        if carries_approved_rule:
+            # Exactly what the approved rule can produce: MATCH -> ACCEPTABLE,
+            # DEVIATION (unlimited included) -> UNACCEPTABLE.
+            allowed_outcomes |= {RuleOutcome.ACCEPTABLE, RuleOutcome.UNACCEPTABLE}
         for x in expected:
-            if x.rule_outcome is not RuleOutcome.NOT_APPLICABLE:
+            if x.rule_outcome not in allowed_outcomes:
                 raise FixtureError(
                     f"{fixture_id}: {provenance} cannot expect rule_outcome "
-                    f"{x.rule_outcome.value} for scope {x.scope_key}. With no "
-                    "approved Legal Rule the locked outcome is NOT_APPLICABLE — "
-                    "the deviation stands and a human decides (Step 20 r4). "
+                    f"{x.rule_outcome.value} for scope {x.scope_key}. Without "
+                    "the approved rule the locked outcome is NOT_APPLICABLE — "
+                    "the deviation stands and a human decides (Step 20 r4); "
+                    "with it, only its own outcomes are expressible. "
                     f"Only {NORMATIVE} may assert otherwise.")
 
 

@@ -215,18 +215,33 @@ export interface ReviewReport {
 }
 
 // ----------------------------------------------------------- configuration
+export interface RequirementVersion {
+  id: string;
+  version_number: number;
+  name: string;
+  description: string | null;
+  evaluator_type: string;
+  created_at: string | null;
+  /**
+   * Present only on the DETAIL response (`GET /requirements/{id}`), which the API
+   * gates on `configuration.view`. The list response carries no values at all, so
+   * these are optional rather than nullable — a field the caller did not receive is
+   * absent, never a placeholder (52.4).
+   */
+  created_by?: string;
+  company_standard?: Record<string, unknown> | null;
+  /**
+   * The Legal Rule is the confidential Internal Legal Position (LEGAL-02) and is
+   * genuinely optional (Step 20 r4). Omitted, not nulled, when absent.
+   */
+  legal_rule?: { rule_type: string; configuration: Record<string, unknown> };
+}
+
 export interface Requirement {
   id: string;
   code: string;
   status: string;
-  versions: {
-    id: string;
-    version_number: number;
-    name: string;
-    description: string | null;
-    evaluator_type: string;
-    created_at: string | null;
-  }[];
+  versions: RequirementVersion[];
   created_at: string | null;
 }
 

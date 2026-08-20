@@ -22,12 +22,94 @@
     "document_type": "NDA",
     "preferred": 2,
     "unit": "YEARS",
-    "basis": "CONFIDENTIALITY_SURVIVAL",
-    "scope_key": "GENERAL"
+    "basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END",
+    "scope_key": "GENERAL",
+    "extraction": {
+      "cap_phrases": [
+        "shall survive for"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "YEARS": [
+          "years",
+          "year"
+        ]
+      },
+      "bases": {
+        "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END": [
+          "underlying partnership relationship",
+          "whichever is later",
+          "or of the underlying"
+        ]
+      },
+      "exceptions": []
+    }
   },
-  "_no_legal_rule": [
-    "Deviation handling: ZERO TOLERANCE (manager ruling, 2026-08-19). MATCH ->",
-    "ACCEPTABLE; any DEVIATION -> UNACCEPTABLE -> Legal Decision required; no",
-    "deviation is ever auto-approved. No thresholds, no tolerance bands, by policy."
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29); deviation disposition lives in the Legal Rule, never here"
+  },
+  "source_file": "NDA.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "shall survive for"
+    ],
+    "aliases": [
+      "confidentiality obligations"
+    ],
+    "keyword_groups": [
+      [
+        "confidentiality",
+        "survive"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "survival"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping and extraction terminology, added 2026-08-19 under the owner's",
+    "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",
+    "from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - positions live",
+    "in `configuration`, sourced above). confirm_threshold 5 is STRUCTURAL: one",
+    "exact phrase confirms, or a section heading plus a keyword group. Locked",
+    "35.9 fixes no threshold and 35.10 requires calibration against a",
+    "representative contract set before the value is trusted; recalibration is a",
+    "new mapping rule version (data), never a code change."
+  ],
+  "_basis_note": [
+    "BASIS ENCODES THE MEASUREMENT ANCHOR (45B.4 / 45C.23). NDA 9 runs two years",
+    "from the LATER OF (a) termination or expiry of the NDA and (b) the end of the",
+    "underlying partnership relationship -- a FLOATING anchor -- and trade secrets",
+    "are protected 'for so long as such information remains a trade secret', i.e.",
+    "PERPETUALLY.",
+    "",
+    "Consequence, recorded so nobody 'simplifies' it away: this two-year period can",
+    "run LONGER in absolute time than the MSA's three years, and for trade secrets it",
+    "never ends while the MSA's does. '2 < 3' is therefore NOT a true statement about",
+    "protection strength, and the two numbers are not comparable quantities.",
+    "",
+    "Deliberately NOT comparable to CONF-SURVIVAL-MSA-001's basis."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
+    "required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
   ]
 }

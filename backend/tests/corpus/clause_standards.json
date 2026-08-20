@@ -16,7 +16,7 @@
         "cap_status": "FINITE",
         "cap_value": 3,
         "cap_unit": "YEARS",
-        "cap_basis": "CONFIDENTIALITY_SURVIVAL",
+        "cap_basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION",
         "evidence_count": 1
       }
     ],

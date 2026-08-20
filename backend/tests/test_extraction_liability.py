@@ -70,6 +70,51 @@ def test_magnitudes_with_separators_and_decimals_are_read():
     assert facts.caps[0].cap_value == 1.5
 
 
+def test_the_word_digits_unit_drafting_convention_is_read():
+    """Legal drafting writes "twelve (12) months": the digits ARE stated, so
+    reading them past the closing parenthesis is pattern mechanics (44.30), not
+    the word-number interpretation the extractor refuses."""
+    facts = extract_liability_facts(
+        [clause("Liability shall not exceed twelve (12) months of fees paid.")],
+        CONFIG)
+    assert facts.caps[0].cap_status == FINITE
+    assert facts.caps[0].cap_value == 12.0
+    assert facts.caps[0].cap_unit == "months"
+
+
+def test_dict_units_report_the_canonical_key_longest_term_first():
+    """`units` as a dict mirrors `bases`: configured terms map to a canonical
+    unit key, so "sixty (60) calendar days" can meet a Standard declaring DAYS
+    without the evaluator equating units nobody declared equivalent (45C.23)."""
+    config = LiabilityExtractionConfig(
+        cap_phrases=("shall not exceed",),
+        units={"DAYS": ("consecutive days", "calendar days", "days")},
+        bases={"BASIS_FEES": ("fees paid",)},
+    )
+    facts = extract_liability_facts(
+        [clause("Liability shall not exceed sixty (60) calendar days of fees "
+                "paid.")], config)
+    assert facts.caps[0].cap_value == 60.0
+    assert facts.caps[0].cap_unit == "DAYS"
+
+    # Longest term wins at the same position; the shorter "days" alone would
+    # leave "consecutive" unexplained but must not change the result.
+    facts = extract_liability_facts(
+        [clause("Liability shall not exceed 30 consecutive days of fees paid.")],
+        config)
+    assert facts.caps[0].cap_value == 30.0
+    assert facts.caps[0].cap_unit == "DAYS"
+
+
+def test_word_only_magnitudes_stay_unrecognised():
+    """The convention above changes nothing for digitless text: "six months"
+    still yields UNKNOWN, never a value (44.24)."""
+    facts = extract_liability_facts(
+        [clause("Liability shall not exceed six months of fees paid.")], CONFIG)
+    assert facts.caps[0].cap_status == UNKNOWN
+    assert facts.caps[0].cap_value is None
+
+
 # =====================================================================
 # 44.17 — the general rule and its carve-outs are NEVER flattened
 # =====================================================================
@@ -296,3 +341,13 @@ def test_configuration_is_read_from_the_company_standard_extraction_block():
     assert config.units == ("months",)
     assert config.exceptions[0].scope == "SCOPE_X"
     assert config.bases["BASIS_FEES"] == ("fees paid",)
+
+
+def test_dict_units_are_read_from_the_extraction_block():
+    config = LiabilityExtractionConfig.from_config({
+        "extraction": {
+            "cap_phrases": ["shall not exceed"],
+            "units": {"DAYS": ["calendar days", "days"]},
+        }
+    })
+    assert config.units == {"DAYS": ("calendar days", "days")}

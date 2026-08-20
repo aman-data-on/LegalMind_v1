@@ -340,6 +340,22 @@ export const api = {
       method: "POST",
       body,
     }),
+  /**
+   * Change a Company Standard's values. APPEND-ONLY (locked rule 16): the server
+   * creates a new Requirement version carrying the previous mapping, evaluation and
+   * Legal Rule artifacts forward unchanged. `reason` is mandatory — a standard
+   * change is a change of legal position, and the audit trail records the reason
+   * (never the values, 53.3). Rollback is this same call with an older version's
+   * values, read back from the detail response.
+   */
+  updateCompanyStandard: (
+    requirementId: string,
+    payload: { company_standard: Record<string, unknown>; reason: string },
+  ) =>
+    request<Requirement>(`/requirements/${requirementId}/standard`, {
+      method: "POST",
+      body: payload,
+    }),
   publishConfiguration: (requirementCodes?: string[]) =>
     request<ConfigurationSnapshot>("/configuration/publish", {
       method: "POST",

@@ -768,8 +768,11 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
     first = import_standards(db, actor_email=actor.email)
     assert any("LIABILITY-MSA-001: version 1 written" in line for line in first)
     assert any("LIABILITY-TOS-001: version 1 written" in line for line in first)
-    # No mapping/evaluation rules in the ratified files → draft-only, reported.
-    assert any("unpublishable draft" in line for line in first)
+    # Since 2026-08-19 every ratified file carries mapping and evaluation rules
+    # (the owner's publishability tasking), so nothing imports as an
+    # unpublishable draft any more. The refusal path stays covered: a file
+    # without rules would still be reported, and the publish gate re-checks.
+    assert not any("unpublishable draft" in line for line in first)
 
     second = import_standards(db, actor_email=actor.email)
     assert any("LIABILITY-MSA-001: unchanged" in line for line in second)
@@ -788,3 +791,56 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
     assert cs.configuration["preferred"] == 6        # the ratified MSA value
     assert cs.configuration["document_type"] == "MSA"
     assert "MSA.pdf" in versions[0].description or "Master Services" in versions[0].description
+
+    # The terminology of 2026-08-19 makes the Requirement publishable: mapping
+    # rules with a usable confirm_threshold (D-1) and an evaluation rule version.
+    mr = db.execute(
+        select(M.MappingRuleVersion)
+        .where(M.MappingRuleVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert isinstance(mr.rules.get("confirm_threshold"), int)
+    er = db.execute(
+        select(M.EvaluationRuleVersion)
+        .where(M.EvaluationRuleVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert er.rules
+
+    # The approved zero-tolerance Legal Rule (owner, 2026-08-20) is written from
+    # the file — verbatim, and nothing else would have been accepted.
+    lr = db.execute(
+        select(M.LegalRuleVersion)
+        .where(M.LegalRuleVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert lr.configuration == {"deviation_outcome": "UNACCEPTABLE",
+                                "unlimited_outcome": "UNACCEPTABLE"}
+
+
+def test_every_ratified_standard_publishes_through_the_gated_endpoint(api, db, seeded):
+    """The tasked outcome, proved end to end rather than asserted from the files.
+
+    The owner's tasking of 2026-08-19 was to make the ratified Requirements
+    publishable. This imports all of them and publishes through the real
+    permission-gated endpoint, so the publish gate's own fail-closed checks —
+    company standard, mapping rules with a usable `confirm_threshold` (D-1),
+    evaluation rules, and a locked Step 6 `document_type` — are what pass, not a
+    re-implementation of them in a test.
+
+    Rule 21 note: nothing here authors legal content. The values come from the
+    owner's ratified files; the assertion is about the mechanism reaching them.
+    """
+    from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
+    from tools.import_ratified_standards import import_standards
+
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+
+    import_standards(db, actor_email=admin.email)
+    db.flush()
+
+    codes = sorted(p.stem for p in RATIFIED_STANDARDS_DIR.glob("*.json"))
+    published = api.post(f"{V1}/configuration/publish",
+                         json={"requirement_codes": codes})
+    # A refusal names the incomplete Requirement, so surface it rather than a
+    # bare status code.
+    assert published.status_code == 201, published.text
+    assert published.json()["data"]["requirement_count"] == len(codes)
