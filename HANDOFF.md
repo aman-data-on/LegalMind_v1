@@ -317,9 +317,14 @@ second-tranche request above.
 ## 7 · Guardrails a reviewer should expect me to have kept
 
 ```text
-all_lock.md          APPEND-ONLY, 15,358 lines. Two records appended this
-                     cycle (REC-08, REC-09), each with the prior lines verified
-                     byte-identical. CI job 6 enforces it on every PR.
+all_lock.md          APPEND-ONLY, 15,358 lines at the time of this handoff. Two
+                     records appended this cycle (REC-08, REC-09), each with the
+                     prior lines verified byte-identical. CI job 6 enforces it on
+                     every PR.
+                     LATER: DOC-06 and DOC-07 were appended on 2026-08-21 (owner
+                     decisions on Document Type declaration and multi-document
+                     review), taking the file to 15,648 lines. Prior 327,138
+                     bytes verified byte-identical by hash before and after.
 No invented material No threshold, cap value, clause, Company Standard, legal
                      position or normative expected output was authored. CI job 8
                      rejects contract file types and unsourced NORMATIVE fixtures.

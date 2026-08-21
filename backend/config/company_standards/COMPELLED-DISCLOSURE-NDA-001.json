@@ -54,10 +54,6 @@
         "disclose"
       ],
       [
-        "disclose",
-        "notice"
-      ],
-      [
         "required by law",
         "disclose"
       ]
@@ -88,7 +84,14 @@
     "\"destroy all Confidential Information\" missed theirs. Added terms are",
     "generic drafting synonyms only; no position, threshold or expected_presence",
     "was touched (rules 7/21). Each scores 3 against confirm_threshold 5, so two",
-    "independent signals remain required."
+    "independent signals remain required.",
+    "",
+    "WITHDRAWN SAME DAY, 2026-08-21: the keyword group `disclose + notice` was",
+    "added in this pass and immediately matched the IT Act 2000 in the negative",
+    "sweep - two ordinary words that co-occur in any statute about disclosure.",
+    "Removed. The public EDGAR specimen is carried by `legally compelled` plus",
+    "the `compelled + disclose` group, which are keyed to the clause type rather",
+    "than to the vocabulary of disclosure in general."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

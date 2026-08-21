@@ -6,7 +6,7 @@
 
 Documents under [`09-implementation/`](../09-implementation/) remain *specifications of a target*. Where code and specification disagree, the specification wins — `IMPL-01` condition 1: *the code is not a specification.*
 
-Last synchronized against `all_lock.md` at **15,358 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, Implementation Authorization).
+Last synchronized against `all_lock.md` at **15,648 lines** (Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, Implementation Authorization, `DOC-06`/`DOC-07`).
 
 ---
 
