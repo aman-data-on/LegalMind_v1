@@ -58,7 +58,17 @@ function message(error: ApiError): string {
 }
 
 export function Loading({ what }: { what: string }) {
-  return <p className="hint">Loading {what}…</p>;
+  /*
+   * Phase 1 design foundation — the audit found loading states were silent to
+   * assistive technology (docs/design/UX_AUDIT.md §2 "Accessibility"). This is
+   * the one narrowly-scoped exception to "no existing screen is redesigned" in
+   * that pass: an `aria-live` region, not a markup or behavior change.
+   */
+  return (
+    <p className="hint" role="status" aria-live="polite">
+      Loading {what}…
+    </p>
+  );
 }
 
 export function EmptyState({ children }: { children: React.ReactNode }) {

@@ -98,19 +98,29 @@ export default function ContractPage({
 
   return (
     <>
+      <Link className="page-back" href="/contracts">
+        ← Contracts
+      </Link>
       <h1>{contract?.name ?? "Contract"}</h1>
-      <p className="hint">
-        {contract ? `${contract.contract_type ?? "Type not set"} · ${contract.status}` : null}
-      </p>
+      {contract ? (
+        <p className="page-meta">
+          <span>{contract.contract_type ?? "Type not set"}</span>
+          <span className={`status status--${contract.status.toLowerCase()}`}>
+            {contract.status}
+          </span>
+        </p>
+      ) : null}
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.DOCUMENT_UPLOAD)}>
-        <form className="card inline" onSubmit={upload}>
-          <label>
-            Upload a document version (PDF or DOCX)
-            <input ref={fileInput} type="file" accept=".pdf,.docx" required />
-          </label>
-          <button type="submit" disabled={busy}>
+        <form className="card form-row" onSubmit={upload}>
+          <div className="field field--grow">
+            <label className="field__label" htmlFor="document-file">
+              Upload a document version (PDF or DOCX)
+            </label>
+            <input id="document-file" ref={fileInput} type="file" accept=".pdf,.docx" required />
+          </div>
+          <button type="submit" className="btn btn--primary" disabled={busy}>
             {busy ? "Uploading…" : "Upload"}
           </button>
         </form>
@@ -167,26 +177,32 @@ export default function ContractPage({
       {reviews.length === 0 ? (
         <EmptyState>No reviews yet.</EmptyState>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Review</th>
-              <th>Status</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reviews.map((review) => (
-              <tr key={review.id}>
-                <td>
-                  <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
-                </td>
-                <td>{review.status}</td>
-                <td>{review.created_at ?? "—"}</td>
+        <div className="table-card table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Review</th>
+                <th>Status</th>
+                <th>Created</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {reviews.map((review) => (
+                <tr key={review.id}>
+                  <td>
+                    <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
+                  </td>
+                  <td>
+                    <span className={`status status--${review.status.toLowerCase()}`}>
+                      {review.status}
+                    </span>
+                  </td>
+                  <td>{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <PermissionGate granted={can(P.REVIEW_CREATE)}>
@@ -198,26 +214,33 @@ export default function ContractPage({
             configuration first if you have no snapshot.
           </p>
           <form
-            className="inline"
+            className="form-row"
             onSubmit={(event) => {
               event.preventDefault();
               const versionId = new FormData(event.currentTarget).get("version");
               if (typeof versionId === "string" && versionId) void startReview(versionId);
             }}
           >
-            <label>
-              Document version id
-              <input name="version" required />
-            </label>
-            <label>
-              Configuration snapshot id
+            <div className="field">
+              <label className="field__label" htmlFor="review-version">
+                Document version id
+              </label>
+              <input id="review-version" name="version" required />
+            </div>
+            <div className="field">
+              <label className="field__label" htmlFor="review-snapshot">
+                Configuration snapshot id
+              </label>
               <input
+                id="review-snapshot"
                 required
                 value={snapshotId}
                 onChange={(event) => setSnapshotId(event.target.value)}
               />
-            </label>
-            <button type="submit">Create review</button>
+            </div>
+            <button type="submit" className="btn btn--primary">
+              Create review
+            </button>
           </form>
         </section>
       </PermissionGate>

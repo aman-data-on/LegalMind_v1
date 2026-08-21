@@ -65,23 +65,31 @@ export default function ContractsPage() {
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.CONTRACT_CREATE)}>
-        <form className="card inline" onSubmit={create}>
-          <label>
-            Contract name
+        <form className="card form-row" onSubmit={create}>
+          <div className="field">
+            <label className="field__label" htmlFor="contract-name">
+              Contract name
+            </label>
             <input
+              id="contract-name"
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-          </label>
-          <label>
-            Type (optional)
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="contract-type">
+              Type (optional)
+            </label>
             <input
+              id="contract-type"
               value={contractType}
               onChange={(event) => setContractType(event.target.value)}
             />
-          </label>
-          <button type="submit">Add contract</button>
+          </div>
+          <button type="submit" className="btn btn--primary">
+            Add contract
+          </button>
         </form>
       </PermissionGate>
 
@@ -91,28 +99,35 @@ export default function ContractsPage() {
         <EmptyState>No contracts yet.</EmptyState>
       ) : (
         <>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contracts.map((contract) => (
-                <tr key={contract.id}>
-                  <td>
-                    <Link href={`/contracts/${contract.id}`}>{contract.name}</Link>
-                  </td>
-                  <td>{contract.contract_type ?? "—"}</td>
-                  <td>{contract.status}</td>
-                  <td>{contract.created_at ?? "—"}</td>
+          <div className="table-card table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {contracts.map((contract) => (
+                  <tr key={contract.id}>
+                    <td>
+                      <Link href={`/contracts/${contract.id}`}>{contract.name}</Link>
+                    </td>
+                    <td>{contract.contract_type ?? "—"}</td>
+                    <td>
+                      {/* Rendered as received (52.7); the pill is presentation only. */}
+                      <span className={`status status--${contract.status.toLowerCase()}`}>
+                        {contract.status}
+                      </span>
+                    </td>
+                    <td>{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {pagination ? (
             <Pager
               page={pagination.page}

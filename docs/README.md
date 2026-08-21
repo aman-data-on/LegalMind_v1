@@ -37,6 +37,7 @@ One document owns each area. Everything else references it rather than restating
 | API — final contract | [05-architecture/STEP_49_API_FINALIZATION.md](05-architecture/STEP_49_API_FINALIZATION.md) |
 | Security / authn / authz | [06-security/STEP_47_SECURITY_SPECIFICATION.md](06-security/STEP_47_SECURITY_SPECIFICATION.md) |
 | Frontend | [05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md](05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md) |
+| Frontend visual/UX design (implementation-phase choice, not specification — see [../DESIGN.md](../DESIGN.md)) | [../DESIGN.md](../DESIGN.md) |
 | Observability | [09-implementation/STEP_53_OBSERVABILITY.md](09-implementation/STEP_53_OBSERVABILITY.md) |
 | Testing | [08-testing/STEP_54_TESTING_STRATEGY.md](08-testing/STEP_54_TESTING_STRATEGY.md) |
 | **Final review / handoff** | [../HANDOFF.md](../HANDOFF.md) — the entry point for reviewing the build |
@@ -174,6 +175,17 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [REGRESSION_TESTING.md](08-testing/REGRESSION_TESTING.md) | 🔒 44.35 — regression protection when the evaluator changes |
 | [INDEPENDENT_VERIFICATION.md](08-testing/INDEPENDENT_VERIFICATION.md) | 📁 Record — each critical guarantee re-checked by a mechanism *other than* the test that asserts it, and what that found |
 | [TEST_STRATEGY.md](08-testing/TEST_STRATEGY.md) | Step 39 tooling extract — superseded by Step 54 |
+
+### [design/](design/) — UI/UX governance (implementation-phase, not specification)
+
+> Governed by [`../DESIGN.md`](../DESIGN.md), the root-level design-governance document. Nothing here locks legal or product behavior — visual design, component choice, and interaction model are left `NOT YET SPECIFIED` by Step 52.6 and are decided here instead.
+
+| File | Purpose |
+|---|---|
+| [UX_AUDIT.md](design/UX_AUDIT.md) | Current-state audit of the already-implemented frontend: page/component inventory, UX problems, workflow map |
+| [DESIGN_DECISIONS.md](design/DESIGN_DECISIONS.md) | Append-only log of major UI/UX decisions (interaction models, component-library adoption, etc.) |
+| [UX_ROADMAP.md](design/UX_ROADMAP.md) | Phase sequencing and page-by-page implementation order, with dependencies |
+| [DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md) | The concrete tokens and primitives, as implemented in Phase 1 (foundation) + Phase 2 (shell) |
 
 ### [09-implementation/](09-implementation/) — the target build
 

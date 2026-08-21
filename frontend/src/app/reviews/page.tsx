@@ -66,10 +66,13 @@ export default function ReviewsPage() {
       </p>
       <ErrorBanner error={error} />
 
-      <form className="card inline" onSubmit={(event) => event.preventDefault()}>
-        <label>
-          Lifecycle status
+      <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
+        <div className="field">
+          <label className="field__label" htmlFor="review-status-filter">
+            Lifecycle status
+          </label>
           <select
+            id="review-status-filter"
             value={status}
             onChange={(event) => {
               setPage(1);
@@ -83,41 +86,51 @@ export default function ReviewsPage() {
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </form>
 
       {reviews === null ? (
         <Loading what="reviews" />
       ) : reviews.length === 0 ? (
-        <EmptyState>No reviews.</EmptyState>
+        /* Distinguish "nothing matches this filter" from "nothing at all" —
+           presentation of the active client-side filter state only. */
+        <EmptyState>
+          {status ? `No reviews with status ${status}.` : "No reviews."}
+        </EmptyState>
       ) : (
         <>
-          <table>
-            <thead>
-              <tr>
-                <th>Review</th>
-                <th>Status</th>
-                <th>Contract</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reviews.map((review) => (
-                <tr key={review.id}>
-                  <td>
-                    <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
-                  </td>
-                  <td>{review.status}</td>
-                  <td>
-                    <Link href={`/contracts/${review.contract_id}`}>
-                      {review.contract_id.slice(0, 8)}
-                    </Link>
-                  </td>
-                  <td>{review.created_at ?? "—"}</td>
+          <div className="table-card table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Review</th>
+                  <th>Status</th>
+                  <th>Contract</th>
+                  <th>Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {reviews.map((review) => (
+                  <tr key={review.id}>
+                    <td>
+                      <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
+                    </td>
+                    <td>
+                      <span className={`status status--${review.status.toLowerCase()}`}>
+                        {review.status}
+                      </span>
+                    </td>
+                    <td>
+                      <Link href={`/contracts/${review.contract_id}`}>
+                        {review.contract_id.slice(0, 8)}
+                      </Link>
+                    </td>
+                    <td>{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {pagination ? (
             <Pager
               page={pagination.page}
