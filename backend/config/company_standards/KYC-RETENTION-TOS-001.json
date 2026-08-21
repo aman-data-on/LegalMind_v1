@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard KYC-RETENTION-TOS-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard KYC-RETENTION-TOS-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -8,8 +8,8 @@
   ],
   "requirement_code": "KYC-RETENTION-TOS-001",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) \u2014 TOS-leapswitch.pdf",
-  "source_clause": "8 KYC \u2014 Data Retention",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) — TOS-leapswitch.pdf",
+  "source_clause": "8 KYC — Data Retention",
   "source_quote": "All KYC records and subscriber information shall be maintained for a minimum period of five (5) years after the cancellation or withdrawal of the subscriber's registration",
   "configuration": {
     "document_type": "TOS",
@@ -42,11 +42,12 @@
   },
   "source_file": "TOS-leapswitch.pdf",
   "mapping_rules": {
-    "exact_phrases": [
-      "kyc"
-    ],
+    "exact_phrases": [],
     "aliases": [
-      "know your customer"
+      "know your customer",
+      "kyc",
+      "kyc verification",
+      "kyc records"
     ],
     "keyword_groups": [
       [
@@ -69,7 +70,18 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "",
+    "PRECISION FIX, 2026-08-21. The bare token `kyc` was an exact_phrase at",
+    "weight 5, so ONE mention confirmed the mapping - the CERT-In Directions",
+    "2022 (background law, not a contract) confirmed it during the negative",
+    "sweep. Demoted to an alias, the same fix the owner approved for",
+    "ARBITRATION-MSA-001 and the same defect shape. Two independent signals are",
+    "now required; TOS 8 still confirms, stating `kyc`, `know your customer` and",
+    "the kyc+records group. This is a NUMERIC Requirement, so a false confirm",
+    "was already fail-closed (nothing to extract -> UNABLE_TO_EVALUATE -> a",
+    "human) rather than a false MATCH; fixed anyway, because a Requirement that",
+    "maps a statute is reporting something it cannot support."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

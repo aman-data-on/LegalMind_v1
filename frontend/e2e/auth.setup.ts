@@ -39,7 +39,9 @@ for (const label of ACCOUNTS) {
 
     await page.goto("/login");
     await page.getByLabel("Work email").fill(account.email);
-    await page.getByLabel("Password").fill(account.password);
+    // exact: the login screen also has a "Show password" reveal control (DD-4),
+    // which substring matching would otherwise catch as a second candidate.
+    await page.getByLabel("Password", { exact: true }).fill(account.password);
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL(/\/contracts/, { timeout: 20_000 });
 

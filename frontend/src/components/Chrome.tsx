@@ -38,12 +38,16 @@ export function Chrome({ children }: { children: React.ReactNode }) {
   const { identity, loading, can, signOut } = useSession();
   const pathname = usePathname();
 
-  if (pathname === "/login") return <main className="shell shell--bare">{children}</main>;
+  // DD-3 — /login owns its full-viewport composition; other bare states keep the narrow column.
+  if (pathname === "/login") return <main className="shell shell--login">{children}</main>;
 
   if (loading) {
     return (
       <main className="shell shell--bare">
-        <p className="hint">Loading…</p>
+        {/* Phase 1 accessibility fix (docs/design/UX_AUDIT.md §2) — same as Feedback's Loading. */}
+        <p className="hint" role="status" aria-live="polite">
+          Loading…
+        </p>
       </main>
     );
   }

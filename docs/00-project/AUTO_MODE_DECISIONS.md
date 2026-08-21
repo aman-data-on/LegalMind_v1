@@ -193,3 +193,104 @@ stale since the NDA block was added on 2026-08-19 and now doubly so. `CLAUDE.md`
 excluded from this change by instruction, so the drift is reported, not fixed.
 
 **Verification at close: 699 backend passed (16 new corpus fixtures) · ruff/mypy clean · verify_terminology **32/32 PASS** on the real source documents · import gate accepts all 32 · document-type scoping tests 6/6 · `all_lock.md` untouched at 15,358 lines.**
+
+
+## Public-source calibration of the 11 PRESENCE Requirements, 2026-08-21 (owner: "use public sources until real contracts arrive — do not wait for me")
+
+The owner extended the test-only source authorization of 2026-08-18 to public web
+terms, public filings, published corporate policies, legal articles and statutes, and
+directed that calibration proceed on those until genuine counterparty contracts are
+supplied. This closes the honest caveat recorded at the close of the 2026-08-20 pass:
+the 11 new Requirements were pinned on LeapSwitch's own drafting only.
+
+**Before the pass, 5 of 13 public specimens mapped. After it, 19 of 20.**
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 48 | Calibration is **data-only drafting variants** — 51 aliases and 23 keyword groups across the 11 files; no `exact_phrase` added, no position, threshold or `expected_presence` touched | Every gap found was a wording difference, not a concept difference: AWS writes "consequential OR EXEMPLARY damages" and "LOST profits" where MSA 17.1 writes "consequential, exemplary" and "loss of profits"; DigitalOcean disclaims with a bare "as is"/"as available" and no merchantability list; the EDGAR NDA says "destroy all Confidential Information" with no "return" verb at all | Nothing about what the clauses MEAN. These are PRESENCE Requirements: content goes to Legal with the evidence, and categorical comparison stays a V2 evaluator |
+| 49 | Broad single words (`arbitration`, `trade secret`, `residuals`, `renewal term`) are configured as **aliases only, never `exact_phrase`** — and bare `as is` is not configured at all | With 35.8's weights an alias scores 3 against `confirm_threshold` 5, so no single generic term can confirm alone; two independent signals are always required. `as is` is ordinary English ("as is customary") and would over-match even inside that rule. The property is now pinned by `test_a_single_generic_term_cannot_confirm_alone` | The threshold itself — 5 remains STRUCTURAL pending 35.10's representative set |
+| 50 | AWS §6.1 is left **deliberately unmapped** for `IP-OWNERSHIP-MSA-001` | It is a customer-content allocation, not the supplier IP-ownership clause the standard is the position for. Mapping it would need a term broad enough to fire on any sentence containing "rights", and an over-broad PRESENCE term yields a confident false PRESENT — worse than no mapping, because a reviewer never looks. Same judgement as the Xerox survival anchor (decision #42) | Nothing: a real supplier-IP-ownership specimen remains welcome |
+
+**Statutes were used as NEGATIVE specimens, which is the only role they can hold** — a
+statute is background law, never a Company Standard and never a Requirement source
+(rule 7). A 7-statute × 32-Requirement sweep (224 pairs) produced **4 mappings**, and
+the split matters:
+
+* **1 was introduced by this pass** — `ARBITRATION-TOS-001` maps Contract Act §28
+  Exception 1, which is genuinely about agreements to refer disputes to arbitration.
+  Accepted: the text really is arbitration drafting, and a statute cannot reach the
+  evaluator anyway without being falsely declared as a TOS at upload.
+* **3 pre-date it and were not touched** — `KYC-RETENTION-TOS-001`,
+  `TERM-NOTICE-NDA-001`, and most notably **`ARBITRATION-MSA-001`, which carries the
+  bare word `arbitration` as an `exact_phrase` (weight 5)** and therefore confirms on a
+  footnote citing "the Arbitration Act, 1940". That is a real precision defect in
+  configuration ratified 2026-08-19 and calibrated 2026-08-20. **Reported, not fixed:**
+  changing a calibrated pre-existing Requirement could regress the counterparty pass,
+  and 35.10 forbids recalibrating without a representative set. It needs an owner call.
+
+**Verification at close: 720 backend passed (21 new calibration tests) · ruff/mypy clean · verify_terminology **32/32 PASS** — the own-document baseline held throughout, which is what proves the new variants were additive · `all_lock.md` untouched at 15,358 lines.**
+
+### Owner decisions recorded 2026-08-21 (not yet implemented)
+
+| Decision | Status |
+|---|---|
+| **(b) MANUAL DROPDOWN — the user selects Document Type; no auto-detection in V1** | ✅ **Confirms the existing owner ruling Q9=A (2026-08-19), changes nothing.** The backend already requires a declared type and refuses an undeclared one. No work is created by this decision; the dropdown itself is frontend and belongs to the deferred design track |
+| **(a) GROUPED REVIEW — one review session per upload batch, cross-document conflict checking REQUIRED** | ⚠️ **ESCALATED, NOT IMPLEMENTED.** Two parts, and they need separating — see below |
+
+**Why (a) was escalated rather than built.** Its first half is fine and its second half
+is not, and building them together would have buried the problem:
+
+* *"One review session per upload batch"* is implementable **if "session" means a
+  grouping** — N Reviews shown together, no schema change, exactly the shape the
+  2026-08-21 impact analysis recommended. If it means a **domain object** with its own
+  identity and status, it needs a `review_batches` table and a `Review.batch_id`
+  column, which contradicts locked 42.13 and Step 26 r2 (*"A Review is tied to exactly
+  one Document Version"*, locked in five places). **Which one is meant is unresolved.**
+* *"Cross-document conflict checking is REQUIRED"* **contradicts the comparability
+  rulings of 2026-08-19** (rule 5: report, do not resolve). Those rulings established
+  that MSA liability (6 months, affected-service fees) vs TOS liability (12 months,
+  total fees) are **DIFFERENT questions, twice over**, and that MSA confidentiality
+  survival (3 years) vs NDA survival (2 years) are different questions with different
+  clock anchors — *"'2 < 3' is not a true statement about protection strength."* A
+  cross-document conflict checker would flag precisely those pairs as conflicts on day
+  one. It would also need a home: locked 44.18 places conflict detection after fact
+  extraction **within** a scope, and `Finding` is `UNIQUE(review_id,
+  requirement_version_id)` — a cross-document finding belongs to no single Review.
+
+**The safe subset, offered but not built:** a **cross-document OBSERVATION** that
+reports differing positions across the batch without classifying them as a conflict —
+the shape locked `REC-02` already uses for `UNMATCHED_PROVISION`, *"a document-level
+observation [that] must never occupy a Finding's classification."* That still needs an
+owner decision, and it is not what "conflict checking" was asked for.
+
+### ✅ RESOLVED same day — the escalation above was a misreading of the requirement
+
+The owner clarified the intended behaviour: *"a user makes a document set of MSA, TOS
+and SLA, then the counterparty document set is analysed against LeapSwitch — MSA vs
+MSA, TOS vs TOS etc — and gives, per document, what MATCH, what DEVIATION, what
+MISSING."*
+
+**That is type-matched pairing, not cross-type comparison, and it is already the
+architecture.** Each document is measured against the Requirements for its OWN type;
+"cross-document" describes the *set being reviewed together*, never a comparison
+between two different document types. So nothing in the request touches Step 26 r2, and
+the comparability rulings of 2026-08-19 are not in tension with it after all — they are
+in fact what makes it correct, because they are the reason an MSA's liability position
+is never measured against a TOS standard.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 51 | The multi-document requirement is **type-matched pairing over a grouped set**: N documents → N Contracts → N Reviews, each scoped by `_applicable_items` to its declared type, presented together. The "document set" is a **grouping, not a domain object** | This is what the owner described and it is already implemented and test-pinned (`test_an_nda_is_never_measured_against_an_msa_requirement`). Per-document MATCH / DEVIATION / MISSING is already what Findings plus `GET /reviews/{id}/report` return. No table, no column, no locked decision touched | The grouping's persistence — URL state vs a `batch_id` in the existing `document_versions.metadata` JSONB — remains a frontend decision on the deferred design track |
+| 52 | **Cross-TYPE comparison stays OUT of V1** (comparing a counterparty MSA's position against their TOS's, or against a LeapSwitch standard of a different type) | It would contradict the 2026-08-19 comparability rulings on day one: MSA liability (6 months, affected-service fees) vs TOS liability (12 months, total fees) are DIFFERENT questions twice over, and MSA vs NDA confidentiality survival have different clock anchors — *"'2 < 3' is not a true statement about protection strength."* A checker would report those as conflicts. It also has no home: 44.18 places conflict detection within a scope, and `Finding` is `UNIQUE(review_id, requirement_version_id)` | Nothing forecloses a future **cross-document observation** on the `REC-02` `UNMATCHED_PROVISION` shape — a document-level note that never occupies a Finding's classification. Still an owner decision if ever wanted |
+| 53 | **Within-document conflict detection is unchanged and already covers the real case** | The conflict that genuinely matters is two provisions in ONE document governing one scope and contradicting each other — MSA §17.2 vs §17.7 — which is `CONFLICT`, Tier 1, a human decides (fixture `DOC-LIAB-04`). Grouping documents adds nothing to it | — |
+
+### Second calibration batch and the arbitration precision fix, same day
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 54 | **`ARBITRATION-MSA-001`'s bare `arbitration` demoted from `exact_phrase` to alias** (owner approval: *"YES, fix it"*), and the Requirement given the same counterparty drafting variants as its TOS counterpart | At weight 5 a single mention confirmed the mapping, so a footnote reading *"Cf. the Arbitration Act, 1940"* confirmed a Requirement about whether a contract contains an arbitration clause. Now weight 3: two independent signals required. MSA 19.3–19.4 still confirms — it states both `arbitration` and `arbitrator` | The threshold, still STRUCTURAL at 5 |
+| 55 | **The five PRESENCE Requirements ratified 2026-08-19 were also calibrated** — `GOVLAW-MSA/TOS/NDA-001`, `COMPELLED-DISCLOSURE-NDA-001`, `RETURN-DESTRUCTION-NDA-001`. All five failed their first public specimen | The 2026-08-20 counterparty pass covered liability and the numeric clauses only; nobody had probed these. A public EDGAR NDA exhibit exposed all five at once: *"governed by and construed AND ENFORCED in accordance with"* misses the configured exact phrase by three inserted words, *"legally compelled … to disclose"* misses *"required by applicable law"*, and *"destroy all Confidential Information"* carries no `return` verb | Nothing — data only, same discipline as #48 |
+| 56 | **The remaining statute matches are NOT treated as defects and no `negative_patterns` were added** | After #54 the surviving matches are on text that genuinely discusses arbitration agreements and termination notice (Contract Act §28 Exception 1), scoring 6–9 from several independent signals. The control against a statute reaching the evaluator is the **declared Document Type at upload** — "statute" is not one of Step 6's ten values — not the mapper. Suppressing them would need negative terms that also suppress genuine contract clauses, which 35.10 forbids without a representative set | Whether a future ingestion-side guard should refuse an obvious statute — an owner/product question, raised not answered |
+| 57 | A latent **test defect** was found and fixed while pinning #54: the helper read scores from `map_requirement`, which exposes only candidates already at or above `confirm_threshold`, so `assert score < 5` passed on a score of 0 — trivially, for any terminology including terminology that matched nothing. It now reads `score_clause` directly and asserts `0 < score < 5`, so "recognised but not sufficient" is actually verified | A test that cannot fail is worse than no test: it reports safety it never checked | — |
+
+**Verification at close: 726 backend passed (26 calibration tests) · ruff/mypy clean · verify_terminology **32/32 PASS** · statute sweep 224 pairs, the bare-word match eliminated · `all_lock.md` untouched at 15,358 lines.**

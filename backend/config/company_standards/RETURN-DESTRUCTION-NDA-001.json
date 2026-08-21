@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard \u2014 NDA document type. OWNER DESIGNATION 2026-08-19:",
+    "RATIFIED Company Standard — NDA document type. OWNER DESIGNATION 2026-08-19:",
     "the executed NDA of 17 June 2026 IS the LeapSwitch NDA, i.e. the positions",
     "LeapSwitch accepts AS RECEIVING PARTY. Under the manager's whatever-is-stated",
     "rule those accepted positions are the baseline for reviewing counterparty NDAs",
@@ -15,7 +15,7 @@
   ],
   "requirement_code": "RETURN-DESTRUCTION-NDA-001",
   "ratified": "2026-08-19",
-  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 — NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
   "source_clause": "6 Return or Destruction",
   "source_quote": "the Receiving Party shall promptly return or permanently destroy all Confidential Information ... and shall certify such return or destruction in writing if requested",
   "configuration": {
@@ -36,7 +36,11 @@
     ],
     "aliases": [
       "return or destruction",
-      "destroy all copies"
+      "destroy all copies",
+      "destroy all confidential information",
+      "returned or destroyed",
+      "return all confidential information",
+      "certify such return"
     ],
     "keyword_groups": [
       [
@@ -46,6 +50,14 @@
       [
         "confidential",
         "destroy"
+      ],
+      [
+        "destroy",
+        "confidential information"
+      ],
+      [
+        "return",
+        "confidential information"
       ]
     ],
     "negative_patterns": [],
@@ -63,7 +75,18 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "",
+    "COUNTERPARTY CALIBRATION, 2026-08-21 (locked 35.10; owner tasking to",
+    "calibrate against public sources). This PRESENCE Requirement had never been",
+    "counterparty-calibrated - the 2026-08-20 pass covered the liability and",
+    "numeric clauses only. A public SEC EDGAR NDA exhibit exposed the gap:",
+    "\"governed by and construed AND ENFORCED in accordance with\" missed the",
+    "configured exact phrase, and \"legally compelled ... to disclose\" and",
+    "\"destroy all Confidential Information\" missed theirs. Added terms are",
+    "generic drafting synonyms only; no position, threshold or expected_presence",
+    "was touched (rules 7/21). Each scores 3 against confirm_threshold 5, so two",
+    "independent signals remain required."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

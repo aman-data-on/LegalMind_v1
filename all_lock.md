@@ -15356,3 +15356,293 @@ Conflicts open    C-05 · C-06 · C-07 · C-08 · C-10 · C-12
 Legal policy      none affected
 Schema impact     none
 ```
+
+
+---
+---
+
+# Document Type Determination & Multi-Document Review — `DOC-06`, `DOC-07`
+
+**Status: 🔒 LOCKED**
+**Date: 2026-08-21**
+**Two owner decisions on how a document's kind is established and how several
+documents are reviewed together. No new table. No new column. No schema change.
+No new permission. No new endpoint. No Legal Rule created. No Company Standard
+altered. No prior locked decision amended.**
+
+## Why these were decided
+
+A multi-document upload capability was proposed: a user supplies a set of
+counterparty documents — an MSA, a Terms of Service, a Service Level Agreement —
+and expects to see them reviewed together. Two questions had to be answered
+before any of it could be built, and neither was settled in this file.
+
+```text
+How is a document's TYPE established?      Step 6 fixes the ten types and is
+                                           silent on who determines which one
+                                           applies to a given file.
+
+What does it mean to review several        Step 26 r2 ties a Review to exactly
+documents "together"?                      one Document Version, and nothing
+                                           describes a set.
+```
+
+Both were answered by the owner on 2026-08-21. Recorded here because each has
+lasting force over what may be built, and because leaving either unwritten would
+invite it to be re-derived differently later.
+
+---
+
+## `DOC-06` — Document Type is DECLARED, never inferred
+
+### Owner decision, 2026-08-21
+
+```text
+The user SELECTS the Document Type from locked Step 6's ten values.
+
+Automatic detection of Document Type is OUT OF V1 SCOPE. Not deferred
+pending better tooling — excluded, on the reasoning below.
+
+It may be reconsidered as an OPTIONAL convenience in a later version if
+users ask for it, and only as a SUGGESTION a human confirms. It may never
+become the authoritative determination.
+```
+
+Owner's stated reasoning, recorded in the owner's own terms:
+
+```text
+"Safety over speed. This is a legal tool, not a casual app.
+ Accuracy matters more than convenience."
+```
+
+### Why this is a legal-safety decision and not a UI preference
+
+The Document Type selects which Requirements are evaluated and therefore which
+Company Standards a document is measured against. It is the first input to the
+analysis, and every Finding downstream inherits it.
+
+```text
+A document typed MSA   is measured against the MSA standards
+A document typed TOS   is measured against the TOS standards
+A document typed NDA   produces no liability Finding at all
+```
+
+So a wrong type does not degrade the answer — it produces a **confident answer to
+the wrong question**, against a baseline the document was never meant to meet.
+That is the class of quiet error `ENG-09` exists to prevent, and it is
+indistinguishable at the output from a correct answer.
+
+### What this settles
+
+```text
+Who determines the type            The uploader, by declaration
+Vocabulary                         Locked Step 6's ten values; no other
+                                   value is accepted
+An undeclared type                 Analysis REFUSES. It does not default,
+                                   and it does not guess (fail closed)
+Automatic detection in V1          EXCLUDED — rule-based, statistical and
+                                   model-based alike
+```
+
+### What this does NOT settle
+
+```text
+The selection UI              Presentation. Not decided here and not
+                              constrained by this entry beyond the
+                              vocabulary and the refusal.
+A later suggestion feature    A deterministic pre-fill a human confirms
+                              remains open for a future version. It would
+                              need its own decision, and the confirmed
+                              value would still be the declared one.
+Document SOURCE               Organization vs Counterparty (Step 6) is a
+                              separate axis and is untouched.
+```
+
+### Relationship to `AI-01`
+
+`AI-01` bars LLM, RAG, embeddings and vector databases from the authoritative
+analysis path. Because the Document Type determines which Requirements run, any
+detector of it sits inside that path. `DOC-06` therefore does not create a new
+constraint so much as make an existing one explicit at the point where it would
+otherwise have been argued about. Classical NLP remains permitted in an
+assist-only role, and an assist that a human confirms is not an authoritative
+determination.
+
+---
+
+## `DOC-07` — Multi-document review is TYPE-MATCHED PAIRING over a grouped set
+
+### Owner decision, 2026-08-21
+
+```text
+A user may upload a SET of documents. Each document in the set is
+analysed against the Requirements applicable to ITS OWN declared type,
+and the results are presented together, per document.
+
+  counterparty MSA  ->  compared with the LeapSwitch MSA standards
+  counterparty TOS  ->  compared with the LeapSwitch TOS standards
+  counterparty SLA  ->  compared with the LeapSwitch SLA standards
+
+Each document reports, against its own type's Requirements, what MATCHES,
+what DEVIATES and what is MISSING.
+
+A document is NEVER measured against another type's Requirements.
+```
+
+### The set is a GROUPING, not a legal object
+
+```text
+Locked Step 26 r2 stands UNCHANGED and UNWEAKENED:
+    "A Review is tied to exactly one Document Version."
+
+A set of N documents is therefore N Contracts, N Document Versions and
+N Reviews, each pinning its own configuration snapshot.
+
+"Reviewed together" describes PRESENTATION and submission convenience.
+It creates no record that carries a Finding, evidence or a Legal
+Decision, and it has no lifecycle of its own.
+```
+
+This is the whole reason the decision costs no schema change: the set is not a
+thing the legal model has to know about. Every guarantee that matters —
+reproducibility, evidence traceability, one snapshot per Review, one Legal
+Decision per Evaluation — is per Review and stays per Review.
+
+### Cross-TYPE comparison is OUT OF V1 SCOPE
+
+```text
+LegalMind does NOT compare one document type against another, in either
+direction:
+
+  a counterparty MSA against a counterparty TOS      NOT PERFORMED
+  a counterparty document against a LeapSwitch
+    standard of a DIFFERENT type                     NOT PERFORMED
+```
+
+Excluded because it would manufacture contradictions where the specification has
+already established there are none. Two worked examples, both already settled:
+
+```text
+Liability      MSA: 6 months of fees for the affected Services
+               TOS: 12 months of total fees
+               -> DIFFERENT questions. Different relationship (a signed
+                  master agreement vs click-through terms) and different
+                  basis (45B.4 forbids equating the two). Not a conflict.
+
+Confidentiality  MSA: 3 years from termination of the Agreement
+survival         NDA: 2 years from the LATER of NDA termination and the
+                      end of the underlying relationship
+                 -> DIFFERENT questions. The anchors differ, so the NDA's
+                    two years can run LONGER in absolute time than the
+                    MSA's three. "2 < 3" is not a true statement about
+                    protection strength.
+```
+
+A cross-type comparator would report both pairs as conflicts on the day it was
+switched on. It would also have no place to record the result: locked 44.18
+places conflict detection after fact extraction **within** a scope, and a Finding
+is unique per Review and Requirement version, so a finding spanning two documents
+belongs to no Review.
+
+### Conflict detection is unchanged, and already covers the real case
+
+```text
+The conflict that matters is TWO PROVISIONS IN ONE DOCUMENT governing one
+scope and contradicting each other — the worked example being MSA 17.2's
+six-month cap against 17.7's cap with a blank period.
+
+That is CONFLICT, it is Tier 1, all conflicting provisions are retained
+as evidence, and a human decides. Grouping documents neither adds to this
+nor subtracts from it.
+```
+
+### What this settles
+
+```text
+Multi-document upload           PERMITTED — N documents, N Reviews
+Requirement scoping             UNCHANGED and authoritative: each Review
+                                evaluates only its declared type's
+                                Requirements
+Per-document reporting          MATCH / DEVIATION / MISSING per document,
+                                against its own type
+The set as a record             NOT a legal object. No table, no column,
+                                no lifecycle, no Finding
+Cross-type comparison           OUT OF V1 SCOPE
+Within-document conflict        UNCHANGED
+```
+
+### What this does NOT settle
+
+```text
+How the grouping PERSISTS       Whether the set is held in client state
+                                only, or correlated through an existing
+                                JSONB metadata field, is an implementation
+                                choice and is NOT decided here. Either way
+                                it adds no table and no column.
+Combined export                 Locked 49.12 keeps export formats NOT YET
+                                SPECIFIED. Unchanged by this entry.
+A cross-document OBSERVATION    A document-level note reporting differing
+                                positions across a set WITHOUT classifying
+                                them as a conflict — the shape REC-02 uses
+                                for UNMATCHED_PROVISION — is neither
+                                authorized nor forbidden here. It would
+                                need its own decision.
+Aggregate scoring across a set  Forbidden already, and not revisited: 36.10
+                                bars a risk score as the primary V1 output
+                                and F-9 makes the alignment figure carry no
+                                legal meaning.
+Partial-set behaviour           One document failing analysis does not
+                                affect the others — each Review is
+                                independent, and ANALYSIS_FAILED is
+                                per-Review and terminal. How a partially
+                                complete set is PRESENTED is not decided
+                                here.
+```
+
+---
+
+## Not changed by `DOC-06` or `DOC-07`
+
+```text
+Step 6                          unchanged — the ten Document Types stand
+Step 26 r2                      unchanged — a Review is tied to exactly one
+                                Document Version. REQUIRED by DOC-07, not
+                                weakened by it
+Step 26 r15                     unchanged — different Document Types have
+                                separate Document identities. This is why a
+                                set is N Contracts rather than one
+Step 28                         unchanged — Requirement scoping by Document
+                                Type is reaffirmed as authoritative
+AI-01                           unchanged — made explicit at the type
+                                boundary by DOC-06, not relaxed
+45B.4                           unchanged — bases are never assumed
+                                comparable. DOC-07's exclusion of cross-type
+                                comparison follows from it
+44.18                           unchanged — conflict detection stays within
+                                a scope, after fact extraction
+REC-02                          unchanged — a document-level observation
+                                never occupies a Finding's classification
+36.10 / F-9                     unchanged — no risk score, no overall
+                                verdict, and none introduced across a set
+49.12                           unchanged — export formats NOT YET SPECIFIED
+Every locked table              unchanged — no schema impact whatsoever
+The SEC-04 permission catalogue unchanged — 27 permissions, none added
+Step 49's endpoint table         unchanged — no endpoint added
+Every Company Standard          unchanged — no position, threshold or
+                                tolerance touched
+Every Legal Rule                unchanged — none created, none altered
+Step 45E golden corpus          untouched by these entries
+```
+
+## Position
+
+```text
+DOC-01 - DOC-05   🔒        DOC-06   🔒        DOC-07   🔒
+Owner decisions   2026-08-21
+Schema impact     none
+Legal policy      none affected
+Requirement scoping  reaffirmed as authoritative
+Out of V1 scope   automatic Document Type detection (DOC-06);
+                  cross-TYPE document comparison (DOC-07)
+Open, unaffected  C-05 · C-06 · C-07 · C-08 · C-10 · C-12 · C-13
+```
