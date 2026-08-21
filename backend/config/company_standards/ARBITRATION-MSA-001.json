@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard ARBITRATION-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard ARBITRATION-MSA-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -8,8 +8,8 @@
   ],
   "requirement_code": "ARBITRATION-MSA-001",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
-  "source_clause": "19.3\u201319.4 Governing Law and Arbitration",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "19.3–19.4 Governing Law and Arbitration",
   "source_quote": "such differences and disputes shall be referred, at the option of either Party, to arbitration by a single arbitrator ... The arbitration shall take place in Mumbai, India",
   "configuration": {
     "document_type": "MSA",
@@ -24,16 +24,30 @@
   },
   "source_file": "MSA.pdf",
   "mapping_rules": {
-    "exact_phrases": [
-      "arbitration"
-    ],
+    "exact_phrases": [],
     "aliases": [
-      "arbitrator"
+      "arbitrator",
+      "arbitration",
+      "binding arbitration",
+      "resolved by arbitration",
+      "referred to arbitration",
+      "arbitral tribunal",
+      "arbitration agreement",
+      "sole arbitrator",
+      "seat of arbitration"
     ],
     "keyword_groups": [
       [
         "arbitration",
         "arbitrator"
+      ],
+      [
+        "arbitration",
+        "dispute"
+      ],
+      [
+        "arbitration",
+        "resolved"
       ]
     ],
     "negative_patterns": [],
@@ -51,7 +65,17 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "",
+    "PRECISION FIX, 2026-08-21 (owner approval: \"demote arbitration from exact",
+    "match to synonym\"). The bare word `arbitration` was an exact_phrase at",
+    "weight 5, so a SINGLE mention confirmed the mapping - a footnote reading",
+    "\"Cf. the Arbitration Act, 1940\" in the Indian Contract Act 1872 confirmed",
+    "this Requirement during the 2026-08-21 statute sweep. It is now an alias",
+    "(weight 3), so two independent signals are required, matching",
+    "ARBITRATION-TOS-001. The same pass added that Requirement's counterparty",
+    "drafting variants here. MSA 19.3-19.4 still confirms comfortably: it states",
+    "both `arbitration` and `arbitrator`."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

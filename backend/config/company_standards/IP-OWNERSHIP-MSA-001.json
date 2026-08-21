@@ -33,12 +33,24 @@
     "aliases": [
       "reservation of rights",
       "no transfer or license implied",
-      "intellectual property rights"
+      "intellectual property rights",
+      "intellectual property",
+      "proprietary rights",
+      "right, title, and interest",
+      "right, title and interest"
     ],
     "keyword_groups": [
       [
         "sole and exclusive",
         "intellectual property"
+      ],
+      [
+        "intellectual property",
+        "owned"
+      ],
+      [
+        "intellectual property",
+        "sole and exclusive"
       ]
     ],
     "negative_patterns": [],
@@ -56,7 +68,19 @@
     "confirms. Locked 35.9 fixes no threshold and 35.10 requires calibration",
     "against a representative counterparty set before the value is trusted;",
     "recalibration is a new mapping rule version (data), never a code change.",
-    "Verified against the real source document by tools/verify_terminology.py."
+    "Verified against the real source document by tools/verify_terminology.py.",
+    "",
+    "COUNTERPARTY CALIBRATION, 2026-08-21 (locked 35.10 direction; owner",
+    "tasking to calibrate against public sources until real counterparty",
+    "contracts arrive). The terminology below gained generic DRAFTING VARIANTS",
+    "observed in public specimens — public web terms and public SEC EDGAR",
+    "filings, test specimens only under the owner authorization of 2026-08-18.",
+    "Every added term is a synonym for how the clause type is worded, or the",
+    "clause type's generic name. NO added term states a legal position, and no",
+    "position, threshold or tolerance was touched by this pass (rules 7/21).",
+    "Safety: an alias or keyword group scores 3 against confirm_threshold 5, so",
+    "no single generic term can confirm a mapping on its own - two independent",
+    "signals are always required. Recalibration remains a data change."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard GOVLAW-TOS-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard GOVLAW-TOS-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -8,7 +8,7 @@
   ],
   "requirement_code": "GOVLAW-TOS-001",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) \u2014 TOS-leapswitch.pdf",
+  "source_document": "Leapswitch Networks Terms of Service (26 February 2026) — TOS-leapswitch.pdf",
   "source_clause": "22 Governing Law",
   "source_quote": "These Terms and any disputes arising out of or in connection with them shall be governed by and construed in accordance with the laws of India",
   "configuration": {
@@ -28,12 +28,25 @@
       "governed by and construed in accordance with"
     ],
     "aliases": [
-      "governing law"
+      "governing law",
+      "governed by",
+      "construed in accordance with",
+      "laws of the state",
+      "governing law and jurisdiction",
+      "shall be governed"
     ],
     "keyword_groups": [
       [
         "governed",
         "laws of"
+      ],
+      [
+        "governed",
+        "construed"
+      ],
+      [
+        "governing law",
+        "jurisdiction"
       ]
     ],
     "negative_patterns": [],
@@ -51,7 +64,18 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "",
+    "COUNTERPARTY CALIBRATION, 2026-08-21 (locked 35.10; owner tasking to",
+    "calibrate against public sources). This PRESENCE Requirement had never been",
+    "counterparty-calibrated - the 2026-08-20 pass covered the liability and",
+    "numeric clauses only. A public SEC EDGAR NDA exhibit exposed the gap:",
+    "\"governed by and construed AND ENFORCED in accordance with\" missed the",
+    "configured exact phrase, and \"legally compelled ... to disclose\" and",
+    "\"destroy all Confidential Information\" missed theirs. Added terms are",
+    "generic drafting synonyms only; no position, threshold or expected_presence",
+    "was touched (rules 7/21). Each scores 3 against confirm_threshold 5, so two",
+    "independent signals remain required."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",
