@@ -44,6 +44,7 @@ ACCEPTABLE_MAX = "acceptable_max"
 ACCEPTABLE_MAX_UNIT = "acceptable_max_unit"
 APPROVAL_REQUIRED_ABOVE = "approval_required_above"
 UNLIMITED_OUTCOME = "unlimited_outcome"
+DEVIATION_OUTCOME = "deviation_outcome"
 
 # Company Standard configuration keys (locked 42.8 JSONB)
 PREFERRED = "preferred"
@@ -115,10 +116,10 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                   rule_config: RuleConfiguration) -> EvaluationResult:
     version = evaluator_input.evaluator_version
     scope_key = cap.scope
-    base = dict(scope_key=scope_key, scope_label=cap.scope_label,
-                evaluation_kind=cap.cap_kind, evaluator_version=version,
-                evidence_refs=cap.evidence_refs,
-                evidence_relationships={e: "PRIMARY" for e in cap.evidence_refs})
+    base = {"scope_key": scope_key, "scope_label": cap.scope_label,
+            "evaluation_kind": cap.cap_kind, "evaluator_version": version,
+            "evidence_refs": cap.evidence_refs,
+            "evidence_relationships": dict.fromkeys(cap.evidence_refs, "PRIMARY")}
 
     # 45C.20 — scope needed but undeterminable. AGGREGATE is never assumed.
     if cap.scope == SCOPE_UNKNOWN and rule_config.scope_required:
@@ -206,7 +207,10 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
                        explanation=("Company Standard declares no preferred "
                                     "value for this Requirement",))
 
-    actual = cap.cap_value
+    # Non-None from here: the FINITE branch above returns UNABLE_TO_EVALUATE when
+    # either the value or the unit is missing (45C.19).
+    assert cap.cap_value is not None
+    actual: float = cap.cap_value
     expected = {PREFERRED: preferred, UNIT: standard.get(UNIT),
                 BASIS: standard.get(BASIS), SCOPE_KEY: standard.get(SCOPE_KEY)}
     actual_value = {"cap_value": actual, "cap_unit": cap.cap_unit,
@@ -246,6 +250,28 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
     if legal_rule is None:
         return RuleOutcome.NOT_APPLICABLE, "no Legal Rule configured"
     cfg = legal_rule.configuration or {}
+
+    # `deviation_outcome` — the ZERO-TOLERANCE key (manager ruling, recorded
+    # 2026-08-19: "whatever is stated in our approved legal documents is the
+    # final position"; any deviation -> UNACCEPTABLE -> Legal Decision). It
+    # exists because the threshold keys CANNOT express zero tolerance:
+    # `acceptable_max = preferred` would wrongly ACCEPT below-preferred values.
+    # Checked first, deliberately: a blanket disposition and a threshold band in
+    # one rule would contradict each other, and the blanket one is the stated
+    # policy. This only maps an ALREADY-DETECTED deviation onto an outcome —
+    # the comparison itself is untouched, and MATCH never reaches here.
+    blanket = cfg.get(DEVIATION_OUTCOME)
+    if blanket is not None:
+        try:
+            return (RuleOutcome(blanket),
+                    f"deviation_outcome {blanket} (zero-tolerance rule)")
+        except ValueError:
+            # An unrecognised outcome is a misconfiguration, not permission to
+            # guess: fall through to NOT_APPLICABLE and a human (ENG-09).
+            return (RuleOutcome.NOT_APPLICABLE,
+                    f"deviation_outcome {blanket!r} is not a valid RuleOutcome; "
+                    "treated as unruled")
+
     approval_above = cfg.get(APPROVAL_REQUIRED_ABOVE)
     acceptable_max = cfg.get(ACCEPTABLE_MAX)
 
@@ -328,7 +354,7 @@ def _conflict(evaluator_input, scope_key: str,
              "cap_unit": c.cap_unit, "cap_basis": c.cap_basis} for c in caps]},
         evidence_refs=evidence,
         # Every conflicting provision is retained as CONFLICTING evidence.
-        evidence_relationships={e: "CONFLICTING" for e in evidence},
+        evidence_relationships=dict.fromkeys(evidence, "CONFLICTING"),
         explanation=(
             f"{len(caps)} incompatible provisions govern scope {scope_key}",
             "no configured precedence rule resolves them; reported as CONFLICT",

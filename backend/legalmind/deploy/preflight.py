@@ -64,6 +64,12 @@ def run_preflight(*, environment: str | None = None) -> list[Check]:
         _docs_disabled(),
         _cookie_flags(),
         _rate_limiting(),
+        _analysis_worker(),
+        _tls(),
+        _encrypted_storage(),
+        _upload_validation(),
+        _safe_parsing(),
+        _reproducibility_gate(),
         _oidc_configured(),
         _malware_scanning(),
         _retention_policy(),
@@ -181,6 +187,127 @@ def _rate_limiting() -> Check:
                      basis="55.2, S-5")
     return Check("rate_limiting", PASS, "shared rate limiting configured",
                  basis="55.2, S-5")
+
+
+def _analysis_worker() -> Check:
+    """55.1 — analysis is a worker job behind a queue, not work done in a request.
+
+    Without a broker the API still analyses correctly, inline. That is a development
+    convenience and not the locked shape, and it fails here rather than passing
+    quietly, because the difference is invisible from the outside: the same 2xx comes
+    back either way. In production it also means an HTTP request holds a connection
+    for the length of a full analysis, and a client timeout or a redeploy mid-request
+    would abandon a Review that a queue would have retried.
+    """
+    from legalmind.config import broker_url
+
+    if broker_url() is None:
+        return Check("analysis_worker", FAIL,
+                     "LEGALMIND_BROKER_URL is not set, so analysis would run inline "
+                     "in the API request. Locked 55.1 makes it a worker job on the "
+                     "same image; set the broker and run "
+                     "`celery -A legalmind.worker.app worker -Q analysis`",
+                     basis="55.1, Step 39")
+    return Check("analysis_worker", PASS,
+                 "broker configured; analysis dispatches to a worker running the "
+                 "same image (55.1)",
+                 basis="55.1, Step 39")
+
+
+def _tls() -> Check:
+    """55.2 — "TLS everywhere, including between the app and the database where the
+    network is not fully trusted."
+
+    Not checkable from inside the process for the inbound half: the application sits
+    behind the reverse proxy that terminates TLS, so it cannot observe what the client
+    negotiated. The database half *is* visible in the connection URL, so an explicit
+    `sslmode=disable` is reported as a failure rather than an attestation.
+    """
+    url = os.environ.get("LEGALMIND_DATABASE_URL", "")
+    if "sslmode=disable" in url:
+        return Check("tls", FAIL,
+                     "the database URL sets sslmode=disable",
+                     basis="55.2, Step 39")
+    return Check("tls", ATTEST,
+                 "inbound TLS terminates at the reverse proxy and cannot be observed "
+                 "from here; confirm it, and confirm the database connection is "
+                 "encrypted where the network is not fully trusted",
+                 basis="55.2, Step 39")
+
+
+def _encrypted_storage() -> Check:
+    """55.2 — "Documents encrypted at rest where the platform supports it."
+
+    A platform property. The storage backend is injected (Step 55), so whether the
+    volume or bucket behind it is encrypted is invisible to the application by design.
+    """
+    return Check("encrypted_storage", ATTEST,
+                 "documents are written through an injected storage backend; "
+                 "encryption at rest is a platform property and must be confirmed "
+                 "where the platform supports it",
+                 basis="55.2, Step 39")
+
+
+def _upload_validation() -> Check:
+    """55.2 — "Type, size and structure validated before parsing", and locked 34.16's
+    untrusted-input posture. Checkable, and checked against the code that enforces it
+    rather than against a configuration flag."""
+    from legalmind.config import max_upload_bytes
+    from legalmind.ingestion.validation import SUPPORTED_MIME_TYPES, sniff_mime
+
+    limit = max_upload_bytes()
+    if not SUPPORTED_MIME_TYPES:
+        return Check("upload_validation", FAIL,
+                     "no MIME type is accepted; validation would reject everything",
+                     basis="55.2, 34.16")
+    if limit <= 0:
+        return Check("upload_validation", FAIL,
+                     f"the upload ceiling is {limit}", basis="55.2, 34.16")
+    # The declared type is treated as a claim: the magic bytes decide. Asserted here
+    # because a validator that trusted the client would pass every other check.
+    if sniff_mime(b"not a document") is not None:
+        return Check("upload_validation", FAIL,
+                     "content sniffing accepts arbitrary bytes",
+                     basis="55.2, 34.16")
+    return Check("upload_validation", PASS,
+                 f"{len(SUPPORTED_MIME_TYPES)} accepted types, sniffed from content "
+                 f"rather than the client's claim; ceiling {limit} bytes",
+                 basis="55.2, 34.16")
+
+
+def _safe_parsing() -> Check:
+    """55.2 — "Document parsing sandboxed and resource-limited; a malformed file must
+    not compromise the host."
+
+    Both halves are properties of the execution environment rather than of the parser:
+    a sandbox is the container, and a resource limit is its memory and CPU budget. The
+    in-process control that *is* enforced is the upload ceiling, which bounds the input
+    before a parser sees it. **No parse-time limit is invented here** — choosing a page
+    or element cap would be inventing a threshold, and no locked decision fixes one.
+    """
+    from legalmind.config import max_upload_bytes
+
+    return Check("safe_parsing", ATTEST,
+                 f"input is bounded before parsing by the {max_upload_bytes()}-byte "
+                 "upload ceiling, and parsing failures are contained per page. "
+                 "Sandboxing and CPU/memory limits are container-level: confirm the "
+                 "deployment applies them",
+                 basis="55.2, 34.16, Step 39")
+
+
+def _reproducibility_gate() -> Check:
+    """55.4 r3 / 55.5 — "after any migration, historical Reviews must still replay
+    identically … this is a release-gate test, not an assumption."
+
+    The preflight cannot run it: the gate applies a migration and re-analyses, which is
+    a release-pipeline act rather than a start-up check. It is reported here so the
+    register names it, and it is implemented as `tools/verify_reproducibility.py`.
+    """
+    return Check("reproducibility_gate", ATTEST,
+                 "run `python3 -m tools.verify_reproducibility` in the release "
+                 "pipeline after applying migrations (locked 55.5 places it between "
+                 "the migration and the deploy). CI runs it on every change",
+                 basis="55.4 r3, 55.5, 54.3")
 
 
 def _oidc_configured() -> Check:

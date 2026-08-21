@@ -55,6 +55,11 @@ pnpm-debug.log*
 .pnpm-store/
 
 # ─── Legal source material — NEVER commit ───────────────────────────────────
+# Owner ruling 2026-08-19: the supplied legal documents live INSIDE the project
+# at legal-docs/ for convenience, but NEVER enter version control (locked 54.6).
+# tests/test_source_material.py verifies this rule is present and nothing under
+# the directory is tracked.
+legal-docs/
 # Step 54: real counterparty contracts never enter the repository.
 # Step 55: real contracts never leave production.
 # Golden-corpus fixtures are synthetic or cleared text only.
@@ -62,6 +67,15 @@ pnpm-debug.log*
 *.docx
 *.doc
 !docs/**/*.pdf
+# An ARCHIVE walks the blocked types straight past an extension rule. Found
+# 2026-08-18, when a zip of seven statute PDFs landed in the repository root and
+# neither this file nor CI job 8 objected.
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
 uploads/
 storage/
 object-store/
@@ -99,3 +113,17 @@ logs/
 celerybeat-schedule
 celerybeat.pid
 *.pid
+
+# ─── Browser-suite artefacts (Playwright, Step 39) ──────────────────────────
+# `e2e/.auth/` holds real session cookies for the synthetic e2e accounts, and
+# `.fixture.json` holds their credentials. Neither is a production secret (55.3:
+# development is synthetic data only) and neither belongs in the repository.
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/e2e/.auth/
+frontend/e2e/.fixture.json
+frontend/e2e/.fixture-snapshot.json
+# Generated STRUCTURAL document, the e2e object store and verification logs. The
+# document is also caught by `*.docx` above, which CI job 8 enforces separately.
+backend/.e2e/

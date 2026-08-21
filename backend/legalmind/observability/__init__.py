@@ -19,19 +19,19 @@ from legalmind.observability.logs import (
     log_event,
     log_exception,
 )
-from legalmind.observability.redaction import redact_fields
 from legalmind.observability.metrics import (
     ANALYSIS_SIGNALS,
     classification_signal,
     is_operational_failure,
 )
+from legalmind.observability.redaction import redact_fields
 
 __all__ = [
+    "ANALYSIS_SIGNALS",
+    "classification_signal",
     "configure_logging",
+    "is_operational_failure",
     "log_event",
     "log_exception",
     "redact_fields",
-    "ANALYSIS_SIGNALS",
-    "classification_signal",
-    "is_operational_failure",
 ]

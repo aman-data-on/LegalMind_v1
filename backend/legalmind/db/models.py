@@ -12,7 +12,6 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
-    Enum as SAEnum,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -20,9 +19,13 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.orm import mapped_column
 
 from legalmind.db.base import (
+    TS,
     Base,
     UUIDType,
     fk_uuid,
@@ -128,7 +131,7 @@ class UserSession(Base):
     user_id = fk_uuid("users.id", ondelete="CASCADE")
     created_at = ts_created()
     last_seen_at = ts_created()
-    expires_at = mapped_column(__import__("legalmind.db.base", fromlist=["TS"]).TS, nullable=False)
+    expires_at = mapped_column(TS, nullable=False)
     revoked_at = ts_nullable()
     revoked_reason = _str(nullable=True)
 
@@ -149,7 +152,8 @@ class UserIdentity(Base):
 
     id = pk_uuid()
     user_id = fk_uuid("users.id", ondelete="CASCADE")
-    provider = mapped_column(_enum(E.IdentityProvider, "identity_provider"), nullable=False)
+    provider = mapped_column(_enum(E.IdentityProvider, "identity_provider"),
+                             nullable=False)
     provider_subject = _str(nullable=True)
     credential_hash = _str(nullable=True)
     created_at = ts_created()
@@ -227,8 +231,10 @@ class DocumentProcessingRun(Base):
 
     id = pk_uuid()
     document_version_id = fk_uuid("document_versions.id")
-    run_type = mapped_column(_enum(E.ProcessingRunType, "processing_run_type"), nullable=False)
-    status = mapped_column(_enum(E.ProcessingRunStatus, "processing_run_status"), nullable=False)
+    run_type = mapped_column(_enum(E.ProcessingRunType, "processing_run_type"),
+                             nullable=False)
+    status = mapped_column(_enum(E.ProcessingRunStatus, "processing_run_status"),
+                           nullable=False)
     processor_version = _str(nullable=True)
     started_at = ts_nullable()
     completed_at = ts_nullable()
@@ -256,7 +262,8 @@ class DocumentEvidence(Base):
     section_number = _str(nullable=True)
     section_title = _text()
     content = mapped_column(Text, nullable=False)
-    source_type = mapped_column(_enum(E.EvidenceSourceType, "evidence_source_type"), nullable=False)
+    source_type = mapped_column(_enum(E.EvidenceSourceType, "evidence_source_type"),
+                                nullable=False)
     start_offset = mapped_column(BigInteger, nullable=True)
     end_offset = mapped_column(BigInteger, nullable=True)
     created_at = ts_created()
@@ -296,7 +303,8 @@ class RequirementVersion(Base):
     version_number = mapped_column(Integer, nullable=False)
     name = _str()
     description = _text()
-    evaluator_type = mapped_column(_enum(E.EvaluatorType, "evaluator_type"), nullable=False)
+    evaluator_type = mapped_column(_enum(E.EvaluatorType, "evaluator_type"),
+                                   nullable=False)
     created_by = fk_uuid("users.id")
     created_at = ts_created()
 

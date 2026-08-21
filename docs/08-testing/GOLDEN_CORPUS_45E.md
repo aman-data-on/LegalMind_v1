@@ -196,3 +196,43 @@ Per locked 44.34–44.35 and REGRESSION_TESTING:
 **64 fixtures specified.** Authoring the actual documents and expected outputs is implementation work, gated on the representative contract test set that Step 35's threshold calibration also requires.
 
 **Dependency:** Step 35's mapping thresholds are explicitly provisional pending a representative contract set. The corpus and the threshold calibration should be built from the same document set — they are the same data-gathering exercise.
+
+---
+
+# 45E.9 Coverage record — added 2026-08-18
+
+**This section records where authoring stands. It changes nothing above it.**
+
+Per-fixture status for all 64 ids specified in this document lives in
+`backend/tests/corpus_coverage.json`, enforced by `backend/tests/test_corpus_coverage.py`
+— the ids are derived from this specification rather than copied, so a forgotten or
+invented case fails a test rather than passing unnoticed.
+
+As of 2026-08-18: **14 AUTHORED · 1 AUTHORED_RATIFIED · 3 PARTIAL · 25 BLOCKED ·
+13 STRUCTURAL_ONLY · 8 SEPARATE_TRACK** (the last being 45E.6's workflow track).
+
+⚠️ **45E.2's expected-outcome column for L-01 – L-04 was written against the illustrative
+six-month standard, and the ratified Company Standard is twelve months of total fees**
+(owner, 2026-08-18). Those rows are therefore no longer the expected outcomes: a twelve-month
+cap `MATCH`es rather than deviating, and the only six-month cap in the supplied documents
+measures on a different basis and fails closed. The manifest status `AUTHORED_RATIFIED`
+marks a case where ratification supersedes this document's illustration. **No text above has
+been altered** — CLAUDE.md is explicit that the six-month examples illustrate behaviour
+rather than state a position, so this is the illustration behaving as labelled, not a
+conflict.
+
+Authored cases carry one of two provenances. `DOCUMENT_SUPPORTED` expectations follow from
+real clause text plus this specification's fail-closed rules, with no Company Standard value
+involved. `STANDARD_DERIVED` expectations are measured against a position the supplied
+documents *explicitly state*, per the owner's V1 interim policy of 2026-08-18, and may
+assert `MATCH` or `DEVIATION`.
+
+**Neither tier may assert a Rule Outcome other than `NOT_APPLICABLE`.** No approved Company
+Acceptance Policy or Legal Rule exists, and locked Step 20 r4 already gives
+`NOT_APPLICABLE` the needed meaning — *no Pre-approved Legal Rule; the deviation stands and
+a human decides*. This is why several rows here read PARTIAL rather than AUTHORED: 45E.2
+expects outcomes such as `ACCEPTABLE` (L-02) and `UNACCEPTABLE` (L-08) that presuppose a
+policy. **No `NORMATIVE` fixture exists**, and none may be authored until that policy is
+approved — see
+[../00-project/SOURCE_MATERIAL_INTAKE.md](../00-project/SOURCE_MATERIAL_INTAKE.md), which
+records what the first tranche of material did and did not cover.

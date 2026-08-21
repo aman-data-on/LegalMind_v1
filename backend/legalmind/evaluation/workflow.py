@@ -26,6 +26,36 @@ DECISION_REQUIRING_OUTCOMES = frozenset({
     RuleOutcome.UNACCEPTABLE,
 })
 
+#: **The owner's V1 fail-closed policy, 2026-08-18.**
+#:
+#: *"If there is no explicit Legal Rule in the supplied material telling LegalMind
+#: whether that deviation is acceptable, requires approval, or is unacceptable, the
+#: outcome should remain NOT_APPLICABLE and be sent for human Legal review."*
+#:
+#: This is a **widening** of the locked D-3.5 baseline, which F-4 expressly permits
+#: ("Configuration may only WIDEN this set, never narrow it") and which ENG-09
+#: favours: it sends strictly more to a human, never less. Nothing is narrowed and
+#: no locked decision is amended.
+#:
+#: It is needed because D-3.5 alone does not cover this case. `DEVIATION` is Tier 2,
+#: so without this a deviation carrying `NOT_APPLICABLE` matched none of D-3.5's
+#: four conditions and the Finding derived to `OPEN` — meaning "nothing ever
+#: required a decision". Locked Step 20 r4 says the opposite in prose: with no rule
+#: "the deviation stands and a human decides". This closes that gap.
+#:
+#: `DEVIATION` + `NOT_APPLICABLE` is exactly the un-ruled case, and always is:
+#: `_rule_outcome_for` returns `NOT_APPLICABLE` only when no Legal Rule is
+#: configured or no configured threshold applies to the value. So the condition
+#: never fires where a rule has actually dispositioned the deviation.
+#:
+#: Consequence, recorded rather than discovered later: **no Legal Rule exists
+#: anywhere in V1**, so in practice every deviation now requires a Legal Decision,
+#: and a Review holding one cannot complete until an authorized human rules on it.
+#: That is the requested behaviour, not a side effect.
+#:
+#: Set `False` only alongside an approved Legal Rule that dispositions deviations.
+UNRULED_DEVIATION_REQUIRES_DECISION = True
+
 
 def evaluation_requires_decision(
     *,
@@ -43,12 +73,23 @@ def evaluation_requires_decision(
 
     Configuration may only WIDEN this set, never narrow it (F-4): it reconciles
     Step 27 r12 (severity is configuration-driven) with ENG-09 (fail-closed).
+
+    (e) is that widening, per the owner's V1 policy — see
+    ``UNRULED_DEVIATION_REQUIRES_DECISION``.
     """
     if rule_outcome in DECISION_REQUIRING_OUTCOMES:
         return True
     if is_tier_1(classification):
         return True
     if classification is FindingClassification.MISSING and requirement_required:
+        return True
+    # (e) A deviation no configured rule has dispositioned. Widening only.
+    if widen_decision_requirement(
+        baseline=False,
+        configured=(UNRULED_DEVIATION_REQUIRES_DECISION
+                    and classification is FindingClassification.DEVIATION
+                    and rule_outcome is RuleOutcome.NOT_APPLICABLE),
+    ):
         return True
     return bool(escalated)
 

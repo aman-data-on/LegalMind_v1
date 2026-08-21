@@ -1,0 +1,78 @@
+{
+  "_about": [
+    "RATIFIED Company Standard AUTORENEW-TOS-001 — extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Ratified 2026-08-20 under the owner's coverage-gap tasking",
+    "(AUTO_MODE_DECISIONS.md #44-#46). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md.",
+    "It is CONFIGURATION: no all_lock.md entry, no locked decision amended.",
+    "PRESENCE Requirement: it verifies the provision EXISTS. The clause's CONTENT goes to Legal with the evidence — categorical value comparison is a V2 evaluator (CLAUSE_CATALOGUE.md).",
+    "Closes the second asymmetry of 2026-08-20: AUTORENEW-MSA-001 existed while TOS 4 auto-renewed with no Requirement. PRESENCE, not numeric, and deliberately so: the TOS renews for 'the same billing period' — a self-referential term, not a magnitude — so there is no number to compare, and the MSA's six-month successive period is a DIFFERENT question on a different document type (45B.4)."
+  ],
+  "requirement_code": "AUTORENEW-TOS-001",
+  "ratified": "2026-08-20",
+  "source_document": "Leapswitch Terms of Service, last updated 26 February 2026 — TOS-leapswitch.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "4 Payment Terms — Auto-Renewal",
+  "source_quote": "Auto-Renewal: Unless cancelled prior to the renewal date, Services will automatically renew for the same billing period. We will issue an invoice at least 7 days before the renewal date.",
+  "configuration": {
+    "document_type": "TOS",
+    "expected_presence": "PRESENT",
+    "scope_key": "AUTO_RENEWAL",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "source_file": "TOS-leapswitch.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "automatically renew for the same billing period"
+    ],
+    "aliases": [
+      "auto-renewal",
+      "renewal date"
+    ],
+    "keyword_groups": [
+      [
+        "automatically renew",
+        "cancelled"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "payment terms"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terminology, ratified with the standard on 2026-08-20. Every term is",
+    "drawn from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - the position lives",
+    "in `configuration.expected_presence`, sourced above). confirm_threshold 5 is",
+    "STRUCTURAL and matches the 21 standards ratified 2026-08-19: one exact phrase",
+    "confirms. Locked 35.9 fixes no threshold and 35.10 requires calibration",
+    "against a representative counterparty set before the value is trusted;",
+    "recalibration is a new mapping rule version (data), never a code change.",
+    "Verified against the real source document by tools/verify_terminology.py."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- an absent provision included -> UNACCEPTABLE -> Legal",
+    "Decision required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ]
+}

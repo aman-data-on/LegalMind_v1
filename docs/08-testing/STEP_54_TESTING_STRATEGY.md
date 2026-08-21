@@ -90,3 +90,34 @@ Locked 41.24 and Step 47 make these non-negotiable:
 A release requires: the full golden corpus passing with no unreviewed diff; all Tier-4 authorization tests passing; all Tier-3 invariants passing; and determinism/reproducibility tests passing.
 
 **NOT YET SPECIFIED:** coverage targets, test framework selection, CI topology — implementation-phase choices, none determined by a locked decision.
+
+---
+
+## 📎 Implementation note — appended 2026-08-17, locked text unchanged
+
+Nothing above is modified. This note records how the implementation sits against 54.1
+and 54.7, because two things about it are easy to get wrong.
+
+**The browser suite is not a tier and not a gate.** `frontend/e2e/` (Playwright, 22
+tests) exists for the locked properties no other layer can prove — S-3's `HttpOnly`
+session cookie, `LEGAL-02` omission surviving the proxy to the rendered page, 52.7's
+no-optimistic-UI rule including the `409` path, and SEC-02's no-bypass claim over real
+HTTP. **54.1's six tiers contain no browser tier and 54.7's release gate does not list
+one**, so it is documented as supporting, and CI job 10 says so in its own comment. It
+must not be cited as a release gate.
+
+**The framework question is registered as `C-12`, not resolved.** Locked Step 39's stack
+table names `Pytest + Playwright` and `Vitest`; 54.7 above lists "test framework
+selection" as NOT YET SPECIFIED and adds that none of its items "is determined by a
+locked decision". Both readings permit the frameworks in use — under the first they are
+locked, and under the second they are an implementation choice that is still inside the
+Step 39 stack — so the conflict blocks nothing and is recorded in
+[CONFLICTS.md](../00-project/CONFLICTS.md) rather than decided.
+
+**Coverage targets remain unset**, per 54.7. CI job 1 (`ruff`, `mypy`) is blocking at a
+zero baseline, which is a defect gate rather than a coverage target.
+
+Tier-by-tier state, and the corpus's real status, are in
+[IMPLEMENTATION_STATUS.md](../00-project/IMPLEMENTATION_STATUS.md); verification by
+mechanisms independent of the tests is recorded in
+[INDEPENDENT_VERIFICATION.md](INDEPENDENT_VERIFICATION.md).

@@ -23,7 +23,7 @@ error, and it does not fabricate evidence.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -33,7 +33,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion import parsing
 from legalmind.ingestion.storage import StorageBackend, fingerprint
-from legalmind.ingestion.validation import UploadRejected, validate_upload
+from legalmind.ingestion.validation import validate_upload
 
 PROCESSOR_VERSION = "legalmind-ingest-v1"
 
@@ -48,7 +48,7 @@ class IngestResult:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def find_duplicate(db: DBSession, contract_id: UUID,

@@ -13,7 +13,6 @@ from legalmind.domain import enums as E
 from legalmind.security import audit as A
 from legalmind.security.errors import Unauthenticated
 from legalmind.security.sessions import (
-    SESSION_LIFETIME,
     create_session,
     resolve_session,
     revoke_all_for_user,

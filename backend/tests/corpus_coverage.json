@@ -1,0 +1,361 @@
+{
+ "_about": [
+  "Coverage manifest for the 64 fixtures specified in Step 45E (docs/08-testing/GOLDEN_CORPUS_45E.md).",
+  "Every specified fixture id appears here exactly once, so a case cannot be silently forgotten:",
+  "test_corpus_coverage.py fails if an id is missing, unknown, or claims AUTHORED without a fixture.",
+  "",
+  "This manifest records COVERAGE, not build state, and asserts no legal conclusion.",
+  "",
+  "status:",
+  "  AUTHORED           45E's stated expectation is fully asserted from real supplied material.",
+  "  AUTHORED_RATIFIED  The case is authored, and its outcome differs from 45E's because 45E's",
+  "                     expectation was written against the ILLUSTRATIVE six-month standard.",
+  "                     The ratified Company Standard (12 months of total fees, owner 2026-08-18)",
+  "                     supersedes it. Nothing is owed by the owner; the note records the change.",
+  "  PARTIAL            A real clause is encoded and the specification half is asserted, but 45E's",
+  "                     stated expected outcome still requires an owner input named in `needs`.",
+  "  BLOCKED            Not authorable yet. `needs` names exactly what is missing.",
+  "  STRUCTURAL_ONLY    Covered by STRUCTURAL fixtures. No fact in any supplied document bears on",
+  "                     it, so a document-derived version would add nothing and would overstate.",
+  "  SEPARATE_TRACK     45E.6 \u2014 exercises human process, not the deterministic engine.",
+  "  UNSTARTED          Precondition met and NOTHING is owed by the owner; the fixture has simply",
+  "                     not been authored yet. Distinguished from BLOCKED so the owner's list of",
+  "                     outstanding items stays honest.",
+  "  OUT_OF_V1_SCOPE    The owner decided the Requirement or configuration this case needs is not",
+  "                     part of V1. Nothing is owed by the owner and nothing is blocked.",
+  "",
+  "needs:",
+  "  LEGAL_RULE                 DECIDED 2026-08-19: ZERO TOLERANCE (any deviation ->",
+  "                             UNACCEPTABLE -> Legal Decision). Cases tagged with this now",
+  "                             await the ENGINE WIRING (a deviation_outcome config key), not",
+  "                             an owner decision; deviations already route to a human",
+  "                             meanwhile, so nothing is auto-approved today either.",
+  "  SCOPE_RULING               an extraction/scope reading only the owner can settle",
+  "  SECOND_TRANCHE             the supplied documents contain no specimen of this pattern",
+  "",
+  "COMPANY_STANDARD is no longer a `needs` value: standards are ratified and live under",
+  "backend/config/company_standards/ \u2014 LIABILITY-MSA-001 (6 months, affected-service fees,",
+  "MSA.pdf 17.2) and LIABILITY-TOS-001 (12 months, total fees, TOS-leapswitch.pdf 13),",
+  "per owner decision Q3=B of 2026-08-19 (per-type standards).",
+  "",
+  "OWNER RULINGS, 2026-08-18 \u2014 these closed four questions and are not open items:",
+  "  Company Standard     ratified 12 months/total fees 2026-08-18; re-scoped per-type 2026-08-19 (Q3=B)",
+  "  Legal Rule           ZERO TOLERANCE (manager, 2026-08-19): any deviation -> UNACCEPTABLE -> Legal; wiring pending, routing already fail-closed",
+  "  Basis comparability  FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES stay DISTINCT",
+  "  Requirement catalogue  liability cap only in V1",
+  "  MSA 17.2 vs 17.7     one scope, contradictory -> CONFLICT",
+  "  Source-material path  outside the repository, at an agreed local directory",
+  "",
+  "TEST-ONLY COUNTERPARTY SPECIMENS (owner authorization, 2026-08-18):",
+  "  CP-LIAB-* fixtures cite public web terms of third-party providers, used FOR TESTING",
+  "  ONLY. They are test inputs, never a source of Company Standards, Legal Rules or any",
+  "  configuration value. The six owner-supplied documents remain the project's source",
+  "  material (CLAUDE.md, Source material).",
+  "",
+  "SOURCE DOCUMENTS PLACED, 2026-08-18: all six are now at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "  and legalmind.ingestion.parsing reads each as COMPLETE. DOCUMENT_LEVEL_HARNESS is no",
+  "  longer a `needs` value; the ingestion-path fixtures are UNSTARTED work, not blocked."
+ ],
+ "L-01": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-01, STD-LIAB-02, CP-LIAB-01",
+  "note": "CLOSED 2026-08-19 by owner decision Q3=B (per-type standards). 45E.2 expects a six-month aggregate cap -> MATCH / NOT_APPLICABLE, and STD-LIAB-02 now asserts exactly that: MSA 17.2's six months against the MSA standard ratified from that clause. Blocked since authoring began, because under the global 12-month standard no six-month total-fees specimen existed; under the per-type model none is needed."
+ },
+ "L-02": {
+  "status": "AUTHORED_RATIFIED",
+  "fixture": "DOC-LIAB-02, STD-LIAB-01",
+  "note": "The twelve-month cap MATCHES the ratified ToS standard (LIABILITY-TOS-001), asserted from the organization's own ToS (STD-LIAB-01). 45E's illustrative DEVIATION/ACCEPTABLE assumed a six-month standard and is superseded by ratification. CP-LIAB-04 (Linode MSA) no longer covers this case: under per-type standards it is measured against the MSA standard and fails closed on basis (see L-11)."
+ },
+ "L-03": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "Still no specimen. NOTE THE TRAP: OVHcloud's 'Customer may not bring a claim ... more than eighteen (18) months after the cause of action arises' is a LIMITATION PERIOD \u2014 a deadline to sue \u2014 not a liability cap. Encoding it as an 18-month cap would be a fabricated finding."
+ },
+ "L-04": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "No supplied document contains unlimited-liability wording for a general cap. The LEGAL_RULE half of the blocker was resolved 2026-08-20 (zero tolerance approved & wired); only the specimen is still missing \u2014 the owner will supply negotiated/customer-drafted paper (2026-08-20)."
+ },
+ "L-05": {
+  "status": "AUTHORED",
+  "fixture": "CP-LIAB-03",
+  "note": "45E's expectation met exactly \u2014 two Evaluations, not CONFLICT (45C.1). Microsoft Customer Agreement sets separate ceilings for perpetual-licence and subscription product scopes; each fails closed for its own stated reason and neither is flattened into the other."
+ },
+ "L-06": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-04"
+ },
+ "L-07": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-05, DOC-LIAB-07"
+ },
+ "L-08": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-05, STD-LIAB-03",
+  "note": "CLOSED 2026-08-20: the zero-tolerance Legal Rule was approved and wired (deviation_outcome + unlimited_outcome = UNACCEPTABLE), so STD-LIAB-03 now asserts 45E's full L-08 shape \u2014 general MATCH against the ratified standard, three UNLIMITED carve-outs each DEVIATION/UNACCEPTABLE requiring a Legal Decision, roll-up DEVIATION, 45C.4 holding."
+ },
+ "L-09": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "No per-claim cap in any supplied document. 'the event giving rise to the claim' is a timing anchor, not a per-claim scope."
+ },
+ "L-10": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "No per-event cap in any supplied document."
+ },
+ "L-11": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-06, STD-LIAB-02, CP-LIAB-04",
+  "note": "Basis incomparability asserted twice on real material: DOC-LIAB-06 (two bases inside one agreement, no standard) and CP-LIAB-04 (a third party's total-fees cap against the affected-services MSA standard \u2014 same number, different quantity, fails closed). STD-LIAB-02 formerly demonstrated this and now demonstrates the MATCH side; it is listed for traceability because its clause is the comparison's other half."
+ },
+ "L-12": {
+  "status": "AUTHORED",
+  "fixture": "CP-LIAB-02",
+  "note": "45E's expectation met exactly \u2014 UNABLE_TO_EVALUATE, not DEVIATION (45C.8/45C.23). GoDaddy caps at a fixed $10,000 with no time period; the engine refuses to compare dollars against months rather than reporting the cap as MISSING."
+ },
+ "L-13": {
+  "status": "OUT_OF_V1_SCOPE",
+  "note": "RULED 2026-08-20 (owner): service credits are a REMEDY, not a liability cap \u2014 SLA service credits are NOT within LIABILITY-001's scope, and liability remains not applicable to the SLA document type. No liability Finding is produced for an SLA (document-type scoping, owner Q5 + this ruling); the percentage specimens (credit bands, MSA 7.6.7's 200%) are therefore out of the evaluator's scope by decision, not by gap. No fixture is needed: the scoping filter is pinned by the document-type tests, and creating an SLA-typed liability standard from credits is now expressly ruled out."
+ },
+ "L-14": {
+  "status": "UNSTARTED",
+  "note": "Real specimens exist (MSA 17.3 to 16; ToS 9 to the SLA) but cross-reference resolution happens in extraction, not the evaluator, so this needs the document file rather than pre-extracted caps. The six documents were placed at LEGALMIND_SOURCE_MATERIAL_DIR on 2026-08-18 and the app's own parser reads all six as COMPLETE, so the precondition is met. Nothing is owed by the owner; the fixture simply has not been authored yet."
+ },
+ "L-15": {
+  "status": "UNSTARTED",
+  "note": "Strong specimens exist \u2014 MSA 1.8 'Clause ___' and 1.9 'Clause ____' are both blank \u2014 but they are definitional, not liability, cross-references, and resolution is an extraction concern. The six documents were placed at LEGALMIND_SOURCE_MATERIAL_DIR on 2026-08-18 and the app's own parser reads all six as COMPLETE, so the precondition is met. Nothing is owed by the owner; the fixture simply has not been authored yet."
+ },
+ "L-16": {
+  "status": "UNSTARTED",
+  "note": "Candidate: MSA 15.5 'No refunds or credits apply unless under Clause 8.4', where 8.4 concerns deductions and TDS. The six documents were placed at LEGALMIND_SOURCE_MATERIAL_DIR on 2026-08-18 and the app's own parser reads all six as COMPLETE, so the precondition is met. Nothing is owed by the owner; the fixture simply has not been authored yet."
+ },
+ "L-17": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "No negative-wording construction ('liability shall not be limited') appears."
+ },
+ "L-18": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "No ambiguous liability wording. The corrupted sentence in MSA 6.3 is in the change-request clause, not a liability provision."
+ },
+ "L-19": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-08"
+ },
+ "L-20": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-09"
+ },
+ "L-21": {
+  "status": "UNSTARTED",
+  "note": "Candidate: ToS 9 referencing the SLA. Whether it is one position or two is an extraction outcome. The six documents were placed at LEGALMIND_SOURCE_MATERIAL_DIR on 2026-08-18 and the app's own parser reads all six as COMPLETE, so the precondition is met. Nothing is owed by the owner; the fixture simply has not been authored yet."
+ },
+ "L-22": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "No cap is restated in materially identical terms. MSA 17.1 and 17.6 do repeat each other, but they repeat a damages EXCLUSION, not a cap."
+ },
+ "L-23": {
+  "status": "UNSTARTED",
+  "note": "Real corruption exists in the web-page PDFs ('HHIIRRIINNGG'; GST and CIN split mid-token) but none of it falls inside a liability clause, and normalization is an ingestion concern. The six documents were placed at LEGALMIND_SOURCE_MATERIAL_DIR on 2026-08-18 and the app's own parser reads all six as COMPLETE, so the precondition is met. Nothing is owed by the owner; the fixture simply has not been authored yet."
+ },
+ "L-24": {
+  "status": "UNSTARTED",
+  "note": "As L-23. The six documents were placed at LEGALMIND_SOURCE_MATERIAL_DIR on 2026-08-18 and the app's own parser reads all six as COMPLETE, so the precondition is met. Nothing is owed by the owner; the fixture simply has not been authored yet."
+ },
+ "L-25": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-03"
+ },
+ "L-26": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "Every cap in the tranche has a determinable scope. MSA 17.7 says 'total aggregate liability', so encoding it as scope-unknown would be unfaithful to the text."
+ },
+ "L-27": {
+  "status": "PARTIAL",
+  "fixture": "DOC-LIAB-04",
+  "note": "CONFLICT with all evidence retained is asserted, and MSA 17.2's 'Notwithstanding anything to the contrary' precedence language is deliberately NOT applied. 45E additionally expects the precedence clause attached as SUPPORTING evidence, which needs the ingestion path. The document files are now present (2026-08-18) and parse COMPLETE, so nothing is owed by the owner \u2014 that half is unstarted work."
+ },
+ "L-28": {
+  "status": "BLOCKED",
+  "needs": [
+   "LEGAL_RULE"
+  ],
+  "note": "Needs a configured precedence_rule. ToS 9 and the SLAs name the sources ('the provisions of the SLA shall prevail'), but 45C.27 forbids applying in-document precedence \u2014 only a configured rule counts, and configuring one is the owner's decision."
+ },
+ "L-29a": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "The matched pair is the sharpest test in the set and has no specimen: no supplied document contains 'liability shall not be limited' with or without a trailing carve-out. Note the hazard this pair exists to catch \u2014 'without limitation' occurs throughout all six documents in the enumerative sense."
+ },
+ "L-29b": {
+  "status": "BLOCKED",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "note": "As L-29a."
+ },
+ "P-01": {
+  "status": "AUTHORED",
+  "fixture": "CLS-GOVLAW-MSA-001",
+  "note": "CLOSED 2026-08-19 under the clause-catalogue expansion (owner instruction superseding 'liability only in V1'). A real PRESENCE Requirement now exists \u2014 GOVLAW-MSA-001, ratified from MSA 19.1 \u2014 and the fixture asserts CONFIRMED + expected PRESENT -> MATCH with real material, which is exactly P-01's shape."
+ },
+ "P-02": {
+  "status": "UNSTARTED",
+  "note": "Presence Requirements now exist (clause catalogue, 2026-08-19), so the case is no longer out of scope. Needs a real counterparty document that LACKS the provision, encoded through ingestion \u2014 inventing an absence would be fabricating the counterparty side. Unstarted work, nothing owed by the owner."
+ },
+ "P-03": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "Outcome turns on mapping_state AMBIGUOUS, a mapper output rather than a document fact. Covered structurally."
+ },
+ "P-04": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "As P-03, for UNRESOLVED."
+ },
+ "P-05": {
+  "status": "BLOCKED",
+  "needs": [
+   "SCOPE_RULING"
+  ],
+  "note": "Needs a Requirement the owner declares OPTIONAL. Under the zero-tolerance/whatever-is-stated model every catalogued Requirement defaults to REQUIRED; declaring one OPTIONAL is an owner call (which clause may be absent without a MISSING Finding?)."
+ },
+ "P-06": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "The text-independence guard is by construction about the evaluator receiving no clause text; real text adds nothing."
+ },
+ "R-01": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-05, DOC-LIAB-07",
+  "note": "Tier-1 dominance shown on real material: one UNABLE_TO_EVALUATE scope among three DEVIATION carve-outs rolls up to UNABLE_TO_EVALUATE."
+ },
+ "R-02": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "Tier-1 internal ordering is a determinism convention, not a legal hierarchy (45E.4). Real material is irrelevant to it."
+ },
+ "R-03": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "As R-02."
+ },
+ "R-04": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "As R-02."
+ },
+ "R-05": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "As R-02."
+ },
+ "R-06": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "As R-02."
+ },
+ "R-07": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "As R-02."
+ },
+ "R-08": {
+  "status": "PARTIAL",
+  "needs": [
+   "SECOND_TRANCHE"
+  ],
+  "fixture": "STD-LIAB-03",
+  "note": "Tier-2 ordering DEVIATION > MATCH asserted on real material against the ratified standard. The MISSING > DEVIATION half needs one provision that both omits a cap for one scope and leaves another uncapped; no supplied document does both in one provision."
+ },
+ "R-09": {
+  "status": "AUTHORED",
+  "fixture": "run_fixture (all fixtures)",
+  "note": "EV-MIN asserted by the runner for every fixture, including the two MISSING cases."
+ },
+ "R-10": {
+  "status": "AUTHORED",
+  "fixture": "run_fixture (all fixtures)",
+  "note": "Evidence cardinality asserted by the runner. DOC-LIAB-08 (MISSING with evidence) and DOC-LIAB-09 (MISSING with zero) are the two real-material halves."
+ },
+ "R-11": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "The evaluator output type has no decision field; structurally guaranteed rather than fixture-asserted."
+ },
+ "R-12": {
+  "status": "AUTHORED",
+  "fixture": "test_runner_is_deterministic"
+ },
+ "R-13": {
+  "status": "AUTHORED",
+  "fixture": "tools/verify_reproducibility.py",
+  "note": "Asserted outside the corpus, across a real migration round trip."
+ },
+ "R-14": {
+  "status": "UNSTARTED",
+  "note": "The multi-Requirement alignment shape is now reachable \u2014 the catalogue gives MSA eight Requirements. Unstarted fixture work; nothing owed by the owner."
+ },
+ "F-01": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-04",
+  "note": "No configured precedence yields CONFLICT, on real material."
+ },
+ "F-02": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-06",
+  "note": "No configured conversion rule yields UNABLE_TO_EVALUATE, on two real bases from one agreement."
+ },
+ "F-03": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "No supplied cap has an undeterminable scope; see L-26."
+ },
+ "F-04": {
+  "status": "AUTHORED",
+  "fixture": "DOC-LIAB-06"
+ },
+ "F-05": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "Triggered by absent extraction configuration, not by document text."
+ },
+ "F-06": {
+  "status": "STRUCTURAL_ONLY",
+  "note": "Mapping-state driven; see P-03."
+ },
+ "W-01": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-02": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-03": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-04": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-05": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-06": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-07": {
+  "status": "SEPARATE_TRACK"
+ },
+ "W-08": {
+  "status": "SEPARATE_TRACK"
+ }
+}

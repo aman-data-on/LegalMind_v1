@@ -1,0 +1,154 @@
+[
+ {
+  "id": "CP-LIAB-01",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-TOS-001",
+  "source_document": "Vultr Terms of Service (public web terms; TEST SPECIMEN ONLY, owner authorization 2026-08-18)",
+  "source_clause": "Limitation of Liability \u2014 total aggregate and maximum liability",
+  "covers": [
+   "L-01"
+  ],
+  "description": "THE FIRST GENUINE DEVIATION-BY-VALUE IN THE CORPUS. A third party's cap of six months, measured on the same basis and scope as the ratified standard: 'THE TOTAL AGGREGATE AND MAXIMUM LIABILITY ... IS LIMITED TO ANY AMOUNTS YOU HAVE PAID TO VULTR DURING THE SIX (6) MONTHS PRIOR TO THE ACCRUAL OF THE CAUSE OR CAUSES OF ACTION.' Unrestricted as to which services, so the basis IS comparable to FEES_PAID - unlike MSA 17.2, which restricts to the affected Services and therefore fails closed (STD-LIAB-02). Six against a standard of twelve is DEVIATION, and under the APPROVED zero-tolerance Legal Rule (owner, 2026-08-20) the outcome is UNACCEPTABLE - a Legal Decision is required, and nothing is auto-approved. Before 2026-08-20 this fixture asserted NOT_APPLICABLE (no rule existed); the approval is the authorized expectation change. 45E.2 expects MATCH for a six-month cap, written against the illustrative six-month standard; ratification at twelve supersedes that.",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-TOS-001",
+  "legal_rule": {
+   "rule_type": "THRESHOLD",
+   "configuration": {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE"
+   }
+  },
+  "caps": [
+   {
+    "scope": "AGGREGATE",
+    "cap_status": "FINITE",
+    "cap_value": 6,
+    "cap_unit": "MONTHS",
+    "cap_basis": "FEES_PAID",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "DEVIATION",
+  "expect_evaluations": [
+   {
+    "scope_key": "AGGREGATE",
+    "classification": "DEVIATION",
+    "rule_outcome": "UNACCEPTABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CP-LIAB-02",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-TOS-001",
+  "source_document": "GoDaddy Universal Terms of Service (public web terms; TEST SPECIMEN ONLY, owner authorization 2026-08-18)",
+  "source_clause": "Limitation of Liability \u2014 total aggregate liability ceiling",
+  "covers": [
+   "L-12"
+  ],
+  "description": "45E's L-12 met exactly: 'UNABLE_TO_EVALUATE, not DEVIATION'. A fixed monetary ceiling with no time period at all \u2014 'IN NO EVENT SHALL GoDaddy'S TOTAL AGGREGATE LIABILITY EXCEED $ 10,000.' The standard is expressed in MONTHS of fees; this is expressed in dollars. 45C.23 forbids silent unit conversion, so the engine refuses rather than comparing 10000 against 12. The dangerous alternative outcome was MISSING \u2014 'this contract has no cap' \u2014 which would be false and would read as clean on a report. It does not occur: the cap is seen, and the failure is closed and visible.",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-TOS-001",
+  "legal_rule": null,
+  "caps": [
+   {
+    "scope": "AGGREGATE",
+    "cap_status": "FINITE",
+    "cap_value": 10000,
+    "cap_unit": "USD",
+    "cap_basis": "FIXED_AMOUNT",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "UNABLE_TO_EVALUATE",
+  "expect_evaluations": [
+   {
+    "scope_key": "AGGREGATE",
+    "classification": "UNABLE_TO_EVALUATE",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CP-LIAB-03",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-MSA-001",
+  "source_document": "Microsoft Customer Agreement, Azure India (public web terms; TEST SPECIMEN ONLY, owner authorization 2026-08-18)",
+  "source_clause": "Limitation of liability \u2014 perpetual-licence and subscription ceilings",
+  "covers": [
+   "L-05"
+  ],
+  "description": "45E's L-05 met exactly: 'Two Evaluations; not CONFLICT'. One clause sets two ceilings for two genuinely different product scopes \u2014 'For each Product licensed on a perpetual basis, each party's maximum, aggregate liability is the amount Customer paid for the applicable licenses' and 'For each Product licensed on a subscription basis ... the total amount of subscription fees Customer paid to use the Product during the 12 months preceding the most recent incident'. Different scopes are NOT a conflict (45C.1): two Evaluations are produced and neither is discarded. The perpetual ceiling carries no time period, so it fails closed under 45C.19; the subscription ceiling is restricted to the affected Product, so its scope is not comparable to AGGREGATE. Both fail closed for their own stated reason, which is the point \u2014 the engine keeps them apart instead of flattening them into one position.",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-MSA-001",
+  "legal_rule": null,
+  "caps": [
+   {
+    "scope": "PERPETUAL_LICENCE",
+    "cap_status": "FINITE",
+    "cap_value": null,
+    "cap_unit": null,
+    "cap_basis": "FEES_PAID_FOR_APPLICABLE_LICENCES",
+    "evidence_count": 1
+   },
+   {
+    "scope": "SUBSCRIPTION",
+    "cap_status": "FINITE",
+    "cap_value": 12,
+    "cap_unit": "MONTHS",
+    "cap_basis": "SUBSCRIPTION_FEES_FOR_AFFECTED_PRODUCT",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "UNABLE_TO_EVALUATE",
+  "expect_evaluations": [
+   {
+    "scope_key": "PERPETUAL_LICENCE",
+    "classification": "UNABLE_TO_EVALUATE",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   },
+   {
+    "scope_key": "SUBSCRIPTION",
+    "classification": "UNABLE_TO_EVALUATE",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ },
+ {
+  "id": "CP-LIAB-04",
+  "provenance": "STANDARD_DERIVED",
+  "company_standard_ref": "LIABILITY-MSA-001",
+  "source_document": "Linode / Akamai Master Services Agreement (public web terms; TEST SPECIMEN ONLY, owner authorization 2026-08-18)",
+  "source_clause": "Limitation of liability \u2014 aggregate liability ceiling",
+  "covers": [
+   "L-11"
+  ],
+  "description": "OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously MATCH against the global 12-month/total-fees standard. Linode/Akamai's MSA caps at twelve months of TOTAL fees paid; the MSA standard measures fees for the AFFECTED Services (MSA.pdf 17.2). Same number, different quantity: the owner ruling of 2026-08-18 keeps FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES distinct, so 45B.4/45C.23 fail closed to UNABLE_TO_EVALUATE and a human decides, rather than reporting a match between incomparable bases. The corpus's third-party MATCH assertion consequently moves to the TOS side (CP-LIAB-01/Vultr remains the deviation specimen; a third-party TOS at twelve months of total fees would MATCH LIABILITY-TOS-001).",
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "requirement_code": "LIABILITY-MSA-001",
+  "legal_rule": null,
+  "caps": [
+   {
+    "scope": "AGGREGATE",
+    "cap_status": "FINITE",
+    "cap_value": 12,
+    "cap_unit": "MONTHS",
+    "cap_basis": "FEES_PAID",
+    "evidence_count": 1
+   }
+  ],
+  "expect_finding_classification": "UNABLE_TO_EVALUATE",
+  "expect_evaluations": [
+   {
+    "scope_key": "AGGREGATE",
+    "classification": "UNABLE_TO_EVALUATE",
+    "rule_outcome": "NOT_APPLICABLE",
+    "evidence_ref_count": 1
+   }
+  ]
+ }
+]

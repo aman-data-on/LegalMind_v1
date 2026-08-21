@@ -13,6 +13,9 @@ Visibility follows locked Step 24:
   r4  a User cannot access another User's Reviews by default
   r5  escalation makes the Review available to the authorized Legal workflow
   r6  Legal Reviewer access is by assignment and/or explicit Legal scope
+      — "explicit Legal scope" defined by locked REC-09; see
+      `review_in_legal_scope`. Assignment has no writer in V1 (G1,
+      deferred to V2), so Legal scope is the operative branch.
   r8  Super Admin does NOT automatically have access to Legal content
   r12 access is permission + resource scope, not role name
   r16 Legal access does not transfer ownership
@@ -26,9 +29,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.security import permissions as P
+from legalmind.domain.enums import ReviewStatus
 from legalmind.security.errors import Forbidden, NotVisible
-from legalmind.security.resolver import effective_permissions
+from legalmind.security.permissions import LEGAL_REVIEW
+from legalmind.security.resolver import effective_permissions, has_permission
 
 
 # --------------------------------------------------------------------------
@@ -57,12 +61,59 @@ def _has_legal_assignment(db: DBSession, review_id: UUID, user_id: UUID) -> bool
     ).first() is not None
 
 
+def review_in_legal_scope(db: DBSession, review: M.Review) -> bool:
+    """Whether a Review is in **Legal scope** — locked `REC-09`.
+
+    `REC-09` defines the term locked Step 24 r6 uses and no locked record defined:
+
+    ```text
+    (a) any Finding has an escalation that has not been withdrawn
+                                                    (Step 24 r5, AM-23)
+    (b) the Review lifecycle status is LEGAL_REVIEW  (Step 30)
+    ```
+
+    Both are required, and neither implies the other. A user may escalate a Finding on
+    a `RESOLVED` Review, and Step 30's state machine has no `RESOLVED → LEGAL_REVIEW`
+    edge — so without (a) that escalation would be invisible to Legal. Conversely the
+    engine derives `LEGAL_REVIEW` with no human escalation at all (Step 30 r6), and
+    Step 30 defines that status as "one or more Findings require an authorized Legal
+    decision" — so without (b), work the *engine* raised would wait for a human to
+    escalate it first.
+
+    This is a property of the **Review**, not of the caller. The caller's half is
+    `legal.review`, checked separately — locked Step 24 r12: "permission + resource
+    scope, not simply role name."
+    """
+    if review.status is ReviewStatus.LEGAL_REVIEW:
+        return True
+    return db.execute(
+        select(M.Escalation.id)
+        .join(M.Finding, M.Finding.id == M.Escalation.finding_id)
+        .where(M.Finding.review_id == review.id,
+               M.Escalation.withdrawn_at.is_(None))
+        .limit(1)
+    ).first() is not None
+
+
 def can_see_review(db: DBSession, user_id: UUID, review: M.Review) -> bool:
-    """Ownership OR legal assignment. Nothing else — not role name (r12)."""
+    """Ownership, legal assignment, or Legal scope. Nothing else — not role name (r12).
+
+    The third branch is locked `REC-09`, which resolved finding `F-6`: before it, both
+    branches of Step 24 r6 were unimplementable — nothing populates
+    `review_assignments`, and "explicit Legal scope" was undefined — so a Legal
+    Reviewer could reach no Review at all.
+
+    Permission is tested before scope, in the order locked r12 states it. Legal scope
+    confers **view access only**: it is not ownership (r16, r17) and not decision
+    authority, which stays an explicit `legal.decision` grant checked per Evaluation
+    (SEC-02, SEC-05, ROLE-05).
+    """
     if _is_review_owner(review, user_id):
         return True
     if _has_legal_assignment(db, review.id, user_id):
         return True
+    if has_permission(db, user_id, LEGAL_REVIEW):
+        return review_in_legal_scope(db, review)
     return False
 
 

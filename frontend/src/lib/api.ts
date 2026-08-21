@@ -270,9 +270,13 @@ export const api = {
       },
     }),
   /**
-   * Run the analysis pipeline. Progress afterwards is read from the Review's
+   * Submit the Review for analysis. Progress afterwards is read from the Review's
    * lifecycle status and nothing else (52.7) — there is deliberately no separate
    * job-state resource that could disagree with Step 30.
+   *
+   * Two outcomes, distinguished by `mode` (locked 55.1): `queued` when a worker will
+   * run it, `inline` when it already ran. The caller reloads the Review either way,
+   * so the difference is in what the response can report, not in what it means.
    *
    * A repeat returns `already_analysed` rather than duplicating Findings (49.8).
    */
@@ -335,6 +339,22 @@ export const api = {
     request<Requirement>(`/requirements/${requirementId}/versions`, {
       method: "POST",
       body,
+    }),
+  /**
+   * Change a Company Standard's values. APPEND-ONLY (locked rule 16): the server
+   * creates a new Requirement version carrying the previous mapping, evaluation and
+   * Legal Rule artifacts forward unchanged. `reason` is mandatory — a standard
+   * change is a change of legal position, and the audit trail records the reason
+   * (never the values, 53.3). Rollback is this same call with an older version's
+   * values, read back from the detail response.
+   */
+  updateCompanyStandard: (
+    requirementId: string,
+    payload: { company_standard: Record<string, unknown>; reason: string },
+  ) =>
+    request<Requirement>(`/requirements/${requirementId}/standard`, {
+      method: "POST",
+      body: payload,
     }),
   publishConfiguration: (requirementCodes?: string[]) =>
     request<ConfigurationSnapshot>("/configuration/publish", {

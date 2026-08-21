@@ -21,7 +21,6 @@ from __future__ import annotations
 import re
 import shutil
 from dataclasses import dataclass, field
-from typing import Iterable
 
 from legalmind.domain.enums import EvidenceSourceType, ExtractionStatus
 from legalmind.ingestion.validation import DOCX_MIME, PDF_MIME
@@ -79,7 +78,11 @@ def normalize_text(raw: str) -> str:
     error only when deterministic, and this layer cannot establish that.
     """
     text = raw.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"[ \t ]+", " ", text)
+    # The third character in this class is U+00A0 NO-BREAK SPACE, deliberately: PDF
+    # extraction emits them freely, and a clause whose spacing differs only by an
+    # nbsp must normalize to the same text, or `ENG-11` determinism would depend on
+    # which producer wrote the file. Not an error to "fix" to an ASCII space.
+    text = re.sub(r"[ \t ]+", " ", text)  # noqa: RUF001
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -178,7 +181,9 @@ def parse_pdf(data: bytes) -> ParseResult:
     extracted_pages = 0
     offset = 0
 
-    for index, page in enumerate(doc, start=1):
+    # `doc` is a PyMuPDF Document; the library ships no type information, so the
+    # page objects are untyped here rather than wrongly typed.
+    for index, page in enumerate(doc, start=1):    # type: ignore[arg-type,var-annotated]
         try:
             raw = page.get_text("text") or ""
         except Exception as exc:                # pragma: no cover - defensive

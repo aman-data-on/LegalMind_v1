@@ -35,6 +35,24 @@ INDETERMINATE = "INDETERMINATE"
 DEFAULT_SCOPE_KEY = "DEFAULT"
 
 
+def _deviation_outcome(legal_rule) -> RuleOutcome:
+    """Map a presence DEVIATION onto the configured `deviation_outcome`.
+
+    Same key and same fail-closed semantics as the numeric evaluator's
+    `_rule_outcome_for`: with no Legal Rule, no key, or an unrecognised value,
+    the outcome is NOT_APPLICABLE — the deviation stands and a human decides.
+    """
+    if legal_rule is None:
+        return RuleOutcome.NOT_APPLICABLE
+    raw = (legal_rule.configuration or {}).get("deviation_outcome")
+    if raw is None:
+        return RuleOutcome.NOT_APPLICABLE
+    try:
+        return RuleOutcome(raw)
+    except ValueError:
+        return RuleOutcome.NOT_APPLICABLE
+
+
 class PresenceMisconfigured(Exception):
     """The Standard does not declare ``expected_presence``.
 
@@ -64,14 +82,23 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         actual = PRESENT
         classification = (FindingClassification.MATCH if expected == PRESENT
                           else FindingClassification.DEVIATION)
-        outcome = (RuleOutcome.ACCEPTABLE if has_legal_rule
-                   else RuleOutcome.NOT_APPLICABLE)
-        explanation = (
+        if classification is FindingClassification.MATCH:
+            outcome = (RuleOutcome.ACCEPTABLE if has_legal_rule
+                       else RuleOutcome.NOT_APPLICABLE)
+        else:
+            # A provision present where the Standard expects ABSENT is a
+            # DEVIATION and must never inherit MATCH's ACCEPTABLE. The approved
+            # zero-tolerance rule (owner, 2026-08-20) disposes it via
+            # `deviation_outcome`; anything unconfigured or unrecognised fails
+            # closed to NOT_APPLICABLE and a human (Step 20 r4, ENG-09).
+            outcome = _deviation_outcome(evaluator_input.legal_rule)
+        explanation: tuple[str, ...] = (
             f"mapping CONFIRMED for {evaluator_input.requirement.code}",
             f"expected {expected}; a qualifying provision is present",
         )
-        diagnostics = ("presence established by the mapping layer",
-                       f"{len(evidence)} provision(s) mapped")
+        diagnostics: tuple[str, ...] = (
+            "presence established by the mapping layer",
+            f"{len(evidence)} provision(s) mapped")
 
     elif state is MappingState.NONE:
         actual = ABSENT
@@ -123,7 +150,7 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
                     "mapping_state": state.value},
         evaluated_facts={"mapping_state": state.value},
         evidence_refs=evidence,
-        evidence_relationships={eid: "PRIMARY" for eid in evidence},
+        evidence_relationships=dict.fromkeys(evidence, "PRIMARY"),
         explanation=explanation,
         diagnostics=diagnostics,
     )

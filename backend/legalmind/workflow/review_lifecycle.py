@@ -20,7 +20,7 @@ Locked rules enforced here:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -62,7 +62,8 @@ def transition(db: DBSession, review: M.Review, target: ReviewStatus, *,
             f"{current.value} -> {target.value} is not a permitted Review "
             "lifecycle transition")
 
-    if target is ReviewStatus.RESOLVED and not all_required_decisions_complete(db, review):
+    if (target is ReviewStatus.RESOLVED
+            and not all_required_decisions_complete(db, review)):
         # r7 — RESOLVED means all required decisions are complete. Refusing here
         # is what keeps RESOLVED from becoming a manually assertable summary.
         raise InvalidTransition(
@@ -70,10 +71,10 @@ def transition(db: DBSession, review: M.Review, target: ReviewStatus, *,
 
     review.status = target
     if target is ReviewStatus.PROCESSING and review.started_at is None:
-        review.started_at = datetime.now(timezone.utc)
+        review.started_at = datetime.now(UTC)
     if target in {ReviewStatus.RESOLVED, ReviewStatus.CLOSED,
                   ReviewStatus.ANALYSIS_FAILED, ReviewStatus.CANCELLED}:
-        review.completed_at = datetime.now(timezone.utc)
+        review.completed_at = datetime.now(UTC)
     db.flush()
 
     # r17 — every transition is audited.

@@ -23,6 +23,7 @@ from legalmind.api.envelope import data
 from legalmind.api.schemas import EscalationCreate
 from legalmind.api.serializers import serialize_evaluation, serialize_finding
 from legalmind.db import models as M
+from legalmind.db.lookup import must_exist
 from legalmind.security import permissions as P
 from legalmind.workflow.escalation import (
     escalate_finding,
@@ -75,7 +76,8 @@ def escalate(finding_id: UUID, body: EscalationCreate,
     escalation = escalate_finding(guard.db, actor_id=guard.user_id,
                                   finding_id=finding_id, reason=body.reason,
                                   request_id=guard.request_id)
-    finding = guard.db.get(M.Finding, finding_id)
+    finding = must_exist(guard.db.get(M.Finding, finding_id),
+                         "findings row", finding_id)
     return data({
         "escalation": {
             "id": str(escalation.id),
@@ -101,6 +103,7 @@ def withdraw(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     guard.finding(finding_id, P.REVIEW_VIEW)
     withdraw_escalation(guard.db, actor_id=guard.user_id, finding_id=finding_id,
                         request_id=guard.request_id)
-    finding = guard.db.get(M.Finding, finding_id)
+    finding = must_exist(guard.db.get(M.Finding, finding_id),
+                         "findings row", finding_id)
     return data(serialize_finding(guard.db, finding,
                                   legal_position=guard.sees_legal_position))

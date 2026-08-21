@@ -7,7 +7,7 @@ else's contract is a 404, never a 403 — existence is itself a disclosure (47.7
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -69,7 +69,7 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
         contract.contract_type = body.contract_type
     if body.status is not None:
         contract.status = body.status
-    contract.updated_at = datetime.now(timezone.utc)
+    contract.updated_at = datetime.now(UTC)
     guard.db.flush()
     return data(serialize_contract(contract))
 

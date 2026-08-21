@@ -19,6 +19,10 @@ dependencies = [
     # ingestion is application behaviour.
     "pymupdf>=1.24",
     "python-docx>=1.1",
+    # Background jobs — locked Step 39 names Celery + Redis, and locked 55.1 makes a
+    # Review's analysis a worker job on the same image. The `redis` extra is the
+    # broker transport, not a second technology choice.
+    "celery[redis]>=5.4",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +33,81 @@ dev = ["pytest>=8.0", "httpx>=0.27"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+# --------------------------------------------------------------------------
+# Lint configuration — deliberate, not defaults
+# --------------------------------------------------------------------------
+# Measured baseline on 2026-08-17 with ruff's default-plus rule set: 228 findings,
+# of which 116 were two rules that are wrong for this codebase rather than defects
+# (`B008` flags FastAPI's `Depends()` in a default, which is the framework's intended
+# usage; `RUF059` flags deliberately-named unused unpacked values). Configuration is
+# the honest fix for those; the rest were fixed.
+#
+# `ruff format` is deliberately NOT part of the gate. It would reflow 85 files, and
+# the dense explanatory comments and hand-aligned tables in this codebase are
+# load-bearing documentation of locked decisions — a formatter reflowing them across
+# evaluation and authorization code would be a large, risky diff for no correctness
+# gain. Line length is enforced; layout is a human decision here.
+[tool.ruff]
+line-length = 90
+target-version = "py312"
+exclude = ["build", "alembic/versions/__pycache__"]
+
+[tool.ruff.lint]
+# `PLE` (Pylint errors) only, not all of `PL`: the wider set flags
+# `import-outside-top-level` 105 times, and every one of those is deliberate —
+# lazy imports break cycles (`worker.dispatch` → `worker.tasks`) and keep optional
+# parsing dependencies off the import path until a document is actually parsed.
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "BLE"]
+ignore = [
+    # FastAPI's dependency-injection contract: `Depends()`/`Header()`/`Query()`
+    # belong in defaults. Flagging them would mean flagging the framework.
+    "B008",
+    # Unused unpacked values are named for readability in this codebase.
+    "RUF059",
+    # `contextlib.suppress` is less legible than `try/except: pass` where it fires.
+    "SIM105",
+    # Ambiguous-unicode in docstrings: the specification uses → and — throughout,
+    # and quoting locked text accurately matters more than ASCII purity.
+    "RUF002",
+    "RUF003",
+    # `class X(str, Enum)` -> `enum.StrEnum` is NOT equivalent: `str(member)` returns
+    # "Class.MEMBER" for the mixin and the bare value for StrEnum. These enums are
+    # serialized into API payloads, audit rows and log lines, so switching the base
+    # class would change persisted output — a behaviour change dressed as a lint fix.
+    "UP042",
+    # A catch-all is correct where the handler's job is to report and recover rather
+    # than to interpret: the preflight reports an unreachable database, the parser
+    # reports an unreadable page, and the worker rolls back and retries. Each is
+    # narrowed by what it does next, not by the exception type.
+    "BLE001",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately assert on broad exceptions and build long structural payloads.
+# `E702` is the `db.add(row); db.flush()` idiom used throughout the fixtures, and
+# `E501` covers long structural payload literals.
+"tests/**" = ["BLE001", "E501", "E702"]
+# Verification tooling catches and reports every failure by design — that is the
+# point of a verification pass, not a defect in it.
+"tools/**" = ["BLE001", "E501", "E702"]
+# Migrations are the locked schema transcribed into DDL. Their long lines are column
+# definitions and trigger bodies, and rewrapping them would obscure the mapping to
+# the locked table definitions they implement — the one place literal fidelity beats
+# layout. They are also append-only in practice: a migration is never reformatted.
+"alembic/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["legalmind"]
+
+[[tool.mypy.overrides]]
+# Celery ships no `py.typed` marker, so its types are unavailable rather than wrong.
+module = ["celery.*", "kombu.*", "fitz.*", "docx.*"]
+ignore_missing_imports = true
 
 # `backend/` is a flat layout holding three top-level directories — legalmind,
 # alembic and tests. Without an explicit list setuptools refuses to guess which

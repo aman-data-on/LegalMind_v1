@@ -14,17 +14,19 @@ layer built in step 2, so the two cannot disagree.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterator
 from functools import cached_property
-from typing import Any, Iterator
+from typing import Any
 from uuid import UUID
 
 from fastapi import Depends, Request
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session as DBSession, sessionmaker
+from sqlalchemy.orm import Session as DBSession
 
 from legalmind.api.context import SESSION_COOKIE, request_id_of
-from legalmind.config import database_url
 from legalmind.db import models as M
+from legalmind.db.session import new_session
+from legalmind.observability.logs import log_event
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.authorization import (
@@ -37,27 +39,19 @@ from legalmind.security.errors import Forbidden, NotVisible, Unauthenticated
 from legalmind.security.resolver import effective_permissions
 from legalmind.security.sessions import Principal, resolve_session
 
-_engine = None
-_sessionmaker = None
-
-
-def _factory():
-    """Lazy, so importing the app never opens a connection — the test harness
-    replaces this dependency entirely."""
-    global _engine, _sessionmaker
-    if _sessionmaker is None:
-        _engine = create_engine(database_url(), future=True, pool_pre_ping=True)
-        _sessionmaker = sessionmaker(bind=_engine, future=True)
-    return _sessionmaker
-
 
 def get_db() -> Iterator[DBSession]:
     """One transaction per request — locked 43.26.
 
     The whole request commits or none of it does, so a partially written Finding
     or a decision without its audit event is not representable.
+
+    The engine itself comes from ``db.session``, shared with the worker so that the
+    two halves of the same image (55.1) cannot resolve the database differently. It
+    is built on first use, so importing the app opens no connection and the test
+    harness — which overrides this dependency — never touches it.
     """
-    db = _factory()()
+    db = new_session()
     try:
         yield db
         db.commit()
@@ -184,6 +178,15 @@ class Guard:
                  entity_type=entity_type, entity_id=entity_id,
                  actor_id=self.user_id, request_id=self.request_id,
                  after={"permission": permission})
+        # Locked 53.5 — "permission denials; repeated denials on one object matter".
+        # The object id is therefore deliberately included: without it the signal
+        # cannot answer the question 53.5 asks. Identifiers only — the permission name
+        # is the caller's own authority, not an internal legal position (49.5 r2).
+        log_event("authz.denied", level=logging.WARNING,
+                  request_id=self.request_id, actor_id=str(self.user_id),
+                  permission=permission, entity_type=entity_type,
+                  entity_id=str(entity_id) if entity_id else None,
+                  signal="authz.denial_count")
         # The request is about to abort, which would roll the audit row back with
         # it. Committing here is safe precisely because authorization runs BEFORE
         # any domain operation (43.23): there is nothing else in the transaction.
@@ -194,6 +197,13 @@ class Guard:
         A.record(self.db, action=A.AUTHZ_OBJECT_NOT_VISIBLE,
                  entity_type=entity_type, entity_id=entity_id,
                  actor_id=self.user_id, request_id=self.request_id)
+        # Same 53.5 signal. An out-of-scope object returns a 404 to the caller
+        # (SEC-07) and is recorded here, because a caller sweeping ids is precisely
+        # the pattern "repeated denials on one object" is meant to surface.
+        log_event("authz.object_not_visible", level=logging.WARNING,
+                  request_id=self.request_id, actor_id=str(self.user_id),
+                  entity_type=entity_type, entity_id=str(entity_id),
+                  signal="authz.denial_count")
         self.db.commit()
 
 

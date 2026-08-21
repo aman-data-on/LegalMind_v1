@@ -40,6 +40,8 @@ from legalmind.observability.metrics import (
 )
 from legalmind.observability.redaction import MAX_VALUE_LENGTH
 
+V1 = "/api/v1"
+
 
 @pytest.fixture
 def captured(monkeypatch):
@@ -58,6 +60,11 @@ def captured(monkeypatch):
     probe.handlers = [handler]
     probe.setLevel(logging.DEBUG)
     probe.propagate = False
+    # Asserted rather than assumed: `logging.config.fileConfig` disables every
+    # pre-existing logger unless told otherwise, and Alembic calls it. `alembic/env.py`
+    # now passes `disable_existing_loggers=False`, and this line keeps the fixture
+    # honest if anything else ever disables it.
+    probe.disabled = False
     monkeypatch.setattr(logs_module, "_logger", probe)
 
     def read():
@@ -254,19 +261,78 @@ def test_oidc_parameters_and_audit_payloads_are_still_caught(captured):
 # 53.4 — two audiences, never crossed
 # =====================================================================
 def test_operator_facing_detail_stays_in_the_log(captured):
-    """53.4 — the stack trace goes to the log pipeline only; the API response
-    carries a stable code, a safe message and the request id."""
+    """53.4 — the stack goes to the log pipeline only; the API response carries a
+    stable code, a safe message and the request id.
+
+    The trace is rendered as **structure** rather than as a formatted blob, because
+    53.3 applies to it too — see `test_a_database_error_does_not_log_clause_text`.
+    """
     try:
-        raise RuntimeError("internal detail: connection string user=admin")
+        raise RuntimeError("connection reset while writing")
     except RuntimeError:
         log_exception("http.request_failed", request_id="req-1", route="/api/v1/x")
 
     line = captured()[0]
     assert line["level"] == "ERROR"
     assert line["request_id"] == "req-1"
-    assert "Traceback" in line["exception"]
-    # The bridge between audiences is the request id, and nothing else.
-    assert "internal detail" in line["exception"]
+    # Where it failed, in frames an operator can open.
+    assert line["exception_type"] == "RuntimeError"
+    assert any("test_observability.py" in frame for frame in line["exception_frames"])
+    # And what failed — a short diagnosis survives intact.
+    assert line["exception_chain"][0] == {
+        "type": "RuntimeError", "message": "connection reset while writing"}
+
+
+def test_a_database_error_does_not_log_clause_text(captured):
+    """53.3 versus 53.4, in the one place they meet.
+
+    A driver embeds the failing statement, the offending row and the bound parameters
+    in its message, so a database error while writing `document_evidence` would put
+    contract text into an operational log line. That was confirmed against a real
+    `IntegrityError` before this guard existed — and it reached the log through the
+    only path that skipped `redact_fields`, because `exc_info` was formatted by the
+    handler rather than redacted.
+
+    Both rules are satisfied rather than traded off: the frames and the exception type
+    are identifiers and survive; the message is a value and is cut at the payload
+    marker, then length-guarded like every other logged value.
+    """
+    clause = "Liability shall not exceed 24 months of fees paid."
+    inner = Exception(
+        'null value in column "id" violates not-null constraint\n'
+        f"DETAIL:  Failing row contains (null, '{clause}').")
+    try:
+        raise RuntimeError(
+            f"(psycopg2.errors.NotNullViolation) {inner}\n"
+            f"[SQL: INSERT INTO document_evidence (clause_text) VALUES (%(t)s)]\n"
+            f"[parameters: {{'t': '{clause}'}}]") from inner
+    except RuntimeError:
+        log_exception("db.write_failed", request_id="req-2")
+
+    line = captured()[0]
+    blob = json.dumps(line)
+    assert clause not in blob
+    assert "parameters" not in blob
+    # The diagnosis is kept: an operator still learns which constraint failed.
+    assert "not-null constraint" in line["exception_chain"][0]["message"]
+    assert "[payload omitted]" in line["exception_chain"][0]["message"]
+
+
+def test_the_exception_chain_is_bounded(captured):
+    """A cause chain is walked, not followed indefinitely — a cyclic or very deep
+    chain must not turn one failure into an unbounded log line."""
+    from legalmind.observability.logs import MAX_CAUSES
+
+    exc: BaseException = ValueError("root")
+    for depth in range(6):
+        exc = RuntimeError(f"layer {depth}").with_traceback(None)
+        exc.__cause__ = ValueError("root")
+    try:
+        raise exc
+    except RuntimeError:
+        log_exception("deep.failure", request_id="req-3")
+
+    assert len(captured()[0]["exception_chain"]) <= MAX_CAUSES
 
 
 def test_request_id_is_the_join_key(captured):
@@ -295,7 +361,7 @@ def test_the_logging_api_offers_no_raw_string_payload():
     """
     import inspect
     params = inspect.signature(log_event).parameters
-    assert list(params)[0] == "event"
+    assert next(iter(params)) == "event"
     assert params["event"].annotation == "str"
     # Everything else arrives as keywords and is redacted.
     assert any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
@@ -359,9 +425,9 @@ def test_the_fail_closed_rate_is_not_alertable():
     assert "analysis.fail_closed_rate" not in ALERTABLE_SIGNALS
     assert "analysis.classification_count" not in ALERTABLE_SIGNALS
     # What IS alertable, per 53.5's "Alert on" list.
-    assert ALERTABLE_SIGNALS == {
+    assert {
         "analysis.review_failed_rate", "auth.failure_count",
-        "authz.denial_count", "analysis.stage_duration_ms"}
+        "authz.denial_count", "analysis.stage_duration_ms"} == ALERTABLE_SIGNALS
 
 
 # =====================================================================
@@ -401,3 +467,180 @@ def test_configure_logging_installs_one_json_handler():
         assert logger.propagate is False
     finally:
         logger.handlers = before
+
+
+# =====================================================================
+# 53.5 — every named signal has an emission site
+# =====================================================================
+def test_every_alertable_signal_has_an_emission_site():
+    """Locked 53.5 lists the signals worth collecting, and 53.6 leaves the monitoring
+    stack NOT YET SPECIFIED — so "collected" can only mean *emitted somewhere*.
+
+    Three of them had no emission site at all: authentication failures, permission
+    denials and decision throughput. A named signal nothing emits is a metric that
+    exists only in a document.
+    """
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[1]
+    sources = "\n".join(
+        path.read_text() for path in (backend / "legalmind").rglob("*.py"))
+
+    for signal in ALERTABLE_SIGNALS | {"decision.outstanding_age",
+                                       "analysis.classification_count",
+                                       "analysis.fail_closed_rate"}:
+        assert signal in sources, f"{signal} is named in 53.5 and emitted nowhere"
+
+
+def test_an_authentication_failure_is_signalled_without_the_email(
+        api, captured, db, seeded):
+    """53.5 wants the failure count; 53.3's fourth prohibition forbids anything that
+    turns a failed login into an enumeration oracle. Both at once: the signal carries
+    the source address and never the submitted address.
+
+    Two harness details, both learned the hard way and both worth stating:
+
+    * it uses the `captured` fixture rather than adding a handler to the shared logger,
+      because pytest's logging plugin owns those handlers — which is exactly why that
+      fixture patches the module attribute instead;
+    * `api` is requested **before** `captured`, because `create_app()` calls
+      `configure_logging()`, which reconfigures whatever `logs._logger` points at. Built
+      in the other order it silently strips the probe's handler and the test sees
+      nothing.
+    """
+    response = api.post(f"{V1}/auth/login",
+                        json={"email": "nobody@example.test", "password": "wrong"})
+    assert response.status_code == 401
+
+    failures = [line for line in captured() if line["event"] == "auth.login_failed"]
+    assert failures, "an authentication failure emitted no signal"
+    assert failures[0]["signal"] == "auth.failure_count"
+    assert failures[0]["level"] == "WARNING"
+    body = json.dumps(failures[0])
+    assert "nobody@example.test" not in body
+    assert "wrong" not in body
+
+
+def test_a_permission_denial_is_signalled_with_the_object(api, captured, db, seeded):
+    """53.5 — "permission denials; **repeated denials on one object** matter", which
+    is why the object id is deliberately included rather than omitted."""
+    from tests.conftest import bespoke_role, grant, make_review_for, make_user, sign_in
+
+    owner = make_user(db)
+    grant(db, owner, bespoke_role(db, "REVIEW_VIEW_ONLY", ["review.view"]))
+    review = make_review_for(db, owner)
+    sign_in(api, db, owner)
+
+    # Visible (owned) but the operation is not permitted → 403 and a denial signal.
+    assert api.post(f"{V1}/reviews/{review.id}/analyze").status_code == 403
+
+    denials = [line for line in captured() if line["event"] == "authz.denied"]
+    assert denials, "a permission denial emitted no signal"
+    assert denials[0]["signal"] == "authz.denial_count"
+    assert denials[0]["entity_id"] == str(review.id)
+    assert denials[0]["permission"] == "review.create"
+
+
+def test_a_recorded_decision_signals_its_age(captured, db, seeded, user, review,
+                                             requirement_version):
+    """53.5 — "decision throughput and age", emitted where a decision is recorded so
+    no scheduler is needed. Deliberately without `decision_type`: 53.5 asks for
+    throughput and age, and a disposition is nearer the internal legal position
+    LEGAL-02 protects than a count is."""
+    from legalmind.domain.enums import DecisionType
+    from legalmind.workflow.decisions import record_decision
+    from tests.conftest import (
+        bespoke_role,
+        grant,
+        make_evaluation,
+        make_finding,
+    )
+
+    # The Review's own owner, so visibility comes from ownership (Step 24 r3) and this
+    # test is about the signal rather than about REC-09's scope.
+    actor = user
+    grant(db, actor, bespoke_role(db, "DECIDER", ["legal.decision"]))
+    finding = make_finding(db, review, requirement_version)
+    evaluation = make_evaluation(db, finding)
+
+    record_decision(db, actor_id=actor.id, evaluation_id=evaluation.id,
+                    decision_type=DecisionType.ACCEPT_DEVIATION,
+                    justification="structural", request_id="req-9")
+
+    recorded = [line for line in captured()
+                if line["event"] == "legal.decision_recorded"]
+    assert recorded, "a recorded decision emitted no signal"
+    assert recorded[0]["signal"] == "decision.outstanding_age"
+    assert recorded[0]["waited_seconds"] is not None
+    assert recorded[0]["version_number"] == 1
+    # Not the disposition.
+    assert "ACCEPT_DEVIATION" not in json.dumps(recorded[0])
+
+
+def test_the_outstanding_decision_query_lives_in_the_domain_layer(db, seeded, review,
+                                                                 requirement_version):
+    """53.5's other half — "Reviews stuck in DECISION_REQUIRED".
+
+    A query rather than a counter, because Finding status is derived (Step 30 r16). It
+    lives in `workflow.decisions`, not in `observability.metrics`: that package must
+    not import the legal store, which is what keeps 53.1's separation structural —
+    see `test_logging_never_writes_an_audit_event`, which caught this being put in the
+    wrong place.
+    """
+    from legalmind.workflow.decisions import outstanding_decisions
+    from tests.conftest import make_evaluation, make_finding
+
+    before = outstanding_decisions(db)["outstanding"]
+    finding = make_finding(db, review, requirement_version)
+    make_evaluation(db, finding)
+    db.flush()
+
+    after = outstanding_decisions(db)
+    assert after["outstanding"] == before + 1
+    assert after["signal"] == "decision.outstanding_age"
+    assert after["oldest_created_at"] is not None
+
+
+def test_running_migrations_does_not_disable_application_logging():
+    """A latent defect worth a permanent guard — locked 53.4.
+
+    `logging.config.fileConfig` disables every pre-existing logger unless told
+    otherwise, and Alembic's `env.py` calls it. Migrations run in-process in the test
+    harness, in `tools/e2e_bootstrap`, in `tools/verify_*`, and in any deployment that
+    migrates from the application image — so the default would switch the application's
+    own logging off for the remainder of the process, silently.
+
+    Nothing legal would break (53.1 makes logs non-authoritative) and nothing would be
+    observable either, which is the failure 53.4's operator-facing half exists to
+    prevent. It surfaced as a test that logged after touching the database and captured
+    nothing at all.
+    """
+    from logging.config import fileConfig
+    from pathlib import Path
+
+    application = logging.getLogger(LOGGER_NAME)
+    application.disabled = False
+    ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+
+    # The default that would break it, asserted so the guard cannot be misread as
+    # paranoia: this is what `env.py` deliberately does not do.
+    fileConfig(str(ini))
+    assert application.disabled is True, (
+        "if this fails, fileConfig no longer disables existing loggers and the "
+        "explanation in alembic/env.py should be revisited")
+
+    # And what `env.py` actually does.
+    application.disabled = False
+    fileConfig(str(ini), disable_existing_loggers=False)
+    assert application.disabled is False
+    assert application.isEnabledFor(logging.INFO)
+
+
+def test_alembic_env_passes_disable_existing_loggers_false():
+    """Asserted against the source, because the behaviour above is only correct if
+    `env.py` actually passes the flag — and a migration-time regression would be
+    invisible until an operator needed a log line that was never written."""
+    from pathlib import Path
+
+    env = (Path(__file__).resolve().parents[1] / "alembic" / "env.py").read_text()
+    assert "disable_existing_loggers=False" in env

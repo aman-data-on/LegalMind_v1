@@ -35,13 +35,102 @@ import logging
 import os
 import sys
 import time
+import traceback
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
-from legalmind.observability.redaction import redact_fields
+from legalmind.observability.redaction import _redact_value, redact_fields
 
 LOGGER_NAME = "legalmind"
 _logger = logging.getLogger(LOGGER_NAME)
+
+
+#: How much of a stack to keep. The frames nearest the failure are the useful ones,
+#: so the tail is retained when a trace is deeper than this.
+MAX_FRAMES = 25
+
+#: How far along `__cause__` / `__context__` to walk. A DBAPI failure is typically two
+#: links (`psycopg2.errors.*` wrapped by `sqlalchemy.exc.*`); three is generous.
+MAX_CAUSES = 3
+
+
+#: Markers after which a database driver appends the payload rather than the
+#: diagnosis: the offending row, the statement, and the bound parameters. Everything
+#: before the marker names *what* failed and is what an operator needs; everything
+#: after can be a contract clause. Cutting here keeps "column X does not exist" and
+#: drops "Failing row contains ('Liability shall not exceed …')".
+_PAYLOAD_MARKERS = ("DETAIL:", "[SQL:", "[parameters:", "Failing row contains")
+
+
+def _operator_message(message: str) -> str:
+    """The diagnosis without the payload — 53.3 applied to an exception's own text."""
+    cut = len(message)
+    for marker in _PAYLOAD_MARKERS:
+        found = message.find(marker)
+        if found != -1:
+            cut = min(cut, found)
+    trimmed = message[:cut].strip()
+    if cut < len(message):
+        trimmed = f"{trimmed} [payload omitted]" if trimmed else "[payload omitted]"
+    # Then the ordinary length rule, so an over-long diagnosis is still treated as
+    # content — the same guard every other logged value passes through.
+    return str(_redact_value(trimmed))
+
+
+def exception_fields(exc: BaseException) -> dict[str, Any]:
+    """Render an exception as **structure**, not as a formatted blob — 53.3 and 53.4.
+
+    Both locked rules apply to the same bytes, and a naive `formatException` satisfies
+    only one of them:
+
+    ```text
+    53.4  operator-facing: "stack trace, context, correlation id" -> logs
+    53.3  NEVER LOGGED: contract text or extracted clause content
+    ```
+
+    A formatted traceback is not neutral text. SQLAlchemy embeds the failing SQL **and
+    its bound parameters** in the exception message, so a database error while writing
+    `document_evidence` puts clause text into an operational log line. That was
+    confirmed against a real `IntegrityError`, not reasoned about — and it happened
+    through the one path that skipped `redact_fields`, because `exc_info` was rendered
+    by the formatter rather than passed through the redactor.
+
+    The split this makes:
+
+    ```text
+    frames    file:line:function          identifiers — kept in full
+    type      the exception class name    an identifier — kept
+    message   the exception's own text    a VALUE — redacted like any other,
+                                          so a long DBAPI dump becomes
+                                          "[N chars omitted]" and a short
+                                          diagnostic survives intact
+    ```
+
+    An operator keeps what locates the failure (which frame, which type, which
+    request) and loses only the payload, which 53.3 forbids regardless of how it
+    arrived. Rendering here rather than at the call site means no caller can bypass it,
+    including code that reaches `logging` directly.
+    """
+    frames = [
+        f"{frame.filename}:{frame.lineno}:{frame.name}"
+        for frame in traceback.extract_tb(exc.__traceback__)
+    ]
+    chain: list[dict[str, Any]] = []
+    current: BaseException | None = exc
+    while current is not None and len(chain) < MAX_CAUSES:
+        chain.append({
+            "type": type(current).__name__,
+            # `_operator_message`, not the raw string: this is the fix.
+            "message": _operator_message(str(current)),
+        })
+        current = current.__cause__ or current.__context__
+
+    return {
+        "exception_type": type(exc).__name__,
+        "exception_frames": frames[-MAX_FRAMES:],
+        "exception_chain": chain,
+    }
 
 
 class JsonFormatter(logging.Formatter):
@@ -60,10 +149,8 @@ class JsonFormatter(logging.Formatter):
         fields = getattr(record, "legalmind_fields", None)
         if fields:
             payload.update(fields)
-        if record.exc_info:
-            # Operator-facing only (53.4). The API response carries a stable code
-            # and a safe message; this is the other side of that bridge.
-            payload["exception"] = self.formatException(record.exc_info)
+        if record.exc_info and record.exc_info[1] is not None:
+            payload.update(exception_fields(record.exc_info[1]))
         return json.dumps(payload, default=str, sort_keys=True)
 
 

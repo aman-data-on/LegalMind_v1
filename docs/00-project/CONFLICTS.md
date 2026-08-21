@@ -4,7 +4,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-01 through C-04 were reconciled by the project owner on 2026-08-16** (registry entries `REC-01`–`REC-06` in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md)). The analysis found that **none of the four was a true contradiction** — each was a supersession chain, a layer migration, a refinement, or different terminology for different stages. No historical locked text was modified.
 
-**C-05 – C-08 and C-10 remain open.** **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
+**C-05 – C-08, C-10 and C-12 remain open.** **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
 
@@ -21,6 +21,8 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-09 | `backend/` source code vs "no implementation exists" | ✅ **RESOLVED** — authorized retroactively (`IMPL-01`, AB-2) |
 | C-10 | `roles` seed list (42.2) vs the canonical role matrix (Step 23) | ⏳ Open (MEDIUM) |
 | C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ✅ **RESOLVED** — GitHub Actions is the V1 choice (`REC-08`) |
+| C-12 | Step 39 stack table names Playwright for testing vs locked 54.7 listing test framework selection NOT YET SPECIFIED | ⏳ Open (LOW) — **blocks nothing**; both readings permit Playwright |
+| C-13 | Step 28's locked Requirement Model contains `Document Type`, and Step 23 locks "Document Types" as an Admin Configuration area — but locked 42.7's `requirements` table is exactly `id · code · status · created_at · updated_at`, and no `document_types` table exists anywhere in the locked schema | ⏳ Open (LOW) — **blocks nothing**: owner decision Q2 (2026-08-19) stores the type in the Company Standard `configuration` JSONB (the `D-3` route), validated in code against Step 6's vocabulary. A first-class column/table is a V2 option contingent on resolving this |
 
 ---
 
@@ -289,8 +291,58 @@ Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Blocking 
 
 ---
 
+## C-12 — Is the test framework locked by Step 39, or NOT YET SPECIFIED by Step 54?
+
+**Severity: LOW. Recorded 2026-08-17 while adding the browser-workflow suite. Not resolved. It blocks nothing — see "Why it does not block" below.**
+
+The same shape as **C-11**, one document over.
+
+| Source | Status | Says |
+|---|---|---|
+| **Step 39** technology stack table, `all_lock.md` line 6047 | LOCKED (stack table only) | `Testing` → **Pytest + Playwright** — "Backend/domain + real browser workflow testing"; `Frontend testing` → **Vitest** |
+| **Step 54.7**, `all_lock.md` line ~14832 and [STEP_54_TESTING_STRATEGY.md](../08-testing/STEP_54_TESTING_STRATEGY.md) §54.7 | LOCKED | "**NOT YET SPECIFIED:** coverage targets, **test framework selection**, CI topology — implementation-phase choices, **none determined by a locked decision.**" |
+
+Step 54's closing clause is the sharper half: it does not merely omit the choice, it asserts that *no locked decision determines it* — while a locked table names two frameworks and a third.
+
+**Why `REC-08` does not settle it.** `REC-08` resolved C-11 in favour of the Step 39 row, but its own text limits the supersession to "that one line item only". Extending it to test frameworks would be exactly the kind of quiet generalization rule 5 forbids.
+
+**Why it does not block.** Both readings permit the framework actually used:
+
+1. Step 39 governs → Playwright is the locked browser tier, and building it is building what is locked.
+2. Step 54.7 governs → framework selection is an implementation-phase choice, and Playwright is *still* inside the Step 39 stack, so `IMPL-01`'s bar on "any technology, dependency or service **beyond the Step 39 stack**" is not crossed either way.
+
+Pytest and Vitest have been in use on identical reasoning since the first unit. Whichever way this is ruled, **no code changes** — which is why it is registered rather than escalated.
+
+**Two consequences observed, not decided.** Locked 54.1's six tiers contain no browser tier, and 54.7's release gate does not list one. So `frontend/e2e/` is documented as **supporting**, is not described as a locked tier, and is not part of the release gate; CI job 10 says so in its own comment. Coverage targets remain unset.
+
+**Until decided:** do not describe the browser suite as a locked tier or a release gate, and do not cite this conflict as authority for adding any other framework.
+
+Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) § Build state, [STEP_54_TESTING_STRATEGY.md](../08-testing/STEP_54_TESTING_STRATEGY.md) §54.7, [`frontend/playwright.config.ts`](../../frontend/playwright.config.ts).
+
+---
+
 ## Provenance note — the master specification changed during documentation
 
 While this documentation structure was being built, `all_lock.md` grew from 12,481 lines to 13,510 lines: Step 45A's lock was confirmed and Step 45B (Evaluator Data Contract) was added. It has since grown to **14,885 lines** — AB-1, the 45B re-lock, Steps 45C/45D, and Steps 47, 49 and 52–55. Growth has been append-only throughout; no historical locked text has been modified.
 
 Any future session should re-check the tail of `all_lock.md` against [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before assuming the docs are current.
+
+---
+
+## C-13 — Document Type: locked concept, no locked storage
+
+**Registered 2026-08-19. Open (LOW). Blocks nothing.**
+
+* **Step 28** (`all_lock.md`, "Locked Requirement Model") — each Requirement conceptually
+  contains `Document Type`, and the worked example scopes `LIABILITY-001` to `MSA`.
+* **Step 6** locks the ten V1 Document Types and `Source = Organization | Counterparty`.
+* **Step 23** locks "Document Types" as a managed Admin Legal Configuration area.
+* **Step 42.7** locks the physical `requirements` table with no document-type column, and
+  the locked schema defines no `document_types` table (zero occurrences in `all_lock.md`).
+
+Not a contradiction in behaviour — a divergence between the conceptual model and the
+physical schema, of the same shape `D-3` resolved for Required/Optional. Owner decision Q2
+(2026-08-19) took the same route: the type lives in the Company Standard `configuration`
+JSONB, validated in tested code (`legalmind/domain/document_types.py`), enforced at publish
+and at analysis. Resolving C-13 properly (a column or a table) is a V2 schema decision and
+requires reconciling 42.7; nothing in V1 waits on it.

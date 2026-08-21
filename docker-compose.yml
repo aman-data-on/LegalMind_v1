@@ -27,8 +27,8 @@ services:
       interval: 5s
       retries: 10
 
-  # Locked Step 39 includes Celery/Redis. Present so the worker shape is real rather
-  # than notional; analysis is still synchronous in the API — see backend/README.md.
+  # Locked Step 39's broker. The api enqueues, the worker consumes; both hold
+  # LEGALMIND_BROKER_URL, and the api falls back to inline analysis without it.
   queue:
     image: redis:7-alpine
     healthcheck:
@@ -45,6 +45,7 @@ services:
       LEGALMIND_ENVIRONMENT: development
       LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
+      LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
     volumes:
       - documents:/var/lib/legalmind/documents
@@ -60,13 +61,16 @@ services:
       LEGALMIND_ENVIRONMENT: development
       LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
+      LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
     volumes:
       # The SAME object store as the api: a worker parses documents the api stored.
       - documents:/var/lib/legalmind/documents
-    # Placeholder command. The queue consumer is not wired yet, and idling is honest:
-    # pretending to consume would be worse than visibly not consuming.
-    command: ["python", "-c", "import time; print('worker: queue consumer not wired; see backend/README.md', flush=True); time.sleep(2**31)"]
+    # The SAME image as the api, different command — locked 55.1. `--concurrency 1`
+    # keeps one analysis per process: the work is CPU-bound parsing and evaluation,
+    # so oversubscribing a container buys nothing and makes memory unpredictable.
+    command: ["celery", "-A", "legalmind.worker.app", "worker",
+              "-Q", "analysis", "--concurrency", "1", "--loglevel", "INFO"]
 
   frontend:
     build: ./frontend

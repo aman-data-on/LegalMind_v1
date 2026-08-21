@@ -19,7 +19,6 @@ from legalmind.security import permissions as P
 from legalmind.security.errors import Forbidden
 from legalmind.security.resolver import effective_permissions
 
-
 # Locked S-8 names the permissions the escalation guard applies to, verbatim:
 # "applied to `legal.decision`, `legal.approve_customization`, `role.manage` and
 # `platform.manage`". The guard compares only these.

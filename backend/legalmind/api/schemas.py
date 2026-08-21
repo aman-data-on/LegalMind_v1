@@ -15,8 +15,9 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from legalmind.domain.document_types import is_document_type
 from legalmind.domain.enums import (
     ContractStatus,
     DecisionType,
@@ -28,6 +29,21 @@ from legalmind.domain.enums import (
 
 class Body(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+def _validate_contract_type(value: str | None) -> str | None:
+    """Locked Step 6 vocabulary, when a type is supplied at all.
+
+    ``None`` stays legal at this boundary — the column is nullable and existing
+    rows carry no type. The *requirement* to have one lands at analysis time,
+    which refuses rather than evaluating everything (ENG-09); rejecting here
+    would only break older clients without closing any gap.
+    """
+    if value is not None and not is_document_type(value):
+        raise ValueError(
+            f"unknown document type {value!r}; locked Step 6 defines the "
+            "permitted values")
+    return value
 
 
 # ------------------------------------------------------------------ auth
@@ -45,11 +61,15 @@ class ContractCreate(Body):
     name: str = Field(min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
 
+    _contract_type = field_validator("contract_type")(_validate_contract_type)
+
 
 class ContractUpdate(Body):
     name: str | None = Field(default=None, min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
     status: ContractStatus | None = None
+
+    _contract_type = field_validator("contract_type")(_validate_contract_type)
 
 
 # --------------------------------------------------------------- reviews
@@ -120,6 +140,22 @@ class LegalRuleDraft(Body):
 
     rule_type: RuleType
     configuration: dict[str, Any]
+
+
+class CompanyStandardUpdate(Body):
+    """Update a Requirement's Company Standard — by APPENDING, never editing.
+
+    Locked rule 16: existing versions are never modified, which is what keeps a
+    historical Review reproducible. This endpoint gives an admin the experience
+    of "edit the value and save" while the mechanics append a new Requirement
+    version carrying the previous mapping/evaluation/legal-rule artifacts
+    forward unchanged. Rollback is the same operation with an older version's
+    values. ``reason`` is mandatory — a standard change is a legal-position
+    change, and the audit trail must say why.
+    """
+
+    company_standard: dict[str, Any]
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class ConfigurationPublish(Body):

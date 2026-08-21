@@ -1,0 +1,85 @@
+{
+  "_about": [
+    "RATIFIED Company Standard LIAB-EXCLUSIONS-MSA-001 — extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Ratified 2026-08-20 under the owner's coverage-gap tasking",
+    "(AUTO_MODE_DECISIONS.md #44-#46). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md.",
+    "It is CONFIGURATION: no all_lock.md entry, no locked decision amended.",
+    "PRESENCE Requirement: it verifies the provision EXISTS. The clause's CONTENT goes to Legal with the evidence — categorical value comparison is a V2 evaluator (CLAUSE_CATALOGUE.md).",
+    "Distinct from LIABILITY-MSA-001, which reads the CAP VALUE at 17.2. This standard reads whether the indirect/consequential-damages EXCLUSION exists at all. The audit of 2026-08-20 found that a counterparty cap matching six months with no exclusion registered a clean MATCH while being a materially worse deal; the two Requirements together close that."
+  ],
+  "requirement_code": "LIAB-EXCLUSIONS-MSA-001",
+  "ratified": "2026-08-20",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "17.1 Exclusion of Certain Damages (restated at 17.6)",
+  "source_quote": "Leapswitch shall not be liable to the Customer or any third party for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for any loss of profits, revenue, goodwill, business opportunities, data, or use of data",
+  "configuration": {
+    "document_type": "MSA",
+    "expected_presence": "PRESENT",
+    "scope_key": "CONSEQUENTIAL_DAMAGES_EXCLUSION",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "source_file": "MSA.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "indirect, incidental, special, consequential, exemplary, or punitive damages",
+      "indirect, incidental, special, punitive, or consequential damages"
+    ],
+    "aliases": [
+      "consequential damages",
+      "punitive damages",
+      "exclusion of certain damages"
+    ],
+    "keyword_groups": [
+      [
+        "consequential",
+        "punitive"
+      ],
+      [
+        "indirect",
+        "incidental",
+        "loss of profits"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "limitation of liability"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terminology, ratified with the standard on 2026-08-20. Every term is",
+    "drawn from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - the position lives",
+    "in `configuration.expected_presence`, sourced above). confirm_threshold 5 is",
+    "STRUCTURAL and matches the 21 standards ratified 2026-08-19: one exact phrase",
+    "confirms. Locked 35.9 fixes no threshold and 35.10 requires calibration",
+    "against a representative counterparty set before the value is trusted;",
+    "recalibration is a new mapping rule version (data), never a code change.",
+    "Verified against the real source document by tools/verify_terminology.py."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- an absent provision included -> UNACCEPTABLE -> Legal",
+    "Decision required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ]
+}

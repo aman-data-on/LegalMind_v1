@@ -1,10 +1,21 @@
 """Golden corpus runner — locked ENG-12, Step 45E, Step 54.
 
-The fixtures exercised here are **STRUCTURAL**: they verify the runner and the
-algorithm. The NORMATIVE corpus specified in Step 45E (64 fixtures) requires real
-representative contracts and the organization's real Company Standards, and is
-not authored here — inventing expected legal outcomes would make a fabricated
-legal conclusion normative under Step 54.1.
+Two kinds of fixture run here.
+
+**STRUCTURAL** fixtures verify the runner and the algorithm with placeholder
+values that carry no legal meaning.
+
+**DOCUMENT_SUPPORTED** fixtures are built from the contracts supplied on
+2026-08-18, and assert only outcomes that follow from real clause text plus the
+locked specification — the fail-closed, conflict and absence paths, where the
+engine's answer does not depend on what the organization will accept. They carry
+no acceptance position, and `load_fixture` refuses one that tries to.
+
+The **NORMATIVE** corpus of Step 45E still requires the organization's real
+Company Standard and Legal Rule. Inventing an expected legal outcome would make a
+fabricated legal conclusion normative under Step 54.1, so none is authored.
+Per-fixture coverage of all 64 specified cases is tracked in
+`tests/corpus_coverage.json` and enforced by `test_corpus_coverage.py`.
 """
 
 from __future__ import annotations
@@ -14,10 +25,13 @@ from pathlib import Path
 
 import pytest
 
-from legalmind.domain.enums import FindingClassification as C
+from legalmind.domain.enums import RuleOutcome
 from legalmind.evaluation.corpus import (
+    DOCUMENT_SUPPORTED,
     NORMATIVE,
+    STANDARD_DERIVED,
     STRUCTURAL,
+    TRACEABLE_PROVENANCE,
     FixtureError,
     load_fixture,
     load_fixtures,
@@ -31,10 +45,16 @@ CORPUS_DIR = Path(__file__).parent / "corpus"
 def test_corpus_directory_loads():
     fixtures = load_fixtures(CORPUS_DIR)
     assert fixtures
-    assert {f.provenance for f in fixtures} == {STRUCTURAL}
+    # Three tiers as of 2026-08-18: STRUCTURAL placeholders, DOCUMENT_SUPPORTED
+    # cases from the supplied contracts, and STANDARD_DERIVED cases measured
+    # against a position those contracts explicitly state. NORMATIVE requires an
+    # approved Legal Rule and must not appear — see the two guards below and
+    # tests/corpus_coverage.json.
+    assert {f.provenance for f in fixtures} == {
+        STRUCTURAL, DOCUMENT_SUPPORTED, STANDARD_DERIVED}
 
 
-def test_all_structural_fixtures_pass():
+def test_every_fixture_in_the_corpus_passes():
     outcomes = run_corpus(load_fixtures(CORPUS_DIR))
     failures = {o.fixture_id: o.failures for o in outcomes if not o.passed}
     assert not failures, failures
@@ -128,5 +148,56 @@ def test_no_normative_fixtures_are_present_yet():
     fixtures = load_fixtures(CORPUS_DIR)
     normative = [f.id for f in fixtures if f.provenance == NORMATIVE]
     assert not normative, (
-        f"normative fixtures present: {normative}. Verify each was authored "
-        "from real representative contracts and real Company Standards.")
+        f"normative fixtures present: {normative}. A NORMATIVE fixture needs an "
+        "approved Legal Rule as well as real contracts and a real Company "
+        "Standard; verify each and update tests/corpus_coverage.json.")
+
+
+def test_no_fixture_asserts_an_unapproved_acceptance_policy():
+    """The owner's acceptance policy, checked across the whole corpus at once.
+
+    Exactly ONE Legal Rule is approved (owner, 2026-08-20, confirming the
+    manager's zero-tolerance ruling of 2026-08-19): MATCH is acceptable, ANY
+    deviation is UNACCEPTABLE and goes to Legal. There are deliberately no
+    tolerance bands, so a traceable fixture may carry that rule VERBATIM
+    (`APPROVED_ZERO_TOLERANCE_RULE`) or no rule at all — never `acceptable_max`,
+    never `approval_required_above`, never any other disposition value. Rule
+    Outcomes are limited to what those two states can produce: NOT_APPLICABLE
+    always (Step 20 r4 — the deviation stands and a human decides), plus
+    ACCEPTABLE/UNACCEPTABLE only where the approved rule is pinned.
+
+    This is the repository-wide form of the per-fixture guard in `load_fixture`:
+    that one refuses a bad fixture at load time, this one catches a tolerance
+    reaching the corpus by any other route, including a future NORMATIVE tier
+    added before its policy exists.
+
+    STRUCTURAL fixtures are deliberately exempt, and the exemption is the whole
+    point of the tier: `STRUCT-FC-*` configure `acceptable_max` over `UNIT_X` and
+    `SCOPE_A` to verify that the threshold machinery works at all. Those numbers
+    are declared to carry no legal meaning, so they assert nothing about what this
+    organization will accept. Only a fixture claiming to describe real material
+    can misrepresent a policy.
+    """
+    from legalmind.evaluation.corpus import APPROVED_ZERO_TOLERANCE_RULE
+
+    offenders = []
+    for fixture in load_fixtures(CORPUS_DIR):
+        if fixture.provenance not in TRACEABLE_PROVENANCE:
+            continue
+        rule = fixture.evaluator_input.legal_rule
+        carries_approved = (rule is not None
+                            and rule.configuration == APPROVED_ZERO_TOLERANCE_RULE)
+        if rule is not None and not carries_approved:
+            offenders.append(f"{fixture.id}: carries a Legal Rule that is not "
+                             "the approved zero-tolerance rule")
+        allowed = {RuleOutcome.NOT_APPLICABLE}
+        if carries_approved:
+            allowed |= {RuleOutcome.ACCEPTABLE, RuleOutcome.UNACCEPTABLE}
+        for x in fixture.expect_evaluations:
+            if x.rule_outcome not in allowed:
+                offenders.append(
+                    f"{fixture.id}/{x.scope_key}: expects "
+                    f"{x.rule_outcome.value}")
+    assert not offenders, (
+        "the corpus asserts an acceptance policy that has not been approved:\n  "
+        + "\n  ".join(offenders))

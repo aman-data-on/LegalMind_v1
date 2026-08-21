@@ -7,7 +7,7 @@ F-8, F-9, S-8, S-9, S-10, SEC-05.
 from __future__ import annotations
 
 import io
-import zipfile
+import json
 
 import pytest
 from sqlalchemy import select
@@ -284,7 +284,10 @@ def test_draft_and_publish_produces_a_stable_snapshot(api, db, seeded):
     versioned = api.post(f"{V1}/requirements/{requirement_id}/versions", json={
         "name": "Limitation of Liability",
         "evaluator_type": "NUMERIC_COMPARISON",
-        "company_standard": {"unit": "months"},
+        # document_type is required configuration (Step 28 scoping, owner Q2/Q3
+        # of 2026-08-19): publish refuses an untyped standard, so the happy path
+        # must state it — same reasoning as confirm_threshold below.
+        "company_standard": {"unit": "months", "document_type": "MSA"},
         # confirm_threshold is required configuration (D-1): publishing without
         # one is refused, so the happy path must state it.
         "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
@@ -579,3 +582,265 @@ def test_login_is_rate_limited(api, db, seeded):
     assert "Retry-After" not in limited.headers
     assert "limit" not in limited.json()["error"]["message"].lower()
     assert isinstance(auth_router.limiter, ratelimit.InProcessRateLimiter)
+
+
+# ----------------------------------------------- Document Type at the boundaries
+def test_publish_refuses_a_standard_without_a_document_type(api, db, seeded):
+    """Step 28 scoping (owner Q2/Q3, 2026-08-19). Refusing at publish is what
+    lets the analysis filter be a plain equality test: every snapshot item is
+    guaranteed a valid type."""
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+    created = api.post(f"{V1}/requirements", json={"code": "UNTYPED-001"})
+    requirement_id = created.json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "Untyped", "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {"unit": "months"},          # no document_type
+        "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
+        "evaluation_rules": {},
+    })
+    response = api.post(f"{V1}/configuration/publish",
+                        json={"requirement_codes": ["UNTYPED-001"]})
+    assert response.status_code == 422
+    assert "document_type" in response.json()["error"]["message"]
+
+
+def test_publish_refuses_an_unknown_document_type(api, db, seeded):
+    """Locked Step 6 fixes the vocabulary; a near-miss is refused, not coerced."""
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+    created = api.post(f"{V1}/requirements", json={"code": "MISTYPED-001"})
+    requirement_id = created.json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "Mistyped", "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {"unit": "months", "document_type": "msa"},  # lowercase
+        "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
+        "evaluation_rules": {},
+    })
+    response = api.post(f"{V1}/configuration/publish",
+                        json={"requirement_codes": ["MISTYPED-001"]})
+    assert response.status_code == 422
+    assert "msa" in response.json()["error"]["message"]
+
+
+def test_contract_creation_refuses_a_type_outside_step_6(api, db, owner):
+    """The uploader declares the type (owner Q9) from Step 6's ten values."""
+    sign_in(api, db, owner)
+    bad = api.post(f"{V1}/contracts",
+                   json={"name": "X", "contract_type": "LEASE"})
+    assert bad.status_code == 422
+    good = api.post(f"{V1}/contracts",
+                    json={"name": "X", "contract_type": "NDA"})
+    assert good.status_code == 201
+    assert good.json()["data"]["contract_type"] == "NDA"
+
+
+# ------------------------------------------- admin standards surface (2026-08-19)
+def test_requirement_detail_returns_values_and_authorship(api, db, seeded):
+    """The admin read path: an admin screen must be able to display "current:
+    12 months, changed by X". Values were previously write-only through the API,
+    which made the stored configuration unreviewable."""
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+    created = api.post(f"{V1}/requirements", json={"code": "READBACK-001"})
+    requirement_id = created.json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "Readback", "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {"document_type": "MSA", "preferred": 6,
+                             "unit": "MONTHS"},
+        "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
+        "evaluation_rules": {},
+    })
+    detail = api.get(f"{V1}/requirements/{requirement_id}").json()["data"]
+    version = detail["versions"][0]
+    assert version["company_standard"]["preferred"] == 6
+    assert version["company_standard"]["document_type"] == "MSA"
+    assert version["created_by"] == str(admin.id)
+    # The values-free list view stays values-free.
+    listed = api.get(f"{V1}/requirements").json()["data"]
+    assert all("company_standard" not in v
+               for r in listed for v in r["versions"])
+
+
+def test_standard_update_appends_and_never_edits(api, db, seeded):
+    """Locked rule 16 through the new admin path: "edit and save" appends a new
+    version carrying the other artifacts forward; the prior version's values
+    stay byte-identical, so historical Reviews remain reproducible."""
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+    created = api.post(f"{V1}/requirements", json={"code": "EDIT-001"})
+    requirement_id = created.json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "Edit target", "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {"document_type": "MSA", "preferred": 6,
+                             "unit": "MONTHS"},
+        "mapping_rules": {"exact_phrase": ["x"], "confirm_threshold": 5},
+        "evaluation_rules": {"scope_required": True},
+    })
+
+    updated = api.post(f"{V1}/requirements/{requirement_id}/standard", json={
+        "company_standard": {"document_type": "MSA", "preferred": 18,
+                             "unit": "MONTHS"},
+        "reason": "structural test: exercise the append path",
+    })
+    assert updated.status_code == 201
+    versions = updated.json()["data"]["versions"]
+    assert [v["version_number"] for v in versions] == [1, 2]
+    assert versions[0]["company_standard"]["preferred"] == 6   # untouched
+    assert versions[1]["company_standard"]["preferred"] == 18
+
+    # Mapping rules were carried forward unchanged, not re-supplied.
+    rv2 = db.execute(
+        select(M.RequirementVersion)
+        .where(M.RequirementVersion.version_number == 2)
+    ).scalars().first()
+    mr2 = db.execute(
+        select(M.MappingRuleVersion)
+        .where(M.MappingRuleVersion.requirement_version_id == rv2.id)
+    ).scalars().one()
+    assert mr2.rules == {"exact_phrase": ["x"], "confirm_threshold": 5}
+
+
+def test_standard_update_refuses_untyped_and_requires_reason(api, db, seeded):
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+    created = api.post(f"{V1}/requirements", json={"code": "EDIT-002"})
+    requirement_id = created.json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "T", "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {"document_type": "MSA", "unit": "MONTHS"},
+        "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
+        "evaluation_rules": {},
+    })
+    # No document_type in the replacement → refused at save, not at publish.
+    r = api.post(f"{V1}/requirements/{requirement_id}/standard", json={
+        "company_standard": {"unit": "MONTHS"}, "reason": "x"})
+    assert r.status_code == 422
+    # No reason → schema refusal.
+    r = api.post(f"{V1}/requirements/{requirement_id}/standard", json={
+        "company_standard": {"document_type": "MSA", "unit": "MONTHS"}})
+    assert r.status_code == 422
+
+
+def test_configuration_writes_are_audited(api, db, seeded):
+    """Closing the gap where every other privileged router recorded audit events
+    and configuration writes did not. A standard change is a change of legal
+    position; "who changed what, when, why" must be answerable from the trail."""
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+    created = api.post(f"{V1}/requirements", json={"code": "AUDITED-001"})
+    requirement_id = created.json()["data"]["id"]
+    api.post(f"{V1}/requirements/{requirement_id}/versions", json={
+        "name": "A", "evaluator_type": "NUMERIC_COMPARISON",
+        "company_standard": {"document_type": "MSA", "unit": "MONTHS"},
+        "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
+        "evaluation_rules": {},
+    })
+    api.post(f"{V1}/requirements/{requirement_id}/standard", json={
+        "company_standard": {"document_type": "MSA", "preferred": 9,
+                             "unit": "MONTHS"},
+        "reason": "structural audit-trail test"})
+    api.post(f"{V1}/configuration/publish",
+             json={"requirement_codes": ["AUDITED-001"]})
+
+    actions = [row.action for row in db.execute(
+        select(M.AuditEvent).order_by(M.AuditEvent.timestamp)).scalars()]
+    for expected in ("config.requirement_created", "config.version_created",
+                     "config.standard_updated", "config.published"):
+        assert expected in actions, f"missing audit action {expected}"
+
+    updated = next(row for row in db.execute(
+        select(M.AuditEvent)
+        .where(M.AuditEvent.action == "config.standard_updated")).scalars())
+    assert updated.after_state["reason"] == "structural audit-trail test"
+    assert updated.actor_id == admin.id
+    # 53.3 — the audit event names the change, never the values.
+    assert "preferred" not in json.dumps(updated.after_state)
+
+
+def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
+    """tools/import_ratified_standards — the bridge from ratified config files
+    to the runtime database. Idempotent by content: run twice, one version."""
+    from tests.conftest import make_user
+    from tools.import_ratified_standards import import_standards
+
+    actor = make_user(db)
+    first = import_standards(db, actor_email=actor.email)
+    assert any("LIABILITY-MSA-001: version 1 written" in line for line in first)
+    assert any("LIABILITY-TOS-001: version 1 written" in line for line in first)
+    # Since 2026-08-19 every ratified file carries mapping and evaluation rules
+    # (the owner's publishability tasking), so nothing imports as an
+    # unpublishable draft any more. The refusal path stays covered: a file
+    # without rules would still be reported, and the publish gate re-checks.
+    assert not any("unpublishable draft" in line for line in first)
+
+    second = import_standards(db, actor_email=actor.email)
+    assert any("LIABILITY-MSA-001: unchanged" in line for line in second)
+
+    msa = db.execute(
+        select(M.Requirement).where(M.Requirement.code == "LIABILITY-MSA-001")
+    ).scalars().one()
+    versions = db.execute(
+        select(M.RequirementVersion)
+        .where(M.RequirementVersion.requirement_id == msa.id)).scalars().all()
+    assert len(versions) == 1                        # idempotent
+    cs = db.execute(
+        select(M.CompanyStandardVersion)
+        .where(M.CompanyStandardVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert cs.configuration["preferred"] == 6        # the ratified MSA value
+    assert cs.configuration["document_type"] == "MSA"
+    assert "MSA.pdf" in versions[0].description or "Master Services" in versions[0].description
+
+    # The terminology of 2026-08-19 makes the Requirement publishable: mapping
+    # rules with a usable confirm_threshold (D-1) and an evaluation rule version.
+    mr = db.execute(
+        select(M.MappingRuleVersion)
+        .where(M.MappingRuleVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert isinstance(mr.rules.get("confirm_threshold"), int)
+    er = db.execute(
+        select(M.EvaluationRuleVersion)
+        .where(M.EvaluationRuleVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert er.rules
+
+    # The approved zero-tolerance Legal Rule (owner, 2026-08-20) is written from
+    # the file — verbatim, and nothing else would have been accepted.
+    lr = db.execute(
+        select(M.LegalRuleVersion)
+        .where(M.LegalRuleVersion.requirement_version_id == versions[0].id)
+    ).scalars().one()
+    assert lr.configuration == {"deviation_outcome": "UNACCEPTABLE",
+                                "unlimited_outcome": "UNACCEPTABLE"}
+
+
+def test_every_ratified_standard_publishes_through_the_gated_endpoint(api, db, seeded):
+    """The tasked outcome, proved end to end rather than asserted from the files.
+
+    The owner's tasking of 2026-08-19 was to make the ratified Requirements
+    publishable. This imports all of them and publishes through the real
+    permission-gated endpoint, so the publish gate's own fail-closed checks —
+    company standard, mapping rules with a usable `confirm_threshold` (D-1),
+    evaluation rules, and a locked Step 6 `document_type` — are what pass, not a
+    re-implementation of them in a test.
+
+    Rule 21 note: nothing here authors legal content. The values come from the
+    owner's ratified files; the assertion is about the mechanism reaching them.
+    """
+    from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
+    from tools.import_ratified_standards import import_standards
+
+    admin = _legal_admin(db)
+    sign_in(api, db, admin)
+
+    import_standards(db, actor_email=admin.email)
+    db.flush()
+
+    codes = sorted(p.stem for p in RATIFIED_STANDARDS_DIR.glob("*.json"))
+    published = api.post(f"{V1}/configuration/publish",
+                         json={"requirement_codes": codes})
+    # A refusal names the incomplete Requirement, so surface it rather than a
+    # bare status code.
+    assert published.status_code == 201, published.text
+    assert published.json()["data"]["requirement_count"] == len(codes)

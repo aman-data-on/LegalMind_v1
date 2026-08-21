@@ -1,0 +1,110 @@
+{
+  "_about": [
+    "RATIFIED Company Standard CONF-SURVIVAL-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "document cited below, under the manager's standing rule that whatever is",
+    "stated in our approved legal documents is the final position (recorded",
+    "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
+    "CONFIGURATION: no all_lock.md entry, no locked decision amended."
+  ],
+  "requirement_code": "CONF-SURVIVAL-MSA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "12.3 Confidentiality \u2014 survival",
+  "source_quote": "Obligations under this Clause shall survive for a period of three (3) years post-termination.",
+  "configuration": {
+    "document_type": "MSA",
+    "preferred": 3,
+    "unit": "YEARS",
+    "basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION",
+    "scope_key": "GENERAL",
+    "extraction": {
+      "cap_phrases": [
+        "shall survive for a period of"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "YEARS": [
+          "years",
+          "year"
+        ]
+      },
+      "bases": {
+        "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION": [
+          "post-termination",
+          "post termination",
+          "from the date of termination",
+          "after termination"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29); deviation disposition lives in the Legal Rule, never here"
+  },
+  "source_file": "MSA.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "shall survive for a period of"
+    ],
+    "aliases": [
+      "confidentiality"
+    ],
+    "keyword_groups": [
+      [
+        "confidential",
+        "survive"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "confidentiality"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping and extraction terminology, added 2026-08-19 under the owner's",
+    "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",
+    "from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - positions live",
+    "in `configuration`, sourced above). confirm_threshold 5 is STRUCTURAL: one",
+    "exact phrase confirms, or a section heading plus a keyword group. Locked",
+    "35.9 fixes no threshold and 35.10 requires calibration against a",
+    "representative contract set before the value is trusted; recalibration is a",
+    "new mapping rule version (data), never a code change."
+  ],
+  "_basis_note": [
+    "BASIS ENCODES THE MEASUREMENT ANCHOR, not just the topic (45B.4 / 45C.23).",
+    "MSA 12.3 runs three years from TERMINATION OF THIS AGREEMENT -- a single fixed",
+    "event -- and grants trade secrets NO extended protection, so they expire with",
+    "the three years.",
+    "",
+    "A counterparty MSA measuring survival from a DIFFERENT event (e.g. 'three years",
+    "from the date of disclosure') states a different quantity and MUST fail closed",
+    "rather than matching on the number 3. That is why the basis is not the bare",
+    "topic CONFIDENTIALITY_SURVIVAL: two clauses can share a number and protect for",
+    "very different real durations.",
+    "",
+    "Deliberately NOT comparable to CONF-SURVIVAL-NDA-001's basis. See the owner",
+    "comparability analysis of 2026-08-19 in CLAUSE_CATALOGUE.md."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
+    "required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ]
+}

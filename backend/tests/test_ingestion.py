@@ -15,7 +15,6 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion import parsing
 from legalmind.ingestion.service import (
-    find_duplicate,
     ingest_document,
     process_document_version,
 )

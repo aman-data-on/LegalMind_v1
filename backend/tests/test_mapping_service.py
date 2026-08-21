@@ -158,8 +158,8 @@ def test_failed_extraction_yields_no_clauses(db, storage):
     contract = M.Contract(owner_id=user.id, name="Scan",
                           status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()
-    from tests.test_ingestion import build_image_only_pdf
     from legalmind.ingestion.validation import PDF_MIME
+    from tests.test_ingestion import build_image_only_pdf
 
     ingested = ingest_document(
         db, storage, contract_id=contract.id, uploaded_by=user.id,

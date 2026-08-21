@@ -111,3 +111,32 @@ A Legal Reviewer can be assigned to a Review without becoming its owner.
 A Super Admin can administer the platform without automatically gaining Legal content access.
 
 A normal User can own a Review without gaining any Legal approval authority.
+
+---
+
+## 📎 Implementation note — appended 2026-08-17, locked text unchanged
+
+Nothing above is modified. Locked **`REC-09`** defines r6's *"explicit Legal scope"*,
+which this document names and does not define:
+
+```text
+A Review is in Legal scope when EITHER any Finding has a non-withdrawn
+escalation (r5, AM-23) OR its status is LEGAL_REVIEW (Step 30).
+A `legal.review` holder may VIEW such a Review — no ownership (r16, r17),
+no decision authority (SEC-02, SEC-05).
+```
+
+Until `REC-09`, both branches of r6 were unimplementable — nothing populates
+`review_assignments`, and Legal scope had no criterion — so a Legal Reviewer could reach
+**no Review at all** (`F-6`).
+
+**Per-user assignment is deferred to V2.** `review_assignments` (`AM-22`) remains
+ratified and is still read for access; nothing writes it. Assignment is r6's other
+branch, and *"and/or"* permits it without mandating it — the same reasoning by which
+`AM-24` deferred ownership transfer.
+
+**Contract and Document access are unchanged and owner-only.** Whether Legal scope
+extends to the underlying Contract or to downloading the original document is **not**
+decided by `REC-09`.
+
+Full trace: [EDGE_CASES/LEGAL_ACCESS_GAP.md](EDGE_CASES/LEGAL_ACCESS_GAP.md).

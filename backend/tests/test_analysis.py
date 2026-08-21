@@ -111,6 +111,12 @@ class Builder:
     def requirement(self, code, evaluator_type, *, mapping, standard,
                     legal_rule=None, evaluation_rules=None):
         db = self.db
+        # Step 28 scoping: every standard declares its Document Type, which
+        # publish enforces in production. The builder mirrors that guarantee so
+        # each test states only what it is about; a test exercising the UNTYPED
+        # refusal passes `document_type` explicitly (None or an unknown value).
+        if "document_type" not in standard:
+            standard = {"document_type": "MSA", **standard}
         req = M.Requirement(code=code, status=E.ConfigStatus.ACTIVE)
         db.add(req); db.flush()
         rv = M.RequirementVersion(
@@ -150,6 +156,7 @@ class Builder:
     def review(self, paragraphs):
         db = self.db
         contract = M.Contract(owner_id=self.owner.id, name="Structural MSA",
+                              contract_type="MSA",     # declared, per Step 6 / Q9
                               status=E.ContractStatus.ACTIVE)
         db.add(contract); db.flush()
         result = ingest_document(
@@ -352,8 +359,8 @@ def test_conflicting_provisions_are_all_retained_as_conflicting_evidence(build, 
         .where(M.EvaluationEvidence.evaluation_id == evaluation.id)
     ).scalars().all()
     assert len(links) == 2
-    assert all(l.relationship_type is E.EvidenceRelationshipType.CONFLICTING
-               for l in links)
+    assert all(link.relationship_type is E.EvidenceRelationshipType.CONFLICTING
+               for link in links)
     # Both figures survive in the record; neither was chosen or dropped.
     caps = (evaluation.actual_value or {}).get("caps") or []
     assert sorted(c["cap_value"] for c in caps) == [6.0, 24.0]
@@ -487,10 +494,10 @@ def test_the_general_cap_and_its_carveout_are_evaluated_separately(build, db):
 
     scopes = {e.scope_key for e in evaluations}
     assert scopes == {"GENERAL", "SCOPE_X"}
-    exception = [e for e in evaluations if e.scope_key == "SCOPE_X"][0]
+    exception = next(e for e in evaluations if e.scope_key == "SCOPE_X")
     assert exception.evaluation_kind is E.EvaluationKind.EXCEPTION
     # 45C.4 — the unlimited carve-out applies only to its own scope.
-    general = [e for e in evaluations if e.scope_key == "GENERAL"][0]
+    general = next(e for e in evaluations if e.scope_key == "GENERAL")
     assert general.evaluation_kind is E.EvaluationKind.PRIMARY
     # The Finding summary is a roll-up over both, never the general cap alone.
     assert finding.classification is not E.FindingClassification.MATCH
@@ -811,3 +818,142 @@ def test_analyze_is_rate_limited(api, db, storage, seeded):
     assert limited.status_code == 429
     # 49.10 — no detail about the limit's shape.
     assert "Retry-After" not in limited.headers
+
+
+# =====================================================================
+# Document Type scoping — locked Step 6 + Step 28, owner Q3=B/Q9 (2026-08-19)
+# =====================================================================
+def test_an_nda_is_never_measured_against_an_msa_requirement(build, db):
+    """THE headline fix. A Requirement applies only to the kind of paper its
+    standard declares (Step 28's Requirement Model), so an NDA produces **no
+    liability Finding at all** — not MISSING, not a Legal Decision.
+
+    Before this filter existed, exactly this scenario produced
+    `MISSING liability cap → DECISION_REQUIRED` against a real NDA, which is
+    technically defensible and practically misleading: an NDA normally has no
+    liability cap, and the organization's own NDA has none either.
+    """
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Confidential Information",
+        "Each party shall hold Confidential Information in strict confidence.",
+    ])
+    # The uploader declared this paper an NDA.
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = "NDA"
+    db.flush()
+
+    run = run_analysis(db, review)
+
+    assert run.document_type == "NDA"
+    assert run.requirements_in_snapshot == 1      # pinned — honestly reported
+    assert run.requirements_applicable == 0       # none applies to an NDA
+    assert run.findings_created == 0
+    assert run.failures == []
+    assert db.execute(select(M.Finding)).first() is None
+    # No Finding means nothing to review: the lifecycle resolves rather than
+    # parking the Review in front of Legal with nothing to decide.
+    assert run.review_status != "ANALYSIS_FAILED"
+
+
+def test_an_sla_is_never_measured_against_a_liability_requirement(build, db):
+    """Owner ruling 2026-08-20 (closes the L-13 scope question): service credits
+    are a REMEDY, not a liability cap, so SLA service credits are outside
+    LIABILITY-001's scope and liability is not applicable to the SLA document
+    type. Mechanically identical to the NDA case — the type filter produces no
+    liability Finding at all — but pinned separately because the ruling is
+    separate: an SLA's credit percentages must never be read as caps, and no
+    SLA-typed liability standard may be created from them.
+    """
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Service Credits",
+        "Credits are the sole and exclusive remedy and shall not exceed fifty "
+        "percent of the monthly recurring fee. Liability shall not exceed the "
+        "credits due.",
+    ])
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = "SLA"
+    db.flush()
+
+    run = run_analysis(db, review)
+
+    assert run.document_type == "SLA"
+    assert run.requirements_applicable == 0
+    assert run.findings_created == 0
+    assert db.execute(select(M.Finding)).first() is None
+
+
+def test_a_matching_document_type_still_produces_the_finding(build, db):
+    """The other half: scoping must not suppress a Requirement that applies."""
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    run = run_analysis(db, review)   # builder declares MSA on the contract
+
+    assert run.document_type == "MSA"
+    assert run.requirements_applicable == 1
+    assert run.findings_created == 1
+
+
+def test_an_undeclared_document_type_refuses_rather_than_evaluating(build, db):
+    """Owner Q9 — the type is declared by the uploader, never inferred, and its
+    absence is a refusal (ENG-09): the alternative is evaluating every
+    Requirement against every document, which is the defect the filter closes.
+    """
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = None
+    db.flush()
+
+    run = run_analysis(db, review)
+
+    assert run.review_status == "ANALYSIS_FAILED"
+    assert run.findings_created == 0
+    assert db.execute(select(M.Finding)).first() is None
+
+
+def test_a_snapshot_with_an_untyped_standard_refuses(build, db):
+    """A snapshot that predates the publish-time check must refuse, not guess.
+
+    Neither silently skipping the untyped Requirement (could hide one that
+    should have run) nor evaluating it (could flag an NDA for a missing cap) is
+    acceptable; both would be quiet. The refusal names the Requirement.
+    """
+    build.requirement("UNTYPED-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING,
+                      standard={**STANDARD, "document_type": None},
+                      legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    run = run_analysis(db, review)
+
+    assert run.review_status == "ANALYSIS_FAILED"
+    assert run.findings_created == 0
+
+
+def test_scoping_preserves_requirement_code_order(build, db):
+    """ENG-11 — the filter must not disturb the deterministic analysis order."""
+    for code in ("A-STRUCT", "C-STRUCT", "B-STRUCT"):
+        build.requirement(code, E.EvaluatorType.NUMERIC_COMPARISON,
+                          mapping=MAPPING, standard=STANDARD,
+                          legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    run = run_analysis(db, review)
+    codes = [o.requirement_code for o in run.outcomes]
+    assert codes == sorted(codes)

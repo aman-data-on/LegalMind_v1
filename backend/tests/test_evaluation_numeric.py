@@ -8,19 +8,22 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
-
 from legalmind.domain.enums import (
     EvaluationKind as K,
+)
+from legalmind.domain.enums import (
     ExtractionStatus,
+)
+from legalmind.domain.enums import (
     FindingClassification as C,
+)
+from legalmind.domain.enums import (
     RuleOutcome as O,
 )
 from legalmind.evaluation.registry import evaluate
 from tests.evaluation_fixtures import (
     STRUCTURAL_BASIS,
     STRUCTURAL_SCOPE,
-    STRUCTURAL_UNIT,
     cap,
     numeric_input,
     structural_rule,
@@ -224,8 +227,8 @@ def test_output_is_deterministic():
     runs = [evaluate(numeric_input(caps, standard=std, rule=rule))
             for _ in range(10)]
     signatures = {
-        tuple((e.scope_key, e.classification, e.rule_outcome, e.explanation)
-              for e in r.evaluations) + (r.finding_classification,)
+        (*((e.scope_key, e.classification, e.rule_outcome, e.explanation)
+           for e in r.evaluations), r.finding_classification)
         for r in runs}
     assert len(signatures) == 1
 

@@ -2,16 +2,28 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import legalmind.db.models  # noqa: F401  (registers all tables)
+from alembic import context
 from legalmind.config import database_url
 from legalmind.db.base import Base
-import legalmind.db.models  # noqa: F401  (registers all tables)
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers=False` is load-bearing, not a style choice.
+    #
+    # `fileConfig` defaults to True, which sets `disabled = True` on every logger that
+    # already exists — including `legalmind`. Migrations are run in-process in several
+    # places (the test harness, `tools/e2e_bootstrap`, `tools/verify_*`, and any
+    # deployment that migrates from the application image), and in every one of those
+    # the default would silently switch off the application's own logging for the rest
+    # of the process. Locked 53.1 makes logs non-authoritative, so nothing legal would
+    # break — and nothing would be observable either, which is precisely the failure
+    # 53.4's operator-facing half exists to prevent.
+    #
+    # Found when a test that logged after touching the database captured nothing.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Respect a URL supplied by the caller (e.g. the test harness); fall back to
 # the configured default. Without this guard the test harness would silently

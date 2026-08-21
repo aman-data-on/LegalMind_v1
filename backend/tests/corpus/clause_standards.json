@@ -1,0 +1,383 @@
+[
+  {
+    "id": "CLS-CONF-SURVIVAL-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "CONF-SURVIVAL-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "12.3",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the confidentiality survival position the document itself states (obligations survive for a period of three (3) years post-termination), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "CONF-SURVIVAL-MSA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 3,
+        "cap_unit": "YEARS",
+        "cap_basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-FORCE-MAJEURE-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "FORCE-MAJEURE-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "18.3",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the force majeure termination trigger position the document itself states (Force Majeure Event exceeding sixty (60) consecutive days permits termination), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "FORCE-MAJEURE-MSA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 60,
+        "cap_unit": "DAYS",
+        "cap_basis": "FORCE_MAJEURE_TERMINATION_TRIGGER",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-CURE-PERIOD-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "CURE-PERIOD-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "7.4",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the breach cure period position the document itself states (breach not cured within thirty (30) days after written notice), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "CURE-PERIOD-MSA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 30,
+        "cap_unit": "DAYS",
+        "cap_basis": "BREACH_CURE_PERIOD",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-AUTORENEW-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "AUTORENEW-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "7.3",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the auto renewal term position the document itself states (automatic renewal for successive periods of six (6) months), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "AUTORENEW-MSA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 6,
+        "cap_unit": "MONTHS",
+        "cap_basis": "AUTO_RENEWAL_TERM",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-DATA-PURGE-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "DATA-PURGE-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "7.6.6",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the post termination data purge position the document itself states (purge all Customer data within fifteen (15) days of termination), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "DATA-PURGE-MSA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 15,
+        "cap_unit": "DAYS",
+        "cap_basis": "POST_TERMINATION_DATA_PURGE",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-LATE-FEE-TOS-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "LATE-FEE-TOS-001",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "7 Late Fees",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the late payment interest position the document itself states (late fee/interest of up to 5% per month on the outstanding balance), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "LATE-FEE-TOS-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 5,
+        "cap_unit": "PERCENT_PER_MONTH",
+        "cap_basis": "LATE_PAYMENT_INTEREST",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-DATA-RETRIEVAL-TOS-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "DATA-RETRIEVAL-TOS-001",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "16 Effect of Termination",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the post termination retrieval window position the document itself states (data available for retrieval for 7 days following termination), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "DATA-RETRIEVAL-TOS-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 7,
+        "cap_unit": "DAYS",
+        "cap_basis": "POST_TERMINATION_RETRIEVAL_WINDOW",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-KYC-RETENTION-TOS-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "KYC-RETENTION-TOS-001",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "8 KYC \u2014 Data Retention",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the kyc record retention position the document itself states (KYC records maintained for a minimum period of five (5) years), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "KYC-RETENTION-TOS-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 5,
+        "cap_unit": "YEARS",
+        "cap_basis": "KYC_RECORD_RETENTION",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-FORCE-MAJEURE-TOS-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "FORCE-MAJEURE-TOS-001",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "15 Force Majeure",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the force majeure termination trigger position the document itself states (Force Majeure continuing more than 60 consecutive days permits termination), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "FORCE-MAJEURE-TOS-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 60,
+        "cap_unit": "DAYS",
+        "cap_basis": "FORCE_MAJEURE_TERMINATION_TRIGGER",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-CLAIM-WINDOW-SLA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "CLAIM-WINDOW-SLA-001",
+    "source_document": "Leapswitch Service Level Agreement (dedicated server)",
+    "source_clause": "How to Request a Service Credit, para 1",
+    "covers": [],
+    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the service credit claim window position the document itself states (support request within sixty (60) calendar days following the incident), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values \u2014 the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "CLAIM-WINDOW-SLA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 60,
+        "cap_unit": "DAYS",
+        "cap_basis": "SERVICE_CREDIT_CLAIM_WINDOW",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-GOVLAW-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "GOVLAW-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "19.1",
+    "covers": [
+      "P-01"
+    ],
+    "description": "PRESENCE Requirement from the clause catalogue: the document contains the provision (governed by and construed in accordance with the laws of India), mapping CONFIRMED, expected PRESENT -> MATCH. The clause VALUE goes to Legal with the evidence; categorical value comparison is a V2 evaluator (CLAUSE_CATALOGUE.md). First presence fixtures built from real material \u2014 45E's P-01 shape.",
+    "evaluator_type": "PRESENCE",
+    "requirement_code": "GOVLAW-MSA-001",
+    "legal_rule": null,
+    "mapping_state": "CONFIRMED",
+    "evidence_count": 1,
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GOVERNING_LAW",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-ARBITRATION-MSA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "ARBITRATION-MSA-001",
+    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
+    "source_clause": "19.3-19.4",
+    "covers": [],
+    "description": "PRESENCE Requirement from the clause catalogue: the document contains the provision (arbitration by a single arbitrator; seat Mumbai; ACA 1996), mapping CONFIRMED, expected PRESENT -> MATCH. The clause VALUE goes to Legal with the evidence; categorical value comparison is a V2 evaluator (CLAUSE_CATALOGUE.md). First presence fixtures built from real material \u2014 45E's P-01 shape.",
+    "evaluator_type": "PRESENCE",
+    "requirement_code": "ARBITRATION-MSA-001",
+    "legal_rule": null,
+    "mapping_state": "CONFIRMED",
+    "evidence_count": 1,
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "ARBITRATION",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CLS-GOVLAW-TOS-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "GOVLAW-TOS-001",
+    "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
+    "source_clause": "22 Governing Law",
+    "covers": [],
+    "description": "PRESENCE Requirement from the clause catalogue: the document contains the provision (governed by and construed in accordance with the laws of India), mapping CONFIRMED, expected PRESENT -> MATCH. The clause VALUE goes to Legal with the evidence; categorical value comparison is a V2 evaluator (CLAUSE_CATALOGUE.md). First presence fixtures built from real material \u2014 45E's P-01 shape.",
+    "evaluator_type": "PRESENCE",
+    "requirement_code": "GOVLAW-TOS-001",
+    "legal_rule": null,
+    "mapping_state": "CONFIRMED",
+    "evidence_count": 1,
+    "expect_finding_classification": "MATCH",
+    "expect_evaluations": [
+      {
+        "scope_key": "GOVERNING_LAW",
+        "classification": "MATCH",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  }
+]

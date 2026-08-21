@@ -8,8 +8,10 @@ in an API request."
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 
 import pytest
+from sqlalchemy import select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
@@ -21,7 +23,7 @@ from legalmind.security.authorization import (
     redact_legal_position,
     require_review_visible,
 )
-from legalmind.security.errors import Forbidden, NotVisible, Unauthenticated
+from legalmind.security.errors import Forbidden, NotVisible
 from legalmind.security.guards import (
     assert_legal_authority_remains,
     require_can_administer_user,
@@ -33,7 +35,13 @@ from legalmind.security.resolver import (
     has_permission,
     holds_legal_decision_authority,
 )
-from tests.conftest import grant_role, make_evaluation, make_finding, make_review_for, make_user
+from tests.conftest import (
+    grant_role,
+    make_evaluation,
+    make_finding,
+    make_review_for,
+    make_user,
+)
 
 
 # =====================================================================
@@ -195,7 +203,7 @@ def test_assignment_does_not_transfer_ownership(db, seeded):
 
 
 def test_revoked_assignment_removes_access(db, seeded):
-    from datetime import datetime, timezone
+    from datetime import datetime
     owner = make_user(db)
     review = make_review_for(db, owner)
     reviewer = make_user(db)
@@ -203,7 +211,7 @@ def test_revoked_assignment_removes_access(db, seeded):
                            assigned_by=owner.id)
     db.add(a); db.flush()
     assert can_see_review(db, reviewer.id, review) is True
-    a.revoked_at = datetime.now(timezone.utc)
+    a.revoked_at = datetime.now(UTC)
     db.flush()
     assert can_see_review(db, reviewer.id, review) is False
 
@@ -340,3 +348,235 @@ def test_refuses_to_leave_zero_legal_authorities(db, seeded):
     holder = make_user(db)
     grant_role(db, holder, P.ROLE_LEGAL_DECISION_AUTHORITY)
     assert_legal_authority_remains(db)               # no raise
+
+
+# =====================================================================
+# REC-09 — "explicit Legal scope" (resolves F-6)
+# =====================================================================
+# Locked `REC-09` defines the term locked Step 24 r6 uses and no locked record
+# defined. Before it, BOTH branches of r6 were unimplementable — nothing populates
+# `review_assignments`, and "explicit Legal scope" had no criterion — so a Legal
+# Reviewer could reach no Review at all while every Legal-workflow test passed
+# through a fixture the product could not produce.
+#
+# Two conditions, each traceable to a locked rule, and neither implies the other.
+def _legal_user(db, *, with_decision_authority=False):
+    user = make_user(db)
+    grant_role(db, user, P.ROLE_LEGAL_REVIEWER)
+    if with_decision_authority:
+        grant_role(db, user, P.ROLE_LEGAL_DECISION_AUTHORITY)
+    return user
+
+
+def _escalate(db, review, requirement_version, raised_by):
+    finding = make_finding(db, review, requirement_version)
+    make_evaluation(db, finding)
+    db.add(M.Escalation(finding_id=finding.id, raised_by=raised_by.id,
+                        reason="structural escalation for the test"))
+    db.flush()
+    return finding
+
+
+def test_legal_scope_via_lifecycle_status(db, seeded):
+    """`REC-09` (b) — Step 30's `LEGAL_REVIEW` means "one or more Findings require an
+    authorized Legal decision", which the ENGINE derives with no human escalation."""
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    counsel = _legal_user(db)
+
+    assert can_see_review(db, counsel.id, review) is False      # DRAFT: not in scope
+
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    assert can_see_review(db, counsel.id, review) is True
+
+
+def test_legal_scope_via_escalation_survives_resolution(db, seeded, requirement_version):
+    """`REC-09` (a), and the reason (b) alone is insufficient.
+
+    A user may escalate a Finding on a `RESOLVED` Review, and Step 30's state machine
+    has **no `RESOLVED → LEGAL_REVIEW` edge** — so an escalation-only Review is never
+    reachable through condition (b). Without (a), `ROLE-04`'s "this requires authorized
+    review" would be unheard.
+    """
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.RESOLVED
+    db.flush()
+    counsel = _legal_user(db)
+
+    assert can_see_review(db, counsel.id, review) is False
+    _escalate(db, review, requirement_version, owner)
+    assert can_see_review(db, counsel.id, review) is True
+    # And the Review really is not in LEGAL_REVIEW — condition (a) is doing the work.
+    assert review.status is E.ReviewStatus.RESOLVED
+
+
+def test_withdrawing_the_escalation_removes_legal_scope(db, seeded, requirement_version):
+    """Scope is a live property, not a one-way door — mirroring `AM-23`'s
+    `withdrawn_at` and the revoked-assignment rule above."""
+    from datetime import datetime
+
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.RESOLVED
+    db.flush()
+    counsel = _legal_user(db)
+    finding = _escalate(db, review, requirement_version, owner)
+    assert can_see_review(db, counsel.id, review) is True
+
+    escalation = db.execute(
+        select(M.Escalation)
+        .where(M.Escalation.finding_id == finding.id)).scalars().one()
+    escalation.withdrawn_at = datetime.now(UTC)
+    db.flush()
+    assert can_see_review(db, counsel.id, review) is False
+
+
+def test_legal_scope_requires_the_permission_not_the_status_alone(db, seeded):
+    """Step 24 r12 — "permission + resource scope, not simply role name".
+
+    An ordinary User does not gain access to someone else's Review because it entered
+    `LEGAL_REVIEW`. The scope half is necessary and not sufficient.
+    """
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    stranger = make_user(db)
+    grant_role(db, stranger, P.ROLE_USER)
+    assert has_permission(db, stranger.id, P.LEGAL_REVIEW) is False
+    assert can_see_review(db, stranger.id, review) is False
+    with pytest.raises(NotVisible):
+        require_review_visible(db, stranger.id, review.id)
+
+
+def test_super_admin_still_gets_no_legal_content(db, seeded):
+    """Step 24 r8 — unchanged by `REC-09`. `SUPER_ADMIN` holds no `legal.review`, so
+    an in-scope Review stays invisible to it. The widening is to Legal, not to
+    administration."""
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    sa = make_user(db)
+    grant_role(db, sa, P.ROLE_SUPER_ADMIN)
+    assert can_see_review(db, sa.id, review) is False
+
+
+def test_legal_scope_is_not_ownership(db, seeded):
+    """Step 24 r16, r17 — access for Legal work, not business ownership.
+
+    `REC-09` requires this rather than weakening it: the Review's owner is unchanged,
+    the owner keeps access, and Legal scope does not reach the owner's OTHER Reviews.
+    """
+    owner = make_user(db)
+    in_scope = make_review_for(db, owner)
+    in_scope.status = E.ReviewStatus.LEGAL_REVIEW
+    out_of_scope = make_review_for(db, owner)          # same owner, still DRAFT
+    db.flush()
+    counsel = _legal_user(db)
+
+    assert can_see_review(db, counsel.id, in_scope) is True
+    assert can_see_review(db, counsel.id, out_of_scope) is False
+    assert in_scope.created_by == owner.id
+    assert can_see_review(db, owner.id, in_scope) is True
+
+
+def test_legal_scope_confers_no_decision_authority(db, seeded, requirement_version):
+    """SEC-02 / SEC-05 / ROLE-05 — visibility is not authority.
+
+    The distinction `REC-09` must not blur: a `legal.review` holder can now SEE the
+    Evaluation, and `authorize_evaluation_operation` must still refuse
+    `legal.decision`. A 403 rather than a 404 is the proof that the object was visible
+    and the operation was refused (47.7).
+    """
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    finding = make_finding(db, review, requirement_version)
+    evaluation = make_evaluation(db, finding)
+
+    reviewer = _legal_user(db)                          # legal.review, NOT decision
+    assert has_permission(db, reviewer.id, P.LEGAL_DECISION) is False
+    # Visible for review work…
+    authorize_evaluation_operation(db, reviewer.id, evaluation.id, P.EVALUATION_VIEW)
+    # …and refused for deciding.
+    with pytest.raises(Forbidden):
+        authorize_evaluation_operation(db, reviewer.id, evaluation.id, P.LEGAL_DECISION)
+
+    # A holder of the explicit grant is permitted — the workflow is reachable at last.
+    authority = _legal_user(db, with_decision_authority=True)
+    authorize_evaluation_operation(db, authority.id, evaluation.id, P.LEGAL_DECISION)
+
+
+def test_findings_and_evaluations_follow_the_review_into_legal_scope(
+        db, seeded, requirement_version):
+    """SEC-06's traversal — Evaluation → Finding → Review. Nothing per-object was
+    added by `REC-09`; the Finding and Evaluation become reachable because the Review
+    did."""
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, requirement_version)
+    evaluation = make_evaluation(db, finding)
+    counsel = _legal_user(db)
+
+    with pytest.raises(NotVisible):
+        authorize_evaluation_operation(db, counsel.id, evaluation.id, P.EVALUATION_VIEW)
+
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    authorize_evaluation_operation(db, counsel.id, evaluation.id, P.EVALUATION_VIEW)
+    assert finding.review_id == review.id
+
+
+def test_contract_access_is_unchanged_by_rec_09(db, seeded):
+    """`REC-09` deliberately does not extend to Contracts or Documents — its own
+    "What this does NOT settle" says so. Asserted here so a later change that widens
+    Contract visibility has to be a deliberate decision rather than a side effect."""
+    from legalmind.security.authorization import require_contract_visible
+
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    counsel = _legal_user(db)
+
+    assert can_see_review(db, counsel.id, review) is True
+    with pytest.raises(NotVisible):
+        require_contract_visible(db, counsel.id, review.contract_id)
+
+
+def test_legal_scope_ends_when_the_review_resolves(db, seeded, requirement_version):
+    """A consequence of `REC-09` worth pinning, not a defect.
+
+    When a Legal Decision resolves the last outstanding Evaluation, the Review advances
+    `LEGAL_REVIEW → RESOLVED` (Step 30 r7/r16, `_advance_if_resolved`), and a RESOLVED
+    Review with no active escalation is no longer in Legal scope. **So the Legal
+    Reviewer who just decided immediately loses sight of the Review.**
+
+    This is faithful to locked Step 24 r18 — "a resolved Review remains accessible to
+    its owner according to the same ownership rules, while Legal access remains governed
+    by Legal scope/assignment" — and it is asserted here rather than quietly widened,
+    because widening `REC-09`'s definition would exceed what was approved. Reported to
+    the owner as a follow-up they may wish to decide.
+    """
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    counsel = _legal_user(db)
+    assert can_see_review(db, counsel.id, review) is True
+
+    review.status = E.ReviewStatus.RESOLVED
+    db.flush()
+    assert can_see_review(db, counsel.id, review) is False
+    # r18's first half is unaffected: the owner keeps access.
+    assert can_see_review(db, owner.id, review) is True
+    # And an escalation would bring it back into scope — condition (a) is independent
+    # of the lifecycle, which is exactly why REC-09 needs both.
+    _escalate(db, review, requirement_version, owner)
+    assert can_see_review(db, counsel.id, review) is True

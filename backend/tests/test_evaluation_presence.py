@@ -13,8 +13,14 @@ import pytest
 
 from legalmind.domain.enums import (
     EvaluatorType,
+)
+from legalmind.domain.enums import (
     FindingClassification as C,
+)
+from legalmind.domain.enums import (
     MappingState as S,
+)
+from legalmind.domain.enums import (
     RuleOutcome as O,
 )
 from legalmind.evaluation.contracts import (
@@ -27,7 +33,6 @@ from legalmind.evaluation.contracts import (
 from legalmind.evaluation.presence import (
     OptionalRequirementAbsent,
     PresenceMisconfigured,
-    evaluate_presence,
 )
 from legalmind.evaluation.registry import evaluate
 from legalmind.evaluation.service import build_presence_input
@@ -89,6 +94,34 @@ def test_expected_absent_and_absent_is_match():
 def test_expected_absent_but_present_is_deviation():
     e = only(evaluate(presence_input(S.CONFIRMED, expected="ABSENT")))
     assert e.classification is C.DEVIATION
+    # With no Legal Rule the deviation stands and a human decides (Step 20 r4);
+    # it must never inherit the ACCEPTABLE that a confirmed MATCH would carry.
+    assert e.rule_outcome is O.NOT_APPLICABLE
+
+
+def test_a_presence_deviation_honours_the_zero_tolerance_rule():
+    """The approved zero-tolerance rule (owner, 2026-08-20) wired for presence:
+    any DEVIATION carries the configured `deviation_outcome`, exactly as the
+    numeric evaluator does — and a rule WITHOUT the key still fails closed."""
+    ruled = only(evaluate(presence_input(
+        S.CONFIRMED, expected="ABSENT",
+        legal_rule=LegalRule(version_id=uuid4(),
+                             configuration={"deviation_outcome": "UNACCEPTABLE",
+                                            "unlimited_outcome": "UNACCEPTABLE"}))))
+    assert ruled.classification is C.DEVIATION
+    assert ruled.rule_outcome is O.UNACCEPTABLE
+
+    # A rule with no deviation_outcome, or an unrecognised value, is never
+    # permission to guess (ENG-09): NOT_APPLICABLE, and a human decides.
+    keyless = only(evaluate(presence_input(
+        S.CONFIRMED, expected="ABSENT",
+        legal_rule=LegalRule(version_id=uuid4()))))
+    assert keyless.rule_outcome is O.NOT_APPLICABLE
+    invalid = only(evaluate(presence_input(
+        S.CONFIRMED, expected="ABSENT",
+        legal_rule=LegalRule(version_id=uuid4(),
+                             configuration={"deviation_outcome": "REJECT_HARD"}))))
+    assert invalid.rule_outcome is O.NOT_APPLICABLE
 
 
 def test_optional_and_absent_produces_no_finding():

@@ -88,9 +88,24 @@ class LiabilityExtractionConfig:
     cap_phrases: tuple[str, ...] = ()
     # Terminology marking an uncapped liability.
     unlimited_phrases: tuple[str, ...] = ()
+    # Terminology marking a MULTI-LIMB formula ("greater of", "whichever is
+    # less"). A clause stating one is never reduced to whichever limb happens to
+    # be readable: reading a limb that equals the Standard would produce a false
+    # MATCH — silent acceptance of a formula nobody compared (ENG-09, 45B.4).
+    # A match forces UNKNOWN, so the whole formula goes to a human as evidence.
+    composite_phrases: tuple[str, ...] = ()
     # 44.30 "regex/pattern matching for structured values" — the unit names that may
     # follow a magnitude. Configured, so no unit vocabulary is assumed.
-    units: tuple[str, ...] = ()
+    #
+    # Two shapes are accepted, mirroring ``bases``:
+    #   tuple  — each matched term is recorded verbatim as ``cap_unit``;
+    #   dict   — canonical unit key -> the terms that denote it. The matched term
+    #            is recorded as its canonical key, so a Company Standard declaring
+    #            ``unit: "DAYS"`` can be met by clause text reading "calendar days"
+    #            or "consecutive days" WITHOUT the evaluator comparing units it was
+    #            never told are the same (45C.23 stands: the equivalence is
+    #            configured terminology, never assumed by code).
+    units: tuple[str, ...] | dict[str, tuple[str, ...]] = ()
     # Terminology identifying what the cap is measured against (45B.4 `cap_basis`).
     # Locked 45B.4: "We should not assume equivalence between different bases."
     bases: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -114,10 +129,17 @@ class LiabilityExtractionConfig:
         exception for someone to catch.
         """
         block = ((configuration or {}).get("extraction") or {})
+        raw_units = block.get("units") or ()
+        units: tuple[str, ...] | dict[str, tuple[str, ...]]
+        if isinstance(raw_units, dict):
+            units = {k: tuple(v) for k, v in raw_units.items()}
+        else:
+            units = tuple(raw_units)
         return cls(
             cap_phrases=tuple(block.get("cap_phrases") or ()),
             unlimited_phrases=tuple(block.get("unlimited_phrases") or ()),
-            units=tuple(block.get("units") or ()),
+            composite_phrases=tuple(block.get("composite_phrases") or ()),
+            units=units,
             bases={k: tuple(v) for k, v in (block.get("bases") or {}).items()},
             exceptions=tuple(
                 ExceptionPattern(
@@ -224,11 +246,23 @@ def _extract_from_clause(
     if not (states_unlimited or states_cap):
         return []
 
-    magnitude = _find_magnitude(body, config.units) if not states_unlimited else None
+    states_composite = any(
+        contains_phrase(body, phrase) for phrase in config.composite_phrases)
+    magnitude = (_find_magnitude(body, config.units)
+                 if not (states_unlimited or states_composite) else None)
     basis = _find_basis(body, config.bases)
 
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
+    elif states_composite:
+        # A multi-limb formula is never reduced to one readable limb — a limb
+        # equal to the Standard would otherwise MATCH silently. UNKNOWN sends
+        # the whole formula to a human with the clause as evidence.
+        status, value, unit = UNKNOWN, None, None
+        diagnostics.append(
+            f"clause {_label(clause)} states a multi-limb cap formula "
+            "(configured composite terminology matched); no single limb is "
+            "read as the cap")
     elif magnitude is not None:
         status, value, unit = FINITE, magnitude[0], magnitude[1]
     else:
@@ -269,33 +303,59 @@ def _extract_from_clause(
     return results
 
 
-def _find_magnitude(body: str, units: tuple[str, ...]) -> tuple[float, str] | None:
+def _find_magnitude(
+    body: str,
+    units: tuple[str, ...] | dict[str, tuple[str, ...]],
+) -> tuple[float, str] | None:
     """Locked 44.30 "regex/pattern matching for structured values".
 
     Recognises a number immediately followed by one of the **configured** units. No
     unit vocabulary is built in, and no word-number ("six") is interpreted: doing so
     would be inventing terminology that 35.4/44.29 place in configuration.
 
+    Legal drafting states magnitudes as ``twelve (12) months`` — the word, then the
+    digits in parentheses, then the unit — or mirrored as ``15 (fifteen) calendar
+    days``. The digits ARE stated in both, so reading them is pattern mechanics,
+    not word-number interpretation: an optional closing parenthesis, or one
+    parenthesised word, may sit between the number and its unit. ``six months``
+    with no digits remains unrecognisable, deliberately — and a clause matching a
+    configured composite phrase never reaches this function at all.
+
+    When ``units`` is a dict the matched term is reported as its canonical key (see
+    ``LiabilityExtractionConfig.units``); terms are tried longest-first so a
+    configured ``consecutive days`` wins over a configured ``days`` at the same
+    position, and ties are broken alphabetically so the result is deterministic
+    (`ENG-11`).
+
     Returns the FIRST match in document order so the result is deterministic when a
     clause states several magnitudes; a clause with more than one is reported as a
     diagnostic by the caller only if none matched at all.
     """
-    if not units:
+    if isinstance(units, dict):
+        pairs = [(normalize(term), canonical)
+                 for canonical in units for term in units[canonical]]
+    else:
+        pairs = [(normalize(term), term) for term in units]
+    canonical_for: dict[str, str] = {}
+    for term, canonical in sorted(pairs, key=lambda p: (-len(p[0]), p[0], p[1])):
+        if term and term not in canonical_for:
+            canonical_for[term] = canonical
+    if not canonical_for:
         return None
-    alternatives = "|".join(
-        re.escape(normalize(u)) for u in units if normalize(u))
-    if not alternatives:
-        return None
-    # Digits with optional thousands separators and decimals, then the unit.
+    alternatives = "|".join(re.escape(t) for t in canonical_for)
+    # Digits with optional thousands separators and decimals, then the unit. The
+    # optional `\)` is the "twelve (12) months" convention; the optional
+    # parenthesised word is its mirror, "15 (fifteen) calendar days".
     pattern = re.compile(
         rf"(?<!\w)(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*"
+        rf"(?:\)|\([a-z]+\))?\s*"
         rf"({alternatives})(?!\w)")
     match = pattern.search(body)
     if match is None:
         return None
     raw = match.group(1).replace(",", "")
     try:
-        return float(raw), match.group(2)
+        return float(raw), canonical_for[match.group(2)]
     except ValueError:                                  # pragma: no cover
         return None
 

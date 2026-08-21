@@ -30,7 +30,7 @@ def clean_env(monkeypatch):
     for name in ("LEGALMIND_ENVIRONMENT", "LEGALMIND_DATABASE_URL",
                  "LEGALMIND_ENABLE_DOCS", "LEGALMIND_OIDC_ISSUER",
                  "LEGALMIND_OIDC_CLIENT_ID", "LEGALMIND_OIDC_CLIENT_SECRET",
-                 "LEGALMIND_MALWARE_SCANNING",
+                 "LEGALMIND_MALWARE_SCANNING", "LEGALMIND_BROKER_URL",
                  "LEGALMIND_BACKUP_RESTORE_VERIFIED_AT"):
         monkeypatch.delenv(name, raising=False)
 
@@ -227,3 +227,65 @@ def test_every_check_cites_its_basis():
     enforces, so a reader can check the preflight against the specification."""
     for check in run_preflight():
         assert check.basis, check.name
+
+
+# =====================================================================
+# 55.2's remaining checklist rows, and 55.4 r3's release gate
+# =====================================================================
+def test_tls_is_an_attestation_but_a_disabled_database_ssl_is_a_failure(monkeypatch):
+    """55.2 — "TLS everywhere, including between the app and the database where the
+    network is not fully trusted."
+
+    The inbound half terminates at the reverse proxy and is invisible from here; the
+    database half is visible in the URL, so switching it off is caught rather than
+    attested away.
+    """
+    assert by_name(run_preflight())["tls"].status == ATTEST
+
+    monkeypatch.setenv("LEGALMIND_DATABASE_URL",
+                       "postgresql+psycopg2://app:x@db/legalmind?sslmode=disable")
+    check = by_name(run_preflight())["tls"]
+    assert check.status == FAIL
+    assert "sslmode=disable" in check.detail
+
+
+def test_upload_validation_is_checked_against_the_validator(monkeypatch):
+    """55.2 / 34.16 — "type, size and structure validated before parsing", asserted
+    against the code that enforces it rather than a configuration flag. The declared
+    type is a claim; the magic bytes decide."""
+    check = by_name(run_preflight())["upload_validation"]
+    assert check.status == PASS
+    assert "rather than the client's claim" in check.detail
+
+    monkeypatch.setenv("LEGALMIND_MAX_UPLOAD_BYTES", "0")
+    assert by_name(run_preflight())["upload_validation"].status == FAIL
+
+
+def test_safe_parsing_invents_no_limit(monkeypatch):
+    """55.2 — "parsing sandboxed and resource-limited".
+
+    Both halves are properties of the execution environment, so this is an attestation
+    naming the in-process bound that does exist (the upload ceiling). **No parse-time
+    page or element cap is invented**: no locked decision fixes one, and choosing a
+    number would be inventing a threshold.
+    """
+    check = by_name(run_preflight())["safe_parsing"]
+    assert check.status == ATTEST
+    assert "upload ceiling" in check.detail
+    assert "container-level" in check.detail
+
+
+def test_encrypted_storage_is_a_platform_attestation():
+    check = by_name(run_preflight())["encrypted_storage"]
+    assert check.status == ATTEST
+    assert check.basis.startswith("55.2")
+
+
+def test_the_register_names_the_reproducibility_gate():
+    """55.4 r3 / 55.5 — the gate is a release-pipeline act, not a start-up check, so
+    the preflight names it rather than pretending to run it. `is_ready` still counts it
+    as outstanding, which is the point: an unexamined gate is not a satisfied one."""
+    check = by_name(run_preflight())["reproducibility_gate"]
+    assert check.status == ATTEST
+    assert "tools.verify_reproducibility" in check.detail
+    assert "55.4 r3" in check.basis

@@ -1,0 +1,86 @@
+{
+  "_about": [
+    "RATIFIED Company Standard \u2014 NDA document type. OWNER DESIGNATION 2026-08-19:",
+    "the executed NDA of 17 June 2026 IS the LeapSwitch NDA, i.e. the positions",
+    "LeapSwitch accepts AS RECEIVING PARTY. Under the manager's whatever-is-stated",
+    "rule those accepted positions are the baseline for reviewing counterparty NDAs",
+    "(where LeapSwitch is again the receiving party).",
+    "",
+    "DIRECTION CAVEAT, recorded once: this document states LeapSwitch's",
+    "RECEIVING-party positions. If a review ever concerns LeapSwitch DISCLOSING its",
+    "own information, these standards do not state that position.",
+    "",
+    "CONFIDENTIALITY: the source is executed with a real counterparty. Cite the",
+    "document only as above; never name the counterparty or signatories anywhere."
+  ],
+  "requirement_code": "RETURN-DESTRUCTION-NDA-001",
+  "ratified": "2026-08-19",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
+  "source_clause": "6 Return or Destruction",
+  "source_quote": "the Receiving Party shall promptly return or permanently destroy all Confidential Information ... and shall certify such return or destruction in writing if requested",
+  "configuration": {
+    "document_type": "NDA",
+    "expected_presence": "PRESENT",
+    "scope_key": "RETURN_OR_DESTRUCTION",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "source_file": "NDA.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "return or permanently destroy"
+    ],
+    "aliases": [
+      "return or destruction",
+      "destroy all copies"
+    ],
+    "keyword_groups": [
+      [
+        "return",
+        "destroy"
+      ],
+      [
+        "confidential",
+        "destroy"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "return"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping and extraction terminology, added 2026-08-19 under the owner's",
+    "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",
+    "from the cited source clause's own wording or names the clause type",
+    "generically; no term encodes a legal position (rules 7/21 - positions live",
+    "in `configuration`, sourced above). confirm_threshold 5 is STRUCTURAL: one",
+    "exact phrase confirms, or a section heading plus a keyword group. Locked",
+    "35.9 fixes no threshold and 35.10 requires calibration against a",
+    "representative contract set before the value is trusted; recalibration is a",
+    "new mapping rule version (data), never a code change."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
+    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
+    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
+    "required; nothing that differs is ever auto-approved. There are",
+    "deliberately NO thresholds and NO tolerance bands: do not add",
+    "acceptable_max or approval_required_above, and do not ask for them --",
+    "the policy is that none exists. Wired as deviation_outcome +",
+    "unlimited_outcome, both read by the evaluators; an unrecognised value",
+    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ]
+}

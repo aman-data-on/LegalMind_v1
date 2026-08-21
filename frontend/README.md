@@ -173,19 +173,51 @@ reimplemented roll-up.
 ## Verified
 
 ```
-npm run test        46 passed
+npm run test        53 passed        Vitest — rendering, boundaries, permissions
 npm run typecheck   clean
 npm run build       11 routes, 9 prerendered
+npx playwright test 26 passed        real Chromium, real API, real Postgres
 ```
 
-Plus a live check against the running API: the same-origin `/api/v1` rewrite reaches
-FastAPI, the locked envelope and `X-Request-Id` survive the proxy, and the
-LEGAL-02 gate behaves as described above for two real signed-in users.
+## The browser suite (`e2e/`)
+
+Locked Step 39's stack table names Playwright for "real browser workflow testing". This
+suite is deliberately small: it covers only what **no other layer can prove**, and does
+not restate the 479 backend or 53 Vitest tests.
+
+| Spec | Locked rule | Why a browser is required |
+|---|---|---|
+| `session.spec.ts` | S-3 | `HttpOnly` is a *browser* behaviour. A `TestClient` reads the value regardless of the attribute |
+| `confidentiality.spec.ts` | `LEGAL-02`, 49.7 r4, 52.4 | The fields must be absent from what reaches the **page**, through the Next proxy — and present for a caller who may see them, or the absence proves nothing |
+| `decision.spec.ts` | 52.7 | The rendered decision must come from a re-read, observed as a POST followed by a GET — including the `409` path, where an optimistic UI would show success |
+| `gating.spec.ts` | 52.3 + 47.6, SEC-02, SEC-07 | A hidden control **and** an endpoint that refuses the same caller anyway; plus byte-identical 404s |
+| `analysis.spec.ts` | 44.2/44.40, 55.1, 52.7 | Submission across the proxy, with the Review lifecycle as the only progress report |
+| `legal-access.spec.ts` | `REC-09`, Step 24 r5/r6/r16 | Cross-user Legal access — the defect (`F-6`) the backend suite could not see, because nine of its sites insert the `review_assignments` row a browser cannot fake |
+| `escalation.spec.ts` | `ROLE-04`, Step 24 r5, `REC-09` (a) | A User escalates and approves nothing; and a *resolved* Review escalated from the screen becomes visible to Legal again — the only route back, since Step 30 has no `RESOLVED → LEGAL_REVIEW` edge |
+
+Three things the locked design forced on the harness rather than the reverse:
+
+* **Configuration is published by `LEGAL_ADMIN`.** Every spec first tried to publish as
+  itself and was correctly refused 403 — `configuration.draft` belongs to `LEGAL_ADMIN`
+  under Step 23. Publishing now happens once, as `admin`, in `auth.setup.ts`.
+* **Sessions are reused.** Seventeen specs signing in exhausted S-5's login limiter
+  (10 per 300s). Sessions are established once per account and reused via
+  `storageState`, so the suite performs three logins.
+* **No cookie attribute is weakened.** The session cookie stays
+  `Secure; SameSite=Strict; HttpOnly`; the suite runs on `http://localhost`, which
+  browsers treat as a trustworthy origin — verified empirically before the config was
+  written, not assumed.
+
+`e2e/.auth/` and `e2e/.fixture.json` hold real session cookies and the synthetic
+accounts' credentials. Both are gitignored. Everything configured is `STRUCTURAL` and
+carries no legal meaning (rule 21).
 
 ## What this cannot tell you
 
-`npm run test` asserts rendering and structure. It does **not** verify browser
-workflows — that is Playwright's job (Step 39, Step 54) and is not set up. Nothing
-here is `VERIFIED` in the sense
+Nothing here is `VERIFIED` in the sense
 [`../docs/00-project/IMPLEMENTATION_STATUS.md`](../docs/00-project/IMPLEMENTATION_STATUS.md)
 uses the word, and that document — not this one — is the authority on build state.
+
+The browser suite is **supporting, not a locked tier and not a release gate**: locked
+54.1's six tiers contain no browser tier and 54.7's gate does not list one. The
+framework question itself is registered as **C-12** and is not resolved.
