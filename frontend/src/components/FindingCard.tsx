@@ -38,7 +38,11 @@ export function FindingCard({
   children?: React.ReactNode;
 }) {
   return (
-    <article className="finding" data-finding-id={finding.id}>
+    <article
+      /* Attention edge from the server-provided flag — never derived here (52.7). */
+      className={`finding${finding.requires_decision ? " finding--attention" : ""}`}
+      data-finding-id={finding.id}
+    >
       <header className="finding__head">
         <h3 className="finding__requirement">
           {finding.requirement.code ?? "Requirement"}

@@ -61,6 +61,14 @@ export default function ReviewPage({
   const [page, setPage] = useState(1);
   const [classification, setClassification] = useState("");
   const [error, setError] = useState<unknown>(null);
+  /*
+   * DD-1 (direction C): the primary entry point for a decision-maker is the set
+   * of Findings that still need one. This is a DISPLAY filter over what the API
+   * returned for this page, keyed on the server-provided `requires_decision`
+   * field — nothing is derived client-side (52.7), and the full list is one
+   * click away, never hidden (DD-1's non-negotiable).
+   */
+  const [view, setView] = useState<"attention" | "all">("attention");
 
   useEffect(() => {
     void params.then((resolved) => setReviewId(resolved.reviewId));
@@ -89,28 +97,65 @@ export default function ReviewPage({
   if (!can(P.REVIEW_VIEW)) return <AccessRestricted what="reviews" />;
   if (!reviewId) return <Loading what="review" />;
 
+  const attention = (findings ?? []).filter((finding) => finding.requires_decision);
+  /* The queue view falls back to the full list when nothing needs a decision —
+     an empty default view would misread as "no Findings" (rule: absence is
+     information, and this absence belongs to the queue, not the Review). */
+  const effectiveView = view === "attention" && attention.length > 0 ? "attention" : "all";
+  const shown = effectiveView === "attention" ? attention : (findings ?? []);
+
   return (
     <>
+      <Link className="page-back" href="/reviews">
+        ← Reviews
+      </Link>
       <h1>Review {reviewId.slice(0, 8)}</h1>
       {review ? (
-        <p className="hint">
+        <p className="page-meta">
           {/*
             Step 30 — the Review lifecycle is the single source of progress (52.7).
             There is no separate progress indicator that could disagree with it, and
             no control that sets it (r3).
           */}
-          Status <strong>{review.status}</strong> · configuration snapshot{" "}
-          {review.configuration_snapshot_id.slice(0, 8)} ·{" "}
-          <Link href={`/reviews/${reviewId}/report`}>report</Link>
+          <span className={`status status--${review.status.toLowerCase()}`}>
+            {review.status}
+          </span>
+          <span>snapshot {review.configuration_snapshot_id.slice(0, 8)}</span>
+          <Link href={`/reviews/${reviewId}/report`}>View report</Link>
         </p>
       ) : null}
 
       <ErrorBanner error={error} />
 
-      <form className="card inline" onSubmit={(event) => event.preventDefault()}>
-        <label>
-          Filter by classification
+      <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
+        {findings !== null && findings.length > 0 ? (
+          <div className="field">
+            <span className="field__label">View</span>
+            <span className="seg">
+              <button
+                type="button"
+                aria-pressed={effectiveView === "attention"}
+                disabled={attention.length === 0}
+                onClick={() => setView("attention")}
+              >
+                Needs decision ({attention.length})
+              </button>
+              <button
+                type="button"
+                aria-pressed={effectiveView === "all"}
+                onClick={() => setView("all")}
+              >
+                All findings ({findings.length})
+              </button>
+            </span>
+          </div>
+        ) : null}
+        <div className="field">
+          <label className="field__label" htmlFor="classification-filter">
+            Filter by classification
+          </label>
           <select
+            id="classification-filter"
             value={classification}
             onChange={(event) => {
               setPage(1);
@@ -133,13 +178,15 @@ export default function ReviewPage({
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </form>
 
       {!can(P.FINDING_VIEW) ? (
         <AccessRestricted what="findings" />
       ) : findings === null ? (
-        <Loading what="findings" />
+        /* A failed load already shows its ErrorBanner above; rendering a
+           perpetual "Loading…" beside it would misstate the page's state. */
+        error ? null : <Loading what="findings" />
       ) : findings.length === 0 ? (
         <>
           <EmptyState>
@@ -154,7 +201,7 @@ export default function ReviewPage({
         </>
       ) : (
         <>
-          {findings.map((finding) => (
+          {shown.map((finding) => (
             <FindingCard
               key={finding.id}
               finding={finding}
@@ -172,6 +219,13 @@ export default function ReviewPage({
               <EscalationControls finding={finding} onChanged={() => void load()} />
             </FindingCard>
           ))}
+          {effectiveView === "attention" && attention.length < findings.length ? (
+            <p className="hint">
+              Showing the {attention.length} Finding{attention.length === 1 ? "" : "s"}{" "}
+              that need a decision on this page. &ldquo;All findings&rdquo; shows the
+              rest.
+            </p>
+          ) : null}
           {pagination ? (
             <Pager
               page={pagination.page}
@@ -274,7 +328,12 @@ function AnalyseControl({
         same snapshot always produce the same Findings.
       </p>
       <ErrorBanner error={error} />
-      <button type="button" onClick={() => void analyse()} disabled={busy || waiting}>
+      <button
+        type="button"
+        className="btn btn--primary"
+        onClick={() => void analyse()}
+        disabled={busy || waiting}
+      >
         {busy || waiting ? "Analysing…" : "Run analysis"}
       </button>
 
@@ -397,22 +456,30 @@ function EscalationControls({
             Escalated for authorized review. This is a request for review, not an
             approval, and it records no decision.
           </p>
-          <button type="button" onClick={() => void withdraw()} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => void withdraw()}
+            disabled={busy}
+          >
             Withdraw escalation
           </button>
         </>
       ) : (
-        <form className="inline" onSubmit={escalate}>
-          <label>
-            Escalate for authorized review — reason
+        <form className="form-row" onSubmit={escalate}>
+          <div className="field field--grow">
+            <label className="field__label" htmlFor={`escalate-${finding.id}`}>
+              Escalate for authorized review — reason
+            </label>
             <input
+              id={`escalate-${finding.id}`}
               required
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="Why does this need authorized review?"
             />
-          </label>
-          <button type="submit" disabled={busy}>
+          </div>
+          <button type="submit" className="btn btn--secondary" disabled={busy}>
             Escalate
           </button>
         </form>

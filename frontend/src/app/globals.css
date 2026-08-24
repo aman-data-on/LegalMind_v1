@@ -609,3 +609,43 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
 .status--cancelled { color: var(--muted); }
 
 .form-row .field--grow { flex: 2 1 18rem; }
+
+/*
+ * --- /reviews/[id] — the core screen (Phase 3.5, DD-1 hybrid + DD-5 finish) ---
+ * Every class the Playwright/Vitest suites assert on (.decision__*, .escalation,
+ * li.evaluation, .evaluation__*, .finding, .outcome) keeps its name; rules here
+ * only restyle them. The one new structural idea is the needs-decision view
+ * toggle (DD-1 direction C), driven entirely by the server-provided
+ * `requires_decision` field — never derived client-side (52.7).
+ */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.seg button {
+  border: none; border-radius: 0; background: var(--surface); color: var(--muted);
+  padding: 0.45rem 0.9rem; font-weight: var(--weight-medium); cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.seg button:disabled { color: var(--line); cursor: not-allowed; }
+
+/* A Finding whose Evaluations still need a decision is findable by scanning
+   (extends the locked 52.5 evaluation-level rule to the card edge). */
+.finding--attention { border-left: 3px solid var(--attention); }
+
+.finding__requirement { font-family: var(--font-display); font-weight: 600; }
+
+/* Authority vs request — the two controls must never look interchangeable
+   (DESIGN.md § Interaction principles; audit finding #8).
+   The Legal Decision block is the one thing on the page that changes the legal
+   record: accent-edged, softly tinted, labeled. */
+.decision {
+  margin-top: 0.7rem; padding: 0.75rem 0.85rem; border-top: none;
+  background: oklch(0.975 0.008 258);
+  border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+.decision__label {
+  margin: 0 0 0.35rem; font-size: var(--text-xs); font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent);
+}
+/* Escalation stays visually a request: quiet, dashed, muted. */
+.escalation { margin-top: 0.9rem; padding-top: 0.7rem; border-top: 1px dashed var(--line); }

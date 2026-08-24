@@ -101,6 +101,9 @@ export function DecisionPanel({
 
   return (
     <div className="decision">
+      {/* Authority marker (DD-5 / audit finding #8): the one control on the page
+          that changes the legal record announces itself as such. */}
+      <p className="decision__label">Legal decision</p>
       {/*
         The current decision as the SERVER reports it, on the Evaluation payload.
         Not local state, so it cannot drift from what was actually recorded.
@@ -150,7 +153,11 @@ export function DecisionPanel({
             />
           </label>
 
-          <button type="submit" disabled={outcome.kind === "submitting"}>
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={outcome.kind === "submitting"}
+          >
             {outcome.kind === "submitting" ? "Recording…" : "Record decision"}
           </button>
         </form>
