@@ -588,7 +588,12 @@ textarea:focus-visible,
 /* Review lifecycle pills (axis 5) — neutral by default; only genuine exception
    states get a tint: a failed analysis is an error-channel fact, a cancelled
    review is muted. No other lifecycle state is colored — coloring "LEGAL_REVIEW"
-   as attention would blur the needs-decision channel (DESIGN.md). */
+   as attention would blur the needs-decision channel (DESIGN.md).
+   ⚠ The `.status` namespace is shared by FOUR value families (Finding status,
+   Review lifecycle, Contract status, User status). A value-keyed tint added
+   here styles every family that uses the value name — `.status--resolved`
+   would silently restyle Finding-status RESOLVED and erode RESOLVED ≠ MATCH.
+   Tint only values unique to one family (code-review finding, 2026-08-22). */
 .status--analysis_failed { background: var(--error-bg); color: var(--error); }
 .status--cancelled { color: var(--muted); }
 

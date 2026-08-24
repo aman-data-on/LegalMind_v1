@@ -12,7 +12,10 @@
  * pages previously wrote by hand, so test selectors are unaffected.
  */
 
-/** CSS namespace per state axis. Adding an axis here requires a DESIGN_SYSTEM.md entry. */
+/** CSS namespace per state axis. Adding an axis here requires a DESIGN_SYSTEM.md entry.
+ * ⚠ `status` is one namespace shared by four value families (Finding status,
+ * Review lifecycle, Contract status, User status); see the tint warning at the
+ * lifecycle-pill rules in globals.css before adding any value-keyed styling. */
 const AXIS_CLASS = {
   classification: "badge",
   status: "status",
