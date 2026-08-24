@@ -70,6 +70,10 @@ export default function ReviewPage({
    * click away, never hidden (DD-1's non-negotiable).
    */
   const [view, setView] = useState<"attention" | "all">("attention");
+  /* Once the user picks a view it is committed: without this, paginating from a
+     page with an empty queue to one with entries would silently flip the view
+     back (code-review finding, 2026-08-22). */
+  const [viewChosen, setViewChosen] = useState(false);
 
   useEffect(() => {
     void params.then((resolved) => setReviewId(resolved.reviewId));
@@ -99,10 +103,15 @@ export default function ReviewPage({
   if (!reviewId) return <Loading what="review" />;
 
   const attention = (findings ?? []).filter((finding) => finding.requires_decision);
-  /* The queue view falls back to the full list when nothing needs a decision —
-     an empty default view would misread as "no Findings" (rule: absence is
-     information, and this absence belongs to the queue, not the Review). */
-  const effectiveView = view === "attention" && attention.length > 0 ? "attention" : "all";
+  /* The DEFAULT view falls back to the full list when nothing needs a decision —
+     an empty default would misread as "no Findings". A view the user explicitly
+     chose is never auto-switched; its empty case renders as an explicit empty
+     state below instead. */
+  const effectiveView = viewChosen
+    ? view
+    : attention.length > 0
+      ? "attention"
+      : "all";
   const shown = effectiveView === "attention" ? attention : (findings ?? []);
 
   return (
@@ -134,15 +143,20 @@ export default function ReviewPage({
               <button
                 type="button"
                 aria-pressed={effectiveView === "attention"}
-                disabled={attention.length === 0}
-                onClick={() => setView("attention")}
+                onClick={() => {
+                  setView("attention");
+                  setViewChosen(true);
+                }}
               >
                 Needs decision ({attention.length})
               </button>
               <button
                 type="button"
                 aria-pressed={effectiveView === "all"}
-                onClick={() => setView("all")}
+                onClick={() => {
+                  setView("all");
+                  setViewChosen(true);
+                }}
               >
                 All findings ({findings.length})
               </button>
@@ -184,19 +198,29 @@ export default function ReviewPage({
            perpetual "Loading…" beside it would misstate the page's state. */
         error ? null : <Loading what="findings" />
       ) : findings.length === 0 ? (
-        <>
-          <EmptyState>
-            This Review has no Findings yet. Findings appear once the document has been
-            analysed against the configuration snapshot the Review is pinned to.
-          </EmptyState>
-          <AnalyseControl
-            reviewId={reviewId}
-            reviewStatus={review?.status ?? null}
-            onAnalysed={() => void load()}
-          />
-        </>
+        classification ? (
+          /* Filter matched nothing ≠ never analysed (code-review finding,
+             2026-08-22) — the analyse CTA here would misstate the Review. */
+          <EmptyState>No Findings with classification {classification}.</EmptyState>
+        ) : (
+          <>
+            <EmptyState>
+              This Review has no Findings yet. Findings appear once the document has
+              been analysed against the configuration snapshot the Review is pinned
+              to.
+            </EmptyState>
+            <AnalyseControl
+              reviewId={reviewId}
+              reviewStatus={review?.status ?? null}
+              onAnalysed={() => void load()}
+            />
+          </>
+        )
       ) : (
         <>
+          {shown.length === 0 ? (
+            <EmptyState>No Findings on this page need a decision.</EmptyState>
+          ) : null}
           {shown.map((finding) => (
             <FindingCard
               key={finding.id}
@@ -463,10 +487,11 @@ function EscalationControls({
         </>
       ) : (
         <form className="form-row" onSubmit={escalate}>
-          <div className="field field--grow">
-            <label className="field__label" htmlFor={`escalate-${finding.id}`}>
-              Escalate for authorized review — reason
-            </label>
+          <Field
+            id={`escalate-${finding.id}`}
+            label="Escalate for authorized review — reason"
+            grow
+          >
             <input
               id={`escalate-${finding.id}`}
               required
@@ -474,7 +499,7 @@ function EscalationControls({
               onChange={(event) => setReason(event.target.value)}
               placeholder="Why does this need authorized review?"
             />
-          </div>
+          </Field>
           <button type="submit" className="btn btn--secondary" disabled={busy}>
             Escalate
           </button>

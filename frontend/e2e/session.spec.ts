@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { CSRF_COOKIE, SESSION_COOKIE, csrfToken, fixture } from "./support";
+import { CSRF_COOKIE, SESSION_COOKIE, csrfToken, fixture, signIn } from "./support";
 
 /**
  * The session cookie — locked S-3, SEC-01, 47.1.1.
@@ -19,14 +19,7 @@ import { CSRF_COOKIE, SESSION_COOKIE, csrfToken, fixture } from "./support";
 
 test.describe("S-3 — the session cookie is not reachable from script", () => {
   test.beforeEach(async ({ page }) => {
-    const account = fixture().accounts.owner;
-    await page.goto("/login");
-    await page.getByLabel("Work email").fill(account.email);
-    // exact: the login screen also has a "Show password" reveal control (DD-4),
-    // which substring matching would otherwise catch as a second candidate.
-    await page.getByLabel("Password", { exact: true }).fill(account.password);
-    await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/\/contracts/, { timeout: 20_000 });
+    await signIn(page, fixture().accounts.owner);
   });
 
   test("document.cookie exposes the CSRF token and never the session", async ({

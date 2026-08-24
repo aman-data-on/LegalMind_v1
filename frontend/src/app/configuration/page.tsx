@@ -348,15 +348,15 @@ function RequirementCard({
             </label>
             <label>
               Company Standard (JSON) — the organization&rsquo;s own position
-              <textarea name="company_standard" rows={4} required defaultValue="{}" />
+              <textarea className="code-input" name="company_standard" rows={4} required defaultValue="{}" />
             </label>
             <label>
               Mapping rules (JSON)
-              <textarea name="mapping_rules" rows={4} required defaultValue="{}" />
+              <textarea className="code-input" name="mapping_rules" rows={4} required defaultValue="{}" />
             </label>
             <label>
               Evaluation rules (JSON)
-              <textarea name="evaluation_rules" rows={4} required defaultValue="{}" />
+              <textarea className="code-input" name="evaluation_rules" rows={4} required defaultValue="{}" />
             </label>
             <label>
               Legal Rule type (optional — not every Requirement has one)
@@ -369,7 +369,7 @@ function RequirementCard({
             </label>
             <label>
               Legal Rule configuration (JSON)
-              <textarea name="legal_rule_configuration" rows={3} defaultValue="{}" />
+              <textarea className="code-input" name="legal_rule_configuration" rows={3} defaultValue="{}" />
             </label>
             <button type="submit" className="btn btn--primary">
               Save draft version

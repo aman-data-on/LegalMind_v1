@@ -8,9 +8,9 @@ Each entry should be reviewed against the twelve questions in `CLAUDE.md`'s comp
 
 ---
 
-## DD-1 (proposed) — Interaction model for the Findings review workflow
+## DD-1 — Interaction model for the Findings review workflow
 
-**Status:** `PROPOSAL` — awaiting owner/reviewer decision. Nothing here is implemented; the current, already-built expandable-list pattern remains in place until a direction is chosen.
+**Status:** `DECIDED` (owner approved the roadmap carrying this recommendation, 2026-08-21) and **realized in Phase 3.5** (2026-08-22) as direction C's essence — the needs-decision/all-findings view — layered on the preserved DOM; direction B's split-pane rail remains an open follow-up if finding volumes outgrow the single-page list. *(This status line was corrected on 2026-08-22 — it stale-read "PROPOSAL" after implementation had landed; flagged by the code review.)*
 
 **Scope:** the `/reviews/[reviewId]` screen — the product's most important and highest-traffic workflow, where a user or Legal Reviewer inspects Findings, their nested Evaluations, evidence, and (for authorized users) records Legal Decisions.
 

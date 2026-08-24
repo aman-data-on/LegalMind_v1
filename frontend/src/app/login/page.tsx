@@ -32,6 +32,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
+import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
@@ -86,10 +87,7 @@ export default function LoginPage() {
           <h1>Smart legal review, built in.</h1>
 
           <form onSubmit={submit} className="login__form">
-            <div className="field">
-              <label className="field__label" htmlFor="login-email">
-                Work email
-              </label>
+            <Field id="login-email" label="Work email">
               <input
                 id="login-email"
                 type="email"
@@ -100,12 +98,9 @@ export default function LoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="field">
-              <label className="field__label" htmlFor="login-password">
-                Password
-              </label>
+            <Field id="login-password" label="Password">
               <div className="login__pw">
                 <input
                   id="login-password"
@@ -131,7 +126,7 @@ export default function LoginPage() {
                   {reveal ? "Hide" : "Show"}
                 </button>
               </div>
-            </div>
+            </Field>
 
             <ErrorBanner error={error} />
 

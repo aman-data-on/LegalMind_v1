@@ -61,5 +61,10 @@ export function Field({
 
 /** Bordered table surface that scrolls horizontally instead of clipping. */
 export function TableCard({ children }: { children: React.ReactNode }) {
-  return <div className="table-card table-wrap">{children}</div>;
+  return <div className="table-card">{children}</div>;
+}
+
+/** Date-only display for list cells (audit deliberately keeps full timestamps). */
+export function formatDate(iso: string | null | undefined): string {
+  return iso ? iso.slice(0, 10) : "\u2014";
 }

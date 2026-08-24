@@ -176,7 +176,7 @@ export default function AdminPage() {
                   </td>
                   <td>
                     <form
-                      className="inline"
+                      className="form-row"
                       onSubmit={(event) => {
                         event.preventDefault();
                         const code = new FormData(event.currentTarget).get("role");

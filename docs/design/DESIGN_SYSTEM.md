@@ -2,6 +2,8 @@
 
 **Status: `IMPLEMENTED` for the tokens and primitives listed below; `PROPOSAL` for anything marked not-yet-adopted. Governed by [../../DESIGN.md](../../DESIGN.md).**
 
+> Status words in `docs/design/` describe *design-workstream progress only*. [IMPLEMENTATION_STATUS.md](../00-project/IMPLEMENTATION_STATUS.md) remains the sole authority on build state; nothing here asserts a lifecycle state in that document's sense.
+
 This is the concrete answer to Step 52.6's `NOT YET SPECIFIED` visual design/component question, as actually built in `frontend/src/app/globals.css`. It documents what exists so Phase 3 page work consumes a settled vocabulary instead of re-deriving it. **Nothing in this document changed a page's markup, behavior, or any of the frontend's 58 Vitest tests, the Playwright suite's assumptions, or the production build — all were re-verified after this pass (`npm run typecheck`, `npm test`, `npm run build`).**
 
 The approach throughout was a **retrofit, not a redesign**: every existing CSS rule's literal value was preserved (substituted for an exact-value token, never a nearby or rounded one) so no page's rendered appearance changed as a side effect of naming the values it already had. Net new, genuinely additive behavior was added in exactly three narrowly-scoped places, each tied to a specific finding in [UX_AUDIT.md](UX_AUDIT.md), never a general redesign:

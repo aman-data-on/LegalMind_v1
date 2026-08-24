@@ -23,6 +23,7 @@
  */
 
 import { EvaluationRow } from "./EvaluationRow";
+import { StatePill } from "./Primitives";
 import { EvidenceList } from "./EvidenceList";
 import type { Evaluation, Finding } from "@/lib/types";
 
@@ -54,26 +55,21 @@ export function FindingCard({
             Derived summary (49.7 r1, D-1.1). Labelled as such so it is not read
             as the authoritative result — the Evaluations below are.
           */}
-          <span
-            className={`badge badge--${finding.classification.toLowerCase()}`}
+          <StatePill
+            axis="classification"
+            value={finding.classification}
             title="Derived summary of the Evaluations below"
-          >
-            {finding.classification}
-          </span>
+          />
 
           {/*
             A separate axis from classification (REC-06). Rendering them side by
             side is what keeps RESOLVED ≠ MATCH visible: a RESOLVED Finding still
             shows DEVIATION here.
           */}
-          <span className={`status status--${finding.status.toLowerCase()}`}>
-            {finding.status}
-          </span>
+          <StatePill axis="status" value={finding.status} />
 
           {finding.escalated ? (
-            <span className="status status--escalated" title="Requires authorized review">
-              Escalated
-            </span>
+            <StatePill axis="status" value="Escalated" title="Requires authorized review" />
           ) : null}
         </div>
       </header>

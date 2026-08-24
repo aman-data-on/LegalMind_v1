@@ -158,3 +158,19 @@ export async function evaluationIds(page: Page, reviewId: string): Promise<strin
     finding.evaluations.map((e: any) => e.id),
   );
 }
+
+/**
+ * Drive the real login form. The single owner of the login-page selector
+ * strategy: `exact` on the password label because the screen also has a
+ * "Show password" reveal control (DD-4) that substring matching would catch.
+ */
+export async function signIn(
+  page: import("@playwright/test").Page,
+  account: { email: string; password: string },
+): Promise<void> {
+  await page.goto("/login");
+  await page.getByLabel("Work email").fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await page.waitForURL(/\/contracts/, { timeout: 20_000 });
+}

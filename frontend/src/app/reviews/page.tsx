@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
-import { Field, StatePill, TableCard } from "@/components/Primitives";
+import { Field, StatePill, TableCard, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -121,7 +121,7 @@ export default function ReviewsPage() {
                         {review.contract_id.slice(0, 8)}
                       </Link>
                     </td>
-                    <td>{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                    <td>{formatDate(review.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

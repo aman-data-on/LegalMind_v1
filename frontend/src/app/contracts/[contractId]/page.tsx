@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
-import { Field, StatePill, TableCard } from "@/components/Primitives";
+import { Field, StatePill, TableCard, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -191,7 +191,7 @@ export default function ContractPage({
                   <td>
                     <StatePill axis="status" value={review.status} />
                   </td>
-                  <td>{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                  <td>{formatDate(review.created_at)}</td>
                 </tr>
               ))}
             </tbody>

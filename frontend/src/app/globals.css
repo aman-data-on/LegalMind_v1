@@ -74,6 +74,7 @@
   --on-deep-faint: oklch(0.55 0.02 258);
   /* The one vivid action color, used only on deep surfaces (DD-4 submit). */
   --accent-vivid: oklch(0.58 0.16 258);
+  --link-on-deep: oklch(0.72 0.13 258);
 
   /*
    * Display voice — serif, for identity and single-task headings only (DD-3).
@@ -81,9 +82,6 @@
    * Body text everywhere stays on the sans stack.
    */
   --font-display: Georgia, "Iowan Old Style", "Times New Roman", Times, serif;
-
-  /* Motion — one shared easing for entrances; durations stay per-use. */
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Type scale — values match the sizes already in use; nothing here changes a
      single rendered font size, it only gives the existing sizes names. */
@@ -149,7 +147,7 @@ body {
 .topbar {
   display: flex; align-items: center; gap: var(--space-5);
   padding: 0.85rem var(--space-5); background: var(--ink-deep);
-  border-bottom: 1px solid oklch(0.28 0.02 258);
+  border-bottom: 1px solid var(--line-deep);
   flex-wrap: wrap;
 }
 .topbar__brand {
@@ -161,7 +159,7 @@ body {
 .topbar__nav a:hover { color: var(--on-deep); }
 .topbar__nav a.active { color: #fff; box-shadow: inset 0 -2px 0 var(--accent-vivid); }
 .topbar__identity { display: flex; align-items: center; gap: 0.75rem; color: var(--on-deep-muted); }
-.topbar .link { color: oklch(0.72 0.13 258); }
+.topbar .link { color: var(--link-on-deep); }
 
 .content { flex: 1; padding: var(--space-5); max-width: 68rem; width: 100%; margin: 0 auto; }
 .footer { padding: var(--space-4) var(--space-5); border-top: 1px solid var(--line); }
@@ -246,8 +244,6 @@ textarea:focus-visible,
   box-shadow: var(--focus-ring);
 }
 
-form.inline { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
-form.inline label { flex: 1 1 12rem; margin: 0; }
 
 .badge, .status, .outcome, .tag, .evaluation__flag {
   display: inline-block; padding: 0.1rem 0.45rem; border-radius: var(--radius-xs);
@@ -282,7 +278,6 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
 .evidence__text { margin: 0 0 0.5rem; padding-left: 0.75rem; border-left: 2px solid var(--line); white-space: pre-wrap; }
 .evidence--none { color: var(--muted); font-size: var(--text-sm); }
 
-.decision { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--line); }
 .decision__form { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
 .decision__conflict { background: var(--error-bg); border: 1px solid #e5b3b3; border-radius: var(--radius-sm); padding: 0.6rem; margin-top: 0.5rem; }
 .decision-history { padding-left: 1.1rem; font-size: var(--text-base); }
@@ -319,7 +314,6 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
 .btn--secondary:hover:not(:disabled) { background: var(--page); }
 .btn--danger { background: var(--surface); color: var(--error); border-color: #e5b3b3; }
 .btn--danger:hover:not(:disabled) { background: var(--error-bg); }
-.btn--ghost { background: none; border-color: transparent; color: var(--accent); text-decoration: underline; padding: 0; }
 .btn--sm { padding: 0.25rem 0.55rem; font-size: var(--text-sm); }
 
 /*
@@ -346,10 +340,6 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
  * `form.inline` had no narrow-viewport behavior at all, and would otherwise
  * overflow or crush its inputs on a phone-width viewport.
  */
-@media (max-width: 640px) {
-  form.inline { flex-direction: column; align-items: stretch; }
-  form.inline label { flex: 1 1 auto; }
-}
 
 
 /*
@@ -411,7 +401,7 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
   position: relative; z-index: 2;
   display: flex; align-items: center;
   padding: 18px 32px;
-  border-bottom: 1px solid oklch(0.28 0.02 258);
+  border-bottom: 1px solid var(--line-deep);
 }
 .login__brand {
   margin: 0; font-family: var(--font-display); font-weight: 700;
@@ -424,12 +414,6 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
   display: flex; align-items: flex-start; justify-content: center;
   padding: 40px 24px 48px;
 }
-.login__foot {
-  position: relative; z-index: 2; text-align: center;
-  padding: 0 24px 28px; font-size: var(--text-xs); color: var(--on-deep-faint);
-  line-height: 1.6;
-}
-.login__foot p { margin: 0; }
 
 /* — the card — */
 .login__card {
@@ -548,7 +532,7 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
 /* — DD-4 addendum (owner, 2026-08-21): header link, Google sign-in, request-access — */
 .login__top { justify-content: space-between; }
 .login__toplink { margin: 0; font-size: var(--text-md); color: var(--on-deep-muted); }
-.login a { color: oklch(0.72 0.13 258); text-decoration: none; }
+.login a { color: var(--link-on-deep); text-decoration: none; }
 .login a:hover { color: oklch(0.8 0.1 258); text-decoration: underline; }
 .login a:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.6 0.12 258 / 0.5); border-radius: 3px; }
 
@@ -578,7 +562,7 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
 
 .table-card {
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-md); overflow: hidden;
+  border-radius: var(--radius-md); overflow-x: auto; overflow-y: hidden;
 }
 .table-card table { background: none; }
 .table-card th {
@@ -638,7 +622,7 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
    The Legal Decision block is the one thing on the page that changes the legal
    record: accent-edged, softly tinted, labeled. */
 .decision {
-  margin-top: 0.7rem; padding: 0.75rem 0.85rem; border-top: none;
+  margin-top: 0.7rem; padding: 0.75rem 0.85rem;
   background: oklch(0.975 0.008 258);
   border: 1px solid var(--line); border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
@@ -654,8 +638,7 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
    JSON payloads read as code (structural presentation only — rule 21 forbids
    assisting with legal CONTENT, not making the syntax legible), and stored-state
    blobs scroll inside their own box instead of widening the table. */
-textarea[name="company_standard"], textarea[name="mapping_rules"],
-textarea[name="evaluation_rules"], textarea[name="legal_rule_configuration"] {
+.code-input {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.82rem;
 }
