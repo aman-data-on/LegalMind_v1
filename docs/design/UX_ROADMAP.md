@@ -119,7 +119,11 @@ The DD-1 hybrid landed as direction C's essence with the existing DOM structure 
 - **Accessibility considerations:** disclosure widgets, live-region announcements for serial loading, focus management when moving between list and detail (if split-pane).
 - **Why here:** deliberately not first — it is the highest-complexity, highest-stakes screen, and every primitive it needs has been proven at lower stakes on 3.2–3.4 first.
 
-### 3.6 — `/reviews/[reviewId]/report`
+### 3.6–3.9 — DELIVERED 2026-08-22 (batched; no new patterns), awaiting owner review
+
+All four pages moved onto the established primitives at the DD-5 finish level, logic untouched. Report: back link, classification/status pills in the count tables (real badge families, no invented rollup). Audit: labeled filter card, `.table-card` (full timestamps kept — audit precision matters), `pre` blobs scroll in place. Admin: create-user card, `.table-card` users/roles tables, user-status pills, Grant as secondary and Disable as the destructive tier. Configuration: labeled forms on `.field`/`.btn--primary`, JSON textareas monospaced (structural presentation only — rule 21 untouched). Validated: typecheck, 58/58 Vitest, build, real-browser pass on all four pages. **With this, every page in the Phase 3 roadmap is delivered; report export stays deferred pending 49.12.**
+
+### 3.6 (original spec) — `/reviews/[reviewId]/report`
 
 - **Purpose:** aggregate picture of one Review — coverage, counts, alignment ratio.
 - **Target user:** User, Legal.

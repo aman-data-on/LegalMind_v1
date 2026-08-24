@@ -104,25 +104,33 @@ export default function AdminPage() {
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.USER_MANAGE)}>
-        <form className="card inline" onSubmit={createUser}>
-          <label>
-            Work email
+        <form className="card form-row" onSubmit={createUser}>
+          <div className="field">
+            <label className="field__label" htmlFor="new-user-email">
+              Work email
+            </label>
             <input
+              id="new-user-email"
               type="email"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </label>
-          <label>
-            Name
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="new-user-name">
+              Name
+            </label>
             <input
+              id="new-user-name"
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-          </label>
-          <button type="submit">Create user</button>
+          </div>
+          <button type="submit" className="btn btn--primary">
+            Create user
+          </button>
         </form>
         <p className="hint">
           A new account holds no roles. Authority is always a later, deliberate grant.
@@ -134,6 +142,7 @@ export default function AdminPage() {
         ) : users.length === 0 ? (
           <EmptyState>No users.</EmptyState>
         ) : (
+          <div className="table-card table-wrap">
           <table>
             <thead>
               <tr>
@@ -149,7 +158,11 @@ export default function AdminPage() {
                 <tr key={user.id}>
                   <td>{user.email}</td>
                   <td>{user.name}</td>
-                  <td>{user.status}</td>
+                  <td>
+                    <span className={`status status--${user.status.toLowerCase()}`}>
+                      {user.status}
+                    </span>
+                  </td>
                   <td>
                     {user.roles.length === 0 ? (
                       <span className="hint">none</span>
@@ -192,11 +205,18 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </label>
-                      <button type="submit">Grant</button>
+                      <button type="submit" className="btn btn--secondary btn--sm">
+                        Grant
+                      </button>
                     </form>
+                    {/* Disabling access is the destructive direction (DD-5 button tiers). */}
                     <button
                       type="button"
-                      className="link"
+                      className={
+                        user.status === "ACTIVE"
+                          ? "btn btn--danger btn--sm"
+                          : "btn btn--secondary btn--sm"
+                      }
                       onClick={() =>
                         void setStatus(
                           user.id,
@@ -211,6 +231,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </PermissionGate>
 
@@ -219,6 +240,7 @@ export default function AdminPage() {
         {roles === null ? (
           <Loading what="roles" />
         ) : (
+          <div className="table-card table-wrap">
           <table>
             <thead>
               <tr>
@@ -247,6 +269,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </PermissionGate>
     </>

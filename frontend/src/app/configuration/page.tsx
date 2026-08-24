@@ -103,16 +103,21 @@ export default function ConfigurationPage() {
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
-        <form className="card inline" onSubmit={createRequirement}>
-          <label>
-            New Requirement code
+        <form className="card form-row" onSubmit={createRequirement}>
+          <div className="field">
+            <label className="field__label" htmlFor="new-requirement-code">
+              New Requirement code
+            </label>
             <input
+              id="new-requirement-code"
               required
               value={code}
               onChange={(event) => setCode(event.target.value)}
             />
-          </label>
-          <button type="submit">Create draft Requirement</button>
+          </div>
+          <button type="submit" className="btn btn--primary">
+            Create draft Requirement
+          </button>
         </form>
       </PermissionGate>
 
@@ -145,16 +150,21 @@ export default function ConfigurationPage() {
             evaluation rules, publishing is refused rather than producing a snapshot
             that silently skips it.
           </p>
-          <form className="inline" onSubmit={publish}>
-            <label>
-              Requirement codes to activate (comma separated; blank to publish current
-              active configuration only)
+          <form className="form-row" onSubmit={publish}>
+            <div className="field field--grow">
+              <label className="field__label" htmlFor="publish-codes">
+                Requirement codes to activate (comma separated; blank to publish
+                current active configuration only)
+              </label>
               <input
+                id="publish-codes"
                 value={publishCodes}
                 onChange={(event) => setPublishCodes(event.target.value)}
               />
-            </label>
-            <button type="submit">Publish</button>
+            </div>
+            <button type="submit" className="btn btn--primary">
+              Publish
+            </button>
           </form>
           {snapshot ? (
             <p>
@@ -367,7 +377,9 @@ function RequirementCard({
               Legal Rule configuration (JSON)
               <textarea name="legal_rule_configuration" rows={3} defaultValue="{}" />
             </label>
-            <button type="submit">Save draft version</button>
+            <button type="submit" className="btn btn--primary">
+              Save draft version
+            </button>
           </form>
         ) : null}
       </PermissionGate>
@@ -468,9 +480,9 @@ function StandardEditor({
         Reason for the change (required — recorded in the audit trail)
         <input name="reason" required />
       </label>
-      <button type="submit" disabled={busy}>
+      <button type="submit" className="btn btn--primary" disabled={busy}>
         {busy ? "Saving…" : "Save as a new version"}
-      </button>
+      </button>{" "}
       <button type="button" className="link" onClick={onClose}>
         Cancel
       </button>

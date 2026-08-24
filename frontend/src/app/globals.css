@@ -649,3 +649,14 @@ form.inline label { flex: 1 1 12rem; margin: 0; }
 }
 /* Escalation stays visually a request: quiet, dashed, muted. */
 .escalation { margin-top: 0.9rem; padding-top: 0.7rem; border-top: 1px dashed var(--line); }
+
+/* — Phase 3.6–3.9 content finish —
+   JSON payloads read as code (structural presentation only — rule 21 forbids
+   assisting with legal CONTENT, not making the syntax legible), and stored-state
+   blobs scroll inside their own box instead of widening the table. */
+textarea[name="company_standard"], textarea[name="mapping_rules"],
+textarea[name="evaluation_rules"], textarea[name="legal_rule_configuration"] {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }

@@ -62,10 +62,13 @@ export default function AuditPage() {
       </p>
       <ErrorBanner error={error} />
 
-      <form className="card inline" onSubmit={(event) => event.preventDefault()}>
-        <label>
-          Action
+      <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
+        <div className="field">
+          <label className="field__label" htmlFor="audit-action">
+            Action
+          </label>
           <input
+            id="audit-action"
             value={action}
             onChange={(event) => {
               setPage(1);
@@ -73,10 +76,13 @@ export default function AuditPage() {
             }}
             placeholder="e.g. legal.decision_recorded"
           />
-        </label>
-        <label>
-          Entity type
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="audit-entity-type">
+            Entity type
+          </label>
           <input
+            id="audit-entity-type"
             value={entityType}
             onChange={(event) => {
               setPage(1);
@@ -84,7 +90,7 @@ export default function AuditPage() {
             }}
             placeholder="e.g. evaluation"
           />
-        </label>
+        </div>
       </form>
 
       {events === null ? (
@@ -93,10 +99,11 @@ export default function AuditPage() {
         <EmptyState>No audit events match.</EmptyState>
       ) : (
         <>
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
+          <div className="table-card table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
                 <th>Action</th>
                 <th>Entity</th>
                 <th>Actor</th>
@@ -133,7 +140,8 @@ export default function AuditPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
           {pagination ? (
             <Pager
               page={pagination.page}
