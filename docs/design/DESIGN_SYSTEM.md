@@ -6,7 +6,7 @@
 
 This is the concrete answer to Step 52.6's `NOT YET SPECIFIED` visual design/component question, as actually built in `frontend/src/app/globals.css`. It documents what exists so Phase 3 page work consumes a settled vocabulary instead of re-deriving it. **Nothing in this document changed a page's markup, behavior, or any of the frontend's 58 Vitest tests, the Playwright suite's assumptions, or the production build — all were re-verified after this pass (`npm run typecheck`, `npm test`, `npm run build`).**
 
-The approach throughout was a **retrofit, not a redesign**: every existing CSS rule's literal value was preserved (substituted for an exact-value token, never a nearby or rounded one) so no page's rendered appearance changed as a side effect of naming the values it already had. Net new, genuinely additive behavior was added in exactly three narrowly-scoped places, each tied to a specific finding in [UX_AUDIT.md](UX_AUDIT.md), never a general redesign:
+The approach throughout was a **retrofit, not a redesign**: existing CSS rules were substituted for tokens. **Correction (code review, 2026-08-22):** five values were snapped to the nearest scale step rather than kept byte-exact — `label` 0.9rem→1rem, `th` 0.8rem→0.78rem, `.finding__note`/`.evidence__location` 0.82rem→0.78rem, `.pager` 0.88rem→0.9375rem. These sub-pixel-to-1.6px shifts shipped inside the owner-reviewed finish passes; the earlier claim of exactness was wrong and is corrected here rather than silently rewritten. Net new, genuinely additive behavior was added in exactly three narrowly-scoped places, each tied to a specific finding in [UX_AUDIT.md](UX_AUDIT.md), never a general redesign:
 
 1. `.hint` / `.empty` were made visually distinct (previously identical in weight and size — audit §2 "State Management").
 2. `Loading` states (`Feedback.tsx` and `Chrome.tsx`'s own inline loading text) now carry `role="status" aria-live="polite"` (audit §2 "Accessibility").
@@ -84,7 +84,7 @@ Border color is `--line` throughout, unchanged.
 | `--ink-deep` / `--surface-deep` / `--line-deep` / `--input-deep` / `--on-deep` / `--on-deep-muted` / `--on-deep-faint` | `oklch` navy family (retinted in DD-4 from the DD-3 neutrals — see `globals.css` `:root` for exact values) | The "environment" voice — deep ground for identity moments (used by `/login`). Generic names on purpose; never a decorative home for state-axis colors. |
 | `--accent-vivid` | `oklch(0.58 0.16 258)` | The one vivid action color, used only on deep surfaces (DD-4 submit button). |
 | `--font-display` | `Georgia, "Iowan Old Style", "Times New Roman", Times, serif` | Identity and single-task headings only (wordmark, `/login`'s "Sign in"). Body text stays on the sans stack. System-resident — no font downloaded, no dependency. |
-| `--ease-out-soft` | `cubic-bezier(0.22, 1, 0.36, 1)` | Shared entrance easing. Motion rules: ambience slow and `aria-hidden`, entrances one-time, feedback immediate, everything removed under `prefers-reduced-motion`. |
+| ~~`--ease-out-soft`~~ | — | Removed 2026-08-22 (code review): defined but consumed by no rule — the DD-4 entrance uses the mock's own bezier. Motion rules stand: ambience slow and `aria-hidden`, entrances one-time, feedback immediate, everything removed under `prefers-reduced-motion`. |
 
 ### Breakpoints (documented values, not CSS custom properties — media queries can't consume a `var()`)
 

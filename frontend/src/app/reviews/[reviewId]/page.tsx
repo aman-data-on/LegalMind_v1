@@ -26,7 +26,7 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { DecisionPanel } from "@/components/DecisionPanel";
@@ -102,7 +102,18 @@ export default function ReviewPage({
   if (!can(P.REVIEW_VIEW)) return <AccessRestricted what="reviews" />;
   if (!reviewId) return <Loading what="review" />;
 
-  const attention = (findings ?? []).filter((finding) => finding.requires_decision);
+  /* Queue membership is sticky for this visit: once a Finding needed a
+     decision it stays in the queue view even after the decision is recorded,
+     so the server-confirmed result (52.7) remains on screen instead of the
+     card unmounting mid-confirmation (code-review finding, 2026-08-22).
+     Membership is display state only; every rendered value is the server's. */
+  const queueIds = useRef(new Set<string>());
+  (findings ?? []).forEach((finding) => {
+    if (finding.requires_decision) queueIds.current.add(finding.id);
+  });
+  const attention = (findings ?? []).filter((finding) =>
+    queueIds.current.has(finding.id),
+  );
   /* The DEFAULT view falls back to the full list when nothing needs a decision —
      an empty default would misread as "no Findings". A view the user explicitly
      chose is never auto-switched; its empty case renders as an explicit empty

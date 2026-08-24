@@ -192,7 +192,7 @@ Documents under [docs/09-implementation/](docs/09-implementation/) still describ
 
 ## Current state
 
-**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **15,358 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
+**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **15,648 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
 
 ### The V1 configuration state — read before touching the evaluator or the corpus
 
@@ -244,7 +244,7 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 
 ## Working a session
 
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **15,358 lines**; if it is longer, the docs may be stale and you should say so.
+1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **15,648 lines**; if it is longer, the docs may be stale and you should say so.
 2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
 3. **Check what already exists before building or asking** — rule 23. Read the status, handoff and changelog records first; verify with a grep or a test run; and look in [Source material](#source-material) before requesting a document.
 4. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.

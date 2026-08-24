@@ -121,7 +121,7 @@ export default function ReviewsPage() {
                         {review.contract_id.slice(0, 8)}
                       </Link>
                     </td>
-                    <td>{formatDate(review.created_at)}</td>
+                    <td title={review.created_at ?? undefined}>{formatDate(review.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

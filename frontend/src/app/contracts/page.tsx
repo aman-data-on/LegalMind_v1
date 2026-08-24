@@ -115,7 +115,7 @@ export default function ContractsPage() {
                       {/* Rendered as received (52.7); the pill is presentation only. */}
                       <StatePill axis="status" value={contract.status} />
                     </td>
-                    <td>{formatDate(contract.created_at)}</td>
+                    <td title={contract.created_at ?? undefined}>{formatDate(contract.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
