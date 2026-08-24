@@ -30,6 +30,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -104,17 +105,14 @@ export default function ConfigurationPage() {
 
       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
         <form className="card form-row" onSubmit={createRequirement}>
-          <div className="field">
-            <label className="field__label" htmlFor="new-requirement-code">
-              New Requirement code
-            </label>
+          <Field id="new-requirement-code" label="New Requirement code">
             <input
               id="new-requirement-code"
               required
               value={code}
               onChange={(event) => setCode(event.target.value)}
             />
-          </div>
+          </Field>
           <button type="submit" className="btn btn--primary">
             Create draft Requirement
           </button>
@@ -151,17 +149,13 @@ export default function ConfigurationPage() {
             that silently skips it.
           </p>
           <form className="form-row" onSubmit={publish}>
-            <div className="field field--grow">
-              <label className="field__label" htmlFor="publish-codes">
-                Requirement codes to activate (comma separated; blank to publish
-                current active configuration only)
-              </label>
+            <Field id="publish-codes" label="Requirement codes to activate (comma separated; blank to publish current active configuration only)" grow>
               <input
                 id="publish-codes"
                 value={publishCodes}
                 onChange={(event) => setPublishCodes(event.target.value)}
               />
-            </div>
+            </Field>
             <button type="submit" className="btn btn--primary">
               Publish
             </button>

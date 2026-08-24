@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { Field, StatePill, TableCard } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -105,10 +106,7 @@ export default function AdminPage() {
 
       <PermissionGate granted={can(P.USER_MANAGE)}>
         <form className="card form-row" onSubmit={createUser}>
-          <div className="field">
-            <label className="field__label" htmlFor="new-user-email">
-              Work email
-            </label>
+          <Field id="new-user-email" label="Work email">
             <input
               id="new-user-email"
               type="email"
@@ -116,18 +114,15 @@ export default function AdminPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="new-user-name">
-              Name
-            </label>
+          </Field>
+          <Field id="new-user-name" label="Name">
             <input
               id="new-user-name"
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-          </div>
+          </Field>
           <button type="submit" className="btn btn--primary">
             Create user
           </button>
@@ -142,7 +137,7 @@ export default function AdminPage() {
         ) : users.length === 0 ? (
           <EmptyState>No users.</EmptyState>
         ) : (
-          <div className="table-card table-wrap">
+          <TableCard>
           <table>
             <thead>
               <tr>
@@ -159,9 +154,7 @@ export default function AdminPage() {
                   <td>{user.email}</td>
                   <td>{user.name}</td>
                   <td>
-                    <span className={`status status--${user.status.toLowerCase()}`}>
-                      {user.status}
-                    </span>
+                    <StatePill axis="status" value={user.status} />
                   </td>
                   <td>
                     {user.roles.length === 0 ? (
@@ -231,7 +224,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
-          </div>
+          </TableCard>
         )}
       </PermissionGate>
 
@@ -240,7 +233,7 @@ export default function AdminPage() {
         {roles === null ? (
           <Loading what="roles" />
         ) : (
-          <div className="table-card table-wrap">
+          <TableCard>
           <table>
             <thead>
               <tr>
@@ -269,7 +262,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
-          </div>
+          </TableCard>
         )}
       </PermissionGate>
     </>

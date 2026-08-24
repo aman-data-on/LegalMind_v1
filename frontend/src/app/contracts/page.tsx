@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { Field, StatePill, TableCard } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -66,27 +67,21 @@ export default function ContractsPage() {
 
       <PermissionGate granted={can(P.CONTRACT_CREATE)}>
         <form className="card form-row" onSubmit={create}>
-          <div className="field">
-            <label className="field__label" htmlFor="contract-name">
-              Contract name
-            </label>
+          <Field id="contract-name" label="Contract name">
             <input
               id="contract-name"
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="contract-type">
-              Type (optional)
-            </label>
+          </Field>
+          <Field id="contract-type" label="Type (optional)">
             <input
               id="contract-type"
               value={contractType}
               onChange={(event) => setContractType(event.target.value)}
             />
-          </div>
+          </Field>
           <button type="submit" className="btn btn--primary">
             Add contract
           </button>
@@ -99,7 +94,7 @@ export default function ContractsPage() {
         <EmptyState>No contracts yet.</EmptyState>
       ) : (
         <>
-          <div className="table-card table-wrap">
+          <TableCard>
             <table>
               <thead>
                 <tr>
@@ -118,16 +113,14 @@ export default function ContractsPage() {
                     <td>{contract.contract_type ?? "—"}</td>
                     <td>
                       {/* Rendered as received (52.7); the pill is presentation only. */}
-                      <span className={`status status--${contract.status.toLowerCase()}`}>
-                        {contract.status}
-                      </span>
+                      <StatePill axis="status" value={contract.status} />
                     </td>
                     <td>{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableCard>
           {pagination ? (
             <Pager
               page={pagination.page}

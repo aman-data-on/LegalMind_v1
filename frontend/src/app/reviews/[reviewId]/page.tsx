@@ -31,6 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { DecisionPanel } from "@/components/DecisionPanel";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { Field, StatePill } from "@/components/Primitives";
 import { FindingCard } from "@/components/FindingCard";
 import {
   QUEUE_POLL_MS,
@@ -117,9 +118,7 @@ export default function ReviewPage({
             There is no separate progress indicator that could disagree with it, and
             no control that sets it (r3).
           */}
-          <span className={`status status--${review.status.toLowerCase()}`}>
-            {review.status}
-          </span>
+          <StatePill axis="status" value={review.status} />
           <span>snapshot {review.configuration_snapshot_id.slice(0, 8)}</span>
           <Link href={`/reviews/${reviewId}/report`}>View report</Link>
         </p>
@@ -150,10 +149,7 @@ export default function ReviewPage({
             </span>
           </div>
         ) : null}
-        <div className="field">
-          <label className="field__label" htmlFor="classification-filter">
-            Filter by classification
-          </label>
+        <Field id="classification-filter" label="Filter by classification">
           <select
             id="classification-filter"
             value={classification}
@@ -178,7 +174,7 @@ export default function ReviewPage({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
       </form>
 
       {!can(P.FINDING_VIEW) ? (

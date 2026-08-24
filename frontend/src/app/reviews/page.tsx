@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { Field, StatePill, TableCard } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -67,10 +68,7 @@ export default function ReviewsPage() {
       <ErrorBanner error={error} />
 
       <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
-        <div className="field">
-          <label className="field__label" htmlFor="review-status-filter">
-            Lifecycle status
-          </label>
+        <Field id="review-status-filter" label="Lifecycle status">
           <select
             id="review-status-filter"
             value={status}
@@ -86,7 +84,7 @@ export default function ReviewsPage() {
               </option>
             ))}
           </select>
-        </div>
+        </Field>
       </form>
 
       {reviews === null ? (
@@ -99,7 +97,7 @@ export default function ReviewsPage() {
         </EmptyState>
       ) : (
         <>
-          <div className="table-card table-wrap">
+          <TableCard>
             <table>
               <thead>
                 <tr>
@@ -116,9 +114,7 @@ export default function ReviewsPage() {
                       <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
                     </td>
                     <td>
-                      <span className={`status status--${review.status.toLowerCase()}`}>
-                        {review.status}
-                      </span>
+                      <StatePill axis="status" value={review.status} />
                     </td>
                     <td>
                       <Link href={`/contracts/${review.contract_id}`}>
@@ -130,7 +126,7 @@ export default function ReviewsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableCard>
           {pagination ? (
             <Pager
               page={pagination.page}

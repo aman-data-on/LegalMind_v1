@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { Field, TableCard } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -63,10 +64,7 @@ export default function AuditPage() {
       <ErrorBanner error={error} />
 
       <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
-        <div className="field">
-          <label className="field__label" htmlFor="audit-action">
-            Action
-          </label>
+        <Field id="audit-action" label="Action">
           <input
             id="audit-action"
             value={action}
@@ -76,11 +74,8 @@ export default function AuditPage() {
             }}
             placeholder="e.g. legal.decision_recorded"
           />
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="audit-entity-type">
-            Entity type
-          </label>
+        </Field>
+        <Field id="audit-entity-type" label="Entity type">
           <input
             id="audit-entity-type"
             value={entityType}
@@ -90,7 +85,7 @@ export default function AuditPage() {
             }}
             placeholder="e.g. evaluation"
           />
-        </div>
+        </Field>
       </form>
 
       {events === null ? (
@@ -99,7 +94,7 @@ export default function AuditPage() {
         <EmptyState>No audit events match.</EmptyState>
       ) : (
         <>
-          <div className="table-card table-wrap">
+          <TableCard>
             <table>
               <thead>
                 <tr>
@@ -141,7 +136,7 @@ export default function AuditPage() {
               ))}
             </tbody>
             </table>
-          </div>
+          </TableCard>
           {pagination ? (
             <Pager
               page={pagination.page}

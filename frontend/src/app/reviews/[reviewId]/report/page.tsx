@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { ErrorBanner, Loading } from "@/components/Feedback";
+import { StatePill } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -93,7 +94,7 @@ export default function ReportPage({
                 {Object.entries(report.classification_counts).map(([key, count]) => (
                   <tr key={key}>
                     <td>
-                      <span className={`badge badge--${key.toLowerCase()}`}>{key}</span>
+                      <StatePill axis="classification" value={key} />
                     </td>
                     <td>{count}</td>
                   </tr>
@@ -112,7 +113,7 @@ export default function ReportPage({
                 {Object.entries(report.status_counts).map(([key, count]) => (
                   <tr key={key}>
                     <td>
-                      <span className={`status status--${key.toLowerCase()}`}>{key}</span>
+                      <StatePill axis="status" value={key} />
                     </td>
                     <td>{count}</td>
                   </tr>
