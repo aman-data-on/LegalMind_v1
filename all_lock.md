@@ -16046,3 +16046,340 @@ Still required    a model selected by measurement (AM-26); an evaluation set bui
                   supplied documents (AM-28); the golden corpus's outstanding legal material
 Open, unaffected  C-05 - C-08, C-10, C-12, C-13
 ```
+
+---
+
+# Amendment Batch AB-4 — The Generative Model Is a Hosted Service
+
+**Status: LOCKED**
+
+**Owner decision recorded: 2026-08-25.** Effective from this record forward. Nothing in this batch is
+retroactive, and no historical Review, Finding, Evaluation, Legal Decision or configuration snapshot is
+altered, reinterpreted or invalidated by it.
+
+**Records: `AM-30`, `AM-31`, `IMPL-02`.**
+
+---
+
+## Why this batch exists
+
+The owner selected **Gemini Flash** as the generative model for the assist lane, and reaffirmed that
+selection after the conflict with `AM-25` r9 was raised in writing.
+
+`AM-25` r9 is not a preference about where a model runs. It is a confidentiality guarantee: no document
+text, clause text, evidence, chunk, embedding input, prompt or generated answer leaves
+LeapSwitch-controlled infrastructure. AB-3's `## Position` block lists `hosted model APIs` under
+`Out of V1 scope`. A hosted generative model cannot be built without amending both, and the amendment
+path is the one `AI-01` provided and AB-3 already used: an explicit, recorded revisiting.
+
+This batch is that revisiting, and it is deliberately **narrow**. One destination changes. The eight
+other terms of `AM-25` are untouched, and this batch adds terms of its own so that the posture is
+tightened everywhere the egress does not require loosening.
+
+```text
+NOT amended    the assist lane's authority boundary
+               AM-25 r1-r8 stand in full. The lane still produces no Finding, no Evaluation, no
+               Classification, no Rule Outcome, no Mapping State, no Legal Decision and no
+               Lifecycle transition, and still never answers "does this meet our standard?"
+
+AMENDED        the destination of the generation call, and nothing else
+               "nothing leaves LeapSwitch-controlled infrastructure"
+                 ->  "the generation call, and only the generation call, may reach one approved
+                      hosted provider, on the terms in AM-30 and the gate in AM-31"
+```
+
+## The enabling record
+
+```text
+AI-01  "Hard V1 constraint"
+       "...unless this locked decision is explicitly revisited and changed."
+       -> AB-3 was one such revisiting. This is a second, narrower one, on the same authority.
+
+AM-26  r1  "All generation reaches the application through one interface. The model identity is
+            configuration, and no other code knows which model is running."
+       -> UNCHANGED, and it is what makes this batch reversible: if the provider relationship ends,
+          or AM-31's terms are never confirmed, reverting to a local open-weight generative model is
+          a configuration change behind that one interface, not a rewrite.
+```
+
+---
+
+# `AM-30` — Gemini Flash is the selected generative model, on minimum-egress terms
+
+**Amends, and only to this extent:**
+
+```text
+AM-25 r9         in the GENERATION path only. Every other path r9 names - embedding input,
+                 chunking, parsing, OCR, hosted document processing, third-party telemetry -
+                 remains closed. "embedding input" in particular STAYS FORBIDDEN from egress:
+                 the embedding model is self-hosted (owner decision, 2026-08-25).
+
+AM-26            the ADDED row  "Generative model | local, self-hosted, open-weight"
+                 -> a hosted provider is permitted for generation only.
+
+AM-26            the ADDED row  "Inference runtime | local model-serving process, no outbound
+                 network route"
+                 -> SCOPED, not removed. The local inference runtime continues to serve the
+                    embedding and reranking models and continues to have no outbound network
+                    route. The row no longer implies that generation is served by it. This clause
+                    is named explicitly because leaving it unamended would make this record
+                    internally contradictory.
+
+AM-26            the NOT-ADDED entry "Any hosted model, embedding or document-processing service",
+                 for a hosted GENERATIVE model ONLY. A hosted embedding service and a hosted
+                 document-processing service remain NOT ADDED and still require separate approval.
+
+AM-26 r2         "Selection proceeds from the smallest candidate upward" - for generation only.
+                 The generative model is now selected by owner decision. r2 continues to govern
+                 the embedding and reranking models without change.
+
+AM-26 r5         "Weights are obtained once, checksummed, stored locally, and never fetched at
+                 runtime" - inapplicable to a hosted model, and UNCHANGED for the embedding and
+                 reranking models. Replaced, for the hosted model, by t7 below.
+
+AB-3 Position    the "Out of V1 scope" line item  "hosted model APIs".
+                 The adjacent item "hosted document processing" is NOT narrowed.
+```
+
+**Does not amend:**
+
+```text
+AM-25 r1 - r8    every one stands, in full and without qualification. In particular r2's distinct
+                 database role holding no INSERT or UPDATE grant; r5's mechanical, off-model
+                 citation enforcement; and r6/r7's authorization-inside-the-query and
+                 existence-oracle ban.
+AM-25            the Confidentiality paragraph. LEGAL-02 stands, and omitted-not-nulled stands.
+Locked 54.6      unchanged. It governs what enters THIS REPOSITORY - a different concern from
+                 egress, and this record does not touch it. No document, and no clause text
+                 beyond short cited excerpts, enters the repository.
+AM-26            the modular monolith position - no microservices, no Kubernetes, no service mesh.
+                 There is therefore NO separate gateway service; AM-26 r1's single interface is an
+                 in-process module boundary.
+AM-26            the existing parser and OCR path as the primary path.
+AM-26            the existing queue and worker infrastructure, reused not replaced.
+AM-26            pgvector on the existing PostgreSQL instance; no second vector datastore.
+AM-26            the exclusion of any RAG orchestration framework and any additional broker.
+AM-26            the exclusion of fine-tuning and of training on the corpus.
+AM-26 r1, r3, r4 one interface; the quality bar, including that correct refusal is half of it; the
+                 model version pinned and recorded against every answer. See AM-31 for how r3 is
+                 satisfied while the gate is closed.
+AM-27            entirely. The nine permitted tables, the separate schema, and "no other table".
+AM-28            entirely. Both tiers; the assist lane is still never admitted to Tier 1.
+AM-29            entirely. The sixth axis and its three outcomes.
+AI-01            the architectural principle for future AI.
+Step 38 r20, r21 unchanged. The deterministic engine remains the authoritative source of Findings.
+Step 39          the microservices and Kubernetes exclusion.
+The five axes    unchanged. No value is added to any of them.
+Every Company    unchanged. No position, threshold, basis or tolerance is touched.
+Standard, every
+Legal Rule
+Rule 7, rule 21  unchanged, in both lanes.
+```
+
+## The terms
+
+The batch is void of effect for any component that does not satisfy every term.
+
+```text
+t1   Generation is the ONLY permitted egress. Embedding, reranking, chunking, parsing and OCR
+     remain local and self-hosted. No document, no chunk, and no embedding input leaves
+     LeapSwitch-controlled infrastructure for any of them.
+
+t2   Only the requester's question and the retrieved chunk spans required to answer that one
+     request may be sent, together with the prompt template. Never a whole Document Version.
+
+t3   LEGAL-02 IS AN EGRESS RULE, NOT ONLY A DISPLAY RULE. No Company Standard value, Legal Rule,
+     threshold, rule configuration, Rule Outcome, Evaluation, Finding or other internal legal
+     position may be included in an egressing payload. AM-25 r9's blanket ban made this moot; this
+     term re-erects it explicitly, so that widening the destination does not silently widen
+     LEGAL-02.
+
+t4   No counterparty name, signatory name, contract identifier, user identifier or organizational
+     identifier is included in an egressing payload. A real counterparty is never named to a third
+     party.
+
+t5   Every call is recorded in audit_events with the model identity, the prompt version, and a
+     payload HASH - never the payload. No clause text and no internal legal position enters a log
+     line or an audit row. Locked 53.3's redaction discipline applies to the egress payload exactly
+     as it applies to a log record.
+
+t6   Provider-side training on submitted content is not permitted. A provider tier that trains on
+     submitted content by default is INELIGIBLE, whatever its cost. Fine-tuning and training on the
+     corpus remain out of scope.
+
+t7   The model version is pinned to a dated model identifier and recorded against every answer
+     (AM-26 r4, reaffirmed). An alias that floats - "latest", or a bare family name - is not a pin.
+     A provider-side model rotation is a model change and re-triggers AM-26 r4.
+
+t8   Egress is allow-listed to one provider endpoint at the network layer, deny-by-default
+     elsewhere, and that posture is asserted by a test - not by configuration review alone.
+
+t9   The model reaches the application through exactly one interface. No other module knows that
+     the provider is hosted, or which provider it is.
+
+t10  No third-party telemetry, analytics or crash reporting is present anywhere in the document
+     path. The provider call is the only external call in the stack.
+```
+
+## What this record does NOT decide
+
+```text
+The provider tier      Paid Gemini API or Vertex AI - not selected here. AM-31 requires whichever is
+                       recorded to carry written no-training terms, and t6 makes a
+                       trains-by-default tier ineligible.
+The model version      No version string is locked. t7 governs.
+The provider SDK       Rule 19 is UNAFFECTED. Authorizing the capability to call a hosted model
+                       does not authorize any particular client library or dependency; that
+                       remains a separate approval.
+Embedding hardware     A self-hosted embedding model still needs AM-26's GPU-runtime provision
+                       sized. A provisioning decision, not a lock.
+Domain A / Domain C    No table is authorized by this record. AM-27's "no other table" stands, and
+corpus tables          a corpus schema requires its own amendment with a concrete design.
+Retention / deletion   AM-27 r5 requires deleting a document to hard-delete its chunks. No
+                       hard-delete path for a Contract exists today, and this record does not
+                       create one or assume its shape.
+```
+
+---
+
+# `AM-31` — The real-contract egress gate, and how `AM-26` r3 is satisfied while it is closed
+
+**Amends:** nothing. This record adds a control and resolves a contradiction that `AM-30` would
+otherwise create.
+
+## The gate
+
+```text
+g1   Real counterparty contract text must NOT reach the provider until that provider's no-training
+     and data-retention terms are confirmed IN WRITING. This is a locked property, not a
+     configuration preference.
+
+g2   Enforcement is mechanical and DEFAULT-CLOSED. Absent a recorded confirmation the egress path
+     refuses. A deployment that has not recorded one cannot send real material by changing a
+     setting.
+
+g3   The gate is released only by a FURTHER APPENDED RECORD citing the written terms - provider,
+     tier, date. It is not released by a feature flag, an environment variable, a code review or a
+     configuration change. This is the same discipline AM-25 r2 applies to the assist database
+     role: a confidentiality boundary is enforced by mechanism, never by convention.
+
+g4   STATUS AS OF THIS RECORD: CLOSED. No written confirmation exists. Only synthetic or explicitly
+     cleared material may egress.
+
+g5   The mechanism is implementation, not lock. Locked 55.3 already provides most of it - real
+     contracts never leave production, and development and staging are synthetic-only - so the gate
+     is expected to compose with the existing environment separation rather than introduce a new
+     classification scheme. AM-27 r2 forbids a new column on a locked table, and AM-27 authorizes
+     no new table for this purpose; a marker, if one is needed, therefore lives in existing JSONB
+     or on a permitted assist table. Inventing a confidentiality classification scheme is a rule-7
+     adjacent trap and is not authorized here.
+```
+
+## The contradiction this record resolves
+
+`AM-26` r3 requires the quality bar to be *"measured on a LegalMind evaluation set built from real
+supplied documents"*, and `AM-28` requires *"real question-and-answer pairs"*. `g1` forbids real
+counterparty text reaching the provider. Under `AM-30` alone, model selection by measurement would be
+impossible for a hosted model, and the likely outcome is that someone measures on synthetic material
+and cites r3 as satisfied. That is closed here rather than left to discretion:
+
+```text
+m1   A provisional selection MAY be made on an explicitly-labelled SYNTHETIC evaluation set. The
+     label is part of the record; a synthetic result is never reported as an AM-26 r3 result.
+
+m2   A provisional selection is NOT a passed quality bar. AM-26 r3 is satisfied only by a run on
+     real supplied material, which requires the gate in g1-g3 to be open first.
+
+m3   NO ASSIST-LANE ANSWER REACHES A USER over real counterparty material on a synthetic-only bar.
+     Until AM-26 r3 is satisfied on real material, the assist lane serves synthetic or cleared
+     material only.
+
+m4   AM-28's Tier 2 gate is unchanged, and a synthetic result never satisfies it - exactly as
+     AM-28 r1 already forbids a Tier 2 result satisfying a Tier 1 gate.
+
+m5   The evaluation set is subject to locked 54.6 and rule 21 without exception: it does not carry
+     document text into the repository, and its real question-and-answer material is SUPPLIED, never
+     manufactured.
+```
+
+---
+
+# `IMPL-02` — The assist-lane build sequence is authorized by reference
+
+**Amends:** nothing. `IMPL-01` is unchanged and remains in force.
+
+`IMPL-01` authorized implementation of the locked V1 specification *in the Implementation Readiness Gate
+§5 sequence*. That sequence predates AB-3 and contains no assist-lane unit, so the assist lane - now
+locked - has locked content and no authorized order in which to build it.
+
+```text
+r1   The assist lane is authorized for implementation in the sequence recorded as
+     IMPLEMENTATION_READINESS_GATE.md section 5b, by the same mechanism IMPL-01 used for section 5:
+     authorization by reference, so the sequence can be revised without amending a lock.
+
+r2   The Gate's section 6 standing constraints do NOT relax, and AM-25's nine terms, AM-27's table
+     limit, AM-28's two tiers and AM-29's sixth axis are binding throughout.
+
+r3   IMPL-02 authorizes building what is already locked. It confers no authority to decide anything
+     marked NOT YET SPECIFIED, to resolve an open conflict or open decision, to add a table beyond
+     AM-27's nine, or to add a technology or dependency beyond AM-26 as amended by AM-30.
+
+r4   Ordering within 5b is an engineering judgment, revisable on evidence, EXCEPT for two properties
+     which are locked by consequence and may not be reordered:
+       - the citation-enforcement component is built BEFORE generation. AM-28 r2 requires it to be
+         tested independently of prompt and model code and to not import them; built afterwards it
+         will import them or need a retrofit.
+       - the network egress allow-list (AM-30 t8) exists BEFORE the first real generation call, so
+         AM-31's gate does not rest on application code alone.
+```
+
+---
+
+## Not changed by AB-4
+
+```text
+Every legal-domain decision   unchanged - PROD, ROLE, LEGAL, FIND, DOC, ENG, ARCH, DATA, AUD,
+                              LIABILITY. No legal policy is affected by this batch.
+AM-25 r1 - r8                 unchanged - the authority boundary is untouched
+AM-27, AM-28, AM-29           unchanged in full
+IMPL-01                       unchanged and in force
+The deterministic engine      unchanged - still the sole producer of every Finding, Evaluation,
+                              Classification and Rule Outcome (Step 38 rule 21, AM-25 r1)
+The five state axes           unchanged - no value added to any of them
+The locked tables             unchanged - no column, constraint, index or enum touched
+Locked 54.6                   unchanged - and it governs the repository, not egress
+Locked 55.3                   unchanged - real contracts never leave production
+Rule 7 and rule 21            unchanged - no invented legal requirement, no manufactured legal
+                              material, in either lane
+Rule 19                       unchanged - no dependency or client library is authorized here
+The golden corpus             untouched - still blocked on real supplied legal material, and
+                              unblocked by nothing here
+C-05 - C-08, C-10, C-12,      unchanged - open, and none resolved by this batch
+C-13
+```
+
+## Position
+
+```text
+AM-30, AM-31, IMPL-02   LOCKED
+Owner decision          2026-08-25
+Effective               from this record forward; not retroactive
+Repeals                 nothing
+Narrows                 nothing
+Widens                  AM-25 r9, for the generation call alone, onto one approved hosted provider
+Adds                    a default-closed gate on real-contract egress (AM-31), and an authorized
+                        build sequence by reference (IMPL-02)
+Schema impact           none
+Legal policy            none affected
+Still forbidden         hosted embedding; hosted document processing; third-party telemetry in the
+                        document path; sending a whole Document Version; sending any internal legal
+                        position; naming a counterparty to a third party; fine-tuning; training on
+                        the corpus; any assist-lane Finding, Evaluation, Classification, Rule
+                        Outcome, Mapping State, Legal Decision or Lifecycle transition
+Gate status             AM-31 CLOSED as of this record - no written no-training confirmation
+                        exists, so real counterparty contract text may not egress and the assist
+                        lane serves synthetic or cleared material only
+Still required          the written provider terms (AM-31 g1); an evaluation set from real supplied
+                        material (AM-26 r3, AM-28); the golden corpus's outstanding legal material
+Open, unaffected        C-05 - C-08, C-10, C-12, C-13
+```

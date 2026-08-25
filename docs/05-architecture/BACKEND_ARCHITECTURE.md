@@ -557,3 +557,251 @@ Deterministic Analysis Engine
 ```
 
 No microservices/Kubernetes/LLM/RAG/vector DB in V1.
+
+---
+
+## Stack additions — Amendment Batches AB-3 and AB-4
+
+**Status: 🔒 LOCKED.** `AM-26` (AB-3, 2026-08-24) as amended by `AM-30` (AB-4, 2026-08-25).
+**Added to this document 2026-08-25**; the registry named this file as the canonical document for
+both and the section was never written. The Step 39 stack table above is unchanged — these are
+**additions to it**, and everything the two records leave alone stays exactly as locked.
+
+### Added
+
+| Layer | Choice | Note |
+|---|---|---|
+| Vector index | **pgvector** extension, on the **existing** PostgreSQL instance | Not a new datastore. A second datastore for vectors is **NOT ADDED** and needs separate approval |
+| Keyword index | **PostgreSQL full-text search** (`tsvector`/`tsquery`) and **trigram** indexes, same instance | ⚠️ This is `ts_rank`, **not BM25**. True BM25 in PostgreSQL needs an extension, which is not authorized. Do not specify or benchmark against a ranking function the stack does not have |
+| Embedding model | **Local, self-hosted, open-weight** | Owner decision 2026-08-25 confirms self-hosted. `AM-30` t1 keeps `embedding input` forbidden from egress, so **full document text never leaves** |
+| Reranking model | **Local, self-hosted, open-weight**, cross-encoder | Unchanged by AB-4 |
+| Generative model | **Gemini Flash — hosted API** (`AM-30`) | The **one** external dependency in the stack, and the only permitted egress. Behind `AM-26` r1's single interface, so the identity is configuration and no other module knows |
+| Inference runtime | Local model-serving process, **no outbound network route** | `AM-30` **scopes** this row rather than removing it: it still serves the embedding and reranking models, and still has no outbound route. It no longer implies generation is served locally |
+| GPU runtime | Where required by the selected model | Still required — for the embedding and reranking models. **Not** eliminated by using a hosted generative model |
+
+### Unchanged
+
+Modular monolith — **no microservices, no Kubernetes, no service mesh** (locked 38.26, restated by
+`AM-26`). **There is therefore no separate gateway service**: `AM-26` r1's single interface is an
+in-process module boundary. Backend and frontend frameworks; PostgreSQL as the system of record;
+the existing queue and workers, **reused not replaced**; the existing parser and OCR path as the
+**primary** path (so `pymupdf` + `python-docx` + OCRmyPDF/Tesseract stay — a different parsing
+library is a new dependency under rule 19 for capability the stack already has); and
+"S3-compatible" object storage, whose **provider** is selected under locked 55.6 and needs no
+amendment.
+
+### Not added — separate approval required if ever proposed
+
+A second datastore for vectors · a hosted **embedding** service · a hosted document-processing
+service · any RAG orchestration framework · any additional message broker · model fine-tuning or
+training on the corpus · third-party telemetry in the document path.
+
+⚠️ **Rule 19 is unaffected by `AM-30`.** Authorizing the *capability* to call a hosted model does
+**not** authorize any particular client library. A provider SDK or HTTP client is a new dependency
+and needs its own approval, exactly as the OIDC JWT/JWKS client does.
+
+### Model selection
+
+`AM-26` r2–r5 govern the embedding and reranking models unchanged: selection from the smallest
+candidate upward, stopping at the first that passes; the quality bar measured on a LegalMind
+evaluation set built from **real supplied documents**, in which *correct refusal is half the bar*;
+the version pinned and recorded against every answer; weights obtained once, checksummed, stored
+locally, never fetched at runtime.
+
+For the **generative** model, `AM-30` supersedes r2 (owner selection) and r5 (nothing to
+checksum), and `AM-30` t7 replaces it with a **dated pinned model identifier** — a floating alias
+such as "latest" is not a pin, and a provider-side rotation is a model change that re-triggers
+`AM-26` r4.
+
+### Embedding-model selection — the measurement, and what blocks it
+
+**Status: IN PROGRESS as of 2026-08-25. No model is selected, and no vector dimension is
+pinned.** `AM-26` r2 requires selection *by measurement*, smallest-that-passes, so a name
+written here before the measurement exists would settle by assertion what the record says
+to settle by evidence. `chunk_embeddings` does not exist for the same reason: its column
+width is a property of the chosen weights.
+
+#### The instrument
+
+`backend/tools/benchmark_retrieval.py`. Ingests the real supplied documents through the
+**real** pipeline, indexes them, derives probes, and scores any strategy satisfying
+`legalmind/assist/embedding.py`'s `RetrievalStrategy`. Metrics: precision@1, recall@10,
+MRR, and — for unanswerable probes — correct refusals versus wrongly-answered, because
+`AM-28` weighs refusal correctness in **both** directions and calls it half the bar.
+
+**Every probe is derived mechanically; none is authored.** The distinction that licenses
+this: a *retrieval* label says "the text about X is in §17.2", which is a locatable fact
+about a document and asserts no legal position; an *answer* label says "our cap is 12
+months", which is a legal position and must be supplied (`AM-31` m5). Three families come
+out honestly — `section_number` (the document states it, so the query is it),
+`exact_terminology` (an n-gram computed to occur in exactly one chunk), and
+`unanswerable` (an n-gram from another document, verified to contain at least one word
+absent from this document's whole vocabulary). No document text enters the repository:
+probes are generated at run time from the gitignored source directory, and absence of
+that directory is a SKIP, per locked 54.6 and the precedent `test_source_material.py`
+already sets.
+
+#### Measured baseline — lexical, 2026-08-25
+
+Six real supplied documents, 180 probes, `PROBES_PER_FAMILY = 12`, top-k 10.
+
+| Family | Probes | P@1 | R@10 | MRR | Correct refusals | Wrongly answered |
+|---|---:|---:|---:|---:|---:|---:|
+| `exact_terminology` | 72 | 0.833 | 0.931 | 0.870 | — | — |
+| `section_number` | 36 | **0.972** | **1.000** | 0.986 | — | — |
+| `unanswerable` | 72 | — | — | — | **64** | 8 |
+
+Two caveats stated rather than buried. The wrongly-answered figure was **26** before the
+probe required a genuinely out-of-vocabulary word — that first version was measuring the
+probe design, not the engine, and the correction is why the number is trustworthy now.
+The residual 8 are consistent with stemming equivalence (the probe checks exact strings,
+the engine matches stems), so 89% refusal correctness is a **floor**, not a ceiling.
+
+#### What this baseline means for the selection
+
+The lexical strategy is already strong on exactly the two categories a citation depends
+on. So an embedding model's value has to show up in **semantic similarity** and **legal
+phrasing** — a question whose wording deliberately differs from the document's.
+
+**Those two categories cannot be derived from a document**, and they are not invented
+here. Measuring candidates only on the derivable families would score them on the ground
+where lexical is strongest and embeddings weakest, and would select a model on evidence
+that does not bear on the question. That is the "do not claim a model is best without
+measurement" failure wearing a table of numbers.
+
+#### Candidate set — verified, not recalled
+
+Fetched from the HuggingFace model API on 2026-08-25. All permissively licensed, all with
+ONNX exports, none requiring a GPU at this size.
+
+| Candidate | Licence | Dim | Params | ONNX |
+|---|---|---:|---:|:--:|
+| `sentence-transformers/all-MiniLM-L6-v2` | Apache-2.0 | 384 | 23M | yes |
+| `BAAI/bge-small-en-v1.5` | MIT | 384 | 33M | yes |
+| `intfloat/e5-small-v2` | MIT | 384 | 33M | yes |
+| `thenlper/gte-small` | MIT | 384 | 33M | yes |
+| `Snowflake/snowflake-arctic-embed-s` | Apache-2.0 | 384 | 33M | yes |
+| `sentence-transformers/all-mpnet-base-v2` | Apache-2.0 | 768 | 109M | yes |
+| `BAAI/bge-base-en-v1.5` | MIT | 768 | 109M | yes |
+| `nomic-ai/nomic-embed-text-v1.5` | Apache-2.0 | 768 | 137M | yes |
+
+Order of evaluation follows `AM-26` r2 — smallest upward, stopping at the first that
+passes — so the 384-dimension group is measured before the 768 group, and a larger model
+is not adopted for headroom.
+
+`AM-26` r5 requires weights obtained once, checksummed and stored locally, never fetched
+at runtime. Every candidate above satisfies that; a model that resolves from a hub on
+first use would not be eligible.
+
+#### Candidate measurement — 2026-08-25, three documents, 72 probes
+
+Runtime approved under rule 19 on 2026-08-25: **`onnxruntime` + `tokenizers`**, measured
+at **118 MB** installed including numpy. (An earlier estimate of "~50 MB" understated it;
+the figure here is measured. It remains far below `torch` + `sentence-transformers` at
+roughly 2.5 GB, and the inference-only property that made it the recommendation is
+unchanged.)
+
+Four of the five 384-dimension candidates were provisioned and measured smallest-first
+per `AM-26` r2. `intfloat/e5-small-v2` publishes its ONNX export at a non-standard path
+and was skipped rather than special-cased.
+
+`exact_terminology`, 36 probes:
+
+| Strategy | P@1 | R@10 | MRR |
+|---|---:|---:|---:|
+| **lexical** (baseline) | **0.833** | 0.917 | 0.875 |
+| vector · all-MiniLM-L6-v2 | 0.333 | 0.861 | 0.490 |
+| vector · bge-small-en-v1.5 | 0.278 | 0.778 | 0.416 |
+| vector · gte-small | 0.167 | 0.694 | 0.344 |
+| vector · arctic-embed-s | 0.083 | 0.639 | 0.189 |
+| hybrid RRF · all-MiniLM-L6-v2 | 0.694 | **1.000** | 0.836 |
+| hybrid RRF · bge-small-en-v1.5 | 0.722 | **1.000** | 0.833 |
+| hybrid RRF · gte-small | 0.750 | **1.000** | 0.840 |
+| **hybrid RRF · arctic-embed-s** | **0.833** | **1.000** | **0.891** |
+
+`unanswerable`, 36 probes:
+
+| Strategy | Correct refusals | Wrongly answered |
+|---|---:|---:|
+| lexical | **34** | 2 |
+| **every** vector strategy | **0** | **36** |
+| **every** hybrid strategy | **0** | **36** |
+
+#### The finding that matters most, and it is not about model choice
+
+**Dense retrieval never refuses.** Nearest-neighbour search always returns its nearest
+neighbour, however far away it is — there is no natural empty result, because a ranking
+is not a filter. Every candidate scored 0 of 36 correct refusals, and so did every
+hybrid, because RRF fuses rankings and inherits the property.
+
+This is architecturally load-bearing, not a tuning detail:
+
+* `AM-29` r3 requires `NO_EVIDENCE_RETRIEVED` and `EVIDENCE_INSUFFICIENT` to be
+  reachable, the latter meaning *"the model is not called at all"*.
+* `AM-25` r5 requires that no answer reach a user unless every claim resolves to
+  retrieved evidence, enforced **mechanically and outside the model**.
+
+So **hybrid retrieval cannot ship without a similarity floor below which the result is
+treated as no result.** That floor is a number, and by rule 7's discipline it must be
+*measured* against known-unanswerable questions rather than picked — which is the second
+reason the evaluation material is needed, independent of choosing a model. Until then the
+lexical path is the only one whose refusal behaviour is sound.
+
+Secondary observation, recorded but not acted on: `hybrid RRF · arctic-embed-s` is the
+only configuration that matches the lexical baseline's P@1 while improving both MRR
+(0.891 vs 0.875) and recall (1.000 vs 0.917) — a strict improvement on this family. It is
+**not** therefore the selection: the families an embedding model exists to win are still
+unmeasured, and choosing on the families where lexical already wins would be selecting on
+evidence that does not bear on the question.
+
+#### Two things block completing the selection
+
+1. **The evaluation material for the two undecidable families.** Owner-supplied; see
+   [LEGALMIND_PROJECT_STATE.md](../00-project/LEGALMIND_PROJECT_STATE.md).
+2. ~~A local inference runtime is a rule-19 dependency.~~ **Resolved 2026-08-25** —
+   `onnxruntime` + `tokenizers` approved and declared in `pyproject.toml`.
+
+⚠️ **A third item, surfaced by the measurement itself:** a similarity floor for dense and
+hybrid retrieval. Without one, correct refusal is structurally impossible (see above), and
+the threshold has to be measured against known-unanswerable questions rather than chosen.
+It is the same blocker as item 1, arrived at from a different direction.
+
+#### Runtime notes, both learned by measurement
+
+**The execution provider is pinned.** onnxruntime ships an `AzureExecutionProvider`
+alongside `CPUExecutionProvider`; left to the default list an inference session could
+acquire a second network egress, and `AM-30` t1 permits exactly one. The list is pinned to
+CPU and a test asserts it.
+
+**Fetching weights lives outside the application package.** `tools/provision_model.py`,
+not `legalmind/assist/`. The first draft put a `provision()` helper next to its consumer
+and `test_import_boundaries.py` refused it — so `AM-26` r5's *"never fetched at runtime"*
+is now structural: no module under `legalmind/` imports a network client, and
+`EGRESS_ALLOWED` is still empty.
+
+**Batch size is a memory bound, not a knob.** Embedding a whole document in one call
+reached 14 GB RSS and was OOM-killed, because padding takes every sequence to the longest
+in the batch. Batches of 16 keep activations in the tens of megabytes; embeddings are
+position-independent, so a test asserts batching changes no vector.
+
+#### pgvector — a measured correction
+
+`AM-25` r6 requires authorization applied **inside** the retrieval query. Verified on
+**0.6.0**: exact cosine KNN with the authorization `WHERE` clause in the same statement
+works correctly and genuinely excludes out-of-scope rows. Exact search loses no recall,
+so r6 is fully satisfiable on 0.6.0 — it is simply O(n) over the pre-filtered set, which
+for one document's chunks is the right trade anyway.
+
+What **≥ 0.8.0** buys is *iterative index scans*, which matter only for an
+**approximate** index under a selective pre-filter, where a filtered HNSW scan can
+otherwise starve and silently lose recall. So the version is a prerequisite for
+corpus-scale indexed retrieval, not for correctness, and `preflight` reports it as ATTEST
+rather than BLOCKED. **The answer to an older build is exact search, never a
+post-filter** — `AM-25` r7 forbids the latter outright.
+
+⚠️ **`AM-31` resolves a contradiction here that is easy to miss.** `AM-26` r3 requires the quality
+bar to be measured on **real** supplied documents; `AM-31` g1 forbids real counterparty text
+reaching the provider until written no-training terms are recorded. So a hosted model may be
+selected **provisionally** on an explicitly-labelled synthetic set (`AM-31` m1), but that is
+**not** a passed bar (m2), and **no assist answer reaches a user over real counterparty material
+on a synthetic-only bar** (m3). The gate is **CLOSED** as of 2026-08-25.

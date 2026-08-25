@@ -26,6 +26,7 @@ from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import permissions as P
+from legalmind.worker.dispatch import dispatch_indexing
 
 router = APIRouter(tags=["contracts"])
 
@@ -114,6 +115,16 @@ async def upload_document_version(
         filename=x_filename,
         declared_mime=request.headers.get("content-type", ""),
     )
+
+    # Assist-lane indexing — AB-3 / AB-4, Gate section 5b unit A2. Additive and
+    # non-authoritative: it builds a derived search index over evidence the parser has
+    # already produced, and it can never fail this upload. `dispatch_indexing` swallows
+    # its own faults for that reason, and the response below is unchanged either way —
+    # no field reports index state, because a document is ingested whether or not a
+    # derived index was built.
+    dispatch_indexing(guard.db, result.document_version.id,
+                      request_id=guard.request_id)
+
     return data({
         "document_version": serialize_document_version(result.document_version),
         "processing_run": {

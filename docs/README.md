@@ -11,6 +11,8 @@
 | Check the current step / build state | [00-project/IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) |
 | Look up a term precisely | [00-project/GLOSSARY.md](00-project/GLOSSARY.md) |
 | Name a state value correctly | [02-legal-domain/DECISION_STATE_MODEL.md](02-legal-domain/DECISION_STATE_MODEL.md) |
+| **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
+| Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 | Find a known contradiction | [00-project/CONFLICTS.md](00-project/CONFLICTS.md) |
 | Read the authoritative historical record | [`../all_lock.md`](../all_lock.md) |
 | Propose a change | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
@@ -70,11 +72,13 @@ Declared at the top of every specification document. Never mix states without la
 | File | Purpose |
 |---|---|
 | [PROJECT_OVERVIEW.md](00-project/PROJECT_OVERVIEW.md) | What LegalMind is, what it is not, the analysis chain |
+| [CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) | **`ACTIVE` — the operational index.** Source hierarchy, assist-lane pointers, the `SOURCE REQUIRED`/`DECISION REQUIRED` markers, when to decide versus ask. Restates no locked rule — every legal rule is a pointer |
+| [LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) | **`DERIVED` — plain-language status for the project owner.** Current goal, phase ladder, real blockers, and what the owner is asked for and when. Derives build state from `IMPLEMENTATION_STATUS.md`; asserts none of its own |
 | [ARCHITECTURE_REFERENCE.md](00-project/ARCHITECTURE_REFERENCE.md) | **Architecture & system-flow map** — the developer entry point. Navigational only; links to every authoritative spec |
 | [LOCKED_DECISIONS.md](00-project/LOCKED_DECISIONS.md) | Registry of every explicitly locked decision, by ID |
 | [IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) | Current step, status per area, and everything NOT YET SPECIFIED |
 | [CLAUSE_CATALOGUE.md](00-project/CLAUSE_CATALOGUE.md) | The full-document review map: Requirements per document type, sources, and gaps (2026-08-19) |
-| [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved (C-01–C-04, C-09, C-11) and open (C-05–C-08, C-10, C-12) |
+| [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved (C-01–C-04, C-09, C-11) and **nine open** (C-05–C-08, C-10, C-12, C-13, and C-14–C-16 registered 2026-08-25) |
 | [GLOSSARY.md](00-project/GLOSSARY.md) | Terminology, with the distinctions that must not be conflated |
 | [DECISION_FINALIZATION.md](00-project/DECISION_FINALIZATION.md) | Working record: classification of every remaining item, F-1–F-12 |
 | [EXTERNAL_REFERENCE_AUDIT.md](00-project/EXTERNAL_REFERENCE_AUDIT.md) | Working record: audit of external MoS material; source of OD-1–OD-15 |

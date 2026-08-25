@@ -20,6 +20,23 @@ def test_database_url() -> str:
     )
 
 
+def assist_schema() -> str:
+    """The database schema holding the assist-lane tables — locked `AM-27` r1.
+
+    `AM-27` r1: *"Assist-lane tables live in a database schema separate from the
+    locked tables."* This is a **name**, not a toggle: there is no mode in which the
+    assist tables share a schema with the locked ones.
+
+    Configurable for one specific reason. The test harness builds the locked tables
+    in a private per-process schema (``t_<epoch>_<random>``, the `F-4` isolation
+    fix), and a hardcoded ``assist`` would put every concurrent run's assist tables
+    in one shared schema — reintroducing exactly the cross-run collision `F-4`
+    fixed. `conftest` therefore derives ``<run_schema>_assist`` per run. Production
+    uses the default and never sets this.
+    """
+    return os.environ.get("LEGALMIND_ASSIST_SCHEMA", "assist")
+
+
 def storage_root() -> str:
     """Local write-once document store.
 

@@ -1,6 +1,14 @@
 Source: all_lock.md, Step 42 (lines 8280–9141). Canonical source: all_lock.md (Steps 40-43).
 
-**Status: SPECIFICATION ONLY — no migrations have been implemented; implementation must not begin without explicit approval.**
+**Status: 🔒 SPECIFICATION — and now IMPLEMENTED.** The header below previously read *"no migrations
+have been implemented; implementation must not begin without explicit approval"*. That was true when
+written and is now stale: `IMPL-01` (2026-08-17) authorized implementation, and **four migrations
+exist** under `backend/alembic/versions/`, creating **29 application tables** (plus Alembic's own
+`alembic_version`). Build state is reported only in
+[IMPLEMENTATION_STATUS.md](../00-project/IMPLEMENTATION_STATUS.md). Corrected 2026-08-25.
+
+This document remains the target schema specification for those tables. See § *Assist-lane schema*
+at the end for `AM-27`'s separate schema, added in the same pass.
 
 This document is the target schema specification. For the domain-model rationale ("why") behind these tables, see `docs/05-architecture/DATABASE_ARCHITECTURE.md` (Steps 40–41). This file transcribes only the exact table-by-table schema and ERD from Step 42.
 
@@ -862,3 +870,82 @@ I'll treat the schema above as the baseline and **not casually change it later**
 ---
 
 For the domain-model rationale behind this schema (Steps 40–41), see `docs/05-architecture/DATABASE_ARCHITECTURE.md`. For the API modules that operate against this schema (Step 43), see `docs/05-architecture/API_ARCHITECTURE.md` and `docs/09-implementation/API_CONTRACT.md`.
+
+---
+
+## Assist-lane schema — `AM-27`
+
+**Status: 🔒 LOCKED** — `AM-27`, Amendment Batch AB-3, 2026-08-24. **Added to this document
+2026-08-25**; the registry named this file as `AM-27`'s canonical document and the section was
+never written. **Nothing above this line changes** — that is the point of the record.
+
+### The rule that governs everything below
+
+> `AM-27` r1: *"Assist-lane tables live in a database schema separate from the locked tables."*
+> `AM-27` r2: *"The 30 existing tables are not altered. No column, constraint, index or enum on
+> any locked table is added, changed or removed by this batch, and the existing schema invariant
+> tests continue to pass unmodified. **That is the evidence that this record leaves the locked
+> model intact.**"*
+
+⚠️ **That evidence did not exist until 2026-08-25.** The 21 invariant tests assert triggers,
+EV-MIN, append-only enforcement and enum *label counts* — none of them was sensitive to a column,
+so adding one to a locked table passed all 21 silently. `backend/tests/test_locked_schema_columns.py`
+(33 tests) now snapshots all 29 tables and 195 columns against the **live database**, so r2's
+sentence is mechanically true rather than merely stated.
+
+⚠️ **The table count.** `AM-27` r2 and AB-3's Position block say **30**. The ORM declares **29**
+`__tablename__`, and the four migrations issue **29** `create_table` calls. `alembic_version` is
+the likely reconciliation. `all_lock.md` wins over any derived document and is append-only, so the
+discrepancy is **registered as C-14, not silently corrected**.
+
+### The nine permitted tables — and no others
+
+| Table | Purpose |
+|---|---|
+| `chunks` | derived text spans of a Document Version, with page and offsets |
+| `chunk_embeddings` | one row per chunk per embedding model |
+| `embedding_models` | the embedding model registry |
+| `conversations` | an assist-lane session |
+| `messages` | one row per turn |
+| `retrieval_runs` | the retrieval record behind an answer: query, filters, chunk ids, scores |
+| `ai_answers` | the answer record: model, prompt version, answer state, latency |
+| `answer_citations` | one row per verified claim-to-chunk link |
+| `prompt_versions` | the prompt registry |
+
+> *"No other table is authorized by this record."*
+
+**Consequence for Domains A and C.** `AM-27` r4 defines a chunk as derived from an existing
+immutable **Document Version**, referencing the **Document Evidence** row it came from. Company
+Standards are configuration rows and statutes are neither Contracts nor Document Versions, so
+**only Domain B is authorized today**. A corpus schema for the Legal Constitution or the statute
+corpus needs its own amendment with a concrete design — see C-15.
+
+### Design rules, in full
+
+`AM-27` r3: the **42.1 design rules apply without exception** to the new tables — UUID primary
+keys, UTC timestamps, real foreign keys, append-only where the data records something that
+happened, and JSONB only for genuinely variable configuration.
+
+| Rule | Constraint |
+|---|---|
+| r4 | A chunk **carries no independent provenance** and creates **no second source of truth** for document content. It references the Evidence row it came from |
+| r5 | Deleting a document **hard-deletes** its chunks and embeddings. *"A soft-deleted document whose chunks remain retrievable is a defect, not a state."* |
+| r6 | Retrieval and answer records store **chunk identifiers and scores** — they do **not** duplicate document text into a second store, preserving the audit trail's existing prohibition on recording contract text |
+| — | `audit_events` gains **new event types and no schema change** |
+
+⚠️ **r5 is not yet implementable, and this is an open item rather than an assumption.** No
+hard-delete path for a Contract or Document Version exists: `contract.delete` is a permission with
+no endpoint, and Evidence is write-once. Cascade behaviour cannot be designed until a retention and
+deletion policy is stated; do not assume `ON DELETE CASCADE` discharges r5.
+
+### Two implementation hazards worth recording before the first migration
+
+1. **The test harness builds one schema, not two.** `backend/tests/conftest.py` creates a private
+   per-process schema `t_<epoch>_<random>` and points `search_path` at it — the `F-4` isolation
+   fix. An assist schema must therefore be **derived per run** (e.g. `<run_schema>_assist`), never
+   a hardcoded name, or concurrent suites will collide on a shared schema and reintroduce exactly
+   the failure class `F-4` fixed.
+2. **`AM-29` r2 is unenforced across schemas.** `test_each_axis_has_its_own_enum_type` is scoped to
+   `current_schema()`, so it cannot see an enum created in the assist schema. Nothing currently
+   prevents an assist enum from reusing `AMBIGUOUS`, `MATCH`, `CONFLICT` or the other six names r2
+   forbids. That needs its own test, in that schema, added with the first assist migration.

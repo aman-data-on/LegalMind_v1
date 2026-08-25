@@ -48,6 +48,13 @@ TASK_ANALYSE_REVIEW = "legalmind.analysis.analyse_review"
 
 QUEUE_ANALYSIS = "analysis"
 
+# A SEPARATE queue for assist-lane indexing, deliberately not the analysis queue.
+# Indexing is high-volume, derived and non-authoritative; analysis produces legal
+# records. Sharing one queue would let a backlog of index jobs delay a Review's
+# analysis, which inverts the priority Step 38 rule 21 sets between the two lanes.
+TASK_INDEX_DOCUMENT_VERSION = "legalmind.assist.index_document_version"
+QUEUE_ASSIST = "assist"
+
 celery_app = Celery("legalmind")
 
 celery_app.conf.update(

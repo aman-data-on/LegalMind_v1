@@ -121,3 +121,88 @@ Tier-by-tier state, and the corpus's real status, are in
 [IMPLEMENTATION_STATUS.md](../00-project/IMPLEMENTATION_STATUS.md); verification by
 mechanisms independent of the tests is recorded in
 [INDEPENDENT_VERIFICATION.md](INDEPENDENT_VERIFICATION.md).
+
+---
+
+## Tier 2 — the assistive tier (`AM-28`)
+
+**Status: 🔒 LOCKED** — `AM-28`, Amendment Batch AB-3, 2026-08-24, with `AM-31` m1–m5 (AB-4,
+2026-08-25). **Added to this document 2026-08-25**; the registry named this file as `AM-28`'s
+canonical document and the section was never written. **Everything above this line is unchanged.**
+
+### Tier 1 is untouched, and the assist lane is never admitted to it
+
+> `AM-28`: *"Byte-identical output for identical inputs, configuration snapshot and engine
+> version. The assist lane is **NEVER** admitted to this tier. No assist-lane component may be
+> added to a determinism assertion, and no determinism assertion may be relaxed to accommodate
+> one."*
+
+`r1`: **the two tiers never merge, and a Tier 2 result never satisfies a Tier 1 gate.**
+
+This has a concrete consequence for `tools/verify_reproducibility.py`, which re-runs the whole
+pipeline and compares a projection of the legal record. When chunking is dispatched after a
+`DocumentProcessingRun` reaches `COMPLETED`, that run will have assist rows attached to it. The
+correct fix is to **exclude assist rows from the projection** — never to loosen the comparison,
+which `AM-28` r1 forbids outright.
+
+### Tier 2 — what is measured
+
+The assist lane is measured **statistically, not byte-identically**, against a LegalMind
+evaluation set of real question-and-answer pairs **including unanswerable questions**:
+
+| Measured | Why it is on the list |
+|---|---|
+| Retrieval recall | Did the right evidence come back at all |
+| Citation precision | Does the cited span actually support the claim |
+| Faithfulness | The share of claims with no valid supporting span |
+| Refusal correctness, **in both directions** | Refused when the evidence was in fact present · answered when it should have refused |
+
+**The gate:** *"a change to retrieval, chunking, prompt, or model that worsens faithfulness or the
+wrongly-answered rate does not ship."*
+
+### Two structural requirements that constrain build order
+
+| Rule | Requirement |
+|---|---|
+| r2 | The **citation-enforcement component is tested independently of prompt and model code, and does not import them.** *"A guardrail that a prompt change can affect is not a guardrail."* |
+| r3 | The golden corpus **remains a Tier 1 artifact governed by rule 21**. The evaluation set is a separate artifact and does not substitute for it. **AB-3 does not unblock the golden corpus**, authors no `NORMATIVE` fixture, and does not reduce the requirement for real supplied legal material |
+
+⚠️ **r2 fixes build order, not just file layout.** Citation enforcement must be built **before**
+generation exists. Built afterwards it will import prompt or model code, or need a retrofit — so
+guardrails-first is the only order in which r2 is achievable without a rewrite. This is recorded as
+`IMPL-02` r4, which makes it one of two properties in the assist build sequence that may **not** be
+reordered.
+
+### `AM-31` — measuring a hosted model while the egress gate is closed
+
+`AM-26` r3 requires the quality bar measured on **real supplied documents**. `AM-31` g1 forbids real
+counterparty text reaching a hosted provider until written no-training terms are recorded. Left
+unresolved, someone measures on synthetic material and reports r3 as satisfied. `AM-31` closes it:
+
+| Rule | Effect |
+|---|---|
+| m1 | A **provisional** selection may be made on an **explicitly-labelled synthetic** set. The label is part of the record; a synthetic result is never reported as an `AM-26` r3 result |
+| m2 | A provisional selection is **not a passed quality bar**. r3 is satisfied only by a run on real supplied material, which requires the gate to be open first |
+| m3 | **No assist-lane answer reaches a user over real counterparty material on a synthetic-only bar** |
+| m4 | Tier 2's gate is unchanged, and a synthetic result never satisfies it — exactly as r1 already forbids a Tier 2 result satisfying a Tier 1 gate |
+| m5 | The evaluation set is subject to locked 54.6 and rule 21 **without exception**: it carries no document text into the repository, and its real question-and-answer material is **supplied, never manufactured** |
+
+**The evaluation set does not exist**, and per rule 21 it is requested, never authored. CI job 8
+(`no-real-contracts`) additionally guards the repository against it becoming a route for contract
+text to be committed.
+
+### Boundary tests added ahead of the build (2026-08-25)
+
+Two Tier-1 test files exist specifically to make AB-3/AB-4 guarantees structural rather than
+aspirational, and both predate any assist code:
+
+* `backend/tests/test_import_boundaries.py` (22 tests) — parses the import graph with `ast`.
+  Asserts **no outbound network client anywhere** in `legalmind/` (`AM-30` t1), with an
+  `EGRESS_ALLOWED` map that is empty and must be added to **by name** when the generation adapter
+  lands; and fences the deterministic core with an **allow-list**, so importing a future
+  `legalmind.assist` package fails before that package exists (`AM-25` r1/r2).
+* `backend/tests/test_locked_schema_columns.py` (33 tests) — snapshots all 29 locked tables and 195
+  columns against the live database, which is what `AM-27` r2 names as its evidence.
+
+Both are gated by CI job 13, added in the same pass because roughly a dozen test files — these
+included — were previously named in no job's explicit list.

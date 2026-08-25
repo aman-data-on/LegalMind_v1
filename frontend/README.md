@@ -183,7 +183,7 @@ npx playwright test 26 passed        real Chromium, real API, real Postgres
 
 Locked Step 39's stack table names Playwright for "real browser workflow testing". This
 suite is deliberately small: it covers only what **no other layer can prove**, and does
-not restate the 479 backend or 53 Vitest tests.
+not restate the backend or Vitest test counts — those live in IMPLEMENTATION_STATUS.md, the only document that asserts build state.
 
 | Spec | Locked rule | Why a browser is required |
 |---|---|---|

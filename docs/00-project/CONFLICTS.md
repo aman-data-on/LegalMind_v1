@@ -4,7 +4,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-01 through C-04 were reconciled by the project owner on 2026-08-16** (registry entries `REC-01`–`REC-06` in [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md)). The analysis found that **none of the four was a true contradiction** — each was a supersession chain, a layer migration, a refinement, or different terminology for different stages. No historical locked text was modified.
 
-**C-05 – C-08, C-10 and C-12 remain open.** **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
+**C-05 – C-08, C-10, C-12 and C-13 remain open, and C-14 – C-16 were registered on 2026-08-25 — nine open in total.** (This line previously read "C-05 – C-08, C-10 and C-12", omitting `C-13`, which was registered later on 2026-08-19; corrected 2026-08-25.) **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
 
@@ -23,6 +23,9 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-11 | Step 39 stack table names GitHub Actions for CI/CD vs locked 55.6 listing CI/CD tooling NOT YET SPECIFIED | ✅ **RESOLVED** — GitHub Actions is the V1 choice (`REC-08`) |
 | C-12 | Step 39 stack table names Playwright for testing vs locked 54.7 listing test framework selection NOT YET SPECIFIED | ⏳ Open (LOW) — **blocks nothing**; both readings permit Playwright |
 | C-13 | Step 28's locked Requirement Model contains `Document Type`, and Step 23 locks "Document Types" as an Admin Configuration area — but locked 42.7's `requirements` table is exactly `id · code · status · created_at · updated_at`, and no `document_types` table exists anywhere in the locked schema | ⏳ Open (LOW) — **blocks nothing**: owner decision Q2 (2026-08-19) stores the type in the Company Standard `configuration` JSONB (the `D-3` route), validated in code against Step 6's vocabulary. A first-class column/table is a V2 option contingent on resolving this |
+| C-14 | `AM-27` r2 and AB-3's Position block say **30 existing tables**; the ORM declares **29** `__tablename__` and the four migrations issue **29** `create_table` calls | ⏳ Open (LOW) — **blocks nothing**; `alembic_version` is the probable reconciliation |
+| C-15 | The owner's 2026-08-25 instruction requires Domains A/B/C to share a retrieval abstraction while each keeps its own source type, authority, version semantics, citation semantics, ownership, ingestion rules, provenance and access control — but `AM-27` authorizes nine tables and "no other table", and its r4 defines a chunk as derived from a Document Version referencing a Document Evidence row | ⏳ Open (MEDIUM) — **blocks Domain A and Domain C only**; Domain B proceeds |
+| C-16 | The product vision's headline statute example is "what does Section 138 of the NI Act say" and names the Evidence Act in the v1 set, but neither statute was ever supplied; and vision §9.2 makes India Code the canonical source as "a hard rule" while the seven statutes on disk did not come from there | ⏳ Open (MEDIUM) — **blocks Domain C**; requires owner-supplied material, not a decision |
 
 ---
 
@@ -346,3 +349,113 @@ physical schema, of the same shape `D-3` resolved for Required/Optional. Owner d
 JSONB, validated in tested code (`legalmind/domain/document_types.py`), enforced at publish
 and at analysis. Resolving C-13 properly (a column or a table) is a V2 schema decision and
 requires reconciling 42.7; nothing in V1 waits on it.
+
+---
+
+## C-14 — The locked table count: 30 or 29
+
+**Registered 2026-08-25. Open (LOW). Blocks nothing.**
+
+| Source | Status | Says |
+|---|---|---|
+| **`AM-27` r2** — AB-3, `all_lock.md` | LOCKED | *"**The 30 existing tables** are not altered. No column, constraint, index or enum on any locked table is added, changed or removed by this batch"* |
+| **AB-3 Position and Not-changed blocks** — `all_lock.md` | LOCKED | *"The **30** locked tables — unchanged"* |
+| **The repository** — `backend/legalmind/db/models.py`, `backend/alembic/versions/` | measured 2026-08-25 | **29** `__tablename__` declarations; **29** `create_table(` calls across the four migrations; 195 columns |
+| **[HANDOFF.md](../../HANDOFF.md)** | derived doc | *"Measured surface: **29 tables**"* |
+
+**Why it matters:** `AM-27` r2 makes "the 30 existing tables are not altered" the evidence that AB-3
+leaves the locked model intact. If the number in the lock does not match the number in the database,
+a future reader cannot tell whether a table was added, removed, or merely miscounted — and the r2
+evidence sentence becomes unciteable.
+
+**Not resolved here.** Two readings are available:
+
+1. The lock counts `alembic_version`, Alembic's own bookkeeping table, giving 29 application tables
+   + 1 = 30. Then the repository and the lock agree and only the wording is loose.
+2. The lock genuinely intends 30 application tables, in which case one is missing from the ORM and
+   the migrations both — which the column snapshot makes very unlikely.
+
+Reading 1 is strongly indicated but has **not** been confirmed against a live database in this pass,
+and `all_lock.md` is append-only and wins over any derived document, so the figure is not
+"corrected" anywhere.
+
+**Until decided:** derived documents write **"29 application tables (+ `alembic_version` — the 30
+counted by `AM-27` r2)"** rather than contradicting the lock.
+`backend/tests/test_locked_schema_columns.py` pins 29 and 195 mechanically and states the same
+reconciliation in a comment. Report rather than assume.
+
+Documented at: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) unit 1,
+[DATABASE_MIGRATIONS.md](../09-implementation/DATABASE_MIGRATIONS.md) § Assist-lane schema.
+
+---
+
+## C-15 — Three retrieval domains, one authorized table family
+
+**Registered 2026-08-25. Open (MEDIUM). Blocks Domain A and Domain C; Domain B proceeds.**
+
+| Source | Status | Says |
+|---|---|---|
+| **Owner instruction, 2026-08-25** | product direction | Domains A, B and C share a common retrieval abstraction, but *"DO NOT flatten the domains into one indistinguishable data model"* — each preserves its own *"source type, authority, version semantics, citation semantics, ownership, ingestion rules, provenance, access control"* |
+| **`AM-27`** — AB-3, `all_lock.md` | LOCKED | Nine tables permitted — `chunks`, `chunk_embeddings`, `embedding_models`, `conversations`, `messages`, `retrieval_runs`, `ai_answers`, `answer_citations`, `prompt_versions`. *"No other table is authorized by this record."* |
+| **`AM-27` r4** | LOCKED | *"A chunk is derived from an existing immutable Document Version and references the Document Evidence row it came from."* |
+
+**Why it matters:** Domain A is the 32 ratified Company Standards — configuration rows with no
+Document Version and no Evidence. Domain C is statutes and judgments, which are neither Contracts
+nor Document Versions. Neither satisfies r4, and `AM-27` authorizes no other table. So **only Domain
+B is buildable today**, and any attempt to build A or C now would either create an unauthorized
+table or flatten the domains — each violating a different authority.
+
+**Not resolved here.** Two shapes are available:
+
+1. Ingest the Legal Constitution and the statutes **as Document Versions**, satisfying r4 with no
+   amendment. But this flattens source type, provenance, ownership and access control into the
+   contract model, which the owner's instruction forbids — and `Contract.contract_type` draws from
+   Step 6's ten values, none of which is a statute.
+2. Authorize a **separate corpus table family** (`corpus_sources` / `corpus_documents` /
+   `corpus_chunks` or similar), preserving domain semantics as instructed. This requires an
+   amendment extending `AM-27`.
+
+Shape 2 is indicated by the owner's instruction. **Note this reverses a recommendation in
+[EXISTING_BACKEND_REUSE_AUDIT.md](../architecture/EXISTING_BACKEND_REUSE_AUDIT.md) §12 RA-3**, which
+offered shape 1 as the no-amendment route; the owner's no-flattening instruction post-dates it. Per
+rule 5 that reversal is registered rather than applied silently.
+
+**Until decided:** build Domain B only. Do not create a corpus table. Design the retrieval
+abstraction so a second source family can be added behind it without reshaping Domain B.
+
+Documented at: [DATABASE_MIGRATIONS.md](../09-implementation/DATABASE_MIGRATIONS.md) § Assist-lane
+schema, [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md)
+§5b unit A8.
+
+---
+
+## C-16 — The statute corpus cites material that was never supplied
+
+**Registered 2026-08-25. Open (MEDIUM). Blocks Domain C. Requires owner-supplied material, not a decision.**
+
+| Source | Status | Says |
+|---|---|---|
+| **Product vision §3, §4, §9.1** | product direction | The recurring worked example is *"What does Section 138 of the NI Act say?"*; the v1 statute set is Contract Act, IT Act, DPDP Act, Companies Act, *"plus Evidence Act and NI Act if time permits"* |
+| **Product vision §9.2** | product direction | India Code (`indiacode.nic.in`) is the canonical source, *"a hard rule — Domain C's trustworthiness depends entirely on this"* |
+| **The repository** — `legal-docs/Indian_Laws_and_Acts/` | measured 2026-08-25 | Seven statutes present: Contract Act 1872 · IT Act 2000 · SPDI Rules 2011 · Companies Act 2013 · CERT-In Directions 2022 · DPDP Act 2023 · IT Rules 2021. **No NI Act. No Evidence Act.** Provenance is the owner's 2026-08-18 supply, not India Code |
+| **[CLAUDE.md](../../CLAUDE.md)** | standing rule | *"A statute is NOT a Legal Rule and NOT a Company Standard"* — background law, cited in an explanation, never loaded as configuration |
+
+**Why it matters:** the vision's single most-repeated demonstration query cannot be served by the
+material on disk. Someone building Domain C to that example would either fetch the NI Act from an
+unofficial source — the exact failure §9.2 calls fatal to Domain C's trustworthiness — or
+manufacture the text, which rule 21 forbids outright.
+
+**Not resolved here**, and it is not resolvable by decision: it needs material.
+
+1. **NI Act and Evidence Act**: absent. Rule 21 — requested from the owner, never manufactured.
+2. **Provenance of the four supplied statutes**: if §9.2 is a hard rule, they must be re-obtained
+   from India Code and checksummed before indexing, not indexed as they stand.
+3. **The curated judgment list**: vision §9.3 says the Legal team supplies a specific list. No list
+   exists.
+
+**Until decided:** Domain C is not built. No statute is fetched from any aggregator. No Requirement,
+threshold or acceptance position is ever derived from a statute, whatever its provenance —
+that rule is unaffected by anything here.
+
+Documented at: [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md)
+§5b unit A8, [LEGALMIND_PROJECT_STATE.md](LEGALMIND_PROJECT_STATE.md) § External inputs required.

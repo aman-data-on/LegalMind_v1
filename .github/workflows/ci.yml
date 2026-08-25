@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -90,7 +90,15 @@ jobs:
       # metadata.create_all() would silently skip it.
       - name: Invariant tests
         working-directory: backend
-        run: python -m pytest tests/test_schema_invariants.py -q
+        # The locked-column snapshot and the assist-schema checks belong here rather
+        # than only in job 13: a schema regression should fail fast and by name.
+        # `AM-27` r2 names the invariant tests as its evidence that no locked table
+        # changed, and test_locked_schema_columns.py is what makes that true.
+        run: |
+          python -m pytest tests/test_schema_invariants.py \
+                           tests/test_locked_schema_columns.py \
+                           tests/test_assist_schema.py \
+                           tests/test_import_boundaries.py -q
 
       # The trigger-presence assertion now lives in the suite itself
       # (test_locked_invariants_are_enforced_by_triggers_not_convention and
@@ -119,7 +127,7 @@ jobs:
     # be made advisory, and must never be marked continue-on-error.
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -168,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -226,7 +234,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -463,7 +471,7 @@ jobs:
     # readings permit Playwright.
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -522,7 +530,7 @@ jobs:
     #   55.4 r3  the same document + snapshot still produce the same legal record
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -558,7 +566,7 @@ jobs:
     # was recorded as fixed while the predicate it needed was absent).
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: legalmind
           POSTGRES_PASSWORD: legalmind
@@ -587,3 +595,71 @@ jobs:
         env:
           LEGALMIND_VERIFY_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@127.0.0.1:5432/legalmind_v1_verify
         run: python -m tools.verify_invariants --redis-port 6399
+
+  # ── 13 ─────────────────────────────────────────────────────────────────────
+  full-suite:
+    name: 13 · The whole test suite (release gate)
+    runs-on: ubuntu-latest
+    # Why this job exists, given twelve others already run tests.
+    #
+    # Jobs 2, 3, 4, 9, 10, 11 and 12 each name specific files. Job 5's stability probe runs
+    # the whole suite three times, but its predicate is deliberately
+    #
+    #     if [ $fails -gt 0 ] && [ $fails -lt 3 ]
+    #
+    # because it is an `F-4` FLAKE detector: it fires when identical code passes some runs and
+    # fails others. Three failures out of three is not flaky, so the probe correctly exits 0 —
+    # and that is exactly right for what it measures. The probe is not changed by this job.
+    #
+    # The consequence, though, was that a CONSISTENTLY failing suite passed CI, and roughly a
+    # dozen test files — test_analysis, test_worker, test_api_resources, test_api_findings,
+    # test_api_decisions, test_observability, test_corpus_coverage, test_calibration_*,
+    # test_deploy_preflight, test_source_material, test_extraction_liability,
+    # test_workflow_decisions — appeared in no job's explicit list at all. They executed inside
+    # the probe and their result was discarded.
+    #
+    # That matters more now than it did. AB-3 and AB-4 place several guarantees in tests and
+    # nowhere else: `AM-25` r2's database-grant check, r6/r7's retrieval indistinguishability,
+    # `AM-27` r2's locked-column snapshot, `AM-30` t8's egress allow-list. `AM-28` r2's own
+    # reasoning applies — "a guardrail that a prompt change can affect is not a guardrail" —
+    # and a guardrail no job gates is not one either.
+    #
+    # Blocking, and it runs the suite once. Total cost across CI is unchanged in kind: the
+    # probe was already running it three times.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+      # `AM-30` t1 and t8: the application makes no outbound network call, and
+      # `test_import_boundaries.py` asserts it. A credential present in CI would mean a
+      # misconfigured job could egress from a pull request. Assert its absence rather than
+      # trusting that nobody adds one.
+      - name: No model-provider credential is present in CI
+        run: |
+          for var in GEMINI_API_KEY GOOGLE_API_KEY GOOGLE_APPLICATION_CREDENTIALS \
+                     LEGALMIND_MODEL_API_KEY; do
+            if [ -n "${!var:-}" ]; then
+              echo "::error title=AM-30 t1::$var is set in CI; the document path must have no egress here"
+              exit 1
+            fi
+          done
+          echo "no provider credential present"
+      - name: Full suite
+        working-directory: backend
+        run: python -m pytest -q

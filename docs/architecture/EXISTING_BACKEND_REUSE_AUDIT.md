@@ -27,7 +27,7 @@ codebase findings are re-verified and upheld here) · [CLAUDE.md](../../CLAUDE.m
 > before they were written**. `AM-25` r9 and `AM-26` forbid any hosted model API and require a *local,
 > self-hosted* generative model; both target documents make **Gemini Flash — a hosted API — the single
 > permitted external dependency and the core of the design.** Per rules 5 and 6 this audit does **not**
-> resolve that. It is [contradiction 1](#c1--gemini-flash-hosted-api-vs-am-25-r9--am-26) and it gates
+> resolve that. It is [contradiction 1](#ra-1--gemini-flash-hosted-api-vs-am-25-r9--am-26) and it gates
 > Phases 5+ of any plan. Everything not downstream of it is audited, classified and sequenced below.
 
 ---
@@ -124,7 +124,7 @@ the as-is column understates it.**
 5. **No object storage implementation.** `StorageBackend` is a clean 3-method Protocol with one
    local-filesystem implementation; MinIO is a small additive class, not a refactor.
 6. **No statute corpus (Domain C) and no Legal-Constitution index (Domain A).** Neither has an
-   authorized table — see [C3](#c3--domain-a-and-domain-c-have-no-authorized-table).
+   authorized table — see [RA-3](#ra-3--domain-a-and-domain-c-have-no-authorized-table).
 
 ### Biggest risks
 
@@ -205,12 +205,12 @@ lines needing no edit. "100%" means the file is expected to be byte-identical af
 |---|---|---|---|---:|---|---|
 | **Database schema + migrations** (1,620 LOC) | 29 tables, UUID PKs, UTC timestamps, real FKs, append-only audit enforced by DB trigger, EV-MIN constraint triggers; 21 invariant tests | Locked tables untouched; new assist tables in a **separate schema** (`AM-27` r1–r2) | **A · REUSE AS-IS** | **100%** | None. `AM-27` r2 *forbids* altering them, and makes the unmodified invariant tests the evidence | Low |
 | **Domain enums** (285 LOC) | Five controlled legal state vocabularies, closed, serialized into API/audit output | Unchanged; assist answer state is a **separate sixth axis** (`AM-29` r1) | **A · REUSE AS-IS** | **100%** | None. New enum in the new package; `AM-29` r2 forbids reusing any of the nine listed values | Low |
-| **Deterministic evaluators** (1,822 LOC) | `NUMERIC_COMPARISON` (`LIABILITY-001`) + generic `PRESENCE`; closed output vocabulary, deterministic explanations, fails closed to `UNABLE_TO_EVALUATE`, never reads clause text at evaluation time | Remains **sole** producer of Findings/Evaluations/Classifications/Rule Outcomes (`AM-25` r1) | **A · REUSE AS-IS** | **100%** | None. The target doc's `validate_clause → verdict` LLM call would *replace* this — see [C2](#c2--llm-produced-clause-verdicts-vs-am-25-r1r4) | Low code risk / **blocking decision risk** |
+| **Deterministic evaluators** (1,822 LOC) | `NUMERIC_COMPARISON` (`LIABILITY-001`) + generic `PRESENCE`; closed output vocabulary, deterministic explanations, fails closed to `UNABLE_TO_EVALUATE`, never reads clause text at evaluation time | Remains **sole** producer of Findings/Evaluations/Classifications/Rule Outcomes (`AM-25` r1) | **A · REUSE AS-IS** | **100%** | None. The target doc's `validate_clause → verdict` LLM call would *replace* this — see [RA-2](#ra-2--llm-produced-clause-verdicts-vs-am-25-r1r4) | Low code risk / **blocking decision risk** |
 | **Mapping engine** (578 LOC) | Deterministic alias/phrase scoring with a per-signal explanation; `CONFIRMED`/`UNRESOLVED`/`NONE`; same input + same rule version → same score | Unchanged. Hybrid retrieval is **not** a replacement — it never sets a Mapping State (`AM-25` r1) | **A · REUSE AS-IS** | **100%** | None. Its configured alias/keyword groups are, separately, a good **seed vocabulary for query expansion** in the assist lane — read, never written | Low |
 | **Fact extraction** (403 LOC) | Pure regex liability extraction, versioned config, fails closed to `UNKNOWN`, only runs on a `CONFIRMED` mapping | Unchanged | **A · REUSE AS-IS** | **100%** | None | Low |
 | **Analysis orchestrator** (586 LOC) | Snapshot-driven per-Requirement run; document-type filter (an NDA produces no liability Finding); `ANALYSIS_FAILED` on undeclared type | Unchanged; the assist lane must not call into it | **A · REUSE AS-IS** | **~95%** | None functionally. Add only the CI import-boundary assertion that it never imports `legalmind.assist` | Low |
 | **Review / decision workflow** (499 LOC) | Lifecycle transitions, `UNRULED_DEVIATION_REQUIRES_DECISION`, escalation, human-only Legal Decisions | Unchanged; no assist path may reach `legal.decision` (`AM-25` r8) | **A · REUSE AS-IS** | **100%** | None | Low |
-| **Document parser** (327 LOC) | PDF (PyMuPDF) + DOCX (python-docx); per-page native text, OCR fallback via OCRmyPDF/Tesseract, OCR-derived content explicitly flagged, tables preserved, **page numbers, section numbers/titles, start/end offsets**, original text kept beside normalized, partial extraction represented, failures never invent text | Domain B ingestion: PDF/DOCX, text, page tracking, offsets, metadata | **A · REUSE AS-IS** | **~95%** | **None.** Target names `unstructured.io`/`docling`; `AM-26` says the existing parser stays primary and this parser already does every listed job — see [C9](#c9--parser-replacement-vs-am-26) | Low |
+| **Document parser** (327 LOC) | PDF (PyMuPDF) + DOCX (python-docx); per-page native text, OCR fallback via OCRmyPDF/Tesseract, OCR-derived content explicitly flagged, tables preserved, **page numbers, section numbers/titles, start/end offsets**, original text kept beside normalized, partial extraction represented, failures never invent text | Domain B ingestion: PDF/DOCX, text, page tracking, offsets, metadata | **A · REUSE AS-IS** | **~95%** | **None.** Target names `unstructured.io`/`docling`; `AM-26` says the existing parser stays primary and this parser already does every listed job — see [RA-9](#ra-9--parser-replacement-vs-am-26) | Low |
 | **Document storage** (75 LOC) | `StorageBackend` Protocol (`put`/`get`/`exists`), write-once by construction (no update op), SHA-256 fingerprint, content-addressed keys, `0o440` after write; one local-filesystem implementation | MinIO, S3-compatible, per-tenant bucket policy | **B · REUSE WITH MODIFICATION** | **~90%** | Add an `S3CompatibleStorage` class implementing the same 3-method Protocol. Service layer unchanged. Compose gains a `minio` service. Locked 55.6 leaves the provider open and AB-3 confirms choosing one amends nothing | Low |
 | **Ingestion service** (211 LOC) | Upload → MIME/size validation → store → parse → `DocumentProcessingRun` → write `DocumentEvidence`; **synchronous, in-request** | Same, plus a post-commit hook to dispatch indexing | **B · REUSE WITH MODIFICATION** | **~90%** | One dispatch call after `COMPLETED`, mirroring the existing `analyse_review` pattern. Making parsing itself async is **optional and separate** — do not bundle it | Low |
 | **Security / authorization** (939 LOC) | `Guard`: visibility → permission → operation → DB; per-object resolvers; `NotVisible` → byte-identical 404; `redact_legal_position` omits (never nulls); 34 authz + 26 API-authz + 14 session tests | Retrieval authorized **before** retrieval, **inside** the query (`AM-25` r6); excluded results indistinguishable from empty (r6/r7); RIAAS tokens, role-scoped | **B · REUSE WITH MODIFICATION** | **~85%** | Add a chunk/document-scope guard method + `assist.*` permissions to the existing catalogue; build retrieval as a **pre-filtered** SQL candidate set, never post-filtered. RIAAS adapter is a separate item below | Medium |
@@ -226,10 +226,10 @@ lines needing no edit. "100%" means the file is expected to be byte-identical af
 | **Golden corpus** (9 fixture files, 32 cases, 64-case register) | Tier-1 normative harness; `corpus_coverage.json` tracks all 64; 0 `NORMATIVE` fixtures pending real material | Tier 1 unchanged; a **separate** Tier 2 eval set (`AM-28`) | **A · REUSE AS-IS** | **100%** | None. `AM-28` r3: the corpus stays Tier 1 under rule 21, and the assist eval set never substitutes for it | Low |
 | **Test suite** (10,510 LOC, 726 tests) | Green; schema invariants, authz, evaluation, corpus, observability, worker, API contract | Preserved; Tier 2 added beside it | **A · REUSE AS-IS** | **~97%** | Near-zero edits — see [§11](#11-test-gap-analysis). `AM-27` r2 makes "the invariant tests still pass unmodified" the *evidence* the locked model is intact | Low |
 | **Frontend** (10 routes, 58 Vitest + 22 Playwright) | Task-shaped routes; design system, shared primitives, typed API client, session context, permission gating (presentation only) | **Unified workspace**: one screen per session — document view + verdict cards + chat panel together | **B · REUSE WITH MODIFICATION** | **~60%** | Components, primitives, API client, session handling and design tokens all reuse. The workspace is a **new route composed of existing components**; existing routes stay (they serve configuration/audit/admin, which the workspace does not replace) | Medium |
-| **Docker / compose** | `db`, `queue`, `api`, `worker`, `frontend`; api and worker are the **same image**, different command (locked 55.1); local-filesystem document volume | MinIO, Nginx+TLS, network segmentation, deny-by-default egress, per-service accounts, Vault | **B · REUSE WITH MODIFICATION** | **~50%** | Add `minio`, `nginx`, pgvector-enabled Postgres image, a local inference runtime; add segmented networks and egress rules. **Do not** decompose api/worker into services — see [C5](#c5--per-service-decomposition-vs-locked-3826--am-26) | Medium |
+| **Docker / compose** | `db`, `queue`, `api`, `worker`, `frontend`; api and worker are the **same image**, different command (locked 55.1); local-filesystem document volume | MinIO, Nginx+TLS, network segmentation, deny-by-default egress, per-service accounts, Vault | **B · REUSE WITH MODIFICATION** | **~50%** | Add `minio`, `nginx`, pgvector-enabled Postgres image, a local inference runtime; add segmented networks and egress rules. **Do not** decompose api/worker into services — see [RA-5](#ra-5--per-service-decomposition-vs-locked-3826--am-26) | Medium |
 | **CI** (`ci.yml`, 12 jobs) | Blocking lint/type/test at a zero baseline | Plus Trivy, `pip-audit`/`npm audit`, import-boundary and corpus-parity gates | **B · REUSE WITH MODIFICATION** | **~85%** | Additive jobs | Low |
 | **Retrieval layer** | **Does not exist** (grep: no `vector`, `embedding`, `pgvector`, `tsvector`, `tsquery`, `pg_trgm`) | Three-domain hybrid retrieval | **New build** | 0% | All new, in `legalmind/assist/` | High |
-| **LLM integration** | **Does not exist** (grep: zero outbound HTTP call sites in `legalmind/`) | Isolated single-interface gateway | **New build** | 0% | All new. **Blocked on [C1](#c1--gemini-flash-hosted-api-vs-am-25-r9--am-26)** | **Blocking** |
+| **LLM integration** | **Does not exist** (grep: zero outbound HTTP call sites in `legalmind/`) | Isolated single-interface gateway | **New build** | 0% | All new. **Blocked on [RA-1](#ra-1--gemini-flash-hosted-api-vs-am-25-r9--am-26)** | **Blocking** |
 | **Guardrails** | **No module.** But the *discipline* exists throughout: fail-closed evaluators, evidence-or-nothing, no-invented-text parsing, omit-not-null redaction | Citation verification, no-evidence-no-answer, confidence gate, cross-ref gate — own module, own tests, importing neither prompt nor model code (`AM-28` r2) | **New build**, patterned on existing code | ~10% | New `legalmind/assist/guardrails/`. The fail-closed idiom is copied from `evaluation/`, not invented | High |
 
 ### Overall
@@ -250,15 +250,15 @@ guardrails, conversation API, workspace UI) — new work, not rewrite.
 
 | Concern | Current | Target | Gap | Verdict |
 |---|---|---|---|---|
-| Overall shape | Modular monolith; api + worker are one image, two commands | Per-component containers, own networks/accounts | Target reads as microservice decomposition | **Contradiction [C5]** — keep the monolith; realize isolation at the network/DB-role layer |
+| Overall shape | Modular monolith; api + worker are one image, two commands | Per-component containers, own networks/accounts | Target reads as microservice decomposition | **Contradiction [RA-5]** — keep the monolith; realize isolation at the network/DB-role layer |
 | Analysis lane | One deterministic lane | Deterministic lane **+** assist lane, isolated | Assist lane absent | Additive; the seam (`38.25` analysis boundary) already exists |
 | Module separation | `ingestion` / `mapping` / `extraction` / `evaluation` / `analysis` / `workflow` / `security` / `observability` | ingestion · retrieval · validation · guardrails · audit · persistence · LLM orchestration | Existing separation already matches for 4 of 7; `retrieval`, `guardrails`, `llm` are new | Add `legalmind/assist/{chunking,retrieval,guardrails,generation}` |
 | Ingestion timing | Synchronous, in-request | Async pipeline | Indexing cannot run in-request | Add one dispatch hook; leave parsing synchronous |
 | Storage | Local filesystem behind a Protocol | MinIO | Implementation absent, interface present | Small additive class |
 | Reverse proxy / TLS | None (compose exposes ports directly) | Nginx + Certbot, internal TLS | Absent | Infra work, no application change |
 | Secrets | `.env` / environment | Vault or encrypted `.env` + LUKS | Absent | Infra work |
-| Egress control | **No egress exists at all** | Exactly one allow-listed egress | If the model is local (`AM-26`), the correct end state is **zero** egress — stronger than the target | Resolve [C1] first |
-| Domain isolation (A/B/C) | Domain A exists as configuration; B as Evidence; C absent | Three indexes, never blended | No index for any domain; A and C have no authorized table | **[C3]** |
+| Egress control | **No egress exists at all** | Exactly one allow-listed egress | If the model is local (`AM-26`), the correct end state is **zero** egress — stronger than the target | Resolve [RA-1] first |
+| Domain isolation (A/B/C) | Domain A exists as configuration; B as Evidence; C absent | Three indexes, never blended | No index for any domain; A and C have no authorized table | **[RA-3]** |
 
 ---
 
@@ -289,8 +289,8 @@ of them and makes those tests the evidence of that. **No migration touches an ex
 |---|---|---|
 | Domain B chunks + embeddings + FTS | **Yes** | `chunks` + `chunk_embeddings`; a `tsvector` column and GIN index on `chunks` is within `AM-27` r3's design rules |
 | Conversations, messages, answers, citations | **Yes** | Directly named |
-| **Domain A index (Legal Constitution chunks)** | **No** | `AM-27` r4 defines a chunk as *derived from a Document Version, referencing a Document Evidence row*. Company Standards are configuration rows with neither → **[C3]** |
-| **Domain C index (statutes, judgments)** | **No** | Statutes are neither Contracts nor Document Versions → **[C3]** |
+| **Domain A index (Legal Constitution chunks)** | **No** | `AM-27` r4 defines a chunk as *derived from a Document Version, referencing a Document Evidence row*. Company Standards are configuration rows with neither → **[RA-3]** |
+| **Domain C index (statutes, judgments)** | **No** | Statutes are neither Contracts nor Document Versions → **[RA-3]** |
 | Per-tenant scoping | **No** | No workspace/tenant primitive exists anywhere; `AM-27` added none |
 | `confidentiality_level` on a document | **No** | No such field exists; inventing a classification scheme is a rule-7-adjacent trap |
 
@@ -330,7 +330,7 @@ against the route table. All assist work is additive.
 | Endpoint | Purpose | Notes |
 |---|---|---|
 | `POST /conversations` · `GET /conversations/{id}` | assist session | |
-| `POST /conversations/{id}/messages` | **the unified ask endpoint** — router picks domain(s) | Must return an `AM-29` answer state, citations, and **no "confidence" number** — see [C15] |
+| `POST /conversations/{id}/messages` | **the unified ask endpoint** — router picks domain(s) | Must return an `AM-29` answer state, citations, and **no "confidence" number** — see [RA-15] |
 | `GET /messages/{id}/citations` | resolve citations to page/section/offset | Reuses existing evidence serializers |
 | `GET /document-versions/{id}/similar-clauses` | retrieval-only, no generation | Shippable before any model decision |
 | `GET /indexing-runs/{id}` | async indexing status | Follows 52.7's poll pattern; no optimistic UI |
@@ -352,9 +352,9 @@ in result count, error shape, and content.
 | Clause-aware chunking with page/offset provenance | **Inputs fully present** — `document_evidence` carries page, section number, section title, start/end offset, source type, and original text | Chunker is new but **mechanical**: it reads committed evidence rows rather than re-parsing text. This is the single biggest reuse win in the retrieval layer |
 | Local embedding generation | Absent | New. `AM-26`: local, self-hosted, open-weight; selected by measurement from smallest upward (r2), pinned and recorded per answer (r4), weights fetched once and checksummed (r5) |
 | pgvector store + ANN index | Absent | New. `AM-26` locks pgvector on the same instance; a second vector datastore requires separate approval |
-| Postgres FTS (keyword half) | Absent | New: `tsvector` column + GIN index + `pg_trgm`. ⚠️ **Not BM25** — see [C10] |
+| Postgres FTS (keyword half) | Absent | New: `tsvector` column + GIN index + `pg_trgm`. ⚠️ **Not BM25** — see [RA-10] |
 | Fusion (e.g. RRF) + reranking | Absent | New. Cross-encoder, local, open-weight (`AM-26`) |
-| Domain routing | Absent | New. Must never blend domains; A and C have no authorized table yet — **[C3]** |
+| Domain routing | Absent | New. Must never blend domains; A and C have no authorized table yet — **[RA-3]** |
 | **Pre-filtered authorization inside the query** | The pattern exists and is tested (`Guard`, visibility resolvers, byte-identical 404) | New SQL, existing discipline. `AM-25` r6: authorization **before** retrieval, **inside** the query; never post-filtered. Post-filtering would create a result-count/ranking oracle — exactly what r7 forbids |
 | Metadata filtering (document type, version) | `Contract.contract_type` and `DocumentVersion` already carry it; the analysis path already filters by document type | Reuse the same values; join for `owner_id`, **never denormalize it onto a chunk row** (it would drift out of sync with the real ownership record) |
 
@@ -372,16 +372,16 @@ logging and no redaction-before-send to extend.
 
 | Target requirement | Locked position | Status |
 |---|---|---|
-| Gemini Flash as the generation model | `AM-26`: generative model is **local, self-hosted, open-weight**; "any hosted model … service" is **NOT ADDED** and needs separate approval. `AM-25` r9: no prompt, chunk, clause text or generated answer leaves LeapSwitch infrastructure | **[C1] — blocking contradiction** |
-| Single wrapped interface, callers model-agnostic | `AM-26` r1: *"All generation reaches the application through one interface. The model identity is configuration, and no other code knows which model is running."* | **Agreement.** Build this regardless of which model wins — it is what makes [C1] a config change instead of a rewrite |
-| `validate_clause(clause, context) → verdict` | `AM-25` r1/r4 | **[C2] — blocking contradiction** |
+| Gemini Flash as the generation model | `AM-26`: generative model is **local, self-hosted, open-weight**; "any hosted model … service" is **NOT ADDED** and needs separate approval. `AM-25` r9: no prompt, chunk, clause text or generated answer leaves LeapSwitch infrastructure | **[RA-1] — blocking contradiction** |
+| Single wrapped interface, callers model-agnostic | `AM-26` r1: *"All generation reaches the application through one interface. The model identity is configuration, and no other code knows which model is running."* | **Agreement.** Build this regardless of which model wins — it is what makes [RA-1] a config change instead of a rewrite |
+| `validate_clause(clause, context) → verdict` | `AM-25` r1/r4 | **[RA-2] — blocking contradiction** |
 | Only retrieved chunks reach the model, never the full document | `AM-25` r5 | **Agreement** |
 | Minimal-context sending + redaction | `observability/redaction.py` is ready to serve as the redactor | Reuse |
 | Per-call audit log with payload **hash**, not payload | `audit_events` + append-only trigger + a redactor that already forbids logging clause text | Reuse; add event types, no schema change |
 | Model version pinned and recorded per answer | `AM-26` r4; `ai_answers` and `prompt_versions` tables authorized | Additive |
 | Structured output validated in application code | Never trust a vendor schema as a semantic guarantee | New, in guardrails |
 
-**The isolation the target asks for is exactly what `AM-26` r1 already locks.** Whichever way [C1] is
+**The isolation the target asks for is exactly what `AM-26` r1 already locks.** Whichever way [RA-1] is
 decided, the one-interface boundary is the right thing to build first, and it is small.
 
 ---
@@ -406,7 +406,7 @@ new module should copy those idioms rather than invent new ones:
 | Citation verification — every claim resolves to a retrieved chunk | **New** | `AM-25` r5: enforcement is **mechanical and outside the model**. `AM-28` r2: tested independently, and it **must not import prompt or model code** — *"a guardrail that a prompt change can affect is not a guardrail"* |
 | No retrieval → no model call | **New** | `AM-29` r3 distinguishes *no evidence retrieved* from *evidence insufficient* (model **not called at all**) from *claim unsupported* (model answered, verification failed). Three causes, three remedies — record them separately |
 | Refusal wording identical regardless of cause | **New** | `AM-29` r4: an empty corpus and an authorization exclusion must read identically, or r6/r7 leak |
-| Confidence threshold | **New, and needs care** | `AI-03` item 16 forbids generic AI confidence scores; a retrieval score is never rendered as legal confidence — **[C15]** |
+| Confidence threshold | **New, and needs care** | `AI-03` item 16 forbids generic AI confidence scores; a retrieval score is never rendered as legal confidence — **[RA-15]** |
 | Cross-reference hard gate | **New** | |
 | Never state a legal position absent from a ratified Standard | **New** | `AM-25` r3: where a position is absent, the output is a **gap reported to a human** |
 | Never answer "does this meet our standard?" | **New — routing rule** | `AM-25` r4: route to the evaluator or refuse; never answer generatively |
@@ -428,7 +428,7 @@ new module should copy those idioms rather than invent new ones:
 | Log hygiene | Redactor with no bypass; length guard | Never log clause text | Done — reuse for egress |
 | Network segmentation | None (compose exposes ports) | Segmented networks, deny-by-default `ufw`, one allow-listed egress | New infra |
 | Secrets | env vars | Vault or encrypted `.env` + LUKS | New infra |
-| Egress | **Zero** | Exactly one, allow-listed | If [C1] resolves to a local model, the right end state is **zero egress** — the existing posture, kept |
+| Egress | **Zero** | Exactly one, allow-listed | If [RA-1] resolves to a local model, the right end state is **zero egress** — the existing posture, kept |
 | Encryption at rest / in transit | Deployment concern; 55.2 | LUKS + TLS everywhere internally | New infra |
 | Dependency / container scanning | `pip-audit` not in CI; no Trivy | Trivy + pip-audit + npm audit + OpenVAS + ZAP | Additive CI jobs |
 | Real-contract environment rule | 55.3/54.6: real contracts never leave production; no document text in the repo | Same | **Must extend to embeddings, prompts, cached answers and any eval set** |
@@ -481,10 +481,36 @@ authoritative — so they remain valid *by the terms of the amendment that intro
 
 ## 12. Architectural Contradictions
 
+> **Series renamed `C1`–`C16` → `RA-1`–`RA-16` on 2026-08-25, and reconciled.** The original
+> numbering collided with [CONFLICTS.md](../00-project/CONFLICTS.md)'s `C-01`–`C-16` register — the
+> same overloaded-identifier problem [CLAUDE.md](../../CLAUDE.md) already documents for `F-*`. `RA-*`
+> means *reuse-audit finding*; these are **not** conflict-register entries and were never in that
+> series. Findings that survived reconciliation as genuine unresolved conflicts were registered
+> separately:
+>
+> | Audit finding | Outcome, 2026-08-25 |
+> |---|---|
+> | RA-1 — hosted Gemini vs `AM-25` r9 | **Resolved by owner decision** → `AM-30` (AB-4). The confidentiality posture is tightened by ten terms and gated by `AM-31` |
+> | RA-2 — LLM clause verdicts | **Resolved by owner decision** — the deterministic evaluator stays authoritative; `AM-25` r1/r4 already said so |
+> | RA-3 — Domain A/C tables | **Registered as C-15**, and this document's recommendation is **reversed**: the owner's no-flattening instruction rules out shape 1 |
+> | RA-4 — statute provenance and coverage | **Registered as C-16** |
+> | RA-5, RA-16 | **Safe technical decisions**, logged in [AUTO_MODE_DECISIONS.md](../00-project/AUTO_MODE_DECISIONS.md) |
+> | RA-6, RA-7 | Resolved for generation by `AM-30`; embedding hardware still to size |
+> | RA-8, RA-9, RA-11, RA-14 | **Resolved** — pgvector, keep the existing parser, 32 standards, defer multi-tenancy |
+> | RA-10, RA-13, RA-15 | **Documentation-only**, landed in `BACKEND_ARCHITECTURE.md` and `DECISION_STATE_MODEL.md` |
+> | RA-12 — RIAAS contract | Still **unspecified**; needs the integration contract from the owner |
+> | *(new, not in this document)* | **C-14** — the locked table count says 30, the repository says 29 |
+>
+> §15's phase plan below is superseded as an *authorized* sequence by
+> [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md) §5b,
+> which `IMPL-02` authorizes by reference. This document stays `ANALYSIS` — it records the
+> **rationale** for that ordering and never authorizes a build (rule: a working document is not a
+> specification).
+
 Recorded, not resolved. Each states: existing behavior · intended behavior · why they conflict ·
 recommended resolution · whether existing code adapts · whether a rewrite is actually necessary.
 
-### C1 — Gemini Flash (hosted API) vs `AM-25` r9 / `AM-26`
+### RA-1 — Gemini Flash (hosted API) vs `AM-25` r9 / `AM-26`
 
 * **Existing:** zero outbound HTTP anywhere in `legalmind/`. No egress has ever existed.
 * **Intended:** Gemini Flash, hosted API, the single permitted external dependency; clause-level
@@ -507,7 +533,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   configuration. **This decision changes ~200 LOC behind one interface, not the architecture** — which
   is precisely why r1 exists. Nothing else in the plan needs to wait for it.
 
-### C2 — LLM-produced clause verdicts vs `AM-25` r1/r4
+### RA-2 — LLM-produced clause verdicts vs `AM-25` r1/r4
 
 * **Existing:** `LIABILITY-001` (`NUMERIC_COMPARISON`) and the generic `PRESENCE` evaluator produce
   every Finding, Classification and Rule Outcome deterministically, with a reconstructable
@@ -532,7 +558,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   this repository.** Replacing the evaluator would discard 1,822 LOC and ~180 tests, forfeit
   reproducibility, and break the locked explainability contract, to reach a *less* defensible answer.
 
-### C3 — Domain A and Domain C have no authorized table
+### RA-3 — Domain A and Domain C have no authorized table
 
 * **Existing:** Domain A exists as 32 ratified Company Standards in versioned JSON configuration.
   Domain C does not exist; the seven supplied statutes sit on disk, unindexed.
@@ -552,7 +578,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   path would serve all three domains with no new pipeline.
 * **Is a rewrite necessary?** No. This is a schema-authorization question, not an engineering one.
 
-### C4 — Statute corpus provenance and coverage
+### RA-4 — Statute corpus provenance and coverage
 
 * **Existing:** seven statutes supplied on disk (Contract Act 1872, IT Act 2000, SPDI Rules 2011,
   Companies Act 2013, CERT-In Directions 2022, DPDP Act 2023, IT Rules 2021). CLAUDE.md's standing rule:
@@ -577,7 +603,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   on the supplied set).
 * **Is a rewrite necessary?** No.
 
-### C5 — Per-service decomposition vs locked 38.26 / `AM-26`
+### RA-5 — Per-service decomposition vs locked 38.26 / `AM-26`
 
 * **Existing:** modular monolith. `api` and `worker` are the **same image** with different commands
   (locked 55.1). Repository layout is `backend/` + `frontend/`.
@@ -592,7 +618,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   deny-by-default egress, non-root service accounts, one auditable egress point — are all achievable
   without splitting the application, and `AM-25` r2's DB-role requirement delivers the strongest of them.
   Realize `llm-gateway` as an in-process module behind `AM-26` r1's single interface (which already
-  mandates exactly that boundary) plus network-level egress control. Note that under [C1] path (a) there
+  mandates exactly that boundary) plus network-level egress control. Note that under [RA-1] path (a) there
   is **no egress at all**, and the gateway's purpose reduces to model-identity isolation.
 * **Can existing code adapt?** Nothing needs to change. The compose file gains services (`minio`,
   `nginx`, inference runtime) and segmented networks without splitting `api`/`worker`.
@@ -600,7 +626,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   available here** — it would touch every module's deployment assumptions for no security gain over the
   DB-role + network approach.
 
-### C6 — Two mutually exclusive egress designs *inside* the tech-stack document
+### RA-6 — Two mutually exclusive egress designs *inside* the tech-stack document
 
 * **§2 (stack table):** *"Inference access — Outbound HTTPS call from **`backend-api`** only — no other
   service has network access to call it."*
@@ -609,10 +635,10 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
 * **Why they conflict:** they name different components as the sole egress point. §7's build order and
   the egress-verification script both assume the gateway; §2 assumes the API.
 * **Recommended resolution:** the gateway, on weight of evidence (four sections to one) — but this is
-  the target document's own inconsistency and its author should confirm. It is moot under [C1] path (a).
+  the target document's own inconsistency and its author should confirm. It is moot under [RA-1] path (a).
 * **Rewrite necessary?** No.
 
-### C7 — GPU: required or not, also *inside* the tech-stack document
+### RA-7 — GPU: required or not, also *inside* the tech-stack document
 
 * **§2 hardware note:** *"Llama 3.1 70B / Mistral Large needs real GPU … Confirm GPU allocation before
   Phase 1 — this is the one dependency that can block the whole timeline if not pre-provisioned."*
@@ -620,13 +646,13 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   entirely by using Gemini Flash."*
 * **Why they conflict:** §2's note is residue from the fully-self-hosted predecessor. The two statements
   cannot both hold.
-* **Recommended resolution:** **the answer follows [C1], and it matters for procurement.** Under AB-3 as
+* **Recommended resolution:** **the answer follows [RA-1], and it matters for procurement.** Under AB-3 as
   locked, `AM-26` adds a *"GPU runtime — where required by the selected model"*, so a GPU **is** on the
   critical path and §2's warning is the operative one. Under a Gemini amendment, §5.4 is right. Resolve
-  [C1] before anyone sizes hardware.
+  [RA-1] before anyone sizes hardware.
 * **Rewrite necessary?** No — a provisioning question.
 
-### C8 — Vector store: pgvector or Qdrant
+### RA-8 — Vector store: pgvector or Qdrant
 
 * **Existing:** neither.
 * **Intended:** vision §9.5 and tech §1a say pgvector + Postgres FTS; tech §2 offers *"pgvector … OR
@@ -638,7 +664,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   approval if measured scale ever demands it.
 * **Rewrite necessary?** No.
 
-### C9 — Parser replacement vs `AM-26`
+### RA-9 — Parser replacement vs `AM-26`
 
 * **Existing:** PyMuPDF + python-docx, 327 LOC, 20 tests, implementing locked Step 34: per-page native
   text, OCR fallback with OCR-derived content explicitly flagged, tables preserved, page numbers,
@@ -654,7 +680,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   appears on real documents, as a narrow addition, never a replacement.
 * **Rewrite necessary?** **No.**
 
-### C10 — "BM25" vs Postgres FTS
+### RA-10 — "BM25" vs Postgres FTS
 
 * **Existing:** no keyword index.
 * **Intended:** vision §5.1 says *"keyword/BM25"*; vision §9.5 and tech §1a say **Postgres native FTS
@@ -666,7 +692,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   function the stack does not have. Terminology precision, not an architecture change.
 * **Rewrite necessary?** No.
 
-### C11 — "8 clause categories, 22-conflict register" vs what actually exists
+### RA-11 — "8 clause categories, 22-conflict register" vs what actually exists
 
 * **Existing:** **32 ratified Company Standards across four document types**, every position clause-cited
   to a real LeapSwitch document, derived by full-document review on 2026-08-19 (superseding an earlier
@@ -685,7 +711,7 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
   incorporated, that is a separate, explicit request — it is not v1 source material.
 * **Rewrite necessary?** No — this *avoids* rebuilding finished work.
 
-### C12 — RIAAS vs the implemented authentication
+### RA-12 — RIAAS vs the implemented authentication
 
 * **Existing:** password login + server-side sessions, hardened cookies, CSRF, rate limiting, S-7-safe
   failures. OIDC routes are specified (49.2) but **not registered**: they need a JWT/JWKS library, which
@@ -703,13 +729,13 @@ recommended resolution · whether existing code adapts · whether a rewrite is a
 * **Can existing code adapt?** Yes — an adapter behind `get_principal`, not a rework.
 * **Rewrite necessary?** No.
 
-### C13 — MinIO: not a conflict
+### RA-13 — MinIO: not a conflict
 
 Recorded so nobody re-litigates it. Locked 55.6 leaves the object-storage **provider** unspecified, and
 AB-3 states plainly that selecting an S3-compatible provider *"closes an open item; it does not alter a
 lock."* `StorageBackend` is a 3-method Protocol; MinIO is a small additive implementation. **Proceed.**
 
-### C14 — Multi-tenancy / external customers
+### RA-14 — Multi-tenancy / external customers
 
 * **Existing:** single-tenant at the database level. Ownership is `Contract.owner_id → users.id`; roles
   are global. `workspace` and `tenant` appear nowhere in the schema, the security layer, or the locked
@@ -728,7 +754,7 @@ lock."* `StorageBackend` is a 3-method Protocol; MinIO is a small additive imple
 * **Rewrite necessary?** Not now. Deferring is cheaper than guessing, and a wrong guess *is* the rework
   §2 wants to avoid.
 
-### C15 — "Confidence" in the answer surface
+### RA-15 — "Confidence" in the answer surface
 
 * **Existing:** no confidence value is displayed anywhere. Mapping scores carry an explicit per-signal
   explanation, never an opaque number, and 35.19 forbids an opaque score being the basis of a legal
@@ -747,7 +773,7 @@ lock."* `StorageBackend` is a 3-method Protocol; MinIO is a small additive imple
   substitution**, since the vision states "confidence" three times.
 * **Rewrite necessary?** No.
 
-### C16 — The two-day plan
+### RA-16 — The two-day plan
 
 * **Intended:** eight phases across two days, ending in production deployment.
 * **Why it conflicts with the evidence:** the phases include seeding three domains, a new database
@@ -756,7 +782,7 @@ lock."* `StorageBackend` is a 3-method Protocol; MinIO is a small additive imple
   that must all still pass, plus `AM-26` r2/r3's **selection by measurement** on an evaluation set that
   does not exist and cannot be manufactured (rule 21), plus `AM-28`'s Tier-2 gate.
 * **Recommended resolution:** keep the phase *sequence* — it is sound and dependency-ordered — and treat
-  the durations as placeholders. Phase 2's "Domain A seeding" is already done ([C11]); Phase 8's eval
+  the durations as placeholders. Phase 2's "Domain A seeding" is already done ([RA-11]); Phase 8's eval
   sets need real material. §15 below re-orders by dependency against actual repository evidence.
 
 ---
@@ -767,16 +793,16 @@ Flagged explicitly, per instruction 10 — not silently resolved.
 
 | # | Ambiguity | Resolvable from the documents? |
 |---|---|---|
-| 1 | Vector store: pgvector vs Qdrant | **Yes** — pgvector; `AM-26` plus both documents' primary statements ([C8]) |
-| 2 | Exact Gemini model/version — *"Gemini Flash (latest, e.g. 3.7)"* | **No.** "Latest" is not a pin, and `AM-26` r4 requires a pinned, recorded version. Moot under [C1] path (a); **decision required** otherwise |
-| 3 | Gateway networking: `backend-api` or `llm-gateway` as sole egress | **No** — the document contradicts itself ([C6]). Author must confirm |
-| 4 | GPU required or not | **No** — the document contradicts itself ([C7]). Follows [C1] |
+| 1 | Vector store: pgvector vs Qdrant | **Yes** — pgvector; `AM-26` plus both documents' primary statements ([RA-8]) |
+| 2 | Exact Gemini model/version — *"Gemini Flash (latest, e.g. 3.7)"* | **No.** "Latest" is not a pin, and `AM-26` r4 requires a pinned, recorded version. Moot under [RA-1] path (a); **decision required** otherwise |
+| 3 | Gateway networking: `backend-api` or `llm-gateway` as sole egress | **No** — the document contradicts itself ([RA-6]). Author must confirm |
+| 4 | GPU required or not | **No** — the document contradicts itself ([RA-7]). Follows [RA-1] |
 | 5 | Database ownership boundaries — *"extraction service can't write to `rules`"* | **Partly.** `AM-25` r2 fixes the assist role's grants exactly; the other per-service roles are named in principle only. **Decision required** for the full grant matrix |
-| 6 | Authentication contract (RIAAS) | **No** — one line in each document, no protocol, claims or endpoints ([C12]). **Decision/material required** |
+| 6 | Authentication contract (RIAAS) | **No** — one line in each document, no protocol, claims or endpoints ([RA-12]). **Decision/material required** |
 | 7 | Domain-routing behavior — *"the retrieval layer decides"* | **No.** Whether routing is a classifier, a rule set, or always-search-all-then-fuse is unspecified, and it directly affects cost, latency and the never-blend-domains guarantee. **Decision required** |
 | 8 | Schema migration strategy for the new tables | **Partly.** `AM-27` r1 requires a separate schema; whether Alembic manages both schemas in one chain or a second chain is an implementation choice this audit recommends recording as such (one chain, one head — simpler, and the reproducibility gate already walks it) |
 | 9 | Chunk sizes / overlap / reranker depth / retrieval `top-k` | **No** — no numbers given. Recommend *measuring* rather than inventing values (rule 7's habit applied to a product metric) |
-| 10 | "Confidence" semantics | **No** — conflicts with locked item 16 ([C15]). **Owner confirmation required** |
+| 10 | "Confidence" semantics | **No** — conflicts with locked item 16 ([RA-15]). **Owner confirmation required** |
 | 11 | Judgment set — *"Legal team supplies a specific list"* | **No** — the list does not exist. Rule 21: request it, never invent it |
 | 12 | Which secrets manager — Vault or encrypted `.env` + LUKS | **Partly** — the document offers either; recommend `.env` + LUKS for V1 and record Vault as deferred, since Vault is a new service (rule 19) |
 
@@ -793,7 +819,7 @@ Following instructions 12 and 13 — update the canonical document, do not creat
 | **`docs/README.md`** | Add one index row for this audit under the existing `architecture/` section | Rule: a new document is indexed in the same change |
 | **`CHANGELOG.md`** | One `[Unreleased]` entry | Repository change record |
 | `docs/00-project/IMPLEMENTATION_STATUS.md` | **Flag, do not edit here.** Its Build-state table reads "653 tests" and *"No Legal Rule exists"*; the suite is now **726** and CLAUDE.md records the zero-tolerance Legal Rule as approved and wired on 2026-08-20 | It is the only document permitted to assert build state, so correcting it is its own change with its own verification — not a side effect of an audit. **Reported, per instruction 6** |
-| `docs/00-project/CONFLICTS.md` | **Register C1–C3 and C5** once the owner has seen them | Rule 5: a discovered contradiction is registered and surfaced, never resolved unilaterally |
+| `docs/00-project/CONFLICTS.md` | **Register RA-1–RA-3 and RA-5** once the owner has seen them | Rule 5: a discovered contradiction is registered and surfaced, never resolved unilaterally |
 | `docs/05-architecture/SYSTEM_ARCHITECTURE.md`, `BACKEND_ARCHITECTURE.md` | **No change yet** | 🔒 LOCKED. They may only be superseded with a banner after AB-3's stack additions are reflected by an approved change — never overwritten (rule 22) |
 | `legalmind-product-vision.md`, `legal-mind-tech-stack-and-buildplan-v2.md` | **No change** | They are the owner's input documents. This audit reports contradictions against them; it does not edit the owner's brief |
 
@@ -806,8 +832,8 @@ Every phase is additive and independently revertible. The deterministic lane is 
 verified mechanically at each phase by the corpus-parity test.
 
 **Phase 0 — Decisions (no code). BLOCKING for Phases 5+ only.**
-Resolve [C1] (hosted vs local model), [C3] (Domain A/C tables), [C12] (RIAAS contract), [C15]
-("confidence" wording). Register C1–C3, C5 in `CONFLICTS.md`. Request from the owner: NI Act + Evidence
+Resolve [RA-1] (hosted vs local model), [RA-3] (Domain A/C tables), [RA-12] (RIAAS contract), [RA-15]
+("confidence" wording). Register RA-1–RA-3, RA-5 in `CONFLICTS.md`. Request from the owner: NI Act + Evidence
 Act, the curated judgment list, and the Tier-2 evaluation set's real Q&A material.
 *Phases 1–4 do not depend on any of this and can start immediately.*
 
@@ -840,7 +866,7 @@ Local embedding model (`AM-26` r5: fetched once, checksummed, stored locally, ne
 pgvector index with iterative scans enabled. RRF fusion, then a local cross-encoder reranker.
 **Authorization pre-filtered inside the query**, plus the indistinguishability tests (`AM-25` r6/r7,
 `AM-29` r4). Ship `GET /document-versions/{id}/similar-clauses` — retrieval only, no generation.
-*Depends on [C1] only for the model-hosting question; a local embedding model is already locked, so this
+*Depends on [RA-1] only for the model-hosting question; a local embedding model is already locked, so this
 phase proceeds regardless.*
 
 **Phase 6 — Guardrails, before generation exists.**
@@ -856,18 +882,18 @@ first means generation can never ship ungated.*
 the smallest candidate upward (r2), against the Tier-2 evaluation set (r3 — *correct refusal is half the
 bar*). Version pinned and recorded per answer (r4). Redaction on the payload path, reusing
 `observability/redaction.py`. Audit event per call carrying a **payload hash, never the payload**.
-**BLOCKED on [C1].**
+**BLOCKED on [RA-1].**
 
 **Phase 8 — Conversation API + unified workspace.**
 The five new endpoints; then the workspace route composed from existing components — document pane,
 verdict cards from the deterministic engine, chat panel. Existing routes stay. `AM-29` answer state
-rendered; **no confidence figure** ([C15]).
+rendered; **no confidence figure** ([RA-15]).
 
-**Phase 9 — Domain A and Domain C.** Gated on [C3] and [C4]. Reuses the entire Phase 4–6 pipeline.
+**Phase 9 — Domain A and Domain C.** Gated on [RA-3] and [RA-4]. Reuses the entire Phase 4–6 pipeline.
 
 **Phase 10 — Security hardening + Tier-2 gate in CI.**
 Network segmentation, `ufw` deny-by-default, egress verification script asserting the expected egress
-count (**zero** under [C1] path (a)), Nginx + TLS, secrets, Trivy/`pip-audit`/`npm audit`, OpenVAS/ZAP.
+count (**zero** under [RA-1] path (a)), Nginx + TLS, secrets, Trivy/`pip-audit`/`npm audit`, OpenVAS/ZAP.
 Tier-2 gate wired: a change to retrieval, chunking, prompt or model that worsens faithfulness or the
 wrongly-answered rate **does not ship** (`AM-28`).
 
@@ -887,19 +913,19 @@ These are correct, tested, and load-bearing. Reuse them.
 | # | Component | Why it stands |
 |---|---|---|
 | 1 | **The 29-table locked schema and its 4 migrations** | `AM-27` r2 forbids altering them and makes the unmodified invariant tests the proof the locked model survived |
-| 2 | **Both deterministic evaluators** (`NUMERIC_COMPARISON`, `PRESENCE`) | `AM-25` r1 keeps them the sole producer of every legal outcome. Replacing them with an LLM is the largest available unnecessary rewrite ([C2]) |
-| 3 | **The document parser** (PyMuPDF + python-docx + OCR) | Already delivers page numbers, offsets, section numbers, OCR flagging, tables, original-text preservation and never-invent-text. `AM-26` keeps it primary ([C9]) |
+| 2 | **Both deterministic evaluators** (`NUMERIC_COMPARISON`, `PRESENCE`) | `AM-25` r1 keeps them the sole producer of every legal outcome. Replacing them with an LLM is the largest available unnecessary rewrite ([RA-2]) |
+| 3 | **The document parser** (PyMuPDF + python-docx + OCR) | Already delivers page numbers, offsets, section numbers, OCR flagging, tables, original-text preservation and never-invent-text. `AM-26` keeps it primary ([RA-9]) |
 | 4 | **`document_evidence` and the ingestion pipeline** | The chunker's input. Rebuilding it would create the second source of truth `AM-27` r4 forbids |
 | 5 | **The mapping engine** | Deterministic, explained per signal. Hybrid retrieval is not a substitute — it never sets a Mapping State. Its alias/keyword groups are a good *read-only* seed for query expansion |
 | 6 | **The `Guard` authorization pattern** | Visibility → permission → operation → DB, 60+ tests, byte-identical 404s. `AM-25` r6/r7 extends it to retrieval; it does not replace it |
 | 7 | **The append-only audit trail** | DB-trigger-enforced, records identifiers not content. `AM-27`: new event types, **no schema change** — a separate `audit_log` table would fragment the trail |
 | 8 | **`observability/redaction.py`** | The most valuable pre-built asset for any model path: it makes emitting credentials, clause text or legal position structurally impossible, with no bypass |
-| 9 | **The 32 ratified Company Standards** | This **is** Domain A, already derived from real source documents, clause-cited, versioned, not hardcoded. Vision §3b is satisfied — do not re-derive it ([C11]) |
+| 9 | **The 32 ratified Company Standards** | This **is** Domain A, already derived from real source documents, clause-cited, versioned, not hardcoded. Vision §3b is satisfied — do not re-derive it ([RA-11]) |
 | 10 | **The golden corpus and its harness** | Tier 1, normative, unchanged by AB-3 (`AM-28` r3) |
 | 11 | **All 726 tests** | None encodes an obsolete assumption. `AM-25` r1 keeps the behavior they assert authoritative |
 | 12 | **The `StorageBackend` Protocol** | Correct seam; MinIO is an additive implementation, not a refactor |
 | 13 | **Celery worker + queue infrastructure** | `AM-26`: *reused, not replaced*. Add a task and a queue |
-| 14 | **The api/worker same-image topology** | Locked 55.1 and `AM-26`'s unchanged modular monolith ([C5]) |
+| 14 | **The api/worker same-image topology** | Locked 55.1 and `AM-26`'s unchanged modular monolith ([RA-5]) |
 | 15 | **The 39 existing API endpoints** | Not one contract needs changing; all assist work is additive |
 | 16 | **The frontend design system, primitives, API client and session handling** | The workspace is a new route *composed of* these, not a redesign |
 | 17 | **The verification tools** | `verify_reproducibility` becomes the corpus-parity harness — the mechanical proof that `AM-25` r1/r2 hold |
@@ -913,14 +939,14 @@ Nothing below is decided in this document, and none of it may be inferred.
 
 ### Owner / product
 
-1. **[C1] Hosted Gemini Flash, or the locked local self-hosted model?** Blocks Phase 7 only. If hosted:
+1. **[RA-1] Hosted Gemini Flash, or the locked local self-hosted model?** Blocks Phase 7 only. If hosted:
    `AM-25` r9 and `AM-26` must be amended by name, and the tech doc's own hard gate — Gemini enterprise
    zero-retention terms **confirmed in writing** — must clear first.
-2. **[C2] Confirm the deterministic evaluator remains the verdict producer**, with the assist lane doing
+2. **[RA-2] Confirm the deterministic evaluator remains the verdict producer**, with the assist lane doing
    document Q&A, statute research and explanation rephrasing. This audit recommends yes.
-3. **[C3] Domain A and Domain C tables** — extend `AM-27`, or ingest both as Document Versions?
-4. **[C15] Confirm "confidence" becomes the `AM-29` answer state** plus labeled retrieval scores.
-5. **[C14] Is multi-tenancy a real V1 requirement?** Recommend deferring; do not build against an
+3. **[RA-3] Domain A and Domain C tables** — extend `AM-27`, or ingest both as Document Versions?
+4. **[RA-15] Confirm "confidence" becomes the `AM-29` answer state** plus labeled retrieval scores.
+5. **[RA-14] Is multi-tenancy a real V1 requirement?** Recommend deferring; do not build against an
    imagined schema.
 6. **[Ambiguity 7] Domain-routing behavior** — classifier, rule set, or search-all-and-fuse?
 
@@ -929,7 +955,7 @@ Nothing below is decided in this document, and none of it may be inferred.
 7. **NI Act and Evidence Act** — absent, and the vision's headline worked example cites Section 138 NI Act.
 8. **The curated judgment list** — *"Legal team supplies a specific list"*; it does not exist.
 9. **The Tier-2 evaluation set's real Q&A material**, including unanswerable questions (`AM-28` r3).
-10. **[C4] India Code provenance** for the four supplied statutes, if §9.2 is a hard rule.
+10. **[RA-4] India Code provenance** for the four supplied statutes, if §9.2 is a hard rule.
 11. **The second document tranche** — still outstanding, still required, still not substitutable.
 
 ### Security
@@ -945,9 +971,9 @@ Nothing below is decided in this document, and none of it may be inferred.
 
 15. **pgvector extension** — locked by `AM-26`; confirm the deployment gate.
 16. **Local inference runtime and GPU allocation** — `AM-26` adds both *"where required by the selected
-    model"*. Follows [C1]; see [C7].
-17. **[C12] The RIAAS integration contract**, plus approval for a JWT/JWKS library.
-18. **[C5] Confirm the modular monolith stands** and that isolation is realized at the network + DB-role
+    model"*. Follows [RA-1]; see [RA-7].
+17. **[RA-12] The RIAAS integration contract**, plus approval for a JWT/JWKS library.
+18. **[RA-5] Confirm the modular monolith stands** and that isolation is realized at the network + DB-role
     layer rather than by decomposition.
 19. **Embedding + reranking model candidates** for `AM-26` r2's smallest-upward selection.
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from datetime import UTC, datetime
@@ -35,9 +36,15 @@ def _sweep_stale_schemas(admin) -> None:
     names = admin.execute(text(
         "SELECT nspname FROM pg_namespace WHERE nspname LIKE :p"
     ), {"p": f"{_SCHEMA_PREFIX}%"}).scalars().all()
-    for name in names:
+    # `AM-27` r1 gives each run a second schema, `<run>_assist`, so a name now has
+    # three parts or four. Sorted longest-first so `<run>_assist` is dropped before
+    # `<run>`: its foreign keys point into the locked schema, and Postgres refuses to
+    # drop a schema another still depends on.
+    for name in sorted(names, key=len, reverse=True):
         parts = name.split("_")
-        if len(parts) != 3 or not parts[1].isdigit():
+        if len(parts) == 4 and parts[3] != "assist":
+            continue                     # not ours; leave it alone
+        if len(parts) not in (3, 4) or not parts[1].isdigit():
             continue                     # not ours; leave it alone
         if int(parts[1]) < cutoff:
             admin.execute(text(f'DROP SCHEMA IF EXISTS "{name}" CASCADE'))
@@ -83,6 +90,18 @@ def engine():
     # — built inside env.py from this URL — lands in the same schema.
     scoped_url = f"{base_url}?options=-csearch_path%3D{schema}"
 
+    # `AM-27` r1 puts the assist tables in a schema separate from the locked ones.
+    # Derived per run rather than the production default, for the same reason the
+    # locked schema is: a hardcoded `assist` would be shared by every concurrent
+    # suite, and `F-4` is the record of what that costs. Set before Alembic runs,
+    # because the migration reads it through `config.assist_schema()`.
+    #
+    # Restored in teardown rather than left set: the variable is process-global, and
+    # leaking it would silently repoint a later run in the same process.
+    assist_schema = f"{schema}_assist"
+    previous_assist_schema = os.environ.get("LEGALMIND_ASSIST_SCHEMA")
+    os.environ["LEGALMIND_ASSIST_SCHEMA"] = assist_schema
+
     admin_engine = create_engine(base_url, future=True)
     with admin_engine.begin() as c:
         _sweep_stale_schemas(c)
@@ -102,8 +121,15 @@ def engine():
         # ordinary exit path does not itself become a source of debris.
         eng.dispose()
         with admin_engine.begin() as c:
+            # The assist schema first: its foreign keys point INTO the locked schema,
+            # so dropping the locked one first would fail on the dependency.
+            c.execute(text(f'DROP SCHEMA IF EXISTS "{assist_schema}" CASCADE'))
             c.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         admin_engine.dispose()
+        if previous_assist_schema is None:
+            os.environ.pop("LEGALMIND_ASSIST_SCHEMA", None)
+        else:
+            os.environ["LEGALMIND_ASSIST_SCHEMA"] = previous_assist_schema
 
 
 @pytest.fixture

@@ -390,6 +390,8 @@ def _database_checks() -> list[Check]:
                 _migrations_current(conn),
                 _invariant_triggers(conn),
                 _app_role_has_no_ddl(conn),
+                _pgvector_available(conn),
+                _assist_role_isolated(conn),
             ]
     except Exception as exc:                              # pragma: no cover
         return [Check("database", FAIL,
@@ -482,3 +484,150 @@ def main() -> int:
 
 if __name__ == "__main__":                                # pragma: no cover
     sys.exit(main())
+
+
+# --------------------------------------------------------------------------
+# AB-3 / AB-4 — the assist lane's two deployment preconditions
+# --------------------------------------------------------------------------
+# Both are preconditions rather than migration steps for the same verified reason:
+# each needs a privilege the application role does not have, and must not be given.
+# `CREATE EXTENSION vector` requires superuser (the extension is not marked trusted),
+# and `CREATE ROLE` requires CREATEROLE. A migration that demanded either would force
+# the application role to hold it permanently.
+MIN_PGVECTOR_VERSION = (0, 8, 0)
+
+# `AM-25` r2, verbatim: the assist lane "NEVER writes to findings, evaluations,
+# legal_decisions, requirement_versions, company_standard_versions,
+# legal_rule_versions, mapping_rule_versions, evaluation_rule_versions,
+# configuration_snapshots or configuration_snapshot_items. This is enforced by a
+# distinct database role holding no INSERT or UPDATE grant on those tables, not by
+# convention."
+AUTHORITATIVE_TABLES = (
+    "findings", "evaluations", "legal_decisions", "requirement_versions",
+    "company_standard_versions", "legal_rule_versions", "mapping_rule_versions",
+    "evaluation_rule_versions", "configuration_snapshots",
+    "configuration_snapshot_items",
+)
+
+ASSIST_ROLE = "legalmind_assist"
+
+
+def _pgvector_available(conn) -> Check:
+    """`AM-26` — pgvector on the existing instance, provisioned out of band.
+
+    Reported rather than installed: `vector` is not a trusted extension, so creating
+    it needs superuser, and the application role is deliberately not one.
+
+    The version matters and is not cosmetic. `AM-25` r6 requires authorization to be
+    applied **before** retrieval and **inside** the query — pre-filtering, never
+    filtering afterwards. Under a selective pre-filter an approximate index can
+    return far fewer rows than asked for, and pgvector's fix for that is **iterative
+    index scans, added in 0.8.0**. Building r6's pre-filtered retrieval on an older
+    build means either poor recall or a post-filter, and a post-filter is the
+    enumeration oracle r7 forbids. Ubuntu 24.04 ships 0.6.0, so a distribution
+    package is not sufficient on its own.
+    """
+    row = conn.execute(text(
+        "SELECT installed_version, default_version FROM pg_available_extensions "
+        "WHERE name = 'vector'")).first()
+    if row is None:
+        return Check("pgvector", BLOCKED,
+                     "the pgvector extension is not available on this server. "
+                     "Install it and `CREATE EXTENSION vector` as a superuser "
+                     f"(>= {'.'.join(map(str, MIN_PGVECTOR_VERSION))}); the "
+                     "application role cannot, because `vector` is not trusted",
+                     basis="AM-26")
+
+    installed, default = row
+
+    def _parse(v: str | None) -> tuple[int, ...]:
+        if not v:
+            return ()
+        try:
+            return tuple(int(p) for p in v.split(".")[:3])
+        except ValueError:                                # pragma: no cover
+            return ()
+
+    if installed is None:
+        return Check("pgvector", BLOCKED,
+                     f"pgvector {default} is available but not installed in this "
+                     "database. Run `CREATE EXTENSION vector` as a superuser",
+                     basis="AM-26")
+
+    if _parse(installed) < MIN_PGVECTOR_VERSION:
+        # ATTEST, not BLOCKED — the earlier framing overstated this, and the
+        # correction was measured rather than reasoned. Verified on 0.6.0: exact
+        # cosine KNN with an authorization `WHERE` clause in the same statement works
+        # correctly, and the out-of-scope rows really are excluded. Exact search has
+        # no recall loss at all, so `AM-25` r6 is fully satisfiable on 0.6.0 — it is
+        # simply O(n) over the pre-filtered set.
+        #
+        # What >= 0.8.0 buys is **iterative index scans**, which matter only when you
+        # want an APPROXIMATE index under a selective pre-filter: without them a
+        # filtered HNSW scan can starve and silently lose recall. So the version is a
+        # prerequisite for corpus-scale indexed retrieval, not for correctness — and
+        # the answer to an older build is exact search, never a post-filter.
+        return Check("pgvector", ATTEST,
+                     f"pgvector {installed} is installed. Exact KNN under an "
+                     "authorization pre-filter is correct on this version, so "
+                     "per-document retrieval is sound. Upgrade to "
+                     f">= {'.'.join(map(str, MIN_PGVECTOR_VERSION))} before relying "
+                     "on an ANN index over a large pre-filtered set: iterative index "
+                     "scans (0.8.0+) are what stop a filtered approximate scan from "
+                     "starving. Never answer an older build with a post-filter — "
+                     "AM-25 r7 forbids it",
+                     basis="AM-26, AM-25 r6/r7")
+
+    return Check("pgvector", PASS,
+                 f"extension {installed} installed (>= "
+                 f"{'.'.join(map(str, MIN_PGVECTOR_VERSION))}, so a filtered ANN "
+                 "index can use iterative scans)",
+                 basis="AM-26")
+
+
+def _assist_role_isolated(conn) -> Check:
+    """`AM-25` r2 — a distinct database role with no write grant on legal tables.
+
+    The locked text says "not by convention", so this is checked against the live
+    catalogue rather than inferred from application code. A code review can confirm
+    that today's code does not write to `findings`; only a grant can confirm that
+    tomorrow's cannot.
+
+    Absence is BLOCKED, not PASS. A deployment where the role does not exist has not
+    satisfied r2 — it has merely not created the mechanism r2 requires, which is the
+    weaker state, not the stronger one.
+    """
+    exists = conn.execute(text(
+        "SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": ASSIST_ROLE}).scalar()
+    if not exists:
+        return Check("assist_role", BLOCKED,
+                     f"the {ASSIST_ROLE} role does not exist. AM-25 r2 requires the "
+                     "assist lane to hold no INSERT or UPDATE grant on the ten "
+                     "authoritative tables, enforced by a distinct role rather than "
+                     "by convention. Create it with SELECT on the locked tables and "
+                     "write access only to the assist schema",
+                     basis="AM-25 r2")
+
+    held: list[str] = []
+    for table in AUTHORITATIVE_TABLES:
+        for privilege in ("INSERT", "UPDATE"):
+            try:
+                if conn.execute(text("SELECT has_table_privilege(:r, :t, :p)"),
+                                {"r": ASSIST_ROLE, "t": table,
+                                 "p": privilege}).scalar():
+                    held.append(f"{privilege} on {table}")
+            except Exception:                             # pragma: no cover
+                # A table absent from this database is reported by the migration
+                # check, not misreported here as a grant violation.
+                continue
+
+    if held:
+        return Check("assist_role", FAIL,
+                     f"{ASSIST_ROLE} holds {', '.join(held)}. AM-25 r2 permits no "
+                     "INSERT or UPDATE grant on any authoritative table",
+                     basis="AM-25 r2")
+
+    return Check("assist_role", PASS,
+                 f"{ASSIST_ROLE} exists and holds no write grant on any of the "
+                 f"{len(AUTHORITATIVE_TABLES)} authoritative tables",
+                 basis="AM-25 r2")

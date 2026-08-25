@@ -15,7 +15,16 @@
 
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector, not plain postgres — locked `AM-26` adds the extension on this same
+    # instance. Pinned >= 0.8.0 deliberately: `AM-25` r6 requires authorization to be
+    # applied inside the retrieval query (pre-filtering), and pgvector's iterative
+    # index scans, which make a selective pre-filter viable, arrived in 0.8.0. Ubuntu
+    # ships 0.6.0, so a distribution package is not a substitute here.
+    #
+    # `CREATE EXTENSION vector` still needs a superuser — the extension is not
+    # trusted — so it is a deployment step, not a migration step, and
+    # `legalmind.deploy.preflight` reports it rather than assuming it.
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: legalmind
       POSTGRES_PASSWORD: legalmind          # development only; 55.2/S-6 require
@@ -47,6 +56,8 @@ services:
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
       LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
+      # `AM-27` r1 — the assist tables live in a schema separate from the locked ones.
+      LEGALMIND_ASSIST_SCHEMA: assist
     volumes:
       - documents:/var/lib/legalmind/documents
     ports:
@@ -63,6 +74,8 @@ services:
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
       LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
+      # `AM-27` r1 — the assist tables live in a schema separate from the locked ones.
+      LEGALMIND_ASSIST_SCHEMA: assist
     volumes:
       # The SAME object store as the api: a worker parses documents the api stored.
       - documents:/var/lib/legalmind/documents
@@ -71,6 +84,32 @@ services:
     # so oversubscribing a container buys nothing and makes memory unpredictable.
     command: ["celery", "-A", "legalmind.worker.app", "worker",
               "-Q", "analysis", "--concurrency", "1", "--loglevel", "INFO"]
+
+  # A SEPARATE worker for the assist queue, same image again (55.1 unchanged, and
+  # `AM-26` keeps the modular monolith — this is one image with a third command, not a
+  # third service in the architectural sense).
+  #
+  # Separate from the analysis worker on purpose. Indexing is high-volume, derived and
+  # non-authoritative; analysis produces legal records. One worker draining both queues
+  # would let a backlog of index jobs delay a Review's analysis, inverting the priority
+  # Step 38 rule 21 sets between the two lanes. Two processes keep that impossible
+  # rather than merely unlikely.
+  worker-assist:
+    build: ./backend
+    depends_on:
+      db: {condition: service_healthy}
+      queue: {condition: service_started}
+    environment:
+      LEGALMIND_ENVIRONMENT: development
+      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
+      LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
+      LEGALMIND_BROKER_URL: redis://queue:6379/0
+      LEGALMIND_LOG_LEVEL: INFO
+      LEGALMIND_ASSIST_SCHEMA: assist
+    volumes:
+      - documents:/var/lib/legalmind/documents
+    command: ["celery", "-A", "legalmind.worker.app", "worker",
+              "-Q", "assist", "--concurrency", "1", "--loglevel", "INFO"]
 
   frontend:
     build: ./frontend
