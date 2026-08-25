@@ -176,6 +176,15 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [INDEPENDENT_VERIFICATION.md](08-testing/INDEPENDENT_VERIFICATION.md) | 📁 Record — each critical guarantee re-checked by a mechanism *other than* the test that asserts it, and what that found |
 | [TEST_STRATEGY.md](08-testing/TEST_STRATEGY.md) | Step 39 tooling extract — superseded by Step 54 |
 
+### [architecture/](architecture/) — architecture research and audits (not specification)
+
+> Unnumbered, like [design/](design/): nothing here is locked, nothing here decides anything. It exists so forward-looking architecture research has a home distinct from [05-architecture/](05-architecture/)'s locked specifications.
+
+| File | Purpose |
+|---|---|
+| [EXISTING_BACKEND_REUSE_AUDIT.md](architecture/EXISTING_BACKEND_REUSE_AUDIT.md) | `ANALYSIS` — audit of the existing backend against the 2026-08-25 product vision and tech-stack documents: reuse matrix, gap analyses, 16-item contradiction register, migration order, "do not rebuild" list. Resolves nothing; authorizes no build |
+| [AI_RAG_ARCHITECTURE_RND.md](architecture/AI_RAG_ARCHITECTURE_RND.md) | `PROPOSAL` — assist-lane LLM/RAG architecture R&D (chunking, hybrid retrieval, output validation). **Partly superseded by AB-3** — see its banner; reopens no locked decision; authorizes no build |
+
 ### [design/](design/) — UI/UX governance (implementation-phase, not specification)
 
 > Governed by [`../DESIGN.md`](../DESIGN.md), the root-level design-governance document. Nothing here locks legal or product behavior — visual design, component choice, and interaction model are left `NOT YET SPECIFIED` by Step 52.6 and are decided here instead.

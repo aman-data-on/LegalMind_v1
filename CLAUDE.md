@@ -58,10 +58,10 @@ Reuse what is already decided. The registry, the status document and the conflic
 
 ### The legal-analysis model
 
-9. **Legal analysis is deterministic in V1.** Same inputs + same configuration snapshot + same engine version → same result.
-10. **V1 uses no LLM, RAG, embeddings, or vector database in the authoritative analysis path.** This is locked (`AI-01`) and is not a temporary simplification pending better tooling. Classical NLP (e.g. spaCy) is permitted in an assist-only role.
+9. **Legal analysis is deterministic in V1 — in the authoritative lane.** Same inputs + same configuration snapshot + same engine version → same result. The assistive AI lane (`AM-25`) makes **no** determinism claim, is never admitted to that guarantee, and never enters a determinism assertion (`AM-28`).
+10. **No LLM, RAG, embeddings or vector database in the AUTHORITATIVE analysis path.** Locked (`AI-01`), reaffirmed by `AM-25`, and not a temporary simplification pending better tooling. Classical NLP (e.g. spaCy) is permitted in an assist-only role. ⚠️ **`AM-25` (AB-3, 2026-08-24) narrowed the timing clause only:** an *assistive* lane — local embeddings, vector + keyword retrieval over document chunks, reranking, a local self-hosted generative model, retrieval-grounded cited answers, long-document briefing — **is now in V1 scope**, on nine locked terms. That lane never produces a Finding, Evaluation, Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition; never writes to the legal or configuration tables; never states an organizational legal position absent from a ratified Company Standard, a published Legal Rule or an approved template; and never answers "does this document meet our standard?" — that routes to the evaluator. **Read `AM-25` in full before building anything in that lane.**
 11. **Evidence traceability is mandatory.** Every finding and every extracted fact traces back to source evidence, and evidence must survive the evaluator.
-12. **Findings must be explainable.** Every Finding reconstructs as Evidence → Fact → Standard → Rule → Result. No generic risk score. No "AI confidence" percentage.
+12. **Findings must be explainable.** Every Finding reconstructs as Evidence → Fact → Standard → Rule → Result. No generic risk score. No "AI confidence" percentage. This governs the **Finding**: the assist lane records its own retrieval scores and answer state (`AM-29`), but a retrieval score is never a Finding, never a Classification, and is never rendered to a user as legal confidence.
 13. **Legal Decisions are separate from Company Standards.** A Company Standard is what the organization wants; a Legal Rule is how far it will tolerate departing from that; a Legal Decision is an authorized human's ruling on a specific case. The engine produces Findings — it never produces Legal Decisions.
 14. **RESOLVED ≠ MATCH.** A resolved workflow state must never be recorded as a MATCH finding. Likewise `DEVIATION` does not mean "unacceptable."
 15. **Fail closed.** Insufficient extraction or evidence produces `UNABLE_TO_EVALUATE` — never a guess, never a silently resolved ambiguity, never a discarded carve-out.
@@ -192,7 +192,7 @@ Documents under [docs/09-implementation/](docs/09-implementation/) still describ
 
 ## Current state
 
-**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **15,648 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
+**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **16,048 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
 
 ### The V1 configuration state — read before touching the evaluator or the corpus
 
@@ -244,7 +244,7 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 
 ## Working a session
 
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **15,648 lines**; if it is longer, the docs may be stale and you should say so.
+1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **16,048 lines**; if it is longer, the docs may be stale and you should say so.
 2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
 3. **Check what already exists before building or asking** — rule 23. Read the status, handoff and changelog records first; verify with a grep or a test run; and look in [Source material](#source-material) before requesting a document.
 4. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.

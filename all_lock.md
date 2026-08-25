@@ -15646,3 +15646,403 @@ Out of V1 scope   automatic Document Type detection (DOC-06);
                   cross-TYPE document comparison (DOC-07)
 Open, unaffected  C-05 · C-06 · C-07 · C-08 · C-10 · C-12 · C-13
 ```
+
+---
+
+# Amendment Batch AB-3 — Assistive AI Lane Enters V1 Scope
+
+**Status: LOCKED**
+
+**Owner decision recorded: 2026-08-24.** Effective from this record forward. Nothing in this batch is
+retroactive, and no historical Review, Finding, Evaluation, Legal Decision or configuration snapshot is
+altered, reinterpreted or invalidated by it.
+
+**Records: `AM-25` – `AM-29`.**
+
+---
+
+## Why this batch exists
+
+The product direction changed: LegalMind V1 now includes a secure, self-hosted AI Legal Workspace —
+document Q&A, evidence-grounded answers with page-level citations, and Smart Briefing over long
+judgments — running alongside the existing deterministic validation engine.
+
+This batch does **not** repeal the V1 AI boundary. It narrows one clause of it — the clause that placed
+the assistive lane *after* V1 rather than *inside* it — and makes every other principle in the
+`V1 AI Boundary` record binding on the new lane.
+
+The distinction matters, so it is stated plainly:
+
+```text
+NOT amended    the architectural shape of the assist lane
+               (AI-01 already prescribes it, verbatim, and AB-3 adopts that text as governing)
+
+AMENDED        the timing clause only
+               "if AI is introduced AFTER V1"  ->  "the assist lane is IN V1, on these terms"
+```
+
+## The enabling records this batch relies on
+
+These are cited as authority, not superseded. Every one of them anticipated this direction.
+
+```text
+AI-01  "Architectural principle for future AI"
+       "If AI is introduced after V1, it should sit ON TOP OF the V1 foundation, not replace it."
+       "Future AI may assist with language understanding, semantic matching, retrieval, or other
+        clearly defined tasks, but it must not silently become the source of truth for company
+        legal policy or final legal decisions."
+       -> ADOPTED BY AB-3 AS BINDING ON THE ASSIST LANE, without alteration.
+
+AI-01  "Hard V1 constraint"
+       "...unless this locked decision is explicitly revisited and changed."
+       -> This batch is that explicit revisiting. The path was provided inside the lock itself.
+
+AI-02  Architecture must remain capable of adding LLM/RAG without redesign, as an assistive layer,
+       never the authoritative path.
+       -> UNCHANGED. This is the authorizing basis for AB-3.
+
+38.25  "Architecture should support future LLM/RAG"
+           Analysis Interface
+                  |
+                  +-- V1 Deterministic Engine
+                  |
+                  +-- Future AI-assisted Engine
+       -> UNCHANGED, and now realized rather than hypothetical.
+
+Step 38 locked rule 20
+       "The architecture exposes a clean analysis boundary so future LLM/RAG capabilities can be
+        evaluated later without becoming the V1 legal source of truth."
+       -> UNCHANGED, and now exercised.
+
+Step 38 locked rule 21
+       "The deterministic V1 Analysis Engine remains the authoritative source for V1 Findings."
+       -> UNCHANGED. AB-3 strengthens this rule rather than weakening it (see AM-25).
+
+Step 39 (vector database section)
+       "If later we introduce semantic retrieval, we can reassess whether PostgreSQL + pgvector is
+        sufficient before adding another database."
+       -> UNCHANGED, and answered: pgvector is sufficient (AM-26).
+
+Locked 55.6
+       Object-storage PROVIDER is NOT YET SPECIFIED.
+       -> UNCHANGED and requires no amendment. Selecting an S3-compatible provider closes an open
+          item; it does not alter a lock.
+```
+
+---
+
+# `AM-25` — The assistive AI lane is in V1 scope, on fixed terms
+
+**Amends:** the `V1 AI Boundary` record's `## V1 will NOT use` list and its `## Hard V1 constraint`
+paragraph; the Step 38 `V1 explicitly excludes` entries for `LLM`, `RAG`, `Vector Database` and
+`Semantic AI`; `AI-03`'s exclusion of embeddings and semantic vector search; and the `LLM/RAG/vector DB`
+portion of the Step 39 stack line `No microservices/Kubernetes/LLM/RAG/vector DB in V1.`
+
+**Does not amend:** anything else in any of those records. In particular the Step 39 exclusion of
+microservices and Kubernetes stands unchanged, and `AI-01`'s `## V1 WILL use` list stands unchanged.
+
+## What is now permitted in V1
+
+```text
+An assistive AI lane comprising:
+  - local, self-hosted embedding generation
+  - a vector index and a keyword index over document chunks
+  - hybrid retrieval with reranking
+  - a local, self-hosted generative model
+  - retrieval-grounded answers carrying citations to Document Evidence
+  - long-document briefing by hierarchical summarization
+```
+
+## What remains forbidden — the terms, in full
+
+These are not aspirations. Each is a locked constraint, and the batch is void of effect for any
+component that does not satisfy all nine.
+
+```text
+r1   The assist lane NEVER produces a Finding, an Evaluation, a Finding Classification,
+     a Rule Outcome, a Mapping State, a Legal Decision, or a Review Lifecycle transition.
+     The deterministic engine remains the sole producer of all seven. Step 38 rule 21 is
+     reaffirmed, not weakened.
+
+r2   The assist lane NEVER writes to findings, evaluations, legal_decisions,
+     requirement_versions, company_standard_versions, legal_rule_versions,
+     mapping_rule_versions, evaluation_rule_versions, configuration_snapshots or
+     configuration_snapshot_items. This is enforced by a distinct database role holding no
+     INSERT or UPDATE grant on those tables, not by convention.
+
+r3   The assist lane NEVER states an organizational legal position that is not already
+     present in a ratified Company Standard, a published Legal Rule, or an approved template.
+     Where a position is absent, the correct output is a gap reported to a human. Rule 7 and
+     rule 21 apply to the assist lane exactly as they apply to everything else: an invented
+     legal requirement arriving as a generated answer is still an invented legal requirement.
+
+r4   The assist lane NEVER answers the question "does this document meet our standard?"
+     That question belongs to the deterministic evaluator. An assist-lane request of that
+     shape is routed to the evaluator or refused; it is never answered generatively.
+
+r5   No answer reaches a user unless every claim in it resolves to retrieved evidence.
+     Enforcement is mechanical and sits outside the model. Where evidence is insufficient,
+     the response is an explicit statement that the information was not found. A guess,
+     a hedge, a partial answer presented as complete, or a cached substitute is a defect.
+
+r6   Authorization is applied BEFORE retrieval, inside the retrieval query, resolved
+     server-side from the session. A retrieval result set is never filtered after the fact.
+     A user must never retrieve a chunk of a document they are not authorized to read, and a
+     result excluded by authorization must be indistinguishable from a genuinely empty
+     result — SEC-07 and API-10's byte-identical-404 discipline extend to retrieval.
+
+r7   The assist lane never becomes an existence oracle. It does not confirm, by any
+     difference in response, timing-independent content, or error shape, that a document
+     outside the requester's scope exists.
+
+r8   Authentication and the assist lane confer no Legal Decision authority. SEC-01, SEC-02
+     and ROLE-05 are unchanged: no path through the assist lane reaches legal.decision or
+     legal.approve_customization, and no role is granted by an identity provider.
+
+r9   No document text, clause text, evidence, chunk, embedding input, prompt or generated
+     answer leaves LeapSwitch-controlled infrastructure. No hosted model API, no hosted
+     embedding API, no hosted document-processing service, and no third-party telemetry in
+     the document path. Locked 54.6 is unchanged and extends to the assist lane: no document
+     and no clause text beyond short cited excerpts enters this repository.
+```
+
+## Confidentiality
+
+`LEGAL-02` applies unchanged. Internal legal positions, thresholds, rule configuration and rule
+outcomes are permission-controlled, and where a viewer is unauthorized the field is **omitted, not
+nulled** — in an assist-lane response exactly as in a deterministic one. An assist-lane answer must
+never become the channel through which a confidential position reaches a viewer who could not read it
+through the API.
+
+## Determinism
+
+The deterministic lane's guarantee is untouched. Identical inputs, identical configuration snapshot and
+identical engine version continue to produce byte-identical output, and the existing determinism gate
+continues to enforce it. The assist lane makes no determinism claim and is never admitted to that gate;
+see `AM-28`.
+
+---
+
+# `AM-26` — Technology stack addition
+
+**Amends:** the Step 39 locked technology stack, to the extent of the additions below and no further.
+
+```text
+ADDED
+  Vector index            PostgreSQL pgvector extension, same instance
+  Keyword index           PostgreSQL full-text search and trigram indexes, same instance
+  Embedding model         local, self-hosted, open-weight
+  Reranking model         local, self-hosted, open-weight, cross-encoder
+  Generative model        local, self-hosted, open-weight
+  Inference runtime       local model-serving process, no outbound network route
+  GPU runtime             where required by the selected model
+
+UNCHANGED
+  Modular monolith        no microservices, no Kubernetes, no service mesh
+  Backend / frontend      unchanged
+  PostgreSQL              remains the system of record
+  Background workers      the existing queue and worker infrastructure is reused, not replaced
+  Document parsing        the existing parser and OCR path remain the primary path
+  Object storage          "S3-compatible" is unchanged; the provider is selected under 55.6,
+                          which requires no amendment
+
+NOT ADDED, and requiring separate approval if ever proposed
+  A second datastore for vectors
+  Any hosted model, embedding or document-processing service
+  Any RAG orchestration framework
+  Any additional message broker
+  Model fine-tuning or training on the corpus
+```
+
+## Model selection is not locked by this record
+
+No specific model is locked. A model is selected by measurement, not by preference, and the smallest
+model meeting the quality bar wins.
+
+```text
+r1   All generation reaches the application through one interface. The model identity is
+     configuration, and no other code knows which model is running.
+
+r2   Selection proceeds from the smallest candidate upward and stops at the first that meets
+     the quality bar. A larger model is not adopted for headroom.
+
+r3   The quality bar is measured on a LegalMind evaluation set built from real supplied
+     documents, and it includes questions that have no answer in the corpus. Correct refusal
+     is half the bar.
+
+r4   Model version is pinned and recorded against every answer. A model change re-runs the
+     evaluation set before it reaches a user.
+
+r5   Weights are obtained once, checksummed, stored locally, and never fetched at runtime.
+```
+
+---
+
+# `AM-27` — Workspace schema
+
+**Amends:** the locked schema, by permitting the tables below and no others.
+
+```text
+r1   Assist-lane tables live in a database schema separate from the locked tables.
+
+r2   The 30 existing tables are not altered. No column, constraint, index or enum on any
+     locked table is added, changed or removed by this batch, and the existing schema
+     invariant tests continue to pass unmodified. That is the evidence that this record
+     leaves the locked model intact.
+
+r3   The 42.1 design rules apply in full and without exception to the new tables: UUID
+     primary keys, UTC timestamps, real foreign keys, append-only where the data is a record
+     of something that happened, and JSONB only for genuinely variable configuration.
+
+r4   A chunk is derived from an existing immutable Document Version and references the
+     Document Evidence row it came from. It carries no independent provenance and creates no
+     second source of truth for document content.
+
+r5   Deleting a document hard-deletes its chunks and embeddings. A soft-deleted document
+     whose chunks remain retrievable is a defect, not a state.
+
+r6   Retrieval and answer records store chunk identifiers and scores. They do not duplicate
+     document text into a second store; the text remains reachable through the chunk
+     reference by a reader already authorized to read that document. The audit trail's
+     existing prohibition on recording contract text is thereby preserved.
+
+PERMITTED TABLES
+  chunks                  derived text spans of a Document Version, with page and offsets
+  chunk_embeddings        one row per chunk per embedding model
+  embedding_models        the embedding model registry
+  conversations           an assist-lane session
+  messages                one row per turn
+  retrieval_runs          the retrieval record behind an answer: query, filters, chunk ids, scores
+  ai_answers              the answer record: model, prompt version, answer state, latency
+  answer_citations        one row per verified claim-to-chunk link
+  prompt_versions         the prompt registry
+
+  No other table is authorized by this record.
+```
+
+The `audit_events` table gains new event types and **no schema change**.
+
+---
+
+# `AM-28` — Testing: a second tier, and the first tier untouched
+
+**Amends:** the locked testing strategy, by adding a tier.
+
+```text
+TIER 1 — deterministic, unchanged
+  Byte-identical output for identical inputs, configuration snapshot and engine version.
+  The assist lane is NEVER admitted to this tier. No assist-lane component may be added to a
+  determinism assertion, and no determinism assertion may be relaxed to accommodate one.
+
+TIER 2 — assistive, new
+  The assist lane is measured statistically, not byte-identically, against a LegalMind
+  evaluation set of real question-and-answer pairs including unanswerable questions.
+
+  Measured:  retrieval recall
+             citation precision — does the cited span actually support the claim
+             faithfulness — the share of claims with no valid supporting span
+             refusal correctness in BOTH directions:
+               refused when the evidence was in fact present
+               answered when it should have refused
+
+  Gate:      a change to retrieval, chunking, prompt, or model that worsens faithfulness or
+             the wrongly-answered rate does not ship.
+
+r1   The two tiers are never merged, and a Tier 2 result never satisfies a Tier 1 gate.
+
+r2   The citation-enforcement component is tested independently of prompt and model code, and
+     does not import them. A guardrail that a prompt change can affect is not a guardrail.
+
+r3   The golden corpus remains a Tier 1 artifact governed by rule 21. The evaluation set is a
+     separate artifact and does not substitute for it. AB-3 does not unblock the golden
+     corpus, does not author a NORMATIVE fixture, and does not reduce the requirement for
+     real supplied legal material.
+```
+
+---
+
+# `AM-29` — The assist-lane answer state is a sixth axis
+
+**Amends:** nothing. This record fixes a new vocabulary and is stated so that it is never confused
+with an existing one.
+
+The five controlled state axes — Mapping State, Finding Classification, Rule Outcome, Legal Decision,
+Review Lifecycle — are unchanged, and none of them gains a value.
+
+```text
+r1   Assist-lane answer state is a SIXTH, separate axis. It never shares a field, a column,
+     an enum or a name with any of the five legal axes.
+
+r2   No assist-lane state value reuses UNABLE_TO_EVALUATE, NOT_APPLICABLE, AMBIGUOUS,
+     MATCH, DEVIATION, MISSING, CONFLICT, ACCEPTABLE or UNACCEPTABLE. 45B.26 stands: no
+     fifth RuleOutcome value is added, and an assist-lane state is not a route to adding one
+     by another name.
+
+r3   The three distinguishable assist-lane outcomes are recorded separately, because they
+     have different causes and different remedies:
+
+       no evidence retrieved       nothing available within the requester's authorized scope
+       evidence insufficient       retrieved, but too weak to support an answer; the model
+                                   is not called at all
+       claim unsupported           the model answered and a claim failed verification
+
+r4   A user-facing refusal is worded identically whether the cause was an empty corpus or an
+     authorization exclusion. r6 and r7 of AM-25 depend on this.
+```
+
+---
+
+## Not changed by AB-3
+
+```text
+Every legal-domain decision   unchanged — PROD, ROLE, LEGAL, FIND, DOC, ENG, ARCH (except
+                              the Step 39 stack additions in AM-26), DATA (except the
+                              separate-schema permission in AM-27), AUD, LIABILITY
+AI-02                         unchanged — it is the authorizing basis for this batch
+38.25                         unchanged — realized, not amended
+Step 38 rules 20 and 21       unchanged — reaffirmed and strengthened
+AI-01 "V1 WILL use"           unchanged
+AI-01 architectural principle unchanged — ADOPTED as binding on the assist lane
+Step 39 monolith position     unchanged — no microservices, no Kubernetes, no service mesh
+The 30 locked tables          unchanged — no column, constraint, index or enum touched
+The five state axes           unchanged — no value added to any of them
+45B.26                        unchanged — no fifth RuleOutcome value
+SEC-01, SEC-02, ROLE-05       unchanged — no super-role bypass, no authority by authentication
+LEGAL-02, SEC-07, API-10      unchanged — omitted not nulled, byte-identical 404, extended
+                              to retrieval by AM-25 r6 and r7
+Locked 54.6                   unchanged — no document, no clause text beyond cited excerpts
+                              enters the repository
+Rule 7 and rule 21            unchanged — no invented legal requirement, no manufactured
+                              legal material, in either lane
+The determinism guarantee     unchanged for the deterministic lane; the assist lane makes no
+                              such claim
+Every Company Standard        unchanged — no position, threshold, basis or tolerance touched
+Every Legal Rule              unchanged — none created, none altered; zero tolerance stands
+The permission catalogue      extended by assist-lane access permissions only; no legal
+                              authority permission added, none altered
+Step 45E golden corpus        untouched — still 32 of 64, still zero NORMATIVE, still blocked
+                              on real supplied legal material and unblocked by nothing here
+C-05 - C-08, C-10, C-12, C-13 unchanged — open, and none resolved by this batch
+```
+
+## Position
+
+```text
+AM-25 - AM-29     LOCKED
+Owner decision    2026-08-24
+Effective         from this record forward; not retroactive
+Repeals           nothing
+Narrows           the V1 AI Boundary timing clause; the Step 38 AI exclusion entries;
+                  AI-03's embedding exclusion; the LLM/RAG/vector-DB portion of the
+                  Step 39 stack line
+Schema impact     new tables in a separate schema; zero change to the 30 locked tables
+Legal policy      none affected
+Out of V1 scope   e-signature, purchase orders, billing, invoicing, payment settlement,
+                  commercial transaction lifecycle, transaction state machines, autonomous
+                  or multi-agent systems, fine-tuning, automatic redlining, clause
+                  rewriting, AI-generated authoritative legal decisions, hosted model APIs,
+                  hosted document processing, multi-tenant external access
+Still required    a model selected by measurement (AM-26); an evaluation set built from real
+                  supplied documents (AM-28); the golden corpus's outstanding legal material
+Open, unaffected  C-05 - C-08, C-10, C-12, C-13
+```
