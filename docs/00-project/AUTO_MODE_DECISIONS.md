@@ -562,3 +562,14 @@ The new every-push trigger produced the branch's first two CI runs (`32966768966
 in container-fresh CI databases — jobs 2, 11, 12, 13 all green; job 10 (Playwright) green
 in CI after the spec correction; jobs 6–8 skip on push by design (they diff against a PR
 base). pip-audit and npm audit steps both passed in CI, matching the local zero.
+
+The third run (`32968085103`) passed the backend scan after #157 and gave the **frontend**
+image its first scan: Alpine clean, every `app/node_modules` package clean, and **9
+CRITICAL/HIGH in the Node runtime's bundled npm** (`tar` gzip-bomb DoS, `sigstore`
+certificate acceptance, `brace-expansion`/`picomatch` ReDoS, `ip-address` parsing) — none
+ours, and invisible to `npm audit`, which only sees the lockfile.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 160 | **The frontend runtime image carries no package manager**: after `npm ci --omit=dev`, npm, npx and yarn are deleted, and Next is started with `node node_modules/next/dist/bin/next` | A serving image needs `node` and nothing else; npm and yarn each bundle a dependency tree that is attack surface with no job. Deleting them removes the whole finding class instead of chasing versions — the same reasoning as #157, one level up. Verified locally that Next's bin runs directly under `node` | Next's `standalone` output mode — a larger build-shape change that would achieve a similar minimal image; not needed to close the finding |
+| 161 | **The Playwright trio is removed by name from the runtime image** | It survives `--omit=dev` because Next declares `@playwright/test` an optional peer and the root a devDependency; npm records the union as `devOptional`. Measured: `--omit=peer` does not remove it, and `--omit=optional` would also strip Next's SWC and sharp platform binaries. Not a scan finding (0 vulns today) — hygiene: a browser-automation framework in a serving image. Verified locally that Next runs without it | — |

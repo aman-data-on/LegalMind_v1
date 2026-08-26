@@ -63,8 +63,12 @@ Updated at the end of every working session.*
   scan earned its keep on its very first run**: it caught a known high-severity flaw in a
   system library the base image ships (a fix was already published, the base image just
   hadn't been rebuilt yet). Both images now pull in the latest security fixes when they're
-  built. Two further scan tools from the plan need a running copy of the whole system to
-  point at, so they stay a deployment-time step rather than a per-change check.
+  built. Its second catch was in the web-frontend image: nine flaws, all inside the
+  package-installer tooling the base image bundles — none in our own code or libraries.
+  Rather than chase versions, the running image now carries no installer tooling at all;
+  it needs only the runtime to serve pages. Two further scan tools from the plan need a
+  running copy of the whole system to point at, so they stay a deployment-time step rather
+  than a per-change check.
 
 - **The search model was chosen by measurement, not opinion** — four candidates were
   scored against your ratified 77 questions on the real documents; the smallest one

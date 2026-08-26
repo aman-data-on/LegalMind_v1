@@ -63,7 +63,15 @@ No version has been released. The V1 specification is complete and implementatio
   (CVE-2026-14456, HIGH — one fix, three rows), because the `python:3.12-slim` tag floats
   behind Debian's security releases. Both Dockerfiles now apply distro security upgrades at
   build time, so the gate measures the image against today's fixes rather than the tag's
-  build date (decision #157).
+  build date (decision #157). **The third run scanned the frontend image for the first
+  time**: Alpine and every application package clean, and 9 CRITICAL/HIGH inside the Node
+  runtime's *bundled npm* (`tar` gzip-bomb DoS, `sigstore` certificate acceptance,
+  `brace-expansion`/`picomatch` ReDoS) — not our dependencies, and invisible to `npm audit`,
+  which reads only the lockfile. Resolved structurally rather than by version-chasing: the
+  runtime image now deletes npm, npx and yarn after installing and starts Next through
+  `node` directly — a serving image needs no package manager (#160). The same pass found
+  `@playwright/test` leaking into the production install (Next declares it an optional
+  peer, so npm marks it `devOptional` and `--omit=dev` keeps it); removed by name (#161).
 
 * **The Tier-2 quality gate is now a runnable release check, and the reference deployment
   is network-segmented — Gate §5b A9 (measurable half) and A10 continued** (standing owner
