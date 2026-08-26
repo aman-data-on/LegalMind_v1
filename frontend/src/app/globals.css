@@ -648,3 +648,66 @@ textarea:focus-visible,
   font-size: 0.82rem;
 }
 pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
+
+/* ---- assist ask panel (AB-3/AB-4) ------------------------------------------
+   A refusal is the system working, not failing: it renders on a quiet surface,
+   never with the error treatment. Retrieval scores are labeled as retrieval
+   scores; no confidence figure exists on this surface (AI-03 item 16). */
+.ask-turns {
+  list-style: none;
+  margin: var(--space-4) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.ask-question {
+  margin: 0 0 var(--space-2);
+}
+.ask-role {
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: var(--space-2);
+}
+.ask-answer {
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+}
+.ask-answer--refusal,
+.ask-answer--routed {
+  border-left-color: var(--muted);
+  color: var(--muted);
+}
+.ask-citations {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.ask-citation-ref {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ask-citation-excerpt {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.ask-citation-score {
+  font-size: 0.8em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ask-form {
+  display: flex;
+  gap: var(--space-3);
+  align-items: end;
+  margin-top: var(--space-4);
+}
+.ask-form .field {
+  flex: 1;
+}

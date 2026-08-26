@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
+import { AskPanel } from "@/components/AskPanel";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
 import { Field, StatePill, TableCard, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
@@ -231,6 +232,12 @@ export default function ContractPage({
             </button>
           </form>
         </section>
+      </PermissionGate>
+
+      {/* The assist lane (AB-3/AB-4): grounded Q&A about this document. Gating is
+          presentation only (52.1.3) — the server enforces assist.ask regardless. */}
+      <PermissionGate granted={can(P.ASSIST_ASK)}>
+        {contractId ? <AskPanel contractId={contractId} /> : null}
       </PermissionGate>
     </>
   );

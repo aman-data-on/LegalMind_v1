@@ -15,7 +15,9 @@
 
 import type {
   AnalysisSubmission,
+  AskResult,
   AuditEvent,
+  Conversation,
   ConfigurationSnapshot,
   Contract,
   DataEnvelope,
@@ -227,6 +229,18 @@ export const api = {
     }),
   session: () => request<SessionIdentity>("/auth/session"),
   logout: () => request<{ revoked: boolean }>("/auth/logout", { method: "POST" }),
+
+  // ---- assist lane (AB-3/AB-4) -------------------------------------------
+  createConversation: (contractId: string) =>
+    request<Conversation>("/conversations", {
+      method: "POST",
+      body: { contract_id: contractId },
+    }),
+  ask: (conversationId: string, question: string) =>
+    request<AskResult>(`/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: { question },
+    }),
 
   // ---- contracts & documents -------------------------------------------
   contracts: (page = 1, pageSize = 25) =>

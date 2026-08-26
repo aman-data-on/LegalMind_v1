@@ -96,6 +96,7 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
 
     chunks = chunk_evidence(list(rows))
     written = store.write_chunks(db, document_version_id, chunks)
+    embedded = _embed_chunks(db, document_version_id)
 
     # Deliberately in the assist signal namespace, never beside `workflow.decisions.*`
     # or `authz.*`: mixing a high-volume derived-index signal into the low-volume
@@ -104,8 +105,47 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
     log_event("assist.index.completed",
               document_version_id=str(document_version_id),
               evidence_rows=len(rows), chunks_written=written,
+              chunks_embedded=embedded,
               algorithm=CHUNKING_ALGORITHM_VERSION)
     return IndexResult(document_version_id, written, False)
+
+
+def _embed_chunks(db: DBSession, document_version_id: UUID) -> int:
+    """Embed a document version's chunks with the calibrated model, best-effort.
+
+    Best-effort has a precise meaning here: a missing or broken model must never fail
+    indexing, because lexical retrieval works without vectors and a derived index must
+    never break the pipeline that feeds it. What it must NOT mean is silent — the
+    degradation is logged, and `count_embeddings` makes it observable.
+    """
+    from sqlalchemy import text as sql_text
+
+    from legalmind import config
+    from legalmind.assist import calibration, embedding_runtime
+
+    if not embedding_runtime.available():
+        return 0
+    schema = config.assist_schema()
+    rows = db.execute(sql_text(f"""
+        SELECT c.id, c.content FROM "{schema}".chunks c
+         WHERE c.document_version_id = :dv
+           AND NOT EXISTS (SELECT 1 FROM "{schema}".chunk_embeddings e
+                            WHERE e.chunk_id = c.id)
+         ORDER BY c.ordinal
+    """), {"dv": document_version_id}).all()
+    if not rows:
+        return 0
+    vectors = embedding_runtime.embed_texts([r[1] for r in rows])
+    if vectors is None:
+        return 0
+    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
+    name, _, revision = identity.partition("@")
+    model_id = store.register_embedding_model(
+        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
+        dimensions=calibration.EMBEDDING_DIMENSIONS,
+        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
+    return store.write_embeddings(db, chunk_ids=[r[0] for r in rows],
+                                  vectors=vectors, embedding_model_id=model_id)
 
 
 def index_safely(db: DBSession, document_version_id: UUID) -> IndexResult:

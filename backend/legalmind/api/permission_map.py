@@ -113,6 +113,14 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
 # Registering these would mean inventing behaviour the specification records as
 # undecided, which rule 4 forbids. Each is a reported gap, not an oversight.
 # --------------------------------------------------------------------------
+# ---- assist lane (AB-3/AB-4) — additive; no locked 49.x row changes ---------
+ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
+    ("POST", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
+    ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
+    ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/messages"): P.ASSIST_ASK,
+}
+ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
+
 NOT_IMPLEMENTED: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/auth/oidc/start"):
         "OIDC needs an approved JWT/JWKS client dependency (rule 19) and the "

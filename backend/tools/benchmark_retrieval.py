@@ -474,5 +474,288 @@ def main() -> int:
     return 0
 
 
+
+
+# ==========================================================================
+# Ratified-dataset evaluation and threshold calibration — Gate 5b unit A3
+# ==========================================================================
+# Consumes `tests/assist_eval/questions_draft.json` (owner-ratified 2026-08-26).
+# Unlike the derived probes above, these questions are human-phrased and carry a
+# short `anchor` excerpt that locates the expected chunk mechanically — so scoring
+# never depends on this harness's own judgment about what "the right answer" is.
+#
+# The calibration question it answers: at what similarity does vector evidence stop
+# being evidence? The threshold is DERIVED from the measured score distributions of
+# answerable versus unanswerable questions, never chosen — rule 7's discipline
+# applied to a product parameter.
+
+def _normalize_ws(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+def _load_eval_dataset(path: pathlib.Path) -> list[dict]:
+    payload = json.loads(path.read_text())
+    return payload["questions"]
+
+
+def _resolve_anchors(questions: list[dict], all_chunks: dict) -> tuple[dict, list[str]]:
+    """Map each answerable question to the chunk ids containing its anchor.
+
+    Anchors are verified rather than trusted: one that resolves to no chunk is a
+    dataset defect reported loudly, because scoring against a silently-empty
+    expectation would count every miss as a hit of nothing.
+    """
+    expected: dict[str, set] = {}
+    failures: list[str] = []
+    for question in questions:
+        if question["expected"] != "ANSWERABLE":
+            continue
+        doc = question["document"]
+        needle = _normalize_ws(question["anchor"])
+        ids = {cid for cid, content in all_chunks.get(doc, [])
+               if needle in _normalize_ws(content)}
+        if not ids:
+            failures.append(f"{question['id']}: anchor not found in {doc}")
+        expected[question["id"]] = ids
+    return expected, failures
+
+
+def _vector_top_scores(backend, cache, versions, question) -> list[tuple]:
+    strategy = VectorStrategy(backend, cache)
+    return strategy.rank(None, document_version_id=versions[question["document"]],
+                         query=question["question"], limit=TOP_K)
+
+
+def run_eval(db, versions: dict, all_chunks: dict, questions: list[dict],
+             backend, cache) -> dict:
+    """Score one candidate model against the ratified dataset.
+
+    Produces, per question: the lexical hits, the vector ranking with raw cosine
+    scores, and whether the expected chunk was found — the raw material for both the
+    model comparison and the threshold sweep.
+    """
+    expected, failures = _resolve_anchors(questions, all_chunks)
+    if failures:
+        raise SystemExit("anchor resolution failed:\n  " + "\n  ".join(failures))
+
+    lexical = LexicalStrategy()
+    per_question: list[dict] = []
+    for q in questions:
+        dv = versions[q["document"]]
+        lex = lexical.rank(db, document_version_id=dv, query=q["question"],
+                           limit=TOP_K)
+        vec = _vector_top_scores(backend, cache, versions, q)
+        exp = expected.get(q["id"], set())
+
+        def rank_of(ranked, exp=exp):
+            for i, (cid, _) in enumerate(ranked, start=1):
+                if cid in exp:
+                    return i
+            return None
+
+        per_question.append({
+            "id": q["id"], "expected": q["expected"],
+            "category": q["category"], "difficulty": q["difficulty"],
+            "lex_hit_rank": rank_of(lex) if exp else None,
+            "lex_returned": bool(lex),
+            "vec_hit_rank": rank_of(vec) if exp else None,
+            "vec_top_score": float(vec[0][1]) if vec else None,
+            "vec_hit_score": next((float(s) for cid, s in vec if cid in exp), None),
+            # The full top-k score vector, for decision rules beyond an absolute
+            # floor: a peaked profile (one clearly-best chunk) behaves differently
+            # from a flat one, and that difference is measurable.
+            "vec_scores": [round(float(s), 4) for _, s in vec],
+        })
+    return {"per_question": per_question}
+
+
+def _summarize(rows: list[dict]) -> dict:
+    answerable = [r for r in rows if r["expected"] == "ANSWERABLE"]
+    unanswerable = [r for r in rows if r["expected"] == "NOT_FOUND"]
+
+    def frac(xs):
+        return round(sum(xs) / len(xs), 3) if xs else None
+
+    return {
+        "answerable": len(answerable), "unanswerable": len(unanswerable),
+        "lexical": {
+            "hit@10": frac([r["lex_hit_rank"] is not None for r in answerable]),
+            "hit@1": frac([r["lex_hit_rank"] == 1 for r in answerable]),
+            "mrr": frac([1.0 / r["lex_hit_rank"] if r["lex_hit_rank"] else 0.0
+                         for r in answerable]),
+            "wrongly_answered": sum(r["lex_returned"] for r in unanswerable),
+            "correct_refusals": sum(not r["lex_returned"] for r in unanswerable),
+        },
+        "vector": {
+            "hit@10": frac([r["vec_hit_rank"] is not None for r in answerable]),
+            "hit@1": frac([r["vec_hit_rank"] == 1 for r in answerable]),
+            "mrr": frac([1.0 / r["vec_hit_rank"] if r["vec_hit_rank"] else 0.0
+                         for r in answerable]),
+        },
+    }
+
+
+def _threshold_sweep(rows: list[dict]) -> dict:
+    """Derive the cosine floor from the measured distributions.
+
+    The decision rule under calibration (rule R2, hybrid-with-floor):
+
+        evidence = lexical hits  UNION  vector hits with cosine >= tau
+        refuse iff evidence is empty
+
+    Lexical behaviour is unchanged by tau, so the sweep trades exactly two errors:
+    a LOWER tau admits vector evidence on unanswerable questions (false answers);
+    a HIGHER tau strips vector evidence from answerable ones (which only becomes a
+    false refusal where lexical ALSO missed). The chosen tau maximizes Youden's J
+    (refusal sensitivity + answer retention - 1), with the full curve reported so
+    the choice is auditable rather than asserted.
+    """
+    answerable = [r for r in rows if r["expected"] == "ANSWERABLE"]
+    unanswerable = [r for r in rows if r["expected"] == "NOT_FOUND"]
+
+    scores = sorted({round(r["vec_top_score"], 3) for r in rows
+                     if r["vec_top_score"] is not None})
+    curve = []
+    for tau in scores:
+        # An answerable question keeps evidence if lexical hit anything at all, or
+        # its vector top passes the floor. (Retention of *any* evidence; the
+        # correct-chunk rate is reported separately and is tau-independent above
+        # the hit's own score.)
+        retained = sum(1 for r in answerable
+                       if r["lex_returned"] or (r["vec_top_score"] or 0) >= tau)
+        # An unanswerable question is refused if lexical returned nothing and the
+        # vector top falls below the floor.
+        refused = sum(1 for r in unanswerable
+                      if not r["lex_returned"] and (r["vec_top_score"] or 0) < tau)
+        false_answers = len(unanswerable) - refused
+        false_refusals = len(answerable) - retained
+        j = (refused / len(unanswerable)) + (retained / len(answerable)) - 1
+        curve.append({"tau": tau, "retained": retained, "refused": refused,
+                      "false_answers": false_answers,
+                      "false_refusals": false_refusals, "youden_j": round(j, 4)})
+
+    best = max(curve, key=lambda c: (c["youden_j"], c["tau"]))
+    answerable_tops = sorted(r["vec_top_score"] for r in answerable
+                             if r["vec_top_score"] is not None)
+    unanswerable_tops = sorted(r["vec_top_score"] for r in unanswerable
+                               if r["vec_top_score"] is not None)
+
+    def pct(xs, p):
+        return round(xs[min(len(xs) - 1, int(p * len(xs)))], 3) if xs else None
+
+    return {
+        "distributions": {
+            "answerable_top_cosine": {
+                "min": pct(answerable_tops, 0.0), "p25": pct(answerable_tops, 0.25),
+                "median": pct(answerable_tops, 0.5), "p75": pct(answerable_tops, 0.75),
+                "max": pct(answerable_tops, 1.0)},
+            "unanswerable_top_cosine": {
+                "min": pct(unanswerable_tops, 0.0), "p25": pct(unanswerable_tops, 0.25),
+                "median": pct(unanswerable_tops, 0.5), "p75": pct(unanswerable_tops, 0.75),
+                "max": pct(unanswerable_tops, 1.0)},
+        },
+        "chosen": best,
+        "curve": curve,
+    }
+
+
+def eval_main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dataset", default="tests/assist_eval/questions_draft.json")
+    ap.add_argument("--candidates", required=True)
+    ap.add_argument("--json", default=None)
+    args = ap.parse_args(argv)
+
+    questions = _load_eval_dataset(pathlib.Path(args.dataset))
+    source = pathlib.Path(config.source_material_dir())
+    if not source.exists():
+        print("SKIP  no source material; cannot calibrate here (54.6).")
+        return 0
+
+    # Exactly the documents the dataset references — statutes live in a subdirectory.
+    names = sorted({q["document"] for q in questions})
+    documents = []
+    for name in names:
+        p = source / name
+        if not p.exists():
+            p = source / "Indian_Laws_and_Acts" / name
+        if not p.exists():
+            raise SystemExit(f"dataset references {name}, absent from source material")
+        documents.append(p)
+
+    admin = create_engine(_bench_url().rsplit("/", 1)[0] + "/postgres",
+                          isolation_level="AUTOCOMMIT", future=True)
+    dbname = _bench_url().rsplit("/", 1)[-1]
+    with admin.connect() as c:
+        c.execute(text(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)'))
+        c.execute(text(f'CREATE DATABASE "{dbname}"'))
+    admin.dispose()
+
+    from alembic.config import Config
+
+    from alembic import command
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", _bench_url())
+    os.environ.setdefault("LEGALMIND_ASSIST_SCHEMA", "assist")
+    command.upgrade(cfg, "head")
+
+    engine = create_engine(_bench_url(), future=True)
+    db = sessionmaker(bind=engine, future=True)()
+    storage = LocalFilesystemStorage(".e2e/bench-objects")
+
+    print(f"Calibration — ratified dataset, {len(questions)} questions, "
+          f"{len(documents)} documents\n")
+    print("Ingesting and indexing:")
+    versions = _ingest_corpus(db, storage, documents)
+    missing = [n for n in names if n not in versions]
+    if missing:
+        raise SystemExit(f"could not ingest: {missing}")
+
+    all_chunks = {name: _chunks(db, dv) for name, dv in versions.items()}
+
+    report: dict = {"dataset": args.dataset, "questions": len(questions),
+                    "documents": names, "candidates": {}}
+    for repo in [c.strip() for c in args.candidates.split(",") if c.strip()]:
+        directory = model_root() / repo.replace("/", "__") / "main"
+        if not (directory / "manifest.json").exists():
+            print(f"\n  {repo}: NOT PROVISIONED — skipped")
+            continue
+        backend = OnnxEmbeddingBackend(directory)
+        cache = _embed_corpus(backend, all_chunks, versions)
+        outcome = run_eval(db, versions, all_chunks, questions, backend, cache)
+        summary = _summarize(outcome["per_question"])
+        sweep = _threshold_sweep(outcome["per_question"])
+        report["candidates"][backend.identity] = {
+            "dimensions": backend.dimensions,
+            "summary": summary, "threshold": sweep,
+            "per_question": outcome["per_question"],
+        }
+        print(f"\n  candidate {backend.identity} (d={backend.dimensions})")
+        print(f"    lexical  hit@1={summary['lexical']['hit@1']} "
+              f"hit@10={summary['lexical']['hit@10']} mrr={summary['lexical']['mrr']} "
+              f"refusals={summary['lexical']['correct_refusals']}"
+              f"/{summary['answerable'] and len([1])*0 + summary['unanswerable']}")
+        print(f"    vector   hit@1={summary['vector']['hit@1']} "
+              f"hit@10={summary['vector']['hit@10']} mrr={summary['vector']['mrr']}")
+        chosen = sweep["chosen"]
+        print(f"    tau*={chosen['tau']}  retained={chosen['retained']}"
+              f"/{summary['answerable']}  refused={chosen['refused']}"
+              f"/{summary['unanswerable']}  false_answers={chosen['false_answers']}"
+              f"  false_refusals={chosen['false_refusals']}  J={chosen['youden_j']}")
+        d = sweep["distributions"]
+        print(f"    answerable top-cos    {d['answerable_top_cosine']}")
+        print(f"    unanswerable top-cos  {d['unanswerable_top_cosine']}")
+
+    db.rollback(); db.close(); engine.dispose()
+    if args.json:
+        pathlib.Path(args.json).write_text(json.dumps(report, indent=1))
+        print(f"\n  wrote {args.json}")
+    return 0
+
+
 if __name__ == "__main__":
+    # `--eval` runs the ratified-dataset calibration; default runs the derived probes.
+    if "--eval" in sys.argv:
+        sys.argv.remove("--eval")
+        sys.exit(eval_main())
     sys.exit(main())

@@ -428,3 +428,51 @@ these cover running it.
 **Verification at close: 862 passed · 1 skipped · ruff and mypy clean · no module under
 `legalmind/` imports a network client · `EGRESS_ALLOWED` empty · no vector dimension
 pinned · `chunk_embeddings` absent · `AM-31` gate CLOSED.**
+
+## Evaluation dataset drafted, 2026-08-26
+
+Owner instruction: author the Tier-2 evaluation dataset from the actual documents, both
+contract and statutory groups, as evaluator not advocate; stop before any calibration.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 121 | **The set is authored, and labelled DRAFT pending owner ratification** — reconciling the instruction with `AM-31` m5's "supplied, never manufactured" | The owner directed authorship with bias controls, which is a supply decision in substance; the label preserves m2's rule that no quality bar is passed on unratified material, and the owner's own pipeline puts HUMAN REVIEW before BENCHMARK. Flagged to the owner in one sentence before starting | Ratification, which is the owner's review |
+| 122 | **Every question verified against a full read of the target document; 47 load-bearing claims re-checked mechanically** | Rule 21's discipline applied to evaluation material: an invented section number in a test dataset poisons the calibration it exists to serve. The Companies Act file turned out to be a 4-page **extract** (§21–24, §178–181) — questions were confined to what it actually contains, which only a read could reveal | Nothing about the statutes' legal effect; they remain background law (CLAUDE.md), and no Requirement or threshold is derived |
+| 123 | **13 NOT_FOUND questions, each with the misleading nearby clause recorded** | The benchmark's purpose is calibrating refusal; a refusal probe is only as good as its trap. Three deliberately exploit real cross-document confusions (MSA vs TOS price notice; DPDP's *absent* breach deadline vs CERT-In's 6 hours; DPDP penalties vs IT Act 43A compensation) — the exact distinctions the owner asked the search to make | The similarity floor, which is measured later, never chosen |
+| 124 | **Dataset lives in `backend/tests/assist_eval/`, not `tests/corpus/`** | `AM-28` r3: the evaluation set never shares the golden corpus's authority, and the corpus CI guard must not see it. No document text enters the repo (54.6) — questions, filenames, sections and short excerpts only; **no counterparty or signatory name appears**, verified by an automated check against the two executed documents | — |
+| 125 | **64 answerable exceeds the original "30–50" band** | The mid-task expansion to statutory documents added a second group (44 contract + 20 statute); forcing the total back under 50 would have meant thinning whichever group the owner reviews. The report marks the questions to cut first if the owner trims | The final size — owner's review call |
+
+**Verification at close: JSON valid · 77 questions, ids unique · every referenced document
+present on disk · every ANSWERABLE has a verified section · every NOT_FOUND has a verified
+absence and a recorded trap · no banned names · no near-duplicate wording · 47/47
+mechanical claim checks pass · no benchmark run, no threshold computed, no code changed.**
+
+## End-to-end assist implementation, 2026-08-26
+
+Owner instruction: complete the smarter-search/RAG implementation end-to-end, deciding
+routine engineering questions autonomously; ratified the drafted evaluation set by
+directing its use; approvals for the runtime were given 2026-08-25.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 126 | **The drafted evaluation set is recorded as owner-ratified** (2026-08-26) | The owner directed: "Use questions_draft.json as the current evaluation dataset. Do NOT ask me to recreate these questions." That is the HUMAN REVIEW stage of their own pipeline passing; `AM-31` m1's explicit label is updated accordingly | Nothing about the golden corpus, which stays blocked on its own material (`AM-28` r3) |
+| 127 | **Anchors added to the dataset** — a short cited excerpt per answerable question, used only by the harness to locate the expected chunk | Scoring must be mechanical: matching by clause number alone fails for descriptive locators ("Direction (ii)", table headings), and judging by rationale would measure the labeler. Every anchor was verified to resolve to ≥1 chunk before any measurement ran | The questions' legal meaning, untouched |
+| 128 | **Model: `all-MiniLM-L6-v2`, by `AM-26` r2's own tie-break** | Measured on the ratified set: MiniLM (23M) passes the quality bar (hit@10 0.938; gate 12/13 refused at 64% retention); gte-small retrieves better (0.969) but is larger, and adopting it over a passing smaller model is the "adopted for headroom" r2 forbids. arctic rejected on retrieval (0.438); bge on score separation; e5 unmeasured (non-standard ONNX path, recorded) | Re-selection later on new evidence — the harness stays runnable |
+| 129 | **The refusal gate is a two-feature rule, not a single cosine floor** | Measured: the best single global floor reached J ≈ 0.50 on every candidate; adding a peak-gap feature (top minus mean of rest — a flat profile is a nearest neighbour, not evidence) reached J 0.564 at 12/13 refusals. The owner's instruction explicitly authorized investigating a better deterministic rule if one cutoff was insufficient — it was | The threshold's permanence: constants live in `calibration.py` with provenance, revisable only by re-measurement |
+| 130 | **Gate tuned for retention, precision delegated to claim verification** | At the gate a false refusal is unrecoverable while a false accept still faces citation verification — the asymmetry inverts by layer. Measured confirmation: the adversarial near-misses score inside the answerable distribution for every model, so no similarity feature separates them; only claim-level grounding can. This is `AM-29` r3's three-outcome design used as designed | The grounding overlap constant (0.5), which is a lexical-overlap floor for "could this text be the source", not a legal threshold — documented as such |
+| 131 | **`chunk_embeddings` dimension is a DDL literal, not configuration** | A silently swapped model would write vectors incomparable with everything stored, and nothing downstream would notice. A migration is deliberate friction: model change = schema change = reviewed diff | Which ANN index to use at corpus scale — none created; per-document exact scan is lossless at ≤ hundreds of chunks |
+| 132 | **The vector type AND its operator are schema-qualified from a live lookup** | Third instance of the same lesson (`gin_trgm_ops`, `similarity()`): extension objects live where the extension is installed, the harness pins `search_path` per run (`F-4`), and `OPERATOR("public".<=>)` beats widening the path | — |
+| 133 | **Gemini adapter over stdlib urllib — no provider SDK** | `AM-30` left the client library as a separate rule-19 approval. stdlib HTTP needs no dependency at all, so the question never arises; the adapter is ~200 lines behind `AM-26` r1's single interface, and reverting to a local model stays a config-plus-file change | Adopting the SDK later if streaming/batching justify it — that is the rule-19 ask it always was |
+| 134 | **The `AM-31` gate is a code constant + environment check, not a flag** | g3 forbids release by flag, env var or review — so `AM31_GATE` can only change in a reviewed diff landing alongside the appended lock record, and while CLOSED the adapter refuses production egress outright. g5's composition with 55.3 supplies the real/synthetic distinction: production is where real contracts live; dev/staging are synthetic-only | When the gate opens — that is the owner's written-terms action |
+| 135 | **Every generation call writes an `audit_events` row (payload hash, model, prompt version)** | `AM-30` t5 says audit_events, and 53.1 says an operational log is never a substitute. First draft only logged; corrected. New event type, no schema change (`AM-27`) | — |
+| 136 | **Compliance-shaped questions are routed by a conservative textual screen** | `AM-25` r4: "does this meet our standard?" belongs to the evaluator. False positives cost a pointer to the Review screen; false negatives are still caught by the prompt's rule 4 and verification. A classifier here would be a model deciding what reaches a model | The screen's recall — revisable with usage evidence |
+| 137 | **One `assist.ask` permission, granted to USER / LEGAL_REVIEWER / LEGAL_ADMIN** | AB-3's registry entry pre-authorized "assist-lane access permissions only"; the three roles already hold document.view, and the Guard resolves the underlying contract before any retrieval. No legal-authority permission touched (`AM-25` r8) | — |
+| 138 | **Conversations are creator-visible only, byte-identical 404 otherwise** | `AM-25` r7 + `API-10`: a conversation reveals which document someone asked about and what they asked — an existence oracle if distinguishable. Same normalization discipline as the S-7 login test | Sharing/collaboration semantics — a product question no record defines |
+| 139 | **The refusal wording is a single constant every path converges on** | `AM-29` r4 verbatim; a drift is a one-line diff. The UI renders refusals on the quiet surface — the system working, not an error | — |
+| 140 | **Frontend tests in the house static-render idiom; panel styles on existing tokens only** | The repo deliberately has no @testing-library (interactions belong to Playwright); and the design-system rule is exact-value tokens — my first draft invented five token names and was corrected against the real set | — |
+
+**Verification at close: backend 893 passed · 1 skipped · ruff and mypy clean · frontend
+62 Vitest + typecheck + production build · migration `c4a91f6e2d87` round-trips · live
+end-to-end demonstrated on the real MSA (236 chunks embedded, gate OPEN/CLOSED as
+calibrated, credential-less ask → identical refusal wording) · `EGRESS_ALLOWED` names
+exactly one module · `AM-31` gate CLOSED.**

@@ -44,6 +44,13 @@ REPORT_VIEW: Final = "report.view"
 REPORT_GENERATE: Final = "report.generate"
 EXPORT_GENERATE: Final = "export.generate"
 
+# --- Assist lane (AB-3/AB-4) ----------------------------------------------
+# AB-3's "Not changed" block anticipated exactly this: "The permission catalogue —
+# extended by assist-lane access permissions only; no legal authority permission
+# added, none altered." One permission: asking a grounded question about a document
+# the holder can already view. It confers no legal authority of any kind (AM-25 r8).
+ASSIST_ASK: Final = "assist.ask"
+
 # --- Audit & administration ----------------------------------------------
 AUDIT_VIEW: Final = "audit.view"
 USER_MANAGE: Final = "user.manage"
@@ -62,6 +69,7 @@ CATALOGUE: Final[dict[str, tuple[str, ...]]] = {
     "Legal configuration": (CONFIGURATION_VIEW, CONFIGURATION_DRAFT,
                             CONFIGURATION_PUBLISH, CONFIGURATION_DEPRECATE),
     "Reporting": (REPORT_VIEW, REPORT_GENERATE, EXPORT_GENERATE),
+    "Assist": (ASSIST_ASK,),
     "Audit": (AUDIT_VIEW,),
     "Administration": (USER_MANAGE, ROLE_MANAGE, PLATFORM_MANAGE),
 }
@@ -130,6 +138,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         FINDING_VIEW, FINDING_COMMENT,
         EVALUATION_VIEW,
         REPORT_VIEW,
+        ASSIST_ASK,
     ),
     ROLE_LEGAL_REVIEWER: (
         CONTRACT_VIEW, DOCUMENT_VIEW, DOCUMENT_DOWNLOAD,
@@ -137,6 +146,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         LEGAL_REVIEW, LEGAL_POSITION_VIEW,
         CONFIGURATION_VIEW,
         REPORT_VIEW, REPORT_GENERATE,
+        ASSIST_ASK,
     ),
     ROLE_LEGAL_ADMIN: (
         CONTRACT_VIEW, DOCUMENT_VIEW, DOCUMENT_DOWNLOAD,
@@ -145,6 +155,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         CONFIGURATION_VIEW, CONFIGURATION_DRAFT,
         CONFIGURATION_PUBLISH, CONFIGURATION_DEPRECATE,
         REPORT_VIEW, REPORT_GENERATE,
+        ASSIST_ASK,
     ),
     ROLE_SUPER_ADMIN: (
         USER_MANAGE, ROLE_MANAGE, PLATFORM_MANAGE, AUDIT_VIEW,

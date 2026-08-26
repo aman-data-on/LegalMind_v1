@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**25 August 2026**.
+**26 August 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -18,11 +18,35 @@ Updated at the end of every working session.*
 
 | | |
 |---|---|
-| **Last worked** | 25 August 2026 |
-| **Current phase** | `PHASE 4 — SMARTER SEARCH` · measured, waiting on your test questions |
-| **Health** | 862 automated checks passing, none failing |
-| **Waiting on you** | **One thing**: 30–50 real test questions (details in *Decisions needed from you*) |
-| **Next step once they arrive** | Choose the search model and set the "not found" cut-off — both in one pass |
+| **Last worked** | 26 August 2026 |
+| **Current phase** | `PHASE 5–7 DELIVERED — ASK YOUR DOCUMENTS` · working end to end; Gemini answers wait on one action from you |
+| **Health** | 893 backend + 62 frontend checks passing, none failing |
+| **Waiting on you** | **Two external actions**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
+| **Next step once they arrive** | Record the confirmation, open the gate, switch generated answers on |
+
+**What got finished on 26 August**
+
+- **The search model was chosen by measurement, not opinion** — four candidates were
+  scored against your ratified 77 questions on the real documents; the smallest one
+  that passed won, exactly as our rule requires.
+- **The "not found" cut-off was derived from the measurements**, not picked: a simple
+  cut-off proved insufficient, so the rule also requires the best match to stand out
+  from the field. Result: 12 of 13 unanswerable questions correctly refused.
+- **Asking questions works end to end.** On the contract page you can now ask about an
+  uploaded document; answers cite the clause and page, every score is labelled a
+  "retrieval score" (never confidence), and a refusal reads as a calm "not found".
+- **The safety checks went in before the AI**: every sentence of an answer must cite
+  its source, and the citation must actually support the claim — checked by code, not
+  by the model. Fabricated answers are blocked and the user sees "not found".
+- **Gemini is wired but the gate is closed**: nothing real can reach Google until you
+  confirm their written no-training terms. That gate cannot be opened by a setting —
+  only by a recorded decision.
+
+
+- **The full test-question set was drafted from your actual documents** — 77 questions
+  across the contracts, the policies and the seven statutes, each verified against the
+  real text, including 13 questions deliberately designed to have no answer. It's ready
+  for your review; nothing has been calibrated against it yet, by design.
 
 **What got finished on 25 August**
 
@@ -71,7 +95,7 @@ This is a real, working system — not a prototype.
 
 * **The legal rules engine works.** It compares a contract against our approved positions and
   produces a verdict, with the reasoning traceable back to the exact clause it read.
-* **781 automated checks pass**, none failing. These run every time anything changes, so a change
+* **862 automated checks pass**, none failing. These run every time anything changes, so a change
   that would break existing behaviour gets caught.
 * **Our approved legal positions are already loaded** — **32 of them**, covering our MSA, Terms of
   Service, NDA and SLA. Every one was taken from a real LeapSwitch document and records which clause
@@ -191,7 +215,7 @@ Only genuine ones.
 | 2 | Making the **statutes** searchable | Two of the laws the plan refers to were never sent to us, and the ones we have didn't come from the official government source | Phase 8 only |
 | 3 | Single sign-on ("RIAAS") | We don't have the technical details of how to connect to it. Normal login works fine meanwhile | Nothing. It can be added at any point |
 | 4 | A restricted database account for the AI side | Creating it needs administrator access the application deliberately doesn't have. Ordinary server admin work, not a decision | Nothing yet |
-| 5 | **Real test questions** for measuring smarter search | I can generate test questions from a document automatically, but not ones phrased *differently* from it — and that's exactly what a smarter model is for. Writing them myself would be marking my own homework | **Choosing the search model, and setting the "not found" cut-off** — see the current phase above |
+| 5 | **Your review of the drafted test questions** | On your instruction I drafted the full set myself — 77 questions over the contracts, policies and statutes, every one verified against the actual documents, including 13 designed to have no answer. Per our own rules a result only counts once you've ratified the set, and your review is the safeguard against me marking my own homework | **Choosing the search model, and setting the "not found" cut-off.** Review `backend/tests/assist_eval/questions_draft.json` — approve it, edit it, or replace any question |
 | ~~6~~ | ~~Permission to add the software that runs a search model~~ | **Resolved 25 Aug** — approved and installed. Measured at 118MB, not the ~50MB I estimated when asking; I was wrong about the number, though not about the choice | — |
 
 **A correction to something I told you earlier.** I previously said the database search add-on
@@ -249,22 +273,39 @@ measurements above show. It just won't understand rephrased questions.
 
 ## What I'll need from you, and when
 
-Not needed yet. Listed so nothing is a surprise.
+**Two actions are now genuinely due — everything else is built and waiting behind them.**
+
+### 1. Google's written data terms — the gate-opener
+
+- **What:** written confirmation that our Gemini usage tier does **not** train on
+  submitted content, and its data-retention terms. On the paid Gemini API tier Google
+  publishes this in their terms; for Vertex AI it's part of the enterprise terms. What
+  we need recorded: **which tier, and the date you confirmed it.**
+- **Where:** your Google account/billing setup — this is a commercial confirmation only
+  you can make on the company's behalf.
+- **Why I can't do it:** it's a vendor-terms acceptance, and our own locked rule says
+  the gate opens only by a recorded decision naming provider, tier and date.
+- **What I do the moment you provide it:** append the release record, open the gate in
+  the same change, and real documents can then get generated answers.
+
+### 2. A Gemini API key
+
+- **What:** one API key for the chosen tier.
+- **Where it goes:** the server's environment as `LEGALMIND_GEMINI_API_KEY` — never in
+  a file in the repository, never in a document. I'll never ask you to paste it in chat;
+  set it on the server or hand it to whoever operates it.
+- **Until then:** everything except the final generated sentence works — search,
+  citations, refusals — and I've tested the generation path against a stand-in.
+
+### Later (not yet due)
 
 | What | When | Why |
 |---|---|---|
-| **Google's written data terms** (the "we won't train on your data" confirmation, and which Google plan it applies to) | **Before real contracts go through the AI** — Phase 6 | This is your own requirement, from the technical plan. Until it exists, real customer contracts cannot be sent to Google. Test documents are fine |
-| **The Gemini API key** | Phase 6 | Not before. The connection is built and tested against a stand-in first. It goes in secure configuration, never into a document or the code |
-| **Negotiable Instruments Act and Evidence Act** | Phase 8 | The plan's main example is "what does Section 138 of the NI Act say" and we were never sent that Act. It must be supplied — we will not write legal text ourselves, ever |
-| **Confirmation on where the statutes came from** | Phase 8 | The plan says statutes must come from the official India Code site. The seven we have didn't. Either that's fine, or we re-fetch them from the official source |
-| **The list of court judgments** to include | Phase 8 | The plan says the legal team picks a specific list. We don't have one |
-| **Real questions and answers for testing the AI** | Phase 5–6 | To measure whether the AI is actually any good, we need real questions with known correct answers — **including questions it should refuse to answer.** Getting a refusal right is half of passing |
-| **Single sign-on connection details** | Whenever it's wanted | Normal login works until then |
+| NI Act and Evidence Act, plus statute provenance confirmation | Statute-search phase | Never authored by us; the two Acts were never supplied |
+| The curated judgment list | Statute-search phase | The plan says the legal team picks it |
+| Production server actions | Deployment | pgvector install, the restricted `legalmind_assist` database account, network egress allow-list — root-level server steps, listed in the preflight report |
 
-**On legal material generally:** we never write it ourselves. If something is missing, we ask. An
-invented legal rule that looks authoritative is worse than an obvious gap.
-
----
+**On legal material generally:** we never write it ourselves. If something is missing, we ask.
 
 ## Two things worth knowing
 

@@ -332,3 +332,36 @@ export interface AnalysisSubmission {
   }[];
   idempotency_key?: string | null;
 }
+
+// ---- assist lane (AB-3/AB-4) ---------------------------------------------
+// The answer state is the SIXTH axis (AM-29): it never shares a value with any
+// legal axis, and there is deliberately no "confidence" field anywhere here —
+// retrieval_score is a retrieval score and the UI labels it as exactly that
+// (AI-03 item 16, rule 12).
+export type AssistAnswerState =
+  | "ANSWERED"
+  | "NO_EVIDENCE_RETRIEVED"
+  | "EVIDENCE_INSUFFICIENT"
+  | "CLAIM_UNSUPPORTED";
+
+export interface AssistCitation {
+  chunk_id: string;
+  page_number: number | null;
+  section_ref: string | null;
+  excerpt: string;
+  retrieval_score: number;
+}
+
+export interface AskResult {
+  conversation_id: string;
+  message_id: string;
+  answer_state: AssistAnswerState;
+  text: string;
+  routed_to_evaluator: boolean;
+  citations: AssistCitation[];
+}
+
+export interface Conversation {
+  id: string;
+  contract_id: string | null;
+}

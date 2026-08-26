@@ -101,7 +101,13 @@ _NETWORK_MODULES = frozenset({
 
 # Modules permitted to hold an outbound network client, with the record that authorizes each.
 # Empty today. An entry here is an architectural decision, not a convenience.
-EGRESS_ALLOWED: dict[str, str] = {}
+EGRESS_ALLOWED: dict[str, str] = {
+    # AM-30 t1 (AB-4, locked 2026-08-25): "Generation is the ONLY permitted egress."
+    # The adapter uses stdlib urllib deliberately — no provider SDK, so rule 19's
+    # separate dependency approval is never triggered — and the AM-31 gate inside it
+    # refuses production egress while no written no-training confirmation exists.
+    "legalmind.assist.generation": "AM-30 t1/t8; AM-31 gate enforced in-module",
+}
 
 
 @pytest.mark.parametrize("package", ALL_PACKAGES)
@@ -123,15 +129,16 @@ def test_no_outbound_network_client_is_imported(package):
         )
 
 
-def test_the_egress_allowlist_is_empty_until_a_record_authorizes_an_entry():
+def test_the_egress_allowlist_names_exactly_the_generation_adapter():
     """A guard on the guard.
 
-    `AM-31` g4 records the real-contract egress gate as CLOSED, and no generation adapter
-    exists yet. If this fails, someone added an allow-list entry — check that an appended lock
-    record actually authorizes it, and that `AM-30` t8's network allow-list exists too, since
-    an application-level import is not a network control.
+    Exactly one module may reach the network — `AM-30` t1's generation adapter — and
+    its entry must cite the record. A second entry is a second egress path, which t1
+    forbids; an empty list means the adapter moved without its authorization moving
+    with it.
     """
-    assert EGRESS_ALLOWED == {}
+    assert set(EGRESS_ALLOWED) == {"legalmind.assist.generation"}
+    assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.generation"]
 
 
 # ==========================================================================
@@ -165,10 +172,12 @@ LAYERING: dict[str, frozenset[str]] = {
     # module quietly acquires the ability to produce one — so the edge does not exist,
     # and routing such a question is the API layer's job, not this package's.
     #
-    # `security` is deliberately absent for now. Retrieval authorization lands in A3
-    # (`AM-25` r6, applied inside the query), and adding the dependency before the code
-    # that needs it would weaken the rule to no purpose.
-    "assist": frozenset({"db", "domain", "observability"}),
+    # `security` entered the set with unit A6: `AM-30` t5 requires every generation
+    # call recorded in audit_events, and the audit writer lives in
+    # `legalmind.security.audit`. Retrieval authorization itself stays in the API
+    # layer's Guard — the assist package still cannot reach the evaluator, the
+    # mapping engine, or any other producer of a legal outcome.
+    "assist": frozenset({"db", "domain", "observability", "security"}),
 }
 
 

@@ -613,10 +613,63 @@ checksum), and `AM-30` t7 replaces it with a **dated pinned model identifier** �
 such as "latest" is not a pin, and a provider-side rotation is a model change that re-triggers
 `AM-26` r4.
 
-### Embedding-model selection — the measurement, and what blocks it
+### Embedding-model selection — SELECTED BY MEASUREMENT, 2026-08-26
 
-**Status: IN PROGRESS as of 2026-08-25. No model is selected, and no vector dimension is
-pinned.** `AM-26` r2 requires selection *by measurement*, smallest-that-passes, so a name
+**Status: COMPLETE.** Selected: **`sentence-transformers/all-MiniLM-L6-v2` (384
+dimensions, 23M parameters, Apache-2.0)**, with the calibrated refusal gate below. The
+dimension is pinned in migration `c4a91f6e2d87` as a DDL literal — a different model
+with a different width is a **new migration**, never a config change.
+
+#### The deciding measurement — owner-ratified 77-question set, 15 real documents
+
+Lexical search on **human-phrased** questions collapses (1/64 top-10 — it ANDs every
+term; a phrase engine, not a question engine) while refusing perfectly (13/13). Dense
+retrieval inverts both: strong recall, **zero natural refusals**. Per candidate:
+
+| Candidate | Params | Hit@10 | Hit@1 | MRR | Gate (refused/retained) at chosen rule |
+|---|---:|---:|---:|---:|---|
+| **all-MiniLM-L6-v2** ✅ | 23M | 0.938 | 0.438 | 0.606 | **12/13 · 41/64** (J = 0.564) |
+| bge-small-en-v1.5 | 33M | 0.922 | 0.484 | 0.617 | 9/13 · 55/64 (J = 0.552) — weak separation |
+| gte-small | 33M | 0.969 | 0.516 | 0.662 | 11/13 · 45/64 (J = 0.549) — compressed scores (0.79–0.92) |
+| snowflake-arctic-embed-s | 33M | 0.438 | 0.109 | 0.188 | rejected outright on retrieval |
+| intfloat/e5-small-v2 | 33M | — | — | — | not measured: publishes ONNX at a non-standard path |
+
+**Why MiniLM, when gte-small retrieves better:** MiniLM is the **smallest candidate and
+passes the quality bar** (≥90% top-10 recall; gate refusal ≥10/13 with ≥60% retention).
+`AM-26` r2 then decides it: *"stops at the first that meets the quality bar. A larger
+model is not adopted for headroom."* MiniLM also has the widest raw score separation
+(answerable median 0.539 vs unanswerable 0.416), which is what a threshold lives on.
+
+#### The calibrated gate — derived, not chosen
+
+A single absolute cosine floor was measured first and found insufficient (best J ≈ 0.50
+across candidates). The two-feature rule that won the sweep:
+
+```
+evidence  =  lexical hits  ∪  vector hits with cosine ≥ 0.50
+gate open ⇔  lexical hit  OR  (top cosine ≥ 0.50  AND  top-gap ≥ 0.059)
+```
+
+where top-gap = top cosine − mean(rest of top-10): a flat profile means the "best"
+chunk is a nearest neighbour, not evidence. Operating point: **12/13 unanswerable
+refused, 41/64 answerable retained on vector evidence, Youden's J = 0.564**; the full
+sweep curve is reproducible via `tools/benchmark_retrieval.py --eval`. Constants and
+provenance: `legalmind/assist/calibration.py`.
+
+**What the gate deliberately does not attempt — measured, not assumed:** the
+adversarial near-miss (a topical clause that does not answer the question) scores
+*inside* the answerable distribution for every candidate. Those are caught downstream
+by claim-level citation verification (`legalmind/assist/guardrails.py`, `AM-29`'s
+third outcome) — the layered-refusal design `AM-29` r3 prescribes.
+
+#### Superseded framing (kept for the record)
+
+The section below was written 2026-08-25, while the selection was blocked on
+evaluation material. The owner ratified the drafted question set on 2026-08-26 and the
+measurement completed. Its methodology description remains accurate.
+
+**Status as then written: IN PROGRESS as of 2026-08-25. No model is selected, and no
+vector dimension is pinned.** `AM-26` r2 requires selection *by measurement*, smallest-that-passes, so a name
 written here before the measurement exists would settle by assertion what the record says
 to settle by evidence. `chunk_embeddings` does not exist for the same reason: its column
 width is a property of the chosen weights.

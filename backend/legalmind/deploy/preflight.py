@@ -74,6 +74,7 @@ def run_preflight(*, environment: str | None = None) -> list[Check]:
         _malware_scanning(),
         _retention_policy(),
         _backup_restore(),
+        _assist_generation_gate(),
     ]
     checks.extend(_database_checks())
     return checks
@@ -631,3 +632,28 @@ def _assist_role_isolated(conn) -> Check:
                  f"{ASSIST_ROLE} exists and holds no write grant on any of the "
                  f"{len(AUTHORITATIVE_TABLES)} authoritative tables",
                  basis="AM-25 r2")
+
+
+def _assist_generation_gate() -> Check:
+    """`AM-31` — the real-contract egress gate, reported exactly as it stands.
+
+    While the gate constant is CLOSED, the generation adapter refuses production
+    egress outright, so a production deployment serves lexical/hybrid retrieval and
+    honest refusals but no generated answers. That is the intended posture until the
+    provider's written no-training confirmation is recorded by an appended record —
+    not a defect, and never overridable by configuration (g3).
+    """
+    from legalmind.assist.generation import AM31_GATE
+
+    if AM31_GATE == "CLOSED":
+        return Check("assist_generation_gate", ATTEST,
+                     "AM-31 gate is CLOSED: generation egress is refused in "
+                     "production until Google's no-training/data-retention terms are "
+                     "confirmed in writing and released by an appended lock record. "
+                     "Development/staging generation (synthetic material, 55.3) needs "
+                     "LEGALMIND_GEMINI_API_KEY",
+                     basis="AM-31 g1-g4, AM-30")
+    return Check("assist_generation_gate", PASS,
+                 "gate released by appended record; verify the record cites "
+                 "provider, tier and date",
+                 basis="AM-31 g3")

@@ -24,10 +24,10 @@ from legalmind import config
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 
-# `AM-27`'s permitted list, verbatim, minus the one this migration deliberately does
-# not create. See `test_chunk_embeddings_is_deliberately_absent`.
+# `AM-27`'s permitted list, verbatim — all nine, since 2026-08-26.
 EXPECTED_TABLES = frozenset({
     "chunks",
+    "chunk_embeddings",
     "embedding_models",
     "conversations",
     "messages",
@@ -101,7 +101,7 @@ def test_only_authorized_tables_exist_in_the_assist_schema(db, assist):
     unauthorized, and the record is closed.
     """
     found = _tables(db, assist)
-    unauthorized = found - EXPECTED_TABLES - {"chunk_embeddings"}
+    unauthorized = found - EXPECTED_TABLES
     assert not unauthorized, (
         f"unauthorized table(s) in the assist schema: {sorted(unauthorized)}. "
         "AM-27 permits nine and closes with 'No other table is authorized'.")
@@ -109,22 +109,87 @@ def test_only_authorized_tables_exist_in_the_assist_schema(db, assist):
     assert not missing, f"expected assist table(s) missing: {sorted(missing)}"
 
 
-def test_chunk_embeddings_is_deliberately_absent(db, assist):
-    """The ninth authorized table is not created yet, and that is a decision.
+def test_chunk_embeddings_dimension_matches_the_selected_model(db, assist):
+    """The ninth table exists, and its dimension is the MEASURED one.
 
-    `chunk_embeddings` is *"one row per chunk per embedding model"*, so its embedding
-    column needs a fixed dimension. The dimension is a property of the embedding
-    model, and `AM-26` r2 selects that model **by measurement, smallest-that-passes**
-    — so no model is chosen and no dimension is known. Creating `vector(768)` now
-    would write a number nobody chose into the schema.
+    Until 2026-08-26 a tripwire test here asserted this table's absence, because its
+    vector width is a property of an embedding model and `AM-26` r2 selects that model
+    by measurement — pinning a dimension first would have settled by DDL what the
+    record settles by evidence. The measurement happened (owner-ratified 77-question
+    set, four candidates, smallest-that-passes): all-MiniLM-L6-v2, 384 dimensions.
 
-    This test exists so that its arrival is deliberate: when the table appears, this
-    test fails and whoever added it has to have chosen a model first.
+    This asserts the DDL literal and the calibration module agree — the two places the
+    number lives. A different model with a different width is a NEW migration, never a
+    config change, so stored vectors can never silently become incomparable with fresh
+    query vectors.
     """
-    assert "chunk_embeddings" not in _tables(db, assist), (
-        "chunk_embeddings now exists — confirm an embedding model was actually "
-        "selected under AM-26 r2 and that its dimension is recorded in "
-        "embedding_models, then delete this test.")
+    from legalmind.assist.calibration import EMBEDDING_DIMENSIONS
+
+    atttypmod = db.execute(text("""
+        SELECT a.atttypmod FROM pg_attribute a
+          JOIN pg_class c ON c.oid = a.attrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = :s AND c.relname = 'chunk_embeddings'
+           AND a.attname = 'embedding'
+    """), {"s": assist}).scalar()
+    assert atttypmod == EMBEDDING_DIMENSIONS, (
+        f"vector({atttypmod}) in DDL vs {EMBEDDING_DIMENSIONS} in calibration.py")
+
+
+def test_a_chunk_embedding_dies_with_its_chunk(db, assist, user):
+    """`AM-27` r5 extends to embeddings: deleting a document hard-deletes them.
+
+    The chain is chunk_embeddings -> chunks -> document_evidence, each ON DELETE
+    CASCADE, exercised with real rows and a real DELETE.
+    """
+    contract = M.Contract(name="embedding cascade probe", owner_id=user.id,
+                          contract_type="MSA", status=E.ContractStatus.DRAFT)
+    db.add(contract)
+    db.flush()
+    dv = M.DocumentVersion(
+        contract_id=contract.id, version_number=1, original_filename="p.docx",
+        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        file_size_bytes=10, file_hash="j" * 64, storage_key="k3",
+        processing_status=E.ProcessingStatus.COMPLETED, uploaded_by=user.id)
+    db.add(dv)
+    db.flush()
+    run = M.DocumentProcessingRun(
+        document_version_id=dv.id, run_type=E.ProcessingRunType.PARSE,
+        status=E.ProcessingRunStatus.COMPLETED)
+    db.add(run)
+    db.flush()
+    ev = M.DocumentEvidence(
+        document_version_id=dv.id, processing_run_id=run.id,
+        content="A clause about notice periods for termination.",
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    db.add(ev)
+    db.flush()
+
+    chunk_id, model_id, emb_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    db.execute(text(f"""
+        INSERT INTO "{assist}".chunks
+            (id, document_version_id, evidence_id, ordinal, content,
+             chunking_algorithm_version)
+        VALUES (:c, :dv, :ev, 0, 'A clause about notice periods.', 'test-v1')
+    """), {"c": chunk_id, "dv": dv.id, "ev": ev.id})
+    db.execute(text(f"""
+        INSERT INTO "{assist}".embedding_models (id, name, version, dimensions, checksum)
+        VALUES (:m, 'test-model', 'v1', 384, :ck)
+    """), {"m": model_id, "ck": "0" * 64})
+    from legalmind.assist.store import vector_type
+
+    vector_literal = "[" + ",".join(["0.05"] * 384) + "]"
+    db.execute(text(f"""
+        INSERT INTO "{assist}".chunk_embeddings (id, chunk_id, embedding_model_id, embedding)
+        VALUES (:e, :c, :m, CAST(:v AS {vector_type(db)}))
+    """), {"e": emb_id, "c": chunk_id, "m": model_id, "v": vector_literal})
+
+    db.execute(text("DELETE FROM document_evidence WHERE id = :i"), {"i": ev.id})
+    remaining = db.execute(text(
+        f'SELECT count(*) FROM "{assist}".chunk_embeddings WHERE id = :e'),
+        {"e": emb_id}).scalar()
+    assert remaining == 0, "the embedding survived its chunk's evidence row"
+
 
 
 # ==========================================================================

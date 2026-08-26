@@ -74,6 +74,35 @@ def _chunks_table(schema: str) -> Table:
 # to one database, and moving an installed extension between schemas is not something
 # that happens under a running application.
 _TRGM_SCHEMA: str | None = None
+_VECTOR_SCHEMA: str | None = None
+
+
+def vector_schema(db: DBSession) -> str:
+    """The schema the pgvector extension is installed into.
+
+    Same story as `_trgm_schema` below: the extension's objects — the type AND its
+    operators — live wherever the extension was installed, the harness pins
+    `search_path` to a private per-run schema, and qualifying beats widening the
+    path. An operator needs `OPERATOR("schema".<=>)` syntax, so the schema itself is
+    the reusable answer.
+    """
+    global _VECTOR_SCHEMA
+    if _VECTOR_SCHEMA is None:
+        found = db.execute(text(
+            "SELECT n.nspname FROM pg_extension e "
+            "JOIN pg_namespace n ON n.oid = e.extnamespace "
+            "WHERE e.extname = 'vector'")).scalar()
+        if not found:
+            raise RuntimeError(
+                "pgvector is not installed; it is a deployment precondition "
+                "(see legalmind.deploy.preflight)")
+        _VECTOR_SCHEMA = str(found)
+    return _VECTOR_SCHEMA
+
+
+def vector_type(db: DBSession) -> str:
+    """The schema-qualified `vector` type name, e.g. ``"public".vector``."""
+    return f'"{vector_schema(db)}".vector'
 
 
 def _trgm_schema(db: DBSession) -> str:
@@ -239,3 +268,179 @@ def search_chunks(db: DBSession, *, document_version_id: UUID, query: str,
         )
         for r in rows
     ]
+
+
+# ==========================================================================
+# Embeddings — written at index time, searched at query time
+# ==========================================================================
+def register_embedding_model(db: DBSession, *, name: str, version: str,
+                             dimensions: int, checksum: str) -> UUID:
+    """Idempotently register a model in the `embedding_models` registry.
+
+    `AM-26` r4: the version is recorded against every answer — which starts here, by
+    every stored vector carrying a foreign key to the exact model row that produced
+    it. Re-registration of the same name+version returns the existing id.
+    """
+    import uuid as _uuid
+
+    schema = config.assist_schema()
+    existing = db.execute(text(
+        f'SELECT id FROM "{schema}".embedding_models '
+        'WHERE name = :n AND version = :v'), {"n": name, "v": version}).scalar()
+    if existing:
+        return existing
+    model_id = _uuid.uuid4()
+    db.execute(text(f"""
+        INSERT INTO "{schema}".embedding_models (id, name, version, dimensions, checksum)
+        VALUES (:i, :n, :v, :d, :c)
+    """), {"i": model_id, "n": name, "v": version, "d": dimensions, "c": checksum})
+    return model_id
+
+
+def write_embeddings(db: DBSession, *, chunk_ids: list[UUID],
+                     vectors: list[list[float]], embedding_model_id: UUID) -> int:
+    """Store one vector per chunk for one model. Returns the number written.
+
+    The vector crosses the wire as a text literal cast in SQL — the application
+    deliberately carries no pgvector Python dependency, so this is the whole binding.
+    """
+    import uuid as _uuid
+
+    if not chunk_ids:
+        return 0
+    schema = config.assist_schema()
+    vtype = vector_type(db)
+    rows = [{"i": _uuid.uuid4(), "c": cid,
+             "m": embedding_model_id,
+             "v": "[" + ",".join(f"{x:.6f}" for x in vec) + "]"}
+            for cid, vec in zip(chunk_ids, vectors, strict=True)]
+    db.execute(text(f"""
+        INSERT INTO "{schema}".chunk_embeddings
+            (id, chunk_id, embedding_model_id, embedding)
+        VALUES (:i, :c, :m, CAST(:v AS {vtype}))
+        ON CONFLICT ON CONSTRAINT uq_chunk_embeddings_chunk_model DO NOTHING
+    """), rows)
+    return len(rows)
+
+
+def count_embeddings(db: DBSession, document_version_id: UUID) -> int:
+    schema = config.assist_schema()
+    return db.execute(text(f"""
+        SELECT count(*) FROM "{schema}".chunk_embeddings e
+          JOIN "{schema}".chunks c ON c.id = e.chunk_id
+         WHERE c.document_version_id = :dv
+    """), {"dv": document_version_id}).scalar_one()
+
+
+# ==========================================================================
+# Hybrid retrieval with the calibrated refusal gate
+# ==========================================================================
+@dataclass(frozen=True)
+class RetrievalOutcome:
+    """Everything the caller — and the audit trail — needs to know about one query.
+
+    `gate_open` is the deterministic refusal decision; when it is False the hits list
+    is EMPTY by construction, so no caller can accidentally use sub-gate evidence.
+    The raw feature values are carried so `retrieval_runs` can persist why the gate
+    decided what it decided — a reviewer must be able to reconstruct the refusal
+    (auditability is a product requirement, not a logging nicety).
+    """
+
+    hits: list[SearchHit]
+    gate_open: bool
+    lexical_hit: bool
+    vector_top_score: float | None
+    vector_peak_gap: float | None
+    strategy_version: str
+    embedding_model: str | None
+
+
+def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
+                  embed_query, limit: int | None = None) -> RetrievalOutcome:
+    """Hybrid retrieval within ONE authorized document version, gated.
+
+    ``embed_query`` is a callable ``str -> list[float] | None`` — the store does not
+    import the model (the backend is injected), and ``None`` means "no embedding
+    available", in which case retrieval degrades to lexical-only with the gate
+    honoring the lexical side alone.
+
+    `AM-25` r6 is preserved exactly as in `search_chunks`: the document scope is a
+    WHERE clause on the candidate set of BOTH branches, never a post-filter.
+
+    Ranking: reciprocal rank fusion (k=60, the conventional constant) over the
+    lexical ranking and the gated vector ranking. Scores shown to callers remain the
+    branch-native ones — an RRF sum is a rank artifact and would read as meaning.
+    """
+    from legalmind.assist.calibration import (
+        COSINE_FLOOR,
+        RETRIEVAL_STRATEGY_VERSION,
+        RETRIEVAL_TOP_K,
+        gate_is_open,
+    )
+
+    limit = limit or RETRIEVAL_TOP_K
+    lexical_hits = search_chunks(db, document_version_id=document_version_id,
+                                 query=query, limit=limit)
+
+    vector_rows: list = []
+    model_identity: str | None = None
+    vector = embed_query(query) if embed_query else None
+    if vector is not None:
+        embedded, model_identity = vector
+        schema = config.assist_schema()
+        vschema = vector_schema(db)
+        vtype = vector_type(db)
+        # The cosine-distance OPERATOR lives in the extension's schema exactly as
+        # the type does, and unqualified `<=>` does not resolve from the private
+        # per-run search_path — hence OPERATOR("schema".<=>).
+        op = f'OPERATOR("{vschema}".<=>)'
+        literal = "[" + ",".join(f"{x:.6f}" for x in embedded) + "]"
+        vector_rows = list(db.execute(text(f"""
+            SELECT c.id, c.evidence_id, c.content,
+                   e.page_number, e.section_number, e.section_title, e.source_type,
+                   1 - (ce.embedding {op} CAST(:q AS {vtype})) AS cosine
+              FROM "{schema}".chunk_embeddings ce
+              JOIN "{schema}".chunks c ON c.id = ce.chunk_id
+              JOIN document_evidence e ON e.id = c.evidence_id
+             WHERE c.document_version_id = :dv
+             ORDER BY ce.embedding {op} CAST(:q AS {vtype})
+             LIMIT :lim
+        """), {"q": literal, "dv": document_version_id, "lim": limit}).all())
+
+    scores = [float(r[7]) for r in vector_rows]
+    top = scores[0] if scores else None
+    gap = (scores[0] - sum(scores[1:]) / len(scores[1:])) if len(scores) > 1 else None
+    open_ = gate_is_open(bool(lexical_hits), scores)
+
+    if not open_:
+        return RetrievalOutcome(hits=[], gate_open=False,
+                                lexical_hit=bool(lexical_hits),
+                                vector_top_score=top, vector_peak_gap=gap,
+                                strategy_version=RETRIEVAL_STRATEGY_VERSION,
+                                embedding_model=model_identity)
+
+    # Individual vector hits below the floor are never evidence, gate or no gate.
+    vector_hits = [
+        SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
+                  section_number=r[4], section_title=r[5], source_type=str(r[6]),
+                  retrieval_score=float(r[7]))
+        for r in vector_rows if float(r[7]) >= COSINE_FLOOR
+    ]
+
+    # Reciprocal rank fusion; branch-native score reported (cosine preferred where a
+    # chunk appears in both, since it is the more interpretable of the two).
+    fused: dict[UUID, float] = {}
+    by_id: dict[UUID, SearchHit] = {}
+    for rank, hit in enumerate(lexical_hits, start=1):
+        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (60 + rank)
+        by_id.setdefault(hit.chunk_id, hit)
+    for rank, hit in enumerate(vector_hits, start=1):
+        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (60 + rank)
+        by_id[hit.chunk_id] = hit   # prefer the cosine-scored representation
+    ordered = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:limit]
+
+    return RetrievalOutcome(hits=[by_id[cid] for cid in ordered], gate_open=True,
+                            lexical_hit=bool(lexical_hits),
+                            vector_top_score=top, vector_peak_gap=gap,
+                            strategy_version=RETRIEVAL_STRATEGY_VERSION,
+                            embedding_model=model_identity)

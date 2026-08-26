@@ -28,6 +28,7 @@ from legalmind.api.context import (
 from legalmind.api.permission_map import API_PREFIX
 from legalmind.api.routers import (
     admin,
+    assist,
     audit,
     configuration,
     contracts,
@@ -87,6 +88,7 @@ def create_app() -> FastAPI:
     v1.include_router(configuration.router)
     v1.include_router(audit.router)
     v1.include_router(admin.router)
+    v1.include_router(assist.router)
     app.include_router(v1)
 
     @app.get("/health", tags=["operations"])
