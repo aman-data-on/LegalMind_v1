@@ -12,14 +12,46 @@
 # Locked 55.6 records hosting platform, container orchestration and object-storage
 # provider as NOT YET SPECIFIED — this file chooses none of them for production. It
 # exists so 55.3's "development: synthetic data only" environment is reproducible.
+#
+# NETWORK SEGMENTATION (A10, and `AM-30` t1/t8 at the network layer, 2026-08-26).
+# Two networks, and the topology states the architecture:
+#
+#   data (internal: true)   db · queue · api · worker · worker-assist
+#                           `internal` means NO ROUTE OUT — Docker attaches no
+#                           gateway. Everything that touches a document at rest
+#                           (parsing, OCR, chunking, embedding) lives only here, so
+#                           `AM-30` t1's "embedding, chunking, parsing and OCR remain
+#                           local" is a routing table, not a promise. A worker that
+#                           tried to egress has nowhere to send the packet.
+#
+#   edge                    frontend · api
+#                           The browser-facing half. The api sits on BOTH networks:
+#                           it serves the frontend and holds the ONE permitted egress
+#                           (`AM-30` t1 — the generation call; refused in production
+#                           while the `AM-31` gate is CLOSED, and in dev/staging only
+#                           synthetic material exists to send, per locked 55.3).
+#
+# The frontend is deliberately NOT on `data`: locked 38.22 says it never touches the
+# database, and here that is a network fact rather than a code-review observation.
+#
+# What this does NOT claim: t8's full allow-list — "the api may reach ONLY the
+# provider's endpoint" — needs an egress proxy or host firewall, which is production
+# infrastructure (`preflight` reports it, severity unchanged). Compose can remove
+# routes, not enumerate destinations.
+
+networks:
+  data:
+    internal: true
+  edge: {}
 
 services:
   db:
     # pgvector, not plain postgres — locked `AM-26` adds the extension on this same
-    # instance. Pinned >= 0.8.0 deliberately: `AM-25` r6 requires authorization to be
-    # applied inside the retrieval query (pre-filtering), and pgvector's iterative
-    # index scans, which make a selective pre-filter viable, arrived in 0.8.0. Ubuntu
-    # ships 0.6.0, so a distribution package is not a substitute here.
+    # instance. The image ships >= 0.8.0, whose iterative index scans matter for an
+    # APPROXIMATE index under a selective pre-filter (`AM-25` r6). Measured 2026-08-25:
+    # exact KNN with the authorization WHERE clause is correct on 0.6.0 too, so the
+    # version is a corpus-scale-indexing prerequisite, not a correctness one — and the
+    # answer to an older build is exact search, never a post-filter (r7).
     #
     # `CREATE EXTENSION vector` still needs a superuser — the extension is not
     # trusted — so it is a deployment step, not a migration step, and
@@ -35,6 +67,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U legalmind"]
       interval: 5s
       retries: 10
+    networks: [data]
 
   # Locked Step 39's broker. The api enqueues, the worker consumes; both hold
   # LEGALMIND_BROKER_URL, and the api falls back to inline analysis without it.
@@ -44,6 +77,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
+    networks: [data]
 
   api:
     build: ./backend
@@ -58,8 +92,16 @@ services:
       LEGALMIND_LOG_LEVEL: INFO
       # `AM-27` r1 — the assist tables live in a schema separate from the locked ones.
       LEGALMIND_ASSIST_SCHEMA: assist
+      # The api embeds the QUERY at ask time (`store.search_hybrid`); absent weights
+      # it degrades to lexical-only, logged. Weights arrive by MOUNT, never by
+      # download: `AM-26` r5 checksums locally-provisioned weights, and the data
+      # network deliberately has no route to fetch anything.
+      LEGALMIND_MODEL_DIR: /var/lib/legalmind/models
     volumes:
       - documents:/var/lib/legalmind/documents
+      # Provisioned on the HOST with tools/provision_model.py, mounted read-only.
+      - ${LEGALMIND_MODEL_DIR:-~/.legalmind/models}:/var/lib/legalmind/models:ro
+    networks: [data, edge]
     ports:
       - "8000:8000"
 
@@ -79,6 +121,7 @@ services:
     volumes:
       # The SAME object store as the api: a worker parses documents the api stored.
       - documents:/var/lib/legalmind/documents
+    networks: [data]
     # The SAME image as the api, different command — locked 55.1. `--concurrency 1`
     # keeps one analysis per process: the work is CPU-bound parsing and evaluation,
     # so oversubscribing a container buys nothing and makes memory unpredictable.
@@ -106,8 +149,13 @@ services:
       LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
       LEGALMIND_ASSIST_SCHEMA: assist
+      # This worker embeds CHUNKS at index time. Same mount as the api, same rule:
+      # weights by mount, never by download — this network has no route out at all.
+      LEGALMIND_MODEL_DIR: /var/lib/legalmind/models
     volumes:
       - documents:/var/lib/legalmind/documents
+      - ${LEGALMIND_MODEL_DIR:-~/.legalmind/models}:/var/lib/legalmind/models:ro
+    networks: [data]
     command: ["celery", "-A", "legalmind.worker.app", "worker",
               "-Q", "assist", "--concurrency", "1", "--loglevel", "INFO"]
 
@@ -118,6 +166,7 @@ services:
       # Same-origin in production (55.1); the dev rewrite reproduces that so the
       # Secure/SameSite=Strict session cookie is never weakened to suit development.
       LEGALMIND_API_ORIGIN: http://api:8000
+    networks: [edge]
     ports:
       - "3000:3000"
 

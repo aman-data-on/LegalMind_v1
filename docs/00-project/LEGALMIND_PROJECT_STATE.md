@@ -20,22 +20,36 @@ Updated at the end of every working session.*
 |---|---|
 | **Last worked** | 26 August 2026 |
 | **Current phase** | `PHASE 9 — SECURITY HARDENING, IN PROGRESS` · everything through the workspace is delivered; Gemini answers wait on one action from you |
-| **Health** | 893 backend + 62 frontend checks passing, none failing; CI gained a 14th job (dependency + container scanning) |
+| **Health** | 894 backend + 62 frontend checks passing, none failing; CI gained a 14th job (dependency + container scanning) |
 | **Waiting on you** | **Two external actions, unchanged**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
 | **Next step once they arrive** | Record the confirmation, open the gate, switch generated answers on |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 
 **What got finished on 26 August**
 
-- **Security hardening (Phase 9) started**: two new automated checks run on every change from
-  now on — one scans our own code's dependencies for known vulnerabilities (backend and
-  frontend, both currently clean), the other scans the built application images the same
-  way. Neither needed the Gemini connection, so both run regardless of the gate.
-- **Two more document-scanning tools from the plan were deliberately left out of this
-  automated check, and here's why**: they need a running copy of the whole application to
-  scan, not just the code, so wiring them in would mean building a small second copy of the
-  live system inside the automated-check pipeline — a bigger and riskier change than
-  everything above it. That stays a deployment-time step instead.
+- **The quality bar is now a command, not a promise.** Before any future change to the
+  search, the chunking, or the model ships, one command re-runs all 77 of your ratified
+  test questions through the real product and **refuses to pass if the system starts
+  answering questions it should refuse**. The current, measured bar is recorded in the
+  repository; I proved the check can actually fail before trusting it. The half of the
+  bar that scores the AI's written answers stays honestly marked "not yet measurable" —
+  it needs the Gemini gate open, and our rules forbid faking it with synthetic results.
+- **One number worth knowing from that measurement**: end-to-end, the system currently
+  finds the right clause for about 44% of fairly-worded questions and refuses 12 of 13
+  trick questions. The strict refusal rule is what costs the recall — by design, text
+  that scores below the evidence bar is never shown, even when it happens to be right.
+  Loosening that trade-off, if we ever want to, now has a safe path: change, re-measure,
+  compare against the recorded bar.
+- **The development/staging blueprint now enforces the network rules.** The parts of the
+  system that touch documents (parsing, indexing, the search model) run on an internal
+  network with **no route to the internet at all** — they couldn't send a document out
+  even if code tried. Only one component keeps an outbound route: the one that will talk
+  to Gemini, which still refuses in production while the gate is closed.
+- **Security hardening (Phase 9) started**: two new automated checks run on every change —
+  one scans our code's dependencies for known vulnerabilities (backend and frontend, both
+  currently clean), the other scans the built application images the same way. Two
+  further scan tools from the plan need a running copy of the whole system to point at,
+  so they stay a deployment-time step rather than a per-change check.
 
 - **The search model was chosen by measurement, not opinion** — four candidates were
   scored against your ratified 77 questions on the real documents; the smallest one
@@ -106,7 +120,7 @@ This is a real, working system — not a prototype.
 
 * **The legal rules engine works.** It compares a contract against our approved positions and
   produces a verdict, with the reasoning traceable back to the exact clause it read.
-* **893 backend + 62 frontend automated checks pass**, none failing. These run every time
+* **894 backend + 62 frontend automated checks pass**, none failing. These run every time
   anything changes, so a change that would break existing behaviour gets caught — and as of
   26 August that includes a check on every dependency and every built application image for
   known security vulnerabilities.
@@ -173,7 +187,11 @@ in Phase 8, and neither needs the Gemini gate open.
 known security vulnerabilities in two ways — one checks the libraries our own code depends
 on (backend and frontend both currently clean, nothing found), the other checks the actual
 application images the same way once they're built. Both run on every change from now on,
-the same way the existing correctness checks do.
+the same way the existing correctness checks do. The development/staging blueprint also
+now puts everything that touches documents on an internal network with no internet route,
+so the "documents never leave" rule is enforced by the network itself, not just by code.
+And the quality bar became a runnable pre-release check: any future change to the search
+must re-pass your 77 ratified questions against the recorded bar before it ships.
 
 **What's deliberately not automated yet, and why**: the hardening plan also calls for two
 tools that test a *running* copy of the application from the outside, the way an attacker

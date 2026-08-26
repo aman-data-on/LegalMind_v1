@@ -12,6 +12,43 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **The Tier-2 quality gate is now a runnable release check, and the reference deployment
+  is network-segmented — Gate §5b A9 (measurable half) and A10 continued** (standing owner
+  directive: gate stays CLOSED, continue safe work). Backend **894 tests** (1 skipped),
+  ruff/mypy clean; `AM31_GATE` verified CLOSED and untouched.
+
+  **`AM-28`'s gate, as a command** — `tools/verify_assist_quality.py` runs all 77 ratified
+  questions through the **production** `search_hybrid` (real SQL, real fusion, real gate —
+  not the calibration harness's in-memory mirror) and blocks exactly on what the locked
+  sentence names: a worsened wrongly-answered rate against `tests/assist_eval/baseline.json`.
+  The baseline was recorded from live measurement (12/13 unanswerable refused, 41/64
+  retained), the gate was **proven able to fail** (tightened baseline → exit 1, restored →
+  exit 0), and CI never sees it — the documents and model stay out of the repository
+  (54.6), so it is a release-pipeline act like 55.5's reproducibility gate, and the
+  preflight register now names it (`tier2_quality_gate`, 22 checks — the documented "18"
+  was stale). Faithfulness and citation precision are recorded `not_yet_measurable`:
+  they need generated answers, and `AM-31` m4 forbids a synthetic substitute.
+
+  **One measured finding worth reading**: end-to-end recall@10 is **0.438**, far below the
+  ungated ranking quality (0.938) — and the decomposition shows why, verified per-question:
+  of 13 gate-open misses, 12 are the right chunk found by vector in the top ten **but below
+  the 0.50 evidence floor**, which the shipped rule deliberately never presents as evidence.
+  The strict-refusal trade-off now has a number, a recorded bar, and a safe path to revisit
+  it: change, re-measure, compare.
+
+  **Network segmentation in `docker-compose.yml`** — two networks: `data` (`internal: true` —
+  Docker attaches no gateway) holds db, queue, both workers and the api; `edge` holds
+  frontend and api. Everything that touches a document (parsing, OCR, chunking, embedding)
+  now has **no route out at all** (`AM-30` t1 as a routing table), the frontend's
+  never-touches-the-database rule (38.22) becomes a network fact, and model weights arrive
+  by read-only mount because the data network cannot download anything (`AM-26` r5 was
+  already the rule; the mount makes the compose reference actually work rather than
+  silently degrade to lexical-only). Honestly scoped: compose removes routes but cannot
+  enumerate destinations, so t8's full allow-list remains production infrastructure. The
+  stale "0.8.0 is not a substitute" comment on the db service was aligned with the
+  measured 0.6.0 correction. Decisions #145–#152 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
 * **Security hardening started — Gate §5b unit A10, CI job 14** (owner directive: keep the
   `AM-31` gate CLOSED pending Google's written terms; continue safe remaining work that does
   not depend on it). Adds dependency and container image scanning to CI, the two of A10's

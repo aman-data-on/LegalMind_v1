@@ -289,3 +289,16 @@ def test_the_register_names_the_reproducibility_gate():
     assert check.status == ATTEST
     assert "tools.verify_reproducibility" in check.detail
     assert "55.4 r3" in check.basis
+
+
+def test_the_register_names_the_tier2_quality_gate():
+    """`AM-28`'s gate is a release-pipeline act for the same reason the
+    reproducibility gate is: it needs the source documents and the model, both of
+    which 54.6 keeps out of the repository and CI. The register names the runner and
+    is honest that the faithfulness half stays unmeasurable while AM-31 is closed."""
+    check = by_name(run_preflight())["tier2_quality_gate"]
+    assert check.status == ATTEST
+    assert "tools.verify_assist_quality" in check.detail
+    assert "wrongly-answered" in check.detail
+    assert "AM-28" in check.basis
+    assert "AM-31 m4" in check.basis

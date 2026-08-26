@@ -75,6 +75,7 @@ def run_preflight(*, environment: str | None = None) -> list[Check]:
         _retention_policy(),
         _backup_restore(),
         _assist_generation_gate(),
+        _tier2_quality_gate(),
     ]
     checks.extend(_database_checks())
     return checks
@@ -657,3 +658,24 @@ def _assist_generation_gate() -> Check:
                  "gate released by appended record; verify the record cites "
                  "provider, tier and date",
                  basis="AM-31 g3")
+
+
+def _tier2_quality_gate() -> Check:
+    """`AM-28` — the Tier-2 quality gate, named here for the same reason 55.5's
+    reproducibility gate is: it is a release-pipeline act the preflight cannot run.
+
+    The gate runs where the source documents and the provisioned model live —
+    locked 54.6 keeps both out of the repository, so out of CI. Its measurable half
+    (refusal correctness, retrieval recall against the recorded baseline) is
+    `tools/verify_assist_quality.py`; its generation half (faithfulness, citation
+    precision) stays unmeasurable until AM-31 opens, and AM-31 m4 forbids a
+    synthetic substitute.
+    """
+    return Check("tier2_quality_gate", ATTEST,
+                 "run `python3 -m tools.verify_assist_quality` in the release "
+                 "pipeline wherever the assist lane changed — retrieval, chunking, "
+                 "prompt or model (AM-28's own list). It blocks on a worsened "
+                 "wrongly-answered rate against tests/assist_eval/baseline.json; "
+                 "faithfulness joins the blocking set once generation on real "
+                 "material is possible (AM-31)",
+                 basis="AM-28, AM-31 m4")

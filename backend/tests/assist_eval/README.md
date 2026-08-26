@@ -53,3 +53,19 @@ related-but-unanswered (`N-*` with `nearby_trap`) · no source at all (`N-*` wit
 
 Two supplied documents are executed with real counterparties. **No counterparty or
 signatory name appears in this dataset**; NDA questions refer to "the Disclosing Party".
+
+## The recorded quality bar — `baseline.json`
+
+`baseline.json` is the Tier-2 gate's recorded bar (`AM-28`): the metrics the shipped
+pipeline measured on this dataset on 2026-08-26, as numbers and hashes only — no document
+text (54.6). `tools/verify_assist_quality.py` re-measures against it and **blocks a
+release on a worsened wrongly-answered rate**; recall and retention regressions are
+reported without blocking, because the locked gate names faithfulness and the
+wrongly-answered rate. Faithfulness and citation precision are recorded as
+`not_yet_measurable` — they need generated answers, `AM-31` is CLOSED, and m4 forbids a
+synthetic substitute.
+
+Re-baselining is `--write-baseline`: a deliberate act whose diff is reviewed like any
+other. The tool refuses to compare across a changed dataset (the sha256 is part of the
+baseline), so editing questions and re-recording the bar land in the same reviewable
+change.

@@ -1,0 +1,29 @@
+{
+ "recorded": "2026-08-26",
+ "dataset": {
+  "path": "tests/assist_eval/questions_draft.json",
+  "sha256": "c53d249943d3adee0eaf459410ef65ff19fc7a9f2fc9dcdc6885606f243bf0a6",
+  "questions": 77
+ },
+ "pipeline": {
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2@main",
+  "strategy_version": "hybrid-rrf-gate-1 (calibrated 2026-08-26)",
+  "cosine_floor": 0.5,
+  "peak_margin": 0.059,
+  "top_k": 10
+ },
+ "metrics": {
+  "answerable": 64,
+  "unanswerable": 13,
+  "wrongly_answered": 1,
+  "correct_refusals": 12,
+  "retained": 41,
+  "false_refusals": 23,
+  "recall_at_10": 0.438,
+  "hit_at_1": 0.281
+ },
+ "not_yet_measurable": {
+  "faithfulness": "requires generated answers: AM-31 gate CLOSED, and AM-31 m4 forbids a synthetic substitute",
+  "citation_precision": "same blocker; joins the blocking set when generation measurement becomes possible"
+ }
+}
