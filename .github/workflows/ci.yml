@@ -665,3 +665,119 @@ jobs:
       - name: Full suite
         working-directory: backend
         run: python -m pytest -q
+
+  # ── 14 ─────────────────────────────────────────────────────────────────────
+  security-scanning:
+    name: 14 · Dependency and container security scanning (A10)
+    runs-on: ubuntu-latest
+    # `IMPLEMENTATION_READINESS_GATE.md` §5b unit A10 names five controls: network
+    # segmentation, TLS, secrets, Trivy/pip-audit/npm audit, OpenVAS/ZAP. The first
+    # three are deployment-time and already reported by
+    # `legalmind.deploy.preflight` (they are properties of where the app runs, not
+    # of the repository). This job is the other two, split by what a CI runner can
+    # actually do:
+    #
+    #   - pip-audit and npm audit scan dependencies this repository pins, so they
+    #     are exact and reproducible here. Both were measured before this job was
+    #     written: pip-audit against an editable install of `backend/pyproject.toml`
+    #     found zero known vulnerabilities; `npm audit` against
+    #     `frontend/package-lock.json` found zero across prod, dev and optional
+    #     (161 packages). Blocking on ANY finding matches job 1's own precedent —
+    #     ruff/mypy block on a zero baseline rather than an invented tolerance.
+    #   - Trivy scans the two built images. CRITICAL/HIGH is blocking;
+    #     `ignore-unfixed: true` because a vulnerability with no available fix
+    #     cannot be resolved by a change in this repository, and a gate nobody can
+    #     satisfy is not a gate — it is the path to the gate being disabled, which
+    #     is the opposite of what job 1's "measured, not advisory" precedent
+    #     intends. MEDIUM/LOW are reported, not blocking, for the same reason.
+    #
+    #   OpenVAS/ZAP scan a *running* instance, not a repository. Standing one up
+    #   would mean orchestrating Postgres + Redis + the API + the frontend inside
+    #   this workflow — a materially larger addition than an additive scan step,
+    #   and one that changes what CI *is* rather than what it checks. Left for the
+    #   deployment pipeline, alongside the TLS and backup-restore controls
+    #   `preflight` already reports as ATTEST for the same reason: some things are
+    #   properties of a live, running deployment and cannot be true of a checkout.
+    #
+    # Not build-tested anywhere else: this job is also the first place either
+    # Dockerfile is actually built in CI.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install backend + pip-audit
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+          pip install pip-audit
+      - name: pip-audit (backend dependencies)
+        working-directory: backend
+        run: pip-audit --desc
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: npm audit (frontend dependencies)
+        working-directory: frontend
+        run: npm audit
+
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: legalmind-backend:ci
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: false
+          load: true
+          tags: legalmind-frontend:ci
+
+      - name: Trivy — backend image (CRITICAL/HIGH, blocking)
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: legalmind-backend:ci
+          format: table
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Trivy — backend image (MEDIUM/LOW, report only)
+        if: always()
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: legalmind-backend:ci
+          format: table
+          severity: "MEDIUM,LOW"
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Trivy — frontend image (CRITICAL/HIGH, blocking)
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: legalmind-frontend:ci
+          format: table
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Trivy — frontend image (MEDIUM/LOW, report only)
+        if: always()
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: legalmind-frontend:ci
+          format: table
+          severity: "MEDIUM,LOW"
+          ignore-unfixed: true
+          exit-code: "0"

@@ -12,6 +12,36 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Security hardening started — Gate §5b unit A10, CI job 14** (owner directive: keep the
+  `AM-31` gate CLOSED pending Google's written terms; continue safe remaining work that does
+  not depend on it). Adds dependency and container image scanning to CI, the two of A10's
+  five named controls (network segmentation, TLS, secrets, Trivy/pip-audit/npm audit,
+  OpenVAS/ZAP) that a CI runner can check directly — the first three are already reported by
+  `legalmind.deploy.preflight` as deployment-time properties, not repository state.
+
+  **pip-audit and npm audit block on any finding**, matching job 1's own precedent of a
+  measured-zero baseline rather than an invented tolerance: both were run before the job was
+  written and found nothing (backend, editable install of `pyproject.toml`; frontend, 161
+  packages across prod/dev/optional). **Trivy scans both built images**, the first time either
+  Dockerfile has been build-tested in CI at all; it blocks on CRITICAL/HIGH with
+  `ignore-unfixed: true` and reports MEDIUM/LOW without blocking, because an image scan also
+  covers the base OS this repository doesn't pin package-by-package, and a gate nobody can
+  satisfy converges to being disabled rather than the finding being fixed.
+
+  **OpenVAS and ZAP are deliberately not in CI.** Both scan a running instance; standing one up
+  inside this workflow means orchestrating Postgres, Redis, the API and the frontend as CI
+  services — a materially larger change than an additive scan step. Left for the deployment
+  pipeline, alongside the TLS and backup-restore controls `preflight` already reports as
+  ATTEST for the identical reason. Four decisions logged as #141–#144 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+  Project-state documentation resynchronized in the same change: `LEGALMIND_PROJECT_STATE.md`
+  had drifted — its top summary reflected A0–A7 complete, but the detailed Current
+  Phase/Blockers/Decisions-needed sections below it still described the pre-A3 state,
+  including two decisions (test questions, `onnxruntime`/`tokenizers` approval) already
+  resolved days earlier. Both are now consistent with `IMPLEMENTATION_STATUS.md`, which also
+  had two stale CI job counts (12/twelve, actually 13 before this change, now 14) corrected.
+
 * **Smarter search delivered end to end — Gate §5b units A3–A7** (owner directive: complete the RAG implementation, deciding routine engineering autonomously). Backend **893 tests** (1 skipped), frontend **62 Vitest + typecheck + production build**, ruff and mypy clean. Live-demonstrated on the real MSA: 236 chunks embedded, the gate opening and closing exactly as calibrated, and a credential-less ask returning the identical refusal wording.
 
   **Model selected by measurement, and by the locked rule's own tie-break.** The owner ratified the 77-question set by directing its use; four provisioned candidates were scored against it over 15 real documents. On human-phrased questions lexical search collapses (1/64 top-10 — it ANDs every term) while refusing perfectly (13/13); dense retrieval inverts both. **`all-MiniLM-L6-v2` (23M, 384d) won as the smallest candidate passing the bar** (hit@10 0.938) — gte-small retrieves marginally better (0.969) but `AM-26` r2 forbids adopting a larger model for headroom. arctic-embed-s was rejected outright (0.438); e5-small-v2 publishes ONNX at a non-standard path and is recorded unmeasured.

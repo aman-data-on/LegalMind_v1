@@ -476,3 +476,30 @@ directing its use; approvals for the runtime were given 2026-08-25.
 end-to-end demonstrated on the real MSA (236 chunks embedded, gate OPEN/CLOSED as
 calibrated, credential-less ask → identical refusal wording) · `EGRESS_ALLOWED` names
 exactly one module · `AM-31` gate CLOSED.**
+
+
+## A10 security hardening — dependency and container scanning, 2026-08-26 (owner instruction: keep the Gemini gate CLOSED pending Google's terms; continue safe remaining work; report exactly when input is needed)
+
+`IMPLEMENTATION_READINESS_GATE.md` §5b unit A10 names five controls: network segmentation,
+TLS, secrets, Trivy/pip-audit/npm audit, OpenVAS/ZAP. The first three are already reported
+by `legalmind.deploy.preflight` as deployment-time properties, not repository checks. This
+pass adds the two that a CI runner can actually exercise, as CI job 14.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 141 | pip-audit and npm audit block CI on **any** finding, not just high/critical | Both were measured before the job was written — zero known vulnerabilities across backend (`pip-audit --desc` against an editable install of `pyproject.toml`) and frontend (`npm audit`, 161 packages, prod+dev+optional). Matches job 1's own precedent: ruff/mypy block at a *measured* zero baseline rather than an invented tolerance | The severity split used for Trivy — a different tool scanning different material, reasoned separately below |
+| 142 | Trivy image scanning blocks only CRITICAL/HIGH (`ignore-unfixed: true`); MEDIUM/LOW are reported, not blocking | Unlike pip-audit/npm audit, an image scan also covers the base OS (`python:3.12-slim`, `node:22-alpine`), which this repository does not pin package-by-package. Blocking on a LOW finding with no available fix converges to the job being disabled rather than the finding being fixed — the same "the gate must be real" reasoning argues for scoping it here, not against a gate at all | Nothing is silently dropped — MEDIUM/LOW still runs and still prints, `if: always()` |
+| 143 | OpenVAS and ZAP are **not** added to CI; deferred to the deployment pipeline | Both scan a *running* instance. Standing one up inside this workflow means orchestrating Postgres + Redis + the API + the frontend as CI services — a materially larger change than an additive scan step, closer to "add a new CI service" than "check what the repository already contains." Treated like TLS and backup-restore in `preflight.py`: an ATTEST-shaped deployment control, not a repository check | Whether they are used at all — both stay named in A10 and belong in the release pipeline once a staging environment exists to point them at |
+| 144 | Both Dockerfiles are built inside CI for the first time, as a side effect of the Trivy job | Neither image had ever been build-tested by CI — a broken Dockerfile would previously ship unnoticed until someone deployed it. Scanning required building, so this closes a real gap rather than adding one | Nothing about deployment orchestration, still NOT YET SPECIFIED (55.6) |
+
+**Local measurement could not cover Trivy itself**: this sandbox has no Docker daemon, and
+installing one (or piping a third-party install script through `sh`) is outside what this
+pass should do unilaterally. The pip-audit and npm audit baselines above were measured
+directly; the two image-scan steps are written against the well-known, version-pinned
+`aquasecurity/trivy-action@0.29.0` and will report their first real result on the next CI
+run — the same "cannot be checked from inside the application" honesty `preflight.py`
+already applies to TLS and encrypted storage.
+
+**Verification at close: `.github/workflows/ci.yml` parses (14 jobs); pip-audit 0 findings;
+npm audit 0 findings (161 packages); no existing job modified; no schema, dependency-list,
+or `all_lock.md` change.**

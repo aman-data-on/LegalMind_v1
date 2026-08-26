@@ -19,12 +19,23 @@ Updated at the end of every working session.*
 | | |
 |---|---|
 | **Last worked** | 26 August 2026 |
-| **Current phase** | `PHASE 5–7 DELIVERED — ASK YOUR DOCUMENTS` · working end to end; Gemini answers wait on one action from you |
-| **Health** | 893 backend + 62 frontend checks passing, none failing |
-| **Waiting on you** | **Two external actions**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
+| **Current phase** | `PHASE 9 — SECURITY HARDENING, IN PROGRESS` · everything through the workspace is delivered; Gemini answers wait on one action from you |
+| **Health** | 893 backend + 62 frontend checks passing, none failing; CI gained a 14th job (dependency + container scanning) |
+| **Waiting on you** | **Two external actions, unchanged**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
 | **Next step once they arrive** | Record the confirmation, open the gate, switch generated answers on |
+| **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 
 **What got finished on 26 August**
+
+- **Security hardening (Phase 9) started**: two new automated checks run on every change from
+  now on — one scans our own code's dependencies for known vulnerabilities (backend and
+  frontend, both currently clean), the other scans the built application images the same
+  way. Neither needed the Gemini connection, so both run regardless of the gate.
+- **Two more document-scanning tools from the plan were deliberately left out of this
+  automated check, and here's why**: they need a running copy of the whole application to
+  scan, not just the code, so wiring them in would mean building a small second copy of the
+  live system inside the automated-check pipeline — a bigger and riskier change than
+  everything above it. That stays a deployment-time step instead.
 
 - **The search model was chosen by measurement, not opinion** — four candidates were
   scored against your ratified 77 questions on the real documents; the smallest one
@@ -95,8 +106,10 @@ This is a real, working system — not a prototype.
 
 * **The legal rules engine works.** It compares a contract against our approved positions and
   produces a verdict, with the reasoning traceable back to the exact clause it read.
-* **862 automated checks pass**, none failing. These run every time anything changes, so a change
-  that would break existing behaviour gets caught.
+* **893 backend + 62 frontend automated checks pass**, none failing. These run every time
+  anything changes, so a change that would break existing behaviour gets caught — and as of
+  26 August that includes a check on every dependency and every built application image for
+  known security vulnerabilities.
 * **Our approved legal positions are already loaded** — **32 of them**, covering our MSA, Terms of
   Service, NDA and SLA. Every one was taken from a real LeapSwitch document and records which clause
   it came from. **This work is done and does not need redoing.**
@@ -117,72 +130,63 @@ This is a real, working system — not a prototype.
 
 ## What we're building now
 
-The **AI assistant** part: asking questions about an uploaded document, and searching our approved
-positions and the statutes, always with a citation.
-
-**Right now we are on the foundations**, not the AI itself. Two safety nets went in first:
-
-1. A check that **fails the build if any part of the system starts making internet calls** without
-   that being a deliberate, recorded decision. Today the answer must be zero — so the day the AI
-   connection is added, it shows up as an obvious change nobody can miss.
-2. A check that **fails the build if the shape of our legal database changes**. The rule says the AI
-   work must not touch the existing legal data at all; this makes that a fact rather than a promise.
-
-We also found and fixed a gap: **about 250 of our automated checks were running but their results
-were being thrown away**, so a genuine failure could have gone unnoticed. They are now enforced.
+The **AI assistant** part is built and working — asking questions about an uploaded document,
+with every answer citing its source or plainly saying it doesn't know. What's left is making
+our approved positions and the statutes searchable the same way, and finishing hardening.
+Neither touches the AI-assistant code that's already shipped.
 
 ---
 
 ## What's left
 
-In the order it has to happen — each step needs the one before it:
+In the order it has to happen — each step needs the one before it. **1–6 are done**; only 7
+and 8 remain.
 
-1. **Storage and database groundwork** for the AI's search index, kept completely separate from the
-   legal data.
-2. **Plain search** over uploaded documents — find exact phrases and clause numbers. *Useful on its
-   own, with no AI involved at all.*
-3. **Smarter search** that understands wording, not just exact words. Runs on our own servers.
-4. **The safety checks** that verify every claim in an AI answer against the source before anyone
-   sees it — **built before the AI is connected**, so an unchecked answer is impossible rather than
-   just discouraged.
-5. **Connecting Gemini** for writing the answers, with strict limits on what gets sent.
-6. **The single screen** where the document, the verdicts and the chat all live together.
-7. **Our approved positions and the statutes** made searchable. *Waiting on two things — see below.*
-8. **Security hardening and final sign-off.**
+1. ~~Storage and database groundwork for the AI's search index, kept completely separate from
+   the legal data.~~ **Done.**
+2. ~~Plain search over uploaded documents — find exact phrases and clause numbers, no AI
+   involved.~~ **Done.**
+3. ~~Smarter search that understands wording, not just exact words. Runs on our own
+   servers.~~ **Done** — model chosen by measurement against your ratified test questions.
+4. ~~The safety checks that verify every claim in an AI answer against the source before
+   anyone sees it, built before the AI was connected.~~ **Done.**
+5. ~~Connecting Gemini for writing the answers, with strict limits on what gets sent.~~
+   **Done** — wired and gated; the gate itself waits on you, see *Blockers*.
+6. ~~The single screen where the document, the verdicts and the chat all live together.~~
+   **Done.**
+7. **Our approved positions and the statutes** made searchable. *Blocked — see below.*
+8. **Security hardening and final sign-off.** *In progress — dependency and image scanning
+   done 26 August; network segmentation, the restricted database account, and the two
+   live-instance scan tools remain.*
 
 ---
 
 ## Current phase
 
-### `PHASE 4 — SMARTER SEARCH` · measured, waiting on your test questions
+### `PHASE 9 — SECURITY HARDENING` · in progress, not gated on Gemini
 
-You approved the software to run search models, so I installed it and **measured four
-candidates** on your real documents. Two results, and the second is the important one.
+Everything through the workspace (phases 0–7) is delivered and working — see *Completed*
+below. What's left before final sign-off is hardening and the two statute/positions items
+in Phase 8, and neither needs the Gemini gate open.
 
-**Result 1 — smarter search does help, but only in combination.** Used on its own it is
-much *worse* than what we have at finding exact wording. Combined with ordinary search it
-finds the right clause in the top ten **every single time** (up from 92%), and the best
-candidate matches ordinary search's first-try accuracy while ranking better overall. So
-the combination is worth having.
+**What's done in Phase 9 so far**: every code change is now automatically checked for
+known security vulnerabilities in two ways — one checks the libraries our own code depends
+on (backend and frontend both currently clean, nothing found), the other checks the actual
+application images the same way once they're built. Both run on every change from now on,
+the same way the existing correctness checks do.
 
-**Result 2 — and this one changes the plan.** Every single smarter-search option **lost the
-ability to say "not found"**. Ordinary search correctly refused 34 of 36 questions it had
-no answer to. Every smarter option refused **none of them** — it answered all 36.
+**What's deliberately not automated yet, and why**: the hardening plan also calls for two
+tools that test a *running* copy of the application from the outside, the way an attacker
+would — rather than reading the code. Wiring those into the automatic checks would mean
+building a small working copy of the whole system (database, backend, frontend, all
+running together) inside the check pipeline itself, which is a much bigger piece of
+infrastructure than the two checks above. That's deployment-pipeline work, done once there's
+a staging copy of the system to point it at, not something to add to the automatic
+per-change checks unilaterally.
 
-That isn't a bug in one model; it's how this kind of search works. It finds the *closest*
-match, and there is always a closest match, however unrelated. A ranking isn't a filter.
-
-Since "no answer without a source" is the core promise of this product, that means smarter
-search **cannot be switched on** until we add a cut-off: a minimum closeness below which
-the answer is "not found". And that cut-off is a number I must not invent — it has to be
-measured against questions we know the documents don't answer.
-
-**Which is the same thing I already need from you.** Your test questions now unblock two
-decisions rather than one: which model to use, and where to set the cut-off. I've
-deliberately not chosen either.
-
-**Nothing has been switched on.** No model is in use, the storage for it hasn't been
-created, and its size hasn't been fixed — all of that waits for the measurement.
+Remaining in Phase 9: locking down the network path between services, and a restricted
+database account for the AI side (both server-admin actions, not decisions — see
+*Blockers*).
 
 ### Completed
 
@@ -190,18 +194,19 @@ created, and its size hasn't been fixed — all of that waits for the measuremen
 |---|---|
 | **Phase 0 — Review of what we already have** | Went through the existing system to see what could be kept. Answer: **almost all of it.** About two-thirds usable as-is, the rest needs adjusting, and essentially **nothing needs throwing away.** |
 | **Phase 1 — Foundations and record-keeping** | Made the written record match reality, recorded your Gemini decision properly as a formal amendment, and put two safety nets in **before** any AI work: one fails the build if any part of the system starts making internet calls without that being deliberate, the other fails the build if the shape of the legal database changes. Also fixed a gap where about 250 automated checks were running but their results were being thrown away. |
-| **Phase 2 — Database groundwork** | Built the separate storage area for the search index, kept completely apart from the legal data. Eight of nine planned tables done; the ninth waits on choosing a search model, because its shape depends on which one we pick. |
+| **Phase 2 — Database groundwork** | Built the separate storage area for the search index, kept completely apart from the legal data. |
 | **Phase 3 — Search over uploaded documents** | Upload a contract and search it — by phrase, exact wording, or clause number — with no AI involved. Working and measured. |
+| **Phase 4 — Smarter search** | Measured four candidate search models against your ratified test questions on the real documents, and picked the smallest one that met the bar — never the one that merely scored highest. Combined with plain search, it finds the right clause in the top ten essentially every time. |
+| **Phase 5 — Answer safety checks** | Built and working, **before** the AI was connected: every sentence of an answer must cite its source, and the citation must actually support the claim — checked by code, not by the model. A fabricated answer is blocked and the user sees "not found," never the fabrication. |
+| **Phase 6 — Gemini connected** | Wired behind a single switch-point, with a hard gate that refuses to send anything to Google in production until you confirm their written no-training terms — a setting cannot open that gate, only a recorded decision can. |
+| **Phase 7 — The single workspace screen** | On the contract page you can now ask about an uploaded document; answers cite the clause and page, every score is labelled a "retrieval score" (never confidence), and a refusal reads as a calm "not found." |
 
 ### Coming next
 
-| Phase | What it is |
-|---|---|
-| Phase 5 | Answer safety checks |
-| Phase 6 | Gemini connected |
-| Phase 7 | The single workspace screen |
-| Phase 8 | Approved positions and statutes made searchable |
-| Phase 9 | Security hardening and sign-off |
+| Phase | What it is | State |
+|---|---|---|
+| Phase 8 | Approved positions and statutes made searchable | Blocked — see *Blockers* |
+| Phase 9 | Security hardening and sign-off | **In progress** — dependency/image scanning done; network segmentation, restricted DB account, and the two live-instance scan tools remain |
 
 ---
 
@@ -215,7 +220,7 @@ Only genuine ones.
 | 2 | Making the **statutes** searchable | Two of the laws the plan refers to were never sent to us, and the ones we have didn't come from the official government source | Phase 8 only |
 | 3 | Single sign-on ("RIAAS") | We don't have the technical details of how to connect to it. Normal login works fine meanwhile | Nothing. It can be added at any point |
 | 4 | A restricted database account for the AI side | Creating it needs administrator access the application deliberately doesn't have. Ordinary server admin work, not a decision | Nothing yet |
-| 5 | **Your review of the drafted test questions** | On your instruction I drafted the full set myself — 77 questions over the contracts, policies and statutes, every one verified against the actual documents, including 13 designed to have no answer. Per our own rules a result only counts once you've ratified the set, and your review is the safeguard against me marking my own homework | **Choosing the search model, and setting the "not found" cut-off.** Review `backend/tests/assist_eval/questions_draft.json` — approve it, edit it, or replace any question |
+| ~~5~~ | ~~Your review of the drafted test questions~~ | **Resolved 26 Aug** — you directed the set be used as-is ("Use questions_draft.json as the current evaluation dataset. Do NOT ask me to recreate these questions."). That is your ratification; the set is marked RATIFIED and both the model choice and the cut-off were measured against it | — |
 | ~~6~~ | ~~Permission to add the software that runs a search model~~ | **Resolved 25 Aug** — approved and installed. Measured at 118MB, not the ~50MB I estimated when asking; I was wrong about the number, though not about the choice | — |
 
 **A correction to something I told you earlier.** I previously said the database search add-on
@@ -229,51 +234,16 @@ not weakened the permission rule to get around it.
 
 ## Decisions needed from you
 
-**Two, and both are blocking the same thing: choosing the search model.** I have deliberately
-not chosen one, because the rule we set says it must be chosen by measurement, and I can't
-measure the thing that matters without these.
-
-### 1. Real test questions, so the choice is measured rather than guessed
-
-**What I need:** roughly 30–50 questions a lawyer or analyst would genuinely ask about our own
-MSA, Terms of Service, NDA and SLA — the documents you already sent me — each with a note of
-which clause answers it. Plus, importantly, **about 10 questions the documents genuinely do
-not answer**, so I can check the system correctly says "not found" instead of guessing.
-
-**Why I can't do this myself:** I can generate questions automatically *from* a document, and I
-have — that's how the numbers above were produced. But those questions reuse the document's own
-wording, which is precisely what a smarter model is *not* needed for. To show a smarter model is
-worth its cost, the questions have to be phrased differently from the document. If I write those
-myself I'd be choosing both the exam and the answers, and any result would be meaningless.
-
-**Format:** anything readable — a spreadsheet, a Word document, or plain text. One line per
-question is fine: *the question · which document · which clause number answers it*. For the
-unanswerable ones, just the question and a note that it isn't covered.
-
-**What it measures:** whether a search model finds the right clause when the question doesn't
-share the document's words — and whether it correctly refuses when there's no answer. Getting
-the refusal right counts for half the score, by our own rule.
-
-### 2. Permission to add the software that runs a search model
-
-**What I need:** a yes or no to adding two components — `onnxruntime` and `tokenizers`.
-
-**Why I'm asking rather than deciding:** you already approved *having* a self-hosted search
-model. But our rules require your approval for each new software component, and I applied that
-same rule to the Gemini connection, so applying it selectively here would be inconsistent.
-
-**My recommendation: yes, and specifically these two.** They total roughly 50MB, run on an
-ordinary server with no graphics card, and can *only* run a model — they cannot train one. The
-common alternative (`torch`) is about 2.5GB and includes a full training toolkit we've
-explicitly ruled out having. All eight candidate models publish versions that work with the
-lighter option, so we give nothing up.
-
-**What happens if you say no:** the search stays as it is today — which genuinely works, as the
-measurements above show. It just won't understand rephrased questions.
+**None open right now.** The two that stood here — supplying real test questions, and
+approving the search-model software — were both resolved on 25–26 August (see the struck-through
+rows 5 and 6 in *Blockers*). What's still waiting on you is external action, not a decision;
+see the next section.
 
 ## What I'll need from you, and when
 
 **Two actions are now genuinely due — everything else is built and waiting behind them.**
+Unchanged since 25 August; your 26 August instruction to keep the gate closed until you
+provide them has been logged and requires no new action from you.
 
 ### 1. Google's written data terms — the gate-opener
 
