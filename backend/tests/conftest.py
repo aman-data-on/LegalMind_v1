@@ -107,6 +107,14 @@ def engine():
         _sweep_stale_schemas(c)
         c.execute(text(f'CREATE SCHEMA "{schema}"'))
 
+    # A container-fresh test database (every CI job) has no pgvector, and the
+    # c4a91 migration refuses to create it — a deployment precondition there, a
+    # harness's own job here. Best-effort: succeeds where the role is superuser
+    # (CI's service image), no-ops where the extension already exists (local),
+    # and the migration's own error follows where neither holds.
+    from tools.pg_extensions import ensure_vector_extension
+    ensure_vector_extension(base_url)
+
     cfg = Config("alembic.ini")
     # Alembic reads options through configparser, which treats `%` as
     # interpolation — the percent-encoded `=` has to be escaped for it.

@@ -113,7 +113,7 @@ async function postOk(page: Page, path: string, body?: unknown): Promise<any> {
 export async function createAnalysedReview(
   page: Page,
   { analyse = true }: { analyse?: boolean } = {},
-): Promise<{ reviewId: string }> {
+): Promise<{ reviewId: string; contractId: string }> {
   const f = fixture();
 
   const contract = await postOk(page, "/contracts", {
@@ -146,7 +146,7 @@ export async function createAnalysedReview(
   });
 
   if (analyse) await postOk(page, `/reviews/${review.id}/analyze`);
-  return { reviewId: review.id };
+  return { reviewId: review.id, contractId: contract.id };
 }
 
 /** The Evaluation ids on a Review, read through the API the browser uses. */

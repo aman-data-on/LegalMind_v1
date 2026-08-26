@@ -99,15 +99,20 @@ export default function ReviewPage({
     void load();
   }, [load]);
 
-  if (!can(P.REVIEW_VIEW)) return <AccessRestricted what="reviews" />;
-  if (!reviewId) return <Loading what="review" />;
-
   /* Queue membership is sticky for this visit: once a Finding needed a
      decision it stays in the queue view even after the decision is recorded,
      so the server-confirmed result (52.7) remains on screen instead of the
      card unmounting mid-confirmation (code-review finding, 2026-08-22).
-     Membership is display state only; every rendered value is the server's. */
+     Membership is display state only; every rendered value is the server's.
+
+     Declared ABOVE the early returns: the first render has no `reviewId` yet and
+     returns early, so a hook placed below them is skipped on that render and
+     called on the next — React #310, and the screen never loaded (2026-08-26). */
   const queueIds = useRef(new Set<string>());
+
+  if (!can(P.REVIEW_VIEW)) return <AccessRestricted what="reviews" />;
+  if (!reviewId) return <Loading what="review" />;
+
   (findings ?? []).forEach((finding) => {
     if (finding.requires_decision) queueIds.current.add(finding.id);
   });

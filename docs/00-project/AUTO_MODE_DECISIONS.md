@@ -523,3 +523,25 @@ SKIP=0 with no source material, FAIL=1 with material but no model, exit 1 on a t
 baseline, exit 0 on the recorded one · compare mode reproduces the baseline exactly ·
 compose YAML validates with the intended service→network mapping · `AM31_GATE` still
 CLOSED · `all_lock.md` untouched.**
+
+
+## Browser suite run by hand → two latent breakages found and fixed, 2026-08-26
+
+Writing a Playwright spec for the Ask surface meant running the suite — which had not run
+since Phase 3.5 (2026-08-24) landed, because CI triggers only on `main`/PRs and all work
+sits on a feature branch. It failed 13/22, every failure on the core Review screen.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 153 | **Fix the Review-screen crash by moving `useRef` above the early returns** — a hooks-order violation (React #310) introduced 2026-08-24 by the sticky-queue code-review fix; a scan of every page/component found no second instance | The first render has no `reviewId` and returns early, so a hook below the returns is skipped, then called on the next render. Typecheck and build cannot see it; only a browser can — and no browser run had happened. The one-line reorder changes no behavior the DD-1 screen decided | Nothing about the screen's design or the sticky-queue semantics, both preserved |
+| 154 | **CI runs on every branch push**, not only `main` | Five days of commits ran zero CI jobs — long enough for the core screen to ship broken. `concurrency: cancel-in-progress` already bounds the cost to one run per push. A gate that cannot observe the branch where work happens is not a gate | Branch protection or merge policy — the owner's |
+| 155 | **Harnesses provision pgvector best-effort; migrations still never do** (`tools/pg_extensions.ensure_vector_extension`, wired into conftest, the e2e bootstrap, both verifiers and the benchmark) | Every fresh-database harness died at `c4a91` the day it landed, hidden locally by long-lived databases that already had the extension. The migration's refusal is a PRODUCTION stance (55.2: the app role never holds superuser); a test harness satisfying its own precondition in a container where the role IS superuser weakens nothing. Where it cannot, it prints the operator step and the migration's authoritative error follows | The production precondition — still `preflight`'s register |
+| 156 | **The Ask surface gets a browser spec asserting the pre-key state** — both refusal causes render the identical `AM-29` r4 sentence, no error banner, no "confidence" on the composed page | The API and static-render tests each prove a half; only the composed page under the real deployment posture (no credential — production until `AM-31` opens) proves the whole. The wording constant is asserted verbatim so drift in either repository fails here | — |
+
+**Local one-time host step recorded:** `CREATE EXTENSION vector` in `template1`, so every
+future locally-created database inherits it — the local analogue of the CI container role
+being superuser. Reversible (`DROP EXTENSION` in `template1`); affects only this dev host.
+
+**Verification at close: Playwright 27/27 (4 setup + 22 original + the Ask spec) · Vitest 62 ·
+typecheck clean · backend 894 passed / 1 skipped · ruff and mypy clean · the 54.6 archive
+guard correctly flagged the failed run's `trace.zip` artifacts, which were removed.**

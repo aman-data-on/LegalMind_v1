@@ -10,7 +10,47 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed
+
+* **The core Review screen (`/reviews/[id]`) had crashed on load for every user since
+  2026-08-24.** A `useRef` introduced by that day's sticky-queue code-review fix sat *below*
+  the page's two early returns; the first render has no `reviewId` yet and returns early, the
+  next render calls the hook, and React throws #310 ("rendered more hooks than during the
+  previous render") into the production error boundary — "This page couldn't load." Typecheck
+  and build cannot see a hooks-order violation, the Phase 3.5 work was verified by manual
+  browser passes rather than the Playwright suite, and **CI never ran**: the workflow
+  triggered only on `main` and pull requests, and five days of commits landed on a feature
+  branch with neither. Found on 2026-08-26 the moment the browser suite was run by hand
+  (13 of 22 tests failed, every one on that screen); fixed by declaring the hook above the
+  returns; a scan of every page and component found no second instance. **Two guards so it
+  cannot recur unseen**: CI now runs on every branch push (the `concurrency` group already
+  cancels superseded runs), and the suite passes **27/27** including the new Ask spec.
+
+* **Every fresh-database harness broke the day `chunk_embeddings` landed.** Migration
+  `c4a91f6e2d87` correctly refuses to `CREATE EXTENSION vector` (untrusted → superuser-only, a
+  deployment precondition `preflight` reports), but the e2e bootstrap, the reproducibility and
+  invariant verifiers, the retrieval benchmarks and CI's container-fresh test databases all
+  create brand-new databases — which have no extension, so the migration raised and the
+  harness died before testing anything. Locally it hid behind long-lived databases that
+  already carried the extension. `tools/pg_extensions.ensure_vector_extension` now makes each
+  harness **try**: succeeds where the role is superuser (every CI service container, by the
+  official image's design), no-ops where the extension exists, prints the one-time operator
+  step where neither holds and lets the migration's own error follow. Migrations are
+  unchanged — the precondition stance is a production property, and a harness provisioning
+  its own precondition does not weaken it. Local one-time step recorded: pgvector installed in
+  `template1` so every future local database inherits it.
+
 ### Added
+
+* **The Ask surface is browser-proven in the exact state users meet it today**
+  (`frontend/e2e/ask.spec.ts`). With no provider credential present — precisely production
+  until the `AM-31` gate opens — one ask retrieves evidence but cannot generate, another
+  retrieves nothing at all; the spec asserts both render the **byte-identical** `AM-29` r4
+  sentence (declared verbatim so a drift in either repository fails here), on the quiet
+  surface with no error banner, with **no "confidence" string anywhere on the composed page**
+  (`AI-03` item 16). It travels the whole live path: contract → upload → inline index →
+  conversation → two asks through Next's proxy and the CSRF pair. `createAnalysedReview` now
+  also returns `contractId` (additive).
 
 * **The Tier-2 quality gate is now a runnable release check, and the reference deployment
   is network-segmented — Gate §5b A9 (measurable half) and A10 continued** (standing owner

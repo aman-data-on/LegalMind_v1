@@ -9,8 +9,14 @@ name: CI
 
 on:
   pull_request:
+  # Every branch, not only `main`. Work here lands on long-lived feature branches
+  # without a pull request open, so under `branches: [main]` no job ran for five
+  # days of commits — long enough for the core Review screen to ship a runtime
+  # crash (React #310, 2026-08-24) that job 10 would have caught on the first push
+  # and that nobody saw until the browser suite was run by hand on 2026-08-26. The
+  # `concurrency` group below cancels superseded runs, so the cost is one run per
+  # push, not one per commit.
   push:
-    branches: [main]
 
 permissions:
   contents: read

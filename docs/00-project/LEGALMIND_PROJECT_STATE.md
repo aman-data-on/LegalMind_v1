@@ -20,13 +20,25 @@ Updated at the end of every working session.*
 |---|---|
 | **Last worked** | 26 August 2026 |
 | **Current phase** | `PHASE 9 — SECURITY HARDENING, IN PROGRESS` · everything through the workspace is delivered; Gemini answers wait on one action from you |
-| **Health** | 894 backend + 62 frontend checks passing, none failing; CI gained a 14th job (dependency + container scanning) |
+| **Health** | 894 backend + 62 frontend + 27 browser checks passing, none failing; CI gained a 14th job (dependency + container scanning) and now runs on every push |
 | **Waiting on you** | **Two external actions, unchanged**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
 | **Next step once they arrive** | Record the confirmation, open the gate, switch generated answers on |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 
 **What got finished on 26 August**
 
+- **A serious hidden breakage was found and fixed.** The main Review screen — the one
+  where findings are read and decisions recorded — had been failing to load for every user
+  since 24 August. It was a one-line ordering mistake introduced by a code-review fix that
+  day; the kind of error the automatic type checks cannot see and only a real browser can.
+  Nobody saw it because the automated browser tests **never ran**: they were configured to
+  run only on the main branch, and five days of work went onto a side branch. Fixed, all 27
+  browser checks now pass, and the automated checks now run on every push to any branch so
+  this cannot hide again.
+- **A second hidden breakage in the test tooling, same root cause of "never ran".** The
+  day the search-index table was added, every tool that builds a fresh test database
+  stopped working (the database add-on the index needs wasn't being installed in fresh
+  databases). Fixed in the tooling; production behaviour untouched.
 - **The quality bar is now a command, not a promise.** Before any future change to the
   search, the chunking, or the model ships, one command re-runs all 77 of your ratified
   test questions through the real product and **refuses to pass if the system starts

@@ -397,6 +397,9 @@ def main() -> int:
         c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         c.execute(text(f'CREATE DATABASE "{name}"'))
     admin.dispose()
+    # Fresh database, no pgvector; the migration refuses to create it. Try here.
+    from tools.pg_extensions import ensure_vector_extension
+    ensure_vector_extension(_bench_url())
 
     from alembic.config import Config
 
@@ -690,6 +693,9 @@ def eval_main(argv: list[str] | None = None) -> int:
         c.execute(text(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)'))
         c.execute(text(f'CREATE DATABASE "{dbname}"'))
     admin.dispose()
+    # Fresh database, no pgvector; the migration refuses to create it. Try here.
+    from tools.pg_extensions import ensure_vector_extension
+    ensure_vector_extension(_bench_url())
 
     from alembic.config import Config
 
