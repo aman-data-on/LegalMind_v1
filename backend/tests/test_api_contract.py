@@ -321,3 +321,20 @@ def test_permission_names_are_all_from_the_locked_catalogue():
     declared = {perm for perm in ENDPOINT_PERMISSIONS.values()
                 if perm not in {AUTHENTICATED_ONLY, UNAUTHENTICATED}}
     assert declared <= set(P.ALL_PERMISSIONS)
+
+
+# =====================================================================
+# The frozen contract — docs/api/openapi.json cannot drift from the code
+# =====================================================================
+def test_the_committed_openapi_snapshot_matches_the_app():
+    """The snapshot is what a UI phase designs against (owner directive,
+    2026-08-26: "finalized backend contracts"). A contract change is therefore a
+    visible diff in the same commit as the code — this test is what makes that
+    a property rather than a habit. Regenerate with
+    `python3 -m tools.export_openapi`, after checking the diff against Step 49."""
+    from tools.export_openapi import SNAPSHOT, current_schema, render
+
+    assert SNAPSHOT.exists(), f"missing {SNAPSHOT}; run python3 -m tools.export_openapi"
+    assert SNAPSHOT.read_text() == render(current_schema()), (
+        f"{SNAPSHOT} is stale: the application's contract changed. Review the "
+        "change against STEP_49_API_FINALIZATION.md, then regenerate in this commit.")

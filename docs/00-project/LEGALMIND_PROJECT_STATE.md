@@ -20,13 +20,25 @@ Updated at the end of every working session.*
 |---|---|
 | **Last worked** | 26 August 2026 |
 | **Current phase** | `PHASE 9 — SECURITY HARDENING, IN PROGRESS` · everything through the workspace is delivered; Gemini answers wait on one action from you |
-| **Health** | 894 backend + 62 frontend + 27 browser checks passing, none failing; CI gained a 14th job (dependency + container scanning) and now runs on every push |
+| **Health** | 901 backend + 62 frontend + 27 browser checks passing, none failing; CI (14 jobs) green on every push |
+| **UI/UX phase** | **Backend is ready** — the API contract a new UI designs against is complete and frozen (`docs/api/openapi.json`), except four owner-gated surfaces that the design must leave as placeholders: statute/positions *search* (Domains A/C), single sign-on, report export, and the generated-answer text itself. Awaiting your go-ahead to start the UI/UX phase |
 | **Waiting on you** | **Two external actions, unchanged**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
 | **Next step once they arrive** | Record the confirmation, open the gate, switch generated answers on |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
+| **Your instruction, 26 Aug (later)** | *"Backend first. UI/UX later. Preserve the existing UI code but treat its previous design as obsolete for planning purposes... When the backend/API architecture is genuinely ready to support a new UI/UX implementation, stop and tell me clearly."* Logged. The current screens stay in place and their tests keep running, but no further design or polish work goes into them. The backend is being closed out against the surfaces a new UI will need; the readiness call comes as an explicit statement, with the owner-gated items named |
 
 **What got finished on 26 August**
 
+- **The backend's "front door" is finished and frozen for the new interface.** Per your
+  "backend first" instruction, I checked every screen a new workspace interface would need
+  against what the server actually offers, and closed the four gaps: a list of a document's
+  past conversations; conversations that **keep their citations when reopened** (before,
+  reloading lost them); the document's extracted text with page numbers and positions, so a
+  viewer can show and highlight exactly where an answer came from; and a simple "is this
+  document searchable yet" indicator. The complete server contract is now saved as a single
+  file the interface work designs against, and an automatic check fails if code and contract
+  ever drift apart. The current screens are untouched and still pass their tests — they just
+  won't receive any more design work.
 - **A serious hidden breakage was found and fixed.** The main Review screen — the one
   where findings are read and decisions recorded — had been failing to load for every user
   since 24 August. It was a one-line ordering mistake introduced by a code-review fix that

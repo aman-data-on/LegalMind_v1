@@ -573,3 +573,37 @@ ours, and invisible to `npm audit`, which only sees the lockfile.
 |---|---|---|---|
 | 160 | **The frontend runtime image carries no package manager**: after `npm ci --omit=dev`, npm, npx and yarn are deleted, and Next is started with `node node_modules/next/dist/bin/next` | A serving image needs `node` and nothing else; npm and yarn each bundle a dependency tree that is attack surface with no job. Deleting them removes the whole finding class instead of chasing versions — the same reasoning as #157, one level up. Verified locally that Next's bin runs directly under `node` | Next's `standalone` output mode — a larger build-shape change that would achieve a similar minimal image; not needed to close the finding |
 | 161 | **The Playwright trio is removed by name from the runtime image** | It survives `--omit=dev` because Next declares `@playwright/test` an optional peer and the root a devDependency; npm records the union as `devOptional`. Measured: `--omit=peer` does not remove it, and `--omit=optional` would also strip Next's SWC and sharp platform binaries. Not a scan finding (0 vulns today) — hygiene: a browser-automation framework in a serving image. Verified locally that Next runs without it | — |
+
+
+## Backend first, UI later — closing the API contract for a new UI, 2026-08-26
+
+Owner directive: *"Backend first. UI/UX later. Preserve the existing UI code but treat its
+previous design as obsolete for planning... When the backend/API architecture is genuinely
+ready to support a new UI/UX implementation, stop and tell me clearly."* The readiness audit
+mapped every surface a workspace UI needs (document pane, verdict cards, chat panel with
+history, configuration/audit/admin) against the running API and found four contract gaps,
+all additive and all inside existing permissions.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 162 | **`GET /conversations`** — the caller's own conversations, newest first, `contract_id` the one filter, paginated | A workspace shows a document's history; without a list the UI could only re-open ids it had cached in the browser. Creator-only scope identical to the single GET (49.6 r4) so the list can never become the enumeration oracle `AM-25` r7 forbids | Sharing or visibility beyond the creator — a product question no record defines |
+| 163 | **`GET /conversations/{id}` replays citations** — rebuilt from `answer_citations` × the chunk's evidence row × the retrieval run's per-chunk score, and compared field-by-field against the live POST shape in a test | `AM-25` r5 binds every *view* of an answer, not the first; before this a reload lost every citation. The score is read from the run, not the chunk — a retrieval score is a property of the query (the same reasoning that put it on `retrieval_runs` in the first place) | — |
+| 164 | **`GET /document-versions/{id}/evidence`** — paginated Evidence rows in reading order under `document.view`; not in 49.3's table, recorded as an implementation addition in Step 49's new record section | The document pane and every citation target need the text the pipeline read, with page and offsets (the locked Evidence model's whole purpose). Seeing the version and seeing what was extracted from it are one act under one permission; 49.0 excludes endpoint naming from the lock. Lineage (`processing_run_id`) and parser metadata stay server-side | Nothing about rendering the original bytes — `/content` is unchanged and still `document.download` |
+| 165 | **`assist_index: {chunks, embedded_chunks}` on the document version** — counts, not an enum | A UI must know whether a version is searchable; counts let it derive ready / lexical-only / not-indexed. Deliberately not a new state vocabulary: `AM-29` r1 keeps the assist lane to one axis, and an index-readiness enum would be a second by another name | — |
+| 166 | **The contract is frozen as `docs/api/openapi.json`, drift-tested** (`tools/export_openapi.py`, `test_the_committed_openapi_snapshot_matches_the_app`) | "Finalized backend contracts" must be an artifact a UI phase can design against and a reviewer can diff. Serving OpenAPI stays off by default (49.12 / 47.7 posture); freezing it is a different act. Step 49 wins any disagreement — the snapshot is derived, never the specification | — |
+
+**Readiness call (mine, for the owner to confirm):** the backend is ready for the UI/UX
+phase. Every workspace surface has a stable, tested, frozen contract — auth (password), contracts
+and document versions (metadata · download · evidence · index counts), reviews and async
+analysis, findings/evaluations/decisions/escalation (locked 49.7), report, configuration
+browse/draft/publish, audit, admin, and assist conversations with the three refusal states and
+evaluator routing. **Four surfaces stay owner-gated and must be designed as placeholders**:
+Domain A/C *search* (C-15 amendment + C-16 statutes; browsing Domain A as configuration is
+available), OIDC (49.2 specifies the redirects; implementation needs a rule-19 dependency
+approval + RIAAS details), export (`POST /reviews/{id}/export`, formats NOT YET SPECIFIED),
+and the generated-answer text (`AM-31` gate — the response *shape* is final; only whether
+text or the identical refusal comes back changes).
+
+**Verification at close: backend 901 passed / 1 skipped · ruff and mypy clean · frontend
+typecheck + 62 Vitest untouched and green · `docs/api/openapi.json` regenerated (45
+operations) and `--check` clean · `all_lock.md` untouched · `AM31_GATE` CLOSED.**

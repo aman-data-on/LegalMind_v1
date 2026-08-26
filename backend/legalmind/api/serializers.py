@@ -239,6 +239,28 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
     }
 
 
+def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
+    """One Evidence row as the document pane and every citation target see it.
+
+    Locked 42.6 / Step 34: page number, section number and title, the verbatim
+    content, its source (native text vs OCR — 34.8), and the character offsets that
+    make "show me where you got that" a position rather than a paraphrase. The
+    processing-run id is an internal lineage coordinate and is not exposed; the
+    metadata JSONB is parser-internal and likewise stays server-side.
+    """
+    return {
+        "id": str(e.id),
+        "document_version_id": str(e.document_version_id),
+        "page_number": e.page_number,
+        "section_number": e.section_number,
+        "section_title": e.section_title,
+        "content": e.content,
+        "source_type": e.source_type.value,
+        "start_offset": e.start_offset,
+        "end_offset": e.end_offset,
+    }
+
+
 def serialize_review(r: M.Review) -> dict[str, Any]:
     return {
         "id": str(r.id),

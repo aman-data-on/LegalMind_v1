@@ -287,3 +287,32 @@ Restating locked 43.31 and 38.22/38.23 because the API is where they are enforce
 ## What remains before implementation
 
 Step 49 is ready for review and lock. After that the specification track needs only **Step 52 (frontend), Step 53 (observability), Step 54 (testing strategy) and Step 55 (deployment)** — none of which blocks backend implementation of the evaluator, data, security or API layers.
+
+---
+
+# Additions recorded during implementation — NOT locked
+
+**Status: 📁 IMPLEMENTATION RECORD, added 2026-08-26.** Nothing above this line changed
+(rule 22). This section exists because 49.3's table is the locked endpoint contract and the
+implementation now exposes operations that are not in it. Each is an **implementation
+detail under `IMPL-01`** ("the code is not a specification") — recorded here so the gap
+between the table and the running system is visible, never silently assumed. 49.0 excludes
+exact endpoint naming from the lock; what is asserted below is the permission each
+operation requires, and that follows 49.3's own mapping for the object it reads.
+
+| Method | Path | Permission | Basis | Recorded |
+|---|---|---|---|---|
+| POST | `/conversations` | `assist.ask` | AB-3 — the registry entry authorized "assist-lane access permissions only"; the conversation API realizes `AM-27`'s `conversations`/`messages` tables | AUTO_MODE_DECISIONS #137 |
+| GET | `/conversations` | `assist.ask` | 49.6 r4 applied to the lane: creator-only scope, identical to the single GET; `contract_id` the one allow-listed filter (49.6 r3) | #162 |
+| GET | `/conversations/{id}` | `assist.ask` | As above; since 2026-08-26 carries per-turn **citations rebuilt from the verified rows** so a reload renders what the live answer showed (`AM-25` r5) | #163 |
+| POST | `/conversations/{id}/messages` | `assist.ask` | The ask; response shape in `legalmind/api/routers/assist.py`, refusal states per `AM-29` | #137–#139 |
+| GET | `/document-versions/{id}/evidence` | `document.view` | A paginated read projection of the locked Evidence model (42.6, Step 34) under the permission that already governs seeing the version; the target every `evidence_refs` entry and every citation points at | #164 |
+
+`GET /document-versions/{id}` additionally returns `assist_index: {chunks, embedded_chunks}`
+— plain counts, deliberately not a state vocabulary (`AM-29` r1 keeps the assist lane to one
+axis) — so a client can tell whether the version is searchable yet (#165).
+
+**The frozen contract.** The complete operation set, request schemas and status codes are
+generated from the application into [docs/api/openapi.json](../api/openapi.json) and
+drift-tested (`test_the_committed_openapi_snapshot_matches_the_app`). Where that document and
+this one disagree, **this one wins** and the disagreement is a defect (rule 5).

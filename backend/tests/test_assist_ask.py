@@ -389,3 +389,143 @@ def test_a_user_without_the_permission_cannot_ask(api, db, seeded, user):
     sign_in(api, db, user)
     response = api.post("/api/v1/conversations", json={})
     assert response.status_code == 403
+
+
+# =====================================================================
+# The contracts a workspace UI needs, beyond the first answer (2026-08-26)
+# =====================================================================
+def _ask_over_uploaded_contract(api, db, user, monkeypatch, *, name="Replay"):
+    """Contract → upload (inline index) → conversation → one answered ask.
+
+    Returns (contract_id, document_version_id, conversation_id, live reply payload).
+    """
+    from tests.conftest import grant_role, sign_in
+
+    embedding_runtime.reset_for_tests()
+    grant_role(db, user, "USER")
+    sign_in(api, db, user)
+    contract_id = api.post("/api/v1/contracts",
+                           json={"name": name, "contract_type": "MSA"}).json()["data"]["id"]
+    uploaded = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
+                        content=build_docx(PARAGRAPHS),
+                        headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+    version_id = uploaded.json()["data"]["document_version"]["id"]
+    _fake_generation(monkeypatch,
+                     "Termination for convenience requires ninety days prior "
+                     "written notice [1].")
+    conversation_id = api.post("/api/v1/conversations",
+                               json={"contract_id": contract_id}).json()["data"]["id"]
+    reply = api.post(f"/api/v1/conversations/{conversation_id}/messages",
+                     json={"question": '"ninety days" termination notice'}).json()["data"]
+    assert reply["answer_state"] == "ANSWERED" and reply["citations"]
+    return contract_id, version_id, conversation_id, reply
+
+
+def test_a_reloaded_conversation_replays_the_live_citations(api, db, seeded, user,
+                                                            storage, monkeypatch):
+    """`AM-25` r5 on every VIEW of an answer, not only the first: a reload must
+    render exactly the citations the live reply carried. The GET rebuilds them from
+    the verified `answer_citations` rows, the chunk's evidence row and the retrieval
+    run — and the result is compared field by field with what the POST returned."""
+    _, _, conversation_id, live = _ask_over_uploaded_contract(api, db, user, monkeypatch)
+
+    loaded = api.get(f"/api/v1/conversations/{conversation_id}").json()["data"]
+    roles = [m["role"] for m in loaded["messages"]]
+    assert roles == ["USER", "ASSISTANT"]
+    question, answer = loaded["messages"]
+    assert question["citations"] == [] and question["answer_state"] is None
+    assert answer["answer_state"] == "ANSWERED"
+    assert answer["routed_to_evaluator"] is False
+    assert answer["content"] == live["text"]
+
+    def key(c):
+        return (c["chunk_id"], c["page_number"], c["section_ref"], c["excerpt"],
+                c["retrieval_score"])
+    assert sorted(map(key, answer["citations"])) == sorted(map(key, live["citations"]))
+    assert "confidence" not in str(loaded)
+
+
+def test_conversations_list_is_own_only_and_filters_by_contract(api, db, seeded, user,
+                                                                storage, monkeypatch):
+    """49.6 r4 applied to the assist lane: the list returns exactly what the single
+    GET would, so it can never become the enumeration oracle `AM-25` r7 forbids; and
+    `contract_id` is the one allow-listed filter (49.6 r3)."""
+    from tests.conftest import grant_role, make_user, sign_in
+
+    contract_id, _, conversation_id, _ = _ask_over_uploaded_contract(
+        api, db, user, monkeypatch, name="Mine")
+    # A second conversation of the same user on a different contract.
+    other_contract = api.post("/api/v1/contracts",
+                              json={"name": "Mine too", "contract_type": "MSA"}
+                              ).json()["data"]["id"]
+    api.post("/api/v1/conversations", json={"contract_id": other_contract})
+
+    # Someone else's conversation must never appear in this user's list.
+    other = make_user(db)
+    grant_role(db, other, "USER")
+    sign_in(api, db, other)
+    theirs = api.post("/api/v1/contracts",
+                      json={"name": "Theirs", "contract_type": "MSA"}).json()["data"]["id"]
+    api.post("/api/v1/conversations", json={"contract_id": theirs})
+
+    sign_in(api, db, user)
+    mine = api.get("/api/v1/conversations").json()
+    ids = {c["id"] for c in mine["data"]}
+    assert mine["pagination"]["total"] == 2 and conversation_id in ids
+    assert all(c["contract_id"] in {contract_id, other_contract} for c in mine["data"])
+
+    narrowed = api.get(f"/api/v1/conversations?contract_id={contract_id}").json()
+    assert [c["id"] for c in narrowed["data"]] == [conversation_id]
+    only = narrowed["data"][0]
+    assert only["message_count"] == 2
+    assert only["first_question"] == '"ninety days" termination notice'
+
+
+def test_document_evidence_reads_in_order_and_is_404_for_others(api, db, seeded, user,
+                                                               storage, monkeypatch):
+    """The document pane's contract: every Evidence row (42.6) in reading order under
+    `document.view`, and — 47.6 one level down — a version the caller cannot see is
+    byte-identical to one that does not exist."""
+    import json as _json
+
+    from tests.conftest import grant_role, make_user, sign_in
+
+    _, version_id, _, _ = _ask_over_uploaded_contract(api, db, user, monkeypatch)
+
+    page = api.get(f"/api/v1/document-versions/{version_id}/evidence").json()
+    rows = page["data"]
+    assert page["pagination"]["total"] == len(rows) > 0
+    for row in rows:
+        assert row["document_version_id"] == version_id
+        assert row["content"] and row["source_type"]
+        assert set(row) == {"id", "document_version_id", "page_number", "section_number",
+                            "section_title", "content", "source_type", "start_offset",
+                            "end_offset"}, "no internal lineage or metadata leaks"
+    # Reading order: (page, offset) never decreases across the page.
+    keys = [(r["page_number"] or 0, r["start_offset"] or 0) for r in rows]
+    assert keys == sorted(keys)
+
+    other = make_user(db)
+    grant_role(db, other, "USER")
+    sign_in(api, db, other)
+    stolen = api.get(f"/api/v1/document-versions/{version_id}/evidence")
+    ghost = api.get(f"/api/v1/document-versions/{uuid.uuid4()}/evidence")
+    assert stolen.status_code == 404 and ghost.status_code == 404
+    bodies = []
+    for response in (stolen, ghost):
+        body = response.json()
+        body["error"]["request_id"] = "-"
+        bodies.append(_json.dumps(body, sort_keys=True))
+    assert bodies[0] == bodies[1]
+
+
+def test_document_version_reports_assist_index_counts(api, db, seeded, user, storage,
+                                                      monkeypatch):
+    """Readiness as counts, not a new state vocabulary (`AM-29` r1 keeps the assist
+    lane to one axis): the client derives ready / lexical-only / not-indexed."""
+    _, version_id, _, _ = _ask_over_uploaded_contract(api, db, user, monkeypatch)
+    version = api.get(f"/api/v1/document-versions/{version_id}").json()["data"]
+    index = version["assist_index"]
+    assert set(index) == {"chunks", "embedded_chunks"}
+    assert index["chunks"] > 0
+    assert 0 <= index["embedded_chunks"] <= index["chunks"]

@@ -180,6 +180,13 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [INDEPENDENT_VERIFICATION.md](08-testing/INDEPENDENT_VERIFICATION.md) | 📁 Record — each critical guarantee re-checked by a mechanism *other than* the test that asserts it, and what that found |
 | [TEST_STRATEGY.md](08-testing/TEST_STRATEGY.md) | Step 39 tooling extract — superseded by Step 54 |
 
+### [api/](api/) — the frozen API contract (derived, not specification)
+
+| Document | Content |
+|---|---|
+| [README.md](api/README.md) | 📁 Why the snapshot exists, how to regenerate it, what it deliberately cannot express |
+| [openapi.json](api/openapi.json) | 📁 Generated from `create_app()`, keys sorted, **drift-tested** by `test_the_committed_openapi_snapshot_matches_the_app` — the "finalized backend contracts" a UI/UX phase designs against. Where it disagrees with [STEP_49_API_FINALIZATION.md](05-architecture/STEP_49_API_FINALIZATION.md), Step 49 wins |
+
 ### [architecture/](architecture/) — architecture research and audits (not specification)
 
 > Unnumbered, like [design/](design/): nothing here is locked, nothing here decides anything. It exists so forward-looking architecture research has a home distinct from [05-architecture/](05-architecture/)'s locked specifications.

@@ -11,11 +11,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
+from sqlalchemy import select
 
 from legalmind.api.deps import Guard, get_guard
-from legalmind.api.envelope import data
-from legalmind.api.serializers import serialize_document_version
+from legalmind.api.envelope import data, paginated
+from legalmind.api.pagination import Page, page_params, run
+from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
+from legalmind.assist import store as assist_store
+from legalmind.db import models as M
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
@@ -27,7 +31,43 @@ router = APIRouter(tags=["documents"])
 def get_document_version(document_version_id: UUID,
                          guard: Guard = Depends(get_guard)) -> dict:
     version = guard.document_version(document_version_id, P.DOCUMENT_VIEW)
-    return data(serialize_document_version(version))
+    payload = serialize_document_version(version)
+    # Whether the assist lane can search this version yet — plain counts, so the
+    # client derives "ready", "lexical only" or "not indexed" itself. Deliberately
+    # NOT a new state vocabulary: `AM-29` r1 reserves the assist lane's one axis for
+    # answer state, and an index-readiness enum would be a second one by another
+    # name. Counts also survive a model change honestly (embedded < chunks).
+    payload["assist_index"] = {
+        "chunks": assist_store.count_chunks(guard.db, version.id),
+        "embedded_chunks": assist_store.count_embeddings(guard.db, version.id),
+    }
+    return data(payload)
+
+
+@router.get("/document-versions/{document_version_id}/evidence")
+def list_document_evidence(document_version_id: UUID,
+                           guard: Guard = Depends(get_guard),
+                           page: Page = Depends(page_params)) -> dict:
+    """The document as the pipeline read it — every Evidence row, in reading order.
+
+    The same 47.6 traversal and the same `document.view` permission as the version
+    itself: seeing the document and seeing what the parser extracted from it are
+    one act (a citation is an Evidence row, and a Finding's `evidence_refs` point
+    here). Not in 49.3's table — an implementation addition recorded in
+    `permission_map.IMPLEMENTATION_ADDED_ENDPOINTS` and AUTO_MODE_DECISIONS.md.
+
+    Ordering is reading order with a stable tiebreaker (49.6): page, then offset,
+    then id, with pages the parser could not number (OCR fragments) last.
+    """
+    version = guard.document_version(document_version_id, P.DOCUMENT_VIEW)
+    stmt = select(M.DocumentEvidence).where(
+        M.DocumentEvidence.document_version_id == version.id)
+    rows, total = run(guard.db, stmt, page,
+                      M.DocumentEvidence.page_number.asc().nulls_last(),
+                      M.DocumentEvidence.start_offset.asc().nulls_last(),
+                      M.DocumentEvidence.id.asc())
+    return paginated([serialize_evidence(e) for e in rows],
+                     page=page.page, page_size=page.page_size, total=total)
 
 
 @router.get("/document-versions/{document_version_id}/content")

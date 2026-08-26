@@ -1,0 +1,3025 @@
+{
+ "components": {
+  "schemas": {
+   "AskRequest": {
+    "additionalProperties": false,
+    "description": "One question. Length-bounded at the boundary; content rules live server-side.",
+    "properties": {
+     "question": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "question"
+    ],
+    "title": "AskRequest",
+    "type": "object"
+   },
+   "CompanyStandardUpdate": {
+    "additionalProperties": false,
+    "description": "Update a Requirement's Company Standard \u2014 by APPENDING, never editing.\n\nLocked rule 16: existing versions are never modified, which is what keeps a\nhistorical Review reproducible. This endpoint gives an admin the experience\nof \"edit the value and save\" while the mechanics append a new Requirement\nversion carrying the previous mapping/evaluation/legal-rule artifacts\nforward unchanged. Rollback is the same operation with an older version's\nvalues. ``reason`` is mandatory \u2014 a standard change is a legal-position\nchange, and the audit trail must say why.",
+    "properties": {
+     "company_standard": {
+      "additionalProperties": true,
+      "title": "Company Standard",
+      "type": "object"
+     },
+     "reason": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "company_standard",
+     "reason"
+    ],
+    "title": "CompanyStandardUpdate",
+    "type": "object"
+   },
+   "ConfigStatus": {
+    "description": "42.7 \u2014 Step 29 configuration lifecycle.",
+    "enum": [
+     "DRAFT",
+     "ACTIVE",
+     "DEPRECATED"
+    ],
+    "title": "ConfigStatus",
+    "type": "string"
+   },
+   "ConfigurationPublish": {
+    "additionalProperties": false,
+    "description": "Step 29 \u2014 publishing produces an immutable snapshot. Drafts never affect\nan existing Review (rule 16).",
+    "properties": {
+     "requirement_codes": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 1000,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requirement Codes"
+     }
+    },
+    "title": "ConfigurationPublish",
+    "type": "object"
+   },
+   "ContractCreate": {
+    "additionalProperties": false,
+    "properties": {
+     "contract_type": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Type"
+     },
+     "name": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "ContractCreate",
+    "type": "object"
+   },
+   "ContractStatus": {
+    "description": "42.3 \u2014 Step 2 vocabulary.",
+    "enum": [
+     "DRAFT",
+     "ACTIVE",
+     "SUPERSEDED"
+    ],
+    "title": "ContractStatus",
+    "type": "string"
+   },
+   "ContractUpdate": {
+    "additionalProperties": false,
+    "properties": {
+     "contract_type": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Type"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ContractStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "title": "ContractUpdate",
+    "type": "object"
+   },
+   "ConversationCreate": {
+    "additionalProperties": false,
+    "description": "An assist-lane session, optionally scoped to a contract the requester can view.",
+    "properties": {
+     "contract_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Id"
+     }
+    },
+    "title": "ConversationCreate",
+    "type": "object"
+   },
+   "DecisionCreate": {
+    "additionalProperties": false,
+    "description": "49.7 \u2014 supersession is a create, never an update.\n\n``expected_version`` is the whole concurrency mechanism (N-1 Option C): the\nserver writes ``expected_version + 1``, and a collision surfaces as 409\nthrough ``UNIQUE(evaluation_id, version_number)``. There is no ETag.",
+    "properties": {
+     "decision_type": {
+      "$ref": "#/components/schemas/DecisionType"
+     },
+     "expected_version": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
+     },
+     "justification": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Justification",
+      "type": "string"
+     },
+     "requires_second_person": {
+      "default": false,
+      "title": "Requires Second Person",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "decision_type",
+     "justification"
+    ],
+    "title": "DecisionCreate",
+    "type": "object"
+   },
+   "DecisionType": {
+    "enum": [
+     "ACCEPT_DEVIATION",
+     "REQUIRE_COMPANY_STANDARD",
+     "APPROVE_CUSTOMIZATION",
+     "REJECT",
+     "REQUEST_CLARIFICATION"
+    ],
+    "title": "DecisionType",
+    "type": "string"
+   },
+   "EscalationCreate": {
+    "additionalProperties": false,
+    "description": "Locked Step 4: an escalation means \"this requires authorized review\", NOT\n\"I approve this deviation\" \u2014 which is why it carries a reason and no\ndisposition.",
+    "properties": {
+     "reason": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "title": "EscalationCreate",
+    "type": "object"
+   },
+   "EvaluatorType": {
+    "enum": [
+     "NUMERIC_COMPARISON",
+     "PRESENCE"
+    ],
+    "title": "EvaluatorType",
+    "type": "string"
+   },
+   "FindingClassification": {
+    "enum": [
+     "MATCH",
+     "DEVIATION",
+     "MISSING",
+     "CONFLICT",
+     "AMBIGUOUS",
+     "UNRESOLVED",
+     "UNABLE_TO_EVALUATE"
+    ],
+    "title": "FindingClassification",
+    "type": "string"
+   },
+   "FindingStatus": {
+    "enum": [
+     "OPEN",
+     "DECISION_REQUIRED",
+     "AWAITING_CLARIFICATION",
+     "RESOLVED"
+    ],
+    "title": "FindingStatus",
+    "type": "string"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "LegalRuleDraft": {
+    "additionalProperties": false,
+    "description": "Optional per Requirement \u2014 locked Step 20 r4: not every Clause requires a\nPre-approved Legal Rule.",
+    "properties": {
+     "configuration": {
+      "additionalProperties": true,
+      "title": "Configuration",
+      "type": "object"
+     },
+     "rule_type": {
+      "$ref": "#/components/schemas/RuleType"
+     }
+    },
+    "required": [
+     "rule_type",
+     "configuration"
+    ],
+    "title": "LegalRuleDraft",
+    "type": "object"
+   },
+   "LoginRequest": {
+    "additionalProperties": false,
+    "description": "Step 47 fallback password path. S-7: the response is identical for an\nunknown account, a wrong credential and a disabled account, so nothing here\ndistinguishes those cases either.",
+    "properties": {
+     "email": {
+      "maxLength": 320,
+      "minLength": 3,
+      "title": "Email",
+      "type": "string"
+     },
+     "password": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Password",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "password"
+    ],
+    "title": "LoginRequest",
+    "type": "object"
+   },
+   "RequirementCreate": {
+    "additionalProperties": false,
+    "properties": {
+     "code": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code"
+    ],
+    "title": "RequirementCreate",
+    "type": "object"
+   },
+   "RequirementVersionCreate": {
+    "additionalProperties": false,
+    "description": "One draft version of a Requirement together with the configuration\nartifacts a snapshot needs (42.12 makes the company standard, mapping rules\nand evaluation rules NOT NULL in a snapshot item).\n\nEvery ``configuration`` payload is accepted **opaquely**. LegalMind must never\ninvent a legal threshold, tolerance or carve-out (rule 7/21), so this endpoint\nvalidates structure and provenance and nothing about legal content; the\nevaluators validate their own inputs at evaluation time and fail closed\n(ENG-09) when something they need is absent.",
+    "properties": {
+     "company_standard": {
+      "additionalProperties": true,
+      "title": "Company Standard",
+      "type": "object"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "maxLength": 20000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "evaluation_rules": {
+      "additionalProperties": true,
+      "title": "Evaluation Rules",
+      "type": "object"
+     },
+     "evaluator_type": {
+      "$ref": "#/components/schemas/EvaluatorType"
+     },
+     "legal_rule": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LegalRuleDraft"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "mapping_rules": {
+      "additionalProperties": true,
+      "title": "Mapping Rules",
+      "type": "object"
+     },
+     "name": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "evaluator_type",
+     "company_standard",
+     "mapping_rules",
+     "evaluation_rules"
+    ],
+    "title": "RequirementVersionCreate",
+    "type": "object"
+   },
+   "ReviewCreate": {
+    "additionalProperties": false,
+    "description": "49.8 \u2014 creation is idempotent on the document version plus the\nconfiguration snapshot.",
+    "properties": {
+     "configuration_snapshot_id": {
+      "format": "uuid",
+      "title": "Configuration Snapshot Id",
+      "type": "string"
+     },
+     "document_version_id": {
+      "format": "uuid",
+      "title": "Document Version Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "document_version_id",
+     "configuration_snapshot_id"
+    ],
+    "title": "ReviewCreate",
+    "type": "object"
+   },
+   "ReviewStatus": {
+    "enum": [
+     "DRAFT",
+     "UPLOADED",
+     "PROCESSING",
+     "ANALYSIS_COMPLETE",
+     "LEGAL_REVIEW",
+     "RESOLVED",
+     "CLOSED",
+     "ANALYSIS_FAILED",
+     "CANCELLED"
+    ],
+    "title": "ReviewStatus",
+    "type": "string"
+   },
+   "RoleCreate": {
+    "additionalProperties": false,
+    "properties": {
+     "code": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "name"
+    ],
+    "title": "RoleCreate",
+    "type": "object"
+   },
+   "RoleGrant": {
+    "additionalProperties": false,
+    "properties": {
+     "role_code": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Role Code",
+      "type": "string"
+     }
+    },
+    "required": [
+     "role_code"
+    ],
+    "title": "RoleGrant",
+    "type": "object"
+   },
+   "RoleUpdate": {
+    "additionalProperties": false,
+    "properties": {
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "permissions": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Permissions"
+     }
+    },
+    "title": "RoleUpdate",
+    "type": "object"
+   },
+   "RuleType": {
+    "description": "42.9 legal_rule_versions.rule_type.",
+    "enum": [
+     "THRESHOLD",
+     "ALLOWED_VALUES",
+     "PRESENCE"
+    ],
+    "title": "RuleType",
+    "type": "string"
+   },
+   "UserCreate": {
+    "additionalProperties": false,
+    "description": "47.1.3 account resolution r3 \u2014 LegalMind does not self-provision. An\naccount exists only because an authorized administrator created it, so its\nroles are always assigned deliberately and never inferred from a login.",
+    "properties": {
+     "email": {
+      "maxLength": 320,
+      "minLength": 3,
+      "title": "Email",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "name"
+    ],
+    "title": "UserCreate",
+    "type": "object"
+   },
+   "UserStatus": {
+    "description": "42.2.",
+    "enum": [
+     "ACTIVE",
+     "SUSPENDED",
+     "DISABLED"
+    ],
+    "title": "UserStatus",
+    "type": "string"
+   },
+   "UserUpdate": {
+    "additionalProperties": false,
+    "properties": {
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/UserStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "title": "UserUpdate",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "LegalMind API",
+  "version": "1"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/audit-events": {
+   "get": {
+    "operationId": "list_audit_events_api_v1_audit_events_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "action",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 100,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Action"
+      }
+     },
+     {
+      "in": "query",
+      "name": "entity_type",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 100,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Entity Type"
+      }
+     },
+     {
+      "in": "query",
+      "name": "entity_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "uuid",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Entity Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "actor_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "uuid",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Actor Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Audit Events Api V1 Audit Events Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Audit Events",
+    "tags": [
+     "audit"
+    ]
+   }
+  },
+  "/api/v1/auth/login": {
+   "post": {
+    "description": "Fallback password authentication.\n\nS-7 \u2014 an unknown account, a wrong credential and a disabled account produce\n**the same response**. That is enforced structurally: every failure path\nraises the same ``Unauthenticated``, whose handler renders one fixed body, and\nan unknown account still pays for a scrypt verification so timing does not\ndistinguish it either.",
+    "operationId": "login_api_v1_auth_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Login Api V1 Auth Login Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Login",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/logout": {
+   "post": {
+    "operationId": "logout_api_v1_auth_logout_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Logout Api V1 Auth Logout Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Logout",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/session": {
+   "get": {
+    "description": "49.2 \u2014 the caller's identity plus their **effective permission names**.\n\nA convenience projection for presentation gating only (43.31, 47.6 r3).\nResolved fresh from the database here, not read from the session (S-1), so it\ncan never be staler than the checks that actually enforce anything.",
+    "operationId": "current_session_api_v1_auth_session_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Current Session Api V1 Auth Session Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Current Session",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/sessions/{session_id}": {
+   "delete": {
+    "description": "Immediate server-side revocation (SEC-01, S-2).\n\nReturns the same body whether or not the session existed: a session id is an\nopaque identifier and confirming one exists would disclose that its owner is\nsigned in.",
+    "operationId": "revoke_api_v1_auth_sessions__session_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Revoke Api V1 Auth Sessions  Session Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/configuration/publish": {
+   "post": {
+    "description": "Create an immutable configuration snapshot \u2014 locked Step 29, 42.12, AUD-04.\n\n``requirement_codes`` activates those Requirements (DRAFT \u2192 ACTIVE); the\nsnapshot then pins the latest version of every ACTIVE Requirement. Requirements\nstill in DRAFT are excluded, which is locked rule 16's \"drafts never affect\ncomparisons\" enforced at the only place it can be.\n\n**Fail closed (ENG-09).** If any ACTIVE Requirement version is missing its\ncompany standard, mapping rules or evaluation rules, the publish is refused and\nnames the Requirement. Publishing a partial snapshot would produce Reviews that\nsilently skipped a Requirement.",
+    "operationId": "publish_api_v1_configuration_publish_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConfigurationPublish"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Publish Api V1 Configuration Publish Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Publish",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
+  "/api/v1/contracts": {
+   "get": {
+    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.",
+    "operationId": "list_contracts_api_v1_contracts_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Contracts Api V1 Contracts Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Contracts",
+    "tags": [
+     "contracts"
+    ]
+   },
+   "post": {
+    "operationId": "create_contract_api_v1_contracts_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ContractCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Contract Api V1 Contracts Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Contract",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}": {
+   "get": {
+    "operationId": "get_contract_api_v1_contracts__contract_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Contract Api V1 Contracts  Contract Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Contract",
+    "tags": [
+     "contracts"
+    ]
+   },
+   "patch": {
+    "operationId": "update_contract_api_v1_contracts__contract_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ContractUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Contract Api V1 Contracts  Contract Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Contract",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/document-versions": {
+   "post": {
+    "description": "Ingest one document version \u2014 locked Step 34, 42.4.\n\n**The body is the file itself**, with the declared type in ``Content-Type``\nand the original name in ``X-Filename``. Endpoint shape is outside the locked\nboundary (38.24), and this shape avoids adding a multipart parser to the path\nthat handles untrusted input \u2014 locked 34.16 and Step 39's upload-validation\nitem both argue for the smaller surface. The declared type is treated as a\n*claim*: ``validate_upload`` sniffs the magic bytes and rejects a mismatch.\n\nA duplicate is **reported, never silently suppressed** (34.5): whether a\nre-upload is a new contractual version is a business decision (Step 33.9).",
+    "operationId": "upload_document_version_api_v1_contracts__contract_id__document_versions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-filename",
+      "required": true,
+      "schema": {
+       "maxLength": 400,
+       "title": "X-Filename",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Upload Document Version Api V1 Contracts  Contract Id  Document Versions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Upload Document Version",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/conversations": {
+   "get": {
+    "description": "The caller's own conversations, newest first \u2014 49.6 r4 applied to the assist\nlane: the list carries exactly what `GET /conversations/{id}` would return and\nnothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`\nr7 forbids. `contract_id` is the one allow-listed filter (49.6 r3): the workspace\nfor a document shows that document's history and no other.",
+    "operationId": "list_conversations_api_v1_conversations_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "contract_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "uuid",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Contract Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Conversations Api V1 Conversations Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Conversations",
+    "tags": [
+     "assist"
+    ]
+   },
+   "post": {
+    "operationId": "create_conversation_api_v1_conversations_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConversationCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Conversation Api V1 Conversations Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Conversation",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/conversations/{conversation_id}": {
+   "get": {
+    "description": "A conversation with its turns \u2014 and, for every assistant turn, the SAME\ncitation objects the live answer carried, so a reload renders exactly what was\nshown (`AM-25` r5: every answer traceable to its retrieved evidence, on every\nview of it, not only the first).\n\nCitations are rebuilt from `answer_citations` (the verified claim\u2192chunk rows),\nthe chunk's evidence row (page, section) and the retrieval run (the score for\nthat chunk in THAT query \u2014 a property of the query, so it lives on the run, not\nthe chunk). Refusals and routed turns have no citation rows and get `[]`.",
+    "operationId": "get_conversation_api_v1_conversations__conversation_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Conversation Api V1 Conversations  Conversation Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Conversation",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/conversations/{conversation_id}/messages": {
+   "post": {
+    "operationId": "ask_api_v1_conversations__conversation_id__messages_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AskRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Ask Api V1 Conversations  Conversation Id  Messages Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Ask",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}": {
+   "get": {
+    "operationId": "get_document_version_api_v1_document_versions__document_version_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Document Version Api V1 Document Versions  Document Version Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Document Version",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/content": {
+   "get": {
+    "description": "Return the preserved original bytes \u2014 locked 34.2/34.5.\n\n``document.download`` is a permission distinct from ``document.view``: seeing\nthat a version exists and taking a copy of the counterparty's contract are\ndifferent acts, and Step 47's catalogue separates them.",
+    "operationId": "download_document_version_api_v1_document_versions__document_version_id__content_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Document Version",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/evidence": {
+   "get": {
+    "description": "The document as the pipeline read it \u2014 every Evidence row, in reading order.\n\nThe same 47.6 traversal and the same `document.view` permission as the version\nitself: seeing the document and seeing what the parser extracted from it are\none act (a citation is an Evidence row, and a Finding's `evidence_refs` point\nhere). Not in 49.3's table \u2014 an implementation addition recorded in\n`permission_map.IMPLEMENTATION_ADDED_ENDPOINTS` and AUTO_MODE_DECISIONS.md.\n\nOrdering is reading order with a stable tiebreaker (49.6): page, then offset,\nthen id, with pages the parser could not number (OCR fragments) last.",
+    "operationId": "list_document_evidence_api_v1_document_versions__document_version_id__evidence_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Document Evidence Api V1 Document Versions  Document Version Id  Evidence Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Document Evidence",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
+  "/api/v1/evaluations/{evaluation_id}/decisions": {
+   "get": {
+    "description": "The full version chain, oldest first, highest marked current (49.7).\n\nGated on ``finding.view``, not ``legal.decision``: reading what was decided is\nnot the same authority as deciding.",
+    "operationId": "list_decisions_api_v1_evaluations__evaluation_id__decisions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "evaluation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Evaluation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Decisions Api V1 Evaluations  Evaluation Id  Decisions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Decisions",
+    "tags": [
+     "decisions"
+    ]
+   },
+   "post": {
+    "description": "Record a Legal Decision against one scoped Evaluation.\n\nA version collision surfaces as **409** through\n``UNIQUE(evaluation_id, version_number)`` \u2014 optimistic concurrency falls out of\nthe constraint and there is no separate ETag mechanism (N-1 Option C).\n\nNote the double check on authority. The guard checks here so the denial is\naudited and committed before the request aborts; ``record_decision`` checks\nagain, so the service stays safe when called from anywhere else. Neither check\ncan be reached by a bypass: ``legal.decision`` is only ever an explicit grant\n(SEC-02, ROLE-05).",
+    "operationId": "create_decision_api_v1_evaluations__evaluation_id__decisions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "evaluation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Evaluation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DecisionCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Decision Api V1 Evaluations  Evaluation Id  Decisions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Decision",
+    "tags": [
+     "decisions"
+    ]
+   }
+  },
+  "/api/v1/findings/{finding_id}": {
+   "get": {
+    "operationId": "get_finding_api_v1_findings__finding_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Finding Api V1 Findings  Finding Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Finding",
+    "tags": [
+     "findings"
+    ]
+   }
+  },
+  "/api/v1/findings/{finding_id}/escalate": {
+   "delete": {
+    "description": "Withdraw an escalation \u2014 the same act reversed, so the same permission.\n\nWithdrawal is recorded (``withdrawn_at``), never deleted: the escalation\nhappened and the audit trail is append-only (AUD-01).",
+    "operationId": "withdraw_api_v1_findings__finding_id__escalate_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Withdraw Api V1 Findings  Finding Id  Escalate Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Withdraw",
+    "tags": [
+     "findings"
+    ]
+   },
+   "post": {
+    "description": "Raise a Finding for authorized review.\n\nIdempotent: an already-escalated Finding returns its existing escalation\nrather than stacking a second one (43.28).",
+    "operationId": "escalate_api_v1_findings__finding_id__escalate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EscalationCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Escalate Api V1 Findings  Finding Id  Escalate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Escalate",
+    "tags": [
+     "findings"
+    ]
+   }
+  },
+  "/api/v1/findings/{finding_id}/evaluations": {
+   "get": {
+    "description": "The authoritative layer, unwrapped.\n\nReturned flat here without a 49.7 r1 problem: this response carries no\nFinding-level ``classification``, so there is no derived summary that could be\nmistaken for the authoritative result.",
+    "operationId": "list_evaluations_api_v1_findings__finding_id__evaluations_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Evaluations Api V1 Findings  Finding Id  Evaluations Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Evaluations",
+    "tags": [
+     "findings"
+    ]
+   }
+  },
+  "/api/v1/requirements": {
+   "get": {
+    "operationId": "list_requirements_api_v1_requirements_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/ConfigStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Requirements Api V1 Requirements Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Requirements",
+    "tags": [
+     "configuration"
+    ]
+   },
+   "post": {
+    "description": "A Requirement starts as DRAFT and carries no content until a version\nexists. Which Requirements V1 ships with is **N-24b, an open owner\ndecision** \u2014 this endpoint is the mechanism, not the answer.",
+    "operationId": "create_requirement_api_v1_requirements_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RequirementCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Requirement Api V1 Requirements Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Requirement",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
+  "/api/v1/requirements/{requirement_id}": {
+   "get": {
+    "operationId": "get_requirement_api_v1_requirements__requirement_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "requirement_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Requirement Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Requirement Api V1 Requirements  Requirement Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Requirement",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
+  "/api/v1/requirements/{requirement_id}/standard": {
+   "post": {
+    "description": "Change a Company Standard's values \u2014 the admin \"edit and save\" path.\n\nAPPEND-ONLY (locked rule 16): a new Requirement version is created carrying\nthe previous mapping rules, evaluation rules and Legal Rule forward\n**unchanged**, with only the Company Standard configuration replaced. No\nexisting row is touched, so every historical Review stays reproducible, and\nthe change takes effect only when a subsequent publish pins it (drafts never\naffect comparisons). Rollback = calling this again with an older version's\nvalues, read back from GET /requirements/{id}.\n\nRefuses when the new configuration omits `document_type` or names a value\noutside locked Step 6 \u2014 the same gate publish applies, moved earlier so the\nadmin hears about it at save time rather than at publish time.",
+    "operationId": "update_company_standard_api_v1_requirements__requirement_id__standard_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "requirement_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Requirement Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CompanyStandardUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Company Standard Api V1 Requirements  Requirement Id  Standard Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Company Standard",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
+  "/api/v1/requirements/{requirement_id}/versions": {
+   "post": {
+    "description": "Draft one new version of a Requirement and its configuration artifacts.\n\nThey are created together because locked 42.12 makes the company standard,\nmapping rules and evaluation rules NOT NULL in a snapshot item: a Requirement\nversion without them can never be published, so allowing the halfway state\nwould only produce a publish that fails later. The Legal Rule is genuinely\noptional (Step 20 r4).\n\nExisting versions are never edited. A new version is appended, which is what\nkeeps a historical Review reproducible (rule 16, AUD-04).",
+    "operationId": "create_requirement_version_api_v1_requirements__requirement_id__versions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "requirement_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Requirement Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RequirementVersionCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Requirement Version Api V1 Requirements  Requirement Id  Versions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Requirement Version",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
+  "/api/v1/reviews": {
+   "get": {
+    "operationId": "list_reviews_api_v1_reviews_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/ReviewStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "contract_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "uuid",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Contract Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Reviews Api V1 Reviews Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Reviews",
+    "tags": [
+     "reviews"
+    ]
+   },
+   "post": {
+    "description": "Locked 49.8 \u2014 idempotent on ``(document_version_id,\nconfiguration_snapshot_id)``.\n\nScoped additionally to the creator: two users may legitimately review the same\ndocument version against the same snapshot, and returning one user's Review to\nthe other would leak it (Step 24 r4).\n\nThe Review is created in ``DRAFT``, the locked Step 30 initial state. Note a\ntension worth recording rather than resolving: locked 42.13 makes\n``document_version_id`` NOT NULL, so a Review cannot exist before its document\nis uploaded, which leaves DRAFT and UPLOADED describing the same real\nsituation. Starting at DRAFT keeps every locked transition reachable and\ninvents nothing.",
+    "operationId": "create_review_api_v1_reviews_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReviewCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Review Api V1 Reviews Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Review",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}": {
+   "get": {
+    "operationId": "get_review_api_v1_reviews__review_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Review Api V1 Reviews  Review Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Review",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/analyze": {
+   "post": {
+    "description": "Submit this Review for analysis \u2014 44.2/44.40, 55.1, 49.8, 49.10.\n\n**Permission is an interpretation.** Locked 49.3's table has no analysis row,\nthough 49.8 and 49.10 both presuppose the endpoint; `review.create` is the\nclosest locked grant. Recorded in ``permission_map`` and flagged there.\n\n**Queued when a broker is configured (55.1), inline when not.** The two modes call\nthe same `run_analysis`, so submission mode cannot change a legal outcome \u2014 only\nwho waits for it. `worker.dispatch` chooses; the caller does not.\n\n```text\n202 + mode=queued    a worker will run it; poll GET /reviews/{id} for progress\n201 + mode=inline    it already ran, and the outcome is in this response\n```\n\nProgress is the Review lifecycle and nothing else (52.7), which is why the queued\nresponse carries no job state to poll instead.\n\n**Idempotency (43.28, 49.8).** A repeat returns the original outcome rather than\nre-running: analysis refuses a Review that already has Findings, and that refusal\nis reported as the already-analysed state, not as an error. Duplicating legal\noutput would be the worse failure.",
+    "operationId": "analyze_review_api_v1_reviews__review_id__analyze_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "idempotency-key",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 200,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Idempotency-Key"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Analyze Review Api V1 Reviews  Review Id  Analyze Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Analyze Review",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/findings": {
+   "get": {
+    "description": "Every item nests its Evaluations.\n\n49.7 r1 \u2014 a Finding's ``classification`` is a derived summary and is never\nreturned without them, in a list any more than in a single resource.",
+    "operationId": "list_findings_api_v1_reviews__review_id__findings_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "classification",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/FindingClassification"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Classification"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/FindingStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Findings Api V1 Reviews  Review Id  Findings Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Findings",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/report": {
+   "get": {
+    "description": "Reporting-layer aggregation \u2014 F-8, F-9, locked 36.10, Step 9.\n\nTwo things are deliberately absent.\n\n**No risk score or risk label.** Locked 36.10 forbids a risk score as the\nprimary V1 legal output, and F-8 makes risk a *configured* display mapping\nowned by the reporting layer and versioned under Step 29. No such mapping is\nconfigured, and ENG-09 says an absent configuration value fails closed rather\nthan defaulting \u2014 so the field is omitted rather than invented.\n\n**No overall verdict.** F-9 makes the alignment figure a ratio over evaluated\nRequirements that \"carries no legal meaning and cannot alter a Finding\". It is\nreported as counts plus a ratio, and never as a conclusion.",
+    "operationId": "review_report_api_v1_reviews__review_id__report_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Report Api V1 Reviews  Review Id  Report Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Report",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/roles": {
+   "get": {
+    "operationId": "list_roles_api_v1_roles_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Roles Api V1 Roles Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Roles",
+    "tags": [
+     "administration"
+    ]
+   },
+   "post": {
+    "description": "A new role starts with **no permissions**. Granting them is a separate,\nS-8-guarded act.",
+    "operationId": "create_role_api_v1_roles_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoleCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Role Api V1 Roles Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Role",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/roles/{role_id}": {
+   "patch": {
+    "description": "Replace a role's permission set \u2014 S-10, locked 43.26.\n\nThe replacement is transactional: the whole set changes or none of it does. The\nexternal reference's non-transactional delete-then-insert is rejected (C-EXT-7)\nbecause a failure between the two leaves a role with *no* permissions, which is\na silent authority change.",
+    "operationId": "update_role_api_v1_roles__role_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "role_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Role Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoleUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Role Api V1 Roles  Role Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Role",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/users": {
+   "get": {
+    "operationId": "list_users_api_v1_users_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/UserStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Users Api V1 Users Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Users",
+    "tags": [
+     "administration"
+    ]
+   },
+   "post": {
+    "description": "47.1.3 r3 \u2014 LegalMind never self-provisions an account.\n\nThe new account holds **no roles**. Authority is always a later, deliberate\ngrant, never a side effect of creation.",
+    "operationId": "create_user_api_v1_users_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UserCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create User Api V1 Users Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create User",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/users/{user_id}": {
+   "get": {
+    "operationId": "get_user_api_v1_users__user_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get User Api V1 Users  User Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get User",
+    "tags": [
+     "administration"
+    ]
+   },
+   "patch": {
+    "description": "Editing an account is covered by S-9, not only granting to one.",
+    "operationId": "update_user_api_v1_users__user_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UserUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update User Api V1 Users  User Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update User",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/users/{user_id}/roles": {
+   "post": {
+    "description": "Multi-role with union semantics (47.3 / SEC-03).\n\nThis is the mechanism locked Step 4 depends on: two users holding the same\nprimary role differ in legal authority because one *additionally holds* a\nLegal Decision Authority role.",
+    "operationId": "grant_role_api_v1_users__user_id__roles_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoleGrant"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Grant Role Api V1 Users  User Id  Roles Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Grant Role",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/users/{user_id}/roles/{role_code}": {
+   "delete": {
+    "operationId": "revoke_role_api_v1_users__user_id__roles__role_code__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "role_code",
+      "required": true,
+      "schema": {
+       "title": "Role Code",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Revoke Role Api V1 Users  User Id  Roles  Role Code  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Role",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/health": {
+   "get": {
+    "description": "Liveness only, and deliberately contentless.\n\nThe one route that is unauthenticated by design (declared as such in\n``permission_map``). It reports nothing about the database, the\nconfiguration or any object \u2014 a probe must not become a reconnaissance\nendpoint. Readiness and dependency checks belong to Step 53.",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Health Health Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health",
+    "tags": [
+     "operations"
+    ]
+   }
+  }
+ }
+}

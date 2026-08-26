@@ -116,10 +116,25 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
 # ---- assist lane (AB-3/AB-4) — additive; no locked 49.x row changes ---------
 ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
+    # The list applies the same creator-only scope as the single GET (49.6 r4): a
+    # list never leaks a conversation a GET would 404 on.
+    ("GET", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/messages"): P.ASSIST_ASK,
 }
 ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
+
+# Added during implementation (2026-08-26), not in 49.3's table and not locked: a
+# read projection of the locked Evidence model (Step 34, 42.6) under the SAME
+# permission that already governs seeing the document. 49.0 excludes exact endpoint
+# naming from the lock, and the rows it returns are the first link of every
+# explainability chain (rule 12) — the document pane a workspace UI renders and the
+# target every citation points at. Recorded in AUTO_MODE_DECISIONS.md.
+IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/evidence"):
+        P.DOCUMENT_VIEW,
+}
+ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 
 NOT_IMPLEMENTED: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/auth/oidc/start"):
