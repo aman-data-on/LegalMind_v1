@@ -58,7 +58,12 @@ No version has been released. The V1 specification is complete and implementatio
   `LEGALMIND_MODEL_DIR=/nonexistent`); and job 14's Trivy pin gained the `v` prefix the
   action's tags actually carry (`v0.36.0`). That run was also the first CI verdict on the
   fresh-database harness fix: jobs 2, 11, 12 and 13 all migrated container-fresh databases
-  green.
+  green. **The second run gave the image scan its first real catch**: the backend image
+  shipped `libssl3t64`/`openssl`/`openssl-provider-legacy` 3.5.6 with 3.5.7 already released
+  (CVE-2026-14456, HIGH — one fix, three rows), because the `python:3.12-slim` tag floats
+  behind Debian's security releases. Both Dockerfiles now apply distro security upgrades at
+  build time, so the gate measures the image against today's fixes rather than the tag's
+  build date (decision #157).
 
 * **The Tier-2 quality gate is now a runnable release check, and the reference deployment
   is network-segmented — Gate §5b A9 (measurable half) and A10 continued** (standing owner

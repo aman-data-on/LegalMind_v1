@@ -15,7 +15,15 @@ FROM python:3.12-slim AS base
 # OCRmyPDF + Tesseract are system packages. Locked 34.8 labels OCR-derived text as
 # `source_type = OCR`, so the toolchain must actually be present for that path to
 # exist rather than fail closed (34.4, 34.9).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+#
+# `apt-get upgrade` first: the base tag floats behind Debian's security releases,
+# and CI job 14's first real scan (2026-08-26) found the image shipping libssl
+# 3.5.6 with 3.5.7 already published (CVE-2026-14456, HIGH). Upgrading at build
+# time picks up whatever the security repo has fixed by then; the scan blocks if
+# a fixed package is still missing, so the gate stays honest rather than waiting
+# on the upstream tag to be rebuilt.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
         tesseract-ocr \
         ocrmypdf \
         ghostscript \

@@ -13,6 +13,10 @@ COPY src ./src
 RUN npm run build
 
 FROM node:22-alpine AS runtime
+# Same reason as the backend image: the base tag floats behind Alpine's security
+# fixes, and CI job 14 scans the built image. Upgrade at build time so the gate
+# measures the image against today's fixes, not the tag's build date.
+RUN apk upgrade --no-cache
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./

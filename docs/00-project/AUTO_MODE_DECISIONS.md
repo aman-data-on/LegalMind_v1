@@ -545,3 +545,20 @@ being superuser. Reversible (`DROP EXTENSION` in `template1`); affects only this
 **Verification at close: Playwright 27/27 (4 setup + 22 original + the Ask spec) · Vitest 62 ·
 typecheck clean · backend 894 passed / 1 skipped · ruff and mypy clean · the 54.6 archive
 guard correctly flagged the failed run's `trace.zip` artifacts, which were removed.**
+
+
+## First CI runs on the branch → three corrections, 2026-08-26
+
+The new every-push trigger produced the branch's first two CI runs (`32966768966`,
+`32967405693`). Both were informative.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 157 | **Both images apply distro security upgrades at build time** (`apt-get upgrade` before installing the OCR toolchain; `apk upgrade` in the frontend runtime stage) | Job 14's first real scan found the backend image shipping `libssl3t64`/`openssl`/`openssl-provider-legacy` 3.5.6 with 3.5.7 already published — CVE-2026-14456, HIGH, three rows, one fix. The base tag floats behind Debian's security releases; upgrading at build measures the image against today's fixes instead of the tag's build date. Reproducibility is not worsened: the base tag already floated | Pinning base images by digest — a reproducibility/security trade-off worth its own decision, not made here |
+| 158 | **The Ask spec's evidence-present question is a strict subset of the fixture sentence** | Lexical search ANDs every stemmed term; two words the fixture lacked ("clause", "say") made the first version depend on the vector branch, which exists locally and not in CI. A spec must prove the same thing everywhere it runs — reproduced locally under `LEGALMIND_MODEL_DIR=/nonexistent` before pushing | — |
+| 159 | **Trivy pinned to `v0.36.0`** (tags are v-prefixed; `@0.29.0` did not resolve) | Latest release; the five inputs used have been stable across versions | — |
+
+**Confirmed by those runs, not merely reasoned:** the fresh-database harness fix (#155) works
+in container-fresh CI databases — jobs 2, 11, 12, 13 all green; job 10 (Playwright) green
+in CI after the spec correction; jobs 6–8 skip on push by design (they diff against a PR
+base). pip-audit and npm audit steps both passed in CI, matching the local zero.
