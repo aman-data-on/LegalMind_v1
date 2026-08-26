@@ -6,6 +6,8 @@ This document exists because [STEP_52_FRONTEND_ARCHITECTURE.md](docs/05-architec
 
 **What this document is not:** it is not a specification of legal behavior, not a Company Standard, not a Legal Rule, and not an amendment to any locked decision. Where this document is silent or in tension with `CLAUDE.md` rules 1–23, `CLAUDE.md` wins.
 
+**Which skills to apply, and in what order:** [CLAUDE.md](CLAUDE.md) §"UI and UX work — apply the design skills, always" (owner instruction, 2026-08-26). Every UI/UX task invokes `ui-ux-pro-max`, `frontend-design` and — for charts — `dataviz` before markup or styles are written. Those skills advise; this document and its DD decisions win, and a conflict between them is reported under rule 5 rather than resolved silently.
+
 **What already exists:** the frontend (`frontend/`) is not a blank slate. All ten Step 52.6 screens except report export are implemented, permission-gated, and covered by 58 Vitest tests and a Playwright browser suite that pins down real security- and correctness-critical DOM behavior (confidentiality omission, no-optimistic-decision-UI, 409 conflict surfacing, byte-identical 404s). Deliberately, **no CSS framework, component library, or client-state library was added** — `frontend/src/app/globals.css` is one plain stylesheet. This document governs how that gap gets filled, not whether the existing information architecture is correct. **The IA is correct and locked-adjacent (52.5); the visual and component layer is what's open.**
 
 ---

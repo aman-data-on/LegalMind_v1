@@ -190,6 +190,51 @@ Never delete an example to make a document shorter. Never "clean up" example val
 
 ---
 
+## UI and UX work — apply the design skills, always
+
+**Owner instruction, 2026-08-26:** *"apply this skills always when the task is ui-ux related."*
+
+A task is UI/UX work if it touches `frontend/`, a screen, a component, styling, layout,
+typography, colour, iconography, spacing, motion, accessibility or a chart — **including a
+one-line CSS change.** Invoke these before writing markup or styles, not after:
+
+| Skill | For |
+|---|---|
+| `ui-ux-pro-max` — with its `ui-styling`, `design-system` and `design` skills | Styles, palettes, font pairings, chart selection, per-stack (Next.js/React/Tailwind) guidance |
+| `frontend-design` | Aesthetic direction when building new UI or reshaping existing UI |
+| `dataviz` | Any chart, meter, KPI tile, sparkline or dashboard |
+
+Its `brand`, `banner-design` and `slides` skills are marketing-asset tools. LegalMind has no
+marketing surface — do not reach for them on a product screen.
+
+⚠️ **`ui-styling` is written around shadcn/ui + Tailwind, and this frontend has neither by
+deliberate choice** — [DESIGN.md](DESIGN.md) records that no CSS framework, component library or
+client-state library was added, and `frontend/src/app/globals.css` is one plain stylesheet.
+Adopting either is a **rule 19** dependency decision requiring owner approval. Until that
+approval exists, translate its guidance into the existing plain-CSS primitives (`.field`,
+`.btn--*`, `.table-card`, `StatePill`); never install the stack it assumes.
+
+**These skills advise. They never override, and the order is not negotiable:**
+
+1. **[CLAUDE.md](CLAUDE.md) rules 1–23** — in particular rule 18: the UI implements no legal
+   evaluation logic, never talks to the database directly, and UI permission gating is
+   presentation only. A skill suggesting client-side logic that decides a legal outcome is
+   simply wrong here.
+2. **[DESIGN.md](DESIGN.md)** and the recorded decisions in
+   [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) (DD-1 … DD-5). Where a
+   skill's default conflicts with a DD decision, **the DD decision wins and the conflict is
+   reported** — rule 5, not silently resolved in either direction.
+3. **Three product-specific prohibitions the generic skills cannot know:** the interface never
+   implies a probability, a confidence score or "the AI thinks" hedging (rule 12 and DESIGN.md);
+   there is no urgency theater; and an omitted confidential field stays omitted, never nulled or
+   greyed (`SEC-07`, `LEGAL-02`). Meanwhile the finish bar stays at DD-4 level from the first
+   pass (owner, 2026-08-21) — "no marketing copy" is not licence for bare design.
+
+Presentation-layer work still locks nothing: DESIGN.md governs it and amends no entry in
+[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).
+
+---
+
 ## Document status labels
 
 Every specification document declares its state. Never mix states without labeling them.
