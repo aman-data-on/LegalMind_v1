@@ -753,7 +753,7 @@ jobs:
           tags: legalmind-frontend:ci
 
       - name: Trivy — backend image (CRITICAL/HIGH, blocking)
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: legalmind-backend:ci
           format: table
@@ -762,7 +762,7 @@ jobs:
           exit-code: "1"
       - name: Trivy — backend image (MEDIUM/LOW, report only)
         if: always()
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: legalmind-backend:ci
           format: table
@@ -771,7 +771,7 @@ jobs:
           exit-code: "0"
 
       - name: Trivy — frontend image (CRITICAL/HIGH, blocking)
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: legalmind-frontend:ci
           format: table
@@ -780,7 +780,7 @@ jobs:
           exit-code: "1"
       - name: Trivy — frontend image (MEDIUM/LOW, report only)
         if: always()
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: legalmind-frontend:ci
           format: table

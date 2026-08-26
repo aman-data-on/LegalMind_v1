@@ -49,10 +49,17 @@ test.describe("Ask about this document", () => {
     const question = page.getByLabel("Question");
     const ask = page.getByRole("button", { name: "Ask" });
 
-    // Cause 1 — retrieval finds the fixture's liability sentence (a lexical hit
-    // opens the gate), but no generator credential exists, so the server refuses
-    // with EVIDENCE_INSUFFICIENT.
-    await question.fill("What does the limitation of liability clause say fees shall not exceed?");
+    // Cause 1 — retrieval finds the fixture's liability sentence, but no generator
+    // credential exists, so the server refuses with EVIDENCE_INSUFFICIENT.
+    //
+    // Every content word here appears in the fixture sentence "Liability shall not
+    // exceed 24 months of fees paid." — deliberately. Lexical search ANDs every
+    // stemmed term, so a single word the document lacks ("clause", "say") returns
+    // nothing, and CI provisions no embedding model to rescue the query the way a
+    // developer's machine does. The gate must open on the branch both environments
+    // share, or the spec proves different things in different places (it did — the
+    // first version passed locally on vectors and failed in CI).
+    await question.fill("liability shall not exceed fees paid");
     await ask.click();
     const first = page.locator(".ask-answer--refusal").first();
     await expect(first).toHaveText(REFUSAL_TEXT, { timeout: 20_000 });

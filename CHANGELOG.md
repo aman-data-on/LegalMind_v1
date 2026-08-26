@@ -50,7 +50,15 @@ No version has been released. The V1 specification is complete and implementatio
   surface with no error banner, with **no "confidence" string anywhere on the composed page**
   (`AI-03` item 16). It travels the whole live path: contract → upload → inline index →
   conversation → two asks through Next's proxy and the CSRF pair. `createAnalysedReview` now
-  also returns `contractId` (additive).
+  also returns `contractId` (additive). **First CI run corrected two things**: the spec's
+  evidence-present question is now a strict subset of the fixture sentence, because lexical
+  search ANDs every stemmed term and CI provisions no embedding model to rescue a query the
+  way a developer's machine silently did (it passed locally on vectors and failed in CI —
+  the spec now proves the same thing in both places, with the run reproduced locally under
+  `LEGALMIND_MODEL_DIR=/nonexistent`); and job 14's Trivy pin gained the `v` prefix the
+  action's tags actually carry (`v0.36.0`). That run was also the first CI verdict on the
+  fresh-database harness fix: jobs 2, 11, 12 and 13 all migrated container-fresh databases
+  green.
 
 * **The Tier-2 quality gate is now a runnable release check, and the reference deployment
   is network-segmented — Gate §5b A9 (measurable half) and A10 continued** (standing owner
