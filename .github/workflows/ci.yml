@@ -787,3 +787,71 @@ jobs:
           severity: "MEDIUM,LOW"
           ignore-unfixed: true
           exit-code: "0"
+
+  # ── 15 ─────────────────────────────────────────────────────────────────────
+  design-qa:
+    name: 15 · Design QA (forbidden terms + visual regression)
+    runs-on: ubuntu-latest
+    # Two gates from the 2026-08-27 UI/UX hardening pass, both design-governance
+    # rules made structural rather than reviewed-for:
+    #
+    #   1. Forbidden terms — rule 12 / AI-03 item 16: no confidence, risk-score,
+    #      probability or likelihood figure may reach the UI. The checker strips
+    #      comments first (a comment FORBIDDING the word is the rule, not a
+    #      violation) and exempts test files (a test may assert absence).
+    #
+    #   2. Visual regression — Playwright screenshot comparison at a 0.1% pixel
+    #      threshold over five key surfaces (login, reviews list, review detail,
+    #      contract/upload, admin), with volatile content (ids, dates) masked.
+    #      Gated behind DESIGN_QA=1 so the default e2e suite stays independent of
+    #      spec ordering; here the database is freshly bootstrapped, so every
+    #      baseline page renders identical content every run.
+    #
+    # Baselines are Linux/Chromium and live in e2e/visual.spec.ts-snapshots/.
+    # Regenerate deliberately with `npm run design-qa -- --update-snapshots` and
+    # review the image diff like any other diff.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Forbidden terms (rule 12 / AI-03 item 16)
+        working-directory: frontend
+        run: npm run check:terms
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install backend
+        working-directory: backend
+        run: pip install -e '.[dev]'
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Visual regression (0.1% threshold)
+        working-directory: frontend
+        env:
+          DESIGN_QA: "1"
+        run: npm run design-qa
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-regression-diffs
+          path: frontend/test-results/
+          retention-days: 7

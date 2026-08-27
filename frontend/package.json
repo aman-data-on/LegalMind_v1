@@ -8,7 +8,12 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "lint": "npm run typecheck && npm run check:terms",
+    "check:terms": "node scripts/check-forbidden-terms.mjs",
+    "test": "vitest run",
+    "test:all": "npm run typecheck && npm run check:terms && npm run test",
+    "test:e2e": "playwright test",
+    "design-qa": "playwright test e2e/visual.spec.ts"
   },
   "dependencies": {
     "next": "16.3.1",

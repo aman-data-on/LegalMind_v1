@@ -21,6 +21,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
+import { SkeletonAnswer } from "@/components/Skeleton";
 import { api, describeError } from "@/lib/api";
 import type { AskResult } from "@/lib/types";
 
@@ -33,13 +34,18 @@ interface Turn {
 export function AskPanel({ contractId }: { contractId: string }) {
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [busy, setBusy] = useState(false);
+  /* The in-flight question, rendered as a pending turn with an answer-shaped
+     skeleton. One honest status line — the client sees a single request, so a
+     staged "searching → verifying" theater with invented timings would claim
+     knowledge of pipeline progress it does not have. */
+  const [pending, setPending] = useState<string | null>(null);
+  const busy = pending !== null;
   const conversationRef = useRef<string | null>(null);
 
   const submit = useCallback(async () => {
     const asked = question.trim();
     if (!asked || busy) return;
-    setBusy(true);
+    setPending(asked);
     setQuestion("");
     try {
       if (!conversationRef.current) {
@@ -54,7 +60,7 @@ export function AskPanel({ contractId }: { contractId: string }) {
         { question: asked, result: null, error: describeError(error) },
       ]);
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }, [busy, contractId, question]);
 
@@ -79,6 +85,14 @@ export function AskPanel({ contractId }: { contractId: string }) {
             ) : null}
           </li>
         ))}
+        {pending !== null ? (
+          <li className="ask-turn" data-pending="true">
+            <p className="ask-question">
+              <span className="ask-role">You</span> {pending}
+            </p>
+            <SkeletonAnswer />
+          </li>
+        ) : null}
       </ol>
 
       <form

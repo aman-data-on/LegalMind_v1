@@ -31,18 +31,26 @@ export function FindingCard({
   finding,
   renderEvaluationActions,
   children,
+  current = false,
 }: {
   finding: Finding;
   /** Per-Evaluation decision UI, injected by the Review screen. */
   renderEvaluationActions?: (evaluation: Evaluation) => React.ReactNode;
   /** Escalation controls, which are Finding-level (F-3, AM-23). */
   children?: React.ReactNode;
+  /** Marks where keyboard navigation (n/p) currently points. Presentation only. */
+  current?: boolean;
 }) {
   return (
     <article
       /* Attention edge from the server-provided flag — never derived here (52.7). */
-      className={`finding${finding.requires_decision ? " finding--attention" : ""}`}
+      className={`finding${finding.requires_decision ? " finding--attention" : ""}${
+        current ? " finding--current" : ""
+      }`}
       data-finding-id={finding.id}
+      /* Focusable by script only (n/p navigation), never in the Tab order — Tab
+         still walks the real controls inside the card. */
+      tabIndex={-1}
     >
       <header className="finding__head">
         <h3 className="finding__requirement">

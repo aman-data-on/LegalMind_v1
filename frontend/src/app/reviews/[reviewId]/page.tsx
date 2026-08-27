@@ -31,8 +31,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { DecisionPanel } from "@/components/DecisionPanel";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 import { Field, StatePill } from "@/components/Primitives";
 import { FindingCard } from "@/components/FindingCard";
+import { SkeletonFindings } from "@/components/Skeleton";
+import { shortcutKey } from "@/lib/shortcuts";
 import {
   QUEUE_POLL_MS,
   isAnalysable,
@@ -110,6 +113,45 @@ export default function ReviewPage({
      called on the next — React #310, and the screen never loaded (2026-08-26). */
   const queueIds = useRef(new Set<string>());
 
+  /* Keyboard navigation (Phase 4). n/p move a "current finding" marker through
+     whatever the active view shows; "?" opens the help. The handler reads the
+     visible ids through refs so one listener survives view/page changes, and it
+     defers entirely to `shortcutKey` — nothing fires while the user is typing.
+     All hooks, per this file's own #310 lesson, sit above the early returns. */
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const shownIdsRef = useRef<string[]>([]);
+  const currentIndexRef = useRef(0);
+  const helpOpenRef = useRef(false);
+  helpOpenRef.current = helpOpen;
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const key = shortcutKey(event);
+      if (key === "?") {
+        setHelpOpen((open) => !open);
+        event.preventDefault();
+        return;
+      }
+      if (helpOpenRef.current) return;
+      if (key !== "n" && key !== "p") return;
+      const count = shownIdsRef.current.length;
+      if (count === 0) return;
+      const current = Math.min(currentIndexRef.current, count - 1);
+      const next = key === "n" ? Math.min(current + 1, count - 1) : Math.max(current - 1, 0);
+      currentIndexRef.current = next;
+      setCurrentIndex(next);
+      const card = document.querySelector<HTMLElement>(
+        `[data-finding-id="${shownIdsRef.current[next]}"]`,
+      );
+      card?.focus({ preventScroll: true });
+      card?.scrollIntoView({ block: "nearest" });
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (!can(P.REVIEW_VIEW)) return <AccessRestricted what="reviews" />;
   if (!reviewId) return <Loading what="review" />;
 
@@ -129,6 +171,8 @@ export default function ReviewPage({
       ? "attention"
       : "all";
   const shown = effectiveView === "attention" ? attention : (findings ?? []);
+  shownIdsRef.current = shown.map((finding) => finding.id);
+  const currentId = shown[Math.min(currentIndex, shown.length - 1)]?.id ?? null;
 
   return (
     <>
@@ -212,7 +256,7 @@ export default function ReviewPage({
       ) : findings === null ? (
         /* A failed load already shows its ErrorBanner above; rendering a
            perpetual "Loading…" beside it would misstate the page's state. */
-        error ? null : <Loading what="findings" />
+        error ? null : <SkeletonFindings />
       ) : findings.length === 0 ? (
         classification ? (
           /* Filter matched nothing ≠ never analysed (code-review finding,
@@ -237,24 +281,42 @@ export default function ReviewPage({
           {shown.length === 0 ? (
             <EmptyState>No Findings on this page need a decision.</EmptyState>
           ) : null}
-          {shown.map((finding) => (
-            <FindingCard
-              key={finding.id}
-              finding={finding}
-              renderEvaluationActions={(evaluation: Evaluation) =>
-                /*
-                 * Rendered per Evaluation — never per Finding (AB-1, 52.5). Shown
-                 * when the Evaluation needs a decision or already has one, so the
-                 * record stays visible after the fact.
-                 */
-                evaluation.requires_decision || evaluation.current_decision ? (
-                  <DecisionPanel evaluation={evaluation} onRecorded={() => void load()} />
-                ) : null
-              }
-            >
-              <EscalationControls finding={finding} onChanged={() => void load()} />
-            </FindingCard>
-          ))}
+          {shown.map((finding) => {
+            /* d/a/r act on exactly one panel: the first actionable Evaluation of
+               the finding n/p currently points at. Decisions still attach to the
+               Evaluation — the shortcut only chooses which panel listens. */
+            const firstActionable = finding.evaluations.find(
+              (candidate) => candidate.requires_decision || candidate.current_decision,
+            )?.id;
+            return (
+              <FindingCard
+                key={finding.id}
+                finding={finding}
+                current={finding.id === currentId}
+                renderEvaluationActions={(evaluation: Evaluation) =>
+                  /*
+                   * Rendered per Evaluation — never per Finding (AB-1, 52.5). Shown
+                   * when the Evaluation needs a decision or already has one, so the
+                   * record stays visible after the fact.
+                   */
+                  evaluation.requires_decision || evaluation.current_decision ? (
+                    <DecisionPanel
+                      evaluation={evaluation}
+                      onRecorded={() => void load()}
+                      shortcutsActive={
+                        finding.id === currentId && evaluation.id === firstActionable
+                      }
+                    />
+                  ) : null
+                }
+              >
+                <EscalationControls finding={finding} onChanged={() => void load()} />
+              </FindingCard>
+            );
+          })}
+          <p className="hint">
+            Keyboard: press <kbd>?</kbd> for shortcuts.
+          </p>
           {effectiveView === "attention" && attention.length < findings.length ? (
             <p className="hint">
               Showing the {attention.length} Finding{attention.length === 1 ? "" : "s"}{" "}
@@ -272,6 +334,7 @@ export default function ReviewPage({
           ) : null}
         </>
       )}
+      <KeyboardShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }

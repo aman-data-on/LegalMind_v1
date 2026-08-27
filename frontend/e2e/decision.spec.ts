@@ -118,7 +118,25 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     // 49.7 / N-1 Option C — a collision is a 409, surfaced as its own state. The
     // screen must say it was NOT recorded; an optimistic UI would have shown success.
     await expect(page.locator(".decision__conflict")).toContainText("Not recorded");
+    await expect(page.locator(".decision__conflict")).toContainText(
+      "already updated by another user",
+    );
+
+    // Phase 4: the form FREEZES until the user explicitly loads the latest state —
+    // no automatic re-fetch shifts the ground under a decision-maker mid-read.
+    await expect(
+      evaluation.getByRole("button", { name: "Record decision" }),
+    ).toBeDisabled();
+
+    await evaluation
+      .getByRole("button", { name: "Refresh to see the latest decision" })
+      .click();
+
+    // The refresh re-reads from the server; what renders is what actually won.
     await expect(page.locator(".decision__current").first()).toContainText("version 1");
+    await expect(
+      evaluation.getByRole("button", { name: "Record decision" }),
+    ).toBeEnabled();
   });
 
   test("a Finding cannot be resolved from the screen", async ({ page }) => {

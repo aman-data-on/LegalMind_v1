@@ -13,7 +13,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
-import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { EmptyState, ErrorBanner, Pager } from "@/components/Feedback";
+import { SkeletonTable } from "@/components/Skeleton";
 import { Field, StatePill, TableCard, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -88,7 +89,9 @@ export default function ReviewsPage() {
       </form>
 
       {reviews === null ? (
-        <Loading what="reviews" />
+        /* Table-shaped skeleton (Phase 4): same TableCard container and column
+           count as the loaded state, so rows arriving cause no layout shift. */
+        <SkeletonTable what="reviews" columns={4} />
       ) : reviews.length === 0 ? (
         /* Distinguish "nothing matches this filter" from "nothing at all" —
            presentation of the active client-side filter state only. */

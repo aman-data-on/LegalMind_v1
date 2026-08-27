@@ -711,3 +711,84 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
 .ask-form .field {
   flex: 1;
 }
+
+/* ==========================================================================
+ * Phase 4 hardening (2026-08-27) — skeletons, keyboard navigation, conflicts.
+ * ========================================================================== */
+
+/* Loading skeletons. The shimmer is decoration over an announced status
+ * (Skeleton.tsx); under reduced motion the blocks hold still. The tint stays in
+ * the neutral family — a skeleton must never borrow a state-axis color. */
+.skeleton {
+  display: block;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--line) 25%,
+    var(--page) 42%,
+    var(--line) 60%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-sheen 1.4s ease-in-out infinite;
+  margin: var(--space-2) 0;
+}
+.skeleton-table { padding: var(--space-3) var(--space-4); }
+.skeleton-table__row {
+  display: flex;
+  gap: var(--space-5);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.skeleton-table__row:last-child { border-bottom: 0; }
+.skeleton-finding { min-height: 7.5rem; }
+.skeleton-answer .skeleton { margin: var(--space-1) 0; }
+@keyframes skeleton-sheen {
+  from { background-position: 180% 0; }
+  to { background-position: -40% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--line); }
+}
+
+/* The current finding under keyboard navigation. Focus itself carries the
+ * :focus-visible ring; this border marks "where n/p is" even after focus moves
+ * into a field inside the card. Neutral, not a state color. */
+.finding[tabindex] { outline-offset: 2px; }
+.finding--current { border-color: var(--accent); }
+
+/* Shortcuts help — the one sanctioned modal (user-summoned, single question). */
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+.shortcuts-dialog {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  max-width: 34rem;
+  width: calc(100% - 2 * var(--space-5));
+}
+.shortcuts-dialog table { margin: var(--space-4) 0; border-collapse: collapse; }
+.shortcuts-dialog th { text-align: left; padding: var(--space-1) var(--space-5) var(--space-1) 0; }
+.shortcuts-dialog td { padding: var(--space-1) 0; }
+.shortcuts-dialog kbd {
+  font-family: ui-monospace, monospace;
+  font-size: var(--text-sm);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  padding: 0 var(--space-2);
+  background: var(--page);
+}
+
+/* Decision conflict — the buttons freeze until the user explicitly reloads the
+ * latest state, so "decide again" can only happen against what was actually
+ * recorded (52.7). */
+.decision__conflict { margin-top: var(--space-3); }
+.decision__conflict .btn { margin-top: var(--space-2); }

@@ -14,17 +14,31 @@
  * deciding again. Showing their submission as accepted and reconciling later would
  * be a UI that lies about a legal act.
  *
+ * **The conflict state freezes the form** (Phase 4, 2026-08-27): after a 409 the
+ * submit control is disabled until the user explicitly reloads the latest state.
+ * An earlier draft re-fetched automatically, which was well-meaning but wrong —
+ * the decision-maker must *see and acknowledge* what was actually recorded before
+ * the form will take another submission, not have the ground shift under a form
+ * they may already be re-reading.
+ *
+ * **Keyboard shortcuts prepare, never record** (Phase 4): with `shortcutsActive`,
+ * `d` jumps to the form, `a`/`r` preselect a decision type and focus the mandatory
+ * justification. No key submits — a single keystroke must not complete a legal
+ * act, and the server-mandatory justification (Step 31 r11) makes that structural
+ * rather than polite.
+ *
  * `REQUEST_CLARIFICATION` is never treated as a disposition (Step 31 r10); the
  * server reports `is_effective: false` and that is displayed as-is.
  *
  * There is no update or delete control: supersession is a create (Step 31 r14).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import { DECISION_TYPES, submittableDecisionTypes } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { shortcutKey } from "@/lib/shortcuts";
 import type { Decision, Evaluation } from "@/lib/types";
 
 import { DecisionHistory } from "./DecisionHistory";
@@ -36,13 +50,46 @@ type Outcome =
   | { kind: "conflict"; message: string; requestId: string }
   | { kind: "error"; message: string };
 
+/** Exported for the static test suite, like `AnswerView`. */
+export function ConflictNotice({
+  requestId,
+  refreshing,
+  onRefresh,
+}: {
+  requestId: string;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="decision__conflict" role="alert">
+      <p className="error">
+        <strong>Not recorded.</strong> This Evaluation was already updated by another
+        user while this page was open. The form is paused until you load the latest
+        state.
+      </p>
+      <button
+        type="button"
+        className="btn btn--secondary"
+        onClick={onRefresh}
+        disabled={refreshing}
+      >
+        {refreshing ? "Refreshing…" : "Refresh to see the latest decision"}
+      </button>
+      <p className="hint">Reference {requestId}</p>
+    </div>
+  );
+}
+
 export function DecisionPanel({
   evaluation,
   onRecorded,
+  shortcutsActive = false,
 }: {
   evaluation: Evaluation;
   /** Lets the Review screen re-fetch from the server rather than patch state. */
   onRecorded: () => void;
+  /** True only on the panel keyboard navigation currently points at. */
+  shortcutsActive?: boolean;
 }) {
   const { identity } = useSession();
   const permissions = identity?.permissions ?? [];
@@ -52,6 +99,10 @@ export function DecisionPanel({
   const [justification, setJustification] = useState("");
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const typeRef = useRef<HTMLSelectElement | null>(null);
+  const justificationRef = useRef<HTMLTextAreaElement | null>(null);
 
   /*
    * 52.1 r3 / 52.3 — a control the user cannot invoke is not rendered. This hides
@@ -60,9 +111,33 @@ export function DecisionPanel({
    * 403 whether or not this branch ran (SEC-02: no bypass reaches legal authority).
    */
   const canDecide = available.length > 0;
+  const frozen = outcome.kind === "conflict";
+
+  useEffect(() => {
+    if (!shortcutsActive || !canDecide) return;
+    function onKey(event: KeyboardEvent) {
+      const key = shortcutKey(event);
+      if (key === "d") {
+        typeRef.current?.focus();
+        typeRef.current?.scrollIntoView({ block: "center" });
+      } else if (key === "a" && available.includes("ACCEPT_DEVIATION")) {
+        setDecisionType("ACCEPT_DEVIATION");
+        justificationRef.current?.focus();
+      } else if (key === "r" && available.includes("REJECT")) {
+        setDecisionType("REJECT");
+        justificationRef.current?.focus();
+      } else {
+        return;
+      }
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shortcutsActive, canDecide, available]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (frozen) return;
     setOutcome({ kind: "submitting" });
     try {
       const result = await api.recordDecision(evaluation.id, {
@@ -85,17 +160,28 @@ export function DecisionPanel({
       onRecorded();
     } catch (error) {
       if (error instanceof ApiError && error.isConflict) {
+        // Deliberately NO automatic re-fetch here: the user must load the latest
+        // state themselves, so what they read next is what they asked to read.
         setOutcome({
           kind: "conflict",
           message: error.message,
           requestId: error.requestId,
         });
-        // Pull the server's version of events. The user must see what was
-        // actually recorded before deciding again.
-        onRecorded();
         return;
       }
       setOutcome({ kind: "error", message: describeError(error) });
+    }
+  }
+
+  async function refreshAfterConflict() {
+    setRefreshing(true);
+    try {
+      // Pull the server's version of events; the evaluation prop re-renders with
+      // the decision that actually won, and expected_version follows from it.
+      onRecorded();
+      setOutcome({ kind: "idle" });
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -131,6 +217,7 @@ export function DecisionPanel({
           <label>
             Decision
             <select
+              ref={typeRef}
               value={decisionType}
               onChange={(event) => setDecisionType(event.target.value)}
             >
@@ -146,6 +233,7 @@ export function DecisionPanel({
             {/* Step 31 r11 / AM-15 — mandatory, and the server rejects whitespace. */}
             Justification (required)
             <textarea
+              ref={justificationRef}
               required
               rows={3}
               value={justification}
@@ -156,7 +244,7 @@ export function DecisionPanel({
           <button
             type="submit"
             className="btn btn--primary"
-            disabled={outcome.kind === "submitting"}
+            disabled={outcome.kind === "submitting" || frozen}
           >
             {outcome.kind === "submitting" ? "Recording…" : "Record decision"}
           </button>
@@ -186,14 +274,11 @@ export function DecisionPanel({
       ) : null}
 
       {outcome.kind === "conflict" ? (
-        <div className="decision__conflict">
-          <p className="error">
-            <strong>Not recorded.</strong> Another decision was made for this
-            Evaluation while this page was open. Review the current decision above,
-            then decide again if it is still appropriate.
-          </p>
-          <p className="hint">Reference {outcome.requestId}</p>
-        </div>
+        <ConflictNotice
+          requestId={outcome.requestId}
+          refreshing={refreshing}
+          onRefresh={() => void refreshAfterConflict()}
+        />
       ) : null}
 
       {outcome.kind === "error" ? <p className="error">{outcome.message}</p> : null}

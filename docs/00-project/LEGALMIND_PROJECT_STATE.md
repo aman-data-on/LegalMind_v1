@@ -23,12 +23,33 @@ Updated at the end of every working session.*
 | **Waiting on your one-line approval** | **[AB5_DOMAIN_CORPUS_PROPOSAL.md](AB5_DOMAIN_CORPUS_PROPOSAL.md)** — reply "AM-32 approved" and the positions/statute search tables get built (resolves C-15). Plus one new question in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want? |
 | **UI/UX** | **STARTED** (your 27 Aug authorization). Plan: [../design/WORKSPACE_UI_PLAN.md](../design/WORKSPACE_UI_PLAN.md) — a three-region workspace (document · verdicts · chat) with click-a-verdict-highlight-the-evidence as the signature; first component built and tested; blocked surfaces render as calm placeholders |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 911 backend + 68 frontend + 27 browser checks passing, none failing; CI (14 jobs) green on every push |
+| **Health** | 935 backend + 79 frontend + 30 browser checks passing, none failing; CI (15 jobs — now including visual regression and the forbidden-wording gate) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material and a C-15 ruling for the positions/statute search; or your go-ahead to start UI/UX |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 | **Your instruction, 26 Aug (later)** | *"Backend first. UI/UX later. Preserve the existing UI code but treat its previous design as obsolete for planning purposes... When the backend/API architecture is genuinely ready to support a new UI/UX implementation, stop and tell me clearly."* Logged. The current screens stay in place and their tests keep running, but no further design or polish work goes into them. The backend is being closed out against the surfaces a new UI will need; the readiness call comes as an explicit statement, with the owner-gated items named |
+
+**What got finished on 27 August (evening — your UI/UX execution directive)**
+
+- **The interface got its first hardening pass for real users.** Loading placeholders now
+  hold each page's shape while data arrives (no content jumping); the review screen is
+  fully workable from the keyboard — `n`/`p` walk the findings, `?` shows a help panel —
+  and the approve/reject keys deliberately only *prepare* a decision: no single keystroke
+  can ever record one, and an automated browser test proves it.
+- **The two-people-collide case is now airtight on screen.** If someone else decides
+  first, the form says plainly "Not recorded", freezes, and stays frozen until you
+  explicitly load the latest state — nothing refreshes itself under your eyes mid-read.
+- **Two new automatic design gates run on every change**: one fails the build if any
+  forbidden wording ("confidence", "risk score"…) enters the interface — tested by
+  planting a violation and watching it fail — and one compares five key screens
+  pixel-by-pixel against approved reference images, so a visual regression can't slip
+  through unnoticed.
+- **Usability testing is ready to schedule**: a five-person test plan (two kinds of user,
+  four tasks, checklist and feedback form) is written — I need you to name participants
+  when you want it run. Two patterns a newcomer would mistake for bugs (hidden
+  confidential fields; the identical "not found" reply) are now documented with real
+  screenshots so nobody "fixes" a security property.
 
 **What got finished on 27 August (afternoon — your gap-closing directive)**
 

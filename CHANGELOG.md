@@ -12,6 +12,73 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX execution phase, first hardening pass — skeletons, keyboard navigation, the
+  frozen-conflict flow, and two new design gates in CI** (owner directive, 2026-08-27:
+  implement the missing pieces and prepare for usability testing). Frontend **79 Vitest**
+  (+11) and **30 browser items** passing, typecheck clean, plus **8 deliberately gated
+  specs** (5 visual baselines, 3 documentation captures) that run outside the default suite.
+
+  **Loading skeletons** (`Skeleton.tsx`) on the review list, the findings pane and the Ask
+  answer area — each matching the final layout's container so arrival causes no layout
+  shift, `aria-hidden` shapes over the existing `aria-live` text announcement, static under
+  `prefers-reduced-motion` (reconciling the owner's shimmer request with DESIGN.md's
+  shimmer caution: functional skeleton yes, decorative implication of content no). The Ask
+  skeleton carries **one honest status line** — the client sees a single request, so the
+  mockup's staged "searching → verifying" sequence was dropped rather than faked with
+  invented timings. The requested PDF-preview skeleton has no surface to attach to:
+  documents are deliberately download-only (`attachment`, never rendered in-origin — 34.16
+  posture), recorded rather than built around.
+
+  **Keyboard navigation** on the Review screen: `n`/`p` walk the current view's findings,
+  `d` jumps to the decision form, `?` opens a real dialog listing the bindings from the
+  same table the handlers read. **`a`/`r` prepare, never record** — they preselect a
+  decision type and focus the mandatory justification; a browser test proves no keyboard
+  path emits a `POST /decisions`, and shortcuts are inert while typing (a justification
+  containing "a" must not steer the form).
+
+  **The 409 conflict now freezes the form** until an explicit "Refresh to see the latest
+  decision": the earlier auto-refetch was well-meaning but shifted the ground under a
+  decision-maker mid-read. The e2e conflict spec now walks the full loop — real second
+  decision, real 409, disabled submit, explicit refresh, re-enabled form showing what
+  actually won (52.7).
+
+  **CI job 15 — Design QA**: (1) a forbidden-terms gate (`confidence`, `risk_score`,
+  `probability`, `likelihood`, `ai_confidence`) over non-test frontend source with
+  comments stripped — **proven to fail** on a planted violation before being trusted
+  (exit 1, file:line named); (2) Playwright **visual regression at a 0.1% pixel
+  threshold** over five surfaces (login, reviews list, review detail, contract/upload,
+  admin), volatile ids/dates masked, gated behind `DESIGN_QA=1` with a freshly
+  bootstrapped database so baselines are content-deterministic — **verified to reproduce
+  across two full rebuilds** before committing. `npm run design-qa` runs it locally; new
+  scripts `test:all`, `test:e2e`, `check:terms`, and `lint` (typecheck + terms — no ESLint
+  dependency added; adopting one is a rule-19 approval).
+
+  **Documentation:** [docs/design/UI_PATTERNS.md](docs/design/UI_PATTERNS.md) explains the
+  two deliberately unusual patterns — confidential omission and the identical refusal —
+  with screenshots captured from the real application against synthetic fixture data
+  (regenerable via `DOCS_SHOTS=1`); [docs/design/USABILITY_TEST_PLAN.md](docs/design/USABILITY_TEST_PLAN.md)
+  is the five-person think-aloud plan, including the permission-probe task where the pass
+  condition is the participant noticing nothing.
+
+* **Full UI/UX R&D pass — all prior identity/layout decisions cancelled and superseded**
+  (owner directive, 2026-08-27: *"Cancel all previous UI/UX decisions... give you ONE prompt."*).
+  Documentation only — no frontend code changed yet. Researched via `ui-ux-pro-max`
+  (`--design-system`, `--domain ux/typography/color`), cross-checked against this repo's locked
+  constraints; two real defects found in the prior work (a one-page deep-navy `/login` identity
+  that never extended to the rest of the product, and the Review screen's list/detail layout left
+  as an unfinished proposal since 2026-08-21) rather than restyled cosmetically. New authoritative
+  document: [docs/design/UI_UX_MASTER_PROMPT.md](docs/design/UI_UX_MASTER_PROMPT.md) — one
+  persistent shell (finalizing `DD-1`'s bounded-list-plus-detail proposal), a two-register visual
+  system distinguishing the legal-authority workflow from the new AI assist surface so neither can
+  be mistaken for the other, a five-axis color namespace refinement, an IBM Plex Sans/Mono +
+  Source Serif 4 (verbatim-quote-only) type system, and an explicit rejection of three generic
+  AI-chat conventions (token streaming, thumbs-up/down feedback) that would have conflicted with
+  the citation-verification and non-learning requirements already locked (`AM-25`, `AM-28`).
+  `DD-6` in [DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) records exactly what's
+  superseded (`DD-1`–`DD-5`) versus what's untouched (every locked behavioral rule — confidentiality
+  rendering, the five-axis model, no-optimistic-UI — none of which is a "UI/UX decision" the
+  cancellation instruction reaches).
+
 * **Five-phase gap-closing pass on the owner's 2026-08-27 directive**, which also
   granted the UI/UX greenlight (decision #167). Delivered: **the AB-5/`AM-32` amendment
   draft** ([docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md))

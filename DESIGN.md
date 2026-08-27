@@ -2,6 +2,13 @@
 
 **Status: `IN PROGRESS` (Phase 0 — Discovery). This document governs presentation-layer decisions only. It locks nothing in `all_lock.md` and amends no entry in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).**
 
+**2026-08-27 — read [docs/design/UI_UX_MASTER_PROMPT.md](docs/design/UI_UX_MASTER_PROMPT.md) first.**
+Owner-directed full R&D pass; `DD-6` in [DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md)
+supersedes the identity treatment (`DD-2`–`DD-4`) and finalizes the workflow layout `DD-1` left
+open. The principles below are retained (they derive from locked rules, not taste) — the master
+prompt is the current authority on visual system, information architecture, and the new assist
+surface.
+
 This document exists because [STEP_52_FRONTEND_ARCHITECTURE.md](docs/05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md) §52.6 explicitly leaves visual design, component library, accessibility target, and internationalization `NOT YET SPECIFIED` and calls each "an implementation-phase choice." This is that choice being made deliberately, in the open, instead of accreting ad hoc. It does not touch [CLAUDE.md](CLAUDE.md), which remains the authority on everything else in this repository.
 
 **What this document is not:** it is not a specification of legal behavior, not a Company Standard, not a Legal Rule, and not an amendment to any locked decision. Where this document is silent or in tension with `CLAUDE.md` rules 1–23, `CLAUDE.md` wins.
@@ -141,6 +148,8 @@ Nothing in this document authorizes changing the frontend's structural guarantee
 
 ## Where the rest of this lives
 
+- The deliberately unusual patterns (confidential omission, the refusal state), explained with real screenshots: [docs/design/UI_PATTERNS.md](docs/design/UI_PATTERNS.md)
+- Usability testing plan (Phase 5): [docs/design/USABILITY_TEST_PLAN.md](docs/design/USABILITY_TEST_PLAN.md)
 - Current-state audit (page inventory, component inventory, UX problems, workflow map): [docs/design/UX_AUDIT.md](docs/design/UX_AUDIT.md)
 - Explored interaction directions for the core review workflow, and the recorded decision: [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md)
 - Phase sequencing and page-by-page implementation roadmap: [docs/design/UX_ROADMAP.md](docs/design/UX_ROADMAP.md)
