@@ -78,6 +78,16 @@ ADMIN
 SUPER_ADMIN
 ```
 
+> ⚠️ **Superseded illustrative seed data — do not seed from this list** (owner ruling
+> 2026-08-27, resolving **C-10**; recorded alongside AB-5 in `all_lock.md`). The list
+> above is retained verbatim as the historical 42.2 text, exactly as the neighbouring
+> "Recommended statuses" are illustrative. The **canonical role set is the one the code
+> carries** (`legalmind/security/permissions.py`, implementing Step 23 / `ROLE-06`):
+> `USER` · `LEGAL_REVIEWER` · `LEGAL_ADMIN` · `SUPER_ADMIN`, plus
+> `LEGAL_DECISION_AUTHORITY` as the SEC-03 additional grant. **`ADMIN` is never
+> seeded** — it has no defined legal-authority boundary and no Step 47 default-grant
+> row.
+
 ### `user_roles`
 
 ```text

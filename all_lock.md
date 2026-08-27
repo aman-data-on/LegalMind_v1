@@ -16383,3 +16383,112 @@ Still required          the written provider terms (AM-31 g1); an evaluation set
                         material (AM-26 r3, AM-28); the golden corpus's outstanding legal material
 Open, unaffected        C-05 - C-08, C-10, C-12, C-13
 ```
+
+================================================================================
+AMENDMENT BATCH AB-5 — Domain A and Domain C corpus tables
+Approved by the owner on 2026-08-27 ("AM-32 approved").
+Proposal: docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md
+Resolves C-15. Does not touch C-16, which remains open until statute material with
+recorded provenance is supplied.
+================================================================================
+
+# `AM-32` — Domain A and Domain C corpus tables
+
+**Amends:** `AM-27`, by permitting the tables below and no others beyond AM-27's nine.
+This is the amendment AM-30's "What this record does NOT decide" anticipated.
+
+```text
+r1   The three retrieval domains remain distinct, per the owner instruction of
+     2026-08-25: separate tables, separate ingestion, separate provenance, separate
+     citation semantics, separate access control. No shared content table, no
+     domain-discriminator column on a content table, no flattening.
+
+r2   AM-27 r1-r3 apply to every new table: same separate schema, the 30 locked tables
+     untouched (schema invariant tests pass unmodified as the evidence), 42.1 design
+     rules in full - UUID keys, UTC timestamps, REAL foreign keys, append-only where
+     the data records something that happened.
+
+r3   Domain A chunks derive from a published company_standard_versions row and
+     reference it by real foreign key. There is no positions content table: the
+     ratified standard remains the single source of truth. When a standard version is
+     superseded, its chunks and their embeddings are hard-deleted and the new version
+     is chunked (the AM-27 r5 principle, applied to configuration).
+
+r4   Domain A output is EXTRACTIVE ONLY. AM-30 t3 forbids any Company Standard value
+     in an egressing payload; therefore no Domain A retrieval result, in whole or in
+     part, is ever included in a generation call. A Domain A answer is the ratified
+     text quoted verbatim with its citation (standard code, version, source clause) -
+     which is precisely the statement AM-25 r3 permits. No exception while t3 stands.
+
+r5   Domain A retrieval requires assist.ask AND configuration.view, applied inside the
+     query before retrieval (AM-25 r6). LEGAL-02 and SEC-07 apply: to a caller without
+     configuration.view, Domain A results are indistinguishable from an empty corpus,
+     and the identical AM-29 r4 refusal sentence is rendered.
+
+r6   Domain C chunks derive from a statutes registry row. Every statutes row records:
+     official title, act number and year, jurisdiction, the authoritative source
+     (India Code for Indian statutes - the product vision's hard rule), source URL or
+     gazette reference, version/as-amended date, the supplied file's SHA-256, and who
+     supplied it and when. A statute with no provenance record cannot be ingested;
+     the ingestion tool refuses it. Rule 21 stands: statute material is supplied,
+     never authored, never fetched by the application.
+
+r7   Domain C chunking is SECTION-based (section number, sub-section, marginal note
+     preserved), not clause-based; a Domain C citation is Act + section, never a page
+     alone. A statute is background law (source-material ruling, 2026-08-18): no
+     Requirement, Company Standard, Legal Rule, threshold or acceptance position is
+     derived from Domain C content, and Domain C output never enters the evaluator.
+
+r8   Domain C content is public law and MAY be included in generation payloads,
+     subject to the AM-31 gate and every AM-30 term. Domain A content may not (r4).
+
+PERMITTED TABLES (six, in the AM-27 schema; no other table)
+  position_chunks               derived text spans of a published Company Standard
+                                version, with source-clause citation fields
+  position_chunk_embeddings     one row per position chunk per embedding model
+  statutes                      the statute registry: identity + provenance (r6)
+  statute_chunks                section-based text spans of a statute (r7)
+  statute_chunk_embeddings      one row per statute chunk per embedding model
+  (sixth slot reserved)         judgments registry - NOT authorized here; a further
+                                record names it when the curated list is supplied
+
+MODIFIED AM-27 TABLES (two, both AM-27-batch tables; no locked table is touched)
+  retrieval_runs                gains nullable position_chunk / statute_chunk FK
+                                references alongside the existing chunk references
+  answer_citations              gains nullable position_chunk_id and statute_chunk_id,
+                                with a CHECK that exactly one chunk reference is set
+
+r9   The embedding model, the calibrated refusal gate, the guardrails, the sixth-axis
+     answer states and the refusal sentence are shared machinery across domains; the
+     Tier 2 evaluation set gains Domain A and Domain C questions, including
+     unanswerable ones, before either domain ships (AM-28's gate applies per domain).
+
+r10  audit_events gains new event types for Domain A/C ingestion and retrieval, and
+     no schema change. No statute text or standard text enters a log line (53.3).
+```
+
+--------------------------------------------------------------------------------
+Owner rulings recorded alongside AB-5 on 2026-08-27 (conflict resolutions, no
+locked text modified — rule 22; superseded text is annotated in
+docs/00-project/CONFLICTS.md, never edited):
+
+C-10 RESOLVED — "Code list authoritative maano, doc update karo." The role set the
+     code carries (legalmind/security/permissions.py) is canonical: USER,
+     LEGAL_REVIEWER, LEGAL_ADMIN, SUPER_ADMIN, plus LEGAL_DECISION_AUTHORITY as the
+     SEC-03 additional grant. This is Step 23 (ROLE-06) as implemented; 42.2's
+     "Initial roles: USER, ADMIN, SUPER_ADMIN" is hereby annotated as illustrative
+     seed data superseded by Step 23. ADMIN is never seeded.
+
+C-08 RESOLVED — "Permission checks server-side strict hain - code ko follow karo."
+     Step 4's open question ("whether Reviewer can approve anything or only
+     review/escalate") is closed as the code implements it: a Legal Reviewer views
+     within Legal scope (REC-09) and may escalate; approval requires legal.decision,
+     which no role carries by default and only LEGAL_DECISION_AUTHORITY grants
+     (SEC-01/SEC-03 unchanged).
+
+C-05, C-06, C-07 RESOLVED BY ANNOTATION — "Annotations add karo, lines edit mat karo
+     (rule 22)." The stale 45A status block, the duplicate Step 29 heading and the
+     superseded draft lists remain byte-identical in this file; their annotations
+     live in docs/00-project/CONFLICTS.md, which now states for each exactly which
+     text is superseded and by what.
+================================================================================

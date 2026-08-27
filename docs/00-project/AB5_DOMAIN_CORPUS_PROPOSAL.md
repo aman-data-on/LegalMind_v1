@@ -1,6 +1,12 @@
-# AB-5 — Domain A/C corpus tables (`AM-32`): PROPOSAL
+# AB-5 — Domain A/C corpus tables (`AM-32`): APPROVED
 
-**Status: 📁 PROPOSAL — decides nothing.** Prepared 2026-08-27 for owner approval.
+**Status: ✅ APPROVED by the owner, 2026-08-27 ("AM-32 approved") — appended to
+`all_lock.md` the same day (now 16,494 lines; the prior 16,385 byte-identical).
+C-15 is RESOLVED.** This document remains as the design rationale behind the lock
+record; the locked text lives in `all_lock.md` and
+[LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) § AB-5, which win any divergence.
+
+Originally prepared 2026-08-27 for owner approval.
 This is the amendment `AM-30` itself anticipated: *"Domain A / Domain C corpus tables —
 No table is authorized by this record. AM-27's 'no other table' stands, and a corpus
 schema requires its own amendment with a concrete design."* This document is that

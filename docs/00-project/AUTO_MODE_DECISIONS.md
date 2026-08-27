@@ -632,3 +632,26 @@ confirmation).
 ruff and mypy clean · frontend typecheck + 68 Vitest (+6 placeholder) · preflight
 register verified 23 by running it · `AM31_GATE` CLOSED and untouched · `all_lock.md`
 untouched (the AB-5 text is a PROPOSAL document, appended only on approval).**
+
+
+## AM-32 approved and implemented; six conflicts closed by owner ruling, 2026-08-27
+
+Owner rulings (verbatim): "AM-32 approved" · "Code list authoritative maano, doc update
+karo" (C-10) · "Permission checks server-side strict hain - code ko follow karo.
+Documentation update karo." (C-08) · "Annotations add karo, lines edit mat karo (rule
+22)." (C-05/06/07). All recorded alongside AB-5 in `all_lock.md` (16,385 → 16,494
+lines, prior lines byte-identical).
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 174 | **`retrieval_runs`' per-domain references live inside its JSONB `results` entries (a `domain` key), not as new FK columns; the FK columns land on `answer_citations`** (nullable per-domain ids + CHECK exactly-one, `chunk_id` relaxed to nullable) | AM-27 designed `results` as a no-FK diagnostic record (dangling ids explicitly tolerated); AM-32's "FK references" is honored where referential integrity has a job — verified citations. Adding FK columns to a table whose own design rejects them would contradict the older record to satisfy a word of the newer one | Nothing about the diagnostic record's tolerance for dangling ids — unchanged |
+| 175 | **Domain A chunk content is composed from the ratified file's verbatim fields** (code · source_clause · document_type · source_document · source_quote), chunked from `config/company_standards/` and FK-linked to the *imported published* `company_standard_versions` row; a file with a missing field or no imported row REFUSES, never skips | r3 makes the DB row the reference and the ratified file is where the verbatim quote lives (the DB `configuration` deliberately carries evaluator values only); a silently-skipped position would be a search surface lying about coverage; rule 21 forbids inventing the missing text | The quote's presence in the file — supplied configuration, owner-ratified 2026-08-19 |
+| 176 | **The authorized-tables tripwire now expects AM-27's nine + AM-32's five, and the judgments slot stays a tripwire** — a judgments table appearing before its own record fails `test_only_authorized_tables_exist_in_the_assist_schema` | The test did its job (it failed the moment the migration ran, until the authorization was recorded in it); the reserved slot must keep the same teeth | — |
+| 177 | **Domain A search is lexical-first** (`ts_rank` over the tsvector, trigram available); the shared embedding machinery joins in a later increment | 32 single-chunk positions are a small, keyword-dense corpus where lexical is measurably sufficient to start, and r9's Tier-2 questions (which gate shipping) don't exist yet; wiring vectors first would be optimization ahead of the gate that measures it | r9's evaluation-set requirement — still owed before Domain A ships to users |
+| 178 | **Concurrent session's in-progress frontend work observed and left untouched** (KeyboardShortcuts/Skeleton/DESIGN.md/UI_UX_MASTER_PROMPT.md, mid-edit with typecheck failing); this commit stages only the AM-32/conflicts files | Rule 23: assume concurrency, never clobber or duplicate. The frontend failure is theirs mid-flight, not a regression in this work — backend 935 green, and the committed tree excludes their uncommitted files | Their UI direction — including how their "cancel all previous UI/UX decisions" directive relates to WORKSPACE_UI_PLAN.md; to be reconciled when their work lands |
+
+**Verification at close: backend 935 passed / 1 skipped (+9 positions, +15 net) · ruff
+and mypy clean (95 files) · migration `d7e2a9c41b58` round-trips (upgrade → downgrade →
+upgrade) · locked-schema snapshot tests pass unmodified (AM-27/AM-32 r2's evidence) ·
+OpenAPI drift clean (no API change) · `AM31_GATE` CLOSED · `all_lock.md` 16,494 lines,
+append-only.**

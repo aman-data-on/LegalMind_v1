@@ -24,8 +24,12 @@ from legalmind import config
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 
-# `AM-27`'s permitted list, verbatim — all nine, since 2026-08-26.
+# `AM-27`'s permitted nine (all present since 2026-08-26) plus `AM-32`'s permitted
+# five (AB-5, owner-approved 2026-08-27). AM-32's sixth slot — a judgments registry —
+# is RESERVED, not authorized: its absence from this list is deliberate, and a
+# judgments table appearing before its own further record fails here.
 EXPECTED_TABLES = frozenset({
+    # AM-27
     "chunks",
     "chunk_embeddings",
     "embedding_models",
@@ -35,6 +39,12 @@ EXPECTED_TABLES = frozenset({
     "ai_answers",
     "answer_citations",
     "prompt_versions",
+    # AM-32
+    "position_chunks",
+    "position_chunk_embeddings",
+    "statutes",
+    "statute_chunks",
+    "statute_chunk_embeddings",
 })
 
 # The nine values `AM-29` r2 forbids an assist-lane state from reusing.
