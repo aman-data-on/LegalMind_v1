@@ -14,6 +14,11 @@
 | **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 | **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
+| **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
+| Supply the statutes (C-16) — what and how | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |
+| Activate Gemini, step by step | [09-implementation/GEMINI_ACTIVATION_RUNBOOK.md](09-implementation/GEMINI_ACTIVATION_RUNBOOK.md) |
+| Run production operations | [`../ops/README.md`](../ops/README.md) |
+| The new workspace UI plan (Phase 2) | [design/WORKSPACE_UI_PLAN.md](design/WORKSPACE_UI_PLAN.md) |
 | Find a known contradiction | [00-project/CONFLICTS.md](00-project/CONFLICTS.md) |
 | Read the authoritative historical record | [`../all_lock.md`](../all_lock.md) |
 | Propose a change | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |

@@ -302,3 +302,15 @@ def test_the_register_names_the_tier2_quality_gate():
     assert "wrongly-answered" in check.detail
     assert "AM-28" in check.basis
     assert "AM-31 m4" in check.basis
+
+
+def test_the_register_names_the_egress_allow_list():
+    """`AM-30` t8 — the allow-list is network infrastructure the application cannot
+    inspect, and t8 itself says the posture is asserted by a network-level test, not
+    by configuration review. So the row is ATTEST — the register may never award
+    itself a PASS for a firewall it cannot see."""
+    check = by_name(run_preflight())["egress_allow_list"]
+    assert check.status == ATTEST
+    assert "generativelanguage.googleapis.com" in check.detail
+    assert "deny-by-default" in check.detail
+    assert "AM-30 t8" in check.basis

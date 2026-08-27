@@ -56,7 +56,7 @@ is the summary.
   `AM-29` refusal states. The Gemini adapter is wired and **gated CLOSED**.
 * **Deployment & observability scaffolding** — 14-job CI on every push, dependency +
   image scanning (both currently clean after two real catches), network-segmented
-  compose (`data` internal, no route out), the 22-check preflight register, the
+  compose (`data` internal, no route out), the 23-check preflight register, the
   reproducibility gate, and the runnable Tier-2 quality gate proven able to fail.
 
 **Not established, stated plainly:** nothing is `VERIFIED` or `PRODUCTION-READY` in the
@@ -86,7 +86,7 @@ material and the second tranche); mapping calibration (35.10) has not run.
 
 ## 4 · Operator-only — production actions, not engineering
 
-From the 22-check preflight register (`legalmind.deploy.preflight`); each is `ATTEST` or
+From the 23-check preflight register (`legalmind.deploy.preflight`); each is `ATTEST` or
 `BLOCKED` there and **remains so** — none is relabelled complete:
 
 pgvector installation (superuser) · the `legalmind_assist` restricted DB role · the

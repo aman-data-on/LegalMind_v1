@@ -19,17 +19,40 @@ Updated at the end of every working session.*
 | | |
 |---|---|
 | **Last worked** | 27 August 2026 |
-| **Current phase** | **`BACKEND FREEZE / DEPENDENCY-WAIT`** (your instruction, 27 Aug) · all in-repository engineering that could be done without your inputs is done and re-verified; nothing new is being built until an input arrives |
-| **The freeze report** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the full completed/blocked/operator-only breakdown, the verified API contract, and the UI/UX readiness assessment, all measured 27 Aug |
-| **UI/UX** | **DEFERRED — will not start until you explicitly say so.** The readiness finding: the frozen API contract (45 operations) is stable enough to design against, with four placeholder areas (positions/statute search, single sign-on, export, the generated-answer text). "UI can start" is not "product is complete" |
-| **Health** | 901 backend + 62 frontend + 27 browser checks passing, none failing — **all re-run and re-verified 27 Aug**; CI (14 jobs) green on every push |
+| **Current phase** | **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; the two real gates (C-15 approval, Gemini terms) each now have a ready-to-approve document |
+| **Waiting on your one-line approval** | **[AB5_DOMAIN_CORPUS_PROPOSAL.md](AB5_DOMAIN_CORPUS_PROPOSAL.md)** — reply "AM-32 approved" and the positions/statute search tables get built (resolves C-15). Plus one new question in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want? |
+| **UI/UX** | **STARTED** (your 27 Aug authorization). Plan: [../design/WORKSPACE_UI_PLAN.md](../design/WORKSPACE_UI_PLAN.md) — a three-region workspace (document · verdicts · chat) with click-a-verdict-highlight-the-evidence as the signature; first component built and tested; blocked surfaces render as calm placeholders |
+| **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
+| **Health** | 911 backend + 68 frontend + 27 browser checks passing, none failing; CI (14 jobs) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material and a C-15 ruling for the positions/statute search; or your go-ahead to start UI/UX |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 | **Your instruction, 26 Aug (later)** | *"Backend first. UI/UX later. Preserve the existing UI code but treat its previous design as obsolete for planning purposes... When the backend/API architecture is genuinely ready to support a new UI/UX implementation, stop and tell me clearly."* Logged. The current screens stay in place and their tests keep running, but no further design or polish work goes into them. The backend is being closed out against the surfaces a new UI will need; the readiness call comes as an explicit statement, with the owner-gated items named |
 
-**What got finished on 27 August**
+**What got finished on 27 August (afternoon — your gap-closing directive)**
+
+- **The C-15 decision is ready for you in one read** — the AB-5 proposal drafts the
+  exact amendment text: six new tables so positions and statutes become searchable,
+  each domain kept separate as you instructed. One catch it bakes in: our own egress
+  rule forbids sending approved-position values to Google, so positions answers will
+  always be exact quotes of the ratified text — never AI-written.
+- **Gemini is now turnkey on your side**: a step-by-step runbook (choose tier → confirm
+  written terms → key → verify), and a verification tool that tests the connection with
+  inert synthetic text before anything real is trusted to it. The gate stays closed.
+- **The statute request is now precise**: what to download from India Code, what
+  provenance each file must arrive with — and one question only you can answer (the
+  Evidence Act was replaced by a new law in 2023; which one do you want?).
+- **Production operations got a real runbook** (`ops/README.md`), every step mapped to
+  the automated readiness register, which also gained its one missing row (the network
+  egress allow-list).
+- **The new UI phase started on your authorization**: the workspace design is planned
+  and documented, the design skills were applied (three of their generic suggestions
+  were rejected where our own recorded design decisions win — reported, not hidden),
+  and the first component is built and tested. Checks: 911 backend + 68 frontend, all
+  green.
+
+**What got finished on 27 August (morning)**
 
 - **The backend was formally frozen and the handoff written**, on your instruction. No code
   changed. Every check was re-run first — 901 backend, 62 frontend, 27 browser, lint, types,

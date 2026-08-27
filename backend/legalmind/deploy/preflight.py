@@ -75,6 +75,7 @@ def run_preflight(*, environment: str | None = None) -> list[Check]:
         _retention_policy(),
         _backup_restore(),
         _assist_generation_gate(),
+        _egress_allow_list(),
         _tier2_quality_gate(),
     ]
     checks.extend(_database_checks())
@@ -658,6 +659,27 @@ def _assist_generation_gate() -> Check:
                  "gate released by appended record; verify the record cites "
                  "provider, tier and date",
                  basis="AM-31 g3")
+
+
+def _egress_allow_list() -> Check:
+    """`AM-30` t8 — the network-layer egress posture, named so it is attested.
+
+    The application cannot inspect the deployment's firewall or security groups,
+    and t8 is explicit that the posture is asserted by a test at the network
+    layer, "not by configuration review alone" — so this is an ATTEST row, never
+    a PASS the code awards itself. The compose reference already removes routes
+    (the `data` network is internal), but removing routes is not enumerating
+    destinations: the allow-list itself is deployment infrastructure.
+    """
+    return Check("egress_allow_list", ATTEST,
+                 "at the network layer, allow outbound from the api service to "
+                 "generativelanguage.googleapis.com:443 ONLY, deny-by-default "
+                 "everywhere else (document-processing services have no route out "
+                 "at all), and prove it with a network-level test from inside each "
+                 "service — a blocked probe from a worker, a permitted probe from "
+                 "api to the one endpoint, a blocked probe from api to anywhere "
+                 "else",
+                 basis="AM-30 t8, t10")
 
 
 def _tier2_quality_gate() -> Check:

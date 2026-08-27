@@ -607,3 +607,28 @@ text or the identical refusal comes back changes).
 **Verification at close: backend 901 passed / 1 skipped · ruff and mypy clean · frontend
 typecheck + 62 Vitest untouched and green · `docs/api/openapi.json` regenerated (45
 operations) and `--check` clean · `all_lock.md` untouched · `AM31_GATE` CLOSED.**
+
+
+## Owner-directed gap-closing pass — five phases, 2026-08-27
+
+Owner directive: close all remaining gaps end-to-end, dependency-ordered, with the
+explicit statement *"UI/UX work is authorized to start in parallel"*. Two items in the
+directive's task list cannot be completed without violating our own locks and were
+delivered up to their gates instead: the C-15 tables (built only after the owner reads
+and approves the draft) and the AM-31 gate (opens only on the recorded written-terms
+confirmation).
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 167 | **The 2026-08-27 directive is recorded as the UI/UX greenlight** — the owner had reserved that call ("I will explicitly decide when UI/UX starts") and this message grants it, alongside "use ui-ux-pro-max, ignore the old design as source of truth, design against the frozen contracts" | The reservation and the grant are both owner statements; the later one governs. Recorded so no future session re-asks | Nothing about scope or schedule of the UI phase beyond its start |
+| 168 | **The AB-5 draft (`AM-32`) proposes NO positions content table** — position chunks reference `company_standard_versions` directly; per-domain embedding tables instead of one polymorphic one; and Domain A output is EXTRACTIVE-ONLY, never included in a generation payload | The ratified standards are already the source of truth (a copy is the AM-27 r4 defect); 42.1 requires real FKs, which polymorphism breaks; and AM-30 t3 forbids any Company Standard value in an egressing payload — the extractive-only rule is a locked consequence surfaced, not a new restriction | Whether AM-32 is approved at all — the owner's; C-16, untouched |
+| 169 | **`tools/verify_gemini_connection.py` goes through `generation.generate()`, the one permitted seam** — config-only by default, one fixed synthetic call with `--live`, key value never printed | AM-26 r1: a second egress path in a tool would bypass the gate, the payload screens and the audit rule; the seam applies them all to the tool for free. Synthetic-only text satisfies 55.3 in every environment | Opening the gate — g3's appended record only |
+| 170 | **Preflight gains `egress_allow_list` (ATTEST, register now 23)** naming the exact posture: api → generativelanguage.googleapis.com:443 only, deny-by-default, proven by network-level probes | AM-30 t8 says asserted by a test "not by configuration review alone", and the application cannot see the firewall — so ATTEST, never a self-awarded PASS. It was the one operator item on the owner's Phase-9 list with no register row | The production firewall design — deployment's |
+| 171 | **No `tools/preflight_production.py` was created; `ops/README.md` documents around the existing register instead** | A second register duplicating `legalmind.deploy.preflight` would drift from the first exactly when it mattered — the same reasoning that froze the OpenAPI snapshot as derived-not-parallel. The runbook maps every operator step to its named row | — |
+| 172 | **Gated surfaces split into disclosed placeholders vs absent capabilities** — Domain A/C search render a calm `DomainPlaceholder` (their existence is public product direction); SSO and export render NOTHING (52.4's absence discipline); the generated answer needs no placeholder because the live refusal state IS production behavior | The placeholder/absence line is a disclosure question, not a style one: an affordance for an unbuilt capability discloses it. Copy is fixed in one component so every screen says the identical thing | — |
+| 173 | **Skill-vs-DESIGN.md conflicts resolved by precedence and reported** (rule 5): the landing-page pattern, the navy/gold brand palette and the EB Garamond display face were rejected — DESIGN.md/DD govern; density 8, motion 2 and the accessibility checklist were adopted | CLAUDE.md's UI-skills section fixes the order: skills advise, DD decisions win, conflicts are reported not silently resolved | No DD entry is amended |
+
+**Verification at close: backend 911 passed / 1 skipped (+9 gemini-tool, +1 preflight) ·
+ruff and mypy clean · frontend typecheck + 68 Vitest (+6 placeholder) · preflight
+register verified 23 by running it · `AM31_GATE` CLOSED and untouched · `all_lock.md`
+untouched (the AB-5 text is a PROPOSAL document, appended only on approval).**

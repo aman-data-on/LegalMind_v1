@@ -12,6 +12,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Five-phase gap-closing pass on the owner's 2026-08-27 directive**, which also
+  granted the UI/UX greenlight (decision #167). Delivered: **the AB-5/`AM-32` amendment
+  draft** ([docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md))
+  resolving C-15 on approval — six tables, no positions copy (chunks reference the
+  ratified `company_standard_versions` rows), per-domain embedding tables for real FKs,
+  and Domain A extractive-only because `AM-30` t3 forbids Company Standard values in
+  egress (#168); **`tools/verify_gemini_connection.py`** (+9 tests) through the one
+  permitted seam, config-only by default, synthetic-only `--live` (#169), with
+  [GEMINI_ACTIVATION_RUNBOOK.md](docs/09-implementation/GEMINI_ACTIVATION_RUNBOOK.md)
+  covering key → verify → gate-opening record → deferred quality-gate half;
+  **[STATUTE_INTAKE.md](docs/00-project/STATUTE_INTAKE.md)** for C-16 — India Code
+  sourcing, the mandatory provenance record, section-based chunking design, and one
+  new owner question (Evidence Act 1872 vs the Bharatiya Sakshya Adhiniyam 2023 that
+  repealed it); **preflight row `egress_allow_list`** (ATTEST, `AM-30` t8 — register
+  now **23 checks**, +1 test) and **[ops/README.md](ops/README.md)** mapping every
+  operator step to its register row instead of duplicating the register (#170, #171);
+  and **the Phase-2 UI plan**
+  ([docs/design/WORKSPACE_UI_PLAN.md](docs/design/WORKSPACE_UI_PLAN.md)) — three-region
+  workspace IA with the cross-pane evidence highlight as the signature interaction,
+  skill-vs-DESIGN.md conflicts reported and resolved by precedence (#173), the
+  disclosed-placeholder/absent-capability split (#172), plus the first component:
+  `DomainPlaceholder` (+6 Vitest). **Not done, by our own rules**: no Domain A/C table
+  exists (AB-5 awaits the owner), and `AM31_GATE` is CLOSED and untouched. Backend
+  **911 tests** (1 skipped), frontend **68 Vitest**, ruff/mypy clean. Decisions
+  #167–#173 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
 * **Backend freeze declared and the UI/UX handoff written** (owner instruction, 2026-08-27:
   *"backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF →
   WAIT FOR OWNER INPUT"*). [docs/00-project/BACKEND_FREEZE_HANDOFF.md](docs/00-project/BACKEND_FREEZE_HANDOFF.md)
