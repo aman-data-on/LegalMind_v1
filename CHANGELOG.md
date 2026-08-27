@@ -10,6 +10,26 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added
+
+* **Backend freeze declared and the UI/UX handoff written** (owner instruction, 2026-08-27:
+  *"backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF →
+  WAIT FOR OWNER INPUT"*). [docs/00-project/BACKEND_FREEZE_HANDOFF.md](docs/00-project/BACKEND_FREEZE_HANDOFF.md)
+  records the four-way split — completed · blocked-by-owner-decision (C-15 foremost) ·
+  blocked-by-missing-input (Google no-training terms, Gemini key, NI/Evidence Acts,
+  judgment list, RIAAS details) · operator-only (the preflight's ATTEST/BLOCKED rows,
+  none relabelled) — plus the verified API contract (45 operations, envelope, error
+  taxonomy, permissions, the four assist answer states and the byte-identical refusal
+  sentence) and the UI/UX readiness assessment (stable / likely-to-change / blocked, with
+  the two statuses kept explicit: *the API surface is stable enough to begin UI/UX; the
+  product is not complete*). **No application code changed.** Everything re-verified
+  first on 2026-08-27: backend 901 passed / 1 skipped · ruff and mypy clean · frontend
+  typecheck + 62 Vitest · Playwright **27/27** (after reinstalling the dev host's missing
+  Chromium binary — environment only, `~/.cache/ms-playwright`, no repository change) ·
+  `docs/api/openapi.json` drift-check clean · `AM31_GATE` CLOSED. The existing frontend
+  is `LEGACY UI — DEFERRED`: preserved, green, still the backend-verification harness.
+  UI/UX starts only on explicit owner authorization.
+
 ### Fixed
 
 * **The core Review screen (`/reviews/[id]`) had crashed on load for every user since

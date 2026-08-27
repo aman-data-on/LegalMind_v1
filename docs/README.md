@@ -13,6 +13,7 @@
 | Name a state value correctly | [02-legal-domain/DECISION_STATE_MODEL.md](02-legal-domain/DECISION_STATE_MODEL.md) |
 | **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
+| **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
 | Find a known contradiction | [00-project/CONFLICTS.md](00-project/CONFLICTS.md) |
 | Read the authoritative historical record | [`../all_lock.md`](../all_lock.md) |
 | Propose a change | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |

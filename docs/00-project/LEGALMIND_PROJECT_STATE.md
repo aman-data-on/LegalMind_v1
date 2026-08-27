@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**26 August 2026**.
+**27 August 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -18,14 +18,32 @@ Updated at the end of every working session.*
 
 | | |
 |---|---|
-| **Last worked** | 26 August 2026 |
-| **Current phase** | `PHASE 9 — SECURITY HARDENING, IN PROGRESS` · everything through the workspace is delivered; Gemini answers wait on one action from you |
-| **Health** | 901 backend + 62 frontend + 27 browser checks passing, none failing; CI (14 jobs) green on every push |
-| **UI/UX phase** | **Backend is ready** — the API contract a new UI designs against is complete and frozen (`docs/api/openapi.json`), except four owner-gated surfaces that the design must leave as placeholders: statute/positions *search* (Domains A/C), single sign-on, report export, and the generated-answer text itself. Awaiting your go-ahead to start the UI/UX phase |
-| **Waiting on you** | **Two external actions, unchanged**: Google's written no-training terms, and a Gemini API key (details in *What I'll need from you*) |
-| **Next step once they arrive** | Record the confirmation, open the gate, switch generated answers on |
+| **Last worked** | 27 August 2026 |
+| **Current phase** | **`BACKEND FREEZE / DEPENDENCY-WAIT`** (your instruction, 27 Aug) · all in-repository engineering that could be done without your inputs is done and re-verified; nothing new is being built until an input arrives |
+| **The freeze report** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the full completed/blocked/operator-only breakdown, the verified API contract, and the UI/UX readiness assessment, all measured 27 Aug |
+| **UI/UX** | **DEFERRED — will not start until you explicitly say so.** The readiness finding: the frozen API contract (45 operations) is stable enough to design against, with four placeholder areas (positions/statute search, single sign-on, export, the generated-answer text). "UI can start" is not "product is complete" |
+| **Health** | 901 backend + 62 frontend + 27 browser checks passing, none failing — **all re-run and re-verified 27 Aug**; CI (14 jobs) green on every push |
+| **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material and a C-15 ruling for the positions/statute search; or your go-ahead to start UI/UX |
+| **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
+| **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 | **Your instruction, 26 Aug (later)** | *"Backend first. UI/UX later. Preserve the existing UI code but treat its previous design as obsolete for planning purposes... When the backend/API architecture is genuinely ready to support a new UI/UX implementation, stop and tell me clearly."* Logged. The current screens stay in place and their tests keep running, but no further design or polish work goes into them. The backend is being closed out against the surfaces a new UI will need; the readiness call comes as an explicit statement, with the owner-gated items named |
+
+**What got finished on 27 August**
+
+- **The backend was formally frozen and the handoff written**, on your instruction. No code
+  changed. Every check was re-run first — 901 backend, 62 frontend, 27 browser, lint, types,
+  and the contract-drift check — all green. (One environmental fix on this machine only: the
+  browser the test suite drives had to be reinstalled after a version bump; no project code
+  involved.)
+- **[BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md)** now records, in one place: what
+  is genuinely complete; what waits on a decision from you (C-15 above all); what waits on
+  material from you (Google terms, API key, the two statutes); what is operator-only
+  production work; the verified API contract a new interface designs against; and which
+  screens can be designed now versus which must stay placeholders.
+- **The two statuses are kept deliberately separate**: the API surface is stable enough to
+  begin UI/UX — but the product is *not* complete, and the report never claims it is.
+  UI/UX remains **deferred until you explicitly authorize it**.
 
 **What got finished on 26 August**
 
