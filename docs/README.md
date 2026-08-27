@@ -210,7 +210,9 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 |---|---|
 | [UX_AUDIT.md](design/UX_AUDIT.md) | Current-state audit of the already-implemented frontend: page/component inventory, UX problems, workflow map |
 | [DESIGN_DECISIONS.md](design/DESIGN_DECISIONS.md) | Append-only log of major UI/UX decisions (interaction models, component-library adoption, etc.) |
+| [PRODUCT_UX_ROADMAP.md](design/PRODUCT_UX_ROADMAP.md) | **The product-UX strategy (A–M)**: roles from the live grant matrix, IA, journeys, screen inventory with P0–P3, admin plane, state strategy, API mapping with the three identified gaps, risks, phased sequence. `PROPOSED` — awaiting owner review |
 | [UI_UX_MASTER_PROMPT.md](design/UI_UX_MASTER_PROMPT.md) | **The authoritative design brief** (owner-directed R&D pass, 2026-08-27; supersedes DD-1–DD-5 via DD-6) — self-contained, buildable against the frozen API contract |
+| [WORKSPACE_UI_PLAN.md](design/WORKSPACE_UI_PLAN.md) | The core screen's detailed design: three-pane Review workspace, cross-pane highlight, blocked-surface placeholders (adopted by DD-7) |
 | [UI_PATTERNS.md](design/UI_PATTERNS.md) | The deliberately unusual patterns (confidential omission, the refusal state) — why they look wrong and are right, with real screenshots in [assets/](design/assets/) |
 | [USABILITY_TEST_PLAN.md](design/USABILITY_TEST_PLAN.md) | Five-person think-aloud plan (2 personas, 4 tasks incl. a permission probe), observation checklist, feedback form |
 | [UX_ROADMAP.md](design/UX_ROADMAP.md) | Phase sequencing and page-by-page implementation order, with dependencies |

@@ -214,3 +214,40 @@ confusable; the shared evidence-viewer decision (§3) unifying citation display 
 the explicit rejection of three generic AI-chat conventions (token streaming, thumbs-up/down
 feedback, and — kept, not rejected — AI-content labeling) against this product's specific
 constraints (§0).
+
+---
+
+## DD-7 — Product UX roadmap ratifies the workspace plan; IA and landing decided
+
+**Status:** `PROPOSED` (2026-08-27, awaiting owner review of
+[PRODUCT_UX_ROADMAP.md](PRODUCT_UX_ROADMAP.md), which this entry indexes).
+
+**Decided here:**
+
+1. **The Review workspace adopts [WORKSPACE_UI_PLAN.md](WORKSPACE_UI_PLAN.md)'s
+   three-pane composition** (document · findings · ask, cross-pane highlight as the
+   signature) — **superseding the master prompt §3's own sketch** (findings list +
+   detail pane + ask drawer). Reason: the vision's anchor object is the document, and
+   the highlight gesture makes the evidence chain one act; the master prompt's "shared
+   evidence viewer" idea *is* this mechanism, generalized. The master prompt remains
+   authority for the visual system (§4) and everything else.
+2. **Landing surface = Documents** (no dashboard): no cross-document KPI exists that a
+   user acts on; every action starts from a document. Reviews-queue nav bias for
+   LEGAL_REVIEWER, same app.
+3. **No Settings/Profile screens in V1** — nothing real backs them (administrator-
+   provisioned accounts, no user preferences); building them would fake capability.
+4. **Positions live under a Legal nav area**, not global nav — verified: ordinary
+   users hold no `configuration.view`, and LEGAL-02 makes advertising the section to
+   them a disclosure.
+5. **Admin is a separate control plane** — verified: SUPER_ADMIN holds only
+   user/role/audit/platform permissions and cannot open a contract; "user UI + admin
+   menu" is structurally false here.
+6. **Font conflict flagged, not resolved**: master prompt §4.3 (IBM Plex/Source Serif
+   via Google Fonts) vs DD-4's no-runtime-CDN ruling. Implementation stays on the
+   system stack until the owner approves `next/font` bundling (rule 19 line-item);
+   the type *roles* (mono = precise values, italic serif = verbatim quotes) apply
+   meanwhile with system faces.
+
+**Build-first decision:** the document pane + highlight mechanism as a thin vertical
+slice — the signature interaction and the one unproven technical risk
+(offsets → rendered DOM spans). Full reasoning: PRODUCT_UX_ROADMAP.md §G.

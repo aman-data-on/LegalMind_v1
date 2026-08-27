@@ -12,6 +12,30 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **The product-UX roadmap — the think-first deliverable before broad UI implementation**
+  (owner directive, 2026-08-27 evening: senior-designer strategy first, roadmap not app;
+  legacy UI fully disregarded as a design reference).
+  [docs/design/PRODUCT_UX_ROADMAP.md](docs/design/PRODUCT_UX_ROADMAP.md), `PROPOSED`:
+  the A–M strategy grounded in the current Product Vision and verified against the live
+  system rather than remembered — the role model is read from the actual grant matrix
+  (finding, among else, that SUPER_ADMIN cannot open a contract at all, so admin is a
+  genuinely separate control plane, and that ordinary users hold no `configuration.view`,
+  so Domain A lives under a Legal nav area rather than global navigation). Decides:
+  landing = Documents, no dashboard (nothing backs one); Review+Ask together in the
+  adopted [WORKSPACE_UI_PLAN.md](docs/design/WORKSPACE_UI_PLAN.md) three-pane workspace
+  (DD-7 — superseding the master prompt's own drawer sketch); Research separate (the one
+  document-less experience); no Settings/Profile screens (nothing real backs them);
+  build order risk-first — the document pane + cross-pane highlight before everything,
+  login deliberately fifth. Names the three API gaps honestly (positions-search endpoint
+  exists as a function with no route; cross-review attention rollup deliberately not
+  requested; Domain C blocked on C-16 material) and the risks that must not be finalized
+  against — foremost the vision's future external users colliding with `LEGAL-02`'s
+  confidentiality of Domain A, an owner ruling. One decision escalated: the master
+  prompt's Google-Fonts typography vs DD-4's no-runtime-CDN ruling — system stack until
+  `next/font` bundling is approved (rule 19). `ui-ux-pro-max` consulted with adopted and
+  rejected guidance cited, including one declared no-match fallback. **No implementation
+  started** — the roadmap awaits owner review, per the directive's own working principle.
+
 * **UI/UX execution phase, first hardening pass — skeletons, keyboard navigation, the
   frozen-conflict flow, and two new design gates in CI** (owner directive, 2026-08-27:
   implement the missing pieces and prepare for usability testing). Frontend **79 Vitest**
