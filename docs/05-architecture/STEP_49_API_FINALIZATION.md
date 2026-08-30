@@ -308,6 +308,11 @@ operation requires, and that follows 49.3's own mapping for the object it reads.
 | POST | `/conversations/{id}/messages` | `assist.ask` | The ask; response shape in `legalmind/api/routers/assist.py`, refusal states per `AM-29` | #137–#139 |
 | GET | `/document-versions/{id}/evidence` | `document.view` | A paginated read projection of the locked Evidence model (42.6, Step 34) under the permission that already governs seeing the version; the target every `evidence_refs` entry and every citation points at | #164 |
 
+`GET /contracts/{id}` additionally returns `document_versions: [...]` (newest first, the
+`serialize_document_version` shape, `storage_key` still absent) — added 2026-08-30 so a
+document-anchored workspace can reach a contract's document; nothing else listed
+versions (#187).
+
 `GET /document-versions/{id}` additionally returns `assist_index: {chunks, embedded_chunks}`
 — plain counts, deliberately not a state vocabulary (`AM-29` r1 keeps the assist lane to one
 axis) — so a client can tell whether the version is searchable yet (#165).

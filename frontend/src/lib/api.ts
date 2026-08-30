@@ -37,6 +37,8 @@ import type {
   User,
 } from "./types";
 
+import type { EvidenceRow } from "./types";
+
 export const API_BASE = "/api/v1";
 
 const CSRF_COOKIE = "legalmind_csrf";
@@ -269,6 +271,11 @@ export const api = {
       },
     }),
   documentVersion: (id: string) => request<DocumentVersion>(`/document-versions/${id}`),
+  /** Evidence rows in reading order — the document pane and every citation target. */
+  documentEvidence: (id: string, page = 1, pageSize = 100) =>
+    requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
+      query: { page, page_size: pageSize },
+    }),
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
 
   // ---- reviews ----------------------------------------------------------

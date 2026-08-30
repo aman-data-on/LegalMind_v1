@@ -69,6 +69,18 @@ test.describe("signed in (counsel)", () => {
     });
   });
 
+  test("workspace — document pane, slice 1", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/workspace/${contractId}`);
+    await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+    await expect(page).toHaveScreenshot("workspace.png", {
+      ...SHOT,
+      // The contract name carries a timestamp; the layout around it must not move.
+      mask: [page.locator(".ws-context h1")],
+    });
+  });
+
   test("contract page — upload surface and Ask panel", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const created = await apiPost(page, "/contracts", {

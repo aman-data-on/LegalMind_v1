@@ -18,17 +18,35 @@ Updated at the end of every working session.*
 
 | | |
 |---|---|
-| **Last worked** | 27 August 2026 (status re-verified 30 August; no code changed since) |
-| **Current phase** | **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
+| **Last worked** | 30 August 2026 |
+| **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
-| **UI/UX** | **ROADMAP DELIVERED, AWAITING YOUR REVIEW** (your think-first directive, 27 Aug evening): [../design/PRODUCT_UX_ROADMAP.md](../design/PRODUCT_UX_ROADMAP.md) — who uses what, the app's structure, every screen with a priority, what admin actually needs, what stays a placeholder, and the build order (document pane + click-to-highlight first, login deliberately fifth). It adopts the earlier [../design/WORKSPACE_UI_PLAN.md](../design/WORKSPACE_UI_PLAN.md) three-pane workspace and flags one decision for you: bundling the chosen fonts needs your approval (no runtime Google-Fonts calls from a confidential tool — system fonts meanwhile). **Broad implementation waits for your go on the roadmap** |
+| **UI/UX** | **BUILDING — slice 1 of the roadmap done** (30 Aug). Open any contract at `/workspace/<contract-id>`: the new dark shell, the document laid out as the system read it with a clause outline, and the signature gesture — click a clause (or open a shared link) and the exact passage lights up, scrolls into view and takes keyboard focus. Findings and Ask panes say plainly they arrive next. Fonts stay system-stack until you approve bundling (DD-7 §6). Roadmap: [../design/PRODUCT_UX_ROADMAP.md](../design/PRODUCT_UX_ROADMAP.md) |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 935 backend + 79 frontend + 30 browser checks passing, none failing; CI (15 jobs — now including visual regression and the forbidden-wording gate) green on every push |
+| **Health** | 936 backend + 86 frontend + 37 browser checks passing, none failing; 6 visual baselines reproducing; CI (15 jobs) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material (and the Evidence Act 1872 vs BSA 2023 answer) for statute search; and your review of the UX roadmap before broad UI implementation |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
 | **Your instruction, 26 Aug** | *"Keep the Gemini production gate CLOSED until I provide the required Google terms confirmation. Continue with any safe remaining work."* Logged. The gate was already closed by default — this changes no code, and nothing further will touch it until you provide that confirmation |
 | **Your instruction, 26 Aug (later)** | *"Backend first. UI/UX later. Preserve the existing UI code but treat its previous design as obsolete for planning purposes... When the backend/API architecture is genuinely ready to support a new UI/UX implementation, stop and tell me clearly."* Logged. The current screens stay in place and their tests keep running, but no further design or polish work goes into them. The backend is being closed out against the surfaces a new UI will need; the readiness call comes as an explicit statement, with the owner-gated items named |
+
+**What got finished on 30 August (your "GO" on UI/UX)**
+
+- **The new interface exists now, starting from its riskiest piece.** Open a contract at
+  `/workspace/<id>` and you're in the new application: one dark bar, navigation that only
+  shows what your account can do, and the document laid out exactly as the system read it
+  — page by page, with the clause list beside it. **Click a clause and the passage lights
+  up, scrolls into view and takes keyboard focus; copy the address bar and a colleague
+  lands on the same passage.** That single gesture is what verdicts and citations will
+  use next — proving it first was the whole point of doing this slice first.
+- **Every state is designed, not just the happy path**: still-processing, no text
+  extracted, no upload yet (with the real upload link), errors with a reference id, and
+  someone else's contract reading *exactly* like one that doesn't exist. On a narrow
+  screen the three regions become real tabs; nothing is ever dropped.
+- **One small backend addition was needed and made honestly**: a contract now lists its
+  document versions, because nothing did and the workspace opens on a document.
+- The Findings and Ask panes say plainly that they arrive in the next slice — no fake
+  controls.
 
 **What got finished on 27 August (evening — your UI/UX execution directive)**
 

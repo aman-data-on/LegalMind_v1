@@ -63,6 +63,12 @@ export function Chrome({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // The new application (PRODUCT_UX_ROADMAP.md) brings its own shell under
+  // /workspace; this legacy chrome only guarantees the session above it. The two
+  // never render together, so the legacy screens retire one by one without a
+  // double header in between.
+  if (pathname.startsWith("/workspace")) return <>{children}</>;
+
   return (
     <div className="shell">
       <header className="topbar">

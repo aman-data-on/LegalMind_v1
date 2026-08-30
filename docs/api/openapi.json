@@ -1045,6 +1045,7 @@
   },
   "/api/v1/contracts/{contract_id}": {
    "get": {
+    "description": "The contract with its document versions, newest first.\n\n`document_versions` is an implementation addition (2026-08-30, UI phase): a\ndocument-anchored workspace opened on a contract must be able to find its\ndocument through the API, and nothing listed versions \u2014 the legacy screen only\never showed the version it had just uploaded. Additive, same permission the\ncontract already required (a version is reachable only through a contract the\ncaller can see \u2014 47.6 one level down), and the summary is the existing\n`serialize_document_version` shape, so nothing new is disclosed. Recorded in\nStep 49's implementation-additions section.",
     "operationId": "get_contract_api_v1_contracts__contract_id__get",
     "parameters": [
      {

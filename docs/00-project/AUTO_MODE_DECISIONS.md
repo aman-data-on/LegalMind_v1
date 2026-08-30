@@ -676,3 +676,23 @@ the new keyboard spec and the extended conflict loop) · visual baselines reprod
 two full DB rebuilds · backend 935 passed / 1 skipped re-verified after AB-5's migration
 landed mid-session · CI 15 jobs, YAML validated · docs screenshots regenerated from the
 real app against synthetic fixture data.**
+
+
+## UI/UX implementation, slice 1 — 2026-08-30 (owner: "UI/UX IMPLEMENTATION — GO")
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 187 | **`GET /contracts/{id}` gains `document_versions` (newest first)** — the one smallest-justified backend change of the slice | A document-anchored workspace opened on a contract had no API path to its document: nothing listed versions, and the legacy page only ever showed the version it had just uploaded. Additive, the same `contract.view` permission, the existing version-serializer shape; the frozen contract's only diff is the operation description. Detail endpoint only — the list stays lean | Nothing about the version resource itself; `assist_index` still lives on `GET /document-versions/{id}` |
+| 188 | **The new application lives under `/workspace` with its own shell; `Chrome` yields there** | The two shells must never render together, and legacy screens must stay green as the verification harness until each is retired. One `startsWith("/workspace")` branch after the session check gives the new app its shell while the legacy chrome still guarantees authentication above it | When each legacy route retires — per slice, with its Playwright guarantees re-pinned |
+| 189 | **Foundation on the system font stack; the master prompt's type *roles* kept** (mono = precise values, italic serif = verbatim text) | DD-7 §6: runtime CDN fonts are ruled out and bundling awaits the owner's rule-19 approval. The roles carry the meaning; the faces are swappable tokens | The bundling approval itself |
+| 190 | **`NextSlice` is a separate primitive from `DomainPlaceholder`** | Two different truths: "the UI hasn't built this yet" (a sequencing fact, pointing at where the job is done today) vs "the backend does not offer this" (a capability fact). Conflating them would either overstate what's blocked or understate it | — |
+| 191 | **The highlight target is an evidence-row id, carried in the URL** | Every source in the system already shares that unit (a Finding's `evidence_refs`, a citation's chunk → evidence row, the `/evidence` rows), so verdict-click and citation-click become the same gesture with no new endpoint; the URL form makes a citation shareable. Row-level lighting now; sub-span marking is a later refinement, not a different mechanism | — |
+| 192 | **The skip-link test asserts tab order structurally and exercises the link directly** | Headless Chromium never moves focus off `<body>` on the very first synthetic Tab of a fresh page (measured: `activeElement` stayed `<body>`), so "press Tab, expect focus" tests the harness, not the product. The two real properties — first in DOM tab order, and Enter lands focus on `#ws-main` — are asserted instead | — |
+| 193 | **The five legacy visual baselines were re-cut, with the diffs reviewed first** | The design-qa run failed on exactly the four authenticated legacy pages; the diff images showed red pixels **only on italic text runs** (hints, footers, permission lists) — glyph metrics of the italic face drifted between sessions (`fc-match` today resolves italic to DejaVu *Book*, i.e. a synthesized oblique), producing slight rewraps; no layout, colour or structure changed, and the two baselines cut today (login, workspace) passed. A stale baseline is regenerated deliberately after review, not worked around by loosening the 0.1% threshold | **Follow-up for Phase 9**: baselines should be cut in CI's own environment (or fonts pinned in the image) — a locally-cut baseline encodes the local font stack. Not done now: it changes what CI *is*, and the roadmap sequences UX QA later |
+
+**Verification at close: backend 936 passed / 1 skipped · frontend 86 Vitest · typecheck
+clean (after `next typegen` — the running dev server's stale generated route types were the
+only failure) · `check:terms` clean · browser suite 37 passed / 9 gated (11 new workspace
+tests, including the highlight from outline and from a shared link, the byte-identical
+not-found story, tab collapse and the skip link) · six visual baselines reproduce ·
+OpenAPI snapshot regenerated (one description line) · `AM31_GATE` CLOSED.**

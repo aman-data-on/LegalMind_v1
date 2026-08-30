@@ -54,7 +54,23 @@ export interface SessionIdentity {
 }
 
 // -------------------------------------------------- contracts & documents
+/** One evidence row as `GET /document-versions/{id}/evidence` returns it — the
+ * document as the pipeline read it, in reading order (page, offset). */
+export interface EvidenceRow {
+  id: string;
+  document_version_id: string;
+  page_number: number | null;
+  section_number: string | null;
+  section_title: string | null;
+  content: string;
+  source_type: string;
+  start_offset: number | null;
+  end_offset: number | null;
+}
+
 export interface Contract {
+  /** Newest first. Present on the detail endpoint (2026-08-30 addition). */
+  document_versions?: DocumentVersion[];
   id: string;
   owner_id: string;
   name: string;
@@ -77,6 +93,9 @@ export interface DocumentVersion {
   extraction_status: string | null;
   uploaded_by: string;
   created_at: string | null;
+  /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
+   * ready / lexical-only / not-indexed. Present on the detail endpoint. */
+  assist_index?: { chunks: number; embedded_chunks: number };
 }
 
 export interface UploadResult {

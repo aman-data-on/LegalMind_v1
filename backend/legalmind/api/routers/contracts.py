@@ -57,7 +57,26 @@ def create_contract(body: ContractCreate,
 
 @router.get("/contracts/{contract_id}")
 def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
-    return data(serialize_contract(guard.contract(contract_id, P.CONTRACT_VIEW)))
+    """The contract with its document versions, newest first.
+
+    `document_versions` is an implementation addition (2026-08-30, UI phase): a
+    document-anchored workspace opened on a contract must be able to find its
+    document through the API, and nothing listed versions — the legacy screen only
+    ever showed the version it had just uploaded. Additive, same permission the
+    contract already required (a version is reachable only through a contract the
+    caller can see — 47.6 one level down), and the summary is the existing
+    `serialize_document_version` shape, so nothing new is disclosed. Recorded in
+    Step 49's implementation-additions section.
+    """
+    contract = guard.contract(contract_id, P.CONTRACT_VIEW)
+    versions = guard.db.execute(
+        select(M.DocumentVersion)
+        .where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number.desc(), M.DocumentVersion.id.desc())
+    ).scalars().all()
+    payload = serialize_contract(contract)
+    payload["document_versions"] = [serialize_document_version(v) for v in versions]
+    return data(payload)
 
 
 @router.patch("/contracts/{contract_id}")

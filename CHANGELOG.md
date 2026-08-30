@@ -12,6 +12,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX implementation, slice 1 — the new workspace shell, the document pane and the
+  cross-pane highlight, against the real API** (owner: "UI/UX IMPLEMENTATION — GO",
+  2026-08-30; PRODUCT_UX_ROADMAP §G's risk-first slice). A new `/workspace/[contractId]`
+  route with its own shell — the product's one dark surface, navigation derived from
+  permissions by absence, a skip link first in the tab order — and the three-region layout
+  that collapses to real tabs (role=tablist, arrow keys) at 1280/900px, never dropping a
+  region. The **document pane** renders the document as the pipeline read it (evidence
+  rows in reading order under page markers, verbatim text in the serif quote voice, OCR
+  rows labelled, the document's own clause outline beside it, readiness derived from
+  `assist_index` counts) and answers the **highlight gesture**: an outline click or a
+  shared `?evidence=<id>` link scrolls to, lights and *focuses* the exact row — proven in
+  the browser; every later trigger (verdict, citation) reuses this one mechanism. States:
+  loading (announced skeleton), still-processing, no-text-extracted, error with request id,
+  no-upload (offers the upload — a link, nothing fake), whole-section permission state,
+  and the byte-identical "Not found." for out-of-scope and nonexistent contracts (asserted
+  equal in the browser). Findings and Ask regions render as honest next-slice notes
+  (`NextSlice`, distinct from `DomainPlaceholder`: UI not yet built vs backend not offered).
+  Design foundation (`workspace.css`, scoped `.ws`) implements the master prompt's tokens
+  on the **system font stack** pending the bundling decision (DD-7 §6); the type *roles*
+  hold. **One smallest-justified backend change**: `GET /contracts/{id}` now carries
+  `document_versions` newest first — a document-anchored workspace had no API path to its
+  document (the legacy page only ever showed the version it had just uploaded); additive,
+  same permission, frozen contract regenerated (the one diff is the operation description),
+  recorded in Step 49's additions section. Legacy routes untouched; `Chrome` yields to the
+  new shell under `/workspace` so the two never render together. Verified: backend **936**
+  (+1), frontend **86 Vitest** (+7), browser **37 passed** (+7) with 9 gated, six visual
+  baselines reproducing (the five legacy ones re-cut after review: italic-glyph metric drift
+  between sessions, no structural change — decision #193 flags CI-cut baselines as the
+  Phase-9 follow-up), typecheck (after `next typegen` — the running dev server's stale
+  generated types were the only "error"), lint clean. Decisions #187–#192.
+
 * **The product-UX roadmap — the think-first deliverable before broad UI implementation**
   (owner directive, 2026-08-27 evening: senior-designer strategy first, roadmap not app;
   legacy UI fully disregarded as a design reference).
