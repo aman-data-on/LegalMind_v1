@@ -730,3 +730,17 @@ new UI's source before closing.**
 browser suite 43 passed / 9 gated (+3: chip rendering + evidence-highlight, decision +
 409-freeze-and-recover, escalation-is-quiet) · backend 936 passed / 1 skipped, untouched ·
 first full run of the new Findings-pane e2e specs passed without a debugging cycle.**
+
+
+## UI/UX slice 3 — the Ask pane, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 204 | **Citations carry `evidence_id`** (live and replayed) — the one backend change of the slice | The workspace's highlight is keyed on evidence-row ids because that is the unit a Finding's `evidence_refs` already use; a citation carried only `chunk_id` (an assist-schema table), so the Ask pane had no way to point at the document. The value already existed on `SearchHit` and in the replay SQL's join — it was serialized, not computed. Dict payload, so the frozen contract is unchanged; recorded in Step 49's additions section | Nothing about chunk↔evidence semantics — one chunk still derives from exactly one evidence row (`AM-27` r4) |
+| 205 | **The evaluator-routed reply is a visibly distinct third message type** ("Not answered here", dashed edge) — not styled as an answer and not as a refusal | `AM-25` r4 routes "does this meet our standard?" to the deterministic evaluator. Rendering that as a refusal would tell the user the document lacks the answer (false); rendering it as an answer would present a pointer as content. It is a redirection, and it reads as one | The routing screen's recall — server-side, revisable on usage evidence (#136) |
+| 206 | **The ANSWERED path is pinned by static render, not end-to-end, and the report says so** | No generator credential exists in CI or production until the `AM-31` gate opens, so a browser cannot observe an answered turn; faking one (a stub server, a mocked response) would test a UI against a backend behavior that does not exist. The static test pins the contract the browser will meet the day the gate opens (`data-evidence-id`, the score label, no "confidence") | — |
+
+**Verification at close: backend 936 passed / 1 skipped (assist suite 28, replay-parity
+key extended with `evidence_id`) · frontend 94 Vitest (+4) · browser 45 passed / 9 gated
+(+2 Ask specs, first-run green) · typecheck · `check:terms` clean · OpenAPI `--check`
+clean · `AM31_GATE` CLOSED.**

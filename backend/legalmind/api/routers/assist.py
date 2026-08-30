@@ -146,7 +146,8 @@ def get_conversation(conversation_id: UUID,
                (SELECT (h->>'score')::float
                   FROM jsonb_array_elements(r.results->'hits') h
                  WHERE h->>'chunk_id' = ch.id::text
-                 LIMIT 1) AS score
+                 LIMIT 1) AS score,
+               e.id AS evidence_id
           FROM "{schema}".answer_citations ac
           JOIN "{schema}".ai_answers a ON a.id = ac.answer_id
           JOIN "{schema}".messages m ON m.id = a.message_id
@@ -160,6 +161,7 @@ def get_conversation(conversation_id: UUID,
     for row in cited:
         by_answer.setdefault(row[0], []).append({
             "chunk_id": str(row[2]),
+            "evidence_id": str(row[7]),
             "page_number": row[4],
             "section_ref": row[5] or leading_section_ref(row[3]),
             "excerpt": row[3][:240],
@@ -217,6 +219,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         "routed_to_evaluator": outcome.routed_to_evaluator,
         "citations": [{
             "chunk_id": str(c.chunk_id),
+            "evidence_id": str(c.evidence_id),
             "page_number": c.page_number,
             "section_ref": c.section_ref,
             "excerpt": c.excerpt,

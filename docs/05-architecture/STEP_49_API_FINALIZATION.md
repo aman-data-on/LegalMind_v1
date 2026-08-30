@@ -304,7 +304,7 @@ operation requires, and that follows 49.3's own mapping for the object it reads.
 |---|---|---|---|---|
 | POST | `/conversations` | `assist.ask` | AB-3 — the registry entry authorized "assist-lane access permissions only"; the conversation API realizes `AM-27`'s `conversations`/`messages` tables | AUTO_MODE_DECISIONS #137 |
 | GET | `/conversations` | `assist.ask` | 49.6 r4 applied to the lane: creator-only scope, identical to the single GET; `contract_id` the one allow-listed filter (49.6 r3) | #162 |
-| GET | `/conversations/{id}` | `assist.ask` | As above; since 2026-08-26 carries per-turn **citations rebuilt from the verified rows** so a reload renders what the live answer showed (`AM-25` r5) | #163 |
+| GET | `/conversations/{id}` | `assist.ask` | As above; since 2026-08-26 carries per-turn **citations rebuilt from the verified rows** so a reload renders what the live answer showed (`AM-25` r5). Since 2026-08-30 every citation (live and replayed) also carries `evidence_id` — the evidence row the chunk was cut from, the unit the workspace highlights (#204) | #163 |
 | POST | `/conversations/{id}/messages` | `assist.ask` | The ask; response shape in `legalmind/api/routers/assist.py`, refusal states per `AM-29` | #137–#139 |
 | GET | `/document-versions/{id}/evidence` | `document.view` | A paginated read projection of the locked Evidence model (42.6, Step 34) under the permission that already governs seeing the version; the target every `evidence_refs` entry and every citation points at | #164 |
 

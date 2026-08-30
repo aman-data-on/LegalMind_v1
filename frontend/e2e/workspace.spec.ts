@@ -247,6 +247,58 @@ test.describe("the Findings pane, slice 2", () => {
   });
 });
 
+test.describe("the Ask pane, slice 3", () => {
+  // `AM-29` r4's constant as backend/legalmind/assist/state.py declares it — asserted
+  // verbatim so a drift in either repository shows up as a wording mismatch.
+  const REFUSAL_TEXT =
+    "Information not found in the selected document. " +
+    "The available material does not answer this question.";
+
+  test("both refusal causes render the identical quiet sentence in the new pane", async ({ page }) => {
+    // No Review needed — asking is not judging (`AM-25` r1). No generator credential
+    // exists here (CI asserts none), so an ask that clears retrieval still cannot
+    // generate: exactly production until the `AM-31` gate opens.
+    const { contractId } = await createAnalysedReview(page, { analyse: false });
+    await page.goto(`/workspace/${contractId}`);
+    const pane = page.locator('[data-region="ask"]');
+    await expect(pane.getByRole("heading", { name: "Ask" })).toBeVisible();
+
+    const question = pane.getByLabel("Question");
+    const ask = pane.getByRole("button", { name: "Ask" });
+
+    // Cause 1 — retrieval hits the fixture sentence; no generator → EVIDENCE_INSUFFICIENT.
+    await question.fill("liability shall not exceed fees paid");
+    await ask.click();
+    const first = pane.locator(".ws-ask__answer--refusal").first();
+    await expect(first).toHaveText(REFUSAL_TEXT, { timeout: 20_000 });
+    await expect(first).toHaveAttribute("data-state", "EVIDENCE_INSUFFICIENT");
+
+    // Cause 2 — vocabulary the document cannot contain → NO_EVIDENCE_RETRIEVED.
+    await question.fill("Explain the zorbulated quixotic framblewitz stipulations");
+    await ask.click();
+    const refusals = pane.locator(".ws-ask__answer--refusal");
+    await expect(refusals).toHaveCount(2, { timeout: 20_000 });
+    await expect(refusals.nth(1)).toHaveAttribute("data-state", "NO_EVIDENCE_RETRIEVED");
+    expect(await refusals.nth(0).innerText()).toBe(await refusals.nth(1).innerText());
+
+    // Quiet surface: no alert role inside a refusal; no confidence figure anywhere.
+    await expect(pane.locator(".ws-ask__answer--refusal [role='alert']")).toHaveCount(0);
+    expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("confidence");
+  });
+
+  test("a compliance-shaped question is routed to Findings, not answered or refused", async ({ page }) => {
+    const { contractId } = await createAnalysedReview(page, { analyse: false });
+    await page.goto(`/workspace/${contractId}`);
+    const pane = page.locator('[data-region="ask"]');
+    await pane.getByLabel("Question").fill("Does this liability clause meet our company standard?");
+    await pane.getByRole("button", { name: "Ask" }).click();
+    const routed = pane.locator(".ws-ask__answer--routed");
+    await expect(routed).toBeVisible({ timeout: 20_000 });
+    await expect(routed).toContainText("Not answered here");
+    await expect(pane.locator(".ws-ask__answer--refusal")).toHaveCount(0);
+  });
+});
+
 test.describe("collapse behavior", () => {
   test("narrow viewports keep every region reachable as a tab", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);

@@ -25,10 +25,10 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, DocumentVersion } from "@/lib/types";
 
+import { AskPane } from "./AskPane";
 import { DocumentPane } from "./DocumentPane";
 import { FindingsPane } from "./FindingsPane";
 import { HighlightProvider } from "./highlight";
-import { NextSlice } from "./NextSlice";
 import { UploadDocument } from "./UploadDocument";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
@@ -120,12 +120,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         <WorkspaceLayout
           document={<DocumentPane version={version} />}
           findings={<FindingsPane contractId={contract.id} version={version} />}
-          ask={
-            <NextSlice
-              title="Ask"
-              note="Ask still works in the current application while this pane is built."
-            />
-          }
+          ask={<AskPane contractId={contract.id} />}
         />
       ) : (
         <div className="ws-state">

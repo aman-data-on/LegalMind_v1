@@ -365,6 +365,8 @@ export type AssistAnswerState =
 
 export interface AssistCitation {
   chunk_id: string;
+  /** The evidence row the chunk was cut from — drives the document highlight. */
+  evidence_id: string;
   page_number: number | null;
   section_ref: string | null;
   excerpt: string;

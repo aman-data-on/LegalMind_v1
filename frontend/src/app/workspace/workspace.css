@@ -290,3 +290,43 @@
 .ws-escalate__link { background: none; border: none; padding: 0; color: var(--ws-ink-500); text-decoration: underline; cursor: pointer; font: inherit; }
 .ws-escalate form { display: flex; gap: var(--ws-s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
 .ws-escalate input[type="text"] { font: inherit; padding: 5px 8px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); flex: 1; min-width: 12rem; }
+
+/* ==========================================================================
+ * Ask pane (Phase 2 slice 3, 2026-08-30) — the INQUIRY register. Colorless by
+ * design: no axis hue, no status tint; the italic serif on excerpts is the one
+ * typographic device, so a cited answer can never be mistaken for a ruling.
+ * ========================================================================== */
+.ws-ask { display: flex; flex-direction: column; padding: var(--ws-s4); gap: var(--ws-s3); }
+.ws-ask__turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s4); }
+.ws-ask__q { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-ask__role { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-right: 6px; }
+.ws-ask__answer {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-ink-300);
+  border-radius: var(--ws-radius); padding: var(--ws-s3) var(--ws-s4);
+}
+.ws-ask__answer p { margin: 0; font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6; }
+/* A refusal and an answer share the surface — same border, same weight; only the
+ * words differ (AM-29 r4). Nothing red, nothing iconic. */
+.ws-ask__answer--refusal p { color: var(--ws-ink-700); }
+.ws-ask__answer--routed { border-left-style: dashed; }
+.ws-ask__routed-label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
+.ws-ask__citations { list-style: none; margin: var(--ws-s3) 0 0; padding: var(--ws-s3) 0 0; border-top: 1px dashed var(--ws-ink-100); display: flex; flex-direction: column; gap: var(--ws-s3); }
+.ws-ask__cite {
+  font: inherit; font-size: var(--ws-text-sm); color: var(--ws-accent); background: none;
+  border: 0; padding: 0; cursor: pointer; text-align: left;
+}
+.ws-ask__cite[aria-current="true"] { text-decoration: underline; text-underline-offset: 3px; }
+.ws-ask__excerpt {
+  margin: 4px 0; padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100);
+  font-family: var(--ws-serif); font-style: italic; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
+.ws-ask__score { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-ask__empty { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); max-width: 46ch; }
+.ws-ask__form {
+  display: flex; gap: var(--ws-s2); padding: var(--ws-s3) var(--ws-s4);
+  border-top: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+}
+.ws-ask__form input {
+  flex: 1; font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); min-width: 0;
+}

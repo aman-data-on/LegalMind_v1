@@ -12,6 +12,41 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX slice 3 — the Ask pane in the Inquiry register, citations wired to the
+  highlight** (owner: "yes go ahead with next phase"). The workspace's third region is
+  live: ask about the open document, get an answer whose numbered citations *point at the
+  document* through the same gesture as a verdict's evidence link, or the identical quiet
+  refusal (`AM-29` r4), or — for a compliance-shaped question — an explicit "Not answered
+  here" pointer toward Findings (`AM-25` r4), a third message type styled as neither an
+  answer nor a refusal. Colorless by design: no state-axis hue appears in this pane, so a
+  cited answer can never be mistaken for a ruling (master prompt §4.1). One honest status
+  line while a request is in flight; retrieval scores as plain mono text, labelled as
+  exactly that; the word "confidence" appears nowhere and is CI-gated.
+
+  **One smallest-justified backend change**: every citation — live (`POST
+  /conversations/{id}/messages`) and replayed (`GET /conversations/{id}`) — now carries
+  `evidence_id`, the evidence row the chunk was cut from. Slices 1–2 key the highlight
+  on evidence-row ids (a Finding's `evidence_refs` are evidence ids); a citation carried
+  only `chunk_id`, a different table, so without this field the Ask pane could not point
+  at the document at all. The data already existed (`SearchHit.evidence_id`, and the
+  replay SQL already joined `document_evidence`); it was simply never serialized.
+  Additive, dict payload — the frozen OpenAPI snapshot is byte-identical. Recorded in
+  Step 49's additions section (#204).
+
+  **What a browser can and cannot prove here, stated plainly**: the e2e specs prove both
+  refusal causes render the identical sentence in the new pane and that a compliance
+  question routes rather than answers — the real backend under the real `AM-31` posture
+  (no generator credential exists in CI, exactly as in production today). The ANSWERED
+  path — prose plus citations that highlight — **cannot** be exercised end-to-end until
+  the gate opens, so it is pinned by static render instead (the citation button carries
+  `data-evidence-id`, the score label, no "confidence"). That gap is the gate's, not the
+  UI's, and closes the day the owner's two external inputs arrive.
+
+  Verified: backend 936/1 skipped (28 assist tests incl. the extended citation-replay
+  parity check) · frontend **94 Vitest** (+4) · browser **45 passed / 9 gated** (+2, both
+  first-run green) · typecheck · forbidden-terms gate clean · OpenAPI drift clean.
+  Decisions #204–#206.
+
 * **UI/UX slice 2 — the Findings pane, wired to the highlight mechanism, against the real
   API** (owner: "ok now go ahead" — continuing PRODUCT_UX_ROADMAP's phased sequence).
   The workspace's Findings region is no longer a placeholder: it resolves the Review for
