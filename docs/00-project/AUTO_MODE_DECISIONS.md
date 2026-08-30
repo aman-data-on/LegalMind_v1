@@ -715,3 +715,18 @@ UI, login lands on `/workspace`, Documents index links only into `/workspace`) �
 936 passed / 1 skipped, untouched · `grep` swept clean for every `href="/contracts"`,
 `href="/reviews"`, `href="/admin"`, `href="/audit"`, `href="/configuration"` under the
 new UI's source before closing.**
+
+
+## UI/UX slice 2 — the Findings pane, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 200 | **`api.reviews()` widened to pass `contract_id`** — an existing, already allow-listed backend filter (49.6), only newly exposed in the frontend client | The workspace has a Contract and a DocumentVersion but no Review of its own; resolving one by `document_version_id` needs to list a contract's reviews first. Zero backend change — the filter already existed and was already tested server-side | — |
+| 201 | **No Review yet is a named, plain-text state — no id-pasting form, no link into the legacy app** | Creating a Review needs a published configuration snapshot, a distinct capability with its own UX question (which snapshot?) the roadmap does not scope into "the Findings pane." The legacy page's own answer to this (raw text inputs for a document-version id and a snapshot id) is not a bar worth carrying into the new UI, and linking to it would reopen the cleanup just closed | Review creation's eventual UX — a later, separate slice |
+| 202 | **Axis chips are filled only for a non-calm value** (`MATCH`/`ACCEPTABLE`/`NOT_APPLICABLE` render as a quiet ghost chip; everything else in that axis renders filled at equal weight) | DESIGN.md's own rule: Tier-1-adjacent classifications must never be styled as if one is worse than another. A uniform filled/ghost split by "is this the calm value" avoids inventing a severity ranking while still surfacing the axis that matters | — |
+| 203 | **`DecisionControl`'s conflict-refresh explicitly resets local `outcome` to idle** | Caught in review before any test ran: the first draft called `onRecorded()` (the parent's re-fetch) but never reset its own `outcome` state, which is component-local and survives a prop update — the form would have stayed frozen after the FIRST conflict forever, even once fresh, non-conflicting data arrived. Fixed by mirroring the exact pattern already proven in the legacy hardening pass (`refreshAfterConflict`) rather than inventing a new one | — |
+
+**Verification at close: frontend 90 Vitest (+2) · typecheck clean · `check:terms` clean ·
+browser suite 43 passed / 9 gated (+3: chip rendering + evidence-highlight, decision +
+409-freeze-and-recover, escalation-is-quiet) · backend 936 passed / 1 skipped, untouched ·
+first full run of the new Findings-pane e2e specs passed without a debugging cycle.**

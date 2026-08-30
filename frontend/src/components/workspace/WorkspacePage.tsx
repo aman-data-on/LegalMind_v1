@@ -26,6 +26,7 @@ import { useSession } from "@/lib/session";
 import type { Contract, DocumentVersion } from "@/lib/types";
 
 import { DocumentPane } from "./DocumentPane";
+import { FindingsPane } from "./FindingsPane";
 import { HighlightProvider } from "./highlight";
 import { NextSlice } from "./NextSlice";
 import { UploadDocument } from "./UploadDocument";
@@ -118,12 +119,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       {version ? (
         <WorkspaceLayout
           document={<DocumentPane version={version} />}
-          findings={
-            <NextSlice
-              title="Findings"
-              note="Findings still work in the current application while this pane is built."
-            />
-          }
+          findings={<FindingsPane contractId={contract.id} version={version} />}
           ask={
             <NextSlice
               title="Ask"

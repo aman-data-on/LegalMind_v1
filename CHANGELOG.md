@@ -12,6 +12,47 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX slice 2 — the Findings pane, wired to the highlight mechanism, against the real
+  API** (owner: "ok now go ahead" — continuing PRODUCT_UX_ROADMAP's phased sequence).
+  The workspace's Findings region is no longer a placeholder: it resolves the Review for
+  the current document version (`GET /reviews?contract_id=` — an existing, already
+  allow-listed backend filter, only newly exposed in the frontend client; no backend
+  change), then renders the decision queue exactly per 52.5/DD-1: needs-decision first,
+  an equal-weight "All findings" toggle, never hidden.
+
+  **Per-axis chips, not a merged badge**: classification and rule outcome each render in
+  their own hue (indigo / amber), filled only for a non-calm value (`MATCH` and
+  `ACCEPTABLE`/`NOT_APPLICABLE` stay a quiet ghost chip) — no severity ranking invented
+  within an axis, matching the master prompt exactly. **Evidence links reuse slice 1's
+  highlight mechanism verbatim**: clicking "Evidence 1" on a citation scrolls, lights and
+  focuses the exact document row — a verdict and a citation now point at the source
+  through the identical gesture.
+
+  **`DecisionControl`** ports the legacy `DecisionPanel`'s safety properties rather than
+  reinventing them: no optimistic UI (52.7), and a `409` freezes the form until an
+  explicit "Refresh to see the latest decision" — proven end-to-end in the browser
+  (a real second decision via direct API call, a real conflict, a disabled form, an
+  explicit refresh showing what won). **Caught and fixed before it shipped**: the first
+  draft called the refresh but never reset local state back to idle, which would have
+  left the form frozen forever after one conflict even with fresh data — found in review,
+  not by a user. **`EscalateControl`** is deliberately quiet — an underline control, never
+  styled like the one button that changes the legal record (master prompt: "decision
+  authority is visually distinct from decision-adjacent activity").
+
+  **Declared out of scope, stated plainly rather than built around**: when no Review
+  exists yet for a document version, the pane says so and explains why, without an
+  id-pasting form or a link back into the legacy app — creating a Review needs a
+  published configuration snapshot, a distinct capability the roadmap doesn't scope into
+  "the Findings pane." Decision history stays to the current decision only (no
+  expandable superseded log) and keyboard shortcuts for this pane are deferred —
+  both named as exclusions before writing any code, not discovered as gaps after.
+
+  Verified: backend 936/1 skipped (untouched — no backend file changed) · frontend
+  **90 Vitest** (+2) · browser **43 passed / 9 gated** (+3 Findings-pane specs: chips
+  render and an evidence click highlights the document, a decision records and a 409
+  correctly freezes-then-recovers, escalation renders as a request not an approval) ·
+  typecheck · forbidden-terms gate clean. Decisions #200–#203.
+
 * **Strict frontend cleanup — the new UI is now the entire post-login experience**
   (owner: "STRICT FRONTEND CLEANUP — KEEP LOGIN ONLY", 2026-08-30). Login is untouched;
   everything after it now leads into the new application, never the legacy one.

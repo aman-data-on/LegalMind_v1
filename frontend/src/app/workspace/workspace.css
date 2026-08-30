@@ -226,3 +226,67 @@
   color: var(--ws-ink-700); cursor: pointer; text-decoration: none; display: inline-block;
 }
 .ws-btn--primary { background: var(--ws-accent); border-color: var(--ws-accent); color: #fff; }
+
+/* ==========================================================================
+ * Findings pane (Phase 2 slice 2, 2026-08-30) — the Authority register.
+ * Axis chips are small, filled-vs-ghost only (master prompt §4.2): MATCH and
+ * ACCEPTABLE/NOT_APPLICABLE render ghost (calm); every other value in that axis
+ * renders filled at the SAME weight — no severity ranking within an axis. Attention
+ * is its own channel (a left-border stripe), never merged into a chip's color.
+ * ========================================================================== */
+.ws-filter { display: flex; gap: var(--ws-s1); margin-bottom: var(--ws-s4); }
+.ws-filter button {
+  font: inherit; font-size: var(--ws-text-xs); padding: 5px 11px; min-height: 30px;
+  border-radius: 999px; border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+  color: var(--ws-ink-500); cursor: pointer;
+}
+.ws-filter button[aria-pressed="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+
+.ws-finding {
+  border: 1px solid var(--ws-ink-100); border-left: 3px solid transparent;
+  border-radius: var(--ws-radius); background: var(--ws-surface);
+  padding: var(--ws-s4); margin-bottom: var(--ws-s3);
+}
+.ws-finding--attention { border-left-color: var(--ws-outcome); }
+.ws-finding__head { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; margin-bottom: var(--ws-s2); }
+.ws-finding__title { font-size: var(--ws-text-sm); font-weight: 600; margin: 0; flex: 1; min-width: 0; }
+.ws-finding__note { font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin: 0 0 var(--ws-s3); }
+
+.ws-chip--fill { border: 1px solid transparent; font-weight: 600; }
+.ws-chip--classify-fill { background: var(--ws-classify-soft); color: var(--ws-classify); border-color: color-mix(in srgb, var(--ws-classify) 28%, transparent); }
+.ws-chip--outcome-fill { background: var(--ws-outcome-soft); color: var(--ws-outcome); border-color: color-mix(in srgb, var(--ws-outcome) 30%, transparent); }
+.ws-chip--decision-fill { background: var(--ws-decision-soft); color: var(--ws-decision); border-color: color-mix(in srgb, var(--ws-decision) 28%, transparent); }
+.ws-chip--flag { background: var(--ws-outcome-soft); color: var(--ws-outcome); font-weight: 600; border: 1px solid color-mix(in srgb, var(--ws-outcome) 30%, transparent); }
+
+.ws-evaluation { border-top: 1px solid var(--ws-ink-100); padding: var(--ws-s3) 0; }
+.ws-evaluation:first-of-type { border-top: 0; padding-top: 0; }
+.ws-evaluation__head { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; margin-bottom: var(--ws-s2); }
+.ws-evaluation__scope { font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-family: var(--ws-mono); }
+.ws-facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--ws-s3); font-size: var(--ws-text-sm); margin: 0 0 var(--ws-s2); }
+.ws-facts dt { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-facts dd { margin: 0; }
+.ws-evidence-refs { display: flex; gap: 6px; flex-wrap: wrap; margin: var(--ws-s2) 0; }
+.ws-evidence-refs button {
+  font: inherit; font-family: var(--ws-mono); font-size: 10.5px; padding: 3px 8px;
+  border-radius: var(--ws-radius-sm); border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
+  color: var(--ws-accent); cursor: pointer;
+}
+.ws-evidence-refs button[aria-current="true"] { background: var(--ws-accent-soft); border-color: var(--ws-accent); }
+
+.ws-decision { margin-top: var(--ws-s3); padding-top: var(--ws-s3); border-top: 1px dashed var(--ws-ink-100); }
+.ws-decision__label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-decision); margin: 0 0 6px; }
+.ws-decision__form { display: flex; flex-direction: column; gap: var(--ws-s2); max-width: 32rem; }
+.ws-decision__form label { font-size: var(--ws-text-sm); display: flex; flex-direction: column; gap: 4px; }
+.ws-decision__form select, .ws-decision__form textarea {
+  font: inherit; padding: 6px 8px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+}
+.ws-decision__conflict { margin-top: var(--ws-s2); padding: var(--ws-s3); background: var(--ws-error-soft); border-radius: var(--ws-radius); }
+.ws-decision__conflict p { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); }
+
+/* Escalation is visually QUIET — a request, never an authority-exercising
+ * control (master prompt "decision authority is visually distinct"). No fill,
+ * no border color, an underline link register rather than a button register. */
+.ws-escalate { margin-top: var(--ws-s3); font-size: var(--ws-text-sm); }
+.ws-escalate__link { background: none; border: none; padding: 0; color: var(--ws-ink-500); text-decoration: underline; cursor: pointer; font: inherit; }
+.ws-escalate form { display: flex; gap: var(--ws-s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.ws-escalate input[type="text"] { font: inherit; padding: 5px 8px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); flex: 1; min-width: 12rem; }

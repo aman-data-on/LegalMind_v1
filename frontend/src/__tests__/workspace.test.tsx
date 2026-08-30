@@ -7,6 +7,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { EscalateControl } from "@/components/workspace/EscalateControl";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   groupByPage,
@@ -109,5 +110,33 @@ describe("NextSlice", () => {
     const html = renderToStaticMarkup(<NextSlice title="Ask" />);
     expect(html).toContain("Ask");
     expect(html).not.toContain("<a ");
+  });
+});
+
+describe("EscalateControl", () => {
+  it("is a real <button> for keyboard/AT operability, but never styled like a decision control", () => {
+    const html = renderToStaticMarkup(
+      <EscalateControl
+        finding={{ id: "f1", review_id: "r1", requirement: { code: "LIABILITY-001", name: null, version_id: "v", version_number: 1 }, classification: "DEVIATION", status: "OPEN", requires_decision: true, escalated: false, evaluations: [], evidence: [], created_at: null, updated_at: null }}
+        onChanged={() => {}}
+      />,
+    );
+    expect(html).toContain("Escalate for authorized review");
+    expect(html).toContain("<button");
+    // Quiet register (master prompt: escalation is visually distinct from a
+    // decision) — never the primary-button class the decision control uses.
+    expect(html).not.toContain("ws-btn--primary");
+    expect(html).not.toContain('class="ws-btn"');
+  });
+
+  it("shows the withdraw option once escalated, worded as a request not an approval", () => {
+    const html = renderToStaticMarkup(
+      <EscalateControl
+        finding={{ id: "f1", review_id: "r1", requirement: { code: "LIABILITY-001", name: null, version_id: "v", version_number: 1 }, classification: "DEVIATION", status: "LEGAL_REVIEW", requires_decision: true, escalated: true, evaluations: [], evidence: [], created_at: null, updated_at: null }}
+        onChanged={() => {}}
+      />,
+    );
+    expect(html).toContain("a request, not an approval");
+    expect(html).toContain("Withdraw");
   });
 });

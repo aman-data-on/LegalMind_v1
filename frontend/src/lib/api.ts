@@ -279,7 +279,7 @@ export const api = {
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
 
   // ---- reviews ----------------------------------------------------------
-  reviews: (query: { page?: number; page_size?: number; status?: string } = {}) =>
+  reviews: (query: { page?: number; page_size?: number; status?: string; contract_id?: string } = {}) =>
     requestPage<Review>("/reviews", { query }),
   review: (id: string) => request<Review>(`/reviews/${id}`),
   createReview: (documentVersionId: string, configurationSnapshotId: string) =>

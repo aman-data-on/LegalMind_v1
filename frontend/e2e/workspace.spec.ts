@@ -175,6 +175,78 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
   });
 });
 
+test.describe("the Findings pane, slice 2", () => {
+  test.use({ storageState: storageStatePath("counsel") });
+
+  test("findings render with axis chips, and an evidence link highlights the document", async ({
+    page,
+  }) => {
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    const findingsResp = await page.request.get(`/api/v1/reviews/${reviewId}/findings`);
+    const findings = (await findingsResp.json()).data;
+    const target = findings[0].evaluations[0];
+
+    await page.goto(`/workspace/${contractId}`);
+    const pane = page.locator('[data-region="findings"]');
+    await expect(pane.locator(".ws-finding").first()).toBeVisible();
+    await expect(pane.locator(".ws-finding").first()).toContainText(findings[0].classification);
+
+    if (target.evidence_refs.length > 0) {
+      const evidenceButton = pane.locator(".ws-evidence-refs button").first();
+      await evidenceButton.click();
+      const lit = page.locator('[data-region="document"] .ws-row--lit');
+      await expect(lit).toHaveCount(1);
+      await expect(evidenceButton).toHaveAttribute("aria-current", "true");
+    }
+  });
+
+  test("a decision records, and a 409 freezes the form until an explicit refresh", async ({
+    page,
+  }) => {
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    const findingsResp = await page.request.get(`/api/v1/reviews/${reviewId}/findings`);
+    const findings = (await findingsResp.json()).data;
+    const evaluationId = findings[0].evaluations[0].id;
+
+    await page.goto(`/workspace/${contractId}`);
+    const evaluation = page.locator('[data-scope]').first();
+    await expect(evaluation).toBeVisible();
+
+    // Race the form with a decision made through the API directly.
+    const csrf = decodeURIComponent(
+      (await page.context().cookies()).find((c) => c.name === "legalmind_csrf")!.value,
+    );
+    const first = await page.request.post(`/api/v1/evaluations/${evaluationId}/decisions`, {
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      data: { decision_type: "ACCEPT_DEVIATION", justification: "STRUCTURAL — not a legal position (rule 21).", expected_version: 0 },
+    });
+    expect(first.status()).toBe(201);
+
+    await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
+    await evaluation.getByRole("button", { name: "Record decision" }).click();
+
+    await expect(evaluation.locator(".ws-decision__conflict")).toContainText("Not recorded");
+    await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeDisabled();
+
+    await evaluation.getByRole("button", { name: "Refresh to see the latest decision" }).click();
+    await expect(evaluation.locator(".ws-decision")).toContainText("version 1");
+  });
+
+  test("escalation is a quiet request, distinct from the decision control", async ({ page }) => {
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/workspace/${contractId}`);
+    const finding = page.locator(".ws-finding").first();
+    await expect(finding).toBeVisible();
+
+    await finding.getByRole("button", { name: "Escalate for authorized review" }).click();
+    await finding.getByPlaceholder("Why does this need authorized review?").fill("STRUCTURAL test escalation.");
+    await finding.getByRole("button", { name: "Escalate", exact: true }).click();
+
+    await expect(finding).toContainText("a request, not an approval");
+    await expect(finding.getByRole("button", { name: "Withdraw" })).toBeVisible();
+  });
+});
+
 test.describe("collapse behavior", () => {
   test("narrow viewports keep every region reachable as a tab", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
