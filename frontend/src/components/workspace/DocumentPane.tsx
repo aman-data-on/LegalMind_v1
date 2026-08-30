@@ -118,7 +118,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           <span className="ws-skel ws-skel--line" style={{ width: "70%" }} aria-hidden="true" />
         </div>
       ) : rows.length === 0 ? (
-        version.processing_status !== "COMPLETE" ? (
+        version.processing_status !== "COMPLETED" ? (
           <div className="ws-state">
             <h3>This document is still being processed.</h3>
             <p>
