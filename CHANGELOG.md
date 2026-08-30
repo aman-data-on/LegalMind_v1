@@ -38,9 +38,10 @@ No version has been released. The V1 specification is complete and implementatio
   recorded in Step 49's additions section. Legacy routes untouched; `Chrome` yields to the
   new shell under `/workspace` so the two never render together. Verified: backend **936**
   (+1), frontend **86 Vitest** (+7), browser **37 passed** (+7) with 9 gated, six visual
-  baselines reproducing (the five legacy ones re-cut after review: italic-glyph metric drift
-  between sessions, no structural change — decision #193 flags CI-cut baselines as the
-  Phase-9 follow-up), typecheck (after `next typegen` — the running dev server's stale
+  baselines reproducing (the five legacy ones were re-cut locally — a mistake corrected the same day by
+  the parallel session, which re-adopted CI's renders and added a guard refusing
+  `--update-snapshots` outside CI; the dev box renders fonts ~1% differently and has the
+  embedding model present. Owner rule: baselines come from CI only — decision #193), typecheck (after `next typegen` — the running dev server's stale
   generated types were the only "error"), lint clean. Decisions #187–#192.
 
 * **The product-UX roadmap — the think-first deliverable before broad UI implementation**
