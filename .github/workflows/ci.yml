@@ -840,7 +840,7 @@ jobs:
           cache: pip
       - name: Install backend
         working-directory: backend
-        run: pip install -e '.[dev]'
+        run: pip install -e '.[dev]' && pip install uvicorn
       - name: Install Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
