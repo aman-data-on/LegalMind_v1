@@ -807,9 +807,13 @@ jobs:
     #      spec ordering; here the database is freshly bootstrapped, so every
     #      baseline page renders identical content every run.
     #
-    # Baselines are Linux/Chromium and live in e2e/visual.spec.ts-snapshots/.
-    # Regenerate deliberately with `npm run design-qa -- --update-snapshots` and
-    # review the image diff like any other diff.
+    # Baselines are Linux/Chromium and live in e2e/visual.spec.ts-snapshots/. They
+    # MUST be generated in this CI environment, never on a developer machine: local
+    # Chromium renders fonts ~1% differently and a dev box with the embedding model
+    # present renders a different Ask-panel index state (page height changes). To
+    # regenerate: let this job fail, download the visual-regression-diffs artifact,
+    # commit its *-actual.png files as the new baselines, and review the image diff
+    # like any other diff (this is how the 2026-08-30 baselines were produced).
     services:
       postgres:
         image: pgvector/pgvector:pg16
