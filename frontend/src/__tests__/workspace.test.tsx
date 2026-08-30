@@ -69,27 +69,45 @@ describe("reading order", () => {
   });
 });
 
-describe("navigation by absence (52.3)", () => {
-  it("an ordinary user sees Documents and Reviews, never Legal or Admin", () => {
+describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)", () => {
+  it("an ordinary user sees Documents, pointed at the new UI — never /contracts", () => {
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
-    expect(navItemsFor((p) => user.has(p)).map((i) => i.label)).toEqual(["Documents", "Reviews"]);
+    const items = navItemsFor((p) => user.has(p));
+    expect(items).toEqual([{ href: "/workspace", label: "Documents" }]);
   });
 
-  it("a super admin sees only the control plane — no Documents at all", () => {
+  it("a super admin sees an empty nav — Audit/Admin have no new-UI screen yet, so no legacy link is offered", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
-    expect(navItemsFor((p) => admin.has(p)).map((i) => i.label)).toEqual(["Audit", "Admin"]);
+    expect(navItemsFor((p) => admin.has(p))).toEqual([]);
+  });
+
+  it("no nav item ever points at a legacy route", () => {
+    const everyone = new Set([
+      P.CONTRACT_VIEW, P.REVIEW_VIEW, P.CONFIGURATION_VIEW, P.AUDIT_VIEW, P.USER_MANAGE,
+    ]);
+    for (const item of navItemsFor((p) => everyone.has(p))) {
+      expect(item.href).not.toMatch(/^\/(contracts|reviews|configuration|audit|admin)(\/|$)/);
+    }
   });
 });
 
 describe("NextSlice", () => {
-  it("names the pane, says it is not built, points at today's route — and renders no control", () => {
+  it("names the pane, says it is not built, and carries no link anywhere — including into the legacy app", () => {
     const html = renderToStaticMarkup(
-      <NextSlice title="Findings" todayHref="/reviews" todayLabel="findings are on the Reviews screen" />,
+      <NextSlice title="Findings" note="Findings still work in the current application while this pane is built." />,
     );
     expect(html).toContain("Findings");
-    expect(html).toContain("next build slice");
-    expect(html).toContain('href="/reviews"');
+    expect(html).toContain("later build slice");
+    expect(html).toContain("still work in the current application");
+    // The 2026-08-30 cleanup rule, pinned structurally: no anchor, no button, no input.
+    expect(html).not.toContain("<a ");
     expect(html).not.toContain("<button");
     expect(html).not.toContain("<input");
+  });
+
+  it("the note is optional", () => {
+    const html = renderToStaticMarkup(<NextSlice title="Ask" />);
+    expect(html).toContain("Ask");
+    expect(html).not.toContain("<a ");
   });
 });

@@ -12,6 +12,56 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Strict frontend cleanup — the new UI is now the entire post-login experience**
+  (owner: "STRICT FRONTEND CLEANUP — KEEP LOGIN ONLY", 2026-08-30). Login is untouched;
+  everything after it now leads into the new application, never the legacy one.
+
+  **Entry point retargeted**: root `/` and a successful login both resolve to
+  `/workspace` (was `/contracts`) — `src/app/page.tsx`, `src/app/login/page.tsx`,
+  `e2e/support.ts`'s `signIn()` helper. A new **Documents index** (`/workspace`) is the
+  actual landing screen — a minimal, faithful analog of the legacy list-and-create page
+  (same two API calls) rebuilt on the new shell, since without it a fresh session had
+  nowhere real to land.
+
+  **Every remaining link into the legacy app was found and removed**, not hidden: the
+  new shell's own wordmark and "not found" state pointed at `/contracts`; the empty
+  workspace state's "Upload a document" was a `<Link>` to the legacy contract page; the
+  Findings/Ask `NextSlice` placeholders linked to `/reviews` and `/contracts/{id}`; and
+  — the one that mattered most — the shell's own primary nav still mapped "Documents" to
+  `/contracts` and offered a live "Reviews" link into the legacy queue. Fixed:
+  `NextSlice` now carries plain text only, no link, ever (its capability note says the
+  legacy application still works, without a click path there); the empty state gained a
+  real **inline upload** (`UploadDocument.tsx`, the same `api.uploadDocument` call, just
+  never leaving the new screen to use it); and `navItemsFor` now offers a nav item only
+  once its destination is a real new-UI screen — today that is Documents alone, so
+  Reviews/Legal/Audit/Admin are absent from the new shell's nav until each is built
+  (roadmap slices 2, 4, 5), rather than pointing at a screen this product line is
+  retiring. A unit test now asserts structurally that no nav item ever matches a legacy
+  route pattern.
+
+  **Two real bugs found and fixed while proving the redirect, not assumed working**:
+  (1) `Chrome`'s `!identity`/`loading` branches never rendered `{children}` at all, so
+  root `/`'s own page component — whose only job is a client-side
+  `router.replace("/workspace")` — never even mounted for a signed-out visitor, and the
+  redirect silently never fired; the new-UI bypass (previously `/workspace` only) now
+  also covers `/`, for exactly this reason, not styling. (2) The root page originally
+  used the Server Component `redirect()`, measured (via `curl -I` against a production
+  build) to return `200` with no `Location` header and no `<meta refresh>` — Next
+  16.3.1 (this frontend's own `AGENTS.md` warns it is not the Next.js prior training
+  data describes) encodes it in the RSC flight stream instead, which did not complete
+  through this app's `SessionProvider`/`Chrome` tree; replaced with the same
+  `useRouter().replace()` client-side pattern `login/page.tsx` already uses successfully.
+
+  The legacy application is otherwise **completely intact** — no route deleted, no
+  backend endpoint touched, no test weakened. Every legacy Playwright spec still
+  navigates directly to its route by URL (never via a clicked nav link) and all pass
+  unmodified; that direct-URL path is deliberately preserved as the verification
+  harness the owner asked to keep. Verified: backend 936/1 (untouched) · frontend
+  **88 Vitest** (+1) · browser **40 passed / 9 gated** (three new specs proving no
+  `a[href^="/contracts"]` exists anywhere in the new UI, that a fresh login lands on
+  `/workspace`, and that the Documents index links only into the new UI) · typecheck ·
+  lint. Decisions #194–#199.
+
 * **UI/UX implementation, slice 1 — the new workspace shell, the document pane and the
   cross-pane highlight, against the real API** (owner: "UI/UX IMPLEMENTATION — GO",
   2026-08-30; PRODUCT_UX_ROADMAP §G's risk-first slice). A new `/workspace/[contractId]`

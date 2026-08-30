@@ -41,6 +41,23 @@ export function Chrome({ children }: { children: React.ReactNode }) {
   // DD-3 — /login owns its full-viewport composition; other bare states keep the narrow column.
   if (pathname === "/login") return <main className="shell shell--login">{children}</main>;
 
+  // The new application (PRODUCT_UX_ROADMAP.md) brings its own shell and its own
+  // loading/signed-out states under /workspace (WorkspaceShell) — checked BEFORE
+  // the legacy loading/signed-out fallbacks below, which would otherwise render
+  // first and put legacy markup on a new-UI route (found in browser testing,
+  // 2026-08-30: a signed-out visit to /workspace showed the bare "You are signed
+  // out" shell before ever reaching the new one). This legacy chrome guarantees
+  // nothing for /workspace; the two never render together either way.
+  //
+  // `/` is included too, and for a sharper reason than styling: the loading and
+  // signed-out branches below return their OWN JSX and never render `{children}`
+  // at all — so `/`'s own page component (whose only job is a client-side
+  // `router.replace("/workspace")` in a `useEffect`) would never even MOUNT while
+  // signed out, and the redirect would silently never fire. Measured, not
+  // assumed: this is what a signed-out visit to `/` actually did before this
+  // line included it.
+  if (pathname === "/" || pathname.startsWith("/workspace")) return <>{children}</>;
+
   if (loading) {
     return (
       <main className="shell shell--bare">
@@ -62,12 +79,6 @@ export function Chrome({ children }: { children: React.ReactNode }) {
       </main>
     );
   }
-
-  // The new application (PRODUCT_UX_ROADMAP.md) brings its own shell under
-  // /workspace; this legacy chrome only guarantees the session above it. The two
-  // never render together, so the legacy screens retire one by one without a
-  // double header in between.
-  if (pathname.startsWith("/workspace")) return <>{children}</>;
 
   return (
     <div className="shell">

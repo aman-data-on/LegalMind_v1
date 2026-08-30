@@ -18,9 +18,22 @@ import { useSession } from "@/lib/session";
 import { navItemsFor } from "./model";
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
-  const { identity, can, signOut } = useSession();
+  const { identity, loading, can, signOut } = useSession();
   const pathname = usePathname();
   const items = navItemsFor(can);
+
+  // Mirrors the legacy shell's own guard: `can()` defaults to false before the
+  // session resolves, so rendering `children` early would flash "Access
+  // restricted" for an authenticated user on every hard navigation.
+  if (loading) {
+    return (
+      <div className="ws">
+        <p className="ws-visually-hidden" role="status" aria-live="polite">
+          Loading…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="ws">
@@ -28,7 +41,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <header className="ws-shell">
-        <Link className="ws-shell__word" href="/contracts">
+        <Link className="ws-shell__word" href="/workspace">
           LegalMind
         </Link>
         <nav className="ws-shell__nav" aria-label="Primary">

@@ -55,9 +55,16 @@ export function locationLabel(row: EvidenceRow): string {
 }
 
 /**
- * Navigation derived from permissions by ABSENCE (52.3). The IA of
- * PRODUCT_UX_ROADMAP.md §C; targets that are not yet rebuilt point at the route
- * that does the job today and move as each slice lands.
+ * Navigation derived from permissions by ABSENCE (52.3) — and, since the
+ * 2026-08-30 cleanup, by EXISTENCE: an item appears only once its destination is
+ * a real screen in the new application. `Reviews` / `Legal` / `Audit` / `Admin`
+ * have no new-UI screen yet (roadmap slices 2, 4, 5) — until each lands, the
+ * capability still works (directly, or in the legacy application for
+ * verification), it is simply not offered as a click from this shell. Listing a
+ * legacy route here would be exactly the "navigation path into the old
+ * application" the cleanup exists to remove; do not re-add one as a shortcut
+ * when building the next slice — replace this comment with the new route
+ * instead, in the same change that ships the screen.
  */
 export interface NavItem {
   href: string;
@@ -66,10 +73,6 @@ export interface NavItem {
 
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
-  if (can(P.CONTRACT_VIEW)) items.push({ href: "/contracts", label: "Documents" });
-  if (can(P.REVIEW_VIEW)) items.push({ href: "/reviews", label: "Reviews" });
-  if (can(P.CONFIGURATION_VIEW)) items.push({ href: "/configuration", label: "Legal" });
-  if (can(P.AUDIT_VIEW)) items.push({ href: "/audit", label: "Audit" });
-  if (can(P.USER_MANAGE)) items.push({ href: "/admin", label: "Admin" });
+  if (can(P.CONTRACT_VIEW)) items.push({ href: "/workspace", label: "Documents" });
   return items;
 }

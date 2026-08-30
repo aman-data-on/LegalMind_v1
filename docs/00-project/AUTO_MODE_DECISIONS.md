@@ -696,3 +696,22 @@ only failure) · `check:terms` clean · browser suite 37 passed / 9 gated (11 ne
 tests, including the highlight from outline and from a shared link, the byte-identical
 not-found story, tab collapse and the skip link) · six visual baselines reproduce ·
 OpenAPI snapshot regenerated (one description line) · `AM31_GATE` CLOSED.**
+
+
+## Strict frontend cleanup — new UI is the entire post-login experience, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 194 | **`navItemsFor` gates on EXISTENCE as well as permission** — an item appears only once its destination is a real new-UI screen; today that is Documents alone | The literal bug the owner's cleanup targeted: the shell's own nav still mapped "Documents" to `/contracts` and offered a live "Reviews" link into the legacy queue — an active navigation path into the retiring application, from code I wrote. Removing the destinations rather than patching the two hrefs, so the next slice adds its nav item in the same change that ships the screen, never before | Whether Reviews/Legal/Audit/Admin get new-UI screens — the roadmap already sequences that |
+| 195 | **`NextSlice` carries a plain-text note, never a link** | It previously linked into `/reviews` and `/contracts/{id}` — exactly the pattern being removed. The capability isn't gone (the text says the legacy app still works); there's simply no click path to it from here, which is the letter of "remove access, not functionality" | — |
+| 196 | **The empty-workspace "upload" affordance is now a real inline upload**, not a link to the legacy contract page | The alternative was removing upload capability from the new UI entirely, which the owner explicitly forbade ("not asking you to delete backend functionality"). The call was always real (`api.uploadDocument`); only the button pointed at the wrong screen | — |
+| 197 | **Legacy routes are left in place, unredirected, reachable only by direct URL** | Every legacy Playwright spec (`decision.spec.ts`, `analysis.spec.ts`, `confidentiality.spec.ts`, etc.) navigates via `page.goto()` directly, never through a clicked nav link — confirmed by grep before touching anything. Redirecting the routes themselves would break the harness the owner explicitly said to preserve; removing the nav path (already the actual ask) does not | Retiring a legacy route — happens per-slice as its replacement ships, per the existing plan |
+| 198 | **`Chrome`'s new-UI bypass covers `/` as well as `/workspace`** | Not a styling call: `Chrome`'s loading/signed-out branches never render `{children}` at all, so `/`'s own redirect-only page component never mounted for a signed-out visitor and the redirect silently never fired — found by testing the actual behavior, not assumed | — |
+| 199 | **`/` uses `useRouter().replace()`, not the Server Component `redirect()`** | Measured with `curl -I` against a production build: this Next.js version (16.3.1) returns `200` with no `Location` header for a plain `redirect()` call in a streaming page — it encodes the target in the RSC flight stream, which did not complete through this app's provider tree in browser testing either. `login/page.tsx` already uses `router.push()` successfully for the identical need; followed the pattern proven in this codebase over the one measurably not working here | Nothing about `redirect()` elsewhere — no other page in this app relies on a bare Server Component redirect for full navigation |
+
+**Verification at close: frontend 88 Vitest (+1) · typecheck clean · `check:terms` clean ·
+browser suite 40 passed / 9 gated (three new specs: no legacy link anywhere in the new
+UI, login lands on `/workspace`, Documents index links only into `/workspace`) · backend
+936 passed / 1 skipped, untouched · `grep` swept clean for every `href="/contracts"`,
+`href="/reviews"`, `href="/admin"`, `href="/audit"`, `href="/configuration"` under the
+new UI's source before closing.**

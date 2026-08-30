@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { apiPost, createAnalysedReview, storageStatePath } from "./support";
+import { apiPost, createAnalysedReview, fixture, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -71,9 +71,10 @@ test.describe("the document pane", () => {
     await expect(lit).toBeFocused();
   });
 
-  test("a contract with no upload says so and offers the upload, nothing fake", async ({
+  test("a contract with no upload offers a real, inline upload — never a legacy link", async ({
     page,
   }) => {
+    const f = fixture();
     const created = await apiPost(page, "/contracts", {
       name: `Bare ${Date.now()}`,
       contract_type: "MSA",
@@ -81,8 +82,14 @@ test.describe("the document pane", () => {
     const contract = (await created.json()).data;
     await page.goto(`/workspace/${contract.id}`);
     await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Upload a document" })).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
+
+    // 2026-08-30 cleanup: no path back into the legacy application from here.
+    await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
+
+    await page.setInputFiles('input[type="file"]', f.document.path);
+    await page.getByRole("button", { name: "Upload" }).click();
+    await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   });
 
   test("someone else's contract reads exactly like a nonexistent one", async ({
@@ -108,6 +115,63 @@ test.describe("the document pane", () => {
     const ghost = await page.locator(".ws-state").innerText();
     expect(stolen).toBe(ghost);
     expect(stolen.toLowerCase()).not.toContain("access");
+  });
+});
+
+test.describe("the new UI is the entire post-login experience (2026-08-30 cleanup)", () => {
+  test.describe("signed out", () => {
+    // Overrides this file's top-level `owner` storageState: this test's whole
+    // point is the SIGNED-OUT redirect, which an inherited session would hide.
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test("a successful login lands on /workspace, never /contracts", async ({ page }) => {
+      // The root `/` redirect target is asserted directly below, not via a
+      // signed-out visit to "/": this app has never navigated a signed-out
+      // visitor to /login automatically (it shows an inline restricted state
+      // instead) — asserting otherwise would test a behavior this cleanup
+      // never claimed to add.
+      const f = fixture();
+      await page.goto("/login");
+      await page.getByLabel("Work email").fill(f.accounts.owner.email);
+      await page.getByLabel("Password", { exact: true }).fill(f.accounts.owner.password);
+      await page.getByRole("button", { name: /sign in/i }).click();
+      await page.waitForURL(/\/workspace$/, { timeout: 20_000 });
+      await expect(page.locator(".ws-shell")).toBeVisible();
+      await expect(page.locator(".topbar")).toHaveCount(0);
+    });
+
+    test("root redirects to /workspace, not /contracts — even signed out", async ({ page }) => {
+      await page.goto("/");
+      // `response.url()` reflects Next's server redirect response, not the final
+      // address after the browser follows it — assert the address bar instead.
+      await expect(page).toHaveURL(/\/workspace$/);
+      // The new shell's own restricted state, never the legacy bare-shell markup
+      // ("You are signed out" / topbar) that a signed-out visit showed before the
+      // ordering fix in Chrome.tsx.
+      await expect(page.getByText("Access restricted")).toBeVisible();
+      await expect(page.getByText("You are signed out")).toHaveCount(0);
+      await expect(page.locator(".topbar")).toHaveCount(0);
+    });
+  });
+
+  test("the Documents index lists contracts and links only into /workspace", async ({ page }) => {
+    const created = await apiPost(page, "/contracts", {
+      name: `Index ${Date.now()}`,
+      contract_type: "MSA",
+    });
+    const contract = (await created.json()).data;
+
+    await page.goto("/workspace");
+    await expect(page.locator(".ws-shell")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
+
+    const row = page.getByRole("link", { name: contract.name });
+    await expect(row).toHaveAttribute("href", `/workspace/${contract.id}`);
+    // No row, and nothing else on the page, points back at the legacy app.
+    await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
+
+    await row.click();
+    await expect(page).toHaveURL(`/workspace/${contract.id}`);
   });
 });
 

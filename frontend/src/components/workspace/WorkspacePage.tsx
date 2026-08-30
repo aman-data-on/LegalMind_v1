@@ -6,7 +6,10 @@
  * Loads the contract (`GET /contracts/{id}`, which now lists its document
  * versions newest first), then the latest version (`GET /document-versions/{id}`,
  * carrying `assist_index`), and hands the version to the document pane. The
- * findings and ask regions are the next two slices and say so.
+ * findings and ask regions are the next two slices and say so — without a link
+ * back into the legacy application (2026-08-30 cleanup): the new UI carries no
+ * navigation path into the old one, so an unbuilt pane states that plainly
+ * rather than bouncing the user to a screen this product line is retiring.
  *
  * Denial semantics (49.5 / 52.4): an out-of-scope contract and a nonexistent one
  * are byte-identical on the wire and read identically here — "Not found." — never
@@ -15,7 +18,7 @@
  */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -25,6 +28,7 @@ import type { Contract, DocumentVersion } from "@/lib/types";
 import { DocumentPane } from "./DocumentPane";
 import { HighlightProvider } from "./highlight";
 import { NextSlice } from "./NextSlice";
+import { UploadDocument } from "./UploadDocument";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
 type Load =
@@ -36,23 +40,21 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const { can } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
     setState({ kind: "loading" });
-    (async () => {
-      try {
-        const contract = await api.contract(contractId);
-        const latest = contract.document_versions?.[0];
-        const version = latest ? await api.documentVersion(latest.id) : null;
-        if (!cancelled) setState({ kind: "ready", contract, version });
-      } catch (error) {
-        if (!cancelled) setState({ kind: "error", error });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const contract = await api.contract(contractId);
+      const latest = contract.document_versions?.[0];
+      const version = latest ? await api.documentVersion(latest.id) : null;
+      setState({ kind: "ready", contract, version });
+    } catch (error) {
+      setState({ kind: "error", error });
+    }
   }, [contractId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (!can(P.CONTRACT_VIEW)) {
     return (
@@ -82,7 +84,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         <h2>{notFound ? "Not found." : "The workspace could not be loaded."}</h2>
         {notFound ? (
           <p>
-            <Link href="/contracts">Back to documents</Link>
+            <Link href="/workspace">Back to documents</Link>
           </p>
         ) : (
           <p>{describeError(state.error)}</p>
@@ -119,15 +121,13 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           findings={
             <NextSlice
               title="Findings"
-              todayHref="/reviews"
-              todayLabel="findings are on the Reviews screen"
+              note="Findings still work in the current application while this pane is built."
             />
           }
           ask={
             <NextSlice
               title="Ask"
-              todayHref={`/contracts/${contract.id}`}
-              todayLabel="ask about this document from its contract page"
+              note="Ask still works in the current application while this pane is built."
             />
           }
         />
@@ -138,11 +138,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             The workspace opens around a document. Upload one to this contract and the
             text, findings and questions all live here.
           </p>
-          <p>
-            <Link className="ws-btn ws-btn--primary" href={`/contracts/${contract.id}`}>
-              Upload a document
-            </Link>
-          </p>
+          {can(P.DOCUMENT_UPLOAD) ? (
+            <UploadDocument contractId={contract.id} onUploaded={() => void load()} />
+          ) : (
+            <p className="ws-pane__note">Your account does not include document upload.</p>
+          )}
         </div>
       )}
     </HighlightProvider>
