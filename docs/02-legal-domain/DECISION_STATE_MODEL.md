@@ -2,6 +2,15 @@
 
 **Status: LOCKED** (canonical cross-layer reference)
 
+> ⚠️ **AB-3 added a SIXTH axis (added to this document 2026-08-25).** `AM-29` (locked 2026-08-24)
+> fixes an **assist-lane answer state** as a sixth, separate axis. **The five axes below are
+> unchanged and none of them gains a value** — that is `AM-29`'s first sentence, and this
+> document's title stays accurate for the five legal axes it governs. The sixth is documented in
+> [§ The sixth axis](#the-sixth-axis--assist-lane-answer-state-am-29) at the end, deliberately
+> apart from the five, because `AM-29` r1 forbids it sharing a field, column, enum or name with
+> any of them. This banner exists because the registry named this file as `AM-29`'s canonical
+> document and the section was never added; the omission is corrected, not the five axes.
+
 **This is the canonical reference for every controlled state vocabulary in LegalMind.** Any document, schema, or API that names a state must conform to the axis definitions here.
 
 Canonical basis: `all_lock.md` Steps 28, 30, 31, 36, 44, 45A/45B.
@@ -138,3 +147,58 @@ UNMATCHED_PROVISION (document-level observation)
 | 3 — Rule Outcome | [LEGAL_RULES.md](LEGAL_RULES.md) |
 | 4 — Legal Decision | [LEGAL_DECISIONS.md](LEGAL_DECISIONS.md) |
 | 5 — Review Lifecycle | [../01-product/WORKFLOWS.md](../01-product/WORKFLOWS.md) |
+| 6 — Assist-lane answer state | this document, § below (`AM-29`) |
+
+---
+
+## The sixth axis — assist-lane answer state (`AM-29`)
+
+**Status: 🔒 LOCKED** — `AM-29`, Amendment Batch AB-3, 2026-08-24. Added to this document
+2026-08-25 as part of landing AB-3 across the specifications its registry entries cite.
+
+`AM-29` amends nothing. It fixes a new vocabulary and is stated so that it is **never confused
+with an existing one**.
+
+| # | Axis | Answers | Controlled values | Source |
+|---|------|---------|-------------------|--------|
+| **6** | **Assist-lane answer state** | What happened when the assist lane was asked a question? | `no evidence retrieved` · `evidence insufficient` · `claim unsupported` — plus the answered case | `AM-29` r3 |
+
+### The three recorded outcomes, and why they are separate
+
+`AM-29` r3 requires all three to be recorded distinctly, *"because they have different causes and
+different remedies"*:
+
+| Outcome | Cause | What it means operationally |
+|---|---|---|
+| **no evidence retrieved** | Nothing available within the requester's authorized scope | The corpus has nothing, **or** authorization excluded everything — and these two are deliberately indistinguishable to the user (see r4 below) |
+| **evidence insufficient** | Retrieved, but too weak to support an answer | **The model is not called at all.** This is a pre-generation refusal |
+| **claim unsupported** | The model answered and a claim failed verification | Post-generation rejection by the citation guard (`AM-25` r5) |
+
+### The four rules that keep it apart from the five legal axes
+
+| Rule | Constraint |
+|---|---|
+| r1 | It is a **sixth, separate axis**. It never shares a field, a column, an enum or a name with any of the five. |
+| r2 | It never reuses `UNABLE_TO_EVALUATE`, `NOT_APPLICABLE`, `AMBIGUOUS`, `MATCH`, `DEVIATION`, `MISSING`, `CONFLICT`, `ACCEPTABLE` or `UNACCEPTABLE`. **45B.26 stands** — no fifth `RuleOutcome` value is added, *"and an assist-lane state is not a route to adding one by another name."* |
+| r3 | The three outcomes above are recorded separately. |
+| r4 | **A user-facing refusal is worded identically** whether the cause was an empty corpus or an authorization exclusion. `AM-25` r6 and r7 depend on this: a differently-worded refusal is an existence oracle. |
+
+### ⚠️ This is the axis that answers "confidence"
+
+The product vision asks each answer to carry a *"confidence"*. `AI-03` locked item 16 says
+plainly: **"The system does not use generic AI confidence scores"**, and rule 12 forbids an
+*"'AI confidence' percentage"* on a Finding.
+
+The sixth axis is the sanctioned answer. A response reports **its answer state**, and per-citation
+**retrieval scores labelled as retrieval scores** — never a single confidence figure beside a
+legal statement. A retrieval score is never a Finding, never a Classification, and is never
+rendered to a user as legal confidence.
+
+### Implementation note
+
+No enum for this axis exists in the schema yet — the assist lane is `SPECIFIED · NOT STARTED`
+([IMPLEMENTATION_STATUS.md](../00-project/IMPLEMENTATION_STATUS.md) unit 12). When it is added it
+must be a **new enum type**, not a value on an existing one. Note that
+`test_schema_invariants.py::test_each_axis_has_its_own_enum_type` is scoped to `current_schema()`
+and so will **not** see an enum created in the separate assist schema (`AM-27` r1); enforcing r2
+there needs its own test in that schema.

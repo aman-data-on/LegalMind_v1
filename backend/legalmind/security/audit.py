@@ -41,6 +41,11 @@ CONFIG_REQUIREMENT_CREATED = "config.requirement_created"
 CONFIG_VERSION_CREATED = "config.version_created"
 CONFIG_STANDARD_UPDATED = "config.standard_updated"
 CONFIG_PUBLISHED = "config.published"
+# Assist lane (AB-3/AB-4). AM-30 t5: every generation call is recorded with the
+# model identity, prompt version and a payload HASH — never the payload. 53.1 keeps
+# this in the audit trail proper, because an operational log is never a substitute
+# for the record of what left the building.
+ASSIST_GENERATION_CALLED = "assist.generation_called"
 # Administration
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"

@@ -168,6 +168,10 @@ def recreate_database(url: str) -> str:
         conn.execute(text(f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE)'))
         conn.execute(text(f'CREATE DATABASE "{database}"'))
     engine.dispose()
+    # A brand-new database has no pgvector, and the c4a91 migration refuses to
+    # create it (deployment precondition). Harnesses try; see tools/pg_extensions.
+    from tools.pg_extensions import ensure_vector_extension
+    ensure_vector_extension(url)
     return database
 
 

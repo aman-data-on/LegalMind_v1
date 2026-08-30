@@ -13,7 +13,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
-import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { EmptyState, ErrorBanner, Pager } from "@/components/Feedback";
+import { SkeletonTable } from "@/components/Skeleton";
+import { Field, StatePill, TableCard, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -67,10 +69,7 @@ export default function ReviewsPage() {
       <ErrorBanner error={error} />
 
       <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
-        <div className="field">
-          <label className="field__label" htmlFor="review-status-filter">
-            Lifecycle status
-          </label>
+        <Field id="review-status-filter" label="Lifecycle status">
           <select
             id="review-status-filter"
             value={status}
@@ -86,11 +85,13 @@ export default function ReviewsPage() {
               </option>
             ))}
           </select>
-        </div>
+        </Field>
       </form>
 
       {reviews === null ? (
-        <Loading what="reviews" />
+        /* Table-shaped skeleton (Phase 4): same TableCard container and column
+           count as the loaded state, so rows arriving cause no layout shift. */
+        <SkeletonTable what="reviews" columns={4} />
       ) : reviews.length === 0 ? (
         /* Distinguish "nothing matches this filter" from "nothing at all" —
            presentation of the active client-side filter state only. */
@@ -99,7 +100,7 @@ export default function ReviewsPage() {
         </EmptyState>
       ) : (
         <>
-          <div className="table-card table-wrap">
+          <TableCard>
             <table>
               <thead>
                 <tr>
@@ -116,21 +117,19 @@ export default function ReviewsPage() {
                       <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
                     </td>
                     <td>
-                      <span className={`status status--${review.status.toLowerCase()}`}>
-                        {review.status}
-                      </span>
+                      <StatePill axis="status" value={review.status} />
                     </td>
                     <td>
                       <Link href={`/contracts/${review.contract_id}`}>
                         {review.contract_id.slice(0, 8)}
                       </Link>
                     </td>
-                    <td>{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                    <td title={review.created_at ?? undefined}>{formatDate(review.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableCard>
           {pagination ? (
             <Pager
               page={pagination.page}

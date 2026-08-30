@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { Field, TableCard } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -62,10 +63,10 @@ export default function AuditPage() {
       </p>
       <ErrorBanner error={error} />
 
-      <form className="card inline" onSubmit={(event) => event.preventDefault()}>
-        <label>
-          Action
+      <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
+        <Field id="audit-action" label="Action">
           <input
+            id="audit-action"
             value={action}
             onChange={(event) => {
               setPage(1);
@@ -73,10 +74,10 @@ export default function AuditPage() {
             }}
             placeholder="e.g. legal.decision_recorded"
           />
-        </label>
-        <label>
-          Entity type
+        </Field>
+        <Field id="audit-entity-type" label="Entity type">
           <input
+            id="audit-entity-type"
             value={entityType}
             onChange={(event) => {
               setPage(1);
@@ -84,7 +85,7 @@ export default function AuditPage() {
             }}
             placeholder="e.g. evaluation"
           />
-        </label>
+        </Field>
       </form>
 
       {events === null ? (
@@ -93,10 +94,11 @@ export default function AuditPage() {
         <EmptyState>No audit events match.</EmptyState>
       ) : (
         <>
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
+          <TableCard>
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
                 <th>Action</th>
                 <th>Entity</th>
                 <th>Actor</th>
@@ -133,7 +135,8 @@ export default function AuditPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </TableCard>
           {pagination ? (
             <Pager
               page={pagination.page}

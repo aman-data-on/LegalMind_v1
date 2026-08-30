@@ -38,6 +38,7 @@ export const CONFIGURATION_DRAFT = "configuration.draft";
 export const CONFIGURATION_PUBLISH = "configuration.publish";
 
 export const REPORT_VIEW = "report.view";
+export const ASSIST_ASK = "assist.ask";
 export const AUDIT_VIEW = "audit.view";
 export const USER_MANAGE = "user.manage";
 export const ROLE_MANAGE = "role.manage";

@@ -46,6 +46,19 @@ def _validate_contract_type(value: str | None) -> str | None:
     return value
 
 
+# ------------------------------------------------------------------ assist
+class ConversationCreate(Body):
+    """An assist-lane session, optionally scoped to a contract the requester can view."""
+
+    contract_id: str | None = Field(default=None, max_length=64)
+
+
+class AskRequest(Body):
+    """One question. Length-bounded at the boundary; content rules live server-side."""
+
+    question: str = Field(min_length=1, max_length=2000)
+
+
 # ------------------------------------------------------------------ auth
 class LoginRequest(Body):
     """Step 47 fallback password path. S-7: the response is identical for an

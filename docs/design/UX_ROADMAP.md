@@ -102,7 +102,11 @@ Delivered under DD-5's finish standard and its theme resolution (light workspace
 - **Accessibility considerations:** filter control keyboard-operable, result count announced on filter change.
 - **Why here:** cheapest possible dry run of a *filtered* list before the review-detail screen's much higher-stakes filtering (by classification / needs-decision).
 
-### 3.5 — `/reviews/[reviewId]` — the core screen
+### 3.5 — DELIVERED 2026-08-22, awaiting owner review
+
+The DD-1 hybrid landed as direction C's essence with the existing DOM structure preserved (every Playwright selector — `.decision__*`, `.escalation`, `li.evaluation`, button/label names — intact): a **Needs decision (N) / All findings (M)** segmented view over the server-provided `requires_decision` field, defaulting to the queue and falling back to the full list when nothing needs a decision, with the full list always one click away. Findings needing a decision carry an attention edge; the Legal Decision block is styled as the page's one authority act (accent edge, tinted, labeled "Legal decision") while escalation stays visually a request (audit finding #8). Page header gains back link, status pill, snapshot, and View report; toolbar, escalation form, and analyse control moved onto `.form-row`/`.field`/`.btn` primitives. One pre-existing defect fixed: a failed review load no longer shows a perpetual "Loading findings…" beside its error banner. Direction B's split-pane rail remains open as a follow-up if real usage outgrows the single-page list (registered in DD-1; not needed at current finding volumes). Validated: typecheck, 58/58 Vitest, build, real-browser passes as the legal-scope test user (queue view, all view, and the byte-identical-404 out-of-scope path).
+
+### 3.5 (original spec) — `/reviews/[reviewId]` — the core screen
 
 - **Purpose:** inspect Findings → Evaluations → Evidence and record Legal Decisions.
 - **Target user:** all roles, each seeing a structurally different view (confidentiality omission).
@@ -115,7 +119,11 @@ Delivered under DD-5's finish standard and its theme resolution (light workspace
 - **Accessibility considerations:** disclosure widgets, live-region announcements for serial loading, focus management when moving between list and detail (if split-pane).
 - **Why here:** deliberately not first — it is the highest-complexity, highest-stakes screen, and every primitive it needs has been proven at lower stakes on 3.2–3.4 first.
 
-### 3.6 — `/reviews/[reviewId]/report`
+### 3.6–3.9 — DELIVERED 2026-08-22 (batched; no new patterns), awaiting owner review
+
+All four pages moved onto the established primitives at the DD-5 finish level, logic untouched. Report: back link, classification/status pills in the count tables (real badge families, no invented rollup). Audit: labeled filter card, `.table-card` (full timestamps kept — audit precision matters), `pre` blobs scroll in place. Admin: create-user card, `.table-card` users/roles tables, user-status pills, Grant as secondary and Disable as the destructive tier. Configuration: labeled forms on `.field`/`.btn--primary`, JSON textareas monospaced (structural presentation only — rule 21 untouched). Validated: typecheck, 58/58 Vitest, build, real-browser pass on all four pages. **With this, every page in the Phase 3 roadmap is delivered; report export stays deferred pending 49.12.**
+
+### 3.6 (original spec) — `/reviews/[reviewId]/report`
 
 - **Purpose:** aggregate picture of one Review — coverage, counts, alignment ratio.
 - **Target user:** User, Legal.

@@ -21,6 +21,7 @@
  */
 
 import type { Evaluation } from "@/lib/types";
+import { StatePill } from "./Primitives";
 
 /**
  * 52.5 — an Evaluation whose rule outcome is `APPROVAL_REQUIRED` or
@@ -61,18 +62,14 @@ export function EvaluationRow({
           {evaluation.scope_label ? <em> · {evaluation.scope_label}</em> : null}
         </span>
         <span className="evaluation__kind">{evaluation.evaluation_kind}</span>
-        <span className={`badge badge--${evaluation.classification.toLowerCase()}`}>
-          {evaluation.classification}
-        </span>
+        <StatePill axis="classification" value={evaluation.classification} />
 
         {/*
           Presence-tested, not permission-tested. When the server omitted it there
           is no element at all — not an empty span, not a placeholder (52.4).
         */}
         {evaluation.rule_outcome !== undefined ? (
-          <span className={`outcome outcome--${evaluation.rule_outcome.toLowerCase()}`}>
-            {evaluation.rule_outcome}
-          </span>
+          <StatePill axis="outcome" value={evaluation.rule_outcome} />
         ) : null}
 
         {evaluation.requires_decision ? (

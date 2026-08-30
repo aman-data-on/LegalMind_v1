@@ -54,7 +54,23 @@ export interface SessionIdentity {
 }
 
 // -------------------------------------------------- contracts & documents
+/** One evidence row as `GET /document-versions/{id}/evidence` returns it — the
+ * document as the pipeline read it, in reading order (page, offset). */
+export interface EvidenceRow {
+  id: string;
+  document_version_id: string;
+  page_number: number | null;
+  section_number: string | null;
+  section_title: string | null;
+  content: string;
+  source_type: string;
+  start_offset: number | null;
+  end_offset: number | null;
+}
+
 export interface Contract {
+  /** Newest first. Present on the detail endpoint (2026-08-30 addition). */
+  document_versions?: DocumentVersion[];
   id: string;
   owner_id: string;
   name: string;
@@ -77,6 +93,9 @@ export interface DocumentVersion {
   extraction_status: string | null;
   uploaded_by: string;
   created_at: string | null;
+  /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
+   * ready / lexical-only / not-indexed. Present on the detail endpoint. */
+  assist_index?: { chunks: number; embedded_chunks: number };
 }
 
 export interface UploadResult {
@@ -331,4 +350,37 @@ export interface AnalysisSubmission {
     diagnostics: string[];
   }[];
   idempotency_key?: string | null;
+}
+
+// ---- assist lane (AB-3/AB-4) ---------------------------------------------
+// The answer state is the SIXTH axis (AM-29): it never shares a value with any
+// legal axis, and there is deliberately no "confidence" field anywhere here —
+// retrieval_score is a retrieval score and the UI labels it as exactly that
+// (AI-03 item 16, rule 12).
+export type AssistAnswerState =
+  | "ANSWERED"
+  | "NO_EVIDENCE_RETRIEVED"
+  | "EVIDENCE_INSUFFICIENT"
+  | "CLAIM_UNSUPPORTED";
+
+export interface AssistCitation {
+  chunk_id: string;
+  page_number: number | null;
+  section_ref: string | null;
+  excerpt: string;
+  retrieval_score: number;
+}
+
+export interface AskResult {
+  conversation_id: string;
+  message_id: string;
+  answer_state: AssistAnswerState;
+  text: string;
+  routed_to_evaluator: boolean;
+  citations: AssistCitation[];
+}
+
+export interface Conversation {
+  id: string;
+  contract_id: string | null;
 }

@@ -21,7 +21,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
+import { AskPanel } from "@/components/AskPanel";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { Field, StatePill, TableCard, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -105,21 +107,16 @@ export default function ContractPage({
       {contract ? (
         <p className="page-meta">
           <span>{contract.contract_type ?? "Type not set"}</span>
-          <span className={`status status--${contract.status.toLowerCase()}`}>
-            {contract.status}
-          </span>
+          <StatePill axis="status" value={contract.status} />
         </p>
       ) : null}
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.DOCUMENT_UPLOAD)}>
         <form className="card form-row" onSubmit={upload}>
-          <div className="field field--grow">
-            <label className="field__label" htmlFor="document-file">
-              Upload a document version (PDF or DOCX)
-            </label>
+          <Field id="document-file" label="Upload a document version (PDF or DOCX)" grow>
             <input id="document-file" ref={fileInput} type="file" accept=".pdf,.docx" required />
-          </div>
+          </Field>
           <button type="submit" className="btn btn--primary" disabled={busy}>
             {busy ? "Uploading…" : "Upload"}
           </button>
@@ -177,7 +174,7 @@ export default function ContractPage({
       {reviews.length === 0 ? (
         <EmptyState>No reviews yet.</EmptyState>
       ) : (
-        <div className="table-card table-wrap">
+        <TableCard>
           <table>
             <thead>
               <tr>
@@ -193,16 +190,14 @@ export default function ContractPage({
                     <Link href={`/reviews/${review.id}`}>{review.id.slice(0, 8)}</Link>
                   </td>
                   <td>
-                    <span className={`status status--${review.status.toLowerCase()}`}>
-                      {review.status}
-                    </span>
+                    <StatePill axis="status" value={review.status} />
                   </td>
-                  <td>{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                  <td title={review.created_at ?? undefined}>{formatDate(review.created_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </TableCard>
       )}
 
       <PermissionGate granted={can(P.REVIEW_CREATE)}>
@@ -221,28 +216,28 @@ export default function ContractPage({
               if (typeof versionId === "string" && versionId) void startReview(versionId);
             }}
           >
-            <div className="field">
-              <label className="field__label" htmlFor="review-version">
-                Document version id
-              </label>
+            <Field id="review-version" label="Document version id">
               <input id="review-version" name="version" required />
-            </div>
-            <div className="field">
-              <label className="field__label" htmlFor="review-snapshot">
-                Configuration snapshot id
-              </label>
+            </Field>
+            <Field id="review-snapshot" label="Configuration snapshot id">
               <input
                 id="review-snapshot"
                 required
                 value={snapshotId}
                 onChange={(event) => setSnapshotId(event.target.value)}
               />
-            </div>
+            </Field>
             <button type="submit" className="btn btn--primary">
               Create review
             </button>
           </form>
         </section>
+      </PermissionGate>
+
+      {/* The assist lane (AB-3/AB-4): grounded Q&A about this document. Gating is
+          presentation only (52.1.3) — the server enforces assist.ask regardless. */}
+      <PermissionGate granted={can(P.ASSIST_ASK)}>
+        {contractId ? <AskPanel contractId={contractId} /> : null}
       </PermissionGate>
     </>
   );

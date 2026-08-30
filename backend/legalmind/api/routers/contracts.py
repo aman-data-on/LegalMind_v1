@@ -26,6 +26,7 @@ from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import permissions as P
+from legalmind.worker.dispatch import dispatch_indexing
 
 router = APIRouter(tags=["contracts"])
 
@@ -56,7 +57,26 @@ def create_contract(body: ContractCreate,
 
 @router.get("/contracts/{contract_id}")
 def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
-    return data(serialize_contract(guard.contract(contract_id, P.CONTRACT_VIEW)))
+    """The contract with its document versions, newest first.
+
+    `document_versions` is an implementation addition (2026-08-30, UI phase): a
+    document-anchored workspace opened on a contract must be able to find its
+    document through the API, and nothing listed versions — the legacy screen only
+    ever showed the version it had just uploaded. Additive, same permission the
+    contract already required (a version is reachable only through a contract the
+    caller can see — 47.6 one level down), and the summary is the existing
+    `serialize_document_version` shape, so nothing new is disclosed. Recorded in
+    Step 49's implementation-additions section.
+    """
+    contract = guard.contract(contract_id, P.CONTRACT_VIEW)
+    versions = guard.db.execute(
+        select(M.DocumentVersion)
+        .where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number.desc(), M.DocumentVersion.id.desc())
+    ).scalars().all()
+    payload = serialize_contract(contract)
+    payload["document_versions"] = [serialize_document_version(v) for v in versions]
+    return data(payload)
 
 
 @router.patch("/contracts/{contract_id}")
@@ -114,6 +134,16 @@ async def upload_document_version(
         filename=x_filename,
         declared_mime=request.headers.get("content-type", ""),
     )
+
+    # Assist-lane indexing — AB-3 / AB-4, Gate section 5b unit A2. Additive and
+    # non-authoritative: it builds a derived search index over evidence the parser has
+    # already produced, and it can never fail this upload. `dispatch_indexing` swallows
+    # its own faults for that reason, and the response below is unchanged either way —
+    # no field reports index state, because a document is ingested whether or not a
+    # derived index was built.
+    dispatch_indexing(guard.db, result.document_version.id,
+                      request_id=guard.request_id)
+
     return data({
         "document_version": serialize_document_version(result.document_version),
         "processing_run": {

@@ -11,6 +11,14 @@
 | Check the current step / build state | [00-project/IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) |
 | Look up a term precisely | [00-project/GLOSSARY.md](00-project/GLOSSARY.md) |
 | Name a state value correctly | [02-legal-domain/DECISION_STATE_MODEL.md](02-legal-domain/DECISION_STATE_MODEL.md) |
+| **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
+| Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
+| **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
+| **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
+| Supply the statutes (C-16) — what and how | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |
+| Activate Gemini, step by step | [09-implementation/GEMINI_ACTIVATION_RUNBOOK.md](09-implementation/GEMINI_ACTIVATION_RUNBOOK.md) |
+| Run production operations | [`../ops/README.md`](../ops/README.md) |
+| The new workspace UI plan (Phase 2) | [design/WORKSPACE_UI_PLAN.md](design/WORKSPACE_UI_PLAN.md) |
 | Find a known contradiction | [00-project/CONFLICTS.md](00-project/CONFLICTS.md) |
 | Read the authoritative historical record | [`../all_lock.md`](../all_lock.md) |
 | Propose a change | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
@@ -70,11 +78,13 @@ Declared at the top of every specification document. Never mix states without la
 | File | Purpose |
 |---|---|
 | [PROJECT_OVERVIEW.md](00-project/PROJECT_OVERVIEW.md) | What LegalMind is, what it is not, the analysis chain |
+| [CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) | **`ACTIVE` — the operational index.** Source hierarchy, assist-lane pointers, the `SOURCE REQUIRED`/`DECISION REQUIRED` markers, when to decide versus ask. Restates no locked rule — every legal rule is a pointer |
+| [LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) | **`DERIVED` — plain-language status for the project owner.** Current goal, phase ladder, real blockers, and what the owner is asked for and when. Derives build state from `IMPLEMENTATION_STATUS.md`; asserts none of its own |
 | [ARCHITECTURE_REFERENCE.md](00-project/ARCHITECTURE_REFERENCE.md) | **Architecture & system-flow map** — the developer entry point. Navigational only; links to every authoritative spec |
 | [LOCKED_DECISIONS.md](00-project/LOCKED_DECISIONS.md) | Registry of every explicitly locked decision, by ID |
 | [IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) | Current step, status per area, and everything NOT YET SPECIFIED |
 | [CLAUSE_CATALOGUE.md](00-project/CLAUSE_CATALOGUE.md) | The full-document review map: Requirements per document type, sources, and gaps (2026-08-19) |
-| [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved (C-01–C-04, C-09, C-11) and open (C-05–C-08, C-10, C-12) |
+| [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved (C-01–C-04, C-09, C-11) and **nine open** (C-05–C-08, C-10, C-12, C-13, and C-14–C-16 registered 2026-08-25) |
 | [GLOSSARY.md](00-project/GLOSSARY.md) | Terminology, with the distinctions that must not be conflated |
 | [DECISION_FINALIZATION.md](00-project/DECISION_FINALIZATION.md) | Working record: classification of every remaining item, F-1–F-12 |
 | [EXTERNAL_REFERENCE_AUDIT.md](00-project/EXTERNAL_REFERENCE_AUDIT.md) | Working record: audit of external MoS material; source of OD-1–OD-15 |
@@ -176,6 +186,22 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [INDEPENDENT_VERIFICATION.md](08-testing/INDEPENDENT_VERIFICATION.md) | 📁 Record — each critical guarantee re-checked by a mechanism *other than* the test that asserts it, and what that found |
 | [TEST_STRATEGY.md](08-testing/TEST_STRATEGY.md) | Step 39 tooling extract — superseded by Step 54 |
 
+### [api/](api/) — the frozen API contract (derived, not specification)
+
+| Document | Content |
+|---|---|
+| [README.md](api/README.md) | 📁 Why the snapshot exists, how to regenerate it, what it deliberately cannot express |
+| [openapi.json](api/openapi.json) | 📁 Generated from `create_app()`, keys sorted, **drift-tested** by `test_the_committed_openapi_snapshot_matches_the_app` — the "finalized backend contracts" a UI/UX phase designs against. Where it disagrees with [STEP_49_API_FINALIZATION.md](05-architecture/STEP_49_API_FINALIZATION.md), Step 49 wins |
+
+### [architecture/](architecture/) — architecture research and audits (not specification)
+
+> Unnumbered, like [design/](design/): nothing here is locked, nothing here decides anything. It exists so forward-looking architecture research has a home distinct from [05-architecture/](05-architecture/)'s locked specifications.
+
+| File | Purpose |
+|---|---|
+| [EXISTING_BACKEND_REUSE_AUDIT.md](architecture/EXISTING_BACKEND_REUSE_AUDIT.md) | `ANALYSIS` — audit of the existing backend against the 2026-08-25 product vision and tech-stack documents: reuse matrix, gap analyses, 16-item contradiction register, migration order, "do not rebuild" list. Resolves nothing; authorizes no build |
+| [AI_RAG_ARCHITECTURE_RND.md](architecture/AI_RAG_ARCHITECTURE_RND.md) | `PROPOSAL` — assist-lane LLM/RAG architecture R&D (chunking, hybrid retrieval, output validation). **Partly superseded by AB-3** — see its banner; reopens no locked decision; authorizes no build |
+
 ### [design/](design/) — UI/UX governance (implementation-phase, not specification)
 
 > Governed by [`../DESIGN.md`](../DESIGN.md), the root-level design-governance document. Nothing here locks legal or product behavior — visual design, component choice, and interaction model are left `NOT YET SPECIFIED` by Step 52.6 and are decided here instead.
@@ -184,6 +210,11 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 |---|---|
 | [UX_AUDIT.md](design/UX_AUDIT.md) | Current-state audit of the already-implemented frontend: page/component inventory, UX problems, workflow map |
 | [DESIGN_DECISIONS.md](design/DESIGN_DECISIONS.md) | Append-only log of major UI/UX decisions (interaction models, component-library adoption, etc.) |
+| [PRODUCT_UX_ROADMAP.md](design/PRODUCT_UX_ROADMAP.md) | **The product-UX strategy (A–M)**: roles from the live grant matrix, IA, journeys, screen inventory with P0–P3, admin plane, state strategy, API mapping with the three identified gaps, risks, phased sequence. `PROPOSED` — awaiting owner review |
+| [UI_UX_MASTER_PROMPT.md](design/UI_UX_MASTER_PROMPT.md) | **The authoritative design brief** (owner-directed R&D pass, 2026-08-27; supersedes DD-1–DD-5 via DD-6) — self-contained, buildable against the frozen API contract |
+| [WORKSPACE_UI_PLAN.md](design/WORKSPACE_UI_PLAN.md) | The core screen's detailed design: three-pane Review workspace, cross-pane highlight, blocked-surface placeholders (adopted by DD-7) |
+| [UI_PATTERNS.md](design/UI_PATTERNS.md) | The deliberately unusual patterns (confidential omission, the refusal state) — why they look wrong and are right, with real screenshots in [assets/](design/assets/) |
+| [USABILITY_TEST_PLAN.md](design/USABILITY_TEST_PLAN.md) | Five-person think-aloud plan (2 personas, 4 tasks incl. a permission probe), observation checklist, feedback form |
 | [UX_ROADMAP.md](design/UX_ROADMAP.md) | Phase sequencing and page-by-page implementation order, with dependencies |
 | [DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md) | The concrete tokens and primitives, as implemented in Phase 1 (foundation) + Phase 2 (shell) |
 

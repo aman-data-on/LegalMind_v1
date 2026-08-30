@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { ErrorBanner, Loading } from "@/components/Feedback";
+import { StatePill } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -56,10 +57,10 @@ export default function ReportPage({
 
   return (
     <>
+      <Link className="page-back" href={`/reviews/${reviewId}`}>
+        ← Back to findings
+      </Link>
       <h1>Review report</h1>
-      <p className="hint">
-        <Link href={`/reviews/${reviewId}`}>Back to findings</Link>
-      </p>
       <ErrorBanner error={error} />
 
       {report === null ? (
@@ -92,7 +93,9 @@ export default function ReportPage({
               <tbody>
                 {Object.entries(report.classification_counts).map(([key, count]) => (
                   <tr key={key}>
-                    <td>{key}</td>
+                    <td>
+                      <StatePill axis="classification" value={key} />
+                    </td>
                     <td>{count}</td>
                   </tr>
                 ))}
@@ -109,7 +112,9 @@ export default function ReportPage({
               <tbody>
                 {Object.entries(report.status_counts).map(([key, count]) => (
                   <tr key={key}>
-                    <td>{key}</td>
+                    <td>
+                      <StatePill axis="status" value={key} />
+                    </td>
                     <td>{count}</td>
                   </tr>
                 ))}

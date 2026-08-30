@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { Field, StatePill, TableCard } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -104,25 +105,27 @@ export default function AdminPage() {
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.USER_MANAGE)}>
-        <form className="card inline" onSubmit={createUser}>
-          <label>
-            Work email
+        <form className="card form-row" onSubmit={createUser}>
+          <Field id="new-user-email" label="Work email">
             <input
+              id="new-user-email"
               type="email"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </label>
-          <label>
-            Name
+          </Field>
+          <Field id="new-user-name" label="Name">
             <input
+              id="new-user-name"
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-          </label>
-          <button type="submit">Create user</button>
+          </Field>
+          <button type="submit" className="btn btn--primary">
+            Create user
+          </button>
         </form>
         <p className="hint">
           A new account holds no roles. Authority is always a later, deliberate grant.
@@ -134,6 +137,7 @@ export default function AdminPage() {
         ) : users.length === 0 ? (
           <EmptyState>No users.</EmptyState>
         ) : (
+          <TableCard>
           <table>
             <thead>
               <tr>
@@ -149,7 +153,9 @@ export default function AdminPage() {
                 <tr key={user.id}>
                   <td>{user.email}</td>
                   <td>{user.name}</td>
-                  <td>{user.status}</td>
+                  <td>
+                    <StatePill axis="status" value={user.status} />
+                  </td>
                   <td>
                     {user.roles.length === 0 ? (
                       <span className="hint">none</span>
@@ -170,7 +176,7 @@ export default function AdminPage() {
                   </td>
                   <td>
                     <form
-                      className="inline"
+                      className="form-row"
                       onSubmit={(event) => {
                         event.preventDefault();
                         const code = new FormData(event.currentTarget).get("role");
@@ -192,11 +198,18 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </label>
-                      <button type="submit">Grant</button>
+                      <button type="submit" className="btn btn--secondary btn--sm">
+                        Grant
+                      </button>
                     </form>
+                    {/* Disabling access is the destructive direction (DD-5 button tiers). */}
                     <button
                       type="button"
-                      className="link"
+                      className={
+                        user.status === "ACTIVE"
+                          ? "btn btn--danger btn--sm"
+                          : "btn btn--secondary btn--sm"
+                      }
                       onClick={() =>
                         void setStatus(
                           user.id,
@@ -211,6 +224,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          </TableCard>
         )}
       </PermissionGate>
 
@@ -219,6 +233,7 @@ export default function AdminPage() {
         {roles === null ? (
           <Loading what="roles" />
         ) : (
+          <TableCard>
           <table>
             <thead>
               <tr>
@@ -247,6 +262,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          </TableCard>
         )}
       </PermissionGate>
     </>

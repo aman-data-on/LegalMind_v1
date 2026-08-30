@@ -113,7 +113,7 @@ async function postOk(page: Page, path: string, body?: unknown): Promise<any> {
 export async function createAnalysedReview(
   page: Page,
   { analyse = true }: { analyse?: boolean } = {},
-): Promise<{ reviewId: string }> {
+): Promise<{ reviewId: string; contractId: string }> {
   const f = fixture();
 
   const contract = await postOk(page, "/contracts", {
@@ -146,7 +146,7 @@ export async function createAnalysedReview(
   });
 
   if (analyse) await postOk(page, `/reviews/${review.id}/analyze`);
-  return { reviewId: review.id };
+  return { reviewId: review.id, contractId: contract.id };
 }
 
 /** The Evaluation ids on a Review, read through the API the browser uses. */
@@ -157,4 +157,20 @@ export async function evaluationIds(page: Page, reviewId: string): Promise<strin
   return findings.flatMap((finding: any) =>
     finding.evaluations.map((e: any) => e.id),
   );
+}
+
+/**
+ * Drive the real login form. The single owner of the login-page selector
+ * strategy: `exact` on the password label because the screen also has a
+ * "Show password" reveal control (DD-4) that substring matching would catch.
+ */
+export async function signIn(
+  page: import("@playwright/test").Page,
+  account: { email: string; password: string },
+): Promise<void> {
+  await page.goto("/login");
+  await page.getByLabel("Work email").fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await page.waitForURL(/\/contracts/, { timeout: 20_000 });
 }

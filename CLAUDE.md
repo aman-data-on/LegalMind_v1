@@ -6,11 +6,48 @@ Read this before doing anything in this repository.
 
 ---
 
+## 🔔 Start of a session — do this first, before anything else
+
+**When the owner opens with a greeting — "hi", "hello", "morning", or anything else that
+is not itself a task — do not ask what they want. Report where the project stands, then
+ask.** Owner instruction, 2026-08-25: *"every day when I type hi you will give me the
+latest previous work we do."*
+
+Read these three, in this order, and answer from them:
+
+| # | Read | For |
+|---|---|---|
+| 1 | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) | Current phase · what is done · blockers · what is needed from the owner |
+| 2 | [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` — the **top** entries | What the last session actually changed |
+| 3 | [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) Build state, unit 12 | The authoritative build state — **the only document that may assert it** |
+
+Then reply with, in **plain language** and short:
+
+1. **Where we are** — the current phase, in one line.
+2. **What was finished last session** — two or three bullets, concrete.
+3. **What is blocked, and on what** — only real blockers.
+4. **What I need from you, if anything** — and if nothing, say so and name the next step.
+
+Two rules for that reply. **Verify before asserting a number**: run the suite or grep
+rather than quoting a figure from a document that may have gone stale — that is how
+"653 tests" and "No Legal Rule exists" survived for days. And **do not re-ask for
+anything already supplied or already decided** (rule 23); check
+[AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md) and the
+[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) registry first.
+
+**Every session that finishes a unit of work updates all three documents above**, so the
+next session's greeting answers itself. A session that leaves them stale has not
+finished.
+
+---
+
 ## Start here
 
 | | |
 |---|---|
 | **Where do I find X?** | [docs/README.md](docs/README.md) — the documentation index |
+| **How to work here — the operational index** | [docs/00-project/CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) — source hierarchy, the assist-lane pointers, when to decide vs ask |
+| Plain-language status, for the owner | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) |
 | **How the system works end to end** | [docs/00-project/ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
 | Project overview | [docs/00-project/PROJECT_OVERVIEW.md](docs/00-project/PROJECT_OVERVIEW.md) |
 | Every explicitly locked decision | [docs/00-project/LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) |
@@ -58,10 +95,10 @@ Reuse what is already decided. The registry, the status document and the conflic
 
 ### The legal-analysis model
 
-9. **Legal analysis is deterministic in V1.** Same inputs + same configuration snapshot + same engine version → same result.
-10. **V1 uses no LLM, RAG, embeddings, or vector database in the authoritative analysis path.** This is locked (`AI-01`) and is not a temporary simplification pending better tooling. Classical NLP (e.g. spaCy) is permitted in an assist-only role.
+9. **Legal analysis is deterministic in V1 — in the authoritative lane.** Same inputs + same configuration snapshot + same engine version → same result. The assistive AI lane (`AM-25`) makes **no** determinism claim, is never admitted to that guarantee, and never enters a determinism assertion (`AM-28`).
+10. **No LLM, RAG, embeddings or vector database in the AUTHORITATIVE analysis path.** Locked (`AI-01`), reaffirmed by `AM-25`, and not a temporary simplification pending better tooling. Classical NLP (e.g. spaCy) is permitted in an assist-only role. ⚠️ **`AM-25` (AB-3, 2026-08-24) narrowed the timing clause only:** an *assistive* lane — local embeddings, vector + keyword retrieval over document chunks, reranking, **Gemini Flash for generation** (`AM-30`, AB-4, 2026-08-25 — the assist lane's generation call is the one permitted egress; embeddings and reranking stay local and self-hosted, and `AM-31`'s real-contract gate is **CLOSED** until written provider terms exist), retrieval-grounded cited answers, long-document briefing — **is now in V1 scope**, on nine locked terms. That lane never produces a Finding, Evaluation, Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition; never writes to the legal or configuration tables; never states an organizational legal position absent from a ratified Company Standard, a published Legal Rule or an approved template; and never answers "does this document meet our standard?" — that routes to the evaluator. **Read `AM-25` in full before building anything in that lane.**
 11. **Evidence traceability is mandatory.** Every finding and every extracted fact traces back to source evidence, and evidence must survive the evaluator.
-12. **Findings must be explainable.** Every Finding reconstructs as Evidence → Fact → Standard → Rule → Result. No generic risk score. No "AI confidence" percentage.
+12. **Findings must be explainable.** Every Finding reconstructs as Evidence → Fact → Standard → Rule → Result. No generic risk score. No "AI confidence" percentage. This governs the **Finding**: the assist lane records its own retrieval scores and answer state (`AM-29`), but a retrieval score is never a Finding, never a Classification, and is never rendered to a user as legal confidence.
 13. **Legal Decisions are separate from Company Standards.** A Company Standard is what the organization wants; a Legal Rule is how far it will tolerate departing from that; a Legal Decision is an authorized human's ruling on a specific case. The engine produces Findings — it never produces Legal Decisions.
 14. **RESOLVED ≠ MATCH.** A resolved workflow state must never be recorded as a MATCH finding. Likewise `DEVIATION` does not mean "unacceptable."
 15. **Fail closed.** Insufficient extraction or evidence produces `UNABLE_TO_EVALUATE` — never a guess, never a silently resolved ambiguity, never a discarded carve-out.
@@ -153,6 +190,51 @@ Never delete an example to make a document shorter. Never "clean up" example val
 
 ---
 
+## UI and UX work — apply the design skills, always
+
+**Owner instruction, 2026-08-26:** *"apply this skills always when the task is ui-ux related."*
+
+A task is UI/UX work if it touches `frontend/`, a screen, a component, styling, layout,
+typography, colour, iconography, spacing, motion, accessibility or a chart — **including a
+one-line CSS change.** Invoke these before writing markup or styles, not after:
+
+| Skill | For |
+|---|---|
+| `ui-ux-pro-max` — with its `ui-styling`, `design-system` and `design` skills | Styles, palettes, font pairings, chart selection, per-stack (Next.js/React/Tailwind) guidance |
+| `frontend-design` | Aesthetic direction when building new UI or reshaping existing UI |
+| `dataviz` | Any chart, meter, KPI tile, sparkline or dashboard |
+
+Its `brand`, `banner-design` and `slides` skills are marketing-asset tools. LegalMind has no
+marketing surface — do not reach for them on a product screen.
+
+⚠️ **`ui-styling` is written around shadcn/ui + Tailwind, and this frontend has neither by
+deliberate choice** — [DESIGN.md](DESIGN.md) records that no CSS framework, component library or
+client-state library was added, and `frontend/src/app/globals.css` is one plain stylesheet.
+Adopting either is a **rule 19** dependency decision requiring owner approval. Until that
+approval exists, translate its guidance into the existing plain-CSS primitives (`.field`,
+`.btn--*`, `.table-card`, `StatePill`); never install the stack it assumes.
+
+**These skills advise. They never override, and the order is not negotiable:**
+
+1. **[CLAUDE.md](CLAUDE.md) rules 1–23** — in particular rule 18: the UI implements no legal
+   evaluation logic, never talks to the database directly, and UI permission gating is
+   presentation only. A skill suggesting client-side logic that decides a legal outcome is
+   simply wrong here.
+2. **[DESIGN.md](DESIGN.md)** and the recorded decisions in
+   [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) (DD-1 … DD-5). Where a
+   skill's default conflicts with a DD decision, **the DD decision wins and the conflict is
+   reported** — rule 5, not silently resolved in either direction.
+3. **Three product-specific prohibitions the generic skills cannot know:** the interface never
+   implies a probability, a confidence score or "the AI thinks" hedging (rule 12 and DESIGN.md);
+   there is no urgency theater; and an omitted confidential field stays omitted, never nulled or
+   greyed (`SEC-07`, `LEGAL-02`). Meanwhile the finish bar stays at DD-4 level from the first
+   pass (owner, 2026-08-21) — "no marketing copy" is not licence for bare design.
+
+Presentation-layer work still locks nothing: DESIGN.md governs it and amends no entry in
+[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).
+
+---
+
 ## Document status labels
 
 Every specification document declares its state. Never mix states without labeling them.
@@ -192,7 +274,7 @@ Documents under [docs/09-implementation/](docs/09-implementation/) still describ
 
 ## Current state
 
-**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1 and AB-2, and `IMPL-01` are locked. `all_lock.md` is **15,358 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
+**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1, AB-2, **AB-3** (`AM-25`–`AM-29`, the assistive AI lane), **AB-4** (`AM-30`, `AM-31`, `IMPL-02`, Gemini Flash for generation) and **AB-5** (`AM-32`, the Domain A/C corpus tables — resolves C-15; Domain A output is extractive-only per `AM-30` t3), and `IMPL-01`/`IMPL-02` are locked. `all_lock.md` is **16,494 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
 
 ### The V1 configuration state — read before touching the evaluator or the corpus
 
@@ -224,7 +306,7 @@ Documents under [docs/09-implementation/](docs/09-implementation/) still describ
 | Type storage is **JSONB, no schema change** (Q2=A) | Company Standard `configuration.document_type`; C-13 registered |
 | **Legal Rule = ZERO TOLERANCE** (manager, recorded 2026-08-19; **owner approved & wired 2026-08-20**): MATCH → `ACCEPTABLE`, any DEVIATION → `UNACCEPTABLE` → Legal Decision; no thresholds, no tolerance bands, no auto-approval of any deviation. Supersedes every earlier "no Legal Rule exists" statement | this table; memory `legalmind-zero-tolerance-legal-rule`; routing already enforced by D-3.5(a) + `UNRULED_DEVIATION_REQUIRES_DECISION` |
 | `FEES_PAID` and `FEES_PAID_FOR_AFFECTED_SERVICES` stay **distinct** — never add either to `comparable_bases` or a conversion rule | same config file, `_owner_rulings` |
-| Requirement catalogue: **SUPERSEDED 2026-08-19** — the owner instructed full-document review; **15 Requirements** across MSA/TOS/SLA, every position extracted from a LeapSwitch document | [docs/00-project/CLAUSE_CATALOGUE.md](docs/00-project/CLAUSE_CATALOGUE.md) + `backend/config/company_standards/` |
+| Requirement catalogue: **SUPERSEDED 2026-08-19** — the owner instructed full-document review; **32 ratified Company Standards** (MSA 15 · TOS 8 · NDA 8 · SLA 1) across MSA/TOS/SLA, every position extracted from a LeapSwitch document | [docs/00-project/CLAUSE_CATALOGUE.md](docs/00-project/CLAUSE_CATALOGUE.md) + `backend/config/company_standards/` |
 | MSA §17.2 and §17.7 govern **one scope and contradict** → `CONFLICT` | fixture `DOC-LIAB-04` |
 | Source documents live at `legal-docs/` inside the project, **gitignored, never tracked** (re-ruled 2026-08-19; 54.6 = version control) | `/root/Legalmind.v1/legal-docs/ (gitignored)README.md` |
 
@@ -236,7 +318,7 @@ Two evaluators are specified: `LIABILITY-001` (`NUMERIC_COMPARISON`) and the gen
 
 **Before naming any state value, read [docs/02-legal-domain/DECISION_STATE_MODEL.md](docs/02-legal-domain/DECISION_STATE_MODEL.md).** It is the canonical cross-layer reference for all five controlled state vocabularies. Mapping State, Finding Classification, Rule Outcome, Legal Decision, and Review Lifecycle are five separate axes and must never share a status field or enum — `AMBIGUOUS` in particular means three different things on three different layers.
 
-Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09** was resolved on 2026-08-17 by `IMPL-01` and AB-2, and **C-11** by `REC-08` (CI/CD tooling is GitHub Actions). **`REC-09`** (2026-08-17) defines Step 24 r6's "explicit Legal scope" and resolves finding **`F-6`** — before it, a Legal Reviewer could reach no Review at all. **Six remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): C-05–C-08 (low), **C-10 (MEDIUM)**, and **C-12** (low; Step 39 names Playwright while 54.7 lists framework selection as NOT YET SPECIFIED — registered, and blocking nothing). `REC-01`–`REC-07` are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions"; `REC-08` and `REC-09` each carry their own lock record appended after AB-2.
+Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09** was resolved on 2026-08-17 by `IMPL-01` and AB-2, and **C-11** by `REC-08` (CI/CD tooling is GitHub Actions). **`REC-09`** (2026-08-17) defines Step 24 r6's "explicit Legal scope" and resolves finding **`F-6`** — before it, a Legal Reviewer could reach no Review at all. **Six were resolved by owner ruling on 2026-08-27** (recorded alongside AB-5): **C-15** by `AM-32`; **C-10** and **C-08** by "the code is authoritative" (the canonical role set is the one `legalmind/security/permissions.py` carries — `ADMIN` is never seeded; a Legal Reviewer reviews/escalates and approval requires `legal.decision`); **C-05/C-06/C-07** by annotation in CONFLICTS.md, the `all_lock.md` lines untouched. **Four remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): **C-12** (low; Step 39 names Playwright while 54.7 lists framework selection as NOT YET SPECIFIED — blocking nothing), **C-13** (low), **C-14** (the locked table count says 30, the repository says 29 — blocks nothing), and **C-16 (MEDIUM)** (the statute corpus cites the NI Act and Evidence Act, neither ever supplied; plus the owner must choose Evidence Act 1872 vs the BSA 2023 that repealed it). `REC-01`–`REC-07` are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions"; `REC-08` and `REC-09` each carry their own lock record appended after AB-2.
 
 The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authentication) was closed by Step 47. The rest are tracked in [EXTERNAL_REFERENCE_AUDIT.md](docs/00-project/EXTERNAL_REFERENCE_AUDIT.md) §16 — do not resolve one yourself.
 
@@ -244,7 +326,7 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 
 ## Working a session
 
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **15,358 lines**; if it is longer, the docs may be stale and you should say so.
+1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **16,494 lines**; if it is longer, the docs may be stale and you should say so.
 2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
 3. **Check what already exists before building or asking** — rule 23. Read the status, handoff and changelog records first; verify with a grep or a test run; and look in [Source material](#source-material) before requesting a document.
 4. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.

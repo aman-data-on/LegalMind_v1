@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 
 import { expect, test as setup } from "@playwright/test";
 
-import { SNAPSHOT_PATH, fixture, storageStatePath } from "./support";
+import { SNAPSHOT_PATH, fixture, signIn, storageStatePath } from "./support";
 
 /**
  * One-time setup: sign in once per account, and publish the configuration once.
@@ -37,13 +37,7 @@ for (const label of ACCOUNTS) {
   setup(`sign in as ${label}`, async ({ page }) => {
     const account = fixture().accounts[label];
 
-    await page.goto("/login");
-    await page.getByLabel("Work email").fill(account.email);
-    // exact: the login screen also has a "Show password" reveal control (DD-4),
-    // which substring matching would otherwise catch as a second candidate.
-    await page.getByLabel("Password", { exact: true }).fill(account.password);
-    await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/\/contracts/, { timeout: 20_000 });
+    await signIn(page, account);
 
     const path = storageStatePath(label);
     mkdirSync(dirname(path), { recursive: true });

@@ -2,11 +2,20 @@
 
 **Status: `IN PROGRESS` (Phase 0 — Discovery). This document governs presentation-layer decisions only. It locks nothing in `all_lock.md` and amends no entry in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).**
 
+**2026-08-27 — read [docs/design/UI_UX_MASTER_PROMPT.md](docs/design/UI_UX_MASTER_PROMPT.md) first.**
+Owner-directed full R&D pass; `DD-6` in [DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md)
+supersedes the identity treatment (`DD-2`–`DD-4`) and finalizes the workflow layout `DD-1` left
+open. The principles below are retained (they derive from locked rules, not taste) — the master
+prompt is the current authority on visual system, information architecture, and the new assist
+surface.
+
 This document exists because [STEP_52_FRONTEND_ARCHITECTURE.md](docs/05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md) §52.6 explicitly leaves visual design, component library, accessibility target, and internationalization `NOT YET SPECIFIED` and calls each "an implementation-phase choice." This is that choice being made deliberately, in the open, instead of accreting ad hoc. It does not touch [CLAUDE.md](CLAUDE.md), which remains the authority on everything else in this repository.
 
 **What this document is not:** it is not a specification of legal behavior, not a Company Standard, not a Legal Rule, and not an amendment to any locked decision. Where this document is silent or in tension with `CLAUDE.md` rules 1–23, `CLAUDE.md` wins.
 
-**What already exists:** the frontend (`frontend/`) is not a blank slate. All ten Step 52.6 screens except report export are implemented, permission-gated, and covered by 53 Vitest tests and a Playwright browser suite that pins down real security- and correctness-critical DOM behavior (confidentiality omission, no-optimistic-decision-UI, 409 conflict surfacing, byte-identical 404s). Deliberately, **no CSS framework, component library, or client-state library was added** — `frontend/src/app/globals.css` is one plain stylesheet. This document governs how that gap gets filled, not whether the existing information architecture is correct. **The IA is correct and locked-adjacent (52.5); the visual and component layer is what's open.**
+**Which skills to apply, and in what order:** [CLAUDE.md](CLAUDE.md) §"UI and UX work — apply the design skills, always" (owner instruction, 2026-08-26). Every UI/UX task invokes `ui-ux-pro-max`, `frontend-design` and — for charts — `dataviz` before markup or styles are written. Those skills advise; this document and its DD decisions win, and a conflict between them is reported under rule 5 rather than resolved silently.
+
+**What already exists:** the frontend (`frontend/`) is not a blank slate. All ten Step 52.6 screens except report export are implemented, permission-gated, and covered by 58 Vitest tests and a Playwright browser suite that pins down real security- and correctness-critical DOM behavior (confidentiality omission, no-optimistic-decision-UI, 409 conflict surfacing, byte-identical 404s). Deliberately, **no CSS framework, component library, or client-state library was added** — `frontend/src/app/globals.css` is one plain stylesheet. This document governs how that gap gets filled, not whether the existing information architecture is correct. **The IA is correct and locked-adjacent (52.5); the visual and component layer is what's open.**
 
 ---
 
@@ -139,6 +148,8 @@ Nothing in this document authorizes changing the frontend's structural guarantee
 
 ## Where the rest of this lives
 
+- The deliberately unusual patterns (confidential omission, the refusal state), explained with real screenshots: [docs/design/UI_PATTERNS.md](docs/design/UI_PATTERNS.md)
+- Usability testing plan (Phase 5): [docs/design/USABILITY_TEST_PLAN.md](docs/design/USABILITY_TEST_PLAN.md)
 - Current-state audit (page inventory, component inventory, UX problems, workflow map): [docs/design/UX_AUDIT.md](docs/design/UX_AUDIT.md)
 - Explored interaction directions for the core review workflow, and the recorded decision: [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md)
 - Phase sequencing and page-by-page implementation roadmap: [docs/design/UX_ROADMAP.md](docs/design/UX_ROADMAP.md)

@@ -30,6 +30,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -103,16 +104,18 @@ export default function ConfigurationPage() {
       <ErrorBanner error={error} />
 
       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
-        <form className="card inline" onSubmit={createRequirement}>
-          <label>
-            New Requirement code
+        <form className="card form-row" onSubmit={createRequirement}>
+          <Field id="new-requirement-code" label="New Requirement code">
             <input
+              id="new-requirement-code"
               required
               value={code}
               onChange={(event) => setCode(event.target.value)}
             />
-          </label>
-          <button type="submit">Create draft Requirement</button>
+          </Field>
+          <button type="submit" className="btn btn--primary">
+            Create draft Requirement
+          </button>
         </form>
       </PermissionGate>
 
@@ -145,16 +148,17 @@ export default function ConfigurationPage() {
             evaluation rules, publishing is refused rather than producing a snapshot
             that silently skips it.
           </p>
-          <form className="inline" onSubmit={publish}>
-            <label>
-              Requirement codes to activate (comma separated; blank to publish current
-              active configuration only)
+          <form className="form-row" onSubmit={publish}>
+            <Field id="publish-codes" label="Requirement codes to activate (comma separated; blank to publish current active configuration only)" grow>
               <input
+                id="publish-codes"
                 value={publishCodes}
                 onChange={(event) => setPublishCodes(event.target.value)}
               />
-            </label>
-            <button type="submit">Publish</button>
+            </Field>
+            <button type="submit" className="btn btn--primary">
+              Publish
+            </button>
           </form>
           {snapshot ? (
             <p>
@@ -344,15 +348,15 @@ function RequirementCard({
             </label>
             <label>
               Company Standard (JSON) — the organization&rsquo;s own position
-              <textarea name="company_standard" rows={4} required defaultValue="{}" />
+              <textarea className="code-input" name="company_standard" rows={4} required defaultValue="{}" />
             </label>
             <label>
               Mapping rules (JSON)
-              <textarea name="mapping_rules" rows={4} required defaultValue="{}" />
+              <textarea className="code-input" name="mapping_rules" rows={4} required defaultValue="{}" />
             </label>
             <label>
               Evaluation rules (JSON)
-              <textarea name="evaluation_rules" rows={4} required defaultValue="{}" />
+              <textarea className="code-input" name="evaluation_rules" rows={4} required defaultValue="{}" />
             </label>
             <label>
               Legal Rule type (optional — not every Requirement has one)
@@ -365,9 +369,11 @@ function RequirementCard({
             </label>
             <label>
               Legal Rule configuration (JSON)
-              <textarea name="legal_rule_configuration" rows={3} defaultValue="{}" />
+              <textarea className="code-input" name="legal_rule_configuration" rows={3} defaultValue="{}" />
             </label>
-            <button type="submit">Save draft version</button>
+            <button type="submit" className="btn btn--primary">
+              Save draft version
+            </button>
           </form>
         ) : null}
       </PermissionGate>
@@ -468,9 +474,9 @@ function StandardEditor({
         Reason for the change (required — recorded in the audit trail)
         <input name="reason" required />
       </label>
-      <button type="submit" disabled={busy}>
+      <button type="submit" className="btn btn--primary" disabled={busy}>
         {busy ? "Saving…" : "Save as a new version"}
-      </button>
+      </button>{" "}
       <button type="button" className="link" onClick={onClose}>
         Cancel
       </button>

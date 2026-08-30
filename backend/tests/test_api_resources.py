@@ -844,3 +844,34 @@ def test_every_ratified_standard_publishes_through_the_gated_endpoint(api, db, s
     # bare status code.
     assert published.status_code == 201, published.text
     assert published.json()["data"]["requirement_count"] == len(codes)
+
+
+# ---------------------------------------------------------------------------
+# Contract detail carries its document versions (implementation addition, 2026-08-30)
+# ---------------------------------------------------------------------------
+def test_contract_detail_lists_its_document_versions_newest_first(api, db, owner):
+    """A document-anchored workspace opened on a contract must find its document
+    through the API. Newest first, and the shape is the existing version
+    serializer's — nothing new is disclosed and `storage_key` stays absent."""
+    sign_in(api, db, owner)
+    contract = api.post("/api/v1/contracts",
+                        json={"name": "Versioned", "contract_type": "MSA"}).json()["data"]
+    # The field lives on the DETAIL endpoint (like `assist_index` on a version):
+    # the list endpoint stays lean, and a create returns the contract it made.
+    empty = api.get(f"/api/v1/contracts/{contract['id']}").json()["data"]
+    assert empty["document_versions"] == []
+
+    docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    for n in (1, 2):
+        response = api.post(
+            f"/api/v1/contracts/{contract['id']}/document-versions",
+            content=build_docx([f"Clause {n}. Liability is limited to fees paid."]),
+            headers={"content-type": docx, "x-filename": f"msa-v{n}.docx"})
+        assert response.status_code in (200, 201), response.text
+
+    detail = api.get(f"/api/v1/contracts/{contract['id']}").json()["data"]
+    versions = detail["document_versions"]
+    assert [v["version_number"] for v in versions] == [2, 1]
+    assert versions[0]["original_filename"] == "msa-v2.docx"
+    assert "storage_key" not in versions[0]
+    assert "processing_status" in versions[0]

@@ -9,6 +9,17 @@ It asserts no build state of its own — [IMPLEMENTATION_STATUS.md](docs/00-proj
 is the only document permitted to do that, and this one links to it rather than
 restating it. Where a number appears here it was measured on 2026-08-18, not remembered.
 
+> ⚠️ **This document is a point-in-time review pack, dated 2026-08-18. It is not the
+> day-to-day status page.** Work has continued since — AB-3 and AB-4 are locked, and the
+> assist lane is under construction — so figures below are as measured on that date and
+> several have moved.
+>
+> **For where the project stands now, read
+> [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md)**
+> (plain language, with a "Picking up where we left off" block at the top) and
+> [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) for build state.
+> This pack is kept as the record of the V1 stabilization review, not superseded by it.
+
 ---
 
 ## 1 · Where the build stands
@@ -46,13 +57,13 @@ Everything below runs from a clean checkout. Expected results are stated so a di
 is visible rather than interpretable.
 
 ```bash
-# Backend — 626 tests, none skipped
+# Backend — 781 tests, none skipped (as of 2026-08-25)
 cd backend && python3 -m pytest tests/ -q
 
 # Lint and types — both at zero, and CI job 1 is blocking on them
 ruff check . && mypy
 
-# Frontend — 53 Vitest tests, clean typecheck
+# Frontend — 58 Vitest tests, clean typecheck
 cd ../frontend && npx vitest run && npx tsc --noEmit
 
 # Browser workflows — 22 tests (26 runner items, including 4 setup steps)

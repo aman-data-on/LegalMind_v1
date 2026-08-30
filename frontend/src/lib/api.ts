@@ -15,7 +15,9 @@
 
 import type {
   AnalysisSubmission,
+  AskResult,
   AuditEvent,
+  Conversation,
   ConfigurationSnapshot,
   Contract,
   DataEnvelope,
@@ -34,6 +36,8 @@ import type {
   UploadResult,
   User,
 } from "./types";
+
+import type { EvidenceRow } from "./types";
 
 export const API_BASE = "/api/v1";
 
@@ -228,6 +232,18 @@ export const api = {
   session: () => request<SessionIdentity>("/auth/session"),
   logout: () => request<{ revoked: boolean }>("/auth/logout", { method: "POST" }),
 
+  // ---- assist lane (AB-3/AB-4) -------------------------------------------
+  createConversation: (contractId: string) =>
+    request<Conversation>("/conversations", {
+      method: "POST",
+      body: { contract_id: contractId },
+    }),
+  ask: (conversationId: string, question: string) =>
+    request<AskResult>(`/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: { question },
+    }),
+
   // ---- contracts & documents -------------------------------------------
   contracts: (page = 1, pageSize = 25) =>
     requestPage<Contract>("/contracts", { query: { page, page_size: pageSize } }),
@@ -255,6 +271,11 @@ export const api = {
       },
     }),
   documentVersion: (id: string) => request<DocumentVersion>(`/document-versions/${id}`),
+  /** Evidence rows in reading order — the document pane and every citation target. */
+  documentEvidence: (id: string, page = 1, pageSize = 100) =>
+    requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
+      query: { page, page_size: pageSize },
+    }),
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
 
   // ---- reviews ----------------------------------------------------------

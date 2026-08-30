@@ -8,9 +8,9 @@ Each entry should be reviewed against the twelve questions in `CLAUDE.md`'s comp
 
 ---
 
-## DD-1 (proposed) — Interaction model for the Findings review workflow
+## DD-1 — Interaction model for the Findings review workflow
 
-**Status:** `PROPOSAL` — awaiting owner/reviewer decision. Nothing here is implemented; the current, already-built expandable-list pattern remains in place until a direction is chosen.
+**Status:** `DECIDED` (owner approved the roadmap carrying this recommendation, 2026-08-21) and **realized in Phase 3.5** (2026-08-22) as direction C's essence — the needs-decision/all-findings view — layered on the preserved DOM; direction B's split-pane rail remains an open follow-up if finding volumes outgrow the single-page list. *(This status line was corrected on 2026-08-22 — it stale-read "PROPOSAL" after implementation had landed; flagged by the code review.)*
 
 **Scope:** the `/reviews/[reviewId]` screen — the product's most important and highest-traffic workflow, where a user or Legal Reviewer inspects Findings, their nested Evaluations, evidence, and (for authorized users) records Legal Decisions.
 
@@ -173,4 +173,81 @@ The owner's correction, recorded verbatim in spirit: *"no marketing copy" does n
 
 ---
 
-*Future entries (DD-6, …) get appended below as further major decisions are made — component library adoption, accessibility target, responsive breakpoint strategy, etc.*
+## DD-6 — Full R&D pass: all prior identity/IA decisions cancelled and superseded
+
+**Status:** `DECIDED` (owner directive, 2026-08-27: *"Cancel all previous UI/UX decisions (start
+fresh based on research)... give you ONE prompt."*). Authoritative document:
+[UI_UX_MASTER_PROMPT.md](UI_UX_MASTER_PROMPT.md).
+
+**Superseded by this entry:**
+- **`DD-1`** (Findings-review interaction model) — was left `DECIDED`-in-part/proposal-in-part (the
+  B+C hybrid was recommended but its exact structure never finalized). The master prompt §3
+  finalizes it: bounded list defaulting to `requires_decision`, persistent detail pane,
+  equally-weighted "All Findings" toggle, URL-addressable selection, keyboard next/previous. This
+  is substantially DD-1's own recommendation, ratified rather than reinvented — the hybrid was
+  sound; what was missing was a decision, not a better idea.
+- **`DD-2`/`DD-3`/`DD-4`** (`/login` visual identity, three successive treatments) — superseded in
+  full. The deep-navy glass/floating-geometry environment is retired: it was a one-page "identity
+  moment" that never extended to the rest of the product (`DD-5` itself named this gap), and it
+  violated this document's own anti-pattern list (glassmorphism, gradients, decorative motion) on
+  the one page that most needed to set the standard, not break it. `/login` is rebuilt inside the
+  single system in the master prompt §3–4 — task-first heading, one persistent dark shell bar
+  shared with every other page, no page-specific spectacle.
+- **`DD-5`** (standing finish bar + light-content/dark-shell split) — the finish-bar *standard*
+  (every page must look finished, not just be correct) is **kept** and restated in the master
+  prompt's own governing intent; the light-content/dark-shell *split specifically* is generalized
+  correctly rather than superseded — the master prompt keeps exactly one dark surface (the
+  persistent shell), which is what DD-5 was reaching for before the login environment complicated
+  it.
+
+**Not touched by this entry — these are locked product behavior, not UI/UX decisions, and no
+"cancel all previous UI/UX decisions" instruction reaches them:** every rule in `CLAUDE.md` 1–23,
+`52.1`–`52.7`, `LEGAL-02`/`SEC-07` confidentiality rendering, the five-axis state model plus the
+assist lane's sixth axis, S-7's undifferentiated-auth-failure styling, no-optimistic-UI on Legal
+Decisions, and every anti-pattern in [DESIGN.md](../../DESIGN.md) that derives from a locked rule
+rather than a stylistic preference. `DESIGN.md`'s principles sections are retained near-verbatim in
+spirit by the master prompt for the same reason.
+
+**New, not present in any prior entry:** the two-register system (Authority vs. Inquiry, §4.1) for
+how the legal-review workflow and the new AI assist surface coexist without being visually
+confusable; the shared evidence-viewer decision (§3) unifying citation display across both paths;
+the explicit rejection of three generic AI-chat conventions (token streaming, thumbs-up/down
+feedback, and — kept, not rejected — AI-content labeling) against this product's specific
+constraints (§0).
+
+---
+
+## DD-7 — Product UX roadmap ratifies the workspace plan; IA and landing decided
+
+**Status:** `PROPOSED` (2026-08-27, awaiting owner review of
+[PRODUCT_UX_ROADMAP.md](PRODUCT_UX_ROADMAP.md), which this entry indexes).
+
+**Decided here:**
+
+1. **The Review workspace adopts [WORKSPACE_UI_PLAN.md](WORKSPACE_UI_PLAN.md)'s
+   three-pane composition** (document · findings · ask, cross-pane highlight as the
+   signature) — **superseding the master prompt §3's own sketch** (findings list +
+   detail pane + ask drawer). Reason: the vision's anchor object is the document, and
+   the highlight gesture makes the evidence chain one act; the master prompt's "shared
+   evidence viewer" idea *is* this mechanism, generalized. The master prompt remains
+   authority for the visual system (§4) and everything else.
+2. **Landing surface = Documents** (no dashboard): no cross-document KPI exists that a
+   user acts on; every action starts from a document. Reviews-queue nav bias for
+   LEGAL_REVIEWER, same app.
+3. **No Settings/Profile screens in V1** — nothing real backs them (administrator-
+   provisioned accounts, no user preferences); building them would fake capability.
+4. **Positions live under a Legal nav area**, not global nav — verified: ordinary
+   users hold no `configuration.view`, and LEGAL-02 makes advertising the section to
+   them a disclosure.
+5. **Admin is a separate control plane** — verified: SUPER_ADMIN holds only
+   user/role/audit/platform permissions and cannot open a contract; "user UI + admin
+   menu" is structurally false here.
+6. **Font conflict flagged, not resolved**: master prompt §4.3 (IBM Plex/Source Serif
+   via Google Fonts) vs DD-4's no-runtime-CDN ruling. Implementation stays on the
+   system stack until the owner approves `next/font` bundling (rule 19 line-item);
+   the type *roles* (mono = precise values, italic serif = verbatim quotes) apply
+   meanwhile with system faces.
+
+**Build-first decision:** the document pane + highlight mechanism as a thin vertical
+slice — the signature interaction and the one unproven technical risk
+(offsets → rendered DOM spans). Full reasoning: PRODUCT_UX_ROADMAP.md §G.

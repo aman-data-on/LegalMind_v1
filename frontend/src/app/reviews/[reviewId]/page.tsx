@@ -26,12 +26,16 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { DecisionPanel } from "@/components/DecisionPanel";
 import { EmptyState, ErrorBanner, Loading, Pager } from "@/components/Feedback";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
+import { Field, StatePill } from "@/components/Primitives";
 import { FindingCard } from "@/components/FindingCard";
+import { SkeletonFindings } from "@/components/Skeleton";
+import { shortcutKey } from "@/lib/shortcuts";
 import {
   QUEUE_POLL_MS,
   isAnalysable,
@@ -61,6 +65,18 @@ export default function ReviewPage({
   const [page, setPage] = useState(1);
   const [classification, setClassification] = useState("");
   const [error, setError] = useState<unknown>(null);
+  /*
+   * DD-1 (direction C): the primary entry point for a decision-maker is the set
+   * of Findings that still need one. This is a DISPLAY filter over what the API
+   * returned for this page, keyed on the server-provided `requires_decision`
+   * field — nothing is derived client-side (52.7), and the full list is one
+   * click away, never hidden (DD-1's non-negotiable).
+   */
+  const [view, setView] = useState<"attention" | "all">("attention");
+  /* Once the user picks a view it is committed: without this, paginating from a
+     page with an empty queue to one with entries would silently flip the view
+     back (code-review finding, 2026-08-22). */
+  const [viewChosen, setViewChosen] = useState(false);
 
   useEffect(() => {
     void params.then((resolved) => setReviewId(resolved.reviewId));
@@ -86,31 +102,130 @@ export default function ReviewPage({
     void load();
   }, [load]);
 
+  /* Queue membership is sticky for this visit: once a Finding needed a
+     decision it stays in the queue view even after the decision is recorded,
+     so the server-confirmed result (52.7) remains on screen instead of the
+     card unmounting mid-confirmation (code-review finding, 2026-08-22).
+     Membership is display state only; every rendered value is the server's.
+
+     Declared ABOVE the early returns: the first render has no `reviewId` yet and
+     returns early, so a hook placed below them is skipped on that render and
+     called on the next — React #310, and the screen never loaded (2026-08-26). */
+  const queueIds = useRef(new Set<string>());
+
+  /* Keyboard navigation (Phase 4). n/p move a "current finding" marker through
+     whatever the active view shows; "?" opens the help. The handler reads the
+     visible ids through refs so one listener survives view/page changes, and it
+     defers entirely to `shortcutKey` — nothing fires while the user is typing.
+     All hooks, per this file's own #310 lesson, sit above the early returns. */
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const shownIdsRef = useRef<string[]>([]);
+  const currentIndexRef = useRef(0);
+  const helpOpenRef = useRef(false);
+  helpOpenRef.current = helpOpen;
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const key = shortcutKey(event);
+      if (key === "?") {
+        setHelpOpen((open) => !open);
+        event.preventDefault();
+        return;
+      }
+      if (helpOpenRef.current) return;
+      if (key !== "n" && key !== "p") return;
+      const count = shownIdsRef.current.length;
+      if (count === 0) return;
+      const current = Math.min(currentIndexRef.current, count - 1);
+      const next = key === "n" ? Math.min(current + 1, count - 1) : Math.max(current - 1, 0);
+      currentIndexRef.current = next;
+      setCurrentIndex(next);
+      const card = document.querySelector<HTMLElement>(
+        `[data-finding-id="${shownIdsRef.current[next]}"]`,
+      );
+      card?.focus({ preventScroll: true });
+      card?.scrollIntoView({ block: "nearest" });
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (!can(P.REVIEW_VIEW)) return <AccessRestricted what="reviews" />;
   if (!reviewId) return <Loading what="review" />;
 
+  (findings ?? []).forEach((finding) => {
+    if (finding.requires_decision) queueIds.current.add(finding.id);
+  });
+  const attention = (findings ?? []).filter((finding) =>
+    queueIds.current.has(finding.id),
+  );
+  /* The DEFAULT view falls back to the full list when nothing needs a decision —
+     an empty default would misread as "no Findings". A view the user explicitly
+     chose is never auto-switched; its empty case renders as an explicit empty
+     state below instead. */
+  const effectiveView = viewChosen
+    ? view
+    : attention.length > 0
+      ? "attention"
+      : "all";
+  const shown = effectiveView === "attention" ? attention : (findings ?? []);
+  shownIdsRef.current = shown.map((finding) => finding.id);
+  const currentId = shown[Math.min(currentIndex, shown.length - 1)]?.id ?? null;
+
   return (
     <>
+      <Link className="page-back" href="/reviews">
+        ← Reviews
+      </Link>
       <h1>Review {reviewId.slice(0, 8)}</h1>
       {review ? (
-        <p className="hint">
+        <p className="page-meta">
           {/*
             Step 30 — the Review lifecycle is the single source of progress (52.7).
             There is no separate progress indicator that could disagree with it, and
             no control that sets it (r3).
           */}
-          Status <strong>{review.status}</strong> · configuration snapshot{" "}
-          {review.configuration_snapshot_id.slice(0, 8)} ·{" "}
-          <Link href={`/reviews/${reviewId}/report`}>report</Link>
+          <StatePill axis="status" value={review.status} />
+          <span>snapshot {review.configuration_snapshot_id.slice(0, 8)}</span>
+          <Link href={`/reviews/${reviewId}/report`}>View report</Link>
         </p>
       ) : null}
 
       <ErrorBanner error={error} />
 
-      <form className="card inline" onSubmit={(event) => event.preventDefault()}>
-        <label>
-          Filter by classification
+      <form className="card form-row" onSubmit={(event) => event.preventDefault()}>
+        {findings !== null && findings.length > 0 ? (
+          <div className="field">
+            <span className="field__label">View</span>
+            <span className="seg">
+              <button
+                type="button"
+                aria-pressed={effectiveView === "attention"}
+                onClick={() => {
+                  setView("attention");
+                  setViewChosen(true);
+                }}
+              >
+                Needs decision ({attention.length})
+              </button>
+              <button
+                type="button"
+                aria-pressed={effectiveView === "all"}
+                onClick={() => {
+                  setView("all");
+                  setViewChosen(true);
+                }}
+              >
+                All findings ({findings.length})
+              </button>
+            </span>
+          </div>
+        ) : null}
+        <Field id="classification-filter" label="Filter by classification">
           <select
+            id="classification-filter"
             value={classification}
             onChange={(event) => {
               setPage(1);
@@ -133,45 +248,82 @@ export default function ReviewPage({
               </option>
             ))}
           </select>
-        </label>
+        </Field>
       </form>
 
       {!can(P.FINDING_VIEW) ? (
         <AccessRestricted what="findings" />
       ) : findings === null ? (
-        <Loading what="findings" />
+        /* A failed load already shows its ErrorBanner above; rendering a
+           perpetual "Loading…" beside it would misstate the page's state. */
+        error ? null : <SkeletonFindings />
       ) : findings.length === 0 ? (
-        <>
-          <EmptyState>
-            This Review has no Findings yet. Findings appear once the document has been
-            analysed against the configuration snapshot the Review is pinned to.
-          </EmptyState>
-          <AnalyseControl
-            reviewId={reviewId}
-            reviewStatus={review?.status ?? null}
-            onAnalysed={() => void load()}
-          />
-        </>
+        classification ? (
+          /* Filter matched nothing ≠ never analysed (code-review finding,
+             2026-08-22) — the analyse CTA here would misstate the Review. */
+          <EmptyState>No Findings with classification {classification}.</EmptyState>
+        ) : (
+          <>
+            <EmptyState>
+              This Review has no Findings yet. Findings appear once the document has
+              been analysed against the configuration snapshot the Review is pinned
+              to.
+            </EmptyState>
+            <AnalyseControl
+              reviewId={reviewId}
+              reviewStatus={review?.status ?? null}
+              onAnalysed={() => void load()}
+            />
+          </>
+        )
       ) : (
         <>
-          {findings.map((finding) => (
-            <FindingCard
-              key={finding.id}
-              finding={finding}
-              renderEvaluationActions={(evaluation: Evaluation) =>
-                /*
-                 * Rendered per Evaluation — never per Finding (AB-1, 52.5). Shown
-                 * when the Evaluation needs a decision or already has one, so the
-                 * record stays visible after the fact.
-                 */
-                evaluation.requires_decision || evaluation.current_decision ? (
-                  <DecisionPanel evaluation={evaluation} onRecorded={() => void load()} />
-                ) : null
-              }
-            >
-              <EscalationControls finding={finding} onChanged={() => void load()} />
-            </FindingCard>
-          ))}
+          {shown.length === 0 ? (
+            <EmptyState>No Findings on this page need a decision.</EmptyState>
+          ) : null}
+          {shown.map((finding) => {
+            /* d/a/r act on exactly one panel: the first actionable Evaluation of
+               the finding n/p currently points at. Decisions still attach to the
+               Evaluation — the shortcut only chooses which panel listens. */
+            const firstActionable = finding.evaluations.find(
+              (candidate) => candidate.requires_decision || candidate.current_decision,
+            )?.id;
+            return (
+              <FindingCard
+                key={finding.id}
+                finding={finding}
+                current={finding.id === currentId}
+                renderEvaluationActions={(evaluation: Evaluation) =>
+                  /*
+                   * Rendered per Evaluation — never per Finding (AB-1, 52.5). Shown
+                   * when the Evaluation needs a decision or already has one, so the
+                   * record stays visible after the fact.
+                   */
+                  evaluation.requires_decision || evaluation.current_decision ? (
+                    <DecisionPanel
+                      evaluation={evaluation}
+                      onRecorded={() => void load()}
+                      shortcutsActive={
+                        finding.id === currentId && evaluation.id === firstActionable
+                      }
+                    />
+                  ) : null
+                }
+              >
+                <EscalationControls finding={finding} onChanged={() => void load()} />
+              </FindingCard>
+            );
+          })}
+          <p className="hint">
+            Keyboard: press <kbd>?</kbd> for shortcuts.
+          </p>
+          {effectiveView === "attention" && attention.length < findings.length ? (
+            <p className="hint">
+              Showing the {attention.length} Finding{attention.length === 1 ? "" : "s"}{" "}
+              that need a decision on this page. &ldquo;All findings&rdquo; shows the
+              rest.
+            </p>
+          ) : null}
           {pagination ? (
             <Pager
               page={pagination.page}
@@ -182,6 +334,7 @@ export default function ReviewPage({
           ) : null}
         </>
       )}
+      <KeyboardShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }
@@ -274,7 +427,12 @@ function AnalyseControl({
         same snapshot always produce the same Findings.
       </p>
       <ErrorBanner error={error} />
-      <button type="button" onClick={() => void analyse()} disabled={busy || waiting}>
+      <button
+        type="button"
+        className="btn btn--primary"
+        onClick={() => void analyse()}
+        disabled={busy || waiting}
+      >
         {busy || waiting ? "Analysing…" : "Run analysis"}
       </button>
 
@@ -397,22 +555,31 @@ function EscalationControls({
             Escalated for authorized review. This is a request for review, not an
             approval, and it records no decision.
           </p>
-          <button type="button" onClick={() => void withdraw()} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => void withdraw()}
+            disabled={busy}
+          >
             Withdraw escalation
           </button>
         </>
       ) : (
-        <form className="inline" onSubmit={escalate}>
-          <label>
-            Escalate for authorized review — reason
+        <form className="form-row" onSubmit={escalate}>
+          <Field
+            id={`escalate-${finding.id}`}
+            label="Escalate for authorized review — reason"
+            grow
+          >
             <input
+              id={`escalate-${finding.id}`}
               required
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="Why does this need authorized review?"
             />
-          </label>
-          <button type="submit" disabled={busy}>
+          </Field>
+          <button type="submit" className="btn btn--secondary" disabled={busy}>
             Escalate
           </button>
         </form>

@@ -23,6 +23,22 @@ dependencies = [
     # Review's analysis a worker job on the same image. The `redis` extra is the
     # broker transport, not a second technology choice.
     "celery[redis]>=5.4",
+    # Assist-lane embedding runtime — locked `AM-26`'s "Inference runtime: local
+    # model-serving process, no outbound network route", approved under rule 19 on
+    # 2026-08-25.
+    #
+    # onnxruntime + tokenizers rather than torch + sentence-transformers: 118 MB
+    # against ~2.5 GB, CPU-only, and **inference-only**, so `AM-26`'s exclusion of
+    # fine-tuning and training-on-the-corpus is structural rather than merely stated.
+    # Every candidate embedding model publishes an ONNX export, so nothing is given up.
+    #
+    # ⚠️ onnxruntime ships an `AzureExecutionProvider` that can reach a remote
+    # endpoint. `legalmind/assist/onnx_backend.py` pins the provider list to
+    # `CPUExecutionProvider` and a test asserts it, because `AM-30` t1 permits exactly
+    # one egress — the generation call — and an inference runtime quietly acquiring a
+    # second one would be a stack violation, not a configuration detail.
+    "onnxruntime>=1.17",
+    "tokenizers>=0.15",
 ]
 
 [project.optional-dependencies]
@@ -106,7 +122,8 @@ files = ["legalmind"]
 
 [[tool.mypy.overrides]]
 # Celery ships no `py.typed` marker, so its types are unavailable rather than wrong.
-module = ["celery.*", "kombu.*", "fitz.*", "docx.*"]
+# onnxruntime is the same: installed, but shipping no stubs.
+module = ["celery.*", "kombu.*", "fitz.*", "docx.*", "onnxruntime.*"]
 ignore_missing_imports = true
 
 # `backend/` is a flat layout holding three top-level directories — legalmind,

@@ -790,3 +790,62 @@ See also:
 - ../04-analysis-engine/ANALYSIS_ENGINE.md for domains 38.9-38.13 (Analysis Engine, Mapping Engine, Evaluation Engine, Findings Domain, Review Workflow) and the full Step 36 Finding & Evaluation Engine.
 - BACKEND_ARCHITECTURE.md, FRONTEND_ARCHITECTURE.md, DATABASE_ARCHITECTURE.md for the Step 39 technology stack that implements this architecture.
 - ../08-testing/TEST_STRATEGY.md for the Step 39 testing strategy.
+
+---
+
+## Amendment Batches AB-3 and AB-4 — the assist lane
+
+**Status: 🔒 LOCKED.** `AM-25`–`AM-29` (AB-3, 2026-08-24) · `AM-30`, `AM-31`, `IMPL-02` (AB-4,
+2026-08-25). **Added to this document 2026-08-25.** The registry named this file as `AM-25`'s
+canonical document and the section was never written; that omission is corrected here. Nothing
+above this line changes.
+
+### What changed, and what did not
+
+`38.25` anticipated exactly this — an Analysis Interface with the V1 deterministic engine on one
+side and a future AI-assisted engine on the other. AB-3 **realizes** that hook rather than
+amending it, and Step 38 rules 20–21 are **reaffirmed and strengthened**, not weakened.
+
+The single most load-bearing sentence in this document for the assist lane is **38.28**:
+
+> Customer Contract → Evidence → Company Configuration → Deterministic Analysis → Finding →
+> Human Legal Decision. *"The UI, reports, exports, and future AI features are consumers of this
+> source of truth, not replacements for it."*
+
+The assist lane is a **consumer** under that rule. It reads already-recorded Evidence; it never
+participates in producing a Finding. It is **not an eleventh domain** — the ten domains of
+38.3–38.17 are unchanged.
+
+### The nine terms — by reference, not restated
+
+`AM-25`'s nine terms are locked constraints, not guidance, and they are **not reproduced here**:
+read them in [`all_lock.md`](../../all_lock.md) AB-3, indexed at
+[LOCKED_DECISIONS.md](../00-project/LOCKED_DECISIONS.md) §AB3. In summary, the lane never
+produces a Finding, Evaluation, Classification, Rule Outcome, Mapping State, Legal Decision or
+Lifecycle transition (r1); never writes to the legal or configuration tables, enforced by a
+**database role** holding no INSERT or UPDATE grant rather than by convention (r2); never states
+an organizational legal position absent from a ratified Standard, published Rule or approved
+template (r3); never answers *"does this document meet our standard?"*, which routes to the
+evaluator (r4); lets no answer reach a user unless every claim resolves to retrieved evidence,
+enforced **mechanically, outside the model** (r5); applies authorization **before** retrieval and
+**inside** the query, with an excluded result indistinguishable from an empty one (r6); is never
+an existence oracle (r7); confers no Legal Decision authority (r8); and — as amended by `AM-30` —
+lets nothing but the generation call leave LeapSwitch-controlled infrastructure (r9).
+
+### Architectural shape
+
+| Concern | Position |
+|---|---|
+| Decomposition | **Unchanged. Modular monolith.** `AM-26` restates locked 38.26 explicitly: no microservices, no Kubernetes, no service mesh. The assist lane is a package in the same application, and `AM-26` r1's single generation interface is an **in-process module boundary, not a service.** Any proposal for a separate gateway container is a decomposition this document does not authorize |
+| Isolation | By **database role** (`AM-25` r2) and by import boundary — `backend/tests/test_import_boundaries.py` fences the deterministic core against a future `legalmind.assist` package with an allow-list, so the rule holds before the package exists |
+| Storage | PostgreSQL remains the system of record. pgvector is an **extension on it**, not a new datastore (`AM-26`); a second vector datastore requires separate approval |
+| Authorization | The existing `Guard` chain, reused unchanged and extended to retrieval. `SEC-07`/`API-10`'s byte-identical-404 discipline extends to a retrieval result set (`AM-25` r6/r7) |
+| Confidentiality | `LEGAL-02` unchanged — omitted, never nulled — and `AM-30` t3 makes it an **egress rule as well as a display rule** |
+| Egress | One path only: the generation call (`AM-30`). Embedding, reranking, chunking, parsing and OCR stay local. `AM-31`'s real-contract gate is **CLOSED** as of 2026-08-25 |
+
+### Build state
+
+Specification only. No assist-lane code, table, migration or dependency exists — see
+[IMPLEMENTATION_STATUS.md](../00-project/IMPLEMENTATION_STATUS.md) unit 12, which is the only
+document that may assert build state. The authorized sequence is `IMPL-02` →
+[IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md) §5b.

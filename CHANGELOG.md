@@ -12,6 +12,427 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX implementation, slice 1 — the new workspace shell, the document pane and the
+  cross-pane highlight, against the real API** (owner: "UI/UX IMPLEMENTATION — GO",
+  2026-08-30; PRODUCT_UX_ROADMAP §G's risk-first slice). A new `/workspace/[contractId]`
+  route with its own shell — the product's one dark surface, navigation derived from
+  permissions by absence, a skip link first in the tab order — and the three-region layout
+  that collapses to real tabs (role=tablist, arrow keys) at 1280/900px, never dropping a
+  region. The **document pane** renders the document as the pipeline read it (evidence
+  rows in reading order under page markers, verbatim text in the serif quote voice, OCR
+  rows labelled, the document's own clause outline beside it, readiness derived from
+  `assist_index` counts) and answers the **highlight gesture**: an outline click or a
+  shared `?evidence=<id>` link scrolls to, lights and *focuses* the exact row — proven in
+  the browser; every later trigger (verdict, citation) reuses this one mechanism. States:
+  loading (announced skeleton), still-processing, no-text-extracted, error with request id,
+  no-upload (offers the upload — a link, nothing fake), whole-section permission state,
+  and the byte-identical "Not found." for out-of-scope and nonexistent contracts (asserted
+  equal in the browser). Findings and Ask regions render as honest next-slice notes
+  (`NextSlice`, distinct from `DomainPlaceholder`: UI not yet built vs backend not offered).
+  Design foundation (`workspace.css`, scoped `.ws`) implements the master prompt's tokens
+  on the **system font stack** pending the bundling decision (DD-7 §6); the type *roles*
+  hold. **One smallest-justified backend change**: `GET /contracts/{id}` now carries
+  `document_versions` newest first — a document-anchored workspace had no API path to its
+  document (the legacy page only ever showed the version it had just uploaded); additive,
+  same permission, frozen contract regenerated (the one diff is the operation description),
+  recorded in Step 49's additions section. Legacy routes untouched; `Chrome` yields to the
+  new shell under `/workspace` so the two never render together. Verified: backend **936**
+  (+1), frontend **86 Vitest** (+7), browser **37 passed** (+7) with 9 gated, six visual
+  baselines reproducing (the five legacy ones were re-cut locally — a mistake corrected the same day by
+  the parallel session, which re-adopted CI's renders and added a guard refusing
+  `--update-snapshots` outside CI; the dev box renders fonts ~1% differently and has the
+  embedding model present. Owner rule: baselines come from CI only — decision #193), typecheck (after `next typegen` — the running dev server's stale
+  generated types were the only "error"), lint clean. Decisions #187–#192.
+
+* **The product-UX roadmap — the think-first deliverable before broad UI implementation**
+  (owner directive, 2026-08-27 evening: senior-designer strategy first, roadmap not app;
+  legacy UI fully disregarded as a design reference).
+  [docs/design/PRODUCT_UX_ROADMAP.md](docs/design/PRODUCT_UX_ROADMAP.md), `PROPOSED`:
+  the A–M strategy grounded in the current Product Vision and verified against the live
+  system rather than remembered — the role model is read from the actual grant matrix
+  (finding, among else, that SUPER_ADMIN cannot open a contract at all, so admin is a
+  genuinely separate control plane, and that ordinary users hold no `configuration.view`,
+  so Domain A lives under a Legal nav area rather than global navigation). Decides:
+  landing = Documents, no dashboard (nothing backs one); Review+Ask together in the
+  adopted [WORKSPACE_UI_PLAN.md](docs/design/WORKSPACE_UI_PLAN.md) three-pane workspace
+  (DD-7 — superseding the master prompt's own drawer sketch); Research separate (the one
+  document-less experience); no Settings/Profile screens (nothing real backs them);
+  build order risk-first — the document pane + cross-pane highlight before everything,
+  login deliberately fifth. Names the three API gaps honestly (positions-search endpoint
+  exists as a function with no route; cross-review attention rollup deliberately not
+  requested; Domain C blocked on C-16 material) and the risks that must not be finalized
+  against — foremost the vision's future external users colliding with `LEGAL-02`'s
+  confidentiality of Domain A, an owner ruling. One decision escalated: the master
+  prompt's Google-Fonts typography vs DD-4's no-runtime-CDN ruling — system stack until
+  `next/font` bundling is approved (rule 19). `ui-ux-pro-max` consulted with adopted and
+  rejected guidance cited, including one declared no-match fallback. **No implementation
+  started** — the roadmap awaits owner review, per the directive's own working principle.
+
+* **UI/UX execution phase, first hardening pass — skeletons, keyboard navigation, the
+  frozen-conflict flow, and two new design gates in CI** (owner directive, 2026-08-27:
+  implement the missing pieces and prepare for usability testing). Frontend **79 Vitest**
+  (+11) and **30 browser items** passing, typecheck clean, plus **8 deliberately gated
+  specs** (5 visual baselines, 3 documentation captures) that run outside the default suite.
+
+  **Loading skeletons** (`Skeleton.tsx`) on the review list, the findings pane and the Ask
+  answer area — each matching the final layout's container so arrival causes no layout
+  shift, `aria-hidden` shapes over the existing `aria-live` text announcement, static under
+  `prefers-reduced-motion` (reconciling the owner's shimmer request with DESIGN.md's
+  shimmer caution: functional skeleton yes, decorative implication of content no). The Ask
+  skeleton carries **one honest status line** — the client sees a single request, so the
+  mockup's staged "searching → verifying" sequence was dropped rather than faked with
+  invented timings. The requested PDF-preview skeleton has no surface to attach to:
+  documents are deliberately download-only (`attachment`, never rendered in-origin — 34.16
+  posture), recorded rather than built around.
+
+  **Keyboard navigation** on the Review screen: `n`/`p` walk the current view's findings,
+  `d` jumps to the decision form, `?` opens a real dialog listing the bindings from the
+  same table the handlers read. **`a`/`r` prepare, never record** — they preselect a
+  decision type and focus the mandatory justification; a browser test proves no keyboard
+  path emits a `POST /decisions`, and shortcuts are inert while typing (a justification
+  containing "a" must not steer the form).
+
+  **The 409 conflict now freezes the form** until an explicit "Refresh to see the latest
+  decision": the earlier auto-refetch was well-meaning but shifted the ground under a
+  decision-maker mid-read. The e2e conflict spec now walks the full loop — real second
+  decision, real 409, disabled submit, explicit refresh, re-enabled form showing what
+  actually won (52.7).
+
+  **CI job 15 — Design QA**: (1) a forbidden-terms gate (`confidence`, `risk_score`,
+  `probability`, `likelihood`, `ai_confidence`) over non-test frontend source with
+  comments stripped — **proven to fail** on a planted violation before being trusted
+  (exit 1, file:line named); (2) Playwright **visual regression at a 0.1% pixel
+  threshold** over five surfaces (login, reviews list, review detail, contract/upload,
+  admin), volatile ids/dates masked, gated behind `DESIGN_QA=1` with a freshly
+  bootstrapped database so baselines are content-deterministic — **verified to reproduce
+  across two full rebuilds** before committing. `npm run design-qa` runs it locally; new
+  scripts `test:all`, `test:e2e`, `check:terms`, and `lint` (typecheck + terms — no ESLint
+  dependency added; adopting one is a rule-19 approval).
+
+  **Documentation:** [docs/design/UI_PATTERNS.md](docs/design/UI_PATTERNS.md) explains the
+  two deliberately unusual patterns — confidential omission and the identical refusal —
+  with screenshots captured from the real application against synthetic fixture data
+  (regenerable via `DOCS_SHOTS=1`); [docs/design/USABILITY_TEST_PLAN.md](docs/design/USABILITY_TEST_PLAN.md)
+  is the five-person think-aloud plan, including the permission-probe task where the pass
+  condition is the participant noticing nothing.
+
+* **Full UI/UX R&D pass — all prior identity/layout decisions cancelled and superseded**
+  (owner directive, 2026-08-27: *"Cancel all previous UI/UX decisions... give you ONE prompt."*).
+  Documentation only — no frontend code changed yet. Researched via `ui-ux-pro-max`
+  (`--design-system`, `--domain ux/typography/color`), cross-checked against this repo's locked
+  constraints; two real defects found in the prior work (a one-page deep-navy `/login` identity
+  that never extended to the rest of the product, and the Review screen's list/detail layout left
+  as an unfinished proposal since 2026-08-21) rather than restyled cosmetically. New authoritative
+  document: [docs/design/UI_UX_MASTER_PROMPT.md](docs/design/UI_UX_MASTER_PROMPT.md) — one
+  persistent shell (finalizing `DD-1`'s bounded-list-plus-detail proposal), a two-register visual
+  system distinguishing the legal-authority workflow from the new AI assist surface so neither can
+  be mistaken for the other, a five-axis color namespace refinement, an IBM Plex Sans/Mono +
+  Source Serif 4 (verbatim-quote-only) type system, and an explicit rejection of three generic
+  AI-chat conventions (token streaming, thumbs-up/down feedback) that would have conflicted with
+  the citation-verification and non-learning requirements already locked (`AM-25`, `AM-28`).
+  `DD-6` in [DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) records exactly what's
+  superseded (`DD-1`–`DD-5`) versus what's untouched (every locked behavioral rule — confidentiality
+  rendering, the five-axis model, no-optimistic-UI — none of which is a "UI/UX decision" the
+  cancellation instruction reaches).
+
+* **Five-phase gap-closing pass on the owner's 2026-08-27 directive**, which also
+  granted the UI/UX greenlight (decision #167). Delivered: **the AB-5/`AM-32` amendment
+  draft** ([docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](docs/00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md))
+  resolving C-15 on approval — six tables, no positions copy (chunks reference the
+  ratified `company_standard_versions` rows), per-domain embedding tables for real FKs,
+  and Domain A extractive-only because `AM-30` t3 forbids Company Standard values in
+  egress (#168); **`tools/verify_gemini_connection.py`** (+9 tests) through the one
+  permitted seam, config-only by default, synthetic-only `--live` (#169), with
+  [GEMINI_ACTIVATION_RUNBOOK.md](docs/09-implementation/GEMINI_ACTIVATION_RUNBOOK.md)
+  covering key → verify → gate-opening record → deferred quality-gate half;
+  **[STATUTE_INTAKE.md](docs/00-project/STATUTE_INTAKE.md)** for C-16 — India Code
+  sourcing, the mandatory provenance record, section-based chunking design, and one
+  new owner question (Evidence Act 1872 vs the Bharatiya Sakshya Adhiniyam 2023 that
+  repealed it); **preflight row `egress_allow_list`** (ATTEST, `AM-30` t8 — register
+  now **23 checks**, +1 test) and **[ops/README.md](ops/README.md)** mapping every
+  operator step to its register row instead of duplicating the register (#170, #171);
+  and **the Phase-2 UI plan**
+  ([docs/design/WORKSPACE_UI_PLAN.md](docs/design/WORKSPACE_UI_PLAN.md)) — three-region
+  workspace IA with the cross-pane evidence highlight as the signature interaction,
+  skill-vs-DESIGN.md conflicts reported and resolved by precedence (#173), the
+  disclosed-placeholder/absent-capability split (#172), plus the first component:
+  `DomainPlaceholder` (+6 Vitest). **Not done, by our own rules**: no Domain A/C table
+  exists (AB-5 awaits the owner), and `AM31_GATE` is CLOSED and untouched. Backend
+  **911 tests** (1 skipped), frontend **68 Vitest**, ruff/mypy clean. Decisions
+  #167–#173 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+* **Backend freeze declared and the UI/UX handoff written** (owner instruction, 2026-08-27:
+  *"backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF →
+  WAIT FOR OWNER INPUT"*). [docs/00-project/BACKEND_FREEZE_HANDOFF.md](docs/00-project/BACKEND_FREEZE_HANDOFF.md)
+  records the four-way split — completed · blocked-by-owner-decision (C-15 foremost) ·
+  blocked-by-missing-input (Google no-training terms, Gemini key, NI/Evidence Acts,
+  judgment list, RIAAS details) · operator-only (the preflight's ATTEST/BLOCKED rows,
+  none relabelled) — plus the verified API contract (45 operations, envelope, error
+  taxonomy, permissions, the four assist answer states and the byte-identical refusal
+  sentence) and the UI/UX readiness assessment (stable / likely-to-change / blocked, with
+  the two statuses kept explicit: *the API surface is stable enough to begin UI/UX; the
+  product is not complete*). **No application code changed.** Everything re-verified
+  first on 2026-08-27: backend 901 passed / 1 skipped · ruff and mypy clean · frontend
+  typecheck + 62 Vitest · Playwright **27/27** (after reinstalling the dev host's missing
+  Chromium binary — environment only, `~/.cache/ms-playwright`, no repository change) ·
+  `docs/api/openapi.json` drift-check clean · `AM31_GATE` CLOSED. The existing frontend
+  is `LEGACY UI — DEFERRED`: preserved, green, still the backend-verification harness.
+  UI/UX starts only on explicit owner authorization.
+
+### Fixed
+
+* **The core Review screen (`/reviews/[id]`) had crashed on load for every user since
+  2026-08-24.** A `useRef` introduced by that day's sticky-queue code-review fix sat *below*
+  the page's two early returns; the first render has no `reviewId` yet and returns early, the
+  next render calls the hook, and React throws #310 ("rendered more hooks than during the
+  previous render") into the production error boundary — "This page couldn't load." Typecheck
+  and build cannot see a hooks-order violation, the Phase 3.5 work was verified by manual
+  browser passes rather than the Playwright suite, and **CI never ran**: the workflow
+  triggered only on `main` and pull requests, and five days of commits landed on a feature
+  branch with neither. Found on 2026-08-26 the moment the browser suite was run by hand
+  (13 of 22 tests failed, every one on that screen); fixed by declaring the hook above the
+  returns; a scan of every page and component found no second instance. **Two guards so it
+  cannot recur unseen**: CI now runs on every branch push (the `concurrency` group already
+  cancels superseded runs), and the suite passes **27/27** including the new Ask spec.
+
+* **Every fresh-database harness broke the day `chunk_embeddings` landed.** Migration
+  `c4a91f6e2d87` correctly refuses to `CREATE EXTENSION vector` (untrusted → superuser-only, a
+  deployment precondition `preflight` reports), but the e2e bootstrap, the reproducibility and
+  invariant verifiers, the retrieval benchmarks and CI's container-fresh test databases all
+  create brand-new databases — which have no extension, so the migration raised and the
+  harness died before testing anything. Locally it hid behind long-lived databases that
+  already carried the extension. `tools/pg_extensions.ensure_vector_extension` now makes each
+  harness **try**: succeeds where the role is superuser (every CI service container, by the
+  official image's design), no-ops where the extension exists, prints the one-time operator
+  step where neither holds and lets the migration's own error follow. Migrations are
+  unchanged — the precondition stance is a production property, and a harness provisioning
+  its own precondition does not weaken it. Local one-time step recorded: pgvector installed in
+  `template1` so every future local database inherits it.
+
+### Added
+
+* **The API contract is closed out for a new UI and frozen** (owner directive, 2026-08-26:
+  *"Backend first. UI/UX later... When the backend/API architecture is genuinely ready to
+  support a new UI/UX implementation, stop and tell me clearly."*). A readiness audit mapped
+  every surface a workspace UI needs — document pane, verdict cards, chat panel with history,
+  configuration/audit/admin — against the running API and found four gaps, all additive and
+  all inside existing permissions: **`GET /conversations`** (own-only, `contract_id` filter,
+  paginated — a workspace needs a document's history, and the list carries exactly what the
+  single GET would so it cannot become the enumeration oracle `AM-25` r7 forbids);
+  **`GET /conversations/{id}` now replays citations** rebuilt from the verified
+  `answer_citations` rows, the chunk's evidence row and the retrieval run's per-chunk score
+  (`AM-25` r5 binds every *view* of an answer — before this a reload lost them; a test
+  compares the replay field-by-field with the live reply); **`GET
+  /document-versions/{id}/evidence`** (paginated Evidence rows in reading order under
+  `document.view` — the document pane and the target every citation points at; lineage and
+  parser metadata stay server-side; recorded in Step 49's new implementation-additions
+  section, not locked); and **`assist_index: {chunks, embedded_chunks}`** on the document
+  version — counts, deliberately not a new state vocabulary (`AM-29` r1). **The contract is
+  frozen as [docs/api/openapi.json](docs/api/openapi.json)** (45 operations), generated by
+  `tools/export_openapi.py` and drift-tested so a contract change is always a visible diff
+  in the commit that made it; Step 49 wins any disagreement. The existing frontend is
+  preserved and still green (typecheck, 62 Vitest) — its design is now obsolete for planning
+  and receives no further work. Backend **901 tests** (1 skipped). Decisions #162–#166 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+* **The Ask surface is browser-proven in the exact state users meet it today**
+  (`frontend/e2e/ask.spec.ts`). With no provider credential present — precisely production
+  until the `AM-31` gate opens — one ask retrieves evidence but cannot generate, another
+  retrieves nothing at all; the spec asserts both render the **byte-identical** `AM-29` r4
+  sentence (declared verbatim so a drift in either repository fails here), on the quiet
+  surface with no error banner, with **no "confidence" string anywhere on the composed page**
+  (`AI-03` item 16). It travels the whole live path: contract → upload → inline index →
+  conversation → two asks through Next's proxy and the CSRF pair. `createAnalysedReview` now
+  also returns `contractId` (additive). **First CI run corrected two things**: the spec's
+  evidence-present question is now a strict subset of the fixture sentence, because lexical
+  search ANDs every stemmed term and CI provisions no embedding model to rescue a query the
+  way a developer's machine silently did (it passed locally on vectors and failed in CI —
+  the spec now proves the same thing in both places, with the run reproduced locally under
+  `LEGALMIND_MODEL_DIR=/nonexistent`); and job 14's Trivy pin gained the `v` prefix the
+  action's tags actually carry (`v0.36.0`). That run was also the first CI verdict on the
+  fresh-database harness fix: jobs 2, 11, 12 and 13 all migrated container-fresh databases
+  green. **The second run gave the image scan its first real catch**: the backend image
+  shipped `libssl3t64`/`openssl`/`openssl-provider-legacy` 3.5.6 with 3.5.7 already released
+  (CVE-2026-14456, HIGH — one fix, three rows), because the `python:3.12-slim` tag floats
+  behind Debian's security releases. Both Dockerfiles now apply distro security upgrades at
+  build time, so the gate measures the image against today's fixes rather than the tag's
+  build date (decision #157). **The third run scanned the frontend image for the first
+  time**: Alpine and every application package clean, and 9 CRITICAL/HIGH inside the Node
+  runtime's *bundled npm* (`tar` gzip-bomb DoS, `sigstore` certificate acceptance,
+  `brace-expansion`/`picomatch` ReDoS) — not our dependencies, and invisible to `npm audit`,
+  which reads only the lockfile. Resolved structurally rather than by version-chasing: the
+  runtime image now deletes npm, npx and yarn after installing and starts Next through
+  `node` directly — a serving image needs no package manager (#160). The same pass found
+  `@playwright/test` leaking into the production install (Next declares it an optional
+  peer, so npm marks it `devOptional` and `--omit=dev` keeps it); removed by name (#161).
+
+* **UI/UX design skills are now standing procedure** (owner instruction, 2026-08-26: *"apply this skills always when the task is ui-ux related."*). [CLAUDE.md](CLAUDE.md) gains "UI and UX work — apply the design skills, always": any task touching `frontend/`, a screen, styling, layout, typography, colour, accessibility or a chart — **including a one-line CSS change** — invokes `ui-ux-pro-max` (with `ui-styling`, `design-system`, `design`), `frontend-design` and, for any chart, `dataviz`, **before** markup or styles are written. Placed in `CLAUDE.md` for the same reason the session-resume protocol was: it is the only file auto-loaded into every session, so the rule holds from any terminal without configuration. The section fixes precedence explicitly — rules 1–23 first (rule 18: the UI implements no legal evaluation logic and its permission gating is presentation only), then [DESIGN.md](DESIGN.md) and the DD-1–DD-5 decisions, with a skill/DD conflict **reported** under rule 5 rather than silently resolved — and names three prohibitions a generic design skill cannot know: no probability, confidence score or "the AI thinks" hedging (rule 12), no urgency theater, and a confidential field stays **omitted** rather than nulled or greyed (`SEC-07`, `LEGAL-02`). The plugin's `brand`, `banner-design` and `slides` skills are marked out of scope for product screens — LegalMind has no marketing surface. Documentation only: no application code, schema, dependency or test changed, and nothing in `all_lock.md` or [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) is touched, presentation-layer work locking nothing (DESIGN.md's own preamble).
+
+* **The Tier-2 quality gate is now a runnable release check, and the reference deployment
+  is network-segmented — Gate §5b A9 (measurable half) and A10 continued** (standing owner
+  directive: gate stays CLOSED, continue safe work). Backend **894 tests** (1 skipped),
+  ruff/mypy clean; `AM31_GATE` verified CLOSED and untouched.
+
+  **`AM-28`'s gate, as a command** — `tools/verify_assist_quality.py` runs all 77 ratified
+  questions through the **production** `search_hybrid` (real SQL, real fusion, real gate —
+  not the calibration harness's in-memory mirror) and blocks exactly on what the locked
+  sentence names: a worsened wrongly-answered rate against `tests/assist_eval/baseline.json`.
+  The baseline was recorded from live measurement (12/13 unanswerable refused, 41/64
+  retained), the gate was **proven able to fail** (tightened baseline → exit 1, restored →
+  exit 0), and CI never sees it — the documents and model stay out of the repository
+  (54.6), so it is a release-pipeline act like 55.5's reproducibility gate, and the
+  preflight register now names it (`tier2_quality_gate`, 22 checks — the documented "18"
+  was stale). Faithfulness and citation precision are recorded `not_yet_measurable`:
+  they need generated answers, and `AM-31` m4 forbids a synthetic substitute.
+
+  **One measured finding worth reading**: end-to-end recall@10 is **0.438**, far below the
+  ungated ranking quality (0.938) — and the decomposition shows why, verified per-question:
+  of 13 gate-open misses, 12 are the right chunk found by vector in the top ten **but below
+  the 0.50 evidence floor**, which the shipped rule deliberately never presents as evidence.
+  The strict-refusal trade-off now has a number, a recorded bar, and a safe path to revisit
+  it: change, re-measure, compare.
+
+  **Network segmentation in `docker-compose.yml`** — two networks: `data` (`internal: true` —
+  Docker attaches no gateway) holds db, queue, both workers and the api; `edge` holds
+  frontend and api. Everything that touches a document (parsing, OCR, chunking, embedding)
+  now has **no route out at all** (`AM-30` t1 as a routing table), the frontend's
+  never-touches-the-database rule (38.22) becomes a network fact, and model weights arrive
+  by read-only mount because the data network cannot download anything (`AM-26` r5 was
+  already the rule; the mount makes the compose reference actually work rather than
+  silently degrade to lexical-only). Honestly scoped: compose removes routes but cannot
+  enumerate destinations, so t8's full allow-list remains production infrastructure. The
+  stale "0.8.0 is not a substitute" comment on the db service was aligned with the
+  measured 0.6.0 correction. Decisions #145–#152 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+* **Security hardening started — Gate §5b unit A10, CI job 14** (owner directive: keep the
+  `AM-31` gate CLOSED pending Google's written terms; continue safe remaining work that does
+  not depend on it). Adds dependency and container image scanning to CI, the two of A10's
+  five named controls (network segmentation, TLS, secrets, Trivy/pip-audit/npm audit,
+  OpenVAS/ZAP) that a CI runner can check directly — the first three are already reported by
+  `legalmind.deploy.preflight` as deployment-time properties, not repository state.
+
+  **pip-audit and npm audit block on any finding**, matching job 1's own precedent of a
+  measured-zero baseline rather than an invented tolerance: both were run before the job was
+  written and found nothing (backend, editable install of `pyproject.toml`; frontend, 161
+  packages across prod/dev/optional). **Trivy scans both built images**, the first time either
+  Dockerfile has been build-tested in CI at all; it blocks on CRITICAL/HIGH with
+  `ignore-unfixed: true` and reports MEDIUM/LOW without blocking, because an image scan also
+  covers the base OS this repository doesn't pin package-by-package, and a gate nobody can
+  satisfy converges to being disabled rather than the finding being fixed.
+
+  **OpenVAS and ZAP are deliberately not in CI.** Both scan a running instance; standing one up
+  inside this workflow means orchestrating Postgres, Redis, the API and the frontend as CI
+  services — a materially larger change than an additive scan step. Left for the deployment
+  pipeline, alongside the TLS and backup-restore controls `preflight` already reports as
+  ATTEST for the identical reason. Four decisions logged as #141–#144 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+  Project-state documentation resynchronized in the same change: `LEGALMIND_PROJECT_STATE.md`
+  had drifted — its top summary reflected A0–A7 complete, but the detailed Current
+  Phase/Blockers/Decisions-needed sections below it still described the pre-A3 state,
+  including two decisions (test questions, `onnxruntime`/`tokenizers` approval) already
+  resolved days earlier. Both are now consistent with `IMPLEMENTATION_STATUS.md`, which also
+  had two stale CI job counts (12/twelve, actually 13 before this change, now 14) corrected.
+
+* **Smarter search delivered end to end — Gate §5b units A3–A7** (owner directive: complete the RAG implementation, deciding routine engineering autonomously). Backend **893 tests** (1 skipped), frontend **62 Vitest + typecheck + production build**, ruff and mypy clean. Live-demonstrated on the real MSA: 236 chunks embedded, the gate opening and closing exactly as calibrated, and a credential-less ask returning the identical refusal wording.
+
+  **Model selected by measurement, and by the locked rule's own tie-break.** The owner ratified the 77-question set by directing its use; four provisioned candidates were scored against it over 15 real documents. On human-phrased questions lexical search collapses (1/64 top-10 — it ANDs every term) while refusing perfectly (13/13); dense retrieval inverts both. **`all-MiniLM-L6-v2` (23M, 384d) won as the smallest candidate passing the bar** (hit@10 0.938) — gte-small retrieves marginally better (0.969) but `AM-26` r2 forbids adopting a larger model for headroom. arctic-embed-s was rejected outright (0.438); e5-small-v2 publishes ONNX at a non-standard path and is recorded unmeasured.
+
+  **The refusal cut-off was derived, not chosen — and a single cut-off measurably wasn't enough.** The best global cosine floor reached Youden's J ≈ 0.50 on every candidate; the shipped rule adds a peak-gap feature (top cosine minus the mean of the rest — a flat profile is a nearest neighbour, not evidence): `lexical hit OR (top ≥ 0.50 AND gap ≥ 0.059)`, giving **12/13 unanswerable refused at 64% answerable retention (J = 0.564)**, with the full sweep curve reproducible via `tools/benchmark_retrieval.py --eval`. The measured limit is stated where it belongs: adversarial near-misses score *inside* the answerable distribution for every model, so the gate is tuned for retention and **claim-level verification carries precision** — `AM-29` r3's layered-refusal design used as designed.
+
+  **Guardrails before generation** (`AM-28` r2, and `IMPL-02` r4's locked ordering): `guardrails.py` verifies every sentence's citation markers for existence and lexical grounding, honours the model's own NOT FOUND as `EVIDENCE_INSUFFICIENT`, and keeps the model uncalled on insufficient evidence; it imports no prompt or model code, asserted by test. A fabricated claim with a real citation — the case no similarity gate can catch — fails grounding and the user sees the refusal, never the fabrication (`AM-25` r5).
+
+  **Gemini behind one interface, gate CLOSED.** `generation.py` uses **stdlib urllib — no provider SDK, so rule 19's separate dependency approval is never triggered** — and is the only module in `EGRESS_ALLOWED`, asserted by the boundary test that refused its first draft (a `provision()` helper importing urllib was evicted to `tools/`). The `AM-31` gate is a code constant an environment variable **cannot** open (g3): while CLOSED, production egress is refused outright, and dev/staging (synthetic-only, locked 55.3) call the provider only when `LEGALMIND_GEMINI_API_KEY` is set. Payload screening re-erects LEGAL-02 as an egress rule (t3); a floating model alias is refused (t7); **every call writes an `audit_events` row with model, prompt version and payload hash** (t5 — a first draft only logged it, and 53.1 says a log is never a substitute).
+
+  **Conversation API + workspace.** Three endpoints behind the new `assist.ask` permission (the extension AB-3's registry entry pre-authorized), Guard-chained with byte-identical 404s on conversations — a conversation reveals what someone asked about, so distinguishability would be an oracle (r7). Compliance-shaped questions route to the deterministic evaluator with a pointer, never a generated answer (`AM-25` r4). The contract page gains an Ask panel: citations with §/page, refusals rendered on the quiet surface as the system *working*, and every score labelled a **retrieval score** — no confidence figure anywhere (`AI-03` item 16), asserted in tests on both sides of the API.
+
+  **Schema:** migration `c4a91f6e2d87` creates `chunk_embeddings` — the ninth `AM-27` table, its 384 dimension a **DDL literal** so a model change is a reviewed migration, never a silent config drift (the A1 tripwire test that guarded this fired and was replaced by shape tests, exactly as designed). The pgvector *type and operator* are schema-qualified from live lookups — third instance of the `F-4` search-path lesson. Fifteen decisions logged as #126–#140 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md); full selection evidence in [BACKEND_ARCHITECTURE.md](docs/05-architecture/BACKEND_ARCHITECTURE.md).
+
+* **Tier-2 evaluation dataset drafted — `backend/tests/assist_eval/`** (2026-08-26, owner-directed; dataset only, no code, no benchmark run, no threshold computed). 77 questions authored against a **full read of the actual supplied documents** — ten contracts/policies and the seven statutes — split 64 `ANSWERABLE` (44 contract, 20 statute) / 13 `NOT_FOUND`, each answerable question carrying its verified source clause and each unanswerable one a **verified absence plus the misleading nearby clause** a naive nearest-neighbour system would wrongly return. Three refusal probes exploit real cross-document confusions the owner asked the search to distinguish: the MSA has **no** price-increase notice while the ToS gives 30 days; the DPDP Act fixes **no** breach-notification deadline (that lives in the rules) while CERT-In's 6 hours sits nearby in the corpus; and the DPDP Act grants individuals **no compensation** — its own amendment schedule omits the IT Act section that did. Reading first paid: `Companies_Act_2013_sp.pdf` turned out to be a **4-page extract** (§21–24, §178–181), so its questions were confined to what it actually contains. 47 load-bearing claims (every number, period and penalty cited) were re-verified mechanically against source text — 47/47. **Labelled DRAFT pending owner ratification**, reconciling the authorship instruction with `AM-31` m5's supplied-never-manufactured rule: no calibration result counts until the owner reviews the set, which is their own pipeline's HUMAN REVIEW stage. Lives outside `tests/corpus/` so the golden-corpus guard and loader never see it (`AM-28` r3); contains no document text beyond short cited excerpts (54.6) and **no counterparty or signatory name**, enforced by an automated check. Decisions #121–#125 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+* **Session-resume protocol** (owner instruction, 2026-08-25: *"every day when I type hi you will give me the latest previous work we do."*). Placed in [CLAUDE.md](CLAUDE.md) under "🔔 Start of a session", because that is the only file auto-loaded into every session — so it works from any terminal on any day without configuration. On a bare greeting: read [LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md), the top of this changelog's `[Unreleased]`, and [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md)'s build state, then report current phase · what finished last session · real blockers · what is needed from the owner — in plain language, before asking anything. Two standing rules attached to it: **verify a figure rather than quoting it** (this is exactly how "653 tests" and "No Legal Rule exists" survived), and **do not re-ask for anything already supplied or decided** (rule 23). `LEGALMIND_PROJECT_STATE.md` gains a "Picking up where we left off" block so the answer is immediate, and [HANDOFF.md](HANDOFF.md) gains a banner marking it a point-in-time 2026-08-18 review pack rather than the live status page — it was `CLAUDE.md`'s named entry point and its figures have moved. No new document: the state page and this changelog already carry the two halves of the answer.
+
+* **Embedding runtime and candidate measurement — Gate §5b unit A3 continued.** **862 tests pass** (1 skipped), ruff and mypy clean. Owner approved `onnxruntime` + `tokenizers` under rule 19; both declared in `pyproject.toml`. **Measured at 118 MB installed, correcting the "~50 MB" I gave when asking** — the estimate omitted numpy. The recommendation stands (`torch` is ~2.5 GB and carries a training stack `AM-26` excludes), but a provisioning figure quoted to an owner should be right.
+
+  **Four 384-dimension candidates measured smallest-first per `AM-26` r2** (`all-MiniLM-L6-v2`, `bge-small-en-v1.5`, `gte-small`, `snowflake-arctic-embed-s`; `e5-small-v2` publishes ONNX at a non-standard path and was skipped rather than special-cased). Hybrid RRF reaches **R@10 1.000** against lexical's 0.917, and `arctic-embed-s` matches the lexical baseline's P@1 (0.833) while improving MRR (0.891 vs 0.875) — a strict improvement on that family.
+
+  **The finding that matters is not about model choice: dense retrieval never refuses.** Every vector strategy and every hybrid scored **0 of 36 correct refusals**, against lexical's 34. Nearest-neighbour search returns its nearest neighbour however far away it is — a ranking is not a filter, and RRF inherits the property. `AM-29` r3 requires `NO_EVIDENCE_RETRIEVED` and `EVIDENCE_INSUFFICIENT` to be reachable, and `AM-25` r5 requires enforcement *mechanically and outside the model*, so **a similarity floor is a structural precondition for shipping dense or hybrid retrieval at all** — and by rule 7 it must be measured against known-unanswerable questions, not picked. The same owner-supplied material now unblocks two decisions rather than one.
+
+  **No model is selected, no dimension is pinned, and `chunk_embeddings` still does not exist.** The families an embedding model exists to win remain unmeasured, so selecting now would be choosing on evidence that does not bear on the question. All four measured candidates happen to be 384-dimension and that convenience is explicitly **not** treated as a reason to pin 384 — the 768 group is unmeasured.
+
+  **Three runtime properties, each learned by measurement rather than reasoning.** The onnxruntime **execution provider is pinned to CPU** and asserted by a test: onnxruntime ships an `AzureExecutionProvider` that could give an inference session a second network egress, and `AM-30` t1 permits exactly one. **Weight fetching was moved out of `legalmind/` into `tools/provision_model.py`** — the first draft put a `provision()` helper beside its consumer and `test_import_boundaries.py` refused it for importing `urllib`; the right fix was removing the capability rather than adding an `EGRESS_ALLOWED` entry, so no module under `legalmind/` imports a network client and the allow-list is **still empty**. And **embedding is batched at 16** because embedding a whole document in one call reached **14 GB RSS and was OOM-killed** (padding takes every sequence to the longest in the batch); a test asserts batching changes no vector, since the bound must not alter a result.
+
+  Nine decisions logged as #112–#120 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md); full results in [BACKEND_ARCHITECTURE.md](docs/05-architecture/BACKEND_ARCHITECTURE.md) § Embedding-model selection.
+
+* **Retrieval measurement and clause-aware chunking — Gate §5b unit A3** (authorized by `IMPL-02` r1). **848 tests pass** (1 skipped), ruff and mypy clean. **No embedding model is selected and no vector dimension is pinned**: `AM-26` r2 settles that by measurement, and the measurement is deliberately incomplete rather than approximated. `chunk_embeddings` still does not exist, and `EGRESS_ALLOWED` is still empty.
+
+  **A measured ingestion finding, fixed before anything was benchmarked.** PyMuPDF emits **no blank lines** for the real supplied PDFs — 59 single newlines and zero double on a representative page — so `parsing.segment_paragraphs`, which splits on `\n\s*\n`, produced **one page-sized evidence row per page**. Across six real documents that meant 99 page-fragment chunks and **2 of 59 rows carrying a section number**, so nothing could cite "§17.2". The structure was never missing: `1.13.`, `4.1.`, `4. SCOPE OF SERVICES` sit on their own lines, and my `_SUBCLAUSE` pattern simply failed on the trailing period. Splitting on those markers **whenever they appear, regardless of length**, took the same six documents to **341 clause-sized chunks with a section on 300 of them (88%)** — MSA.pdf from 41 to 236 at 100% coverage. Measuring embedding models on page-sized, section-less chunks would have produced meaningless numbers. The section reference is **derived at query time, never stored**, so `AM-27` r4's bar on independent provenance is untouched.
+
+  **`tools/benchmark_retrieval.py`** scores any strategy satisfying the new `RetrievalStrategy` contract, over probes derived **mechanically from the real supplied documents — none authored**. The distinction that licenses that: a *retrieval* label ("the text about X is in §17.2") is a locatable fact asserting no legal position, whereas an *answer* label ("our cap is 12 months") is a legal position and `AM-31` m5 requires it supplied. Three families are derivable; no document text enters the repository (54.6), and absence of the source directory is a SKIP, not a pass.
+
+  **Measured lexical baseline**, 180 probes over six real documents: `section_number` P@1 **0.972** / R@10 **1.000** / MRR 0.986; `exact_terminology` P@1 **0.833** / R@10 **0.931** / MRR 0.870; `unanswerable` **64 of 72 correctly refused**. That last figure was **26 wrongly-answered** on the first run, and the first number was discarded rather than reported: `websearch_to_tsquery` ANDs stemmed terms, so a chunk containing all four words scattered matches and may be topically fair — the probe was measuring its own design. Requiring one genuinely out-of-vocabulary word gave 8, and the residual is consistent with stemming equivalence, so 89% is a **floor**.
+
+  **Why the selection cannot be completed yet, stated rather than worked around.** Lexical retrieval is already strong on exactly the two categories a citation depends on, so an embedding model has to prove itself on **semantic similarity** and **legal phrasing** — questions worded differently from the document. Those cannot be derived from a document, and are reported as NOT MEASURED. Measuring candidates only on the derivable families would score them where lexical is strongest and embeddings weakest, selecting a model on evidence that does not bear on the question. Eight candidates are recorded with **fetched, not recalled** metadata (licence, dimension, params, ONNX availability), to be evaluated smallest-first per `AM-26` r2.
+
+  **pgvector requirement corrected from BLOCKED to ATTEST, on measurement.** Verified on 0.6.0: exact cosine KNN with the authorization `WHERE` clause in the same statement works and genuinely excludes out-of-scope rows. Exact search loses no recall, so **`AM-25` r6 is fully satisfiable on 0.6.0** — it is O(n) over the pre-filtered set, which for one document's chunks is the right trade. `≥ 0.8.0` buys *iterative index scans*, which matter only for an approximate index under a selective pre-filter. My earlier framing overstated this. The answer to an older build remains exact search, **never** a post-filter (`AM-25` r7).
+
+  **Two owner inputs now genuinely required**, both blocking the same decision and both stated in plain language in [LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md): real evaluation questions for the two undecidable families, and rule-19 approval for a local inference runtime (`onnxruntime` + `tokenizers` recommended over `torch` — ~50MB versus ~2.5GB, CPU-only, and inference-only, which makes `AM-26`'s no-fine-tuning position structural). Eleven decisions logged as #101–#111 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md). Full record in [BACKEND_ARCHITECTURE.md](docs/05-architecture/BACKEND_ARCHITECTURE.md) § Embedding-model selection.
+
+* **Chunking and lexical search — Gate §5b unit A2**, the first `legalmind/assist/` code (authorized by `IMPL-02` r1). **841 tests pass** (1 skipped), ruff and mypy clean, `tools.verify_reproducibility` passes with the legal digest unchanged, and `test_locked_schema_columns.py` still passes **unmodified**. **Demonstrated end to end against a synthetic MSA with no model of any kind**: `"aggregate liability"` finds the clause, `"17.2"` finds §17.2, `"ninety days notice"` finds *"ninety days prior written notice"* through stemming, a quoted phrase matches exactly, and `"arbitration in Singapore"` — absent from the document — returns an honest empty result rather than a guess. `EGRESS_ALLOWED` remains empty; no model is reachable.
+
+  **The boundary test worked as designed before any of it landed.** Creating `legalmind/assist/` made `test_import_boundaries.py` fail immediately — the allow-list refuses an undeclared package by default — so the lane's dependencies had to be stated explicitly rather than accreting. The declared set is `{db, domain, observability}`, and it imports **none** of `evaluation`, `mapping`, `extraction`, `analysis` or `workflow`: that exclusion is the mechanical form of `AM-25` r1, since an import edge into the evaluator is precisely how an assist module would quietly acquire the ability to produce a Finding. `security` is deliberately absent until A3 needs it.
+
+  **Chunking transforms committed evidence; it never re-reads the document** (`AM-27` r4). The parser has already segmented paragraphs, preserved the numbering the document itself states (34.12), kept pages and offsets, and flagged OCR text — re-deriving that from raw bytes would do it worse *and* create the second source of truth r4 forbids. Chunks carry **no provenance of their own**: page, section and source type are joined from the evidence row on every query, so a citation cannot display a stale copy.
+
+  **A real defect the tests caught.** The sentence-split regex consumed the whitespace it split on, so pieces concatenated to `"law.Each"` instead of `"law. Each"` — which breaks phrase search and reads as a typo inside a citation. Both split patterns are now zero-width, making reassembly exactly lossless, verified across three text shapes. Relatedly, only the first piece of a split row claims the evidence offset: the parser's offsets index the *extracted* text, so a computed offset for a later piece would look right and be subtly wrong, and a wrong offset corrupts a citation — `None` is the honest value.
+
+  **Search is `tsvector` + trigram ordered by `ts_rank`, and it is not BM25** (which needs an unauthorized extension). Two signals rather than one because they fail differently on legal text — stemming matches paraphrase but mangles `17.2`; trigram matches literally but has no notion of meaning — and deliberately **not fused into a weighted score**, because a weight would be an invented number and rank fusion belongs in A4 where it can be measured. `search_chunks` takes **one authorized `document_version_id` applied as a `WHERE` clause**: `AM-25` r6's authorization-inside-the-query, shaped so a caller cannot forget to scope it, because post-filtering would let result count or ranking reveal a chunk in a document the requester may not read — r7's enumeration oracle.
+
+  **Two operational properties, both structural rather than intended.** A failed index **cannot fail an ingestion** (`index_safely`, and the dispatcher swallows): evidence is authoritative and a chunk is rebuildable, so letting a derived index reject a successfully-parsed upload would be the inversion `AM-25` r1 and Step 38 rule 21 forbid. And indexing gets its **own `assist` queue and worker process**, separate from `analysis`, so an index backlog can never delay a Review's analysis — still one image with a different command, so `AM-26`'s modular monolith is unchanged.
+
+  **Re-indexing is refused by default rather than performed idempotently.** Delete-and-reinsert cascades to `answer_citations`, so a silent re-index would invalidate citations already recorded against removed chunks — an answer whose sources have quietly vanished. Nothing cites a chunk yet, which is exactly why this was the cheap moment to decide it. Thirteen decisions logged as #88–#100 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md), including why Core tables are built per call instead of declarative ORM models (a model fixes its schema at import time, before `conftest` has chosen the per-run one) and why pg_trgm's functions are schema-qualified from a live lookup instead of widening `search_path`.
+
+* **Assist-lane schema — Gate §5b unit A1** (migration `b1e7c4d20f39`, authorized by `IMPL-02` r1). Creates **eight of `AM-27`'s nine tables** in a schema separate from the locked ones (r1), with `pg_trgm` and a **generated** `tsvector` column on `chunks`. **817 tests pass** (1 skipped), ruff and mypy clean, the migration round-trips, and `tools.verify_reproducibility` passes with the legal digest **unchanged across the new migration** — which is `AM-28` r1's property, that no assist work is admitted to the determinism guarantee and no determinism assertion is relaxed for one. Critically, `test_locked_schema_columns.py` **passed unmodified**, which is exactly what `AM-27` r2 names as its evidence that the locked model is intact.
+
+  **`chunk_embeddings` is deliberately not created.** Its embedding column needs a fixed dimension; the dimension is a property of the embedding model; and `AM-26` r2 selects that model *by measurement, smallest-that-passes* — so none is selected and no dimension is known. Writing `vector(768)` today would put a number nobody chose into the schema, which is rule 7's habit applied to DDL. `test_chunk_embeddings_is_deliberately_absent` fails when it arrives, so its arrival has to be deliberate.
+
+  **Two verified facts reshaped the design.** `vector` is **not** a trusted PostgreSQL extension, so `CREATE EXTENSION vector` needs superuser — and `CREATE ROLE` needs `CREATEROLE`, which the application role also lacks. Both are privileges the application must never hold, so pgvector and the `legalmind_assist` role are **deployment preconditions reported by `preflight`**, never migration steps. `pg_trgm`, by contrast, *is* trusted, so the migration creates it — pinned to `public`, with its operator class schema-qualified from a live lookup rather than widening `search_path`, because a wider path would give every unqualified lookup in a test run a fallback into a shared schema and that is the isolation `F-4` exists to provide.
+
+  **pgvector is pinned ≥ 0.8.0 and Ubuntu's 0.6.0 recorded as insufficient.** `AM-25` r6 requires authorization applied *inside* the retrieval query; under a selective pre-filter an approximate index can starve, and pgvector's fix — **iterative index scans** — arrived in 0.8.0. On an older build the only options are poor recall or a post-filter, and a post-filter is the enumeration oracle r7 forbids. So the version is a correctness constraint. `docker-compose.yml` and all eight CI Postgres services moved to `pgvector/pgvector:pg16`.
+
+  **Schema decisions, all logged as #73–#87 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md):** the assist schema name is **derived per test run** (`<run>_assist`), because a hardcoded `assist` would be shared by concurrent suites while the locked tables sit in private schemas — reintroducing the collision `F-4` fixed; `chunks` does **not** copy page, section or source-type from evidence (`AM-27` r4's "no independent provenance" — reached by one join over immutable data instead); `chunks.evidence_id` is NOT NULL and **singular**, because r4 says "the Document Evidence row it came from"; `retrieval_runs.results` is JSONB by necessity, since `AM-27` authorizes no child table for a variable-length result list, **with the cost stated in the migration** — those chunk ids carry no foreign key, tolerable only because the *verified* citations live in `answer_citations` with a real FK; `ai_answers.model_identity` is nullable because `AM-29` r3's `EVIDENCE_INSUFFICIENT` means the model was never called and a placeholder would fabricate an external call; and **no `confidence` column exists anywhere**, asserted by a test (`AI-03` item 16).
+
+  **A finding while testing `AM-27` r5.** The cascade works, but the locked schema has **no delete path for a document version at all** — `document_processing_runs` and `reviews` both reference it without a cascade, so the delete is refused outright. r5's cascade is verified where it is defined (at the evidence row); r5's *premise* is currently unreachable. `test_the_locked_schema_has_no_delete_path_for_a_document_version` pins that, and fails if cascades are later added — which would change whether historical Reviews stay reproducible. The retention and deletion policy remains genuinely undecided.
+
+  **Deferred with reasons:** MinIO to A10 (locked 55.6 makes the provider a deployment choice, the `StorageBackend` Protocol already isolates it, it is not on the retrieval path, and deferring avoids settling the `boto3` dependency question under rule 19 before anything needs it). `AM-31`'s real-contract egress gate remains **CLOSED**.
+
+* **Amendment Batch AB-4 — the generative model is a hosted service** (owner decision 2026-08-25, appended to [`all_lock.md`](all_lock.md); the prior **16,048** lines verified byte-identical as a prefix, file now **16,385** lines). The owner selected **Gemini Flash** and reaffirmed it after the conflict was raised in writing, so the decision landed as an amendment rather than as code written against a contrary lock — `AM-25` r9 is a confidentiality guarantee ("no document text… leaves LeapSwitch-controlled infrastructure") and AB-3's Position block listed hosted model APIs out of V1 scope. Three records. **`AM-30`** widens `AM-25` r9 **for the generation call alone**, on ten minimum-egress terms: `embedding input` stays forbidden from egress because the embedding model is self-hosted (owner answer, same day); `LEGAL-02` becomes an **egress rule as well as a display rule** (r9's blanket ban had made that moot, so widening the destination would otherwise have silently widened `LEGAL-02`); no counterparty, signatory or contract identifier in a payload; a payload **hash, never the payload**, in `audit_events`; a trains-by-default provider tier is **ineligible whatever its cost**; a dated pinned model id, since a floating alias is not a pin; a one-endpoint network allow-list asserted by a test. It also **scopes rather than deletes** `AM-26`'s `Inference runtime — no outbound network route` row, which still governs the local embedding and reranking models — leaving that unamended would have made the batch internally contradictory. **`AM-31`** makes the real-contract egress gate a **locked property, default-closed and released only by a further appended record** citing written provider terms (a feature flag would let the confidentiality posture change with no owner signature; `AM-25` r2 sets the precedent that such a boundary is enforced by mechanism, not convention) — **the gate is CLOSED**, no terms exist — and resolves a contradiction `AM-30` would otherwise have created, since `AM-26` r3 requires the quality bar measured on **real** supplied documents while the gate forbids real text egressing: a provisional selection may use an explicitly-labelled **synthetic** set, but that is not a passed bar and **no answer reaches a user over real counterparty material on a synthetic-only bar**. **`IMPL-02`** authorizes the assist-lane build sequence **by reference** to a new [IMPLEMENTATION_READINESS_GATE.md](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) §5b, mirroring how `IMPL-01` authorized §5, and locks two orderings by consequence: citation enforcement **before** generation (`AM-28` r2 forbids the guardrail importing prompt or model code — built after, it must) and the egress allow-list **before** the first real generation call. `AM-25` r1–r8, `AM-27`, `AM-28`, `AM-29`, the modular monolith (**so no gateway service**), locked 54.6, locked 55.3 and **rule 19** are all explicitly unamended.
+
+* **AB-3 finally landed across the five specifications its own registry entries cite** (documentation only). AB-3 was locked 2026-08-24 but `SYSTEM_ARCHITECTURE.md`, `BACKEND_ARCHITECTURE.md`, `DATABASE_MIGRATIONS.md`, `STEP_54_TESTING_STRATEGY.md` and `DECISION_STATE_MODEL.md` contained **zero** mentions of it or of `AM-25`–`AM-29`, while [CONTRIBUTING.md](CONTRIBUTING.md) requires an amendment to land as one synchronized operation. Each now carries a labelled section rather than a rewrite (rule 22): the assist lane as a 38.28 *consumer* and not an eleventh domain; the stack additions, with `ts_rank` flagged as **not BM25**; `AM-27`'s nine tables, separate schema, and the two hazards recorded before the first migration (the test harness builds one schema per run, and `AM-29` r2 is unenforced across schemas); `AM-28`'s Tier 2 with its build-order consequence; and **the sixth axis** — `DECISION_STATE_MODEL.md` was still titled and LOCKED as "The Five Axes" with no mention of `AM-29`, and now documents the three assist-lane outcomes, the nine value names r2 forbids, and that this axis is the sanctioned answer to the product vision's "confidence" (`AI-03` item 16 forbids the percentage).
+
+* **Two boundary guards, before any assist-lane code exists** — both independently proven to fail on a simulated violation before being accepted. `backend/tests/test_import_boundaries.py` (22 tests) parses the import graph with `ast` rather than matching substrings: it asserts **no outbound network client anywhere** in `legalmind/` (verified true — zero network-family imports) with an `EGRESS_ALLOWED` map that is empty and must be added to **by name** when `AM-30`'s adapter lands, and it fences the deterministic core with an **allow-list**, so importing a future `legalmind.assist` fails on the first run with no rule added. `backend/tests/test_locked_schema_columns.py` (33 tests) snapshots all **29** locked tables and **195** columns against the **live database** — `AM-27` r2 names the existing invariant tests as its evidence that no locked table changed, but none of the 21 was sensitive to a column, so the evidence sentence was true and proved nothing. The existing substring check in `test_observability.py` is deliberately kept: it catches docstrings and comments an import graph cannot.
+
+* **A full-suite CI gate** (`ci.yml` job 13, blocking), plus an assertion that no model-provider credential is present in CI (`AM-30` t1/t8). All 12 prior jobs block, but none ran the whole suite: job 5's probe is `if [ $fails -gt 0 ] && [ $fails -lt 3 ]`, which is **correct** for the `F-4` flake detector it is — three failures of three is not flaky — so it exits 0 and roughly **250 tests across ~12 files** had their results discarded. Job 5 is left exactly as written; the fix is additive. `AM-28` r2's own logic applies: a guardrail no job gates is not a guardrail.
+
+* **Two governance documents, and deliberately not a third.** [docs/00-project/CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) (`ACTIVE`) is the operational index — source hierarchy, the assist-lane pointers, the `SOURCE REQUIRED`/`DECISION REQUIRED` markers, when to decide versus ask — and **restates no locked rule**, per the owner's instruction that a paraphrase drifts. [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) (`DERIVED`) is plain-language status for the owner, with no framework jargon, and derives build state rather than asserting it. No `CURRENT_ARCHITECTURE_AND_PHASE_PLAN.md` was created: `ARCHITECTURE_REFERENCE.md` already maps the architecture, the audit's §15 already holds the phase rationale, and the *authorized* sequence belongs in the Gate under `IMPL-02` because a working document may never become an authorized sequence. Both are indexed in [docs/README.md](docs/README.md) and reachable from the auto-loaded [CLAUDE.md](CLAUDE.md), which is the only mechanically reliable hop.
+
+* **Stale records corrected, only where measured** (2026-08-25). [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md): 653 → **781** tests; 53 → **58** Vitest; **"No Legal Rule exists" refuted** — the zero-tolerance rule is present in **32 of 32** standards files, read by both evaluators and enforced by `tools/import_ratified_standards.py`, and the cell now says so and says it was corrected; a new unit 12 row records the assist lane as `SPECIFIED · NOT STARTED`. [CLAUDE.md](CLAUDE.md): line counts, "15 Requirements" → 32 ratified standards, "Six remain open" → nine, and rule 10 updated for `AM-30`. [AGENTS.md](AGENTS.md): the paragraph telling agents the project was "in the specification phase" and not to write application code — actively misleading since `IMPL-01`. `DATABASE_MIGRATIONS.md`'s "no migrations have been implemented" header, with four in existence. **The table count was deliberately not "corrected"**: `AM-27` r2 says 30, the ORM and migrations say 29, and since `all_lock.md` wins and is append-only the discrepancy is registered as **C-14** and derived documents now write "29 (+ `alembic_version` — the 30 counted by `AM-27` r2)".
+
+* **Three conflicts registered, and one recommendation reversed.** **C-14** (the table count above). **C-15** — the owner's instruction that Domains A/B/C share a retrieval abstraction *without* being flattened into one data model rules out the shape this repository's own audit had recommended for Domain A/C tables, since `AM-27` authorizes nine tables and "no other table" and its r4 defines a chunk as derived from a Document Version; **only Domain B is buildable today**, and per rule 5 the reversal is registered rather than applied silently. **C-16** — the product vision's headline example is "what does Section 138 of the NI Act say", but the **NI Act and Evidence Act were never supplied**, and the seven statutes on disk did not come from India Code, which vision §9.2 makes a hard rule. Also fixed: `CONFLICTS.md`'s own intro omitted `C-13`. The audit's contradiction series was renamed `C1`–`C16` → **`RA-1`–`RA-16`** to end a namespace collision with the register — the second instance of the overloaded-`F-*` problem `CLAUDE.md` documents. Fifteen autonomous technical decisions are logged as #58–#72 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md), including two that **reverse the audit**: the corpus-parity harness is premature (`run_fixture` is a pure in-memory call with no database, and `tools/verify_reproducibility.py` already double-runs the full pipeline, so a parity test today asserts a tautology), and no `legalmind/assist/` skeleton was created because `CONTRIBUTING.md` forbids scaffolding "to get started".
+
+* **Existing-backend reuse audit against the current product vision** (2026-08-25, audit only — no application code, schema, dependency or test changed): [docs/architecture/EXISTING_BACKEND_REUSE_AUDIT.md](docs/architecture/EXISTING_BACKEND_REUSE_AUDIT.md) classifies every significant backend component against [legalmind-product-vision.md](legalmind-product-vision.md) and [legal-mind-tech-stack-and-buildplan-v2.md](legal-mind-tech-stack-and-buildplan-v2.md). Baseline measured on the day: **726 tests passing**, `ruff`/`mypy` at zero. Finds the backend **substantially reusable** — ~66% of ~24,900 LOC reusable as-is, ~33% with additive modification, **~0% requiring replacement and ~0% obsolete**; the assist lane is ~6–9k LOC of *new* code, not rewrite. Records an 18-item "do not rebuild" list, and confirms **vision §3b is already satisfied**: the 32 ratified Company Standards in `backend/config/company_standards/` are Domain A, derived from real supplied documents and stored as versioned configuration — no category-discovery pass is pending. Registers **16 architectural contradictions**, four of them blocking and none resolved here (rules 5–6): both target documents make **hosted Gemini Flash** the core dependency, which `AM-25` r9 and `AM-26` — locked 2026-08-24, one day earlier — forbid outright in favour of a local self-hosted open-weight model; the target's `validate_clause → verdict` LLM call would replace the deterministic evaluator, barred by `AM-25` r1/r4 and by the Tier-1 determinism gate; **Domain A and Domain C have no table authorized by `AM-27`**, whose `chunks` is defined as derived from a Document Version; and the vision's user-facing "confidence" collides with `AI-03` locked item 16, with the `AM-29` answer state proposed as the substitute. Also flags two self-contradictions inside the tech-stack document (which component holds the sole egress; whether a GPU is required), the stale "8 clause categories / 22-conflict register" seed, the unspecified RIAAS contract, and that `AM-27` r5's chunk hard-delete is not satisfiable because no hard-delete path for a Contract exists. Provides an 11-phase dependency-ordered migration plan that moves isolation scaffolding to the front and guardrails **before** generation, and carves out a model-free shippable increment. **Reported for separate correction, not edited:** [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md)'s Build-state table still reads "653 tests" and "No Legal Rule exists", both stale. Decides nothing, amends nothing, authorizes no build.
+
+* **AI/RAG R&D document re-bannered, body preserved** (2026-08-25): [docs/architecture/AI_RAG_ARCHITECTURE_RND.md](docs/architecture/AI_RAG_ARCHITECTURE_RND.md) predates AB-3 by hours and framed the assist lane as post-V1. A supersession banner now records that AB-3 put the lane in V1 scope, closed its central open question (contract text may **not** reach a third-party model API), and superseded its §9 proposed schema with `AM-27`'s nine authorized tables — while re-affirming that every §2 codebase finding and the §5–§8/§13/§14/§24 design guidance still hold. No section rewritten or deleted; `docs/README.md`'s `architecture/` section retitled and re-indexed for two documents.
+
+* **Post-V1 AI/RAG architecture R&D document** (2026-08-24, requested as a Principal-Solutions-Architect exercise, research only — no code, schema, dependency, or test changed): [docs/architecture/AI_RAG_ARCHITECTURE_RND.md](docs/architecture/AI_RAG_ARCHITECTURE_RND.md) audits whether the architecture can accept an assist-only LLM/RAG layer post-V1 without redesign, per `AI-02`. Finds it substantially holds, with three concrete gaps: ingestion has no async seam today (parsing runs synchronously in the request thread — the only Celery task is `analyse_review`), `AI-03`'s registry gloss implies a working spaCy assist-only precedent that does not exist anywhere in the codebase, and there is no existing outbound-HTTP infrastructure at all (a future LLM call would be the first external egress this codebase has ever made). Reproduces `AI-01`–`AI-04`'s verbatim locked text rather than the registry's paraphrase, flagging that the registry silently drops locked item 16 ("no generic AI confidence scores") — the rule most directly implicated by any AI-suggestion feature. Also notes the brief's questions assume a workspace/tenant primitive that does not exist in V1 (ownership is per-`owner_id` only). Recommends Option B (AI-assisted layer, self-hosted embeddings first, generation gated behind an explicit data-egress decision, pgvector over a separate vector service) with isolation proven by DB-level grants and a golden-corpus parity regression test, not code-review trust alone. New `docs/architecture/` folder added (unnumbered, alongside `docs/design/`) since no `docs/architecture/` entry existed in the documentation tree. Decides nothing, reopens no locked decision, authorizes no build.
+
+* **Eight-angle code review of PR #6, findings applied** (2026-08-22): fixed a `TableCard` clipping regression (cascade order), the queue view silently flipping across pagination, a just-decided Finding unmounting before its server-confirmed decision was seen (queue membership now sticky per visit, 52.7), and misleading filtered-empty copy on the core screen; completed the DRY pass (`StatePill`/`Field`/`formatDate` in the shared legal renderers, one e2e `signIn` helper); removed dead CSS and tokenized deep-surface literals; corrected two stale records (DD-1 status, DESIGN_SYSTEM's overstated "values unchanged" claim) and synced CLAUDE.md's `all_lock.md` line count (15,648). **Reported for owner decision, not changed:** nested-alias double-counting re-enabling single-mention CONFIRMED in ARBITRATION/GOVLAW/RETURN-DESTRUCTION mapping rules, the unrecorded KYC-RETENTION-TOS-001 recalibration, and the public-terms-derived aliases vs the CLAUDE.md test-only authorization.
+
+* **Phase 3.6–3.9 — report, configuration, audit, admin** (batched; established patterns only): count tables gain real classification/status pills; audit gets the labeled filter card and `.table-card` with full timestamps preserved; admin gets user-status pills and the Grant-secondary/Disable-danger button tiers; configuration forms move onto `.field` primitives with monospaced JSON textareas (syntax legibility only — no legal-content assistance, rule 21). Logic/API untouched; typecheck, 58/58 Vitest, build, real-browser pass on all four. **The Phase 3 page roadmap is now delivered end to end**; report export remains deferred (49.12 NOT YET SPECIFIED).
+
+* **Phase 3.5 — `/reviews/[id]`, the core screen** (DD-1 hybrid, DOM/selectors preserved): Needs decision / All findings segmented view over the server-provided `requires_decision` flag (queue default, full list one click away, automatic fallback when the queue is empty); attention edge on findings needing a decision; the Legal Decision block styled as the page's single authority act versus escalation's quiet request treatment; header back link + status pill + snapshot + View report; forms and buttons moved onto the shared primitives. Fixed a pre-existing state bug (perpetual "Loading findings…" beside a load error). All e2e selector names and locked 52.5 structural guarantees untouched. Verified: typecheck, 58/58 Vitest, build, real-browser passes including the out-of-scope 404 path.
+
 * **Phase 3.3 + 3.4 — `/contracts/[id]` and `/reviews`** (batched on owner instruction "go with the roadmap"): contract detail gains a back link, serif title with type/status pill meta, finished upload and start-review cards, and the reviews `.table-card`; the reviews list gains a labeled filter card, lifecycle pills (only `ANALYSIS_FAILED` error-tinted and `CANCELLED` muted — no other lifecycle state colored, preserving the needs-decision channel), and distinct filtered-empty vs true-empty copy. Logic/API untouched. Verified: typecheck, 58/58 Vitest, build, and a real end-to-end browser pass against the live stack (login → create contract → upload fixture document → all states screenshotted).
 
 * **Phase 3.2 — `/contracts` + app-shell identity** (DD-5 finish standard; theme resolved per owner "go with your recommendation"): content pages stay light for dense legal reading while the topbar adopts the deep-navy identity app-wide (serif wordmark, accent-vivid active underline); `/contracts` gains the `.table-card` treatment (header band, row hover, neutral status pills, date-only display), a finished `.form-row` create card on `.field` primitives, and the first light-surface `.btn--primary` (recolored to `--accent` for ~7:1 contrast). Page logic, API calls, and gating untouched; e2e has no DOM selectors on this page. Verified: typecheck, 58/58 Vitest, build, mocked-API browser screenshots at 1440/375 + empty state; a mobile topbar wrap defect was caught and fixed in review.
@@ -128,7 +549,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 * **The legal documents moved into the project — `legal-docs/`, gitignored, never tracked (owner ruling 2026-08-19).** Formerly at `/root/legalmind-source-material/`. Locked 54.6's "real counterparty contracts do not enter the repository" is now enforced as *version control*, with three guards replacing the old outside-the-tree assertion: the `.gitignore` rule must exist, `git ls-files legal-docs` must be empty (a force-add past the ignore rule is caught), and no copy of any document may exist elsewhere in the tree. Verified live: `git status` shows zero `legal-docs` entries and the executed NDA is ignored. `config.source_material_dir()` now defaults to the in-project path (still `LEGALMIND_SOURCE_MATERIAL_DIR`-overridable); the root README lists all 19 documents.
 
-* **The NDA baseline exists after all — an owner correction, recorded as one.** I had classified `NDA.pdf` as counterparty paper unusable as a baseline, reasoning from its text (PSM is the Disclosing Party; every obligation runs against LeapSwitch as Receiving Party). The owner corrected this on 2026-08-19: the executed NDA **is** the LeapSwitch NDA — the positions LeapSwitch **accepts as receiving party**, which is precisely the baseline for reviewing counterparty NDAs, since in that flow LeapSwitch is again the receiving party. **6 NDA Requirements ratified** from it: confidentiality survival **2 years** (§9, trade secrets perpetual) · non-solicitation **2 years** (§10) · termination notice **30 days** (§9) · governing-law, return/destruction and compelled-disclosure presence (§14/§6/§5). Direction caveat recorded once in every standard: these state the *receiving-party* position only. The counterparty is never named. 6 `STANDARD_DERIVED` fixtures; corpus 45 → **51**; suite 647 → **653**. The catalogue's "NEEDS: NDA template" gap is closed — **no document is now owed for the V1 catalogue**.
+* **The NDA baseline exists after all — an owner correction, recorded as one.** I had classified `NDA.pdf` as counterparty paper unusable as a baseline, reasoning from its text (the counterparty is the Disclosing Party; every obligation runs against LeapSwitch as Receiving Party). The owner corrected this on 2026-08-19: the executed NDA **is** the LeapSwitch NDA — the positions LeapSwitch **accepts as receiving party**, which is precisely the baseline for reviewing counterparty NDAs, since in that flow LeapSwitch is again the receiving party. **6 NDA Requirements ratified** from it: confidentiality survival **2 years** (§9, trade secrets perpetual) · non-solicitation **2 years** (§10) · termination notice **30 days** (§9) · governing-law, return/destruction and compelled-disclosure presence (§14/§6/§5). Direction caveat recorded once in every standard: these state the *receiving-party* position only. The counterparty is never named. 6 `STANDARD_DERIVED` fixtures; corpus 45 → **51**; suite 647 → **653**. The catalogue's "NEEDS: NDA template" gap is closed — **no document is now owed for the V1 catalogue**.
 
 * **The clause catalogue — LegalMind reviews the document, not just the liability clause.** On the owner's instruction of 2026-08-19 (superseding the 2026-08-18 "liability cap only in V1" ruling), **13 new Requirements** were ratified across three document types, every position **extracted verbatim from a LeapSwitch document and cited to its clause** under the manager's whatever-is-stated rule — none invented. MSA: confidentiality survival 3 years (§12.3) · force-majeure exit 60 days (§18.3) · cure period 30 days (§7.4) · auto-renewal 6 months (§7.3) · data purge 15 days (§7.6.6) · governing-law and arbitration presence (§19). TOS: late fee 5%/month (§7) · data retrieval 7 days (§16) · KYC retention 5 years (§8) · force majeure 60 days (§15) · governing-law presence (§22). SLA: credit-claim window 60 days. Full map with gaps: [docs/00-project/CLAUSE_CATALOGUE.md](docs/00-project/CLAUSE_CATALOGUE.md). **13 new `STANDARD_DERIVED` fixtures** (10 numeric, **the first 3 PRESENCE fixtures** — closing 45E's `P-01`) prove the engine is requirement-agnostic end to end. Corpus 32 → **45**; suite 632 → **647**. NDA Requirements remain blocked on the one genuinely missing input: **a LeapSwitch NDA template** (the NDA in hand is counterparty paper). AUP/Privacy stay Requirement-free (unilateral policies).
 
@@ -182,7 +603,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 * Coverage after the rulings: **14 AUTHORED · 1 AUTHORED_RATIFIED · 3 PARTIAL · 21 BLOCKED · 4 OUT_OF_V1_SCOPE · 13 STRUCTURAL_ONLY · 8 SEPARATE_TRACK**. Only **3 cases** still await an owner *decision* (a Legal Rule); 22 await *material*. Suite **606 passed, 6 skipped**.
 
-* **The Company Standard for `LIABILITY-001` is ratified: 12 months of total fees.** Owner-supplied 2026-08-18, from Leapswitch Networks ToS §13 second bullet. Recorded once, at [backend/config/company_standards/LIABILITY-001.json](backend/config/company_standards/LIABILITY-001.json), with its provenance, the verbatim source quote, and an explicit statement of what it does *not* contain. Corpus fixtures reference it by `company_standard_ref` and the loader refuses a fixture that supplies both a ref and inline values, so the standard is stated once and cannot drift. It is **configuration** — no `all_lock.md` entry, no locked decision amended. The owner's instruction cited "the confirmed C-01 decision"; `C-01`/`REC-01` resolved the Finding-type *vocabularies* and supplies the `MATCH`/`DEVIATION` terms, but **does not** establish the 12-month figure and no locked decision does. Provenance is recorded accordingly.
+* **The Company Standard for `LIABILITY-001` is ratified: 12 months of total fees.** Owner-supplied 2026-08-18, from Leapswitch Networks ToS §13 second bullet. Recorded once, at [backend/config/company_standards/](backend/config/company_standards/) (then `LIABILITY-001.json`; re-scoped per document type on 2026-08-19 to `LIABILITY-TOS-001.json`, value unchanged), with its provenance, the verbatim source quote, and an explicit statement of what it does *not* contain. Corpus fixtures reference it by `company_standard_ref` and the loader refuses a fixture that supplies both a ref and inline values, so the standard is stated once and cannot drift. It is **configuration** — no `all_lock.md` entry, no locked decision amended. The owner's instruction cited "the confirmed C-01 decision"; `C-01`/`REC-01` resolved the Finding-type *vocabularies* and supplies the `MATCH`/`DEVIATION` terms, but **does not** establish the 12-month figure and no locked decision does. Provenance is recorded accordingly.
 
 * **Un-ruled deviations are now routed to a human — `UNRULED_DEVIATION_REQUIRES_DECISION`.** The owner's fail-closed policy: with no Legal Rule the outcome stays `NOT_APPLICABLE` *and* goes to Legal review. This was a real gap. Locked D-3.5's four conditions do not cover `DEVIATION` + `NOT_APPLICABLE` — `DEVIATION` is Tier 2 — so such a Finding derived to `OPEN`, meaning "nothing ever required a decision", while locked Step 20 r4 says in prose that with no rule "the deviation stands and a human decides". `F-4` expressly permits configuration to **widen** the D-3.5 set and never to narrow it, and `widen_decision_requirement` existed for the purpose but was **never called**; it is now the wired extension point. Verified end to end against a real database, not only through the predicate: a 24-month clause against the ratified 12-month standard persists a Finding at `DECISION_REQUIRED`. **Consequence, recorded deliberately:** no Legal Rule exists anywhere, so in V1 essentially every deviation requires a Legal Decision and a Review holding one cannot complete until Legal rules.
 

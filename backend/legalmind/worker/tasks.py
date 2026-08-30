@@ -50,7 +50,12 @@ from legalmind.analysis.service import (
 from legalmind.db import models as M
 from legalmind.db import session as db_session
 from legalmind.observability.logs import log_event, log_exception
-from legalmind.worker.app import TASK_ANALYSE_REVIEW, celery_app, evaluator_fingerprint
+from legalmind.worker.app import (
+    TASK_ANALYSE_REVIEW,
+    TASK_INDEX_DOCUMENT_VERSION,
+    celery_app,
+    evaluator_fingerprint,
+)
 
 #: How long to wait before retrying a job the worker cannot correctly run *yet*.
 #: Skew is fixed by deploying the API and workers together (55.1), which takes
@@ -185,3 +190,49 @@ def _summary(run: AnalysisRun) -> dict:
         "skipped_as_optional": run.skipped_as_optional,
         "failures": len(run.failures),
     }
+
+
+# --------------------------------------------------------------------------
+# Assist-lane indexing — AB-3 / AB-4, Gate section 5b unit A2
+# --------------------------------------------------------------------------
+@celery_app.task(bind=True, name=TASK_INDEX_DOCUMENT_VERSION, max_retries=MAX_RETRIES)
+def index_document_version(self, *, document_version_id: str,
+                           request_id: str | None = None) -> dict:
+    """Chunk a document version's committed evidence into the assist schema.
+
+    Deliberately unlike `analyse_review` in three ways, each for a stated reason.
+
+    **No evaluator fingerprint.** This job produces no legal record, so there is no
+    version skew to guard against — `AM-25` r1 keeps every Finding, Evaluation,
+    Classification and Rule Outcome in the deterministic lane, and nothing this task
+    writes can become one. The chunker's own version is recorded on each row instead.
+
+    **A missing document version is a clean drop, not a retry.** Same posture as an
+    unknown Review above: it means the enqueuing transaction never committed, so
+    retrying would never succeed.
+
+    **A failure here is operational, never legal.** Evidence is untouched and remains
+    authoritative; the only casualty is a derived index that can be rebuilt. So this
+    retries on an infrastructure fault and gives up quietly rather than marking anything
+    failed — there is no assist-lane state that a failed index should transition.
+    """
+    from legalmind.assist.indexing import index_document_version as run_index
+
+    db = _session()
+    try:
+        result = run_index(db, UUID(document_version_id))
+        db.commit()
+        return {
+            "document_version_id": document_version_id,
+            "chunks_written": result.chunks_written,
+            "skipped": result.skipped,
+            "reason": result.reason,
+        }
+    except Exception as exc:
+        db.rollback()
+        log_exception("assist.index.job_failed", request_id=request_id,
+                      document_version_id=document_version_id,
+                      operational_failure=True)
+        raise self.retry(exc=exc, countdown=ERROR_RETRY_SECONDS) from exc
+    finally:
+        db.close()

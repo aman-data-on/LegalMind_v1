@@ -23,6 +23,7 @@
  */
 
 import { EvaluationRow } from "./EvaluationRow";
+import { StatePill } from "./Primitives";
 import { EvidenceList } from "./EvidenceList";
 import type { Evaluation, Finding } from "@/lib/types";
 
@@ -30,15 +31,27 @@ export function FindingCard({
   finding,
   renderEvaluationActions,
   children,
+  current = false,
 }: {
   finding: Finding;
   /** Per-Evaluation decision UI, injected by the Review screen. */
   renderEvaluationActions?: (evaluation: Evaluation) => React.ReactNode;
   /** Escalation controls, which are Finding-level (F-3, AM-23). */
   children?: React.ReactNode;
+  /** Marks where keyboard navigation (n/p) currently points. Presentation only. */
+  current?: boolean;
 }) {
   return (
-    <article className="finding" data-finding-id={finding.id}>
+    <article
+      /* Attention edge from the server-provided flag — never derived here (52.7). */
+      className={`finding${finding.requires_decision ? " finding--attention" : ""}${
+        current ? " finding--current" : ""
+      }`}
+      data-finding-id={finding.id}
+      /* Focusable by script only (n/p navigation), never in the Tab order — Tab
+         still walks the real controls inside the card. */
+      tabIndex={-1}
+    >
       <header className="finding__head">
         <h3 className="finding__requirement">
           {finding.requirement.code ?? "Requirement"}
@@ -50,26 +63,21 @@ export function FindingCard({
             Derived summary (49.7 r1, D-1.1). Labelled as such so it is not read
             as the authoritative result — the Evaluations below are.
           */}
-          <span
-            className={`badge badge--${finding.classification.toLowerCase()}`}
+          <StatePill
+            axis="classification"
+            value={finding.classification}
             title="Derived summary of the Evaluations below"
-          >
-            {finding.classification}
-          </span>
+          />
 
           {/*
             A separate axis from classification (REC-06). Rendering them side by
             side is what keeps RESOLVED ≠ MATCH visible: a RESOLVED Finding still
             shows DEVIATION here.
           */}
-          <span className={`status status--${finding.status.toLowerCase()}`}>
-            {finding.status}
-          </span>
+          <StatePill axis="status" value={finding.status} />
 
           {finding.escalated ? (
-            <span className="status status--escalated" title="Requires authorized review">
-              Escalated
-            </span>
+            <StatePill axis="status" value="Escalated" title="Requires authorized review" />
           ) : null}
         </div>
       </header>

@@ -92,6 +92,55 @@ Steps 49 and 52–55 add **nothing** to the schema.
 
 Steps 2 and 9 are the two that are cheapest now and most expensive to retrofit: authorization because every later layer assumes it, and the corpus harness because it is what makes every subsequent change safe.
 
+
+---
+
+# 5b. Assist-lane implementation sequence (`IMPL-02`)
+
+**Status: 🔒 AUTHORIZED BY REFERENCE.** `IMPL-02`, Amendment Batch AB-4, 2026-08-25. Added
+2026-08-25.
+
+`IMPL-01` authorized implementation of the locked V1 specification **in the §5 sequence**. That
+sequence predates AB-3 and contains no assist-lane unit, so after AB-3 the lane had locked content
+and no authorized order in which to build it. `IMPL-02` closes that gap using the same mechanism
+`IMPL-01` used for §5 — **authorization by reference**, so this sequence can be revised on evidence
+without amending a lock.
+
+**§6's standing constraints below do not relax.** Note especially that §6 item 1 bars LLM, RAG,
+embeddings and vector search from the **authoritative analysis path** — that wording is exact and
+still binding. AB-3 permitted an *assistive* lane beside that path; it did not open the path itself.
+`AM-25` r1–r8, `AM-27`'s table limit, `AM-28`'s two tiers and `AM-29`'s sixth axis bind throughout.
+
+| # | Unit | Depends on | Note |
+|---|---|---|---|
+| **A0** | **Boundary guards, before any assist code** | — | **Done 2026-08-25.** `test_import_boundaries.py` (22) and `test_locked_schema_columns.py` (33), plus CI job 13 gating the full suite. Cheapest before there is anything to isolate, and it is what makes `AM-25` r1/r2 and `AM-27` r2 structural rather than stated |
+| **A1** | Schema + infrastructure | A0 | **Substantially done 2026-08-25** — migration `b1e7c4d20f39` creates **8 of the 9** `AM-27` tables in a separate schema, derived per test run (`<run>_assist`) so concurrent suites cannot collide as they did under `F-4`; `pg_trgm` plus a **generated** `tsvector` column on `chunks`; `test_assist_schema.py` covers r1/r3/r4/r5/r6, `AM-29` r1–r3, and the absence of a confidence column. `chunk_embeddings` deferred to A3 (its dimension is a property of an embedding model, and `AM-26` r2 has not selected one — writing `vector(768)` now would invent the number). **Preconditions, not migration steps**: pgvector **≥ 0.8.0** and the `legalmind_assist` role each need a privilege the application role deliberately lacks (`vector` is not a trusted extension; `CREATE ROLE` needs CREATEROLE), so `preflight` reports both. MinIO deferred to A10 — locked 55.6 makes the provider a deployment choice and it is not on the retrieval path |
+| **A2** | Chunking + keyword index | A1 | **Done 2026-08-25.** `legalmind/assist/{chunking,store,indexing}.py`: a deterministic chunker over committed `document_evidence` (`AM-27` r4 — never re-parsed from raw text, and it carries no provenance of its own), Core-based persistence with the schema resolved at call time, and lexical search on `tsvector` + trigram ordered by `ts_rank` — **not BM25**, which needs an unauthorized extension. Indexing runs on its own `assist` queue and worker, dispatched from the upload endpoint; it **cannot fail an ingestion**, because a derived index breaking the authoritative path is the inversion `AM-25` r1 and Step 38 rule 21 forbid. Re-indexing requires an explicit instruction rather than happening on every upload, since delete-and-reinsert would cascade to `answer_citations` and silently invalidate recorded citations. **Verified end to end with no model**: phrase, quoted-phrase and section-number queries resolve; an absent term returns an honest empty result |
+| **A3** | Self-hosted embeddings + hybrid retrieval + authorization | A2 | **Done 2026-08-26.** Model selected by measurement on the owner-ratified set: `all-MiniLM-L6-v2`, smallest-that-passes (`AM-26` r2). Gate calibrated from measured distributions — a two-feature rule (cosine floor 0.50 + peak-gap 0.059, lexical hit passes) after a single global floor measured insufficient. `chunk_embeddings` migration `c4a91f6e2d87`; hybrid retrieval in SQL, scope inside the query (`AM-25` r6); evidence in `BACKEND_ARCHITECTURE.md` |
+| **A4** | **Citation enforcement and refusal states — before generation** | A3 | **Done 2026-08-26.** `guardrails.py`: sentence-level citation markers verified for existence and lexical grounding; the model's own NOT FOUND honoured as `EVIDENCE_INSUFFICIENT`; sufficiency check keeps the model uncalled (`AM-29` r3). Imports no prompt or model code — asserted by test (`AM-28` r2). The identical refusal wording is a single constant (`AM-29` r4) |
+| **A5** | Network egress allow-list | A1 | **Application level done**: exactly one module in `EGRESS_ALLOWED`, asserted by test; CI asserts no provider credential is present. The **network-layer** allow-list (`AM-30` t8) is a deployment control, listed in preflight and pending infra |
+| **A6** | Generation behind one interface | A4, A5 | **Done 2026-08-26, gate CLOSED.** `generation.py` over stdlib urllib — no provider SDK, so rule 19's separate dependency approval is never triggered. `AM-31` enforced in code: production egress refused while the gate constant is CLOSED; released only alongside the appended record (g3) — an env var cannot open it. Payload screen re-erects LEGAL-02 as an egress rule (t3); dated-pin model id required (t7); per-call `audit_events` row with payload hash (t5) |
+| **A7** | Conversation API + unified workspace | A6 | **Done 2026-08-26.** Three endpoints behind the new `assist.ask` permission (the extension AB-3's registry entry anticipated); Guard chain + byte-identical-404 on conversations; compliance-shaped questions routed to the evaluator (`AM-25` r4). Workspace Ask panel: citations with §/page, quiet refusals, retrieval scores labelled as retrieval scores |
+| **A8** | Domain A and Domain C | A3 | **Blocked**: `AM-27` authorizes no corpus table (C-15), the NI Act and Evidence Act were never supplied (C-16), and there is no curated judgment list. Domain A already exists as the 32 ratified Company Standards — this unit indexes existing configuration, it does not rebuild it |
+| **A9** | Tier-2 evaluation gate | A4, A6 | **Measurable half done 2026-08-26** — `tools/verify_assist_quality.py` runs every ratified question through the production `search_hybrid` (real SQL, real fusion, real gate) and blocks on a worsened wrongly-answered rate against `tests/assist_eval/baseline.json` (recorded from live measurement: 12/13 refused, 41/64 retained, end-to-end recall@10 0.438 — the drop from the ungated 0.938 decomposed and verified as the sub-floor evidence rule, not a harness artifact). Proven to fail: exit 1 on a tightened baseline, exit 0 restored. **Not "in CI" and deliberately so**: the gate needs the documents and the model, both of which locked 54.6 keeps out of the repository — it is a release-pipeline act exactly like 55.5's reproducibility gate, and `preflight` now names it (`tier2_quality_gate`, ATTEST). **Faithfulness and citation precision remain blocked**: they need generated answers, `AM-31` is CLOSED, and m4 forbids a synthetic substitute — they join the blocking set when generation on real material becomes possible |
+| **A10** | Security hardening | A6 | **Partial, 2026-08-26.** TLS and secrets were already reported by `preflight` as deployment-time properties. **Done — scanning**: CI job 14 runs pip-audit and npm audit (both measured zero, blocking) and Trivy against both built images (CRITICAL/HIGH blocking, MEDIUM/LOW reported) — first documented build test of either Dockerfile in CI. **Done — network segmentation in the reference deployment**: `docker-compose.yml` now splits `data` (internal — no route out: db, queue, both workers, api) from `edge` (frontend, api); the document-processing path provably cannot egress at the routing layer (`AM-30` t1 structural), the frontend's no-database rule (38.22) is a network fact, and model weights arrive by read-only mount because the data network cannot download anything. Production-grade segmentation (host firewall / cloud security groups) and t8's full destination allow-list remain deployment infrastructure. **Deliberately not in CI**: OpenVAS/ZAP scan a running instance; orchestrating one inside this workflow is deployment-pipeline work, not an additive scan step — see `AUTO_MODE_DECISIONS.md` #143. The **egress allow-list is not here** — it is A5, a precondition of A6 |
+
+### The two orderings that may not be changed
+
+`IMPL-02` r4 makes ordering revisable engineering judgment **except**:
+
+1. **A4 before A6** — citation enforcement before generation. `AM-28` r2 forbids the guardrail
+   importing prompt or model code; built after generation it will, or it needs a retrofit.
+2. **A5 before A6** — the egress allow-list before the first real generation call, so `AM-31`'s
+   gate is a network control and not only an application one.
+
+### What `IMPL-02` does not authorize
+
+Deciding anything marked `NOT YET SPECIFIED`; resolving an open conflict or open decision; adding a
+table beyond `AM-27`'s nine; adding a technology or dependency beyond `AM-26` as amended by
+`AM-30` — **including a provider client library, which rule 19 still governs**; or authoring any
+legal content, threshold, Company Standard, Legal Rule or corpus fixture.
+
 ---
 
 # 6. Standing constraints for implementation

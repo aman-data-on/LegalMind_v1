@@ -92,6 +92,9 @@ def _recreate(url: str) -> None:
         conn.execute(text(f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE)'))
         conn.execute(text(f'CREATE DATABASE "{database}"'))
     engine.dispose()
+    # Fresh database, no pgvector; the migration refuses to create it. Try here.
+    from tools.pg_extensions import ensure_vector_extension
+    ensure_vector_extension(url)
 
 
 def _alembic(url: str):
