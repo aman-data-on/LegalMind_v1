@@ -12,6 +12,39 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX slice 4 — the Documents landing and intake screen** (owner: "go"). The minimal
+  stand-in the strict cleanup left at `/workspace` is now the real front door
+  (PRODUCT_UX_ROADMAP §E screens 2–3): the document TYPE is the one prominent **required**
+  choice — Step 6's ten values in a select, declared, never inferred (owner Q9), with the
+  reason stated beside the field — and "Add and open" lands directly in the new document's
+  workspace, where the upload already lives, so intake is one continuous act. First-run
+  empty state makes adding a document the onboarding (no tour); skeleton rows while
+  loading; type/status chips per row; pagination; error and permission states.
+
+  **The vocabulary is a presentation copy with a parity guard**: `src/lib/documentTypes.ts`
+  mirrors `legalmind/domain/document_types.py`, and a new backend test
+  (`test_frontend_vocabulary.py`) fails CI if the two ever differ — the frontend must not
+  reach the backend source at build time (52.1), and no endpoint exposes the vocabulary,
+  so a checked copy is the honest option. The UI requires a type even though the API
+  accepts a contract without one: presentation stricter than the contract, because an
+  undeclared type only ever fails later at analysis (`ANALYSIS_FAILED`) — better refused at
+  the door with the reason than accepted and refused downstream. API unchanged.
+
+  **Two of my own errors caught by the tests, recorded rather than smoothed over**: a
+  text-splice while rewriting the e2e file left an orphaned test body that made the file
+  unparseable — and a filtered "exit 0" briefly read as a pass until an unfiltered run
+  showed "No tests found" (the lesson: never trust a grep-filtered summary); and the new
+  form-name regex matched only the first-run heading, passing in isolation on a fresh DB
+  and failing in the full file. Both fixed; the suite is now the arbiter again.
+
+  **Declared out of scope, plainly**: a per-row "review state" column — the list endpoint
+  deliberately stays lean (decision #187), so that needs a list-level summary field first
+  (a §19 candidate, not smuggled in); Review creation from the landing (snapshot choice);
+  retiring the legacy contract-detail page (it still uniquely hosts review creation and
+  download). Verified: backend **937/1 skipped** (+1, the parity guard) · frontend **96
+  Vitest** (+2) · browser **46 passed / 9 gated** (+1 intake spec) · typecheck ·
+  forbidden-terms clean. Decisions #207–#209.
+
 * **UI/UX slice 3 — the Ask pane in the Inquiry register, citations wired to the
   highlight** (owner: "yes go ahead with next phase"). The workspace's third region is
   live: ask about the open document, get an answer whose numbered citations *point at the

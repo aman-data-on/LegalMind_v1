@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
+import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   groupByPage,
@@ -138,5 +139,18 @@ describe("EscalateControl", () => {
     );
     expect(html).toContain("a request, not an approval");
     expect(html).toContain("Withdraw");
+  });
+});
+
+describe("Step 6 document types (presentation copy)", () => {
+  it("carries exactly the ten locked codes, in the backend's order", () => {
+    expect(DOCUMENT_TYPES.map((t) => t.code)).toEqual([
+      "MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER",
+    ]);
+  });
+  it("labels a known code and never invents one for an unknown or missing value", () => {
+    expect(documentTypeLabel("SLA")).toBe("Service Level Agreement");
+    expect(documentTypeLabel("ZZZ")).toBe("ZZZ");
+    expect(documentTypeLabel(null)).toBe("Type not declared");
   });
 });

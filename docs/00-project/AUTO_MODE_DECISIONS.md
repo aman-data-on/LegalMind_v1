@@ -744,3 +744,17 @@ first full run of the new Findings-pane e2e specs passed without a debugging cyc
 key extended with `evidence_id`) · frontend 94 Vitest (+4) · browser 45 passed / 9 gated
 (+2 Ask specs, first-run green) · typecheck · `check:terms` clean · OpenAPI `--check`
 clean · `AM31_GATE` CLOSED.**
+
+
+## UI/UX slice 4 — Documents landing and intake, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 207 | **The document type is REQUIRED in the UI although the API accepts a contract without one** | Owner Q9: declared, never inferred. An undeclared type is accepted by `POST /contracts` and then fails at analysis (`ANALYSIS_FAILED`); refusing at the door, with the reason beside the field, is the same rule enforced earlier and more kindly. Presentation stricter than the contract, contract untouched | Whether the API should also require it — a 49.3 change, owner's call |
+| 208 | **"Add and open" navigates straight into the new document's workspace** | Intake is one act: name and type here, upload there (slice 1's empty state), findings and questions in the same place. Returning to the list after creating would make the user find the row they just made | — |
+| 209 | **The Step 6 vocabulary is a presentation COPY guarded by a backend parity test**, not fetched | No endpoint exposes the vocabulary, and the frontend must not reach the backend source at build time (52.1). A copy drifts silently — so `test_frontend_vocabulary.py` reads the frontend file and asserts equality with `DOCUMENT_TYPES`, skipping only in a backend-only checkout, never to make a mismatch pass | Adding a vocabulary endpoint later — unnecessary while the guard holds |
+
+**Verification at close: backend 937 passed / 1 skipped (+1 parity guard) · frontend 96 Vitest
+(+2) · browser 46 passed / 9 gated (+1 intake spec; a regex of mine that only matched the
+first-run heading, and an orphaned test body from a bad splice, were both caught by running
+the suite unfiltered — recorded in the changelog) · typecheck · `check:terms` clean.**

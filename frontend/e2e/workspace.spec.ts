@@ -154,7 +154,7 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     });
   });
 
-  test("the Documents index lists contracts and links only into /workspace", async ({ page }) => {
+  test("the Documents landing lists documents and links only into /workspace", async ({ page }) => {
     const created = await apiPost(page, "/contracts", {
       name: `Index ${Date.now()}`,
       contract_type: "MSA",
@@ -167,11 +167,36 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 
     const row = page.getByRole("link", { name: contract.name });
     await expect(row).toHaveAttribute("href", `/workspace/${contract.id}`);
-    // No row, and nothing else on the page, points back at the legacy app.
     await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
 
     await row.click();
     await expect(page).toHaveURL(`/workspace/${contract.id}`);
+  });
+
+  test("intake: the type is a required choice from Step 6's ten values, and creating lands in the workspace", async ({
+    page,
+  }) => {
+    await page.goto("/workspace");
+    const form = page.getByRole("form", { name: /Add (your first |a) document/ });
+    await expect(form).toBeVisible();
+
+    // The ten locked values, and nothing else, in the select (Step 6).
+    const options = form.locator("select option");
+    await expect(options).toHaveCount(11); // ten values + the empty prompt
+    const codes = (await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).filter(Boolean);
+    expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
+
+    // Declared, never inferred: without a type the action is not available.
+    await form.getByLabel(/^Name/).fill(`Intake ${Date.now()}`);
+    await expect(form.getByRole("button", { name: "Add and open" })).toBeDisabled();
+    await form.getByLabel(/^Document type/).selectOption("NDA");
+    await expect(form.getByRole("button", { name: "Add and open" })).toBeEnabled();
+
+    await form.getByRole("button", { name: "Add and open" }).click();
+    // Intake continues in the new document's workspace, where the upload lives.
+    await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+    await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
+    await expect(page.locator(".ws-context")).toContainText("NDA");
   });
 });
 

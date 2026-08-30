@@ -330,3 +330,37 @@
   flex: 1; font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
   border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); min-width: 0;
 }
+
+/* ==========================================================================
+ * Documents landing + intake (Phase 2 slice 4, 2026-08-30).
+ * ========================================================================== */
+.ws-docs { padding: var(--ws-s5) var(--ws-s4) var(--ws-s7); max-width: 72rem; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: var(--ws-s5); }
+.ws-docs__first { max-width: 60ch; display: flex; flex-direction: column; gap: var(--ws-s4); }
+.ws-docs__lede { margin: 0; font-size: var(--ws-text-md); color: var(--ws-ink-700); line-height: 1.6; }
+
+.ws-intake { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); padding: var(--ws-s4) var(--ws-s5); }
+.ws-intake__title { font-size: var(--ws-text-md); font-weight: 600; margin: 0 0 var(--ws-s3); }
+.ws-intake__fields { display: grid; grid-template-columns: minmax(200px, 1.2fr) minmax(260px, 1.6fr) auto; gap: var(--ws-s4); align-items: start; }
+@media (max-width: 900px) { .ws-intake__fields { grid-template-columns: 1fr; } }
+.ws-field { display: flex; flex-direction: column; gap: 4px; }
+.ws-field__label { font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-700); }
+.ws-field__req { font-weight: 400; color: var(--ws-ink-500); }
+.ws-field__help { font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.45; }
+.ws-field__error { margin: var(--ws-s3) 0 0; font-size: var(--ws-text-sm); color: var(--ws-error); }
+.ws-field input, .ws-field select {
+  font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px; min-height: 38px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); background: var(--ws-surface);
+}
+/* Sits on the input row: label height (13px × 1.5) + the 4px gap, so the button
+   aligns with the fields rather than with the type field's helper text below them. */
+.ws-intake .ws-btn { align-self: start; margin-top: 23.5px; min-height: 38px; }
+
+.ws-docs__table { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); overflow-x: auto; }
+.ws-docs__table table { width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm); }
+.ws-docs__table th { text-align: left; font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500); padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-docs__table td { padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); vertical-align: middle; }
+.ws-docs__table tr:last-child td { border-bottom: 0; }
+.ws-docs__table td a { font-weight: 500; text-decoration: none; }
+.ws-docs__table td a:hover { text-decoration: underline; }
+.ws-docs__skel { display: flex; gap: var(--ws-s5); padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-pager { display: flex; gap: var(--ws-s3); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
