@@ -15,11 +15,30 @@ import { apiPost, createAnalysedReview, storageStatePath } from "./support";
  * headings, snapshot ids, dates — is masked rather than excluded, so a layout
  * regression under a mask's neighborhood still fails.
  *
- * Baselines are Linux/Chromium renderings (this repo's CI runner and the
- * Playwright-pinned browser). Regenerate deliberately with
- * `npm run design-qa -- --update-snapshots` and review the image diff like any
- * other diff.
+ * Baselines are Linux/Chromium renderings FROM THIS REPO'S CI RUNNER — never from
+ * a developer machine. A dev box renders fonts ~1% differently and, with the
+ * embedding model present, renders a different Ask-panel index state (the page
+ * height changes), so locally generated baselines fail CI every time (2026-08-30:
+ * this happened twice in one afternoon). To regenerate: let job 15 fail, download
+ * its `visual-regression-diffs` artifact, commit the `*-actual.png` files as the
+ * new baselines, and review the image diff like any other diff.
+ *
+ * The guard below makes the rule mechanical: outside CI, this spec refuses both
+ * `--update-snapshots` and a missing baseline (which Playwright would silently
+ * write). Set `ALLOW_LOCAL_BASELINES=1` only to inspect diffs locally, never to
+ * commit what it writes.
  */
+
+test.beforeEach(({}, testInfo) => {
+  if (process.env.CI || process.env.ALLOW_LOCAL_BASELINES) return;
+  const mode = testInfo.config.updateSnapshots;
+  if (mode === "all" || mode === "changed") {
+    throw new Error(
+      "visual baselines are generated in CI, never locally — do not run " +
+        "--update-snapshots on a developer machine (see the header comment)",
+    );
+  }
+});
 
 const SHOT = {
   maxDiffPixelRatio: 0.001,
