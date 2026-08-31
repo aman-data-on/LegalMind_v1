@@ -12,7 +12,9 @@ export default function ResearchPage() {
       <div className="ws-context">
         <h1>Research</h1>
       </div>
-      <ResearchPlaceholder />
+      <div className="ws-docs">
+        <ResearchPlaceholder />
+      </div>
     </>
   );
 }

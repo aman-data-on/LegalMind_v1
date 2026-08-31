@@ -12,6 +12,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UX audit of the whole new UI (owner-ordered), with fixes** — every screen captured
+  with real fixture data at 1440px and 840px through a temporary gated Playwright harness
+  (deleted after use), judged against the ratified master prompt and the ui-ux-pro-max
+  checklist. Six findings, all fixed:
+
+  1. **Structured values rendered as clipped JSON blobs** in finding cards ("Found in
+     contract {"scope":"GENERAL","cap_unit":"months",…" cut mid-string at three-pane
+     width). Now labeled key–value pairs that wrap — the server's keys and values
+     verbatim, presentation only (rule 12 untouched).
+  2. **The transcript page had no page container** — content flush against the viewport
+     edge. 3. **The report body likewise.** 4. **Research likewise.** All three now sit in
+     the same centered 72rem `.ws-docs` gutter as every other screen, and a CSS rule gives
+     every bare full-page state (restricted/loading/not-found) the same alignment.
+  5. **`ws-chip--flag` ("Decision required"/"Escalated") rendered oversized** — it lacked
+     the chip metrics and inherited body type. Now chip-sized; the fill carries the
+     weight, not the type size.
+  6. **"report" vs "Report" casing** drift between the Legal queue and the Reviews screen.
+
+  Judged fine and left alone: exact enum vocabulary in chips and selects (the Authority
+  register is deliberate), the full-width primary at collapsed widths, the audit trail's
+  density, and the empty states. Verified after fixes: **102 Vitest · 54 browser passed /
+  9 gated · backend 937/1 · typecheck · terms gate clean.** Known consequence, flagged:
+  the gated `workspace.png` visual baseline now differs — CI's DESIGN_QA job will fail
+  once, and the new baseline is adopted from **CI's artifact** per the 2026-08-30
+  CI-only-baselines rule (never `--update-snapshots` locally). Decisions #219–#221.
+
 * **UI/UX slices 7–8 + the QA close — the roadmap's build order is complete** (owner:
   "you are the developer and lead this project"). The new UI now covers every §E screen
   that V1 backs:

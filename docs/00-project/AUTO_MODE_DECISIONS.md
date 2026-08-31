@@ -801,3 +801,12 @@ the run: the STRUCTURAL config's own code is asserted, never a hardcoded LIABILI
 · typecheck · `check:terms` clean. The §G build order (1–10) is complete; the new shell
 carries Documents · Reviews · Legal · Ask history · Research · Admin. Deferred and
 flagged: CI-cut visual baselines for the new screens.**
+
+
+## UX audit pass, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 219 | **Structured evaluation values render as labeled key–value pairs, verbatim** — never a JSON blob, never an interpretation | A clipped `{"scope":…` line is below product standard and hides the value's tail; rule 12 requires the server's facts unaltered, so the fix is layout, not paraphrase | Any richer domain-aware rendering (e.g. "24 months of fees") — that would interpret, and needs a spec |
+| 220 | **One page-container rule**: rich bodies wrap in `.ws-docs`; every bare full-page state gets the same centered 72rem gutter via `.ws-main > .ws-state` | Three screens (report, transcript, research) shipped without the container — the flush-left drift was exactly the "unfinished" look the audit was ordered to catch | — |
+| 221 | **The changed `workspace.png` baseline is adopted from CI's artifact after the expected one-time DESIGN_QA failure** | Owner rule 2026-08-30: baselines only from CI renders | — |

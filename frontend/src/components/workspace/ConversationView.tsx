@@ -105,6 +105,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
           )}
         </div>
       </div>
+      <div className="ws-docs">
       <div className="ws-transcript">
         <p className="ws-pane__note">
           A saved record — every answer replays with the citations it carried live. To ask
@@ -120,6 +121,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
             <TranscriptTurn key={turn.id} turn={turn} contractId={conversation.contract_id} />
           ))
         )}
+      </div>
       </div>
     </>
   );

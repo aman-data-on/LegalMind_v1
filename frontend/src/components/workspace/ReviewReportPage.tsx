@@ -122,6 +122,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
         </div>
       </div>
 
+      <div className="ws-docs">
       {reportDenied ? (
         <div className="ws-state" role="note">
           <h2>Report restricted</h2>
@@ -198,6 +199,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           ) : null}
         </div>
       ) : null}
+      </div>
     </>
   );
 }

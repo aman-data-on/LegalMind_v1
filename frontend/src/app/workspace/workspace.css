@@ -256,7 +256,14 @@
 .ws-chip--classify-fill { background: var(--ws-classify-soft); color: var(--ws-classify); border-color: color-mix(in srgb, var(--ws-classify) 28%, transparent); }
 .ws-chip--outcome-fill { background: var(--ws-outcome-soft); color: var(--ws-outcome); border-color: color-mix(in srgb, var(--ws-outcome) 30%, transparent); }
 .ws-chip--decision-fill { background: var(--ws-decision-soft); color: var(--ws-decision); border-color: color-mix(in srgb, var(--ws-decision) 28%, transparent); }
-.ws-chip--flag { background: var(--ws-outcome-soft); color: var(--ws-outcome); font-weight: 600; border: 1px solid color-mix(in srgb, var(--ws-outcome) 30%, transparent); }
+/* The attention flag wears the chip metrics — same size discipline as every
+   other chip; the fill and color are what carry the weight, not the type size. */
+.ws-chip--flag {
+  background: var(--ws-outcome-soft); color: var(--ws-outcome); font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--ws-outcome) 30%, transparent);
+  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.02em;
+  padding: 2px 7px; border-radius: var(--ws-radius-sm); white-space: nowrap;
+}
 
 .ws-evaluation { border-top: 1px solid var(--ws-ink-100); padding: var(--ws-s3) 0; }
 .ws-evaluation:first-of-type { border-top: 0; padding-top: 0; }
@@ -424,3 +431,15 @@
 
 .ws-auditfilter { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 6px; }
 .ws-auditfilter .ws-field { max-width: 16rem; }
+
+/* ---- 2026-08-31 UX audit fixes ------------------------------------------ */
+
+/* Structured values as labeled pairs that wrap — never a clipped JSON line. */
+.ws-facts dd { overflow-wrap: anywhere; }
+.ws-facts__pairs { display: inline-flex; flex-wrap: wrap; gap: 2px 14px; }
+.ws-facts__pair { white-space: nowrap; }
+.ws-facts__k { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
+
+/* A page whose whole body is one state (restricted, loading, not-found) keeps
+   the same centered 72rem gutter every other screen has. */
+.ws-main > .ws-state { max-width: 72rem; width: 100%; margin: 0 auto; }

@@ -182,9 +182,7 @@ export default function LegalQueuePage() {
                       <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
                         {review.status}
                       </span>{" "}
-                      <Link href={`/workspace/reviews/${review.id}`} className="ws-mono">
-                        report
-                      </Link>
+                      <Link href={`/workspace/reviews/${review.id}`}>Report</Link>
                     </td>
                   </tr>
                 ))}

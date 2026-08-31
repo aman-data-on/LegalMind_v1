@@ -271,9 +271,28 @@ function EvaluationCard({ evaluation, onChanged }: { evaluation: Evaluation; onC
   );
 }
 
-function renderValue(value: unknown): string {
-  if (value === null || value === undefined) return "Not recorded";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+function scalar(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
   return JSON.stringify(value);
+}
+
+/** Values verbatim — presentation only, no interpretation (rule 12: the server's
+ *  keys and values, exactly; just never a clipped one-line JSON blob). */
+function renderValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined) return "Not recorded";
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return (
+      <span className="ws-facts__pairs">
+        {Object.entries(value as Record<string, unknown>).map(([key, entry]) => (
+          <span key={key} className="ws-facts__pair">
+            <span className="ws-facts__k">{key}</span>{" "}
+            <span className="ws-mono">{scalar(entry)}</span>
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return scalar(value);
 }
