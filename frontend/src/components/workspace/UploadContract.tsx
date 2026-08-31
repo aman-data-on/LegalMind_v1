@@ -21,12 +21,33 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
 import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
 type Stage = "idle" | "uploading" | "analyzing";
+
+/** Mirrors the server default (`LEGALMIND_MAX_UPLOAD_BYTES`, 50 MB). A
+ *  convenience pre-check for an immediate, friendly message — the server's
+ *  own validation stays the authority (34.16). */
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const SUPPORTED_EXTENSIONS = [".pdf", ".docx"];
+
+function preflightProblem(file: File): string | null {
+  const name = file.name.toLowerCase();
+  if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
+    return "This file type is not supported. Please choose a PDF or DOCX file.";
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return "This file exceeds the 50 MB limit. Please choose a smaller file.";
+  }
+  if (file.size === 0) {
+    return "This file is empty. Please choose another file.";
+  }
+  return null;
+}
 
 export function UploadContract({ firstRun }: { firstRun: boolean }) {
   const { can } = useSession();
@@ -47,6 +68,12 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
 
   function choose(chosen: File | null) {
     if (!chosen) return;
+    const problem = preflightProblem(chosen);
+    if (problem) {
+      setFile(null);
+      setError(problem);
+      return;
+    }
     setFile(chosen);
     setName(nameFromFilename(chosen.name));
     setContractType("");
@@ -72,22 +99,7 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
     // Analysis, best-effort: resolve the latest published standards and run.
     // Any failure here is a STATE the workspace explains, never a dead end.
     setStage("analyzing");
-    try {
-      if (can(P.REVIEW_CREATE)) {
-        const snapshots = await api.snapshots({ page_size: 1 });
-        const snapshot = snapshots.items[0];
-        if (snapshot) {
-          const detail = await api.contract(contractId);
-          const versionId = detail.document_versions?.[0]?.id;
-          if (versionId) {
-            const review = await api.createReview(versionId, snapshot.id);
-            await api.analyzeReview(review.id);
-          }
-        }
-      }
-    } catch {
-      // The workspace's findings pane states the real situation.
-    }
+    await chainAnalysis(contractId, can(P.REVIEW_CREATE));
     router.push(`/workspace/${contractId}`);
   }
 
@@ -124,6 +136,11 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
           />
         </label>
         <span className="ws-drop__hint">PDF or DOCX — or drop the file here</span>
+        {error ? (
+          <p className="ws-field__error" role="alert">
+            {typeof error === "string" ? error : describeError(error)}
+          </p>
+        ) : null}
       </div>
     );
   }

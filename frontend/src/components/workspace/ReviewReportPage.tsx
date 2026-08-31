@@ -24,6 +24,8 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
+import { ExportControl } from "./ExportControl";
+
 type Load =
   | { kind: "loading" }
   | { kind: "ready"; review: Review; report: ReviewReport | null; reportDenied: boolean; contractName: string | null }
@@ -119,6 +121,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           </span>
           <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
           <Link href={`/workspace/${review.contract_id}`}>Open the workspace</Link>
+          <ExportControl reviewId={review.id} />
         </div>
       </div>
 
@@ -170,13 +173,17 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
             <section aria-label="Findings by classification">
               <h2 className="ws-report__h">Findings by classification</h2>
               <div className="ws-chips">
+                {/* Each count opens the workspace's findings, pre-filtered to
+                    exactly the findings it counts — a summary never substitutes
+                    for its parts (DESIGN.md). */}
                 {Object.entries(report.classification_counts).map(([value, count]) => (
-                  <span
+                  <Link
                     key={value}
-                    className={`ws-chip${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
+                    href={`/workspace/${review.contract_id}?classification=${value}`}
+                    className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
                   >
                     {value} <b className="ws-mono">{count}</b>
-                  </span>
+                  </Link>
                 ))}
               </div>
             </section>

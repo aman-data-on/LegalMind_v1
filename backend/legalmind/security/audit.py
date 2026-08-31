@@ -41,6 +41,10 @@ CONFIG_REQUIREMENT_CREATED = "config.requirement_created"
 CONFIG_VERSION_CREATED = "config.version_created"
 CONFIG_STANDARD_UPDATED = "config.standard_updated"
 CONFIG_PUBLISHED = "config.published"
+# Reporting — a rendered copy of legal analysis leaving the system (owner
+# directive 2026-08-31; 49.10 already named export generation as a limited
+# surface, so the act was always expected to be consequential).
+REPORT_EXPORTED = "report.exported"
 # Assist lane (AB-3/AB-4). AM-30 t5: every generation call is recorded with the
 # model identity, prompt version and a payload HASH — never the payload. 53.1 keeps
 # this in the audit trail proper, because an operational log is never a substitute

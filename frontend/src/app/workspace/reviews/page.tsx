@@ -135,7 +135,7 @@ export default function ReviewsPage() {
             <p>
               {status
                 ? "Nothing visible to your account has this status."
-                : "Reviews appear once a document is analyzed. Starting one isn't built into this screen yet — it still happens in the current application."}
+                : "Reviews appear once a document is analysed. Upload a contract on the Documents page and analysis starts in the flow."}
             </p>
           </div>
         ) : null}

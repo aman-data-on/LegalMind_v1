@@ -12,6 +12,67 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Owner UX rethink (2026-08-31, "rethink the UX around the real user journey") —
+  the drill, export, contextual Ask, the work dashboard.** The owner's 38-section
+  directive is the explicit UX-review request the 2026-08-31 freeze anticipated;
+  decisions #231–#241 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md). The audit found
+  the core journey already built (upload-first intake, in-flow analysis, ungated
+  Ask, real versioning — the two earlier 2026-08-31 passes); what was missing was
+  the drill and the exits:
+
+  - **Summary → category → finding → evidence, clickable end to end** (#233): the
+    findings pane opens with classification counts as pressable filters; the report
+    page's classification chips and the Documents rows' count chips deep-link
+    `?classification=`; the cited excerpt now renders verbatim beside each finding
+    (the highlight gesture kept); and the Evidence → Fact → Standard → Rule → Result
+    explanation chain returned to the workspace card — it had regressed against the
+    legacy screen (rule 12). All grouping is presentational counting of server
+    values (52.7).
+  - **The all-MATCH success state is designed, not an afterthought** (#234): a calm
+    banner from real fields; no grade, no percentage.
+  - **`POST /reviews/{id}/export` — PDF and DOCX** (#231/#232): 49.3's own row,
+    formats per the owner's §30 list (49.12's open question closed by that
+    directive). One content model built from the caller's own serializations —
+    LEGAL-02 omission holds in the file exactly as on the wire, pinned by test.
+    pymupdf + python-docx (already in the stack, rule 19 clean); audited
+    (`report.exported`); rate-limited (49.10). `export.generate` granted alongside
+    `report.view` (USER, LEGAL_REVIEWER, LEGAL_ADMIN) — **flagged for
+    ratification**. Email summary deliberately not built (no mail component in the
+    locked stack). Export buttons live on the findings pane and the report page.
+  - **Finding → Ask handoff** (#235): "Ask about this" places an editable,
+    document-shaped question in the Ask input and focuses it (switching to the Ask
+    tab in collapsed layouts); nothing auto-sends, no hidden context enters the
+    assist lane.
+  - **The Ask pane is durable** (#236): it reopens the contract's latest
+    conversation on mount, citations intact — the 2026-08-26 reopen endpoints,
+    finally used by the pane itself.
+  - **One loop, not two journeys** (#237): a revised version chains the same
+    best-effort analysis as a first upload (shared `chainAnalysis`); the manual
+    Analyze action stays for every degraded path.
+  - **Documents is the work dashboard** (#238): a "Needs attention" group (any
+    non-MATCH count, from the server's own counts) above "All documents"; no KPI
+    cards, no synthesized metrics.
+  - **Live analysis state** (#239): the findings pane polls the Review lifecycle
+    (bounded, silent) and renders "Analysing against snapshot <id>…" plus an honest
+    ANALYSIS_FAILED terminal state. **Upload preflight** (#240): friendly immediate
+    messages for unsupported type / >50 MB / empty file, server validation still
+    authoritative.
+  - Consistency fixes: `NOT_APPLICABLE` removed from the frontend's classification
+    rendering order (it is a Rule Outcome — different axis); the CALM set unified to
+    MATCH; the reviews empty state no longer points at "the current application".
+  - **Deliberate deviation from the owner's §22 (remove obsolete UI)** (#241): the
+    legacy screens stay in the tree, unlinked and unreachable from the product,
+    because ~10 browser specs and the visual baselines still drive them as the
+    verification harness. Their retirement is a named follow-up: port the unique
+    coverage, then delete screens + specs + baselines together.
+
+  Verified: backend **949 passed / 1 skipped** (+7 export tests) · ruff · mypy ·
+  **113 Vitest** (+6) · typecheck · terms gate · browser suite (see below) ·
+  `openapi.json` regenerated deliberately (48 operations; the drift guard was
+  satisfied, not silenced). Expected: visual-baseline diffs on the reworked screens —
+  re-cut from CI per the standing rule (owner 2026-08-30).
+
 * **The AM-31 gate is RELEASED — Gemini is live end to end** (owner confirmation,
   2026-08-31: paid-tier no-training terms per ai.google.dev/gemini-api/terms "Paid
   Services", verbatim-quoted in the appended record **"AM-31 GATE RELEASE"**;

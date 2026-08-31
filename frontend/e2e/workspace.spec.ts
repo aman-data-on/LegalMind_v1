@@ -228,7 +228,10 @@ test.describe("the Findings pane, slice 2", () => {
     await expect(pane.locator(".ws-finding").first()).toContainText(findings[0].classification);
 
     if (target.evidence_refs.length > 0) {
-      const evidenceButton = pane.locator(".ws-evidence-refs button").first();
+      // 2026-08-31 v2: the excerpt renders verbatim beside the finding, and its
+      // location button keeps the highlight gesture into the document pane.
+      await expect(pane.locator(".ws-evidence__quote").first()).toBeVisible();
+      const evidenceButton = pane.locator(".ws-evidence__loc").first();
       await evidenceButton.click();
       const lit = page.locator('[data-region="document"] .ws-row--lit');
       await expect(lit).toHaveCount(1);

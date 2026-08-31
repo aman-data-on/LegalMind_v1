@@ -25,13 +25,15 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Pagination } from "@/lib/types";
 
-import { analysisCell } from "@/components/workspace/model";
+import { analysisCell, rowNeedsAttention } from "@/components/workspace/model";
 import { UploadContract } from "@/components/workspace/UploadContract";
 
 const PAGE_SIZE = 25;
 
-const CALM_CLASSIFICATIONS = new Set(["MATCH", "NOT_APPLICABLE"]);
+const CALM_CLASSIFICATIONS = new Set(["MATCH"]);
 
+/** Each count is a real link into that document's findings, pre-filtered to
+ *  the classification it names — the drill starts on the landing page. */
 function AnalysisSummary({ contract }: { contract: Contract }) {
   const cell = analysisCell(contract);
   if (cell.kind === "none") return <span className="ws-pane__note">No document yet</span>;
@@ -43,12 +45,13 @@ function AnalysisSummary({ contract }: { contract: Contract }) {
   return (
     <span className="ws-cell-chips">
       {cell.counts.map(({ classification, n }) => (
-        <span
+        <Link
           key={classification}
-          className={`ws-chip${CALM_CLASSIFICATIONS.has(classification) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
+          href={`/workspace/${contract.id}?classification=${classification}`}
+          className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(classification) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
         >
           {classification} <b className="ws-mono">{n}</b>
-        </span>
+        </Link>
       ))}
     </span>
   );
@@ -120,8 +123,34 @@ export default function DocumentsPage() {
           </div>
         ) : null}
 
+        {contracts && contracts.some(rowNeedsAttention) ? (
+          // The work-dashboard question first: "what needs my attention?"
+          // Grouping is by the server's own analysis counts (any non-MATCH),
+          // never a client-side re-derivation, and never a severity ranking.
+          <section className="ws-attend" aria-label="Needs attention">
+            <h2 className="ws-attend__title">Needs attention</h2>
+            <ul className="ws-attend__list">
+              {contracts.filter(rowNeedsAttention).map((contract) => (
+                <li key={contract.id} className="ws-attend__row">
+                  <Link href={`/workspace/${contract.id}`} className="ws-attend__name">
+                    {contract.name}
+                  </Link>
+                  {contract.contract_type ? (
+                    <span className="ws-chip ws-chip--type">{contract.contract_type}</span>
+                  ) : null}
+                  <AnalysisSummary contract={contract} />
+                  <Link href={`/workspace/${contract.id}`} className="ws-btn ws-btn--sm ws-attend__go">
+                    Review
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {contracts && contracts.length > 0 ? (
           <div className="ws-docs__table">
+            <h2 className="ws-attend__title">All documents</h2>
             <table>
               <thead>
                 <tr>

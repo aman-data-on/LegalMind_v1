@@ -122,10 +122,19 @@ export function pickVersion<T extends { id: string }>(
  * are words, not blanks. Dates stay out of this cell (they live in "Added")
  * so the cell is deterministic for visual baselines.
  */
-const COUNT_ORDER = [
+/**
+ * The seven Finding classifications (locked Step 19 vocabulary), in a fixed
+ * attention-first RENDERING order. A rendering order, not a severity model:
+ * the Tier-1 states are legally equivalent and all route to a human.
+ * `NOT_APPLICABLE` is deliberately absent — it is a Rule Outcome, a different
+ * axis, and must never appear in a classification list.
+ */
+export const CLASSIFICATION_ORDER = [
   "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE",
-  "AMBIGUOUS", "UNRESOLVED", "MATCH", "NOT_APPLICABLE",
+  "AMBIGUOUS", "UNRESOLVED", "MATCH",
 ] as const;
+
+const COUNT_ORDER = CLASSIFICATION_ORDER;
 
 export type AnalysisCell =
   | { kind: "none" }        // no document uploaded yet
@@ -133,6 +142,67 @@ export type AnalysisCell =
   | { kind: "unanalysed" }
   | { kind: "analysed"; review_id: string; review_status: string;
       counts: Array<{ classification: string; n: number }> };
+
+/**
+ * Counts of the loaded findings by classification, in rendering order — pure
+ * presentational grouping of values the server already returned (52.7: nothing
+ * here derives or reinterprets a classification).
+ */
+export interface FindingsSummary {
+  counts: Array<{ classification: string; n: number }>;
+  needsDecision: number;
+  /** True when at least one finding exists and every one is a MATCH — the
+   *  designed success state, built from real fields only. */
+  allMatch: boolean;
+}
+
+export function findingsSummary(
+  findings: Array<{ classification: string; requires_decision: boolean }>,
+): FindingsSummary {
+  const byClassification = new Map<string, number>();
+  let needsDecision = 0;
+  for (const finding of findings) {
+    byClassification.set(
+      finding.classification,
+      (byClassification.get(finding.classification) ?? 0) + 1,
+    );
+    if (finding.requires_decision) needsDecision += 1;
+  }
+  const known = CLASSIFICATION_ORDER
+    .map((classification) => ({
+      classification: classification as string,
+      n: byClassification.get(classification) ?? 0,
+    }))
+    .filter((entry) => entry.n > 0);
+  // Anything outside the known vocabulary still renders (verbatim, last) —
+  // the client never drops a value the server chose to return.
+  const unknown = [...byClassification.entries()]
+    .filter(([classification]) =>
+      !(CLASSIFICATION_ORDER as readonly string[]).includes(classification))
+    .map(([classification, n]) => ({ classification, n }));
+  return {
+    counts: [...known, ...unknown],
+    needsDecision,
+    allMatch:
+      findings.length > 0 &&
+      findings.every((finding) => finding.classification === "MATCH"),
+  };
+}
+
+/**
+ * Whether a Documents row belongs in the "Needs attention" group: its latest
+ * analysis recorded at least one non-MATCH classification. Derived from the
+ * server's own counts, never recomputed from findings.
+ */
+export function rowNeedsAttention(row: {
+  latest_analysis?: { classification_counts?: Record<string, number> } | null;
+}): boolean {
+  const counts = row.latest_analysis?.classification_counts;
+  if (!counts) return false;
+  return Object.entries(counts).some(
+    ([classification, n]) => classification !== "MATCH" && n > 0,
+  );
+}
 
 export function analysisCell(row: {
   latest_version?: { processing_status: string } | null;

@@ -15,6 +15,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useAskIntent } from "./askIntent";
+
 export type Region = "document" | "findings" | "ask";
 type Mode = "three" | "two" | "one";
 
@@ -49,6 +51,15 @@ export function WorkspaceLayout({
   const mode = useMode();
   const [tab, setTab] = useState<Region>("findings");
   const tabsRef = useRef<HTMLDivElement | null>(null);
+
+  // A finding's "Ask about this" must land in a VISIBLE Ask region — in the
+  // collapsed layouts that means switching to the Ask tab, otherwise the
+  // prefilled draft would arrive in a pane the user cannot see.
+  const askIntent = useAskIntent();
+  const askSeq = askIntent?.draft?.seq ?? 0;
+  useEffect(() => {
+    if (askSeq > 0) setTab("ask");
+  }, [askSeq]);
 
   const panes: Record<Region, React.ReactNode> = { document, findings, ask };
   const tabbed: Region[] = mode === "one" ? ["document", "findings", "ask"] : ["findings", "ask"];

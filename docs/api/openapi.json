@@ -427,6 +427,24 @@
     "title": "ReviewCreate",
     "type": "object"
    },
+   "ReviewExportRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "format": {
+      "enum": [
+       "pdf",
+       "docx"
+      ],
+      "title": "Format",
+      "type": "string"
+     }
+    },
+    "required": [
+     "format"
+    ],
+    "title": "ReviewExportRequest",
+    "type": "object"
+   },
    "ReviewStatus": {
     "enum": [
      "DRAFT",
@@ -2428,6 +2446,57 @@
     "summary": "Analyze Review",
     "tags": [
      "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/export": {
+   "post": {
+    "operationId": "export_review_api_v1_reviews__review_id__export_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReviewExportRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Export Review",
+    "tags": [
+     "export"
     ]
    }
   },

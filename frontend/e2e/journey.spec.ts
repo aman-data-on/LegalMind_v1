@@ -42,6 +42,27 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(finding).toBeVisible();
   await expect(finding).toContainText("DEVIATION");
 
+  // The drill (2026-08-31 v2): the summary strip's counts are pressable
+  // filters — category → finding → evidence without leaving the pane.
+  const filters = page.locator(".ws-filter");
+  await expect(filters.getByRole("button", { name: /^DEVIATION \(\d+\)$/ })).toBeVisible();
+  await filters.getByRole("button", { name: /^DEVIATION/ }).click();
+  await expect(finding).toBeVisible();
+  // …and the drill ends in verbatim text: the cited excerpt sits beside the
+  // finding, and its location button lights the passage in the document.
+  await expect(finding.locator(".ws-evidence__quote").first()).toBeVisible();
+  await finding.locator(".ws-evidence__loc").first().click();
+  await expect(page.locator(".ws-row--lit")).toBeVisible();
+
+  // Finding → Ask handoff: an EDITABLE draft lands in the input, nothing sends.
+  await finding.getByRole("button", { name: "Ask about this" }).click();
+  await expect(page.getByLabel("Question")).toHaveValue(/What does this document say about/);
+
+  // Export — the analysis leaves as a real file (owner directive §30).
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "PDF", exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
+
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await page.getByLabel("Question").fill("Explain the zorbulated framblewitz stipulations");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
@@ -78,15 +99,13 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // The workspace lands on v2; the picker knows both versions.
   const picker = page.locator(".ws-version select");
-  await expect(picker).toBeVisible();
+  await expect(picker).toBeVisible({ timeout: 20_000 });
   await expect(picker.locator("option")).toHaveCount(2);
   await expect(picker).toHaveValue(/^(?!$)/); // a concrete id
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
-  // v2 gets its OWN analysis — one click, against the named current snapshot
-  // (2026-08-31: the absent Review is an action, not a dead end).
-  await expect(page.getByText("hasn\u2019t been analysed yet")).toBeVisible();
-  await page.getByRole("button", { name: "Analyze against current standards" }).click();
+  // v2 got its OWN analysis IN THE FLOW (2026-08-31 v2: the revised upload
+  // chains the same best-effort analysis as a first upload — one loop).
   await expect(page.locator("article[data-finding-id]").first()).toBeVisible({ timeout: 20_000 });
   const contract = (await (await page.request.get(`/api/v1/contracts/${v1.contractId}`)).json()).data;
   expect(contract.document_versions.length).toBe(2);

@@ -15,6 +15,14 @@
  *   routed_to_evaluator a compliance-shaped question is a pointer to the
  *                       Findings pane, a third type, not an answer or a refusal
  *
+ * The conversation is durable (2026-08-31): on mount the pane reopens this
+ * contract's most recent conversation — the server keeps citations across
+ * reloads (the 2026-08-26 backend addition) — so leaving and returning to the
+ * workspace no longer silently starts a fresh thread.
+ *
+ * A finding's "Ask about this" arrives here as an EDITABLE draft (askIntent):
+ * placed in the input and focused, never auto-sent.
+ *
  * While a request is in flight there is ONE honest status line — the client
  * sees a single request, so a staged "searching → verifying" theater with
  * invented timings would claim progress knowledge it does not have (decision
@@ -22,11 +30,12 @@
  * as a bar or colour (`AI-03` item 16, rule 12).
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import type { AskResult } from "@/lib/types";
+import type { AskResult, ConversationTurn } from "@/lib/types";
 
+import { useAskIntent } from "./askIntent";
 import { useHighlight } from "./highlight";
 
 interface Turn {
@@ -35,12 +44,70 @@ interface Turn {
   error: string | null;
 }
 
+/** A replayed turn pair from `GET /conversations/{id}` in the live pane's shape. */
+function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
+  const turns: Turn[] = [];
+  for (const message of messages) {
+    if (message.role === "USER") {
+      turns.push({ question: message.content, result: null, error: null });
+    } else {
+      const last = turns[turns.length - 1];
+      if (!last) continue;
+      last.result = {
+        conversation_id: "",
+        message_id: message.id,
+        answer_state: message.answer_state ?? "ANSWERED",
+        text: message.content,
+        routed_to_evaluator: message.routed_to_evaluator,
+        citations: message.citations,
+      };
+    }
+  }
+  return turns;
+}
+
 export function AskPane({ contractId }: { contractId: string }) {
+  const askIntent = useAskIntent();
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [restoring, setRestoring] = useState(true);
   const [pending, setPending] = useState<string | null>(null);
   const conversationRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const busy = pending !== null;
+
+  // Reopen this contract's most recent conversation, citations intact.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { items } = await api.conversations({ contract_id: contractId, page_size: 1 });
+        const latest = items[0];
+        if (!latest || cancelled) return;
+        const detail = await api.conversation(latest.id);
+        if (cancelled) return;
+        conversationRef.current = detail.id;
+        setTurns(turnsFromHistory(detail.messages));
+      } catch {
+        // History is a convenience; asking still works without it.
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contractId]);
+
+  // A finding's handoff: place the draft, focus the input, send nothing.
+  const consumedSeq = useRef(0);
+  useEffect(() => {
+    const draft = askIntent?.draft;
+    if (!draft || draft.seq === consumedSeq.current) return;
+    consumedSeq.current = draft.seq;
+    setQuestion(draft.text);
+    inputRef.current?.focus();
+  }, [askIntent?.draft]);
 
   const submit = useCallback(async () => {
     const asked = question.trim();
@@ -100,10 +167,16 @@ export function AskPane({ contractId }: { contractId: string }) {
           ) : null}
         </ol>
         {turns.length === 0 && pending === null ? (
-          <p className="ws-ask__empty">
-            Ask what this document says about something. Every answer points at the
-            passage it came from — or says plainly that the document does not answer it.
-          </p>
+          restoring ? (
+            <p className="ws-ask__empty" aria-busy="true">
+              Reopening your questions about this document…
+            </p>
+          ) : (
+            <p className="ws-ask__empty">
+              Ask what this document says about something. Every answer points at the
+              passage it came from — or says plainly that the document does not answer it.
+            </p>
+          )
         ) : null}
       </div>
       <form
@@ -118,6 +191,7 @@ export function AskPane({ contractId }: { contractId: string }) {
         </label>
         <input
           id="ws-ask-question"
+          ref={inputRef}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           maxLength={2000}

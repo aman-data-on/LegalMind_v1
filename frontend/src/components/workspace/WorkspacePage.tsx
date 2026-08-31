@@ -26,11 +26,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, DocumentVersion } from "@/lib/types";
 
+import { AskIntentProvider } from "./askIntent";
 import { AskPane } from "./AskPane";
 import { DocumentPane } from "./DocumentPane";
 import { FindingsPane } from "./FindingsPane";
@@ -125,6 +127,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
 
   return (
     <HighlightProvider>
+    <AskIntentProvider>
       <div className="ws-context">
         <h1>{contract.name}</h1>
         <div className="ws-context__meta">
@@ -169,7 +172,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           </p>
           <UploadDocument
             contractId={contract.id}
-            onUploaded={() => {
+            onUploaded={async () => {
+              // The revised version gets the same in-flow analysis as a first
+              // upload (one loop, not two journeys) — best-effort, the findings
+              // pane explains any real blocker.
+              await chainAnalysis(contract.id, can(P.REVIEW_CREATE));
               setReuploadOpen(false);
               openVersion(null); // land on the newest version
             }}
@@ -218,6 +225,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           )}
         </div>
       )}
+    </AskIntentProvider>
     </HighlightProvider>
   );
 }

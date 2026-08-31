@@ -320,6 +320,28 @@ export const api = {
   ) => requestPage<Finding>(`/reviews/${reviewId}/findings`, { query }),
   report: (reviewId: string) => request<ReviewReport>(`/reviews/${reviewId}/report`),
 
+  /** 49.3's export row (formats per the owner's 2026-08-31 directive). Returns
+   *  the rendered file; the caller hands it to the browser as a download. */
+  exportReview: async (reviewId: string, format: "pdf" | "docx") => {
+    const headers: Record<string, string> = {};
+    const token = csrfToken();
+    if (token) headers[CSRF_HEADER] = token;
+    headers["Content-Type"] = "application/json";
+    const response = await fetch(url(`/reviews/${reviewId}/export`), {
+      method: "POST",
+      headers,
+      credentials: "same-origin",
+      body: JSON.stringify({ format }),
+    });
+    if (!response.ok) {
+      throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+    }
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename =
+      /filename="([^"]+)"/.exec(disposition)?.[1] ?? `analysis.${format}`;
+    return { blob: await response.blob(), filename };
+  },
+
   // ---- findings & escalation -------------------------------------------
   finding: (id: string) => request<Finding>(`/findings/${id}`),
   evaluations: (findingId: string) =>

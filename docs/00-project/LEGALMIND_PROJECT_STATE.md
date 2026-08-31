@@ -18,7 +18,7 @@ Updated at the end of every working session.*
 
 | | |
 |---|---|
-| **Last worked** | 30 August 2026 |
+| **Last worked** | 31 August 2026 (evening — your "rethink the UX around the real user journey" directive) |
 | **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
 | **UI/UX** | **FROZEN (31 Aug, your order).** All six areas built, audited, baselined: 15 CI-cut screenshots pin every screen, and the whole test matrix is green. From here the UI changes only for real defects or new features — no more polishing unless you ask for another UX review. Research stays an honest placeholder until your C-16 statute decision; generated answer text waits on your two Google inputs. |
@@ -48,6 +48,35 @@ Updated at the end of every working session.*
   document versions, because nothing did and the workspace opens on a document.
 - The Findings and Ask panes say plainly that they arrive in the next slice — no fake
   controls.
+
+**What got finished on 31 August (evening — your "rethink the UX" directive)**
+
+- **The result screen now IS the drill you described.** The findings pane opens with
+  the counts — deviations, missing, matches — and every count is a button that
+  filters to exactly those findings. The report page's counts and the Documents
+  list's counts are links into the same filtered view. Each finding now shows the
+  quoted passage it came from right there (clicking it still lights the passage in
+  the document), and "How this result was reached" lays out the full
+  evidence→standard→rule chain.
+- **A clean result looks like one**: when everything matches, the pane says so
+  plainly — no grade, no percentage, just the fact.
+- **Ask lives with the finding**: every finding has "Ask about this", which drops an
+  editable question into the Ask box (nothing sends until you send it). And the Ask
+  panel now remembers — reopening a document brings back your earlier questions and
+  their citations.
+- **One loop for revisions**: uploading a revised version now starts its analysis
+  immediately, the same as a first upload.
+- **Documents is your work dashboard**: anything with deviations or missing
+  provisions sits in a "Needs attention" group above the full list. No fake metrics.
+- **Export works**: any analysed document exports as PDF or DOCX — name, version,
+  date, counts, every finding with its evidence — containing only what your account
+  is allowed to see. (Email summary is not built: it needs an email system we don't
+  have; your call whether to add one.)
+- **Everything verified**: 949 backend + 113 frontend + 57 browser checks green.
+  One thing I deliberately did NOT do from your instructions: the old screens are
+  still in the codebase (unreachable — no navigation leads to them) because the
+  automated browser tests still use them as scaffolding; removing them safely is one
+  dedicated pass I've named as the next step.
 
 **What got finished on 31 August (your UX audit — upload-first)**
 

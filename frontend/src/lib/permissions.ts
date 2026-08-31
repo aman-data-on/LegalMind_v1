@@ -38,6 +38,8 @@ export const CONFIGURATION_DRAFT = "configuration.draft";
 export const CONFIGURATION_PUBLISH = "configuration.publish";
 
 export const REPORT_VIEW = "report.view";
+/** 49.3's export row; formats per the owner's 2026-08-31 directive. */
+export const EXPORT_GENERATE = "export.generate";
 export const ASSIST_ASK = "assist.ask";
 export const AUDIT_VIEW = "audit.view";
 export const USER_MANAGE = "user.manage";

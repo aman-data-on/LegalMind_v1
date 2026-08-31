@@ -124,7 +124,12 @@ ROLE_NAMES: Final[dict[str, str]] = {
     ROLE_LEGAL_DECISION_AUTHORITY: "Legal Decision Authority",
 }
 
-# Default grants — every cell traces to Step 23's locked role summary.
+# Default grants — every cell traces to Step 23's locked role summary, plus one
+# owner-directed addition: EXPORT_GENERATE (owner directive 2026-08-31, "Export
+# Report … PDF, DOCX … table stakes for a legal product") granted alongside
+# REPORT_VIEW, since an export renders only what the report and findings
+# endpoints already serve that caller. Recorded in AUTO_MODE_DECISIONS.md and
+# flagged for ratification.
 #
 # Note what Super Admin does NOT get: no legal.*, no legal_position.view, no
 # contract/review content. Locked Step 23 ("No automatic Legal Decision
@@ -137,7 +142,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         REVIEW_CREATE, REVIEW_VIEW,
         FINDING_VIEW, FINDING_COMMENT,
         EVALUATION_VIEW,
-        REPORT_VIEW,
+        REPORT_VIEW, EXPORT_GENERATE,
         ASSIST_ASK,
     ),
     ROLE_LEGAL_REVIEWER: (
@@ -145,7 +150,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         REVIEW_VIEW, FINDING_VIEW, FINDING_COMMENT, EVALUATION_VIEW,
         LEGAL_REVIEW, LEGAL_POSITION_VIEW,
         CONFIGURATION_VIEW,
-        REPORT_VIEW, REPORT_GENERATE,
+        REPORT_VIEW, REPORT_GENERATE, EXPORT_GENERATE,
         ASSIST_ASK,
     ),
     ROLE_LEGAL_ADMIN: (
@@ -154,7 +159,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         LEGAL_REVIEW, LEGAL_POSITION_VIEW,
         CONFIGURATION_VIEW, CONFIGURATION_DRAFT,
         CONFIGURATION_PUBLISH, CONFIGURATION_DEPRECATE,
-        REPORT_VIEW, REPORT_GENERATE,
+        REPORT_VIEW, REPORT_GENERATE, EXPORT_GENERATE,
         ASSIST_ASK,
     ),
     ROLE_SUPER_ADMIN: (

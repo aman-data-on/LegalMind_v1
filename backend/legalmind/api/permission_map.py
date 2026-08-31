@@ -69,6 +69,9 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}"): P.REVIEW_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/findings"): P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/report"): P.REPORT_VIEW,
+    # 49.3's own row. Formats were NOT YET SPECIFIED (49.12) until the owner's
+    # 2026-08-31 directive named PDF and DOCX — recorded in AUTO_MODE_DECISIONS.
+    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/export"): P.EXPORT_GENERATE,
     ("GET", f"{API_PREFIX}/findings/{{finding_id}}"): P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/findings/{{finding_id}}/evaluations"): P.EVALUATION_VIEW,
     # 49.3 maps escalation to review.view, NOT to legal.decision: locked Step 4
@@ -144,8 +147,6 @@ NOT_IMPLEMENTED: Final[dict[tuple[str, str], str]] = {
         "fallback is implemented instead.",
     ("GET", f"{API_PREFIX}/auth/oidc/callback"):
         "As above.",
-    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/export"):
-        "49.12 records export formats as locked NOT YET SPECIFIED. There is no "
-        "format to emit, and the locked error taxonomy (49.5) has no status for "
-        "'specified later', so the route is absent rather than dishonest.",
+    # /reviews/{id}/export left this list on 2026-08-31: the owner's export
+    # directive specified the formats 49.12 had left open (PDF, DOCX).
 }
