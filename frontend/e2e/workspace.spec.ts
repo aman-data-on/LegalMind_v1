@@ -125,11 +125,6 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     test.use({ storageState: { cookies: [], origins: [] } });
 
     test("a successful login lands on /workspace, never /contracts", async ({ page }) => {
-      // The root `/` redirect target is asserted directly below, not via a
-      // signed-out visit to "/": this app has never navigated a signed-out
-      // visitor to /login automatically (it shows an inline restricted state
-      // instead) — asserting otherwise would test a behavior this cleanup
-      // never claimed to add.
       const f = fixture();
       await page.goto("/login");
       await page.getByLabel("Work email").fill(f.accounts.owner.email);
@@ -140,17 +135,26 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
       await expect(page.locator(".topbar")).toHaveCount(0);
     });
 
-    test("root redirects to /workspace, not /contracts — even signed out", async ({ page }) => {
+    test("a signed-out visit ends at /login — never a restricted flash (owner ruling, 2026-08-31)", async ({ page }) => {
+      // Before this ruling a signed-out visit to /workspace rendered the shell
+      // with an empty nav and "Access restricted" — which reads as an RBAC
+      // denial when the visitor simply isn't signed in. The correct flow is:
+      // sign in first, then land per RBAC. `/` still routes through /workspace
+      // (the cleanup's own guarantee), and the workspace shell then sends the
+      // signed-out visitor on to /login.
       await page.goto("/");
-      // `response.url()` reflects Next's server redirect response, not the final
-      // address after the browser follows it — assert the address bar instead.
-      await expect(page).toHaveURL(/\/workspace$/);
-      // The new shell's own restricted state, never the legacy bare-shell markup
-      // ("You are signed out" / topbar) that a signed-out visit showed before the
-      // ordering fix in Chrome.tsx.
-      await expect(page.getByText("Access restricted")).toBeVisible();
+      await page.waitForURL(/\/login$/, { timeout: 20_000 });
+      await expect(page.getByLabel("Work email")).toBeVisible();
+      // Never the legacy bare-shell markup, and never the restricted note.
+      await expect(page.getByText("Access restricted")).toHaveCount(0);
       await expect(page.getByText("You are signed out")).toHaveCount(0);
       await expect(page.locator(".topbar")).toHaveCount(0);
+    });
+
+    test("a deep /workspace link, signed out, also ends at /login", async ({ page }) => {
+      await page.goto("/workspace/reviews");
+      await page.waitForURL(/\/login$/, { timeout: 20_000 });
+      await expect(page.getByLabel("Work email")).toBeVisible();
     });
   });
 
