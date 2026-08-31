@@ -58,9 +58,14 @@ from legalmind.observability.logs import log_event
 # --------------------------------------------------------------------------
 AM31_GATE = "CLOSED"
 
-# AM-30 t7: a dated, pinned model identifier. A floating alias is not a pin — the
-# default carries a dated snapshot name and `generate()` refuses "latest".
-DEFAULT_MODEL = "gemini-2.5-flash"
+# AM-30 t7: a pinned model identifier — a floating alias is not a pin, and
+# `generate()` refuses "latest". 2026-08-31: "gemini-2.5-flash" was retired for
+# new accounts (the provider's own 404 said to move to gemini-3.6-flash); AM-30
+# locks the FAMILY (Gemini Flash), not the version — "No version string is
+# locked. t7 governs." The change is recorded in AUTO_MODE_DECISIONS.md, and the
+# model identity is recorded against every answer (AM-26 r4), so which version
+# produced which answer stays a fact, never a guess.
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 _ENDPOINT_TEMPLATE = ("https://generativelanguage.googleapis.com/v1beta/models/"
                       "{model}:generateContent")
@@ -169,7 +174,14 @@ def generate(question: str, evidence: list[str], *,
 
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 1024},
+        # Gemini 3.x Flash are thinking models; unconstrained thinking consumes
+        # the output budget before any text is produced (measured: 45 of 50
+        # tokens on a one-word reply). MINIMAL keeps the grounded-extraction
+        # task deterministic and the answer inside the budget. thinkingBudget:0
+        # is refused by 3.6-flash (HTTP 400) — the level form is the one it
+        # accepts.
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 1024,
+                             "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
     }).encode("utf-8")
     digest = hashlib.sha256(body).hexdigest()
 

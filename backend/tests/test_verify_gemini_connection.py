@@ -64,7 +64,7 @@ def test_live_path_uses_the_one_seam_and_passes_on_a_cited_reply(monkeypatch, ca
     def _fake_generate(question, evidence, *, environment, request_id=None):
         seen.update(question=question, evidence=evidence, environment=environment)
         return generation.GenerationResult(
-            text="The vehicle is blue. [1]", model="gemini-2.5-flash",
+            text="The vehicle is blue. [1]", model="gemini-3.6-flash",
             prompt_version=generation.PROMPT_VERSION,
             payload_sha256="ab" * 32, latency_ms=42)
 
@@ -82,7 +82,7 @@ def test_live_path_fails_an_uncited_reply(monkeypatch, capsys):
 
     def _fake_generate(*a, **kw):
         return generation.GenerationResult(
-            text="The vehicle is blue.", model="gemini-2.5-flash",
+            text="The vehicle is blue.", model="gemini-3.6-flash",
             prompt_version=generation.PROMPT_VERSION,
             payload_sha256="ab" * 32, latency_ms=42)
 

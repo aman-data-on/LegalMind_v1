@@ -847,3 +847,24 @@ DOCUMENT_SUPPORTED or STANDARD_DERIVED expectation moved.**
 resatisfied deliberately) · 107 Vitest (+3) · 57 browser / 18 gated (journeys now fully
 UI-driven) · ruff · mypy · typecheck · terms. The owner-ordered §17 A–L proposal and §18
 matrix: docs/design/UX_CORRECTION_2026-08-31.md.**
+
+
+## Gemini key installed; model pin moved to gemini-3.6-flash, 2026-08-31
+
+The owner supplied the paid-tier key (billing verified: LeapSwitch prepay account).
+Stored at `/root/.legalmind.env` (chmod 600, outside the repository); audited absent
+from the repo, the server log, and every log line (payload hash only, AM-30 t5).
+`AM31_GATE` remains CLOSED — production egress still refuses until the owner's
+written-terms confirmation is recorded (AM-31 g3).
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 223 | **`DEFAULT_MODEL` → `gemini-3.6-flash`, with `thinkingConfig: {thinkingLevel: "MINIMAL"}`** | The provider retired `gemini-2.5-flash` for new accounts — its own 404 names 3.6-flash as the successor. AM-30 locks the FAMILY (Gemini Flash), explicitly not the version ("No version string is locked. t7 governs"); the identity is recorded against every answer (AM-26 r4). Thinking control is required, measured: unconstrained thinking consumed 45 of 50 output tokens producing NO text; `thinkingBudget: 0` is refused (HTTP 400) while `thinkingLevel: MINIMAL` returns clean grounded text | The Tier-2 faithfulness bar — still unmeasurable until the gate opens (AM-31 m4), and the version change re-triggers AM-26 r4's measurement when it does |
+
+**End-to-end verified on the live dev app (synthetic-only, 55.3):** login → contract →
+synthetic DOCX upload → parse COMPLETED → index (4 chunks, 4 embedded) → ask →
+**ANSWERED**, one verified citation resolving to a real evidence row; refusal paths
+also exercised live (a sub-80-char evidence set correctly refused as
+EVIDENCE_INSUFFICIENT — the floor working, found 3 characters under it). Tool run:
+`verify_gemini_connection --live` READY (config PASS ×3 + grounded synthetic call,
+latency ~1.7s). Backend suite green on the touched files; ruff/mypy clean.
