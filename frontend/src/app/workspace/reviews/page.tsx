@@ -14,15 +14,22 @@
  * Starting a Review is deliberately absent — the snapshot-choice UX is
  * unscoped (slice 2's honest state), so this screen reads the queue and says
  * where Reviews come from rather than faking a creation path.
+ *
+ * The queue and one Review's report both live at the fixed pathname
+ * `/workspace/reviews`; which one renders is decided by `?id=` rather than a
+ * path segment, so no Review id appears in the URL path itself.
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Pagination, Review } from "@/lib/types";
+
+import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
 
 const PAGE_SIZE = 25;
 
@@ -37,7 +44,7 @@ const STATUS_FILTERS = [
 
 const ATTENTION_STATUSES = new Set(["LEGAL_REVIEW"]);
 
-export default function ReviewsPage() {
+function ReviewsQueueView() {
   const { can } = useSession();
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -157,7 +164,7 @@ export default function ReviewsPage() {
                   return (
                     <tr key={review.id} data-review-id={review.id} className={attention ? "ws-tr--attention" : undefined}>
                       <td>
-                        <Link href={`/workspace/${review.contract_id}`}>
+                        <Link href={`/workspace?id=${review.contract_id}`}>
                           {names[review.contract_id] ?? review.contract_id.slice(0, 8)}
                         </Link>
                       </td>
@@ -168,7 +175,7 @@ export default function ReviewsPage() {
                       </td>
                       <td className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
                       <td>
-                        <Link href={`/workspace/reviews/${review.id}`}>Report</Link>
+                        <Link href={`/workspace/reviews?id=${review.id}`}>Report</Link>
                       </td>
                     </tr>
                   );
@@ -198,5 +205,22 @@ export default function ReviewsPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+function ReviewsRouteInner() {
+  const reviewId = useSearchParams().get("id");
+  return reviewId ? (
+    <ReviewReportPage key={reviewId} reviewId={reviewId} />
+  ) : (
+    <ReviewsQueueView />
+  );
+}
+
+export default function ReviewsRoute() {
+  return (
+    <Suspense fallback={null}>
+      <ReviewsRouteInner />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, storageStatePath } from "./support";
+import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -38,11 +38,13 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
   await typeSelect.selectOption("MSA");
   await page.getByRole("button", { name: "Confirm and analyze" }).click();
-  await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 30_000 });
-  const contractId = page.url().match(/workspace\/([0-9a-f-]{36})/)![1];
+  await page.waitForURL(/\/workspace\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+  const contractId = page.url().match(/workspace\?id=([0-9a-f-]{36})/)![1];
 
-  // The workspace shows the document, the finding — and Ask, all at once.
+  // The workspace shows the document; the full findings pane is the side
+  // card's second tab (DD-9), one click away, with Ask pinned below throughout.
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+  await openFindingsTab(page);
   const finding = page.locator("article[data-finding-id]").first();
   await expect(finding).toBeVisible();
   await expect(finding).toContainText("DEVIATION");
@@ -80,12 +82,12 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // The report exists and speaks in counts — reached from the Reviews queue.
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
   const reviewId = (await listed.json()).data[0].id;
-  await page.goto(`/workspace/reviews/${reviewId}`);
+  await page.goto(`/workspace/reviews?id=${reviewId}`);
   await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
 
   // And the Documents list now answers "what did analysis find".
   await page.goto("/workspace");
-  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/workspace/${contractId}"]`) });
+  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/workspace?id=${contractId}"]`) });
   await expect(row.locator(".ws-cell-chips")).toContainText("DEVIATION");
 });
 
@@ -96,7 +98,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   const v1 = await createAnalysedReview(page);
 
   // Upload the revision through the workspace's own control.
-  await page.goto(`/workspace/${v1.contractId}`);
+  await page.goto(`/workspace?id=${v1.contractId}`);
   await page.getByRole("button", { name: "Upload a revised version" }).click();
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);
@@ -111,6 +113,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // v2 got its OWN analysis IN THE FLOW (2026-08-31 v2: the revised upload
   // chains the same best-effort analysis as a first upload — one loop).
+  await openFindingsTab(page);
   await expect(page.locator("article[data-finding-id]").first()).toBeVisible({ timeout: 20_000 });
   const contract = (await (await page.request.get(`/api/v1/contracts/${v1.contractId}`)).json()).data;
   expect(contract.document_versions.length).toBe(2);
@@ -125,6 +128,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await picker.selectOption({ index: 1 });
   await expect(page).toHaveURL(/[?&]version=/);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+  await openFindingsTab(page);
   await expect(page.locator("article[data-finding-id]").first()).toBeVisible();
   // The bar stays visible but disabled — never hidden, never misattributing.
   const askInput = page.locator(".ws-askbar").getByLabel("Question");
@@ -133,7 +137,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await expect(page.locator(".ws-askbar").getByRole("button", { name: "Open the latest version" })).toBeVisible();
 
   // v1's Review and report remain exactly where they were.
-  await page.goto(`/workspace/reviews/${v1.reviewId}`);
+  await page.goto(`/workspace/reviews?id=${v1.reviewId}`);
   await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
 
   // And the reviews queue lists both analyses.

@@ -139,7 +139,7 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
     // Analysis, best-effort: resolve the latest published standards and run.
     // Any failure here is a STATE the workspace explains, never a dead end.
     await chainAnalysis(contractId, can(P.REVIEW_CREATE));
-    router.push(`/workspace/${contractId}`);
+    router.push(`/workspace?id=${contractId}`);
   }
 
   const hint = file ? typeHintFromFilename(file.name) : null;

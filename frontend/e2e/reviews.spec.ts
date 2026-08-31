@@ -39,11 +39,11 @@ test.describe("the reviews queue and the report", () => {
     // The document is named, not a bare id, and links into its workspace.
     await expect(row.getByRole("link", { name: /Structural MSA/ })).toHaveAttribute(
       "href",
-      `/workspace/${contractId}`,
+      `/workspace?id=${contractId}`,
     );
 
     await row.getByRole("link", { name: "Report" }).click();
-    await expect(page).toHaveURL(`/workspace/reviews/${reviewId}`);
+    await expect(page).toHaveURL(`/workspace/reviews?id=${reviewId}`);
     await expect(page.getByText("requirements in the snapshot produced Findings")).toBeVisible();
     await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
     await expect(page.getByText("never grades the document")).toBeVisible();
@@ -56,7 +56,7 @@ test.describe("the reviews queue and the report", () => {
     expect(body).not.toContain("verdict");
 
     await page.getByRole("link", { name: "Open the workspace" }).click();
-    await expect(page).toHaveURL(`/workspace/${contractId}`);
+    await expect(page).toHaveURL(`/workspace?id=${contractId}`);
   });
 
   test("the status filter narrows through the API's allow-list", async ({ page }) => {
@@ -90,7 +90,7 @@ test.describe("ask history", () => {
     await expect(page.getByRole("heading", { name: "Ask history" })).toBeVisible();
     await page.getByRole("link", { name: question }).click();
 
-    await expect(page).toHaveURL(`/workspace/ask/${conversationId}`);
+    await expect(page).toHaveURL(`/workspace/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn--user")).toContainText(question);
     const refusal = page.locator(".ws-ask__answer--refusal");
     await expect(refusal).toHaveText(REFUSAL_TEXT);

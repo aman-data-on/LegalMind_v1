@@ -97,7 +97,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         <h1>Ask history</h1>
         <div className="ws-context__meta">
           {conversation.contract_id ? (
-            <Link href={`/workspace/${conversation.contract_id}`}>
+            <Link href={`/workspace?id=${conversation.contract_id}`}>
               {contractName ?? "Open the workspace"}
             </Link>
           ) : (

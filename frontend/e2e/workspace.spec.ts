@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { apiPost, createAnalysedReview, fixture, storageStatePath } from "./support";
+import { apiPost, createAnalysedReview, fixture, openFindingsTab, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -18,14 +18,17 @@ test.describe("the document pane", () => {
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
 
     // The new shell, not the legacy chrome.
     await expect(page.locator(".ws-shell")).toBeVisible();
     await expect(page.locator(".topbar")).toHaveCount(0);
 
     const doc = page.locator('[data-region="document"]');
-    await expect(doc.getByRole("heading", { name: "Document" })).toBeVisible();
+    // DD-9: the document area is two cards — the clauses card and the document
+    // card under its toolbar.
+    await expect(doc.locator(".ws-outline__title")).toHaveText("Clauses");
+    await expect(doc.locator(".ws-doccard__bar")).toBeVisible();
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     await expect(doc.locator(".ws-page__marker").first()).toContainText(/Page \d+|Unnumbered/);
     await expect(doc.locator(".ws-readiness")).toHaveAttribute(
@@ -41,7 +44,7 @@ test.describe("the document pane", () => {
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
 
@@ -60,12 +63,12 @@ test.describe("the document pane", () => {
 
   test("a shared link lands on the exact row", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     const targetId = await doc.locator(".ws-row").last().getAttribute("data-evidence-id");
 
-    await page.goto(`/workspace/${contractId}?evidence=${targetId}`);
+    await page.goto(`/workspace?id=${contractId}&evidence=${targetId}`);
     const lit = doc.locator(".ws-row--lit");
     await expect(lit).toHaveAttribute("data-evidence-id", targetId!);
     await expect(lit).toBeFocused();
@@ -80,7 +83,7 @@ test.describe("the document pane", () => {
       contract_type: "MSA",
     });
     const contract = (await created.json()).data;
-    await page.goto(`/workspace/${contract.id}`);
+    await page.goto(`/workspace?id=${contract.id}`);
     await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
@@ -106,11 +109,11 @@ test.describe("the document pane", () => {
     const theirs = (await created.json()).data.id;
     await counsel.close();
 
-    await page.goto(`/workspace/${theirs}`);
+    await page.goto(`/workspace?id=${theirs}`);
     await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
     const stolen = await page.locator(".ws-state").innerText();
 
-    await page.goto(`/workspace/00000000-0000-4000-8000-000000000000`);
+    await page.goto(`/workspace?id=00000000-0000-4000-8000-000000000000`);
     await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
     const ghost = await page.locator(".ws-state").innerText();
     expect(stolen).toBe(ghost);
@@ -167,14 +170,14 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 
     await page.goto("/workspace");
     await expect(page.locator(".ws-shell")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
 
     const row = page.getByRole("link", { name: contract.name });
-    await expect(row).toHaveAttribute("href", `/workspace/${contract.id}`);
+    await expect(row).toHaveAttribute("href", `/workspace?id=${contract.id}`);
     await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
 
     await row.click();
-    await expect(page).toHaveURL(`/workspace/${contract.id}`);
+    await expect(page).toHaveURL(`/workspace?id=${contract.id}`);
   });
 
   test("intake is upload-first: file → derived name + declared type → workspace (2026-08-31 UX correction)", async ({
@@ -209,7 +212,7 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 
     // One act lands in the workspace with the document there — no empty-record
     // detour, no "No document uploaded yet".
-    await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/workspace\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     await expect(page.locator(".ws-context")).toContainText("NDA");
   });
@@ -226,7 +229,8 @@ test.describe("the Findings pane, slice 2", () => {
     const findings = (await findingsResp.json()).data;
     const target = findings[0].evaluations[0];
 
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
+    await openFindingsTab(page);
     const pane = page.locator('[data-region="findings"]');
     await expect(pane.locator(".ws-finding").first()).toBeVisible();
     await expect(pane.locator(".ws-finding").first()).toContainText(findings[0].classification);
@@ -251,7 +255,8 @@ test.describe("the Findings pane, slice 2", () => {
     const findings = (await findingsResp.json()).data;
     const evaluationId = findings[0].evaluations[0].id;
 
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
+    await openFindingsTab(page);
     const evaluation = page.locator('[data-scope]').first();
     await expect(evaluation).toBeVisible();
 
@@ -277,7 +282,8 @@ test.describe("the Findings pane, slice 2", () => {
 
   test("escalation is a quiet request, distinct from the decision control", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
+    await openFindingsTab(page);
     const finding = page.locator(".ws-finding").first();
     await expect(finding).toBeVisible();
 
@@ -302,7 +308,7 @@ test.describe("the Ask pane, slice 3", () => {
     // exists here (CI asserts none), so an ask that clears retrieval still cannot
     // generate: exactly production until the `AM-31` gate opens.
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
     // Ask is the sticky bar below the grid now — always mounted, never a tab.
     const pane = page.locator(".ws-askbar");
     await expect(pane).toBeVisible();
@@ -332,7 +338,7 @@ test.describe("the Ask pane, slice 3", () => {
 
   test("a compliance-shaped question is routed to Findings, not answered or refused", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
     const pane = page.locator(".ws-askbar");
     await pane.getByLabel("Question").fill("Does this liability clause meet our company standard?");
     await pane.getByRole("button", { name: "Ask" }).click();
@@ -349,18 +355,19 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
 
+    // AI Analysis is the side card's DEFAULT tab (DD-9).
+    await expect(page.getByRole("tab", { name: "AI Analysis" })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
-    await expect(panel.getByRole("heading", { name: "AI Analysis" })).toBeVisible();
+    await expect(panel.locator(".ws-tiles")).toBeVisible();
 
-    // The ring is real counts — a raw total in the center, never a percentage
-    // or a grade (rule 12).
+    // The ring is real counts — a raw total in the center; the legend's
+    // percentages are shares of those counts, never a grade or confidence.
     const ring = panel.locator(".ws-ring__svg");
     await expect(ring).toBeVisible();
     expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
-    expect(await panel.innerText()).not.toContain("%");
 
     // Key risks mirror the findings pane's needs-a-decision set, and the risk
     // card's "View clause" lights the passage in the document pane.
@@ -375,25 +382,27 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
       .toBeVisible({ timeout: 20_000 });
   });
 
-  test("the outline carries two-state clause dots derived from findings", async ({ page }) => {
+  test("the outline carries DD-9 status markers derived from findings", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
 
     // The fixture analysis yields a DEVIATION, so at least one outline row is
-    // marked needs-attention. Only two dot states exist — no third hue, no
-    // severity ranking.
-    await expect(page.locator(".ws-outline .ws-dot--attention").first()).toBeVisible();
-    const dots = page.locator(".ws-outline .ws-dot");
-    for (const cls of await dots.evaluateAll((els) => els.map((e) => e.className))) {
-      expect(cls).toMatch(/ws-dot--(calm|attention)/);
+    // marked needs-review. Every marker is one of the three DD-9 buckets and
+    // carries an accessible name — never color alone.
+    const review = page.locator(".ws-outline .ws-status--review").first();
+    await expect(review).toBeVisible();
+    await expect(review).toHaveAttribute("aria-label", /review/i);
+    const markers = page.locator(".ws-outline .ws-status");
+    for (const cls of await markers.evaluateAll((els) => els.map((e) => e.className))) {
+      expect(cls).toMatch(/ws-status--(match|review|missing)/);
     }
   });
 
   test("the Ask bar stays reachable at the bottom of a scrolled document", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 700 });
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
     // Scroll the document pane to its end — the bar's input must still be in
@@ -411,7 +420,7 @@ test.describe("collapse behavior", () => {
   test("narrow viewports keep every region reachable as a tab, and Ask stays a sticky bar", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 800, height: 900 });
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
 
     const tabs = page.getByRole("tab");
     await expect(tabs).toHaveCount(3);
@@ -438,7 +447,7 @@ test.describe("collapse behavior", () => {
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace/${contractId}`);
+    await page.goto(`/workspace?id=${contractId}`);
     await expect(page.locator(".ws-shell")).toBeVisible();
 
     // First tabbable element in DOM order is the skip link — headless Chromium

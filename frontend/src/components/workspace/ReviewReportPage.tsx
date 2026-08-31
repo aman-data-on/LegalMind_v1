@@ -120,7 +120,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
             snapshot {review.configuration_snapshot_id.slice(0, 8)}
           </span>
           <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
-          <Link href={`/workspace/${review.contract_id}`}>Open the workspace</Link>
+          <Link href={`/workspace?id=${review.contract_id}`}>Open the workspace</Link>
           <ExportControl reviewId={review.id} />
         </div>
       </div>
@@ -179,7 +179,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                 {Object.entries(report.classification_counts).map(([value, count]) => (
                   <Link
                     key={value}
-                    href={`/workspace/${review.contract_id}?classification=${value}`}
+                    href={`/workspace?id=${review.contract_id}&classification=${value}`}
                     className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
                   >
                     {value} <b className="ws-mono">{count}</b>

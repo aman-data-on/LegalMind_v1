@@ -3,6 +3,9 @@
 /**
  * Review report — locked 52.6 (Step 9), F-8, F-9, 36.10.
  *
+ * Fixed pathname `/reviews/report`; the Review it reports on is selected via
+ * `?id=` rather than a path segment, so no record id appears in the URL path.
+ *
  * Two things are deliberately absent, and their absence is the specification being
  * followed rather than the screen being unfinished:
  *
@@ -23,7 +26,8 @@
  */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { ErrorBanner, Loading } from "@/components/Feedback";
@@ -33,31 +37,20 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ReviewReport } from "@/lib/types";
 
-export default function ReportPage({
-  params,
-}: {
-  params: Promise<{ reviewId: string }>;
-}) {
+function ReportView({ reviewId }: { reviewId: string }) {
   const { can } = useSession();
-  const [reviewId, setReviewId] = useState<string | null>(null);
   const [report, setReport] = useState<ReviewReport | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
-    void params.then((resolved) => setReviewId(resolved.reviewId));
-  }, [params]);
-
-  useEffect(() => {
-    if (!reviewId) return;
     api.report(reviewId).then(setReport).catch(setError);
   }, [reviewId]);
 
   if (!can(P.REPORT_VIEW)) return <AccessRestricted what="reports" />;
-  if (!reviewId) return <Loading what="report" />;
 
   return (
     <>
-      <Link className="page-back" href={`/reviews/${reviewId}`}>
+      <Link className="page-back" href={`/reviews?id=${reviewId}`}>
         ← Back to findings
       </Link>
       <h1>Review report</h1>
@@ -161,5 +154,19 @@ export default function ReportPage({
         </>
       )}
     </>
+  );
+}
+
+function ReportPageInner() {
+  const reviewId = useSearchParams().get("id");
+  if (!reviewId) return <Loading what="report" />;
+  return <ReportView key={reviewId} reviewId={reviewId} />;
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={<Loading what="report" />}>
+      <ReportPageInner />
+    </Suspense>
   );
 }

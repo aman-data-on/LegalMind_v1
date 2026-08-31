@@ -5,19 +5,26 @@
  * conversations, scoped by the server to `user_id` (`AM-25` r7: the list can
  * never enumerate anyone else's questions). Asking happens in each document's
  * workspace; this screen is for rereading.
+ *
+ * The list and one recorded conversation both live at the fixed pathname
+ * `/workspace/ask`; which one renders is decided by `?id=` rather than a path
+ * segment, so no conversation id appears in the URL path itself.
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ConversationSummary, Pagination } from "@/lib/types";
 
+import { ConversationView } from "@/components/workspace/ConversationView";
+
 const PAGE_SIZE = 25;
 
-export default function AskHistoryPage() {
+function AskHistoryListView() {
   const { can } = useSession();
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -113,14 +120,14 @@ export default function AskHistoryPage() {
                 {conversations.map((conversation) => (
                   <tr key={conversation.id}>
                     <td className="ws-docs__q">
-                      <Link href={`/workspace/ask/${conversation.id}`}>
+                      <Link href={`/workspace/ask?id=${conversation.id}`}>
                         {conversation.first_question ?? "(nothing asked)"}
                       </Link>
                     </td>
                     <td className="ws-mono">{conversation.message_count}</td>
                     <td>
                       {conversation.contract_id ? (
-                        <Link href={`/workspace/${conversation.contract_id}`}>
+                        <Link href={`/workspace?id=${conversation.contract_id}`}>
                           {names[conversation.contract_id] ?? conversation.contract_id.slice(0, 8)}
                         </Link>
                       ) : (
@@ -157,5 +164,22 @@ export default function AskHistoryPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+function AskHistoryPageInner() {
+  const conversationId = useSearchParams().get("id");
+  return conversationId ? (
+    <ConversationView key={conversationId} conversationId={conversationId} />
+  ) : (
+    <AskHistoryListView />
+  );
+}
+
+export default function AskHistoryPage() {
+  return (
+    <Suspense fallback={null}>
+      <AskHistoryPageInner />
+    </Suspense>
   );
 }

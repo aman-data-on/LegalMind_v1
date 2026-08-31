@@ -229,7 +229,7 @@ describe("TranscriptTurn (ask history replay)", () => {
         turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [citation] }}
       />,
     );
-    expect(html).toContain('href="/workspace/c1?evidence=ev1"');
+    expect(html).toContain('href="/workspace?id=c1&amp;evidence=ev1"');
     expect(html).toContain("§17.2");
     // Null score → the score line is absent entirely, never "NaN" or a blank label.
     expect(html).not.toContain("retrieval score");

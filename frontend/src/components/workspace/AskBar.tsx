@@ -35,6 +35,7 @@ import type { AskResult, ConversationTurn } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
 import { useHighlight } from "./highlight";
+import { IconHistory, IconSend, IconSparkle } from "./icons";
 
 interface Turn {
   question: string;
@@ -150,104 +151,143 @@ export function AskBar({
 
   return (
     <aside className="ws-askbar" aria-label="Ask about this document">
-      <div
-        className="ws-askbar__panel"
-        data-open={open}
-        ref={panelRef}
-        // Content stays in the tree (state never lost), hidden from readers
-        // and tab order while collapsed.
-        aria-hidden={!open}
-        // @ts-expect-error — `inert` is a valid DOM attribute; React's types lag.
-        inert={open ? undefined : ""}
-      >
-        <ol className="ws-ask__turns" aria-live="polite">
-          {turns.map((turn, index) => (
-            <li key={index} className="ws-ask__turn">
-              <p className="ws-ask__q">
-                <span className="ws-ask__role">You</span> {turn.question}
-              </p>
-              {turn.error ? (
-                <div className="ws-state ws-state--error" role="alert">
-                  <p>{turn.error}</p>
-                </div>
-              ) : turn.result ? (
-                <WsAnswerView result={turn.result} />
-              ) : null}
-            </li>
-          ))}
-          {pending !== null ? (
-            <li className="ws-ask__turn" data-pending="true">
-              <p className="ws-ask__q">
-                <span className="ws-ask__role">You</span> {pending}
-              </p>
-              <div className="ws-ask__answer" aria-busy="true">
-                <p className="ws-pane__note" role="status" aria-live="polite">
-                  Searching the document and checking citations…
+      <div className="ws-askbar__card">
+        <div
+          className="ws-askbar__panel"
+          data-open={open}
+          ref={panelRef}
+          // Content stays in the tree (state never lost), hidden from readers
+          // and tab order while collapsed.
+          aria-hidden={!open}
+          inert={!open}
+        >
+          <ol className="ws-ask__turns" aria-live="polite">
+            {turns.map((turn, index) => (
+              <li key={index} className="ws-ask__turn">
+                <p className="ws-ask__q">
+                  <span className="ws-ask__role">You</span> {turn.question}
                 </p>
-                <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
-                <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
-              </div>
-            </li>
+                {turn.error ? (
+                  <div className="ws-state ws-state--error" role="alert">
+                    <p>{turn.error}</p>
+                  </div>
+                ) : turn.result ? (
+                  <WsAnswerView result={turn.result} />
+                ) : null}
+              </li>
+            ))}
+            {pending !== null ? (
+              <li className="ws-ask__turn" data-pending="true">
+                <p className="ws-ask__q">
+                  <span className="ws-ask__role">You</span> {pending}
+                </p>
+                <div className="ws-ask__answer" aria-busy="true">
+                  <p className="ws-pane__note" role="status" aria-live="polite">
+                    Searching the document and checking citations…
+                  </p>
+                  <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
+                  <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
+                </div>
+              </li>
+            ) : null}
+          </ol>
+          {turns.length === 0 && pending === null ? (
+            restoring ? (
+              <p className="ws-ask__empty" aria-busy="true">
+                Reopening your questions about this document…
+              </p>
+            ) : (
+              <p className="ws-ask__empty">
+                Ask what this document says about something. Every answer points at the
+                passage it came from — or says plainly that the document does not answer it.
+              </p>
+            )
           ) : null}
-        </ol>
-        {turns.length === 0 && pending === null ? (
-          restoring ? (
-            <p className="ws-ask__empty" aria-busy="true">
-              Reopening your questions about this document…
-            </p>
+        </div>
+        <form
+          className="ws-askbar__row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          <span className="ws-askbar__spark" aria-hidden="true">
+            <IconSparkle size={18} />
+          </span>
+          <label className="ws-visually-hidden" htmlFor="ws-ask-question">
+            Question
+          </label>
+          <input
+            id="ws-ask-question"
+            ref={inputRef}
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            maxLength={2000}
+            placeholder={
+              disabled
+                ? `Ask answers about the latest version — you are reading v${notLatestVersion}`
+                : "Ask LegalMind anything about this document…"
+            }
+            disabled={busy || disabled}
+          />
+          {disabled && onOpenLatest ? (
+            <button type="button" className="ws-btn" onClick={onOpenLatest}>
+              Open the latest version
+            </button>
           ) : (
-            <p className="ws-ask__empty">
-              Ask what this document says about something. Every answer points at the
-              passage it came from — or says plainly that the document does not answer it.
-            </p>
-          )
+            <button
+              className="ws-askbar__send"
+              type="submit"
+              aria-label={busy ? "Searching…" : "Ask"}
+              disabled={busy || disabled || !question.trim()}
+            >
+              <IconSend />
+            </button>
+          )}
+          <button
+            type="button"
+            className="ws-askbar__toggle"
+            aria-expanded={open}
+            aria-label={open ? "Hide conversation" : `Show conversation${turns.length ? ` (${turns.length} turns)` : ""}`}
+            onClick={() => setOpen((wasOpen) => !wasOpen)}
+          >
+            <IconHistory />
+            {turns.length > 0 ? <span className="ws-mono">{turns.length}</span> : null}
+          </button>
+        </form>
+        {!disabled ? (
+          <div className="ws-askbar__chips" role="group" aria-label="Ask suggestions">
+            {SUGGESTED_QUESTIONS.map((suggested) => (
+              <button
+                key={suggested}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setQuestion(suggested);
+                  inputRef.current?.focus();
+                }}
+              >
+                {suggested}
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
-      <form
-        className="ws-askbar__row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <button
-          type="button"
-          className="ws-askbar__toggle"
-          aria-expanded={open}
-          onClick={() => setOpen((wasOpen) => !wasOpen)}
-        >
-          {open ? "Hide" : "Conversation"}
-          {turns.length > 0 ? <span className="ws-mono"> ({turns.length})</span> : null}
-        </button>
-        <label className="ws-visually-hidden" htmlFor="ws-ask-question">
-          Question
-        </label>
-        <input
-          id="ws-ask-question"
-          ref={inputRef}
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          maxLength={2000}
-          placeholder={
-            disabled
-              ? `Ask answers about the latest version — you are reading v${notLatestVersion}`
-              : "Ask what this document says about…"
-          }
-          disabled={busy || disabled}
-        />
-        {disabled && onOpenLatest ? (
-          <button type="button" className="ws-btn" onClick={onOpenLatest}>
-            Open the latest version
-          </button>
-        ) : (
-          <button className="ws-btn ws-btn--primary" type="submit" disabled={busy || disabled || !question.trim()}>
-            {busy ? "Searching…" : "Ask"}
-          </button>
-        )}
-      </form>
+      <p className="ws-askbar__note">
+        AI answers cite the document, or say they cannot. Verify with the original document.
+      </p>
     </aside>
   );
 }
+
+/** Prefill chips — editable drafts, exactly like a finding's "Ask about this":
+ *  nothing sends until the user sends it. Document-factual questions only. */
+const SUGGESTED_QUESTIONS = [
+  "What is the termination notice period?",
+  "Summarize the payment terms",
+  "What are each party's confidentiality obligations?",
+  "How can this agreement be renewed or ended?",
+];
 
 /** Exported for the static test suite, the `AnswerView` precedent. */
 export function WsAnswerView({ result }: { result: AskResult }) {

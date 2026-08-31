@@ -22,6 +22,7 @@ import { api } from "@/lib/api";
 import type { ObligationGroup } from "@/lib/types";
 
 import { useHighlight } from "./highlight";
+import { IconCheckCircle } from "./icons";
 
 type Load =
   | { kind: "loading" }
@@ -29,8 +30,12 @@ type Load =
   | { kind: "unavailable" }
   | { kind: "ready"; groups: ObligationGroup[] };
 
+/** Items shown per party before "View all" expands the list. */
+const OBLIGATIONS_SHOWN = 5;
+
 export function ObligationsPanel({ documentVersionId }: { documentVersionId: string }) {
   const [state, setState] = useState<Load>({ kind: "loading" });
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +70,15 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
 
   return (
     <section className="ws-analysis__section" aria-label="Key obligations">
-      <h3 className="ws-analysis__title">Key obligations</h3>
+      <div className="ws-analysis__head">
+        <h3 className="ws-analysis__title">Key obligations</h3>
+        {state.kind === "ready" &&
+        state.groups.some((group) => group.items.length > OBLIGATIONS_SHOWN) ? (
+          <button type="button" className="ws-viewall" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? "Show fewer" : "View all"}
+          </button>
+        ) : null}
+      </div>
       {state.kind === "loading" ? (
         <p className="ws-pane__note" aria-busy="true" role="status">
           Loading obligations…
@@ -82,35 +95,47 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
       ) : state.groups.length === 0 ? (
         <p className="ws-pane__note">No party obligations were identified in this document.</p>
       ) : (
-        state.groups.map((group) => <ObligationGroupView key={group.party_label} group={group} />)
+        <div className="ws-obligations">
+          {state.groups.map((group) => (
+            <ObligationGroupView key={group.party_label} group={group} expanded={expanded} />
+          ))}
+        </div>
       )}
     </section>
   );
 }
 
-function ObligationGroupView({ group }: { group: ObligationGroup }) {
+function ObligationGroupView({ group, expanded }: { group: ObligationGroup; expanded: boolean }) {
   const { point, target } = useHighlight();
+  const items = expanded ? group.items : group.items.slice(0, OBLIGATIONS_SHOWN);
   return (
     <div className="ws-obligations__group">
       {/* The document's own role label, verbatim — never a forced "us/them". */}
-      <h4 className="ws-obligations__party">{group.party_label}</h4>
+      <h4 className="ws-obligations__party">{group.party_label} obligations</h4>
       <ul className="ws-obligations__list">
-        {group.items.map((item) => (
+        {items.map((item) => (
           <li key={item.id} className="ws-obligations__item">
-            <span className="ws-obligations__text">{item.obligation_text}</span>
+            <span className="ws-status ws-status--match" aria-hidden="true">
+              <IconCheckCircle size={14} />
+            </span>
             {item.evidence_id ? (
               <button
                 type="button"
-                className="ws-evidence__loc"
+                className="ws-obligations__jump"
                 aria-current={target === item.evidence_id ? "true" : undefined}
+                title={item.section_ref ? `Show §${item.section_ref} in the document` : "Show in the document"}
                 onClick={() => point(item.evidence_id!, "the cited")}
               >
-                {item.section_ref ? `§${item.section_ref}` : "View clause"}
-                {item.page_number != null ? ` · p.${item.page_number}` : ""}
+                {item.obligation_text}
               </button>
-            ) : null}
+            ) : (
+              <span className="ws-obligations__text">{item.obligation_text}</span>
+            )}
           </li>
         ))}
+        {!expanded && group.items.length > OBLIGATIONS_SHOWN ? (
+          <li className="ws-pane__note">+{group.items.length - OBLIGATIONS_SHOWN} more</li>
+        ) : null}
       </ul>
     </div>
   );

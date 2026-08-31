@@ -77,6 +77,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </nav>
         <span className="ws-shell__spacer" />
         <div className="ws-shell__user">
+          <span className="ws-shell__avatar" aria-hidden="true">
+            {(identity?.name ?? "?").charAt(0).toUpperCase()}
+          </span>
           <span>{identity?.name}</span>
           <button type="button" onClick={() => void signOut()}>
             Sign out

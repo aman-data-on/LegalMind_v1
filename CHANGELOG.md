@@ -12,6 +12,25 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **DD-9: the reference-matched workspace (2026-09-01, owner-directed — "exactly
+  like the image").** Full visual restyle recorded as DD-9 in
+  [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md): white
+  cards on a grey canvas, brighter accent, the owner-approved three-bucket
+  status traffic light (match/needs-review/missing — presentation grouping
+  only, exact classifications always render beside the color), clauses card
+  with search + status markers + legend, document card with a real toolbar
+  (find, page nav, zoom, fullscreen), side card with AI Analysis (stat tiles,
+  segmented bar, three-bucket donut, key risks, two-up obligations) and
+  Findings as internal tabs (deep links open Findings directly), floating Ask
+  card with suggestion chips, header Download/Share. Deliberate omissions (no
+  fake controls): Compare, Add custom clause, View suggestion, notification
+  bell. In the same landing: the **route migration to fixed pathnames** (a
+  parallel session, same day) — all six dynamic-segment routes now carry the
+  record id as `?id=`; every internal link, `router.push` and e2e spec updated.
+  Verified: typecheck + terms gate + **118 Vitest** + **60 Playwright**;
+  backend untouched. Visual baselines: every workspace screen will diff —
+  adopt from CI per the standing rule.
+
 * **DD-8 — the master-prompt typefaces are real (owner approval 2026-08-31,
   "approve the font bundling"; closes DD-7 §6).** IBM Plex Sans (UI,
   400/500/600), IBM Plex Mono (machine-tracked values), Source Serif 4

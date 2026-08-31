@@ -48,7 +48,7 @@ test.describe("the Legal queue", () => {
     // The deep link: workspace, `?finding=`, and focus ON the finding card —
     // the ruler arrives beside the evidence, not at the top of a long page.
     await row.getByRole("link", { name: new RegExp(finding.requirement.code) }).click();
-    await expect(page).toHaveURL(`/workspace/${contractId}?finding=${finding.id}`);
+    await expect(page).toHaveURL(`/workspace?id=${contractId}&finding=${finding.id}`);
     const card = page.locator(`article[data-finding-id="${finding.id}"]`);
     await expect(card).toBeVisible();
     await expect(card).toBeFocused();

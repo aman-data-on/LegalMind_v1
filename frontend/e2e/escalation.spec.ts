@@ -31,7 +31,7 @@ test.describe("ROLE-04 — escalation is a request for review, not an approval",
 
   test("the owner can escalate and cannot approve", async ({ page }) => {
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const escalation = page.locator(".escalation").first();
     await expect(escalation).toBeVisible();
 
@@ -85,7 +85,7 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     );
 
     // ---- the owner escalates, from the screen ---------------------------
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const escalation = page.locator(".escalation").first();
     await expect(escalation).toBeVisible();
     await escalation

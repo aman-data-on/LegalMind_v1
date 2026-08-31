@@ -174,3 +174,16 @@ export async function signIn(
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForURL(/\/workspace/, { timeout: 20_000 });
 }
+
+/**
+ * DD-9 (2026-09-01): on the wide layout the full findings pane is the side
+ * card's second tab ("AI Analysis" is the default); on the narrow layout it is
+ * a top tab. Either way, one click opens it — no-op when already open.
+ */
+export async function openFindingsTab(page: Page): Promise<void> {
+  const tab = page.getByRole("tab", { name: "Findings" });
+  await tab.waitFor({ state: "visible", timeout: 15_000 });
+  if ((await tab.getAttribute("aria-selected")) !== "true") {
+    await tab.click();
+  }
+}

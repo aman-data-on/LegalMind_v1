@@ -41,7 +41,7 @@ test.describe("Ask about this document", () => {
     // A contract with an uploaded, inline-indexed document is all the panel needs —
     // no Review and no analysis (`AM-25` r1: asking is not judging).
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/contracts/${contractId}`);
+    await page.goto(`/contracts?id=${contractId}`);
     await expect(
       page.getByRole("heading", { name: "Ask about this document" }),
     ).toBeVisible();

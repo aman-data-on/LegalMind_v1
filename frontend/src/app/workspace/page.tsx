@@ -1,8 +1,15 @@
 "use client";
 
 /**
- * Documents — the working inventory and the front door (2026-08-31 UX
- * correction, superseding the slice-4 create-form intake).
+ * Documents — the working inventory and the front door — and one contract's
+ * workspace (2026-08-31 UX correction, superseding the slice-4 create-form
+ * intake; PRODUCT_UX_ROADMAP §C/§G, slice 1).
+ *
+ * Both views live at the fixed pathname `/workspace`; which one renders is
+ * decided by the `?id=` query parameter rather than a path segment, so no
+ * record id ever appears in the URL path itself. Every other query param a
+ * link into the workspace carries (`classification`, `evidence`, `finding`,
+ * `version`) is unaffected — `WorkspacePage` still reads those itself.
  *
  * The user's act is "here is a contract" — one upload control (drop or pick),
  * one confirm panel (name derived from the filename, type HUMAN-declared with
@@ -17,7 +24,8 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { documentTypeLabel } from "@/lib/documentTypes";
@@ -27,6 +35,7 @@ import type { Contract, Pagination } from "@/lib/types";
 
 import { analysisCell, rowNeedsAttention } from "@/components/workspace/model";
 import { UploadContract } from "@/components/workspace/UploadContract";
+import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 
 const PAGE_SIZE = 25;
 
@@ -47,7 +56,7 @@ function AnalysisSummary({ contract }: { contract: Contract }) {
       {cell.counts.map(({ classification, n }) => (
         <Link
           key={classification}
-          href={`/workspace/${contract.id}?classification=${classification}`}
+          href={`/workspace?id=${contract.id}&classification=${classification}`}
           className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(classification) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
         >
           {classification} <b className="ws-mono">{n}</b>
@@ -57,7 +66,7 @@ function AnalysisSummary({ contract }: { contract: Contract }) {
   );
 }
 
-export default function DocumentsPage() {
+function DocumentsListView() {
   const { can } = useSession();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
@@ -132,14 +141,14 @@ export default function DocumentsPage() {
             <ul className="ws-attend__list">
               {contracts.filter(rowNeedsAttention).map((contract) => (
                 <li key={contract.id} className="ws-attend__row">
-                  <Link href={`/workspace/${contract.id}`} className="ws-attend__name">
+                  <Link href={`/workspace?id=${contract.id}`} className="ws-attend__name">
                     {contract.name}
                   </Link>
                   {contract.contract_type ? (
                     <span className="ws-chip ws-chip--type">{contract.contract_type}</span>
                   ) : null}
                   <AnalysisSummary contract={contract} />
-                  <Link href={`/workspace/${contract.id}`} className="ws-btn ws-btn--sm ws-attend__go">
+                  <Link href={`/workspace?id=${contract.id}`} className="ws-btn ws-btn--sm ws-attend__go">
                     Review
                   </Link>
                 </li>
@@ -164,7 +173,7 @@ export default function DocumentsPage() {
                 {contracts.map((contract) => (
                   <tr key={contract.id}>
                     <td>
-                      <Link href={`/workspace/${contract.id}`}>{contract.name}</Link>
+                      <Link href={`/workspace?id=${contract.id}`}>{contract.name}</Link>
                     </td>
                     <td>
                       {contract.contract_type ? (
@@ -206,5 +215,22 @@ export default function DocumentsPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+function WorkspacePageInner() {
+  const contractId = useSearchParams().get("id");
+  return contractId ? (
+    <WorkspacePage key={contractId} contractId={contractId} />
+  ) : (
+    <DocumentsListView />
+  );
+}
+
+export default function WorkspaceRoute() {
+  return (
+    <Suspense fallback={null}>
+      <WorkspacePageInner />
+    </Suspense>
   );
 }

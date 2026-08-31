@@ -32,7 +32,7 @@ test.describe("The analysis surface", () => {
     // Deliberately NOT analysed — this test drives the control on screen.
     const { reviewId } = await createAnalysedReview(page, { analyse: false });
 
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     await expect(page.getByRole("heading", { name: /Analyse this Review/i })).toBeVisible();
     // Step 30 — a fresh Review is DRAFT, and the screen reads that from the server.
     await expect(page.getByText("DRAFT")).toBeVisible();
@@ -79,7 +79,7 @@ test.describe("The analysis surface", () => {
     const f = fixture();
     const { reviewId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     await expect(page.locator("li.evaluation").first()).toBeVisible();
     // The control is gone because Findings exist — offering it would promise
     // something 43.28 refuses.
@@ -92,7 +92,7 @@ test.describe("The analysis surface", () => {
     const f = fixture();
     const { reviewId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const evaluation = page.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
 

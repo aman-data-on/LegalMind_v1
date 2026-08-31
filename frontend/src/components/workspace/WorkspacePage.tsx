@@ -36,9 +36,11 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { AskBar } from "./AskBar";
 import { AskIntentProvider } from "./askIntent";
 import { DocumentPane } from "./DocumentPane";
+import { ExportControl } from "./ExportControl";
 import { FindingsPane } from "./FindingsPane";
-import { FindingsProvider } from "./findingsState";
+import { FindingsProvider, useFindingsState } from "./findingsState";
 import { HighlightProvider } from "./highlight";
+import { IconArrowLeft, IconLink } from "./icons";
 import { pickVersion } from "./model";
 import { UploadDocument } from "./UploadDocument";
 import { WorkspaceLayout } from "./WorkspaceLayout";
@@ -130,7 +132,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   return (
     <HighlightProvider>
     <AskIntentProvider>
+    <MaybeFindings contractId={contract.id} version={version}>
       <div className="ws-context">
+        <Link className="ws-context__back" href="/workspace" aria-label="Back to documents">
+          <IconArrowLeft size={18} />
+        </Link>
         <h1>{contract.name}</h1>
         <div className="ws-context__meta">
           {contract.contract_type ? (
@@ -145,14 +151,14 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               <select value={version.id} onChange={(event) => openVersion(event.target.value)}>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
-                    v{v.version_number}
+                    Version {v.version_number}
                     {v.id === latest?.id ? " (latest)" : ""}
                   </option>
                 ))}
               </select>
             </label>
           ) : version ? (
-            <span className="ws-mono">1 version</span>
+            <span className="ws-mono">Version 1</span>
           ) : null}
           {version && can(P.DOCUMENT_UPLOAD) ? (
             <button
@@ -163,6 +169,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               {reuploadOpen ? "Cancel upload" : "Upload a revised version"}
             </button>
           ) : null}
+        </div>
+        <span className="ws-context__spacer" />
+        <div className="ws-context__acts">
+          {version ? <HeaderDownload /> : null}
+          <ShareControl />
         </div>
       </div>
 
@@ -187,7 +198,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : null}
 
       {version ? (
-        <FindingsProvider contractId={contract.id} version={version}>
+        <>
           <WorkspaceLayout
             document={<DocumentPane version={version} />}
             findings={<FindingsPane version={version} />}
@@ -201,7 +212,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             notLatestVersion={isLatest ? undefined : version.version_number}
             onOpenLatest={() => openVersion(null)}
           />
-        </FindingsProvider>
+        </>
       ) : (
         <div className="ws-state">
           <h2>No document uploaded yet.</h2>
@@ -216,7 +227,56 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           )}
         </div>
       )}
+    </MaybeFindings>
     </AskIntentProvider>
     </HighlightProvider>
+  );
+}
+
+/** The findings state machine wraps the whole page when a version exists (the
+ *  header's Download needs the resolved Review); without a document there is
+ *  nothing to analyse, and the children render provider-less. */
+function MaybeFindings({
+  contractId,
+  version,
+  children,
+}: {
+  contractId: string;
+  version: DocumentVersion | null;
+  children: React.ReactNode;
+}) {
+  if (!version) return <>{children}</>;
+  return (
+    <FindingsProvider contractId={contractId} version={version}>
+      {children}
+    </FindingsProvider>
+  );
+}
+
+/** The header's Download — the existing export control, aimed at the version's
+ *  resolved Review. Renders nothing until the Review exists (no fake control). */
+function HeaderDownload() {
+  const { state } = useFindingsState();
+  if (state.kind !== "ready" && state.kind !== "in-flight" && state.kind !== "failed") return null;
+  return <ExportControl reviewId={state.review.id} />;
+}
+
+/** Share = copy the current deep-linkable URL (the highlight gesture's own
+ *  durable form). Nothing is published anywhere — it is the address bar. */
+function ShareControl() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="ws-btn ws-btn--primary ws-btn--share"
+      onClick={() => {
+        void navigator.clipboard.writeText(window.location.href).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1600);
+        });
+      }}
+    >
+      <IconLink size={15} /> {copied ? "Link copied" : "Share"}
+    </button>
   );
 }

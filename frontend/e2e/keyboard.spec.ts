@@ -18,7 +18,7 @@ test.describe("review keyboard shortcuts", () => {
     page,
   }) => {
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     await expect(page.locator("article.finding[data-finding-id]").first()).toBeVisible();
 
     await page.keyboard.press("?");
@@ -35,7 +35,7 @@ test.describe("review keyboard shortcuts", () => {
     page,
   }) => {
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const card = page.locator("article.finding[data-finding-id]").first();
     await expect(card).toBeVisible();
 
@@ -49,7 +49,7 @@ test.describe("review keyboard shortcuts", () => {
 
   test("a and r prepare a decision and never record one", async ({ page }) => {
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const card = page.locator("article.finding[data-finding-id]").first();
     await expect(card).toBeVisible();
 

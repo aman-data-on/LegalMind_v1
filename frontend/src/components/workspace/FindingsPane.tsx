@@ -35,7 +35,6 @@ import { AnalyzeControl } from "./AnalyzeControl";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
-import { ExportControl } from "./ExportControl";
 import { useFindingsState } from "./findingsState";
 import { useHighlight } from "./highlight";
 import { findingsSummary } from "./model";
@@ -185,7 +184,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     <>
       <div className="ws-pane__head">
         <h2 className="ws-pane__title">Findings</h2>
-        <ExportControl reviewId={review.id} />
+        {/* Export moved to the page header (DD-9) — one Download, one place. */}
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
       </div>
       <div className="ws-pane__body" style={{ padding: "16px" }}>

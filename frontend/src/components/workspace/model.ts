@@ -201,19 +201,45 @@ export function findingsNeedingDecision<T extends { requires_decision: boolean }
   return findings.filter((finding) => finding.requires_decision);
 }
 
-/** What the outline dot says about a clause. Two states, deliberately NOT the
- *  reference design's 3-way traffic light: no classification axis renders with
- *  a severity ranking (every non-MATCH value carries the same weight), so a
- *  clause is either covered-and-calm or covered-and-needs-attention. */
+/**
+ * The three status buckets of the 2026-09-01 reference-matched restyle —
+ * owner-approved (DD-9) mapping of the seven classifications onto the
+ * reference design's traffic light. PRESENTATION grouping only: the exact
+ * classification value always renders beside the color, and the vocabulary
+ * itself is untouched.
+ *
+ *   match    MATCH
+ *   missing  MISSING
+ *   review   everything else (DEVIATION, CONFLICT, UNABLE_TO_EVALUATE,
+ *            AMBIGUOUS, UNRESOLVED, and any future value — fail toward
+ *            "needs review", never toward calm)
+ */
+export type StatusBucket = "match" | "review" | "missing";
+
+export function classificationBucket(classification: string): StatusBucket {
+  if (classification === "MATCH") return "match";
+  if (classification === "MISSING") return "missing";
+  return "review";
+}
+
+const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, review: 1, missing: 2 };
+
+export function worseBucket(a: StatusBucket, b: StatusBucket): StatusBucket {
+  return BUCKET_RANK[b] > BUCKET_RANK[a] ? b : a;
+}
+
+/** What the outline marker says about a clause. */
 export interface ClauseStatus {
   covered: boolean;
   attention: boolean;
+  bucket: StatusBucket;
 }
 
 /**
- * Evidence-row id → clause status, OR'd across every finding that cites the
- * row. Presentation grouping of server fields only: `requires_decision` is the
- * server's, non-MATCH classification marks attention, nothing is re-derived.
+ * Evidence-row id → clause status, merged across every finding that cites the
+ * row (a clause never downgrades: the marker shows the most attention-worthy
+ * bucket). Presentation grouping of server fields only: `requires_decision`
+ * is the server's, nothing is re-derived.
  */
 export function clauseStatusByEvidenceId(
   findings: Array<{
@@ -224,12 +250,15 @@ export function clauseStatusByEvidenceId(
 ): Map<string, ClauseStatus> {
   const byEvidence = new Map<string, ClauseStatus>();
   for (const finding of findings) {
-    const attention = finding.requires_decision || finding.classification !== "MATCH";
+    const bucket = classificationBucket(finding.classification);
+    const attention = finding.requires_decision || bucket !== "match";
     for (const row of finding.evidence) {
-      const current = byEvidence.get(row.id) ?? { covered: false, attention: false };
+      const current = byEvidence.get(row.id) ??
+        { covered: false, attention: false, bucket: "match" as StatusBucket };
       byEvidence.set(row.id, {
         covered: true,
         attention: current.attention || attention,
+        bucket: worseBucket(current.bucket, bucket),
       });
     }
   }
@@ -252,10 +281,12 @@ export function outlineStatus(
     if (!currentOutlineId) continue;
     const status = statusByEvidenceId.get(row.id);
     if (!status) continue;
-    const current = byOutlineRow.get(currentOutlineId) ?? { covered: false, attention: false };
+    const current = byOutlineRow.get(currentOutlineId) ??
+      { covered: false, attention: false, bucket: "match" as StatusBucket };
     byOutlineRow.set(currentOutlineId, {
       covered: current.covered || status.covered,
       attention: current.attention || status.attention,
+      bucket: worseBucket(current.bucket, status.bucket),
     });
   }
   return byOutlineRow;

@@ -281,3 +281,51 @@ screens keep their system stacks untouched until their retirement pass.
 time only** (CI and the frontend image build both have it; the runtime `data` network
 rules are unaffected). Expected: visual-baseline diffs on every new-UI screen — re-cut
 from CI per the standing rule (owner, 2026-08-30).
+
+---
+
+## DD-9 — The reference-matched workspace (owner directive, 2026-09-01)
+
+**Status:** `DECIDED AND IMPLEMENTED` (owner, in session, with a reference
+screenshot: *"I want exactly like the image I attached"* — an explicit UX-review
+request, which is what lifts the 2026-08-31 freeze for this pass).
+
+**What was decided:**
+
+1. **Cards on a grey canvas.** The workspace surface moves from flat bordered
+   panes to white rounded cards (`--ws-radius-card: 10px`, one soft shadow
+   token) on a `#f2f4f8` canvas. The accent brightens to `#2563eb`
+   (hover `#1d4ed8`); the shell deepens to `#0d1220` with a blue active-nav
+   treatment and an avatar chip.
+2. **The three-bucket status mapping — supersedes the "equal weight within an
+   axis" rendering rule** for the workspace's summary surfaces. The owner chose
+   the reference's traffic light: green = `MATCH`, red = `MISSING`, amber =
+   every other classification ("needs review" — DEVIATION, CONFLICT,
+   UNABLE_TO_EVALUATE, AMBIGUOUS, UNRESOLVED, and any future value, which fails
+   toward amber, never toward calm). PRESENTATION grouping only: the exact
+   classification value always renders beside the color (chips, donut legend),
+   the five-axis vocabularies are untouched, and rule 12 stands — counts and
+   count-shares only, never a score, never confidence. Markers are icons with
+   accessible names, never color alone.
+3. **Layout = clauses card | document card | side card.** The document region
+   splits into a Clauses card (search, status markers, legend, pages footer)
+   and a Document card under a toolbar (find-in-document, page navigation
+   tracked by intersection, zoom 85–150%, fullscreen). The side card carries
+   two tabs — **AI Analysis** (default: stat tiles, segmented bar, three-bucket
+   donut with per-classification legend and count-share percentages, Key
+   Risks, Key Obligations two-up) and **Findings** (the full pane, decisions
+   and escalation intact); `?finding=`/`?classification=` deep links open the
+   Findings tab directly.
+4. **The Ask bar becomes a floating card** with the sparkle mark, prefill
+   suggestion chips (editable drafts — nothing sends itself), a circular send,
+   the history toggle, and an honesty note. Header gains back-arrow, Download
+   (the existing export, relocated), and Share (copy the deep-linkable URL).
+
+**Deliberate omissions from the literal reference (no fake controls):**
+"Compare" (no comparison capability exists), "Add custom clause" (clauses come
+from the document, not the user), and Key Risks' "View suggestion" (clause
+suggestions would state an organizational legal position — AM-25 forbids it
+outside ratified sources). A notification bell is omitted for the same reason.
+
+**Expected:** visual-baseline diffs on every workspace screen — re-cut from CI
+per the standing rule (owner, 2026-08-30).

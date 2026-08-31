@@ -21,15 +21,23 @@
   --ws-ink-700: #2b3444;
   --ws-ink-500: #5b6478;
   --ws-ink-300: #a8afbd;
-  --ws-ink-100: #e4e7ed;
-  --ws-paper: #fafbfc;
+  --ws-ink-100: #e4e7ee;
+  /* 2026-09-01 reference-matched restyle (DD-9): grey canvas, white cards. */
+  --ws-paper: #f2f4f8;
   --ws-surface: #ffffff;
-  --ws-shell: #131826;
+  --ws-shell: #0d1220;
   --ws-on-shell: #e7e9f0;
   --ws-on-shell-muted: #a9afc2;
   /* The one non-state accent: links, focus, primary actions, the highlight. */
-  --ws-accent: #1b4f9c;
-  --ws-accent-soft: #e8effa;
+  --ws-accent: #2563eb;
+  --ws-accent-soft: #eff4ff;
+  /* DD-9 status buckets (owner-approved traffic light): match / review / missing.
+     Presentation grouping only — the exact classification always renders beside
+     the color. */
+  --ws-ok: #16a34a;    --ws-ok-soft: #e9f7ee;
+  --ws-warn: #d97706;  --ws-warn-soft: #fdf3e3;
+  --ws-bad: #dc2626;   --ws-bad-soft: #fdecec;
+  --ws-card-shadow: 0 1px 2px rgba(14, 20, 32, 0.04), 0 1px 3px rgba(14, 20, 32, 0.06);
   /* Axis hues — chips only, never backgrounds (master prompt §4.2). */
   --ws-mapping: #0e7490;      --ws-mapping-soft: #e3f2f5;
   --ws-classify: #4338ca;     --ws-classify-soft: #edebfb;
@@ -55,16 +63,18 @@
   /* Spacing scale 4·8·12·16·24·32·48 */
   --ws-s1: 4px; --ws-s2: 8px; --ws-s3: 12px; --ws-s4: 16px;
   --ws-s5: 24px; --ws-s6: 32px; --ws-s7: 48px;
-  --ws-radius: 6px;
-  --ws-radius-sm: 4px;
+  --ws-radius: 8px;
+  --ws-radius-sm: 6px;
+  --ws-radius-card: 10px;
   /* One shared motion token for interactive feedback (hover/focus color and
      border shifts only — never layout). Reduced motion already zeroes every
      transition globally below. */
   --ws-t: 0.13s ease;
   /* The accent's pressed/hover step — same hue, one stop deeper. */
-  --ws-accent-strong: #16407e;
+  --ws-accent-strong: #1d4ed8;
   --ws-shell-h: 52px;
-  --ws-askbar-h: 56px;
+  --ws-context-h: 64px;
+  --ws-askbar-h: 128px;
   --ws-z-shell: 20;
   --ws-z-dialog: 30;
 
@@ -122,8 +132,19 @@
   transition: color var(--ws-t), background-color var(--ws-t);
 }
 .ws-shell__nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
-.ws-shell__nav a[aria-current="page"] { background: rgba(255, 255, 255, 0.09); color: #fff; }
+/* Active section — the reference's blue tab: tinted text over a soft fill,
+   with an underline hugging the shell's bottom edge. */
+.ws-shell__nav a[aria-current="page"] {
+  color: #9db9f7; background: rgba(37, 99, 235, 0.16);
+  box-shadow: inset 0 -2px 0 var(--ws-accent);
+  border-radius: var(--ws-radius) var(--ws-radius) 0 0;
+}
 .ws-shell__spacer { flex: 1; }
+.ws-shell__avatar {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--ws-accent);
+  color: #fff; font-size: var(--ws-text-xs); font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+}
 .ws-shell__user { font-size: var(--ws-text-sm); color: var(--ws-on-shell-muted); display: flex; gap: var(--ws-s3); align-items: center; }
 .ws-shell__user button {
   font: inherit; color: var(--ws-on-shell); background: transparent;
@@ -138,11 +159,23 @@
  * Context strip — which document, what type, what state. Part of the page.
  * -------------------------------------------------------------------------- */
 .ws-context {
-  display: flex; align-items: center; gap: var(--ws-s4); flex-wrap: wrap;
-  padding: var(--ws-s3) var(--ws-s4);
+  display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap;
+  min-height: var(--ws-context-h);
+  padding: var(--ws-s2) var(--ws-s4);
   background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100);
 }
-.ws-context h1 { font-size: var(--ws-text-lg); font-weight: 600; margin: 0; letter-spacing: -0.005em; }
+.ws-context h1 { font-size: var(--ws-text-lg); font-weight: 650; margin: 0; letter-spacing: -0.005em; }
+.ws-context__back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: var(--ws-radius);
+  color: var(--ws-ink-700); transition: background-color var(--ws-t);
+}
+.ws-context__back:hover { background: var(--ws-paper); }
+.ws-context__spacer { flex: 1; }
+.ws-context__acts { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-context__acts .ws-btn { display: inline-flex; align-items: center; gap: 7px; }
+.ws-btn--share svg { flex: none; }
+.ws-export { display: inline-flex; align-items: center; gap: var(--ws-s2); }
 .ws-context__meta { display: flex; gap: var(--ws-s3); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-500); flex-wrap: wrap; }
 .ws-chip {
   font-family: var(--ws-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em;
@@ -152,28 +185,58 @@
 .ws-chip--type { color: var(--ws-ink-700); }
 
 /* --------------------------------------------------------------------------
- * Workspace layout — three regions; collapse to tabs, never drop a region.
+ * Workspace layout — cards on the grey canvas (DD-9): document area + side
+ * card; collapse to tabs, never drop a region.
  * -------------------------------------------------------------------------- */
 .ws-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.ws-card {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  min-width: 0; min-height: 0;
+}
+.ws-card--pad { padding: var(--ws-s4); }
 .ws-workspace {
   flex: 1; min-height: 0;
-  display: grid;
-  /* The document is the primary object and gets the most room. */
-  grid-template-columns: minmax(440px, 1.5fr) minmax(360px, 1.15fr) minmax(300px, 1fr);
+  display: grid; gap: var(--ws-s4);
+  padding: var(--ws-s4);
   /* The sticky Ask bar owns the last --ws-askbar-h of the viewport. */
-  height: calc(100vh - var(--ws-shell-h) - 58px - var(--ws-askbar-h));
+  height: calc(100vh - var(--ws-shell-h) - var(--ws-context-h) - var(--ws-askbar-h));
 }
-.ws-workspace--two { grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.2fr); }
+.ws-workspace--wide { grid-template-columns: minmax(0, 1fr) minmax(330px, 400px); }
 .ws-workspace--one { grid-template-columns: 1fr; }
-.ws-pane {
-  min-width: 0; min-height: 0; display: flex; flex-direction: column;
-  border-right: 1px solid var(--ws-ink-100); background: var(--ws-paper);
+.ws-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.ws-workspace--one .ws-pane { overflow-y: auto; }
+/* Narrow mode: the single visible region is itself a card — except the
+   document region, whose two inner cards sit directly on the canvas. */
+.ws-workspace--one .ws-pane:not([data-region="document"]) {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
 }
-.ws-pane:last-child { border-right: 0; }
+.ws-pane--document { min-height: 0; }
+/* The side card: internal tabs above one scrolling panel. */
+.ws-pane--side {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+}
+.ws-side__tabs {
+  display: flex; gap: var(--ws-s1); padding: var(--ws-s2) var(--ws-s3) 0;
+  border-bottom: 1px solid var(--ws-ink-100); flex: none;
+}
+.ws-side__tabs [role="tab"] {
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; padding: 9px 12px;
+  border: 0; border-bottom: 2px solid transparent; background: transparent;
+  color: var(--ws-ink-500); cursor: pointer;
+  transition: color var(--ws-t), border-color var(--ws-t);
+}
+.ws-side__tabs [role="tab"]:hover[aria-selected="false"] { color: var(--ws-ink-700); }
+.ws-side__tabs [role="tab"][aria-selected="true"] { color: var(--ws-accent); border-bottom-color: var(--ws-accent); }
+.ws-side__panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.ws-side__panel[hidden] { display: none; }
+
 .ws-pane__head {
   display: flex; align-items: baseline; gap: var(--ws-s3);
   padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
-  background: var(--ws-surface);
+  background: var(--ws-surface); flex: none;
 }
 .ws-pane__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); margin: 0; }
 .ws-pane__note { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
@@ -191,25 +254,91 @@
 .ws-tabs [role="tab"][aria-selected="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
 
 /* --------------------------------------------------------------------------
- * Document pane — neutral ground; the highlight is the accent's one moment.
+ * Document area — the clauses card and the document card (DD-9).
  * -------------------------------------------------------------------------- */
-.ws-doc { display: grid; grid-template-columns: minmax(140px, 170px) 1fr; min-height: 0; flex: 1; }
-.ws-outline {
-  border-right: 1px solid var(--ws-ink-100); overflow-y: auto; padding: var(--ws-s2) 0;
-  background: var(--ws-surface);
+.ws-doc {
+  display: grid; grid-template-columns: minmax(200px, 240px) 1fr;
+  gap: var(--ws-s4); min-height: 0; flex: 1;
 }
-.ws-outline__title { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ws-ink-500); padding: var(--ws-s2) var(--ws-s3); margin: 0; }
-.ws-outline button {
-  display: block; width: 100%; text-align: left; font: inherit; font-size: var(--ws-text-sm);
-  padding: 6px var(--ws-s3); min-height: 32px; border: 0; background: transparent; cursor: pointer;
+@media (max-width: 1100px) { .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 30%) 1fr; } }
+.ws-doc__clauses { display: flex; flex-direction: column; gap: var(--ws-s3); min-height: 0; }
+.ws-outline { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: var(--ws-s3) 0 0; }
+.ws-outline__title {
+  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--ws-ink-700); padding: 0 var(--ws-s4) var(--ws-s2); margin: 0;
+}
+.ws-outline__search {
+  display: flex; align-items: center; gap: 7px; margin: 0 var(--ws-s3) var(--ws-s2);
+  padding: 6px 10px; border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  color: var(--ws-ink-500); background: var(--ws-paper);
+}
+.ws-outline__search:focus-within { border-color: var(--ws-accent); background: var(--ws-surface); }
+.ws-outline__search input { border: 0; background: transparent; font: inherit; font-size: var(--ws-text-sm); min-width: 0; flex: 1; outline: none; }
+.ws-outline__list { overflow-y: auto; min-height: 0; flex: 1; padding-bottom: var(--ws-s2); }
+.ws-outline__list button {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s2);
+  width: 100%; text-align: left; font: inherit; font-size: var(--ws-text-sm);
+  padding: 7px var(--ws-s4); min-height: 34px; border: 0; background: transparent; cursor: pointer;
   color: var(--ws-ink-700); border-left: 3px solid transparent;
+  transition: background-color var(--ws-t), border-color var(--ws-t);
 }
-.ws-outline button { transition: background-color var(--ws-t), border-color var(--ws-t); }
-.ws-outline button:hover { background: var(--ws-paper); }
-.ws-outline button[aria-current="true"] { border-left-color: var(--ws-accent); color: var(--ws-ink-900); font-weight: 500; }
+.ws-outline__list button:hover { background: var(--ws-paper); }
+.ws-outline__list button[aria-current="true"] {
+  border-left-color: var(--ws-accent); color: var(--ws-accent);
+  background: var(--ws-accent-soft); font-weight: 550;
+}
+.ws-outline__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-outline .ws-mono { color: var(--ws-ink-500); margin-right: 6px; }
+.ws-outline__list button[aria-current="true"] .ws-mono { color: var(--ws-accent); }
+.ws-outline__pages {
+  margin: 0; padding: var(--ws-s2) var(--ws-s4); border-top: 1px solid var(--ws-ink-100);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); flex: none;
+}
+/* Status markers — the DD-9 traffic light, as icons (never color alone: each
+   carries a title and an accessible name). */
+.ws-status { display: inline-flex; align-items: center; flex: none; }
+.ws-status--match { color: var(--ws-ok); }
+.ws-status--review { color: var(--ws-warn); }
+.ws-status--missing { color: var(--ws-bad); }
+.ws-legend { padding: var(--ws-s3) var(--ws-s4); flex: none; }
+.ws-legend p { margin: 0 0 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-700); display: flex; align-items: center; gap: 7px; }
+.ws-legend p:last-child { margin-bottom: 0; }
 
-.ws-text { overflow-y: auto; padding: var(--ws-s4) var(--ws-s5) var(--ws-s7); min-height: 0; }
+/* The document card: toolbar on top, text scrolling under it. */
+.ws-doccard { display: flex; flex-direction: column; min-height: 0; }
+.ws-doccard__bar {
+  display: flex; align-items: center; gap: var(--ws-s1);
+  padding: var(--ws-s2) var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100); flex: none;
+  flex-wrap: wrap;
+}
+.ws-doccard__gap { flex: 1; }
+.ws-toolbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: 0; border-radius: var(--ws-radius-sm);
+  background: transparent; color: var(--ws-ink-500); cursor: pointer; font: inherit;
+  transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-toolbtn:hover:not(:disabled) { background: var(--ws-paper); color: var(--ws-ink-900); }
+.ws-toolbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ws-doccard__find { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-doccard__find input {
+  font: inherit; font-size: var(--ws-text-sm); padding: 4px 8px; width: 13rem;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+}
+.ws-doccard__page { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-doccard__page input {
+  width: 3rem; text-align: center; font: inherit; font-size: var(--ws-text-sm);
+  padding: 3px 4px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+.ws-doccard__zoom { font-size: var(--ws-text-xs); color: var(--ws-ink-500); min-width: 3ch; text-align: center; }
+.ws-doccard__meta {
+  margin: 0; padding: var(--ws-s1) var(--ws-s4); border-top: 1px solid var(--ws-ink-100);
+  font-size: 10.5px; color: var(--ws-ink-500); flex: none;
+}
+.ws-doccard:fullscreen { border-radius: 0; }
+
+.ws-text { overflow-y: auto; padding: var(--ws-s4) var(--ws-s5) var(--ws-s7); min-height: 0; flex: 1; }
 /* Bound the serif reading measure on wide monitors — an unbounded line of
    italic document text past ~75ch measurably slows re-finding the next line.
    Left-anchored, never centered: the margin column stays where the eye expects. */
@@ -375,38 +504,72 @@
 }
 
 /* ==========================================================================
- * Sticky Ask bar (2026-08-31 redesign) — the input is mounted at EVERY
- * breakpoint, below the grid, never behind a tab. The turn history is a
- * slide-up sheet anchored above the bar, overlaying the grid.
+ * Sticky Ask bar (DD-9 reference match) — a floating card pinned to the
+ * bottom, mounted at EVERY breakpoint, never behind a tab. The turn history
+ * is a slide-up sheet anchored above it.
  * ========================================================================== */
 .ws-askbar {
   position: sticky; bottom: 0; z-index: var(--ws-z-shell);
-  background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
+  height: var(--ws-askbar-h);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 0 var(--ws-s4);
+  pointer-events: none; /* the grey gutter around the card stays click-through */
 }
-.ws-askbar__row {
-  display: flex; align-items: center; gap: var(--ws-s2);
-  height: var(--ws-askbar-h); padding: 0 var(--ws-s4);
+.ws-askbar__card {
+  pointer-events: auto;
+  position: relative; /* the slide-up panel anchors to the card, never over it */
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: 14px; box-shadow: 0 8px 28px rgba(14, 20, 32, 0.12);
+  padding: var(--ws-s2) var(--ws-s3) var(--ws-s3);
+  max-width: 66rem; width: 100%; margin: 0 auto;
 }
+.ws-askbar__row { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-askbar__spark { color: var(--ws-accent); display: inline-flex; flex: none; }
 .ws-askbar__row input {
-  flex: 1; font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); min-width: 0;
+  flex: 1; font: inherit; font-size: var(--ws-text-base); padding: 9px 4px;
+  border: 0; min-width: 0; outline: none; background: transparent;
 }
-.ws-askbar__row input:disabled { background: var(--ws-paper); color: var(--ws-ink-500); }
+.ws-askbar__row input::placeholder { color: var(--ws-ink-500); }
+.ws-askbar__row input:disabled { color: var(--ws-ink-500); }
+.ws-askbar__send {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 38px; height: 38px; border-radius: var(--ws-radius);
+  border: 0; background: var(--ws-accent); color: #fff; cursor: pointer;
+  transition: background-color var(--ws-t);
+}
+.ws-askbar__send:hover:not(:disabled) { background: var(--ws-accent-strong); }
+.ws-askbar__send:disabled { opacity: 0.5; cursor: not-allowed; }
 .ws-askbar__toggle {
-  font: inherit; font-size: var(--ws-text-sm); padding: 6px 12px; min-height: 36px;
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  height: 38px; padding: 0 10px; font: inherit; font-size: var(--ws-text-xs);
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
-  background: var(--ws-surface); color: var(--ws-ink-700); cursor: pointer;
-  white-space: nowrap;
+  background: var(--ws-surface); color: var(--ws-ink-500); cursor: pointer;
+  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
+}
+.ws-askbar__toggle:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
+.ws-askbar__toggle[aria-expanded="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+.ws-askbar__chips { display: flex; gap: var(--ws-s2); flex-wrap: wrap; padding: 2px 2px 0 30px; }
+.ws-askbar__chips button {
+  font: inherit; font-size: var(--ws-text-xs); padding: 4px 11px; min-height: 26px;
+  border: 1px solid var(--ws-ink-100); border-radius: 999px;
+  background: var(--ws-paper); color: var(--ws-ink-700); cursor: pointer;
   transition: background-color var(--ws-t), border-color var(--ws-t);
 }
-.ws-askbar__toggle:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); }
-.ws-askbar__toggle[aria-expanded="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+.ws-askbar__chips button:hover:not(:disabled) { background: var(--ws-accent-soft); border-color: var(--ws-accent); color: var(--ws-accent); }
+.ws-askbar__note {
+  pointer-events: auto;
+  margin: 0; padding: 5px 0 7px; text-align: center;
+  font-size: 10.5px; color: var(--ws-ink-500);
+}
 .ws-askbar__panel {
-  position: absolute; bottom: 100%; left: 0; right: 0;
+  pointer-events: auto;
+  /* Anchored to the card's top edge with a gap — it can never cover the card's
+     own controls, whatever the panel's height. */
+  position: absolute; bottom: calc(100% + var(--ws-s2)); left: 0; right: 0;
   max-height: 0; overflow-y: auto; overscroll-behavior: contain;
   background: var(--ws-surface);
-  border-top: 1px solid var(--ws-ink-100);
-  box-shadow: 0 -8px 24px rgba(14, 20, 32, 0.08);
+  border: 0 solid var(--ws-ink-100); border-radius: 14px;
+  box-shadow: 0 -8px 28px rgba(14, 20, 32, 0.14);
   padding: 0 var(--ws-s4);
   transition: max-height 0.2s ease;
   display: flex; flex-direction: column; gap: var(--ws-s3);
@@ -414,55 +577,96 @@
 .ws-askbar__panel[data-open="true"] {
   max-height: min(60vh, 480px);
   padding: var(--ws-s4);
+  border-width: 1px;
 }
 
 /* ==========================================================================
- * AI Analysis panel (2026-08-31 redesign) — counts and facts, no scores.
+ * AI Analysis panel (DD-9 reference match) — counts and facts, no scores.
  * ========================================================================== */
 .ws-analysis { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s5); }
+.ws-analysis__updated { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s2); }
 .ws-analysis__section { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.ws-analysis__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s2); }
 .ws-analysis__title {
-  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--ws-ink-500); margin: 0; font-weight: 500;
+  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ws-ink-700); margin: 0;
 }
+.ws-viewall {
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-accent);
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.ws-viewall:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Stat tiles — soft status tints, exact counts, an icon that repeats the word. */
+.ws-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--ws-s2); }
+.ws-tile {
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  padding: var(--ws-s3); border-radius: var(--ws-radius); border: 1px solid transparent;
+}
+.ws-tile__n { font-family: var(--ws-mono); font-size: 1.35rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ws-tile__label { font-size: var(--ws-text-xs); font-weight: 550; }
+.ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
+.ws-tile--match { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
+.ws-tile--review { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
+.ws-tile--missing { background: var(--ws-bad-soft); border-color: color-mix(in srgb, var(--ws-bad) 25%, transparent); color: var(--ws-bad); }
+.ws-tile .ws-tile__n { color: var(--ws-ink-900); }
+
+.ws-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--ws-ink-100); }
+.ws-bar__seg { flex-basis: 0; }
+.ws-bar__seg--match { background: var(--ws-ok); }
+.ws-bar__seg--review { background: var(--ws-warn); }
+.ws-bar__seg--missing { background: var(--ws-bad); }
+
+/* The donut — real counts, raw total in the center. */
 .ws-ring { display: flex; align-items: center; gap: var(--ws-s4); }
-.ws-ring__svg { width: 88px; height: 88px; flex: none; }
-.ws-ring__track { fill: none; stroke-width: 10; }
-.ws-ring__track--attention { stroke: var(--ws-outcome); }
-.ws-ring__track--match { stroke: var(--ws-decision); }
-.ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 600; fill: var(--ws-ink-900); }
+.ws-ring__svg { width: 96px; height: 96px; flex: none; transform: none; }
+.ws-ring__seg { fill: none; stroke-width: 12; }
+.ws-ring__seg--match { stroke: var(--ws-ok); }
+.ws-ring__seg--review { stroke: var(--ws-warn); }
+.ws-ring__seg--missing { stroke: var(--ws-bad); }
+.ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 650; fill: var(--ws-ink-900); }
 .ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
-.ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .ws-ring__legend li { display: flex; align-items: center; gap: 7px; }
-.ws-ring__swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--ws-outcome); flex: none; }
-.ws-ring__legend li[data-calm] .ws-ring__swatch { background: var(--ws-decision); }
+.ws-ring__pct { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
+.ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-warn); }
+.ws-ring__legend li[data-bucket="match"] .ws-ring__swatch { background: var(--ws-ok); }
+.ws-ring__legend li[data-bucket="missing"] .ws-ring__swatch { background: var(--ws-bad); }
+
+/* Key risks — reference-style cards: a status left border, chip, description. */
 .ws-risk {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius); padding: var(--ws-s3);
-  display: flex; flex-direction: column; gap: var(--ws-s2);
+  border-left-width: 3px; border-radius: var(--ws-radius); padding: var(--ws-s3);
+  display: flex; flex-direction: column; gap: 6px;
 }
-.ws-risk__name { margin: 0; font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); }
+.ws-risk--match { border-left-color: var(--ws-ok); }
+.ws-risk--review { border-left-color: var(--ws-warn); }
+.ws-risk--missing { border-left-color: var(--ws-bad); }
+.ws-risk__name {
+  margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s2);
+}
+.ws-risk__desc { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.5; }
 .ws-risk__meta { margin: 0; display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
+.ws-chip--bucket-match { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); font-weight: 600; }
+.ws-chip--bucket-review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); font-weight: 600; }
+.ws-chip--bucket-missing { background: var(--ws-bad-soft); color: var(--ws-bad); border-color: color-mix(in srgb, var(--ws-bad) 28%, transparent); font-weight: 600; }
 
-/* Key obligations — the document's own role labels, stacked. */
-.ws-obligations__group { display: flex; flex-direction: column; gap: var(--ws-s2); }
-.ws-obligations__party { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); }
-.ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s2); }
-.ws-obligations__item {
-  display: flex; flex-direction: column; gap: 2px;
-  padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100);
+/* Key obligations — the document's own role labels, two-up when room allows. */
+.ws-obligations { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--ws-s3); }
+.ws-obligations__group { display: flex; flex-direction: column; gap: var(--ws-s2); min-width: 0; }
+.ws-obligations__party { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ws-obligations__item { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
+.ws-obligations__item .ws-status { margin-top: 2px; }
+.ws-obligations__text { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
+.ws-obligations__jump {
+  font: inherit; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5;
+  background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+  transition: color var(--ws-t);
 }
-.ws-obligations__text { font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.55; }
-
-/* Outline status dots — two states only: calm (evaluated, matches) and
- * needs-attention. Deliberately not a 3-way traffic light: no classification
- * axis renders with a severity ranking. */
-.ws-dot {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  margin-right: 7px; vertical-align: baseline; flex: none;
-}
-.ws-dot--calm { background: var(--ws-decision); }
-.ws-dot--attention { background: var(--ws-outcome); }
+.ws-obligations__jump:hover { color: var(--ws-accent); }
+.ws-obligations__jump[aria-current="true"] { color: var(--ws-accent); }
 
 /* ==========================================================================
  * Documents landing + intake (Phase 2 slice 4, 2026-08-30).
