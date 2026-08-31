@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Ask about this document — the Inquiry register (UI_UX_MASTER_PROMPT §4.1/§5).
- * Slice 3 of PRODUCT_UX_ROADMAP §G.
+ * Ask about this document — the Inquiry register, now a sticky bar (owner
+ * brief, 2026-08-31): the input is mounted and reachable at EVERY breakpoint
+ * and every scroll position, below the workspace grid, never behind a tab. The
+ * turn history lives in a panel that slides up over the bar on demand and
+ * expands automatically when an answer is coming.
  *
- * Deliberately colorless: no state-axis hue appears here, so a cited answer can
- * never be mistaken for a verdict. Three message shapes, from the server's own
- * vocabulary (`AM-29`), never re-derived:
+ * Everything about the CONTENT is unchanged from the former AskPane:
  *
  *   ANSWERED            prose + numbered citations; each citation POINTS at its
  *                       evidence row through the slice-1 highlight gesture
@@ -15,19 +16,16 @@
  *   routed_to_evaluator a compliance-shaped question is a pointer to the
  *                       Findings pane, a third type, not an answer or a refusal
  *
- * The conversation is durable (2026-08-31): on mount the pane reopens this
- * contract's most recent conversation — the server keeps citations across
- * reloads (the 2026-08-26 backend addition) — so leaving and returning to the
- * workspace no longer silently starts a fresh thread.
+ * The conversation is durable: on mount the bar reopens this contract's most
+ * recent conversation — the server keeps citations across reloads. A finding's
+ * "Ask about this" arrives as an EDITABLE draft (askIntent): placed in the
+ * always-visible input and focused, never auto-sent — no tab switching needed
+ * any more, because the input cannot be hidden.
  *
- * A finding's "Ask about this" arrives here as an EDITABLE draft (askIntent):
- * placed in the input and focused, never auto-sent.
- *
- * While a request is in flight there is ONE honest status line — the client
- * sees a single request, so a staged "searching → verifying" theater with
- * invented timings would claim progress knowledge it does not have (decision
- * #180). Scores are retrieval scores, labelled as exactly that, never rendered
- * as a bar or colour (`AI-03` item 16, rule 12).
+ * When an OLDER version is open the bar stays visible but disabled, saying so
+ * plainly (never hidden, never silently misdirecting to the wrong version).
+ * One honest status line while a request is in flight (decision #180); scores
+ * are retrieval scores, labelled as exactly that (`AI-03` item 16, rule 12).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -44,7 +42,7 @@ interface Turn {
   error: string | null;
 }
 
-/** A replayed turn pair from `GET /conversations/{id}` in the live pane's shape. */
+/** A replayed turn pair from `GET /conversations/{id}` in the live bar's shape. */
 function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
   const turns: Turn[] = [];
   for (const message of messages) {
@@ -66,15 +64,27 @@ function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
   return turns;
 }
 
-export function AskPane({ contractId }: { contractId: string }) {
+export function AskBar({
+  contractId,
+  notLatestVersion,
+  onOpenLatest,
+}: {
+  contractId: string;
+  /** The open version is not the newest — Ask answers about the latest only. */
+  notLatestVersion?: number | undefined;
+  onOpenLatest?: (() => void) | undefined;
+}) {
   const askIntent = useAskIntent();
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [restoring, setRestoring] = useState(true);
   const [pending, setPending] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const conversationRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const busy = pending !== null;
+  const disabled = notLatestVersion !== undefined;
 
   // Reopen this contract's most recent conversation, citations intact.
   useEffect(() => {
@@ -99,7 +109,8 @@ export function AskPane({ contractId }: { contractId: string }) {
     };
   }, [contractId]);
 
-  // A finding's handoff: place the draft, focus the input, send nothing.
+  // A finding's handoff: place the draft, focus the input, send nothing. The
+  // input is always mounted, so this needs no tab or panel gymnastics.
   const consumedSeq = useRef(0);
   useEffect(() => {
     const draft = askIntent?.draft;
@@ -109,11 +120,19 @@ export function AskPane({ contractId }: { contractId: string }) {
     inputRef.current?.focus();
   }, [askIntent?.draft]);
 
+  // The newest turn should be visible when the panel is open or opening.
+  useEffect(() => {
+    if (!open) return;
+    const node = panelRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [open, turns.length, pending]);
+
   const submit = useCallback(async () => {
     const asked = question.trim();
-    if (!asked || busy) return;
+    if (!asked || busy || disabled) return;
     setPending(asked);
     setQuestion("");
+    setOpen(true); // the answer must land somewhere the user can see
     try {
       if (!conversationRef.current) {
         const conversation = await api.createConversation(contractId);
@@ -127,15 +146,20 @@ export function AskPane({ contractId }: { contractId: string }) {
     } finally {
       setPending(null);
     }
-  }, [busy, contractId, question]);
+  }, [busy, contractId, disabled, question]);
 
   return (
-    <>
-      <div className="ws-pane__head">
-        <h2 className="ws-pane__title">Ask</h2>
-        <span className="ws-pane__note">Answers cite the document, or say they cannot.</span>
-      </div>
-      <div className="ws-pane__body ws-ask">
+    <aside className="ws-askbar" aria-label="Ask about this document">
+      <div
+        className="ws-askbar__panel"
+        data-open={open}
+        ref={panelRef}
+        // Content stays in the tree (state never lost), hidden from readers
+        // and tab order while collapsed.
+        aria-hidden={!open}
+        // @ts-expect-error — `inert` is a valid DOM attribute; React's types lag.
+        inert={open ? undefined : ""}
+      >
         <ol className="ws-ask__turns" aria-live="polite">
           {turns.map((turn, index) => (
             <li key={index} className="ws-ask__turn">
@@ -180,12 +204,21 @@ export function AskPane({ contractId }: { contractId: string }) {
         ) : null}
       </div>
       <form
-        className="ws-ask__form"
+        className="ws-askbar__row"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
+        <button
+          type="button"
+          className="ws-askbar__toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((wasOpen) => !wasOpen)}
+        >
+          {open ? "Hide" : "Conversation"}
+          {turns.length > 0 ? <span className="ws-mono"> ({turns.length})</span> : null}
+        </button>
         <label className="ws-visually-hidden" htmlFor="ws-ask-question">
           Question
         </label>
@@ -195,14 +228,24 @@ export function AskPane({ contractId }: { contractId: string }) {
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           maxLength={2000}
-          placeholder="What does this document say about…"
-          disabled={busy}
+          placeholder={
+            disabled
+              ? `Ask answers about the latest version — you are reading v${notLatestVersion}`
+              : "Ask what this document says about…"
+          }
+          disabled={busy || disabled}
         />
-        <button className="ws-btn ws-btn--primary" type="submit" disabled={busy || !question.trim()}>
-          {busy ? "Searching…" : "Ask"}
-        </button>
+        {disabled && onOpenLatest ? (
+          <button type="button" className="ws-btn" onClick={onOpenLatest}>
+            Open the latest version
+          </button>
+        ) : (
+          <button className="ws-btn ws-btn--primary" type="submit" disabled={busy || disabled || !question.trim()}>
+            {busy ? "Searching…" : "Ask"}
+          </button>
+        )}
       </form>
-    </>
+    </aside>
   );
 }
 

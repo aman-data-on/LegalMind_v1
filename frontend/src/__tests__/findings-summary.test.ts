@@ -9,7 +9,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   CLASSIFICATION_ORDER,
+  clauseStatusByEvidenceId,
+  findingsNeedingDecision,
   findingsSummary,
+  outlineStatus,
   rowNeedsAttention,
 } from "@/components/workspace/model";
 
@@ -61,5 +64,69 @@ describe("rowNeedsAttention", () => {
     })).toBe(false);
     expect(rowNeedsAttention({ latest_analysis: null })).toBe(false);
     expect(rowNeedsAttention({})).toBe(false);
+  });
+});
+
+describe("findingsNeedingDecision", () => {
+  it("is the server's own requires_decision flag and nothing else", () => {
+    const findings = [
+      { requires_decision: true, id: "a" },
+      { requires_decision: false, id: "b" },
+      { requires_decision: true, id: "c" },
+    ];
+    expect(findingsNeedingDecision(findings).map((x) => x.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("clauseStatusByEvidenceId", () => {
+  const finding = (classification: string, requires: boolean, evidenceIds: string[]) => ({
+    classification,
+    requires_decision: requires,
+    evidence: evidenceIds.map((id) => ({ id })),
+  });
+
+  it("marks non-MATCH or requires_decision evidence as attention", () => {
+    const map = clauseStatusByEvidenceId([
+      finding("MATCH", false, ["e1"]),
+      finding("DEVIATION", true, ["e2"]),
+    ]);
+    expect(map.get("e1")).toEqual({ covered: true, attention: false });
+    expect(map.get("e2")).toEqual({ covered: true, attention: true });
+    expect(map.get("e3")).toBeUndefined();
+  });
+
+  it("ORs attention across findings citing the same row — attention never downgrades", () => {
+    const map = clauseStatusByEvidenceId([
+      finding("DEVIATION", true, ["shared"]),
+      finding("MATCH", false, ["shared"]),
+    ]);
+    expect(map.get("shared")).toEqual({ covered: true, attention: true });
+  });
+
+  it("treats every non-MATCH classification with the same weight (no severity ranking)", () => {
+    const map = clauseStatusByEvidenceId([
+      finding("MISSING", false, ["m"]),
+      finding("AMBIGUOUS", false, ["a"]),
+    ]);
+    expect(map.get("m")).toEqual(map.get("a"));
+  });
+});
+
+describe("outlineStatus", () => {
+  it("rolls a body row's status up to its owning outline row", () => {
+    const rows = [
+      { id: "h1", section_number: "17.2", section_title: "Liability" },
+      { id: "b1", section_number: null, section_title: null },
+      { id: "h2", section_number: "22", section_title: "Termination" },
+      { id: "b2", section_number: null, section_title: null },
+    ];
+    const status = new Map([
+      ["b1", { covered: true, attention: true }],
+      ["h2", { covered: true, attention: false }],
+    ]);
+    const rolled = outlineStatus(rows, status);
+    expect(rolled.get("h1")).toEqual({ covered: true, attention: true });
+    expect(rolled.get("h2")).toEqual({ covered: true, attention: false });
+    expect(rolled.get("b2")).toBeUndefined();
   });
 });

@@ -18,7 +18,7 @@ Updated at the end of every working session.*
 
 | | |
 |---|---|
-| **Last worked** | 31 August 2026 (evening — your "rethink the UX around the real user journey" directive) |
+| **Last worked** | 31 August 2026 (night — the AB-7 build you approved: auto-suggested document type, Key Obligations, the 3-column workspace with the always-visible Ask bar) |
 | **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
 | **UI/UX** | **FROZEN — plus one polish pass you asked for (31 Aug, "use plugin to make frontend design better")**: hover/press feedback on every clickable control, counts in the monospace voice, a bounded reading width for document text — style-only, nothing moved, all checks re-run green. The freeze stands again after it. *(earlier:)* | All six areas built, audited, baselined: 15 CI-cut screenshots pin every screen, and the whole test matrix is green. From here the UI changes only for real defects or new features — no more polishing unless you ask for another UX review. Research stays an honest placeholder until your C-16 statute decision; generated answer text waits on your two Google inputs. |
@@ -48,6 +48,32 @@ Updated at the end of every working session.*
   document versions, because nothing did and the workspace opens on a document.
 - The Findings and Ask panes say plainly that they arrive in the next slice — no fake
   controls.
+
+**What got finished on 31 August (night — the reference-screenshot rework, AB-7)**
+
+- **Uploading is now one gesture.** Pick a file and LegalMind creates the record,
+  uploads it, reads the opening pages, and *suggests* the document type — you just
+  confirm (or correct) and analysis starts. The type is still recorded only by your
+  click, never by the AI, so the "human declares the type" rule (Q9) stands in
+  substance; the two owner approvals are locked as **AM-34/AM-35 (AB-7)** in
+  `all_lock.md`. When the AI isn't confident, the screen behaves exactly as before —
+  an empty select and the filename hint.
+- **The workspace is the 3-column layout from your screenshots**: document with
+  per-clause status dots (green = matches, amber = needs attention — deliberately
+  two states, not a severity traffic light), findings in the middle, and a new
+  **AI Analysis** column: a ring of the real match/attention counts (no invented
+  score), the findings awaiting a decision as "Key risks" that jump to their
+  clause, and **Key Obligations** — what each party has to do, in the document's
+  own words, each line clickable to its passage. Obligations are a new extraction
+  capability: facts only, mechanically screened so a compliance judgment can never
+  sneak in as an "obligation".
+- **Ask is now a bar pinned to the bottom of the screen** — reachable at any scroll
+  position, on any tab, at any width, with the conversation sliding up over the
+  page when you want it. On an older version it stays visible but says plainly it
+  answers about the latest.
+- All verified: 981 backend + 117 frontend + 60 browser checks green. The visual
+  baselines will show diffs (the layout genuinely changed) — they get adopted from
+  CI per the standing rule, not regenerated locally.
 
 **What got finished on 31 August (evening — your "rethink the UX" directive)**
 

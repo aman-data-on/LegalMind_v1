@@ -1,13 +1,18 @@
 "use client";
 
 /**
- * Three regions — document · findings · ask — that collapse to tabs, never to a
- * dropped region (DESIGN.md § Responsive: a collapsed pane is a labelled tab;
- * state is never silently lost).
+ * Three regions — document · findings · analysis — that collapse to tabs, never
+ * to a dropped region (DESIGN.md § Responsive: a collapsed pane is a labelled
+ * tab; state is never silently lost).
  *
  *   ≥ 1280px  three panes side by side
  *   ≥ 900px   document + one tabbed secondary pane
  *   below     one pane at a time, all three as tabs
+ *
+ * Ask is deliberately NOT a region any more (2026-08-31 redesign): it lives in
+ * the sticky AskBar below the grid, mounted at every breakpoint, so it is
+ * reachable regardless of scroll position or active tab — which also retires
+ * the old "switch to the Ask tab when a draft arrives" effect.
  *
  * Real tab semantics (role=tablist/tab/tabpanel, aria-selected, arrow keys), so
  * the collapsed state is as operable from a keyboard as the wide one.
@@ -15,15 +20,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { useAskIntent } from "./askIntent";
-
-export type Region = "document" | "findings" | "ask";
+export type Region = "document" | "findings" | "analysis";
 type Mode = "three" | "two" | "one";
 
 const LABEL: Record<Region, string> = {
   document: "Document",
   findings: "Findings",
-  ask: "Ask",
+  analysis: "AI Analysis",
 };
 
 function useMode(): Mode {
@@ -46,25 +49,16 @@ function useMode(): Mode {
 export function WorkspaceLayout({
   document,
   findings,
-  ask,
+  analysis,
 }: Record<Region, React.ReactNode>) {
   const mode = useMode();
   const [tab, setTab] = useState<Region>("findings");
   const tabsRef = useRef<HTMLDivElement | null>(null);
 
-  // A finding's "Ask about this" must land in a VISIBLE Ask region — in the
-  // collapsed layouts that means switching to the Ask tab, otherwise the
-  // prefilled draft would arrive in a pane the user cannot see.
-  const askIntent = useAskIntent();
-  const askSeq = askIntent?.draft?.seq ?? 0;
-  useEffect(() => {
-    if (askSeq > 0) setTab("ask");
-  }, [askSeq]);
-
-  const panes: Record<Region, React.ReactNode> = { document, findings, ask };
-  const tabbed: Region[] = mode === "one" ? ["document", "findings", "ask"] : ["findings", "ask"];
+  const panes: Record<Region, React.ReactNode> = { document, findings, analysis };
+  const tabbed: Region[] = mode === "one" ? ["document", "findings", "analysis"] : ["findings", "analysis"];
   const visible: Region[] =
-    mode === "three" ? ["document", "findings", "ask"]
+    mode === "three" ? ["document", "findings", "analysis"]
     : mode === "two" ? ["document", tab === "document" ? "findings" : tab]
     : [tab];
 

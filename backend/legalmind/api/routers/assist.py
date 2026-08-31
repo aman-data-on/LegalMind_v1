@@ -18,18 +18,23 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
 
 from legalmind import config
+from legalmind.api import ratelimit
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.schemas import AskRequest, ConversationCreate
-from legalmind.assist import service
+from legalmind.assist import obligations, service, type_suggestion
 from legalmind.assist.chunking import leading_section_ref
 from legalmind.db import models as M
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
 router = APIRouter(tags=["assist"])
+
+# In-process for a single worker; a multi-worker deployment backs this with the
+# shared Redis (see ratelimit.InProcessRateLimiter's docstring).
+_limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
 
 
 def _latest_document_version(guard: Guard, contract_id: UUID) -> M.DocumentVersion:
@@ -59,6 +64,60 @@ def _visible_conversation(guard: Guard, conversation_id: UUID) -> dict:
         raise NotVisible("conversation", conversation_id)
     return {"id": row[0], "user_id": row[1], "contract_id": row[2],
             "created_at": row[3]}
+
+
+@router.post("/document-versions/{document_version_id}/suggest-type")
+def suggest_type(document_version_id: UUID,
+                 guard: Guard = Depends(get_guard)) -> dict:
+    """Assist-lane type suggestion (owner, 2026-08-31) — a proposal, never a write.
+
+    The Guard resolves the version through its contract (47.6), the assist lane
+    reads the opening evidence, and the response is only ever advice for the UI's
+    pre-fill. The type itself is recorded exclusively by the human's own
+    `PATCH /contracts/{id}` — Q9's substance (human-declared) survives intact.
+    Every failure shape is the same honest `confident: false`, so the screen
+    degrades to the plain empty select rather than erroring.
+    """
+    guard.permission(P.ASSIST_ASK)
+    guard.document_version(document_version_id, P.ASSIST_ASK)
+    _limiter.check(f"suggest_type:{guard.user_id}", ratelimit.SUGGEST_TYPE)
+    suggestion = type_suggestion.suggest_document_type(
+        guard.db, document_version_id=document_version_id,
+        request_id=guard.request_id)
+    return data({
+        "suggested_type": suggestion.suggested_type,
+        "confident": suggestion.confident,
+        "reason": suggestion.reason,
+    })
+
+
+@router.post("/document-versions/{document_version_id}/extract-obligations")
+def extract_obligations(document_version_id: UUID,
+                        guard: Guard = Depends(get_guard)) -> dict:
+    """Key Obligations extraction (owner, 2026-08-31) — descriptive facts about
+    the document's own text, never a Finding or a judgment. Runs synchronously
+    (the Ask precedent: one bounded generation call); idempotent-by-refusal —
+    a version already extracted keeps its record, since the version is
+    immutable and re-running buys nothing.
+
+    Permission is `finding.view`: obligations are facts about text the caller
+    can already read in full, not the organization's negotiating position, so
+    LEGAL-02's stricter gate does not apply.
+    """
+    guard.document_version(document_version_id, P.FINDING_VIEW)
+    _limiter.check(f"obligations:{guard.user_id}", ratelimit.SUGGEST_TYPE)
+    result = obligations.extract_obligations(
+        guard.db, document_version_id=document_version_id,
+        request_id=guard.request_id)
+    return data({"extracted": result.extracted,
+                 "error_code": result.error_code})
+
+
+@router.get("/document-versions/{document_version_id}/obligations")
+def read_obligations(document_version_id: UUID,
+                     guard: Guard = Depends(get_guard)) -> dict:
+    guard.document_version(document_version_id, P.FINDING_VIEW)
+    return data(obligations.read_obligations(guard.db, document_version_id))
 
 
 @router.post("/conversations", status_code=201)

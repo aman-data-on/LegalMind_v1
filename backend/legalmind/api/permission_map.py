@@ -125,6 +125,18 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/messages"): P.ASSIST_ASK,
+    # Type suggestion (owner, 2026-08-31): a proposal for the intake pre-fill,
+    # same risk profile as Ask — no new legal authority.
+    ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/suggest-type"):
+        P.ASSIST_ASK,
+    # Key Obligations (owner, 2026-08-31): descriptive facts about text the
+    # caller can already read in full — the findings-viewer's scope, and never
+    # the organization's negotiating position (LEGAL-02 does not apply).
+    ("POST",
+     f"{API_PREFIX}/document-versions/{{document_version_id}}/extract-obligations"):
+        P.FINDING_VIEW,
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/obligations"):
+        P.FINDING_VIEW,
 }
 ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
 

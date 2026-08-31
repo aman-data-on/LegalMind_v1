@@ -50,6 +50,10 @@ REPORT_EXPORTED = "report.exported"
 # this in the audit trail proper, because an operational log is never a substitute
 # for the record of what left the building.
 ASSIST_GENERATION_CALLED = "assist.generation_called"
+# Type suggestion (owner, 2026-08-31): the assist lane proposed a Step 6 code and
+# what it proposed — the human confirmation that later records a type is a
+# separate, ordinary contract update. Hash only, never the payload (AM-30 t5).
+ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
 # Administration
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"

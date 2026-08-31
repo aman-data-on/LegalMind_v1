@@ -31,8 +31,13 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const f = fixture();
   await page.goto("/workspace");
   await page.setInputFiles('input[type="file"]', f.document.path);
-  await page.getByLabel(/^Document type/).selectOption("MSA");
-  await page.getByRole("button", { name: "Upload and analyze" }).click();
+  // Create + upload + type suggestion run behind the file gesture; the select
+  // re-enables when the confirm panel is ready. In e2e there is no generation
+  // credential, so the suggestion honestly degrades and the human declares.
+  const typeSelect = page.getByLabel(/^Document type/);
+  await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
+  await typeSelect.selectOption("MSA");
+  await page.getByRole("button", { name: "Confirm and analyze" }).click();
   await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 30_000 });
   const contractId = page.url().match(/workspace\/([0-9a-f-]{36})/)![1];
 
@@ -121,7 +126,11 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await expect(page).toHaveURL(/[?&]version=/);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   await expect(page.locator("article[data-finding-id]").first()).toBeVisible();
-  await expect(page.getByText("Ask answers about the latest version")).toBeVisible();
+  // The bar stays visible but disabled — never hidden, never misattributing.
+  const askInput = page.locator(".ws-askbar").getByLabel("Question");
+  await expect(askInput).toBeDisabled();
+  await expect(askInput).toHaveAttribute("placeholder", /Ask answers about the latest version/);
+  await expect(page.locator(".ws-askbar").getByRole("button", { name: "Open the latest version" })).toBeVisible();
 
   // v1's Review and report remain exactly where they were.
   await page.goto(`/workspace/reviews/${v1.reviewId}`);

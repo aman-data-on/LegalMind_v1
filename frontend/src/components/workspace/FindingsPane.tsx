@@ -24,38 +24,27 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { api, describeError } from "@/lib/api";
+import { describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { DocumentVersion, Evaluation, Evidence, Finding, Review } from "@/lib/types";
+import type { DocumentVersion, Evaluation, Evidence, Finding } from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { ExportControl } from "./ExportControl";
+import { useFindingsState } from "./findingsState";
 import { useHighlight } from "./highlight";
 import { findingsSummary } from "./model";
-
-type Load =
-  | { kind: "loading" }
-  | { kind: "no-review" }
-  | { kind: "in-flight"; review: Review }
-  | { kind: "failed"; review: Review }
-  | { kind: "ready"; review: Review; findings: Finding[] }
-  | { kind: "error"; error: unknown };
 
 type View = "attention" | "all" | { classification: string };
 
 const ATTENTION_OUTCOMES = new Set(["APPROVAL_REQUIRED", "UNACCEPTABLE"]);
 const CALM_CLASSIFICATIONS = new Set(["MATCH"]);
 const CALM_OUTCOMES = new Set(["ACCEPTABLE", "NOT_APPLICABLE"]);
-/** Review lifecycle states that mean "a result is still coming" (Step 30). */
-const IN_FLIGHT_STATUSES = new Set(["DRAFT", "UPLOADED", "PROCESSING"]);
-const POLL_MS = 2500;
-const POLL_LIMIT = 120; // five minutes of patience, then the state stands as is
 
 function initialView(): View {
   if (typeof window === "undefined") return "attention";
@@ -63,55 +52,12 @@ function initialView(): View {
   return pointed ? { classification: pointed } : "attention";
 }
 
-export function FindingsPane({ contractId, version }: { contractId: string; version: DocumentVersion }) {
+export function FindingsPane({ version }: { version: DocumentVersion }) {
   const { can } = useSession();
-  const [state, setState] = useState<Load>({ kind: "loading" });
+  // The one findings state machine, shared with the outline and the AI
+  // Analysis panel (findingsState.tsx) — fetch and poll live there.
+  const { state, reload } = useFindingsState();
   const [view, setView] = useState<View>(initialView);
-  const polls = useRef(0);
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setState({ kind: "loading" });
-    try {
-      const { items: reviews } = await api.reviews({ contract_id: contractId, page_size: 100 });
-      const review = reviews.find((r) => r.document_version_id === version.id);
-      if (!review) {
-        setState({ kind: "no-review" });
-        return;
-      }
-      if (IN_FLIGHT_STATUSES.has(review.status)) {
-        setState({ kind: "in-flight", review });
-        return;
-      }
-      if (review.status === "ANALYSIS_FAILED") {
-        setState({ kind: "failed", review });
-        return;
-      }
-      const { items: findings } = await api.findings(review.id, { page_size: 100 });
-      setState({ kind: "ready", review, findings });
-    } catch (error) {
-      setState({ kind: "error", error });
-    }
-  }, [contractId, version.id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Progress is the Review lifecycle and nothing else (52.7): while it says a
-  // result is coming, ask again quietly. Bounded, and silent so the pane's
-  // shape never flickers mid-read.
-  useEffect(() => {
-    if (state.kind !== "in-flight") {
-      polls.current = 0;
-      return;
-    }
-    if (polls.current >= POLL_LIMIT) return;
-    const timer = window.setTimeout(() => {
-      polls.current += 1;
-      void load(true);
-    }, POLL_MS);
-    return () => window.clearTimeout(timer);
-  }, [state, load]);
 
   // `?finding=` — the Legal queue's deep link. One-shot per target: scroll to
   // the card and move focus to it (the same gesture the document pane gives
@@ -167,7 +113,7 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
           <h2 className="ws-pane__title">Findings</h2>
         </div>
         <div className="ws-state">
-          <AnalyzeControl version={version} onAnalysed={() => void load()} />
+          <AnalyzeControl version={version} onAnalysed={reload} />
         </div>
       </>
     );
@@ -300,7 +246,7 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
               <p role="status">No findings in this view.</p>
             ) : (
               shown.map((finding) => (
-                <FindingCard key={finding.id} finding={finding} onChanged={() => void load()} />
+                <FindingCard key={finding.id} finding={finding} onChanged={reload} />
               ))
             )}
           </>

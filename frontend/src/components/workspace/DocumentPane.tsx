@@ -25,16 +25,21 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, api, describeError } from "@/lib/api";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
 
+import { useFindingsStateOptional } from "./findingsState";
 import { useHighlight } from "./highlight";
 import {
   READINESS_TEXT,
+  clauseStatusByEvidenceId,
   groupByPage,
   locationLabel,
   outlineOf,
+  outlineStatus,
   readiness,
 } from "./model";
 
 const PAGE_SIZE = 100;
+
+const EMPTY_STATUS = new Map<string, { covered: boolean; attention: boolean }>();
 
 export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [rows, setRows] = useState<EvidenceRow[] | null>(null);
@@ -42,6 +47,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [error, setError] = useState<unknown>(null);
   const { target, point, announcement } = useHighlight();
   const textRef = useRef<HTMLDivElement | null>(null);
+
+  // Per-clause status dots — two states only (calm / needs attention), from
+  // the shared findings state; no severity ranking, nothing re-derived. Status
+  // rolls up to the OWNING outline row: a finding cites a clause's body text,
+  // and the outline shows the clause's heading.
+  const findingsState = useFindingsStateOptional();
+  const clauseStatus =
+    findingsState?.state.kind === "ready" && rows
+      ? outlineStatus(rows, clauseStatusByEvidenceId(findingsState.state.findings))
+      : EMPTY_STATUS;
 
   // Progressive load: page after page until the total is reached. Documents are
   // a few hundred rows at most; the user sees the first page immediately and the
@@ -139,17 +154,27 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
         <div className="ws-doc">
           <nav className="ws-outline" aria-label="Document outline">
             <p className="ws-outline__title">Clauses</p>
-            {outlineOf(rows).map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                aria-current={target === row.id ? "true" : undefined}
-                onClick={() => point(row.id, row.section_number ? `clause ${row.section_number}` : "the selected")}
-              >
-                {row.section_number ? <span className="ws-mono">§{row.section_number}</span> : null}
-                {row.section_title ?? (row.section_number ? "" : "Untitled clause")}
-              </button>
-            ))}
+            {outlineOf(rows).map((row) => {
+              const status = clauseStatus.get(row.id);
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  aria-current={target === row.id ? "true" : undefined}
+                  onClick={() => point(row.id, row.section_number ? `clause ${row.section_number}` : "the selected")}
+                >
+                  {status ? (
+                    <span
+                      className={`ws-dot${status.attention ? " ws-dot--attention" : " ws-dot--calm"}`}
+                      title={status.attention ? "A finding here needs attention" : "Evaluated — matches the standard"}
+                      aria-label={status.attention ? "needs attention" : "matches"}
+                    />
+                  ) : null}
+                  {row.section_number ? <span className="ws-mono">§{row.section_number}</span> : null}
+                  {row.section_title ?? (row.section_number ? "" : "Untitled clause")}
+                </button>
+              );
+            })}
             {outlineOf(rows).length === 0 ? (
               <p className="ws-pane__note" style={{ padding: "0 12px" }}>
                 No clause numbering was detected.

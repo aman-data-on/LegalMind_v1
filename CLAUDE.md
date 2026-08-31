@@ -203,6 +203,7 @@ one-line CSS change.** Invoke these before writing markup or styles, not after:
 | `ui-ux-pro-max` — with its `ui-styling`, `design-system` and `design` skills | Styles, palettes, font pairings, chart selection, per-stack (Next.js/React/Tailwind) guidance |
 | `frontend-design` | Aesthetic direction when building new UI or reshaping existing UI |
 | `dataviz` | Any chart, meter, KPI tile, sparkline or dashboard |
+| **Figma plugin** (`figma:*` skills) | Owner instruction, 2026-08-31: use it on frontend work too, where it fits — design-to-code, generating or updating Figma screens/components. Each `figma:*` skill must be loaded **before** its MCP tool (`use_figma`, `get_design_context`, …), and the Figma MCP connection needs authentication on first use. |
 
 Its `brand`, `banner-design` and `slides` skills are marketing-asset tools. LegalMind has no
 marketing surface — do not reach for them on a product screen.
@@ -274,7 +275,7 @@ Documents under [docs/09-implementation/](docs/09-implementation/) still describ
 
 ## Current state
 
-**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1, AB-2, **AB-3** (`AM-25`–`AM-29`, the assistive AI lane), **AB-4** (`AM-30`, `AM-31`, `IMPL-02`, Gemini Flash for generation) and **AB-5** (`AM-32`, the Domain A/C corpus tables — resolves C-15; Domain A output is extractive-only per `AM-30` t3), **AB-6** (`AM-33`, 2026-08-31 — the threshold-band Legal Rule form is withdrawn; a DEVIATION never maps to ACCEPTABLE through any rule form), and `IMPL-01`/`IMPL-02` are locked. `all_lock.md` is **16,616 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
+**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1, AB-2, **AB-3** (`AM-25`–`AM-29`, the assistive AI lane), **AB-4** (`AM-30`, `AM-31`, `IMPL-02`, Gemini Flash for generation) and **AB-5** (`AM-32`, the Domain A/C corpus tables — resolves C-15; Domain A output is extractive-only per `AM-30` t3), **AB-6** (`AM-33`, 2026-08-31 — the threshold-band Legal Rule form is withdrawn; a DEVIATION never maps to ACCEPTABLE through any rule form), **AB-7** (`AM-34`/`AM-35`, 2026-08-31 — assist-lane type SUGGESTION with mandatory human confirmation (Q9's substance stands), and the Key Obligations descriptive extraction), and `IMPL-01`/`IMPL-02` are locked. `all_lock.md` is **16,689 lines**. Step 45E — Golden Corpus — is IN PROGRESS (64 fixtures specified; **28 authored — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED`**, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
 
 ### The V1 configuration state — read before touching the evaluator or the corpus
 
@@ -326,7 +327,7 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 
 ## Working a session
 
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **16,616 lines**; if it is longer, the docs may be stale and you should say so.
+1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **16,689 lines**; if it is longer, the docs may be stale and you should say so.
 2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
 3. **Check what already exists before building or asking** — rule 23. Read the status, handoff and changelog records first; verify with a grep or a test run; and look in [Source material](#source-material) before requesting a document.
 4. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.

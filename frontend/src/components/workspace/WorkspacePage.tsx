@@ -32,10 +32,12 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, DocumentVersion } from "@/lib/types";
 
+import { AnalysisPanel } from "./AnalysisPanel";
+import { AskBar } from "./AskBar";
 import { AskIntentProvider } from "./askIntent";
-import { AskPane } from "./AskPane";
 import { DocumentPane } from "./DocumentPane";
 import { FindingsPane } from "./FindingsPane";
+import { FindingsProvider } from "./findingsState";
 import { HighlightProvider } from "./highlight";
 import { pickVersion } from "./model";
 import { UploadDocument } from "./UploadDocument";
@@ -185,32 +187,21 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : null}
 
       {version ? (
-        <WorkspaceLayout
-          document={<DocumentPane version={version} />}
-          findings={<FindingsPane contractId={contract.id} version={version} />}
-          ask={
-            isLatest ? (
-              <AskPane contractId={contract.id} />
-            ) : (
-              <>
-                <div className="ws-pane__head">
-                  <h2 className="ws-pane__title">Ask</h2>
-                </div>
-                <div className="ws-state" role="note">
-                  <p>
-                    Ask answers about the latest version of this document. You are
-                    reading v{version.version_number}.
-                  </p>
-                  <p>
-                    <button type="button" className="ws-escalate__link" onClick={() => openVersion(null)}>
-                      Open the latest version
-                    </button>
-                  </p>
-                </div>
-              </>
-            )
-          }
-        />
+        <FindingsProvider contractId={contract.id} version={version}>
+          <WorkspaceLayout
+            document={<DocumentPane version={version} />}
+            findings={<FindingsPane version={version} />}
+            analysis={<AnalysisPanel documentVersionId={version.id} />}
+          />
+          {/* Sticky, mounted at every breakpoint — reachable whatever is open
+              or scrolled. When an older version is open the bar stays visible
+              but disabled, saying so plainly (never hidden). */}
+          <AskBar
+            contractId={contract.id}
+            notLatestVersion={isLatest ? undefined : version.version_number}
+            onOpenLatest={() => openVersion(null)}
+          />
+        </FindingsProvider>
       ) : (
         <div className="ws-state">
           <h2>No document uploaded yet.</h2>

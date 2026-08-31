@@ -1646,6 +1646,143 @@
     ]
    }
   },
+  "/api/v1/document-versions/{document_version_id}/extract-obligations": {
+   "post": {
+    "description": "Key Obligations extraction (owner, 2026-08-31) \u2014 descriptive facts about\nthe document's own text, never a Finding or a judgment. Runs synchronously\n(the Ask precedent: one bounded generation call); idempotent-by-refusal \u2014\na version already extracted keeps its record, since the version is\nimmutable and re-running buys nothing.\n\nPermission is `finding.view`: obligations are facts about text the caller\ncan already read in full, not the organization's negotiating position, so\nLEGAL-02's stricter gate does not apply.",
+    "operationId": "extract_obligations_api_v1_document_versions__document_version_id__extract_obligations_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Extract Obligations Api V1 Document Versions  Document Version Id  Extract Obligations Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Extract Obligations",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/obligations": {
+   "get": {
+    "operationId": "read_obligations_api_v1_document_versions__document_version_id__obligations_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Read Obligations Api V1 Document Versions  Document Version Id  Obligations Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Read Obligations",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/suggest-type": {
+   "post": {
+    "description": "Assist-lane type suggestion (owner, 2026-08-31) \u2014 a proposal, never a write.\n\nThe Guard resolves the version through its contract (47.6), the assist lane\nreads the opening evidence, and the response is only ever advice for the UI's\npre-fill. The type itself is recorded exclusively by the human's own\n`PATCH /contracts/{id}` \u2014 Q9's substance (human-declared) survives intact.\nEvery failure shape is the same honest `confident: false`, so the screen\ndegrades to the plain empty select rather than erroring.",
+    "operationId": "suggest_type_api_v1_document_versions__document_version_id__suggest_type_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Suggest Type Api V1 Document Versions  Document Version Id  Suggest Type Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Suggest Type",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
   "/api/v1/evaluations/{evaluation_id}/decisions": {
    "get": {
     "description": "The full version chain, oldest first, highest marked current (49.7).\n\nGated on ``finding.view``, not ``legal.decision``: reading what was decided is\nnot the same authority as deciding.",

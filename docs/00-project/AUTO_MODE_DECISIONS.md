@@ -891,3 +891,24 @@ freeze named — so the freeze is lifted for this work by its own terms.
 | 241 | **The legacy screens (`/contracts`, `/reviews`, `/configuration`, `/audit`, `/admin`) stay in the tree, unlinked** — owner §22 authorizes removal, but ~10 browser specs and the visual baselines still drive them as the verification harness | Deleting them today would trade a green matrix for tidiness against §23/§26; they are unreachable from the product (nav-by-existence since 2026-08-30) | Their retirement — named as the next dedicated pass: port the unique coverage (S-3, LEGAL-02, 409, keyboard) to workspace equivalents, then delete screens + specs + baselines together |
 
 **Verification at close: recorded after the full matrix below ran green.**
+
+## AB-7 implementation, 2026-08-31 (owner: "all the tech related decisions you take")
+
+The owner authorized the features (AM-34/AM-35, see `all_lock.md` AB-7) and delegated
+the technical choices. Decisions taken:
+
+| # | Decision | Why | What it does NOT decide |
+|---|----------|-----|------------------------|
+| 242 | **`generate_raw()` extracted inside `generation.py`** — the second prompt (type suggestion) and the third (obligations) run through the SAME module and function path as Ask; `generate()` is now a thin grounded-answer wrapper | AM-30 t1: a second prompt shape must never mean a second network path; `EGRESS_ALLOWED` and `test_import_boundaries.py` pass unchanged as the mechanical proof | Nothing about the Ask prompt or its verification |
+| 243 | **Obligations extraction runs synchronously in the request — no Celery task, no dispatch** | The strongest in-repo precedent: Ask already runs its generation call in-request; same magnitude (one bounded call). A queue would be new complexity guarding nothing | The plan had sketched a `dispatch_obligation_extraction`; deliberately not built |
+| 244 | **`obligation_extraction_runs.status` has no RUNNING value** ('COMPLETED'/'FAILED' only) | Synchronous execution means a row is written once the outcome is known; a RUNNING state would be a stranded-state hazard for no benefit | — |
+| 245 | **`party_role_hint` is a constrained string, not an enum type** (nullable; ORGANIZATION/COUNTERPARTY/BOTH/UNKNOWN) | The `messages.role` precedent: a best-effort transport annotation, not a controlled legal vocabulary; an enum would sit a non-legal vocabulary next to the five axes | Which party is "us" — nothing in V1 records it; `party_label` verbatim stays the honest grouping |
+| 246 | **Outline dots are TWO-state (calm/attention) and roll up to the owning outline row** (`outlineStatus`: rows between outline entries belong to that clause) | The reference's 3-way traffic light is a severity ranking, which no classification axis may render; a finding cites a clause's body text while the outline shows its heading | No new hues; reuses `--ws-decision`/`--ws-outcome` |
+| 247 | **The Ask history is a slide-up sheet anchored above the sticky bar** (absolute, `bottom: 100%`, max-height transition), overlaying the grid; the grid subtracts `--ws-askbar-h` | The input must own viewport space at every breakpoint (owner brief), but the history must not permanently halve the mobile grid | — |
+| 248 | **Type-suggestion permission is `assist.ask`; obligations are `finding.view`; both share the `SUGGEST_TYPE` rate limit** | Same risk profiles as their nearest neighbours (Ask; seeing findings); thresholds are deployment configuration (49.10) | — |
+| 249 | **RiskCard carries no `data-finding-id`** | The `?finding=` deep link must resolve uniquely to the findings pane's card (Playwright strict-mode caught the duplicate) | — |
+
+Verification at close: backend **981 passed** + ruff + mypy; frontend typecheck +
+**117 Vitest**; Playwright **60 passed / 3 skipped** (visual baselines excluded —
+CI-only adoption; layout diffs are expected and must be adopted from CI's
+`*-actual.png` per the 2026-08-30 rule).

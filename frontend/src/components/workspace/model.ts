@@ -190,6 +190,78 @@ export function findingsSummary(
 }
 
 /**
+ * The findings that need a human decision — ONE filter shared by the findings
+ * pane's default view and the AI Analysis panel's "Key risks" list, so the two
+ * views can never disagree. `requires_decision` is server-derived; the client
+ * never re-derives it (52.7).
+ */
+export function findingsNeedingDecision<T extends { requires_decision: boolean }>(
+  findings: T[],
+): T[] {
+  return findings.filter((finding) => finding.requires_decision);
+}
+
+/** What the outline dot says about a clause. Two states, deliberately NOT the
+ *  reference design's 3-way traffic light: no classification axis renders with
+ *  a severity ranking (every non-MATCH value carries the same weight), so a
+ *  clause is either covered-and-calm or covered-and-needs-attention. */
+export interface ClauseStatus {
+  covered: boolean;
+  attention: boolean;
+}
+
+/**
+ * Evidence-row id → clause status, OR'd across every finding that cites the
+ * row. Presentation grouping of server fields only: `requires_decision` is the
+ * server's, non-MATCH classification marks attention, nothing is re-derived.
+ */
+export function clauseStatusByEvidenceId(
+  findings: Array<{
+    classification: string;
+    requires_decision: boolean;
+    evidence: Array<{ id: string }>;
+  }>,
+): Map<string, ClauseStatus> {
+  const byEvidence = new Map<string, ClauseStatus>();
+  for (const finding of findings) {
+    const attention = finding.requires_decision || finding.classification !== "MATCH";
+    for (const row of finding.evidence) {
+      const current = byEvidence.get(row.id) ?? { covered: false, attention: false };
+      byEvidence.set(row.id, {
+        covered: true,
+        attention: current.attention || attention,
+      });
+    }
+  }
+  return byEvidence;
+}
+
+/**
+ * Roll per-evidence status up to the OWNING outline row: every row from one
+ * outline entry to the next belongs to that clause (reading order), so a
+ * finding citing a clause's body marks the clause's heading in the outline.
+ */
+export function outlineStatus(
+  rows: Array<{ id: string; section_number: string | null; section_title: string | null }>,
+  statusByEvidenceId: Map<string, ClauseStatus>,
+): Map<string, ClauseStatus> {
+  const byOutlineRow = new Map<string, ClauseStatus>();
+  let currentOutlineId: string | null = null;
+  for (const row of rows) {
+    if (row.section_number || row.section_title) currentOutlineId = row.id;
+    if (!currentOutlineId) continue;
+    const status = statusByEvidenceId.get(row.id);
+    if (!status) continue;
+    const current = byOutlineRow.get(currentOutlineId) ?? { covered: false, attention: false };
+    byOutlineRow.set(currentOutlineId, {
+      covered: current.covered || status.covered,
+      attention: current.attention || status.attention,
+    });
+  }
+  return byOutlineRow;
+}
+
+/**
  * Whether a Documents row belongs in the "Needs attention" group: its latest
  * analysis recorded at least one non-MATCH classification. Derived from the
  * server's own counts, never recomputed from findings.

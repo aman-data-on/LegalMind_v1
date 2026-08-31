@@ -185,13 +185,17 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // The primary act is the file, not a form.
     await page.setInputFiles('input[type="file"]', f.document.path);
 
-    // The confirm panel: name derived from the filename, editable.
+    // The confirm panel: name derived from the filename, editable. The upload
+    // and the type suggestion run behind the file gesture; the panel is ready
+    // when the fields re-enable.
     const nameField = page.getByLabel(/^Name/);
     await expect(nameField).not.toHaveValue("");
-
-    // The ten locked values, and nothing else, in the select (Step 6) — and the
-    // select starts EMPTY: declared by a human act, never preselected.
     const select = page.getByLabel(/^Document type/);
+    await expect(select).toBeEnabled({ timeout: 30_000 });
+
+    // The ten locked values, and nothing else, in the select (Step 6). With no
+    // generation credential in e2e the suggestion degrades honestly, so the
+    // select stays EMPTY and the declaration is the human act it always was.
     await expect(select).toHaveValue("");
     const options = select.locator("option");
     await expect(options).toHaveCount(11); // ten values + the empty prompt
@@ -199,9 +203,9 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
 
     // Without the type the action stays unavailable.
-    await expect(page.getByRole("button", { name: "Upload and analyze" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Confirm and analyze" })).toBeDisabled();
     await select.selectOption("NDA");
-    await page.getByRole("button", { name: "Upload and analyze" }).click();
+    await page.getByRole("button", { name: "Confirm and analyze" }).click();
 
     // One act lands in the workspace with the document there — no empty-record
     // detour, no "No document uploaded yet".
@@ -299,8 +303,9 @@ test.describe("the Ask pane, slice 3", () => {
     // generate: exactly production until the `AM-31` gate opens.
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/workspace/${contractId}`);
-    const pane = page.locator('[data-region="ask"]');
-    await expect(pane.getByRole("heading", { name: "Ask" })).toBeVisible();
+    // Ask is the sticky bar below the grid now — always mounted, never a tab.
+    const pane = page.locator(".ws-askbar");
+    await expect(pane).toBeVisible();
 
     const question = pane.getByLabel("Question");
     const ask = pane.getByRole("button", { name: "Ask" });
@@ -328,7 +333,7 @@ test.describe("the Ask pane, slice 3", () => {
   test("a compliance-shaped question is routed to Findings, not answered or refused", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/workspace/${contractId}`);
-    const pane = page.locator('[data-region="ask"]');
+    const pane = page.locator(".ws-askbar");
     await pane.getByLabel("Question").fill("Does this liability clause meet our company standard?");
     await pane.getByRole("button", { name: "Ask" }).click();
     const routed = pane.locator(".ws-ask__answer--routed");
@@ -338,8 +343,72 @@ test.describe("the Ask pane, slice 3", () => {
   });
 });
 
+test.describe("the 3-column redesign (2026-08-31)", () => {
+  test("the AI Analysis panel shows real counts, key risks, and honest obligations degradation", async ({
+    page,
+  }) => {
+    const { contractId } = await createAnalysedReview(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/workspace/${contractId}`);
+
+    const panel = page.locator('[data-region="analysis"]');
+    await expect(panel.getByRole("heading", { name: "AI Analysis" })).toBeVisible();
+
+    // The ring is real counts — a raw total in the center, never a percentage
+    // or a grade (rule 12).
+    const ring = panel.locator(".ws-ring__svg");
+    await expect(ring).toBeVisible();
+    expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
+    expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
+    expect(await panel.innerText()).not.toContain("%");
+
+    // Key risks mirror the findings pane's needs-a-decision set, and the risk
+    // card's "View clause" lights the passage in the document pane.
+    const risk = panel.locator(".ws-risk").first();
+    await expect(risk).toContainText("DEVIATION");
+    await risk.getByRole("button", { name: /View clause/ }).click();
+    await expect(page.locator(".ws-row--lit")).toBeVisible();
+
+    // No generation credential in e2e: obligations degrade to the honest quiet
+    // sentence — never an error banner, never fabricated content.
+    await expect(panel.getByText("Obligations could not be extracted", { exact: false }))
+      .toBeVisible({ timeout: 20_000 });
+  });
+
+  test("the outline carries two-state clause dots derived from findings", async ({ page }) => {
+    const { contractId } = await createAnalysedReview(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/workspace/${contractId}`);
+
+    // The fixture analysis yields a DEVIATION, so at least one outline row is
+    // marked needs-attention. Only two dot states exist — no third hue, no
+    // severity ranking.
+    await expect(page.locator(".ws-outline .ws-dot--attention").first()).toBeVisible();
+    const dots = page.locator(".ws-outline .ws-dot");
+    for (const cls of await dots.evaluateAll((els) => els.map((e) => e.className))) {
+      expect(cls).toMatch(/ws-dot--(calm|attention)/);
+    }
+  });
+
+  test("the Ask bar stays reachable at the bottom of a scrolled document", async ({ page }) => {
+    const { contractId } = await createAnalysedReview(page);
+    await page.setViewportSize({ width: 1440, height: 700 });
+    await page.goto(`/workspace/${contractId}`);
+    await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+
+    // Scroll the document pane to its end — the bar's input must still be in
+    // the viewport without any scrolling back (the owner's core complaint).
+    await page.locator('[data-region="document"] .ws-pane__body, [data-region="document"] .ws-text').first()
+      .evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    const input = page.locator(".ws-askbar").getByLabel("Question");
+    await expect(input).toBeVisible();
+    await input.click();
+    await expect(input).toBeFocused();
+  });
+});
+
 test.describe("collapse behavior", () => {
-  test("narrow viewports keep every region reachable as a tab", async ({ page }) => {
+  test("narrow viewports keep every region reachable as a tab, and Ask stays a sticky bar", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 800, height: 900 });
     await page.goto(`/workspace/${contractId}`);
@@ -348,12 +417,18 @@ test.describe("collapse behavior", () => {
     await expect(tabs).toHaveCount(3);
     await expect(page.getByRole("tab", { name: "Document" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Ask" }).click();
-    await expect(page.locator('[data-region="ask"]')).toBeVisible();
+    await page.getByRole("tab", { name: "AI Analysis" }).click();
+    await expect(page.locator('[data-region="analysis"]')).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
+    // Ask is not a tab any more: the sticky bar's input is reachable on EVERY
+    // tab and at every breakpoint (owner brief, 2026-08-31).
+    await expect(page.locator(".ws-askbar").getByLabel("Question")).toBeVisible();
+    await page.getByRole("tab", { name: "Findings" }).click();
+    await expect(page.locator(".ws-askbar").getByLabel("Question")).toBeVisible();
+
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
-    await page.getByRole("tab", { name: "Ask" }).focus();
+    await page.getByRole("tab", { name: "AI Analysis" }).focus();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "Findings" })).toBeFocused();
     await expect(page.locator('[data-region="findings"]')).toBeVisible();

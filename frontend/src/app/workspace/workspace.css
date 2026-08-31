@@ -59,6 +59,7 @@
   /* The accent's pressed/hover step — same hue, one stop deeper. */
   --ws-accent-strong: #16407e;
   --ws-shell-h: 52px;
+  --ws-askbar-h: 56px;
   --ws-z-shell: 20;
   --ws-z-dialog: 30;
 
@@ -151,7 +152,8 @@
   display: grid;
   /* The document is the primary object and gets the most room. */
   grid-template-columns: minmax(440px, 1.5fr) minmax(360px, 1.15fr) minmax(300px, 1fr);
-  height: calc(100vh - var(--ws-shell-h) - 58px);
+  /* The sticky Ask bar owns the last --ws-askbar-h of the viewport. */
+  height: calc(100vh - var(--ws-shell-h) - 58px - var(--ws-askbar-h));
 }
 .ws-workspace--two { grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.2fr); }
 .ws-workspace--one { grid-template-columns: 1fr; }
@@ -363,6 +365,96 @@
   flex: 1; font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
   border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); min-width: 0;
 }
+
+/* ==========================================================================
+ * Sticky Ask bar (2026-08-31 redesign) — the input is mounted at EVERY
+ * breakpoint, below the grid, never behind a tab. The turn history is a
+ * slide-up sheet anchored above the bar, overlaying the grid.
+ * ========================================================================== */
+.ws-askbar {
+  position: sticky; bottom: 0; z-index: var(--ws-z-shell);
+  background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
+}
+.ws-askbar__row {
+  display: flex; align-items: center; gap: var(--ws-s2);
+  height: var(--ws-askbar-h); padding: 0 var(--ws-s4);
+}
+.ws-askbar__row input {
+  flex: 1; font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); min-width: 0;
+}
+.ws-askbar__row input:disabled { background: var(--ws-paper); color: var(--ws-ink-500); }
+.ws-askbar__toggle {
+  font: inherit; font-size: var(--ws-text-sm); padding: 6px 12px; min-height: 36px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-surface); color: var(--ws-ink-700); cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--ws-t), border-color var(--ws-t);
+}
+.ws-askbar__toggle:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); }
+.ws-askbar__toggle[aria-expanded="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+.ws-askbar__panel {
+  position: absolute; bottom: 100%; left: 0; right: 0;
+  max-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--ws-surface);
+  border-top: 1px solid var(--ws-ink-100);
+  box-shadow: 0 -8px 24px rgba(14, 20, 32, 0.08);
+  padding: 0 var(--ws-s4);
+  transition: max-height 0.2s ease;
+  display: flex; flex-direction: column; gap: var(--ws-s3);
+}
+.ws-askbar__panel[data-open="true"] {
+  max-height: min(60vh, 480px);
+  padding: var(--ws-s4);
+}
+
+/* ==========================================================================
+ * AI Analysis panel (2026-08-31 redesign) — counts and facts, no scores.
+ * ========================================================================== */
+.ws-analysis { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s5); }
+.ws-analysis__section { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.ws-analysis__title {
+  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ws-ink-500); margin: 0; font-weight: 500;
+}
+.ws-ring { display: flex; align-items: center; gap: var(--ws-s4); }
+.ws-ring__svg { width: 88px; height: 88px; flex: none; }
+.ws-ring__track { fill: none; stroke-width: 10; }
+.ws-ring__track--attention { stroke: var(--ws-outcome); }
+.ws-ring__track--match { stroke: var(--ws-decision); }
+.ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 600; fill: var(--ws-ink-900); }
+.ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
+.ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-ring__legend li { display: flex; align-items: center; gap: 7px; }
+.ws-ring__swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--ws-outcome); flex: none; }
+.ws-ring__legend li[data-calm] .ws-ring__swatch { background: var(--ws-decision); }
+.ws-risk {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius); padding: var(--ws-s3);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-risk__name { margin: 0; font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); }
+.ws-risk__meta { margin: 0; display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
+
+/* Key obligations — the document's own role labels, stacked. */
+.ws-obligations__group { display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-obligations__party { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); }
+.ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-obligations__item {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100);
+}
+.ws-obligations__text { font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.55; }
+
+/* Outline status dots — two states only: calm (evaluated, matches) and
+ * needs-attention. Deliberately not a 3-way traffic light: no classification
+ * axis renders with a severity ranking. */
+.ws-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 7px; vertical-align: baseline; flex: none;
+}
+.ws-dot--calm { background: var(--ws-decision); }
+.ws-dot--attention { background: var(--ws-outcome); }
 
 /* ==========================================================================
  * Documents landing + intake (Phase 2 slice 4, 2026-08-30).

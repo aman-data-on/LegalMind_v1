@@ -12,6 +12,45 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **AB-7: suggestion-assisted intake, Key Obligations, and the 3-column
+  workspace redesign (2026-08-31, owner-directed).** Lock record "Amendment
+  Batch AB-7" appended to `all_lock.md` (now **16,689** lines); AM-34/AM-35
+  indexed in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).
+  - **AM-34 — type suggestion (assist lane, human-confirmed).** New
+    `backend/legalmind/assist/type_suggestion.py` +
+    `POST /document-versions/{id}/suggest-type` (permission `assist.ask`, new
+    `SUGGEST_TYPE` rate limit, audit event `assist.type_suggestion_called`,
+    hash-only). `generation.py` gained `generate_raw()` — the same single
+    egress seam under a second prompt; `EGRESS_ALLOWED` unchanged. The intake
+    (`UploadContract.tsx`) is now upload-first: choosing a file creates the
+    contract + uploads immediately, the suggestion pre-fills the type select
+    when confident, and the type is recorded only by the user's
+    "Confirm and analyze" (PATCH). Every failure degrades to the old empty
+    select; Q9's substance (human-declared) intact.
+  - **AM-35 — Key Obligations (assist lane, descriptive only).** New migration
+    `e5b8d3f17a2c` adds `obligation_extraction_runs` / `obligation_extractions`
+    to the assist schema (additive; locked 30 untouched;
+    `test_locked_schema_columns.py` passes unchanged). New
+    `assist/obligations.py` — synchronous extraction through the single seam,
+    idempotent-by-refusal, grounded-or-discarded, and a mechanical
+    judgment-language guardrail (`guardrails.is_judgment_language`). Endpoints
+    `POST …/extract-obligations` and `GET …/obligations` behind `finding.view`.
+  - **Workspace redesign (presentation only, locks nothing).** Regions are now
+    document · findings · **AI Analysis** (`AnalysisPanel.tsx`: classification
+    ring of real counts — raw total, no percentage; Key Risks sharing the
+    findings pane's exact needs-decision filter; `ObligationsPanel`). Ask left
+    the grid entirely: `AskPane.tsx` → **`AskBar.tsx`**, a sticky bottom bar
+    mounted at every breakpoint with a slide-up history panel — reachable at
+    any scroll position or tab; disabled-but-visible on an older version. One
+    shared findings state machine (`findingsState.tsx`) now feeds the findings
+    pane, the outline's new two-state clause dots (calm/attention —
+    deliberately NOT the reference's 3-way traffic light: no severity ranking
+    within an axis), and the AI Analysis panel.
+  - Verified: backend **981 passed** + ruff + mypy clean; frontend typecheck +
+    **117 Vitest**; browser suite **60 passed / 3 skipped** (visual baselines
+    excluded — CI-only adoption per the 2026-08-30 rule; diffs are expected
+    from the layout change and must be adopted from CI's `*-actual.png`).
+
 * **Owner-requested design polish pass (2026-08-31, "use plugin to make frontend
   design better")** — an explicit design-improvement request, so it lifts the
   2026-08-31 freeze for this one pass; the freeze stands again after it. The

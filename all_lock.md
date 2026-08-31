@@ -16614,3 +16614,76 @@ r3   AM-28/AM-31 m-series stand: the faithfulness and citation-precision half of
 r4   A provider-side retirement of gemini-3.6-flash, or any model change, re-triggers
      t7 and AM-26 r4 exactly as this one did, and is recorded the same way.
 ```
+
+================================================================================
+Amendment Batch AB-7 — suggestion-assisted intake and Key Obligations
+Recorded 2026-08-31, on the owner's instructions in the working session
+("Reopen the locked decision now" — type suggestion with mandatory human
+confirmation; "Add a new backend extraction capability" — Key Obligations;
+"all the tech related decisions you take").
+Appended per rule 22 — the prior 16,616 lines are byte-identical and unmodified.
+================================================================================
+
+## AM-34 — Assist-lane document-type SUGGESTION, human-confirmed
+
+Owner Q9 (2026-08-19, "declared, never inferred") is amended IN WORKFLOW ONLY;
+its substance stands: the authoritative `contract_type` is only ever written by
+an explicit human act, and analysis still refuses an undeclared type.
+
+t1  The assist lane may propose exactly one Step 6 code (or nothing) from the
+    document version's own committed evidence plus its original filename. The
+    proposal pre-fills the intake select; the human confirms, changes, or
+    clears it, and only the human's confirmation (an ordinary contract update)
+    records the type. A suggestion is never a Classification, never a Finding,
+    and never enters the authoritative analysis path (AI-01/AM-25 unchanged).
+t2  Egress goes through the single generation seam (AM-30 t1); every AM-30
+    term applies unchanged, including hash-only audit (t5). The audit event
+    `assist.type_suggestion_called` records model, prompt version, payload
+    hash, and what was suggested — never the payload.
+t3  Parsing is defensive and un-normalising, matching Step 6's boundary rule:
+    anything but an exact code degrades to "not confident", and every failure
+    (gate, credential, provider, parse) degrades to the pre-AM-34 behaviour —
+    an empty select the human fills in. No suggestion is ever an error state.
+t4  Permission is `assist.ask` (the same risk profile as Ask); the endpoint is
+    rate-limited as deployment configuration (49.10).
+
+## AM-35 — Key Obligations extraction (assist lane, descriptive only)
+
+A new assist-lane capability: what each party has to do, grouped under the
+DOCUMENT'S OWN verbatim role labels, each line grounded in the evidence row it
+was read from.
+
+t1  An obligation is a fact about the text — never a Finding, Evaluation,
+    Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle
+    transition, and never a comparison against any Company Standard or Legal
+    Rule. AM-25's boundary applies in full.
+t2  The descriptive/judgment boundary is enforced MECHANICALLY (AM-28 r2's
+    spirit): a line carrying compliance/risk/recommendation vocabulary is
+    discarded before persistence, whatever the prompt said; a line whose
+    source marker does not resolve to a real evidence row is discarded too
+    (rule 11's spirit — ungrounded output is never stored).
+t3  Storage is two additive tables in the assist schema
+    (`obligation_extraction_runs`, `obligation_extractions`), extending
+    AM-27's authorized set by this record; AM-27 r2 stands — no locked table,
+    column, constraint, index or enum changes. `evidence_id` is NOT NULL.
+    The tables keep AM-27's derived-store posture: cascade-deleted with the
+    document, recomputable, never a source of legal truth.
+t4  Extraction runs synchronously through the single generation seam (the Ask
+    precedent); it is idempotent-by-refusal on the immutable version; failure
+    records a FAILED run so "never extracted" and "extracted, nothing found"
+    stay distinguishable, and the UI degrades to an honest quiet sentence.
+t5  Permission is `finding.view`: obligations are facts about text the caller
+    can already read in full, not the organization's negotiating position —
+    LEGAL-02's stricter gate does not apply, and AM-30 t3's egress screen
+    still does.
+t6  No forced party classification: the primary grouping is the document's own
+    label (`party_label`); `party_role_hint` is nullable and best-effort,
+    because nothing in V1 records which contracting party is "us".
+
+## What AB-7 does NOT decide
+
+No change to Q9's substance, AI-01, the determinism guarantee, the five state
+axes, any evaluator, any Company Standard, the zero-tolerance Legal Rule, or
+the corpus. The workspace's presentation changes accompanying this batch
+(3-column layout, sticky Ask bar, AI Analysis panel) are presentation-layer
+work governed by DESIGN.md and lock nothing.

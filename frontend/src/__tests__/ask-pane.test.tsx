@@ -7,7 +7,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { WsAnswerView } from "@/components/workspace/AskPane";
+import { WsAnswerView } from "@/components/workspace/AskBar";
 import { HighlightProvider } from "@/components/workspace/highlight";
 import type { AskResult } from "@/lib/types";
 

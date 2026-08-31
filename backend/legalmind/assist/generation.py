@@ -148,11 +148,27 @@ def _forbidden_payload_check(payload: str) -> None:
 
 def generate(question: str, evidence: list[str], *,
              environment: str, request_id: str | None = None) -> GenerationResult:
-    """One grounded generation call. The single seam every caller goes through.
+    """One grounded generation call — the Ask flow's entry to the single seam.
 
     Raises GenerationRefused when the gate, the payload screen or configuration
     forbids the call — the caller maps that to the identical user-facing refusal
     (`AM-29` r4). Raises GenerationUnavailable on provider failure.
+    """
+    numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(evidence, start=1))
+    prompt = PROMPT_TEMPLATE.format(evidence=numbered, question=question)
+    return generate_raw(prompt, prompt_version=PROMPT_VERSION,
+                        environment=environment, request_id=request_id,
+                        evidence_count=len(evidence))
+
+
+def generate_raw(prompt: str, *, prompt_version: str, environment: str,
+                 request_id: str | None = None,
+                 evidence_count: int | None = None,
+                 max_output_tokens: int = 1024) -> GenerationResult:
+    """The transport under every assist-lane prompt. STILL the single egress seam
+    (AM-30 t1): every gate, payload screen, pin check and audit-hash rule applies
+    identically whatever the prompt — a second prompt shape must never mean a
+    second network path.
     """
     import time
 
@@ -170,8 +186,6 @@ def generate(question: str, evidence: list[str], *,
         raise GenerationRefused(
             f"model identifier {model!r} is a floating alias; AM-30 t7 requires a pin")
 
-    numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(evidence, start=1))
-    prompt = PROMPT_TEMPLATE.format(evidence=numbered, question=question)
     _forbidden_payload_check(prompt)
 
     body = json.dumps({
@@ -182,7 +196,7 @@ def generate(question: str, evidence: list[str], *,
         # task deterministic and the answer inside the budget. thinkingBudget:0
         # is refused by 3.6-flash (HTTP 400) — the level form is the one it
         # accepts.
-        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 1024,
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_output_tokens,
                              "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
     }).encode("utf-8")
     digest = hashlib.sha256(body).hexdigest()
@@ -216,7 +230,7 @@ def generate(question: str, evidence: list[str], *,
         raise GenerationUnavailable("provider response had no text candidate") from exc
 
     log_event("assist.generation.completed", request_id=request_id, model=model,
-              prompt_version=PROMPT_VERSION, payload_sha256=digest,
-              latency_ms=latency_ms, evidence_count=len(evidence))
-    return GenerationResult(text=text, model=model, prompt_version=PROMPT_VERSION,
+              prompt_version=prompt_version, payload_sha256=digest,
+              latency_ms=latency_ms, evidence_count=evidence_count)
+    return GenerationResult(text=text, model=model, prompt_version=prompt_version,
                             payload_sha256=digest, latency_ms=latency_ms)

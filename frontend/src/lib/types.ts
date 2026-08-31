@@ -132,6 +132,36 @@ export interface UploadResult {
   diagnostics: string[];
 }
 
+/** Key Obligations — the assist lane's descriptive extraction. Facts about the
+ *  document's text under its OWN role labels; never a judgment, never a Finding. */
+export interface ObligationItem {
+  id: string;
+  obligation_text: string;
+  evidence_id: string | null;
+  section_ref: string | null;
+  page_number: number | null;
+}
+
+export interface ObligationGroup {
+  /** The document's own verbatim role label (e.g. "Customer"). */
+  party_label: string;
+  items: ObligationItem[];
+}
+
+export interface ObligationsResult {
+  /** False while no extraction has completed for this version. */
+  extracted: boolean;
+  groups: ObligationGroup[];
+}
+
+/** Assist-lane type suggestion — advice for the intake pre-fill, never a record.
+ *  `confident: false` collapses to today's empty select. */
+export interface TypeSuggestion {
+  suggested_type: string | null;
+  confident: boolean;
+  reason: string;
+}
+
 // ------------------------------------------------------------- reviews
 export interface Review {
   id: string;

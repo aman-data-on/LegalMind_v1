@@ -35,7 +35,9 @@ import type {
   ReviewReport,
   Role,
   SessionIdentity,
+  ObligationsResult,
   SnapshotSummary,
+  TypeSuggestion,
   UploadResult,
   User,
 } from "./types";
@@ -279,6 +281,25 @@ export const api = {
       },
     }),
   documentVersion: (id: string) => request<DocumentVersion>(`/document-versions/${id}`),
+  /**
+   * Assist-lane type suggestion (owner, 2026-08-31) — a proposal for the intake
+   * screen's pre-fill, never a write: the type is recorded only by the user's
+   * own confirm (PATCH). `confident: false` means "behave as before this
+   * feature existed" — an empty select the user fills in.
+   */
+  suggestType: (documentVersionId: string) =>
+    request<TypeSuggestion>(`/document-versions/${documentVersionId}/suggest-type`, {
+      method: "POST",
+    }),
+  /** Key Obligations (assist lane): descriptive facts about the document's own
+   *  text, grouped by its own role labels — never a Finding or a judgment. */
+  obligations: (documentVersionId: string) =>
+    request<ObligationsResult>(`/document-versions/${documentVersionId}/obligations`),
+  extractObligations: (documentVersionId: string) =>
+    request<{ extracted: boolean; error_code: string | null }>(
+      `/document-versions/${documentVersionId}/extract-obligations`,
+      { method: "POST" },
+    ),
   /** Evidence rows in reading order — the document pane and every citation target. */
   documentEvidence: (id: string, page = 1, pageSize = 100) =>
     requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
