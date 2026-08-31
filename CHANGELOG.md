@@ -12,6 +12,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **DD-8 — the master-prompt typefaces are real (owner approval 2026-08-31,
+  "approve the font bundling"; closes DD-7 §6).** IBM Plex Sans (UI,
+  400/500/600), IBM Plex Mono (machine-tracked values), Source Serif 4
+  (verbatim quotes, normal+italic) bundled via `next/font` in the `/workspace`
+  route-group layout: downloaded at **build time**, served from our own origin
+  (33 woff2 in `.next/static/media`; zero built-asset references to Google
+  hosts — DD-4's runtime-CDN concern never occurs). Role tokens keep the system
+  stacks as fallbacks; legacy screens untouched. Verified: build · typecheck ·
+  terms gate · **118 Vitest** · browser **60 passed / 18 gated**. Expected:
+  new-UI visual-baseline diffs, re-cut from CI per the standing rule.
+
 * **AB-7: suggestion-assisted intake, Key Obligations, and the 3-column
   workspace redesign (2026-08-31, owner-directed).** Lock record "Amendment
   Batch AB-7" appended to `all_lock.md` (now **16,689** lines); AM-34/AM-35

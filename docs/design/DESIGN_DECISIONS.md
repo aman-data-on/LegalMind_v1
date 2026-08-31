@@ -242,7 +242,8 @@ constraints (§0).
 5. **Admin is a separate control plane** — verified: SUPER_ADMIN holds only
    user/role/audit/platform permissions and cannot open a contract; "user UI + admin
    menu" is structurally false here.
-6. **Font conflict flagged, not resolved**: master prompt §4.3 (IBM Plex/Source Serif
+6. **Font conflict flagged, not resolved** *(→ resolved by DD-8, owner approval
+   2026-08-31)*: master prompt §4.3 (IBM Plex/Source Serif
    via Google Fonts) vs DD-4's no-runtime-CDN ruling. Implementation stays on the
    system stack until the owner approves `next/font` bundling (rule 19 line-item);
    the type *roles* (mono = precise values, italic serif = verbatim quotes) apply
@@ -251,3 +252,32 @@ constraints (§0).
 **Build-first decision:** the document pane + highlight mechanism as a thin vertical
 slice — the signature interaction and the one unproven technical risk
 (offsets → rendered DOM spans). Full reasoning: PRODUCT_UX_ROADMAP.md §G.
+
+---
+
+## DD-8 — Master-prompt typefaces bundled via `next/font` (closes DD-7 §6)
+
+**Status:** `DECIDED AND IMPLEMENTED` (owner approval, 2026-08-31: *"approve the font
+bundling"* — the explicit rule-19 line-item DD-7 §6 required).
+
+**What was decided:** the UI_UX_MASTER_PROMPT §4.3 faces are now real: **IBM Plex Sans**
+(all UI chrome — weights 400/500/600, the only weights the stylesheet uses), **IBM Plex
+Mono** (machine-tracked values — same weights), and **Source Serif 4** (verbatim quoted
+document text, normal + italic). No other face anywhere, per §4.3.
+
+**How, and why this satisfies DD-4's concern:** `next/font/google` downloads the font
+files at **build time** and serves them from the application's own origin
+(`.next/static/media`, verified: 33 woff2 files, zero built-asset references to
+`fonts.googleapis.com`/`fonts.gstatic.com`). No page load ever reaches a third-party
+host — the runtime-CDN leak DD-4 ruled out never occurs. `display: swap` keeps first
+paint on the fallback stacks, which remain in every role token (`--ws-sans`/`--ws-mono`/
+`--ws-serif`), so a failed font file degrades to exactly the previous system rendering.
+
+**Scope:** the new application only — the variables are mounted by the `/workspace`
+route-group layout (a `display: contents` carrier, no layout participation). Legacy
+screens keep their system stacks untouched until their retirement pass.
+
+**Build note:** the production build now requires egress to Google Fonts **at build
+time only** (CI and the frontend image build both have it; the runtime `data` network
+rules are unaffected). Expected: visual-baseline diffs on every new-UI screen — re-cut
+from CI per the standing rule (owner, 2026-08-30).
