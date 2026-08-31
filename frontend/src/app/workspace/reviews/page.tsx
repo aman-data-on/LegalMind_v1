@@ -95,7 +95,6 @@ export default function ReviewsPage() {
             <button
               key={filter.value}
               type="button"
-              className={`ws-filter__chip${status === filter.value ? " ws-filter__chip--on" : ""}`}
               aria-pressed={status === filter.value}
               onClick={() => {
                 setPage(1);

@@ -20,7 +20,7 @@
  * verdict now point at the document through the exact same gesture.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
 import { api, describeError } from "@/lib/api";
@@ -66,6 +66,24 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
   useEffect(() => {
     void load();
   }, [load]);
+
+  // `?finding=` — the Legal queue's deep link. One-shot per target: scroll to
+  // the card and move focus to it (the same gesture the document pane gives
+  // `?evidence=`). A target hidden by the attention view widens the view first.
+  const pointedDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+    const pointed = new URLSearchParams(window.location.search).get("finding");
+    if (!pointed || pointedDone.current === pointed) return;
+    const card = document.querySelector<HTMLElement>(`article[data-finding-id="${pointed}"]`);
+    if (!card) {
+      if (view === "attention") setView("all");
+      return;
+    }
+    pointedDone.current = pointed;
+    card.scrollIntoView({ block: "center" });
+    card.focus({ preventScroll: true });
+  }, [state, view]);
 
   if (!can(P.FINDING_VIEW)) {
     return (
@@ -169,7 +187,7 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
 function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () => void }) {
   const calm = CALM_CLASSIFICATIONS.has(finding.classification);
   return (
-    <article className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`} data-finding-id={finding.id}>
+    <article className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`} data-finding-id={finding.id} tabIndex={-1}>
       <header className="ws-finding__head">
         <h3 className="ws-finding__title">
           {finding.requirement.code ?? "Requirement"}

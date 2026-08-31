@@ -94,6 +94,18 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
+  it("legal.review adds the Legal queue — and only that permission does", () => {
+    const counsel = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK]);
+    const items = navItemsFor((p) => counsel.has(p));
+    expect(items.map((i) => i.href)).toEqual([
+      "/workspace",
+      "/workspace/reviews",
+      "/workspace/legal",
+      "/workspace/ask",
+    ]);
+    expect(activeNavHref("/workspace/legal", items)).toBe("/workspace/legal");
+  });
+
   it("a super admin sees an empty nav — Audit/Admin have no new-UI screen yet, so no legacy link is offered", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
     expect(navItemsFor((p) => admin.has(p))).toEqual([]);
@@ -101,7 +113,8 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
 
   it("no nav item ever points at a legacy route", () => {
     const everyone = new Set([
-      P.CONTRACT_VIEW, P.REVIEW_VIEW, P.CONFIGURATION_VIEW, P.AUDIT_VIEW, P.USER_MANAGE,
+      P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK,
+      P.CONFIGURATION_VIEW, P.AUDIT_VIEW, P.USER_MANAGE,
     ]);
     for (const item of navItemsFor((p) => everyone.has(p))) {
       expect(item.href).not.toMatch(/^\/(contracts|reviews|configuration|audit|admin)(\/|$)/);

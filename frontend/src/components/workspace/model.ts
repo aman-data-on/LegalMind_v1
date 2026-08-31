@@ -75,6 +75,7 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
   if (can(P.CONTRACT_VIEW)) items.push({ href: "/workspace", label: "Documents" });
   if (can(P.REVIEW_VIEW)) items.push({ href: "/workspace/reviews", label: "Reviews" });
+  if (can(P.LEGAL_REVIEW)) items.push({ href: "/workspace/legal", label: "Legal" });
   if (can(P.ASSIST_ASK)) items.push({ href: "/workspace/ask", label: "Ask history" });
   return items;
 }

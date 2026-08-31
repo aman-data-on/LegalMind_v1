@@ -772,3 +772,18 @@ the suite unfiltered — recorded in the changelog) · typecheck · `check:terms
 passed / 9 gated (+3: queue+report, status filter, transcript replay — all green on the
 first run) · typecheck · `check:terms` clean. Screenshots of both new screens reviewed
 against the DD-4 finish bar.**
+
+
+## UI/UX slice 6 — the Legal area, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 213 | **The Legal queue COMPOSES existing endpoints** — `GET /reviews` for the two active statuses (LEGAL_REVIEW, ANALYSIS_COMPLETE), fan-out to `findings?status=DECISION_REQUIRED`, truncation stated on-page | No cross-review findings endpoint exists, and adding one is a Step 49 surface change no slice needs yet; RESOLVED/CLOSED reviews cannot carry an undecided Finding so they are not fetched | Whether a dedicated queue endpoint is worth adding later (§19 candidate) |
+| 214 | **The queue triages, never disposes: rows deep-link `?finding=` into the workspace**, which scrolls to and focuses the exact Finding card | The master prompt puts every Legal Decision beside its evidence; duplicating the decision form on a list page would divorce ruling from reading. The gesture mirrors `?evidence=`; a target hidden by the attention view widens the view first | — |
+| 215 | **One filter idiom app-wide**: slice 5's `.ws-filter__chip` duplicate is removed; Reviews uses slice 2's aria-pressed toggle | Two patterns for the same control is drift; the later CSS block was silently overriding the earlier container rule | — |
+
+**Verification at close: backend 937/1 (unchanged) · frontend 101 Vitest (+1) · browser 51
+passed / 9 gated (+2: queue + deep-link focus with counsel, restricted state + absent nav
+with owner) · typecheck · `check:terms` clean. One of my e2e assertions was corrected by
+the run: the STRUCTURAL config's own code is asserted, never a hardcoded LIABILITY-001
+(rule 21).**

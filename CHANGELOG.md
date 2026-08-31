@@ -12,6 +12,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX slice 6 — the Legal area** (owner: "NExt phase"). `/workspace/legal`, gated by
+  `legal.review`: every Finding whose Evaluations await a Legal Decision, across the
+  Reviews the account can see, in one flat queue — requirement, classification,
+  escalation flag, document, review status, report link.
+
+  **The queue triages; it never disposes.** A Legal Decision is made beside the evidence
+  (master prompt), so each row deep-links into the document workspace with a new
+  `?finding=` parameter: the findings pane scrolls to that exact card and moves focus to
+  it (the same gesture `?evidence=` gives the document pane — widening the attention view
+  if the target is outside it), where slice 2's decision flow already lives. Holding
+  `legal.review` still confers no decision authority (SEC-01); the workspace's form
+  enforces `legal.decision` server-side.
+
+  **Composition, not a new endpoint**: there is no cross-review findings API, so the
+  queue reads the two ACTIVE review statuses through `GET /reviews` (REC-09 scope
+  server-side) and fans out per review to `findings?status=DECISION_REQUIRED`,
+  page-bounded; when either list has more pages the screen says so plainly instead of
+  implying completeness.
+
+  Also unified the status-filter idiom: slice 5 had quietly introduced a second
+  `.ws-filter` pattern next to slice 2's — the duplicate CSS is removed and the Reviews
+  screen now uses the same aria-pressed toggle the findings pane always had. One e2e
+  assertion of mine was corrected by the run itself: the queue rightly shows
+  `STRUCTURAL-E2E-001` (rule 21 — the e2e config carries no real code), so the spec now
+  asserts the code the API returns instead of a hardcoded `LIABILITY-001`. Verified:
+  backend **937/1** (unchanged) · frontend **101 Vitest** (+1) · browser **51 passed / 9
+  gated** (+2) · typecheck · forbidden-terms clean. Decisions #213–#215.
+
 * **UI/UX slice 5 (P1) — the Reviews queue, the Review report, and Ask history**
   (owner: "continue from the phase you completed"). Three read surfaces over endpoints
   that already existed, completing PRODUCT_UX_ROADMAP §E screens 7–9:
