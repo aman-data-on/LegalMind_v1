@@ -12,6 +12,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Owner-requested design polish pass (2026-08-31, "use plugin to make frontend
+  design better")** — an explicit design-improvement request, so it lifts the
+  2026-08-31 freeze for this one pass; the freeze stands again after it. The
+  design skills (`ui-ux-pro-max`, `frontend-design`) were loaded first per the
+  standing rule; the plugin's UX database rated the missing hover feedback a
+  real defect, not taste. Presentation-only changes in
+  `frontend/src/app/workspace/workspace.css` — zero markup, zero behavior:
+  - **Interaction feedback everywhere something is clickable**: hover states
+    added where none existed (`.ws-btn` both variants + a disabled treatment,
+    filter pills, collapsed-mode tabs, shell nav/sign-out, evidence-ref and
+    evidence-loc buttons, ask citations, escalate link, table rows, attend
+    "Open" links), all driven by one shared motion token (`--ws-t`, 0.13s,
+    color/border/background only — never layout) that the existing global
+    reduced-motion rule already zeroes.
+  - **`--ws-accent-strong`** (#16407e — the hue's one deeper stop, same value
+    the legacy sheet already used) for primary-button hover.
+  - **Stat tiles now actually use the mono voice** their own comment claimed
+    (`.ws-stat__n`: mono face, tabular numerals, weight 600).
+  - **The document pane's serif measure is bounded at 74ch** (left-anchored) so
+    wide monitors don't produce unreadably long italic lines.
+  - `::selection` in the accent-soft tint; drop-zone drag-over state now
+    transitions instead of snapping.
+  No axis color, chip semantics, register rule (Authority/Inquiry), or DD
+  decision touched. Verified: typecheck · terms gate · **113 Vitest** ·
+  browser suite **57 passed / 18 gated**. Expected: DESIGN_QA visual-baseline
+  diffs on hover-independent screens are unlikely (hover states don't render in
+  static captures) but any that appear are re-cut from CI per the standing rule.
+
 * **Owner UX rethink (2026-08-31, "rethink the UX around the real user journey") —
   the drill, export, contextual Ask, the work dashboard.** The owner's 38-section
   directive is the explicit UX-review request the 2026-08-31 freeze anticipated;
