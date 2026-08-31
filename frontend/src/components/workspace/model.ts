@@ -77,6 +77,9 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   if (can(P.REVIEW_VIEW)) items.push({ href: "/workspace/reviews", label: "Reviews" });
   if (can(P.LEGAL_REVIEW)) items.push({ href: "/workspace/legal", label: "Legal" });
   if (can(P.ASSIST_ASK)) items.push({ href: "/workspace/ask", label: "Ask history" });
+  if (can(P.ASSIST_ASK)) items.push({ href: "/workspace/research", label: "Research" });
+  // The control plane sits last — it is not part of the legal workflow (§H).
+  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/workspace/admin", label: "Admin" });
   return items;
 }
 

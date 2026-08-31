@@ -19,6 +19,7 @@ import {
   readiness,
 } from "@/components/workspace/model";
 import { TranscriptTurn } from "@/components/workspace/TranscriptTurn";
+import { ResearchPlaceholder } from "@/components/workspace/ResearchPlaceholder";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 
@@ -81,6 +82,7 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
       { href: "/workspace", label: "Documents" },
       { href: "/workspace/reviews", label: "Reviews" },
       { href: "/workspace/ask", label: "Ask history" },
+      { href: "/workspace/research", label: "Research" },
     ]);
   });
 
@@ -102,13 +104,16 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
       "/workspace/reviews",
       "/workspace/legal",
       "/workspace/ask",
+      "/workspace/research",
     ]);
     expect(activeNavHref("/workspace/legal", items)).toBe("/workspace/legal");
   });
 
-  it("a super admin sees an empty nav — Audit/Admin have no new-UI screen yet, so no legacy link is offered", () => {
+  it("a super admin sees Admin — the new-UI control plane — and nothing legacy", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
-    expect(navItemsFor((p) => admin.has(p))).toEqual([]);
+    expect(navItemsFor((p) => admin.has(p))).toEqual([
+      { href: "/workspace/admin", label: "Admin" },
+    ]);
   });
 
   it("no nav item ever points at a legacy route", () => {
@@ -230,5 +235,16 @@ describe("TranscriptTurn (ask history replay)", () => {
     );
     expect(html).toContain("What is the cap?");
     expect(html).toContain("ws-turn--user");
+  });
+});
+
+describe("ResearchPlaceholder (the one disclosed placeholder — C-16)", () => {
+  it("discloses without teasing: no link, no button, no input, no fake search", () => {
+    const html = renderToStaticMarkup(<ResearchPlaceholder />);
+    expect(html).toContain("available yet");
+    expect(html).toContain("C-16");
+    expect(html).not.toContain("<a ");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("<input");
   });
 });

@@ -407,3 +407,20 @@
 /* A deep-linked Finding (`?finding=`) is scrolled to and focused; the ring is
    the pointer, matching the document pane's lit-row gesture. */
 .ws-finding:focus { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
+
+/* ---- slice 7: the admin plane ------------------------------------------- */
+
+/* A held role: the chip plus its revocation, one unit. The × is a real button
+   with an explicit accessible name (never icon-only in the a11y tree). */
+.ws-rolechip { display: inline-flex; align-items: center; gap: 2px; margin: 0 8px 4px 0; }
+.ws-rolechip__revoke {
+  background: none; border: 1px solid var(--ws-ink-100); border-radius: 4px;
+  color: var(--ws-ink-500); cursor: pointer; font: inherit;
+  line-height: 1; padding: 2px 6px;
+}
+.ws-rolechip__revoke:hover { color: var(--ws-error); border-color: var(--ws-error); }
+.ws-grant { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; }
+.ws-grant select { font: inherit; font-size: var(--ws-text-sm); padding: 4px 6px; }
+
+.ws-auditfilter { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 6px; }
+.ws-auditfilter .ws-field { max-width: 16rem; }

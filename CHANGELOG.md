@@ -12,6 +12,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX slices 7–8 + the QA close — the roadmap's build order is complete** (owner:
+  "you are the developer and lead this project"). The new UI now covers every §E screen
+  that V1 backs:
+
+  **Slice 7 — the admin plane.** `/workspace/admin` (Users & roles, `user.manage`): an
+  account is created holding NO roles and the row says so plainly ("no roles — cannot act
+  yet", 47.1.3); roles are chips with labeled revokes plus a grant control (hidden, with a
+  note, without `role.manage` — `GET /roles` gates on it); disable/restore flips status
+  and every server refusal (SEC-05's last-authority guard included) renders beside the
+  row that caused it, worded by the server. `/workspace/admin/audit` (`audit.view`): the
+  append-only trail, newest first, with the 49.6 exact-value filters (action, entity
+  type) and the omitted-not-nulled state payloads not rendered at all. e2e: the full
+  provision lifecycle (create → grant → revoke → disable) round-trips, the audit filter
+  narrows to `admin.user_created`, and `owner` gets the restricted state and no nav item.
+
+  **Slice 8 — Research, the ONE disclosed placeholder** (§E screen 10). It states why it
+  is empty — the statute corpus is not ratified (C-16, an owner decision) — and offers
+  nothing interactive: no search box faking capability, no link, no button
+  (Vitest-pinned, the NextSlice discipline).
+
+  **The QA close (roadmap step 10).** Keyboard/skip-link/collapse specs pass across the
+  grown nav; aria-pressed toggles, labeled icon buttons, aria-busy skeletons,
+  reduced-motion cover, and the focus-ring deep links are all pinned by tests written
+  slice-by-slice rather than audited after the fact. Final state: **Documents · Reviews ·
+  Legal · Ask history · Research · Admin** — all in the new shell, no navigation path
+  into the legacy app anywhere. Verified: backend **937/1** · frontend **102 Vitest**
+  (+1) · browser **54 passed / 9 gated** (+3) · typecheck · forbidden-terms clean.
+  Deferred, stated: visual-regression baselines for the new screens (CI-only baseline
+  rule — cut from CI artifacts, never locally) and the §E screen-14 placeholders that
+  stay states-only by design. Decisions #216–#218.
+
 * **UI/UX slice 6 — the Legal area** (owner: "NExt phase"). `/workspace/legal`, gated by
   `legal.review`: every Finding whose Evaluations await a Legal Decision, across the
   Reviews the account can see, in one flat queue — requirement, classification,

@@ -787,3 +787,17 @@ passed / 9 gated (+2: queue + deep-link focus with counsel, restricted state + a
 with owner) · typecheck · `check:terms` clean. One of my e2e assertions was corrected by
 the run: the STRUCTURAL config's own code is asserted, never a hardcoded LIABILITY-001
 (rule 21).**
+
+
+## UI/UX slices 7–8 + QA close, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 216 | **The Admin nav item gates on `user.manage` OR `audit.view`; the grant control additionally needs `role.manage`** | The roadmap's §H control plane has two doors with different keys; an account with only one still gets the door it can open, and the missing half is a plain note, never a faked control | — |
+| 217 | **Research joins the nav as the one disclosed placeholder, gated like Ask (`assist.ask`)** | The ratified roadmap places it in the tree "TODAY: a disclosed, calm placeholder (C-16)"; its future grammar is Ask's, so Ask's permission is the honest gate until Domain C exists | When statute research is built — blocked on C-16, an owner decision |
+| 218 | **Step 10 (a11y/QA) closes as a verification pass, not an audit project** | Every slice shipped its a11y pins with the slice (skip link, tab order, aria-pressed, labeled revokes, aria-busy, focus rings, reduced-motion); the close re-ran the full matrix green. An axe-style tooling audit would add a dependency (rule 19) for properties already test-pinned | Adopting an a11y scanner later, if the owner wants one |
+
+**Verification at close: backend 937/1 · frontend 102 Vitest · browser 54 passed / 9 gated
+· typecheck · `check:terms` clean. The §G build order (1–10) is complete; the new shell
+carries Documents · Reviews · Legal · Ask history · Research · Admin. Deferred and
+flagged: CI-cut visual baselines for the new screens.**
