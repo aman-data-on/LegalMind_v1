@@ -132,3 +132,128 @@ test.describe("signed in (admin)", () => {
     });
   });
 });
+
+/**
+ * The new-UI screens (slices 4–8), baselined at the 2026-08-31 UI freeze.
+ *
+ * Appended AFTER the existing tests deliberately: those create fixture data in
+ * a fixed order, so every page below renders a deterministic row count under
+ * design-qa's fresh database. Volatile text (timestamped names, dates, ids) is
+ * masked; the layout around it is what these baselines pin.
+ */
+test.describe("the new UI at the freeze (counsel)", () => {
+  test.use({ storageState: storageStatePath("counsel") });
+
+  // Shared fixture for this describe — one worker, file order, so tests after
+  // the first reuse what it created rather than growing the row counts.
+  let frozen: { contractId: string; reviewId: string; conversationId: string };
+
+  test("freeze fixture", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    const { contractId, reviewId } = await createAnalysedReview(page);
+    const convo = await apiPost(page, "/conversations", { contract_id: contractId });
+    const conversationId = (await convo.json()).data.id;
+    await apiPost(page, `/conversations/${conversationId}/messages`, {
+      question: "What does this document say about liability?",
+    });
+    frozen = { contractId, reviewId, conversationId };
+  });
+
+  test("documents landing — intake and list", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-documents.png", {
+      ...SHOT,
+      fullPage: true,
+      // Names carry timestamps and the Added column carries today's date.
+      mask: [page.locator("tbody td:first-child"), page.locator("tbody td:last-child")],
+    });
+  });
+
+  test("reviews queue — filters and rows", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace/reviews");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-reviews.png", {
+      ...SHOT,
+      fullPage: true,
+      mask: [page.locator("tbody td:nth-child(1)"), page.locator("tbody td:nth-child(3)")],
+    });
+  });
+
+  test("review report — counts, never a grade", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto(`/workspace/reviews/${frozen.reviewId}`);
+    await expect(page.locator(".ws-stat").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-report.png", {
+      ...SHOT,
+      fullPage: true,
+      // The document name, snapshot id and date are volatile; the tiles are not.
+      mask: [page.locator(".ws-context h1"), page.locator(".ws-context .ws-mono")],
+    });
+  });
+
+  test("legal queue — one flat list, ruling elsewhere", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace/legal");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-legal.png", {
+      ...SHOT,
+      fullPage: true,
+      mask: [page.locator("tbody td:nth-child(3)")],
+    });
+  });
+
+  test("ask history — the caller's own record", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace/ask");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-ask-history.png", {
+      ...SHOT,
+      fullPage: true,
+      mask: [page.locator("tbody td:nth-child(3)"), page.locator("tbody td:nth-child(4)")],
+    });
+  });
+
+  test("transcript — the replayed refusal", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto(`/workspace/ask/${frozen.conversationId}`);
+    await expect(page.locator(".ws-turn").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-transcript.png", {
+      ...SHOT,
+      fullPage: true,
+      mask: [page.locator(".ws-context a")],
+    });
+  });
+
+  test("research — the one disclosed placeholder", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace/research");
+    await expect(page.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-research.png", { ...SHOT, fullPage: true });
+  });
+});
+
+test.describe("the new UI at the freeze (admin)", () => {
+  test.use({ storageState: storageStatePath("admin") });
+
+  test("admin — users, roles, grants", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace/admin");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-admin.png", { ...SHOT, fullPage: true });
+  });
+
+  test("audit trail — the dense read-only table", async ({ page }) => {
+    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await page.goto("/workspace/admin/audit");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-audit.png", {
+      ...SHOT,
+      // Every cell is volatile except the header, filters and grid — mask the
+      // body wholesale; this baseline pins the frame, not the entries.
+      mask: [page.locator("tbody")],
+    });
+  });
+});
