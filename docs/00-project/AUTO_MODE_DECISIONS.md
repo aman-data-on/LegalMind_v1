@@ -832,3 +832,18 @@ flagged: CI-cut visual baselines for the new screens.**
 · mypy · typecheck · terms gate · final band-semantics sweep clean. Corpus expectation
 changes were confined to STRUCTURAL fixtures (AM-33 r6 authorizes exactly that); no
 DOCUMENT_SUPPORTED or STANDARD_DERIVED expectation moved.**
+
+
+## UX correction — upload-first intake, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 227 | **`GET /configuration/snapshots` added** — metadata only, gated `review.create` | Without it "analyze against the current standards" was unresolvable and the core journey dead-ended after upload; values stay confidential (LEGAL-02) | Snapshot content disclosure (still `configuration.view` territory) |
+| 228 | **`latest_version`/`latest_analysis` on `GET /contracts` rows**, permission-layered, counts OMITTED without `finding.view` | The list must answer "what did analysis find"; three page-bounded grouped queries, no N+1; Step 24 r8 applied to a projection | — |
+| 229 | **Type stays human-declared at the upload confirm; the filename hint is text applied only by the user's click; NO LLM classification** | Owner Q9 is locked ("declared, never inferred") — the hint never preselects and never enters the record; AM-31 is closed so an LLM path is impossible today, and pre-filling an authoritative comparison choice would blur the owner's §6 classification/authority line | Revisiting model-assisted suggestion after AM-31 opens, if the owner asks |
+| 230 | **Analysis chains into the upload act, best-effort, and the no-review state becomes the Analyze action** — always against the LATEST published snapshot, named on screen | One user act, honest degradation (no snapshot → names Legal; no permission → says so; processing → wait); the Review creator is the uploader, auditable; reproducibility stays visible (AUD-04) | Snapshot CHOICE for specialists (the latest is the default; picking older snapshots is unrequested) |
+
+**Verification at close: backend 941/1 (+3: snapshots list, layered summary, drift guards
+resatisfied deliberately) · 107 Vitest (+3) · 57 browser / 18 gated (journeys now fully
+UI-driven) · ruff · mypy · typecheck · terms. The owner-ordered §17 A–L proposal and §18
+matrix: docs/design/UX_CORRECTION_2026-08-31.md.**

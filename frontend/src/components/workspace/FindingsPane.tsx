@@ -28,6 +28,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, Evaluation, Finding, Review } from "@/lib/types";
 
+import { AnalyzeControl } from "./AnalyzeControl";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useHighlight } from "./highlight";
@@ -114,18 +115,14 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
   }
 
   if (state.kind === "no-review") {
+    // 2026-08-31 UX correction: the absent Review is an ACTION, not a dead end.
     return (
       <>
         <div className="ws-pane__head">
           <h2 className="ws-pane__title">Findings</h2>
         </div>
         <div className="ws-state">
-          <h3>This document version hasn&rsquo;t been analysed yet.</h3>
-          <p>
-            Findings appear once a Review runs this document against a published
-            configuration snapshot. Starting a Review isn&rsquo;t built into this
-            screen yet.
-          </p>
+          <AnalyzeControl version={version} onAnalysed={() => void load()} />
         </div>
       </>
     );

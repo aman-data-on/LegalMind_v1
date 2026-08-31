@@ -23,7 +23,7 @@ Updated at the end of every working session.*
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
 | **UI/UX** | **FROZEN (31 Aug, your order).** All six areas built, audited, baselined: 15 CI-cut screenshots pin every screen, and the whole test matrix is green. From here the UI changes only for real defects or new features — no more polishing unless you ask for another UX review. Research stays an honest placeholder until your C-16 statute decision; generated answer text waits on your two Google inputs. |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 938 backend + 104 frontend + 57 browser checks passing, none failing; 15 visual baselines reproducing; CI (15 jobs) green on every push |
+| **Health** | 941 backend + 107 frontend + 57 browser checks passing, none failing; 15 visual baselines reproducing; CI (15 jobs) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material (and the Evidence Act 1872 vs BSA 2023 answer) for statute search; and your review of the UX roadmap before broad UI implementation |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
@@ -47,6 +47,19 @@ Updated at the end of every working session.*
   document versions, because nothing did and the workspace opens on a document.
 - The Findings and Ask panes say plainly that they arrive in the next slice — no fake
   controls.
+
+**What got finished on 31 August (your UX audit — upload-first)**
+
+- **The front door now matches the user's job.** One act: upload a contract (pick or
+  drop), confirm the name (pre-filled from the filename) and declare the type (with a
+  filename hint you can click) — and you land in the workspace with analysis already
+  running. No more "create an empty record, then attach a file".
+- **Analysis is one click everywhere it's missing** — "Analyze against current
+  standards", with the exact standards snapshot named on screen. If no standards are
+  published or you lack the permission, it says so plainly instead of dead-ending.
+- **The Documents list answers your real question**: each row shows what analysis
+  found (deviations, missing, matches) or its real stage — the database's "DRAFT" is
+  gone from the screen.
 
 **What got finished on 31 August (your product-direction R&D)**
 

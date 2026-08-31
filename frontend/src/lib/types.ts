@@ -68,9 +68,28 @@ export interface EvidenceRow {
   end_offset: number | null;
 }
 
+/** One list row's analysis reality (2026-08-31 UX correction). `classification_counts`
+ *  needs `finding.view` and arrives OMITTED without it — presence-test, never null-test. */
+export interface LatestAnalysis {
+  review_id: string;
+  review_status: string;
+  created_at: string | null;
+  completed_at: string | null;
+  classification_counts?: Record<string, number>;
+}
+
+export interface LatestVersionSummary {
+  id: string;
+  version_number: number;
+  processing_status: string;
+}
+
 export interface Contract {
   /** Newest first. Present on the detail endpoint (2026-08-30 addition). */
   document_versions?: DocumentVersion[];
+  /** List rows only (2026-08-31): the newest version and its newest Review. */
+  latest_version?: LatestVersionSummary | null;
+  latest_analysis?: LatestAnalysis | null;
   id: string;
   owner_id: string;
   name: string;
@@ -262,6 +281,14 @@ export interface Requirement {
   status: string;
   versions: RequirementVersion[];
   created_at: string | null;
+}
+
+/** `GET /configuration/snapshots` rows — metadata only, never items or values. */
+export interface SnapshotSummary {
+  id: string;
+  snapshot_hash: string;
+  created_at: string;
+  requirement_count: number;
 }
 
 export interface ConfigurationSnapshot {

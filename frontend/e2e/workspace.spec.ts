@@ -177,29 +177,36 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     await expect(page).toHaveURL(`/workspace/${contract.id}`);
   });
 
-  test("intake: the type is a required choice from Step 6's ten values, and creating lands in the workspace", async ({
+  test("intake is upload-first: file → derived name + declared type → workspace (2026-08-31 UX correction)", async ({
     page,
   }) => {
+    const f = fixture();
     await page.goto("/workspace");
-    const form = page.getByRole("form", { name: /Add (your first |a) document/ });
-    await expect(form).toBeVisible();
+    // The primary act is the file, not a form.
+    await page.setInputFiles('input[type="file"]', f.document.path);
 
-    // The ten locked values, and nothing else, in the select (Step 6).
-    const options = form.locator("select option");
+    // The confirm panel: name derived from the filename, editable.
+    const nameField = page.getByLabel(/^Name/);
+    await expect(nameField).not.toHaveValue("");
+
+    // The ten locked values, and nothing else, in the select (Step 6) — and the
+    // select starts EMPTY: declared by a human act, never preselected.
+    const select = page.getByLabel(/^Document type/);
+    await expect(select).toHaveValue("");
+    const options = select.locator("option");
     await expect(options).toHaveCount(11); // ten values + the empty prompt
     const codes = (await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).filter(Boolean);
     expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
 
-    // Declared, never inferred: without a type the action is not available.
-    await form.getByLabel(/^Name/).fill(`Intake ${Date.now()}`);
-    await expect(form.getByRole("button", { name: "Add and open" })).toBeDisabled();
-    await form.getByLabel(/^Document type/).selectOption("NDA");
-    await expect(form.getByRole("button", { name: "Add and open" })).toBeEnabled();
+    // Without the type the action stays unavailable.
+    await expect(page.getByRole("button", { name: "Upload and analyze" })).toBeDisabled();
+    await select.selectOption("NDA");
+    await page.getByRole("button", { name: "Upload and analyze" }).click();
 
-    await form.getByRole("button", { name: "Add and open" }).click();
-    // Intake continues in the new document's workspace, where the upload lives.
-    await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 20_000 });
-    await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
+    // One act lands in the workspace with the document there — no empty-record
+    // detour, no "No document uploaded yet".
+    await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     await expect(page.locator(".ws-context")).toContainText("NDA");
   });
 });

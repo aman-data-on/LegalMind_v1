@@ -8,10 +8,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
-import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   activeNavHref,
+  analysisCell,
   pickVersion,
   groupByPage,
   locationLabel,
@@ -259,5 +260,39 @@ describe("ResearchPlaceholder (the one disclosed placeholder — C-16)", () => {
     expect(html).not.toContain("<a ");
     expect(html).not.toContain("<button");
     expect(html).not.toContain("<input");
+  });
+});
+
+describe("upload-first intake helpers (2026-08-31 UX correction)", () => {
+  it("derives an editable name from the filename — never a demand", () => {
+    expect(nameFromFilename("RSA.pdf")).toBe("RSA");
+    expect(nameFromFilename("acme_msa-v2 final.docx")).toBe("acme msa v2 final");
+    expect(nameFromFilename("no-extension")).toBe("no extension");
+  });
+
+  it("hints a type from filename tokens, and only from plain tokens", () => {
+    expect(typeHintFromFilename("Acme MSA (final).pdf")).toBe("MSA");
+    expect(typeHintFromFilename("counterparty-nda.docx")).toBe("NDA");
+    expect(typeHintFromFilename("privacy_policy.pdf")).toBe("PRIVACY_POLICY");
+    // No token, no hint — the hint never guesses ("msal" is not "msa").
+    expect(typeHintFromFilename("agreement.pdf")).toBeNull();
+    expect(typeHintFromFilename("msal-config.pdf")).toBeNull();
+  });
+
+  it("the analysis cell speaks stages and counts, never a lifecycle enum", () => {
+    expect(analysisCell({}).kind).toBe("none");
+    expect(analysisCell({ latest_version: { processing_status: "PROCESSING" } }).kind).toBe("processing");
+    expect(analysisCell({ latest_version: { processing_status: "COMPLETED" }, latest_analysis: null }).kind).toBe("unanalysed");
+    const analysed = analysisCell({
+      latest_version: { processing_status: "COMPLETED" },
+      latest_analysis: {
+        review_id: "r1", review_status: "LEGAL_REVIEW",
+        classification_counts: { MATCH: 18, DEVIATION: 3, MISSING: 1 },
+      },
+    });
+    expect(analysed).toMatchObject({ kind: "analysed", review_status: "LEGAL_REVIEW" });
+    // Attention-first, MATCH last — a fixed scan order, not object-key order.
+    expect((analysed as { counts: { classification: string }[] }).counts.map((c) => c.classification))
+      .toEqual(["DEVIATION", "MISSING", "MATCH"]);
   });
 });

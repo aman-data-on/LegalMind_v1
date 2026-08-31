@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
@@ -39,8 +39,87 @@ def list_contracts(guard: Guard = Depends(get_guard),
     stmt = select(M.Contract).where(M.Contract.owner_id == guard.user_id)
     rows, total = run(guard.db, stmt, page,
                       M.Contract.created_at.desc(), M.Contract.id.desc())
-    return paginated([serialize_contract(c) for c in rows],
+    summaries = _list_summaries(guard, [c.id for c in rows])
+    payload = []
+    for c in rows:
+        item = serialize_contract(c)
+        item.update(summaries.get(c.id, {"latest_version": None,
+                                         "latest_analysis": None}))
+        payload.append(item)
+    return paginated(payload,
                      page=page.page, page_size=page.page_size, total=total)
+
+
+def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
+    """Per-row `latest_version` / `latest_analysis` for the Documents list —
+    2026-08-31 UX correction (Step 49 implementation addition, the #187
+    precedent): the list answers "what did analysis find" instead of echoing a
+    lifecycle enum. Three page-bounded grouped queries; no N+1.
+
+    Permission-layered like every projection: version metadata needs
+    `document.view`; the analysis block needs `review.view`; the
+    classification counts inside it additionally need `finding.view` and are
+    OMITTED (never nulled) without it — Step 24 r8's rule applied here.
+    """
+    if not contract_ids or P.DOCUMENT_VIEW not in guard.permissions:
+        return {}
+    versions = guard.db.execute(
+        select(M.DocumentVersion)
+        .where(M.DocumentVersion.contract_id.in_(contract_ids))
+        .order_by(M.DocumentVersion.contract_id,
+                  M.DocumentVersion.version_number.desc())
+    ).scalars().all()
+    latest_version: dict[UUID, M.DocumentVersion] = {}
+    for version in versions:
+        latest_version.setdefault(version.contract_id, version)
+
+    out: dict[UUID, dict] = {}
+    for cid, version in latest_version.items():
+        out[cid] = {"latest_version": {
+            "id": str(version.id),
+            "version_number": version.version_number,
+            "processing_status": version.processing_status.value,
+        }, "latest_analysis": None}
+
+    if P.REVIEW_VIEW not in guard.permissions or not latest_version:
+        return out
+    reviews = guard.db.execute(
+        select(M.Review)
+        .where(M.Review.document_version_id.in_(
+            [v.id for v in latest_version.values()]))
+        .order_by(M.Review.document_version_id,
+                  M.Review.created_at.desc(), M.Review.id.desc())
+    ).scalars().all()
+    latest_review: dict[UUID, M.Review] = {}
+    for r in reviews:
+        latest_review.setdefault(r.document_version_id, r)
+
+    counts: dict[UUID, dict[str, int]] = {}
+    if latest_review and P.FINDING_VIEW in guard.permissions:
+        grouped = guard.db.execute(
+            select(M.Finding.review_id, M.Finding.classification, func.count())
+            .where(M.Finding.review_id.in_([r.id for r in latest_review.values()]))
+            .group_by(M.Finding.review_id, M.Finding.classification)
+        ).all()
+        for review_id, classification, n in grouped:
+            counts.setdefault(review_id, {})[classification.value] = n
+
+    for cid, version in latest_version.items():
+        review = latest_review.get(version.id)
+        if review is None:
+            continue
+        analysis = {
+            "review_id": str(review.id),
+            "review_status": review.status.value,
+            "created_at": (review.created_at.isoformat()
+                           if review.created_at else None),
+            "completed_at": (review.completed_at.isoformat()
+                             if review.completed_at else None),
+        }
+        if P.FINDING_VIEW in guard.permissions:
+            analysis["classification_counts"] = counts.get(review.id, {})
+        out[cid]["latest_analysis"] = analysis
+    return out
 
 
 @router.post("/contracts", status_code=201)

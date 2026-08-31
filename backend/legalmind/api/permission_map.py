@@ -89,6 +89,7 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
         P.CONFIGURATION_DRAFT,
     ("POST", f"{API_PREFIX}/requirements/{{requirement_id}}/standard"):
         P.CONFIGURATION_DRAFT,
+    ("GET", f"{API_PREFIX}/configuration/snapshots"): P.REVIEW_CREATE,
     ("POST", f"{API_PREFIX}/configuration/publish"): P.CONFIGURATION_PUBLISH,
 
     # ---- 49.3 audit -----------------------------------------------------

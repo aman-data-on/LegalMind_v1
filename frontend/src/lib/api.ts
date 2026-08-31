@@ -35,6 +35,7 @@ import type {
   ReviewReport,
   Role,
   SessionIdentity,
+  SnapshotSummary,
   UploadResult,
   User,
 } from "./types";
@@ -384,6 +385,10 @@ export const api = {
       method: "POST",
       body: payload,
     }),
+  /** Published snapshots, newest first — metadata only. What "analyze against
+   *  the current standards" resolves to (2026-08-31 UX correction). */
+  snapshots: (query: { page?: number; page_size?: number } = {}) =>
+    requestPage<SnapshotSummary>("/configuration/snapshots", { query }),
   publishConfiguration: (requirementCodes?: string[]) =>
     request<ConfigurationSnapshot>("/configuration/publish", {
       method: "POST",

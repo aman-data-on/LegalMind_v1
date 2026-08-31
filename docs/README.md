@@ -14,6 +14,7 @@
 | **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 - [00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md) — 📁 the owner-ordered product-intent audit behind AB-6/AM-33 and the version-lifecycle UI
+- [design/UX_CORRECTION_2026-08-31.md](design/UX_CORRECTION_2026-08-31.md) — 📁 the owner-ordered UX/product-model audit behind the upload-first intake and in-flow analysis
 | **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
 | **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
 | Supply the statutes (C-16) — what and how | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |

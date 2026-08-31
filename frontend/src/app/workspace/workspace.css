@@ -455,3 +455,17 @@
   padding: var(--ws-s3) var(--ws-s4) 0;
   display: grid; gap: var(--ws-s2);
 }
+
+/* ---- upload-first intake (2026-08-31 UX correction) ---------------------- */
+.ws-drop {
+  border: 1.5px dashed var(--ws-ink-300); border-radius: var(--ws-radius);
+  background: var(--ws-surface); padding: var(--ws-s6) var(--ws-s5);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--ws-s3);
+}
+.ws-drop--over { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-drop__lede { margin: 0; max-width: 52ch; color: var(--ws-ink-700); }
+.ws-drop__pick { cursor: pointer; }
+.ws-drop__hint { font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-intake__size { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 400; }
+.ws-analyze { display: grid; gap: var(--ws-s2); justify-items: start; }
+.ws-cell-chips { display: flex; gap: 6px; flex-wrap: wrap; }

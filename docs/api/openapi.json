@@ -944,6 +944,64 @@
     ]
    }
   },
+  "/api/v1/configuration/snapshots": {
+   "get": {
+    "description": "Published snapshots, newest first \u2014 metadata ONLY (2026-08-31 UX\ncorrection; Step 49 implementation addition, the #187 precedent).\n\nExists so the client can resolve \"analyze against the current standards\"\nto a concrete snapshot id \u2014 without it, starting a Review from the UI was\nimpossible. Gated on ``review.create`` because that is this listing's one\npurpose. No snapshot ITEM and no standard value is disclosed (LEGAL-02):\nthe payload is id, hash, timestamp and a requirement count, all of which a\ncaller already sees on any Review it can read.",
+    "operationId": "list_snapshots_api_v1_configuration_snapshots_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Snapshots Api V1 Configuration Snapshots Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Snapshots",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
   "/api/v1/contracts": {
    "get": {
     "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.",

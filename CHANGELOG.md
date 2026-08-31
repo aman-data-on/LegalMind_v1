@@ -12,6 +12,45 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UX correction (owner-ordered "DEEP UX / PRODUCT MODEL AUDIT"): upload-first intake,
+  analysis in the flow.** Full proposal + change matrix:
+  [docs/design/UX_CORRECTION_2026-08-31.md](docs/design/UX_CORRECTION_2026-08-31.md).
+  The intake had leaked the backend object lifecycle into the product (create an empty
+  named/typed record → open an empty workspace → attach the file), and — the root
+  finding — **analysis was unreachable in the UI** because no endpoint read published
+  configuration snapshots, so "analyze against the current standards" could not be
+  resolved. Corrected end-to-end:
+
+  - **Documents is upload-first**: one primary act ("Upload a contract", picker + drop
+    zone). The confirm panel keeps exactly two decisions with the user — Name (derived
+    from the filename as an editable default) and Type (HUMAN-declared, owner Q9 intact:
+    the select starts empty; a filename token hint is text beside it, applied only by the
+    user's click; deliberately no LLM classification — AM-31 is closed, and a model
+    pre-filling an authoritative comparison choice would blur classification/authority).
+    "Upload and analyze" chains create → upload → latest-snapshot → Review → analysis,
+    best-effort: every failure degrades to an honest workspace state, never a dead end.
+  - **The absent Review is now an ACTION**: the findings pane's no-review state is
+    "Analyze against current standards" with the snapshot id named on screen (AUD-04
+    visible), honest blocked states for no permission / no published snapshot / still
+    processing. A freshly uploaded revision gets the same control — Journey D is one
+    screen.
+  - **Documents rows speak analysis, not lifecycle enums**: DRAFT is gone from the list;
+    each row shows classification counts (attention-first order) or the real stage
+    ("Processing…", "Not analysed yet", "No document yet").
+  - **Two additive API reads** (Step 49 record updated, the #187 precedent):
+    `GET /configuration/snapshots` (metadata only, `review.create`) and
+    `latest_version`/`latest_analysis` on `GET /contracts` rows (permission-layered;
+    counts OMITTED without `finding.view`). No schema change, no engine change, nothing
+    removed; the API drift guards fired and were satisfied deliberately (registry +
+    regenerated `openapi.json`).
+  - Journey specs are now END-TO-END THROUGH THE UI: upload → chained analysis →
+    findings → ask, and revision → one-click analyze → both histories intact.
+
+  Verified: backend **941/1** (+3) · **107 Vitest** (+3) · browser **57 passed / 18
+  gated** · ruff · mypy · typecheck · terms gate. The visual system is untouched (freeze
+  respected; this is the owner-requested UX review #222 anticipated); the
+  `ws-documents.png` baseline diff re-cuts from CI in one round. Decisions #227–#230.
+
 * **Product-intent R&D + corrective implementation (owner-ordered).** Full audit of the
   system against the owner's clarified product behavior — recorded in
   [docs/00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](docs/00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md)

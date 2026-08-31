@@ -875,3 +875,53 @@ def test_contract_detail_lists_its_document_versions_newest_first(api, db, owner
     assert versions[0]["original_filename"] == "msa-v2.docx"
     assert "storage_key" not in versions[0]
     assert "processing_status" in versions[0]
+
+
+# =====================================================================
+# 2026-08-31 UX correction — the two additive reads (Step 49 record)
+# =====================================================================
+def test_snapshots_list_is_metadata_only_and_needs_review_create(api, db, owner):
+    """`GET /configuration/snapshots` exists so a client can resolve "analyze
+    against the current standards" to a concrete snapshot id. Newest first,
+    metadata ONLY — no snapshot item, no standard value (LEGAL-02)."""
+    review = make_review_for(db, owner)   # creates one snapshot
+    sign_in(api, db, owner)
+    body = api.get(f"{V1}/configuration/snapshots").json()
+    assert body["pagination"]["total"] >= 1
+    newest = body["data"][0]
+    assert set(newest) == {"id", "snapshot_hash", "created_at", "requirement_count"}
+    assert str(review.configuration_snapshot_id) in [r["id"] for r in body["data"]]
+
+    # A caller without review.create has no business listing them.
+    bare = make_user(db)
+    sign_in(api, db, bare)
+    assert api.get(f"{V1}/configuration/snapshots").status_code == 403
+
+
+def test_documents_list_carries_a_permission_layered_analysis_summary(
+        api, db, owner, requirement_version):
+    """2026-08-31 UX correction: each list row answers "what did analysis find"
+    — the latest version's latest Review with classification counts — instead
+    of echoing a lifecycle enum. Counts need `finding.view` and are OMITTED
+    (never nulled) without it — Step 24 r8 applied to a projection."""
+    from tests.conftest import make_finding
+
+    review = make_review_for(db, owner)
+    make_finding(db, review, requirement_version,
+                 classification=E.FindingClassification.DEVIATION)
+    sign_in(api, db, owner)
+    rows = api.get(f"{V1}/contracts").json()["data"]
+    row = next(r for r in rows if r["id"] == str(review.contract_id))
+    assert row["latest_version"]["version_number"] == 1
+    assert row["latest_version"]["processing_status"] == "COMPLETED"
+    analysis = row["latest_analysis"]
+    assert analysis["review_id"] == str(review.id)
+    assert analysis["review_status"] == "ANALYSIS_COMPLETE"
+    assert analysis["classification_counts"] == {"DEVIATION": 1}
+
+    # A contract with no Review states that honestly rather than inventing one.
+    bare = api.post(f"{V1}/contracts", json={"name": "Fresh", "contract_type": "MSA"})
+    fresh = next(r for r in api.get(f"{V1}/contracts").json()["data"]
+                 if r["id"] == bare.json()["data"]["id"])
+    assert fresh["latest_version"] is None
+    assert fresh["latest_analysis"] is None

@@ -114,3 +114,46 @@ export function pickVersion<T extends { id: string }>(
   }
   return versions[0] ?? null;
 }
+
+/**
+ * The Documents row's analysis reality, as render-ready parts (2026-08-31 UX
+ * correction): the list answers "what did analysis find", never a lifecycle
+ * enum. Counts render in a fixed, attention-first order; the absence states
+ * are words, not blanks. Dates stay out of this cell (they live in "Added")
+ * so the cell is deterministic for visual baselines.
+ */
+const COUNT_ORDER = [
+  "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE",
+  "AMBIGUOUS", "UNRESOLVED", "MATCH", "NOT_APPLICABLE",
+] as const;
+
+export type AnalysisCell =
+  | { kind: "none" }        // no document uploaded yet
+  | { kind: "processing" }
+  | { kind: "unanalysed" }
+  | { kind: "analysed"; review_id: string; review_status: string;
+      counts: Array<{ classification: string; n: number }> };
+
+export function analysisCell(row: {
+  latest_version?: { processing_status: string } | null;
+  latest_analysis?: {
+    review_id: string; review_status: string;
+    classification_counts?: Record<string, number>;
+  } | null;
+}): AnalysisCell {
+  if (!row.latest_version) return { kind: "none" };
+  if (row.latest_version.processing_status !== "COMPLETED") return { kind: "processing" };
+  if (!row.latest_analysis) return { kind: "unanalysed" };
+  const counts = COUNT_ORDER
+    .map((classification) => ({
+      classification,
+      n: row.latest_analysis?.classification_counts?.[classification] ?? 0,
+    }))
+    .filter((entry) => entry.n > 0);
+  return {
+    kind: "analysed",
+    review_id: row.latest_analysis.review_id,
+    review_status: row.latest_analysis.review_status,
+    counts,
+  };
+}
