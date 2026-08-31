@@ -144,23 +144,23 @@ test.describe("signed in (admin)", () => {
 test.describe("the new UI at the freeze (counsel)", () => {
   test.use({ storageState: storageStatePath("counsel") });
 
-  // Shared fixture for this describe — one worker, file order, so tests after
-  // the first reuse what it created rather than growing the row counts.
-  let frozen: { contractId: string; reviewId: string; conversationId: string };
+  // Every test creates its own data (the file's house idiom): a failed test
+  // restarts the worker process, so module-level state shared across tests is
+  // lost exactly when baselines are being regenerated. Execution order is
+  // fixed, so each page still renders a deterministic row count.
 
-  test("freeze fixture", async ({ page }) => {
-    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    const { contractId, reviewId } = await createAnalysedReview(page);
+  const askAbout = async (page: import("@playwright/test").Page, contractId: string) => {
     const convo = await apiPost(page, "/conversations", { contract_id: contractId });
-    const conversationId = (await convo.json()).data.id;
+    const conversationId = (await convo.json()).data.id as string;
     await apiPost(page, `/conversations/${conversationId}/messages`, {
       question: "What does this document say about liability?",
     });
-    frozen = { contractId, reviewId, conversationId };
-  });
+    return conversationId;
+  };
 
   test("documents landing — intake and list", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await createAnalysedReview(page);
     await page.goto("/workspace");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-documents.png", {
@@ -173,6 +173,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
 
   test("reviews queue — filters and rows", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await createAnalysedReview(page);
     await page.goto("/workspace/reviews");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-reviews.png", {
@@ -184,7 +185,8 @@ test.describe("the new UI at the freeze (counsel)", () => {
 
   test("review report — counts, never a grade", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    await page.goto(`/workspace/reviews/${frozen.reviewId}`);
+    const { reviewId } = await createAnalysedReview(page);
+    await page.goto(`/workspace/reviews/${reviewId}`);
     await expect(page.locator(".ws-stat").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-report.png", {
       ...SHOT,
@@ -196,6 +198,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
 
   test("legal queue — one flat list, ruling elsewhere", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    await createAnalysedReview(page);
     await page.goto("/workspace/legal");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-legal.png", {
@@ -207,6 +210,8 @@ test.describe("the new UI at the freeze (counsel)", () => {
 
   test("ask history — the caller's own record", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
+    const { contractId } = await createAnalysedReview(page, { analyse: false });
+    await askAbout(page, contractId);
     await page.goto("/workspace/ask");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-ask-history.png", {
@@ -218,7 +223,9 @@ test.describe("the new UI at the freeze (counsel)", () => {
 
   test("transcript — the replayed refusal", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    await page.goto(`/workspace/ask/${frozen.conversationId}`);
+    const { contractId } = await createAnalysedReview(page, { analyse: false });
+    const conversationId = await askAbout(page, contractId);
+    await page.goto(`/workspace/ask/${conversationId}`);
     await expect(page.locator(".ws-turn").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-transcript.png", {
       ...SHOT,
