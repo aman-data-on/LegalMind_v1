@@ -810,3 +810,10 @@ flagged: CI-cut visual baselines for the new screens.**
 | 219 | **Structured evaluation values render as labeled key–value pairs, verbatim** — never a JSON blob, never an interpretation | A clipped `{"scope":…` line is below product standard and hides the value's tail; rule 12 requires the server's facts unaltered, so the fix is layout, not paraphrase | Any richer domain-aware rendering (e.g. "24 months of fees") — that would interpret, and needs a spec |
 | 220 | **One page-container rule**: rich bodies wrap in `.ws-docs`; every bare full-page state gets the same centered 72rem gutter via `.ws-main > .ws-state` | Three screens (report, transcript, research) shipped without the container — the flush-left drift was exactly the "unfinished" look the audit was ordered to catch | — |
 | 221 | **The changed `workspace.png` baseline is adopted from CI's artifact after the expected one-time DESIGN_QA failure** | Owner rule 2026-08-30: baselines only from CI renders | — |
+
+
+## UI freeze, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 222 | **The UI is FROZEN at f9c3c0f** (owner order): no redesign, restyle or new pattern without an explicitly requested UX review; defect fixes (usability, a11y, inconsistency, responsive, broken interaction, strategy mismatch) and screens for NEW functionality remain allowed, built on the frozen tokens/components | The goal is a stable, tested baseline to build remaining functionality on — not an endlessly "better" UI. Baseline set: 15 CI-cut screenshots; matrix green everywhere | Nothing about future functionality's UI — new screens follow the frozen system |

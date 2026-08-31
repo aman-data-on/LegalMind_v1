@@ -21,9 +21,9 @@ Updated at the end of every working session.*
 | **Last worked** | 30 August 2026 |
 | **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
-| **UI/UX** | **The new UI is COMPLETE per the ratified roadmap (31 Aug)**: Documents · Reviews · Legal · Ask history · Research · Admin, all in the new shell, no path into the legacy app. Admin provisions accounts and composes roles (with the last-authority guard surfaced honestly); Research is the one disclosed placeholder (waiting on your C-16 statute decision). Generated answer *text* still waits on your two Google inputs. Remaining UI work is polish-on-demand: visual baselines for the new screens (cut from CI, per your rule) and anything you want changed after using it. |
+| **UI/UX** | **FROZEN (31 Aug, your order).** All six areas built, audited, baselined: 15 CI-cut screenshots pin every screen, and the whole test matrix is green. From here the UI changes only for real defects or new features — no more polishing unless you ask for another UX review. Research stays an honest placeholder until your C-16 statute decision; generated answer text waits on your two Google inputs. |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 937 backend + 102 frontend + 54 browser checks passing, none failing; 6 visual baselines reproducing; CI (15 jobs) green on every push |
+| **Health** | 937 backend + 102 frontend + 54 browser checks passing, none failing; 15 visual baselines reproducing; CI (15 jobs) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material (and the Evidence Act 1872 vs BSA 2023 answer) for statute search; and your review of the UX roadmap before broad UI implementation |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
@@ -47,6 +47,16 @@ Updated at the end of every working session.*
   document versions, because nothing did and the workspace opens on a document.
 - The Findings and Ask panes say plainly that they arrive in the next slice — no fake
   controls.
+
+**What got finished on 31 August (the freeze)**
+
+- **Every screen now has a pinned picture.** Nine new baselines were rendered by the
+  build system itself, each one inspected before adoption — so any future change that
+  moves a pixel unexpectedly fails the build and shows the diff.
+- **The final check-everything pass ran green**: all tests, all gates, the whole CI
+  pipeline, at the exact commit the freeze names (f9c3c0f).
+- **The UI is now frozen.** It changes only for genuine defects or new features you
+  ask for — the stable base to build the remaining product functionality on.
 
 **What got finished on 31 August (slices 7–8 + QA close — "you lead")**
 
