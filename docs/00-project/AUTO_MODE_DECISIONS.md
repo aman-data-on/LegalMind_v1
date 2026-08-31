@@ -696,3 +696,139 @@ only failure) · `check:terms` clean · browser suite 37 passed / 9 gated (11 ne
 tests, including the highlight from outline and from a shared link, the byte-identical
 not-found story, tab collapse and the skip link) · six visual baselines reproduce ·
 OpenAPI snapshot regenerated (one description line) · `AM31_GATE` CLOSED.**
+
+
+## Strict frontend cleanup — new UI is the entire post-login experience, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 194 | **`navItemsFor` gates on EXISTENCE as well as permission** — an item appears only once its destination is a real new-UI screen; today that is Documents alone | The literal bug the owner's cleanup targeted: the shell's own nav still mapped "Documents" to `/contracts` and offered a live "Reviews" link into the legacy queue — an active navigation path into the retiring application, from code I wrote. Removing the destinations rather than patching the two hrefs, so the next slice adds its nav item in the same change that ships the screen, never before | Whether Reviews/Legal/Audit/Admin get new-UI screens — the roadmap already sequences that |
+| 195 | **`NextSlice` carries a plain-text note, never a link** | It previously linked into `/reviews` and `/contracts/{id}` — exactly the pattern being removed. The capability isn't gone (the text says the legacy app still works); there's simply no click path to it from here, which is the letter of "remove access, not functionality" | — |
+| 196 | **The empty-workspace "upload" affordance is now a real inline upload**, not a link to the legacy contract page | The alternative was removing upload capability from the new UI entirely, which the owner explicitly forbade ("not asking you to delete backend functionality"). The call was always real (`api.uploadDocument`); only the button pointed at the wrong screen | — |
+| 197 | **Legacy routes are left in place, unredirected, reachable only by direct URL** | Every legacy Playwright spec (`decision.spec.ts`, `analysis.spec.ts`, `confidentiality.spec.ts`, etc.) navigates via `page.goto()` directly, never through a clicked nav link — confirmed by grep before touching anything. Redirecting the routes themselves would break the harness the owner explicitly said to preserve; removing the nav path (already the actual ask) does not | Retiring a legacy route — happens per-slice as its replacement ships, per the existing plan |
+| 198 | **`Chrome`'s new-UI bypass covers `/` as well as `/workspace`** | Not a styling call: `Chrome`'s loading/signed-out branches never render `{children}` at all, so `/`'s own redirect-only page component never mounted for a signed-out visitor and the redirect silently never fired — found by testing the actual behavior, not assumed | — |
+| 199 | **`/` uses `useRouter().replace()`, not the Server Component `redirect()`** | Measured with `curl -I` against a production build: this Next.js version (16.3.1) returns `200` with no `Location` header for a plain `redirect()` call in a streaming page — it encodes the target in the RSC flight stream, which did not complete through this app's provider tree in browser testing either. `login/page.tsx` already uses `router.push()` successfully for the identical need; followed the pattern proven in this codebase over the one measurably not working here | Nothing about `redirect()` elsewhere — no other page in this app relies on a bare Server Component redirect for full navigation |
+
+**Verification at close: frontend 88 Vitest (+1) · typecheck clean · `check:terms` clean ·
+browser suite 40 passed / 9 gated (three new specs: no legacy link anywhere in the new
+UI, login lands on `/workspace`, Documents index links only into `/workspace`) · backend
+936 passed / 1 skipped, untouched · `grep` swept clean for every `href="/contracts"`,
+`href="/reviews"`, `href="/admin"`, `href="/audit"`, `href="/configuration"` under the
+new UI's source before closing.**
+
+
+## UI/UX slice 2 — the Findings pane, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 200 | **`api.reviews()` widened to pass `contract_id`** — an existing, already allow-listed backend filter (49.6), only newly exposed in the frontend client | The workspace has a Contract and a DocumentVersion but no Review of its own; resolving one by `document_version_id` needs to list a contract's reviews first. Zero backend change — the filter already existed and was already tested server-side | — |
+| 201 | **No Review yet is a named, plain-text state — no id-pasting form, no link into the legacy app** | Creating a Review needs a published configuration snapshot, a distinct capability with its own UX question (which snapshot?) the roadmap does not scope into "the Findings pane." The legacy page's own answer to this (raw text inputs for a document-version id and a snapshot id) is not a bar worth carrying into the new UI, and linking to it would reopen the cleanup just closed | Review creation's eventual UX — a later, separate slice |
+| 202 | **Axis chips are filled only for a non-calm value** (`MATCH`/`ACCEPTABLE`/`NOT_APPLICABLE` render as a quiet ghost chip; everything else in that axis renders filled at equal weight) | DESIGN.md's own rule: Tier-1-adjacent classifications must never be styled as if one is worse than another. A uniform filled/ghost split by "is this the calm value" avoids inventing a severity ranking while still surfacing the axis that matters | — |
+| 203 | **`DecisionControl`'s conflict-refresh explicitly resets local `outcome` to idle** | Caught in review before any test ran: the first draft called `onRecorded()` (the parent's re-fetch) but never reset its own `outcome` state, which is component-local and survives a prop update — the form would have stayed frozen after the FIRST conflict forever, even once fresh, non-conflicting data arrived. Fixed by mirroring the exact pattern already proven in the legacy hardening pass (`refreshAfterConflict`) rather than inventing a new one | — |
+
+**Verification at close: frontend 90 Vitest (+2) · typecheck clean · `check:terms` clean ·
+browser suite 43 passed / 9 gated (+3: chip rendering + evidence-highlight, decision +
+409-freeze-and-recover, escalation-is-quiet) · backend 936 passed / 1 skipped, untouched ·
+first full run of the new Findings-pane e2e specs passed without a debugging cycle.**
+
+
+## UI/UX slice 3 — the Ask pane, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 204 | **Citations carry `evidence_id`** (live and replayed) — the one backend change of the slice | The workspace's highlight is keyed on evidence-row ids because that is the unit a Finding's `evidence_refs` already use; a citation carried only `chunk_id` (an assist-schema table), so the Ask pane had no way to point at the document. The value already existed on `SearchHit` and in the replay SQL's join — it was serialized, not computed. Dict payload, so the frozen contract is unchanged; recorded in Step 49's additions section | Nothing about chunk↔evidence semantics — one chunk still derives from exactly one evidence row (`AM-27` r4) |
+| 205 | **The evaluator-routed reply is a visibly distinct third message type** ("Not answered here", dashed edge) — not styled as an answer and not as a refusal | `AM-25` r4 routes "does this meet our standard?" to the deterministic evaluator. Rendering that as a refusal would tell the user the document lacks the answer (false); rendering it as an answer would present a pointer as content. It is a redirection, and it reads as one | The routing screen's recall — server-side, revisable on usage evidence (#136) |
+| 206 | **The ANSWERED path is pinned by static render, not end-to-end, and the report says so** | No generator credential exists in CI or production until the `AM-31` gate opens, so a browser cannot observe an answered turn; faking one (a stub server, a mocked response) would test a UI against a backend behavior that does not exist. The static test pins the contract the browser will meet the day the gate opens (`data-evidence-id`, the score label, no "confidence") | — |
+
+**Verification at close: backend 936 passed / 1 skipped (assist suite 28, replay-parity
+key extended with `evidence_id`) · frontend 94 Vitest (+4) · browser 45 passed / 9 gated
+(+2 Ask specs, first-run green) · typecheck · `check:terms` clean · OpenAPI `--check`
+clean · `AM31_GATE` CLOSED.**
+
+
+## UI/UX slice 4 — Documents landing and intake, 2026-08-30
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 207 | **The document type is REQUIRED in the UI although the API accepts a contract without one** | Owner Q9: declared, never inferred. An undeclared type is accepted by `POST /contracts` and then fails at analysis (`ANALYSIS_FAILED`); refusing at the door, with the reason beside the field, is the same rule enforced earlier and more kindly. Presentation stricter than the contract, contract untouched | Whether the API should also require it — a 49.3 change, owner's call |
+| 208 | **"Add and open" navigates straight into the new document's workspace** | Intake is one act: name and type here, upload there (slice 1's empty state), findings and questions in the same place. Returning to the list after creating would make the user find the row they just made | — |
+| 209 | **The Step 6 vocabulary is a presentation COPY guarded by a backend parity test**, not fetched | No endpoint exposes the vocabulary, and the frontend must not reach the backend source at build time (52.1). A copy drifts silently — so `test_frontend_vocabulary.py` reads the frontend file and asserts equality with `DOCUMENT_TYPES`, skipping only in a backend-only checkout, never to make a mismatch pass | Adding a vocabulary endpoint later — unnecessary while the guard holds |
+
+**Verification at close: backend 937 passed / 1 skipped (+1 parity guard) · frontend 96 Vitest
+(+2) · browser 46 passed / 9 gated (+1 intake spec; a regex of mine that only matched the
+first-run heading, and an orphaned test body from a bad splice, were both caught by running
+the suite unfiltered — recorded in the changelog) · typecheck · `check:terms` clean.**
+
+
+## UI/UX slice 5 (P1) — reviews queue, report, ask history, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 210 | **Document names on queue/history rows come from per-id `GET /contracts/{id}` lookups (unique ids per page, `Promise.allSettled`), not a new list-level join** | Decision #187 keeps `GET /reviews` and `GET /conversations` lean; a page holds ≤25 rows and far fewer unique contracts, and a failed lookup falls back to the bare id rather than blanking the row | Whether a summary field belongs on the list endpoints later (§19 candidate, unchanged) |
+| 211 | **Nav active state = longest matching href (`activeNavHref`)** | `pathname.startsWith(href)` lit "Documents" on every sibling screen the moment the nav grew — /workspace is a prefix of everything. Longest-match is the standard fix and is unit-pinned | — |
+| 212 | **`AssistCitation.retrieval_score` widened to `number \| null`** | The replay endpoint returns null when the retrieval-run row is missing; the old type lied and the LEGACY AskPanel would have crashed on `.toFixed()`. Both renderers now omit the score line entirely when null — never "NaN", never a blank label | — |
+
+**Verification at close: backend 937/1 (unchanged) · frontend 100 Vitest (+4) · browser 49
+passed / 9 gated (+3: queue+report, status filter, transcript replay — all green on the
+first run) · typecheck · `check:terms` clean. Screenshots of both new screens reviewed
+against the DD-4 finish bar.**
+
+
+## UI/UX slice 6 — the Legal area, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 213 | **The Legal queue COMPOSES existing endpoints** — `GET /reviews` for the two active statuses (LEGAL_REVIEW, ANALYSIS_COMPLETE), fan-out to `findings?status=DECISION_REQUIRED`, truncation stated on-page | No cross-review findings endpoint exists, and adding one is a Step 49 surface change no slice needs yet; RESOLVED/CLOSED reviews cannot carry an undecided Finding so they are not fetched | Whether a dedicated queue endpoint is worth adding later (§19 candidate) |
+| 214 | **The queue triages, never disposes: rows deep-link `?finding=` into the workspace**, which scrolls to and focuses the exact Finding card | The master prompt puts every Legal Decision beside its evidence; duplicating the decision form on a list page would divorce ruling from reading. The gesture mirrors `?evidence=`; a target hidden by the attention view widens the view first | — |
+| 215 | **One filter idiom app-wide**: slice 5's `.ws-filter__chip` duplicate is removed; Reviews uses slice 2's aria-pressed toggle | Two patterns for the same control is drift; the later CSS block was silently overriding the earlier container rule | — |
+
+**Verification at close: backend 937/1 (unchanged) · frontend 101 Vitest (+1) · browser 51
+passed / 9 gated (+2: queue + deep-link focus with counsel, restricted state + absent nav
+with owner) · typecheck · `check:terms` clean. One of my e2e assertions was corrected by
+the run: the STRUCTURAL config's own code is asserted, never a hardcoded LIABILITY-001
+(rule 21).**
+
+
+## UI/UX slices 7–8 + QA close, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 216 | **The Admin nav item gates on `user.manage` OR `audit.view`; the grant control additionally needs `role.manage`** | The roadmap's §H control plane has two doors with different keys; an account with only one still gets the door it can open, and the missing half is a plain note, never a faked control | — |
+| 217 | **Research joins the nav as the one disclosed placeholder, gated like Ask (`assist.ask`)** | The ratified roadmap places it in the tree "TODAY: a disclosed, calm placeholder (C-16)"; its future grammar is Ask's, so Ask's permission is the honest gate until Domain C exists | When statute research is built — blocked on C-16, an owner decision |
+| 218 | **Step 10 (a11y/QA) closes as a verification pass, not an audit project** | Every slice shipped its a11y pins with the slice (skip link, tab order, aria-pressed, labeled revokes, aria-busy, focus rings, reduced-motion); the close re-ran the full matrix green. An axe-style tooling audit would add a dependency (rule 19) for properties already test-pinned | Adopting an a11y scanner later, if the owner wants one |
+
+**Verification at close: backend 937/1 · frontend 102 Vitest · browser 54 passed / 9 gated
+· typecheck · `check:terms` clean. The §G build order (1–10) is complete; the new shell
+carries Documents · Reviews · Legal · Ask history · Research · Admin. Deferred and
+flagged: CI-cut visual baselines for the new screens.**
+
+
+## UX audit pass, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 219 | **Structured evaluation values render as labeled key–value pairs, verbatim** — never a JSON blob, never an interpretation | A clipped `{"scope":…` line is below product standard and hides the value's tail; rule 12 requires the server's facts unaltered, so the fix is layout, not paraphrase | Any richer domain-aware rendering (e.g. "24 months of fees") — that would interpret, and needs a spec |
+| 220 | **One page-container rule**: rich bodies wrap in `.ws-docs`; every bare full-page state gets the same centered 72rem gutter via `.ws-main > .ws-state` | Three screens (report, transcript, research) shipped without the container — the flush-left drift was exactly the "unfinished" look the audit was ordered to catch | — |
+| 221 | **The changed `workspace.png` baseline is adopted from CI's artifact after the expected one-time DESIGN_QA failure** | Owner rule 2026-08-30: baselines only from CI renders | — |
+
+
+## UI freeze, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 222 | **The UI is FROZEN at f9c3c0f** (owner order): no redesign, restyle or new pattern without an explicitly requested UX review; defect fixes (usability, a11y, inconsistency, responsive, broken interaction, strategy mismatch) and screens for NEW functionality remain allowed, built on the frozen tokens/components | The goal is a stable, tested baseline to build remaining functionality on — not an endlessly "better" UI. Baseline set: 15 CI-cut screenshots; matrix green everywhere | Nothing about future functionality's UI — new screens follow the frozen system |
+
+
+## Product-intent R&D + corrective implementation, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 223 | **AM-33 recorded as AB-6** — the owner's §6/§15 instruction is the authorization; the band form is withdrawn by APPENDED amendment (16,494 → 16,565 lines, zero deletions), never by editing 45B.9 | Rule 22; the owner ordered an auditable change record, not silent history editing | Nothing beyond the rule FORM: vocabulary, comparison semantics, zero-tolerance rule all unchanged |
+| 224 | **The B-3 workflow tests construct the ACCEPTABLE axis value directly** (frozen-dataclass `_with_outcome` helper) instead of minting it through the engine | The locked B-3 semantics govern the outcome AXIS — historical rows included — and must stay tested; the engine may no longer produce the value on a deviation | — |
+| 225 | **Version selection is a URL parameter (`?version=`), the picker lives in the existing context bar, and `?evidence=` is dropped on switch** | Smallest freeze-compatible change; an evidence row belongs to exactly one version's reading order, so carrying it across would point at nothing | Viewing old versions' ask answers (transcripts already serve that); a version-diff view (unrequested) |
+| 226 | **Ask stays latest-version-only, stated on-screen when an older version is open** | The server resolves a conversation to the newest version (verified in `assist.py`); a form beside v1 answering about v2 would misattribute — the frozen API is kept and honesty is rendered instead | Version-scoped ask (would need an API change nobody asked for) |
+
+**Verification at close: backend 938/1 · 104 Vitest · 57 browser passed / 18 gated · ruff
+· mypy · typecheck · terms gate · final band-semantics sweep clean. Corpus expectation
+changes were confined to STRUCTURAL fixtures (AM-33 r6 authorizes exactly that); no
+DOCUMENT_SUPPORTED or STANDARD_DERIVED expectation moved.**

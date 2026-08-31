@@ -387,6 +387,18 @@ def _check_provenance_invariants(
     has_position = any(standard.get(k) is not None
                        for k in ACCEPTANCE_POSITION_KEYS)
 
+    # `AM-33` (AB-6, 2026-08-31) — the threshold-band rule form is withdrawn for
+    # EVERY tier, STRUCTURAL included: structural fixtures exercise vocabulary
+    # through the authorized blanket form only (r6). The engine would refuse to
+    # interpret a band anyway (r2); refusing it here keeps the corpus honest
+    # about what forms exist at all.
+    for key in ("acceptable_max", "acceptable_max_unit", "approval_required_above"):
+        if rule_cfg.get(key) is not None:
+            raise FixtureError(
+                f"{fixture_id}: legal_rule.configuration.{key} is a withdrawn "
+                "tolerance-band key (AM-33 r6) — no tier may carry it. Use the "
+                "blanket dispositions deviation_outcome / unlimited_outcome.")
+
     if provenance == DOCUMENT_SUPPORTED:
         for key in ACCEPTANCE_POSITION_KEYS:
             if standard.get(key) is not None:

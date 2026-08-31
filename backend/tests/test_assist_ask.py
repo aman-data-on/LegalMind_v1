@@ -344,6 +344,8 @@ def test_ask_endpoint_answers_and_labels_scores_as_retrieval_scores(
     assert payload["citations"]
     citation = payload["citations"][0]
     assert "retrieval_score" in citation
+    # The evidence row the citation points at — what the workspace highlights.
+    assert citation["evidence_id"]
     assert "confidence" not in str(payload), (
         "AI-03 item 16: no confidence figure anywhere in the answer surface")
 
@@ -439,8 +441,8 @@ def test_a_reloaded_conversation_replays_the_live_citations(api, db, seeded, use
     assert answer["content"] == live["text"]
 
     def key(c):
-        return (c["chunk_id"], c["page_number"], c["section_ref"], c["excerpt"],
-                c["retrieval_score"])
+        return (c["chunk_id"], c["evidence_id"], c["page_number"], c["section_ref"],
+                c["excerpt"], c["retrieval_score"])
     assert sorted(map(key, answer["citations"])) == sorted(map(key, live["citations"]))
     assert "confidence" not in str(loaded)
 

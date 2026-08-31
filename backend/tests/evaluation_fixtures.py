@@ -53,11 +53,16 @@ def multi_scope_rule(*scopes: str, **kwargs) -> LegalRule:
     }, **kwargs)
 
 
-def structural_rule(*, acceptable_max: float | None = 20,
-                    approval_required_above: float | None = 20,
+def structural_rule(*, deviation_outcome: str | None = "UNACCEPTABLE",
+                    acceptable_max: float | None = None,
+                    approval_required_above: float | None = None,
                     unlimited_outcome: str | None = "UNACCEPTABLE",
                     rule_configuration: dict | None = None) -> LegalRule:
+    """The AUTHORIZED blanket rule form by default (AM-33 r6). The band kwargs
+    exist ONLY so regression tests can prove the withdrawn form is refused."""
     config: dict = {}
+    if deviation_outcome is not None:
+        config["deviation_outcome"] = deviation_outcome
     if acceptable_max is not None:
         config["acceptable_max"] = acceptable_max
     if approval_required_above is not None:

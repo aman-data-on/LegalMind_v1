@@ -184,7 +184,8 @@ def test_a_standard_derived_fixture_may_not_carry_a_configured_tolerance():
     """The owner's V1 policy: a stated position is permitted, a tolerance is not."""
     payload = _standard_derived_payload()
     payload["legal_rule"] = {"configuration": {"approval_required_above": 24}}
-    with pytest.raises(FixtureError, match="acceptance policy"):
+    # Since AM-33 the refusal names the withdrawn form itself, on every tier.
+    with pytest.raises(FixtureError, match="withdrawn tolerance-band key"):
         load_fixture(payload)
 
 

@@ -43,14 +43,20 @@ def test_value_equal_to_standard_is_match():
     assert e.rule_outcome is O.NOT_APPLICABLE      # 45A §17: MATCH has no outcome
 
 
-def test_value_within_configured_tolerance_is_acceptable_deviation():
+def test_a_small_deviation_is_still_the_blanket_outcome():
+    """`AM-33` regression for the retired "acceptable deviation": before AB-6 a
+    value inside the old band (here 20 vs preferred 10, band ≤20) was
+    DEVIATION + ACCEPTABLE. There is no band any more — a deviation of any size
+    takes the configured blanket disposition."""
     e = only(evaluate(numeric_input([cap(20)])))
-    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.ACCEPTABLE)
+    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.UNACCEPTABLE)
 
 
-def test_value_above_configured_threshold_requires_approval():
+def test_any_deviation_yields_the_configured_blanket_outcome():
+    """`AM-33` r1/r6 — the fixture rule is the authorized blanket form; any
+    deviation maps to its configured disposition, never to a band."""
     e = only(evaluate(numeric_input([cap(24)])))
-    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.APPROVAL_REQUIRED)
+    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.UNACCEPTABLE)
 
 
 def test_unlimited_uses_configured_outcome():
@@ -58,11 +64,28 @@ def test_unlimited_uses_configured_outcome():
     assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.UNACCEPTABLE)
 
 
-def test_thresholds_come_from_configuration_not_code():
-    """Locked Step 20 — actual Legal Rules are configured, never hardcoded."""
-    lenient = structural_rule(acceptable_max=1000, approval_required_above=1000)
+def test_band_keys_are_never_interpreted():
+    """`AM-33` r2 (regression for the withdrawn 45B.9 form) — a rule carrying
+    `acceptable_max`/`approval_required_above` is not interpreted, however
+    lenient: the deviation stands, outcome NOT_APPLICABLE, and a human decides.
+    Before AM-33 this exact configuration produced DEVIATION + ACCEPTABLE."""
+    lenient = structural_rule(deviation_outcome=None,
+                              acceptable_max=1000, approval_required_above=1000)
     e = only(evaluate(numeric_input([cap(24)], rule=lenient)))
-    assert e.rule_outcome is O.ACCEPTABLE          # same value, different config
+    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.NOT_APPLICABLE)
+    assert "AM-33" in " ".join(e.explanation)
+
+
+def test_a_deviation_never_maps_to_acceptable_through_any_rule_form():
+    """`AM-33` r3 — ACCEPTABLE is reachable only from MATCH. Even a blanket
+    `deviation_outcome: ACCEPTABLE` is refused and routed to a human."""
+    rule = structural_rule(deviation_outcome="ACCEPTABLE")
+    e = only(evaluate(numeric_input([cap(24)], rule=rule)))
+    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.NOT_APPLICABLE)
+    # And a MATCH stays calm: no rule is consulted for it in this evaluator
+    # (the outcome axis is NOT_APPLICABLE, and nothing routes it to a decision).
+    m = only(evaluate(numeric_input([cap(10)])))
+    assert (m.classification, m.rule_outcome) == (C.MATCH, O.NOT_APPLICABLE)
 
 
 def test_no_legal_rule_yields_not_applicable():

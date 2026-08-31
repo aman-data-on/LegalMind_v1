@@ -52,7 +52,7 @@ export default function LoginPage() {
     try {
       await api.login(email, password);
       await refresh();
-      router.push("/contracts");
+      router.push("/workspace");
     } catch (cause) {
       setError(cause);
     } finally {

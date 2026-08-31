@@ -149,9 +149,11 @@ export function AnswerView({ result }: { result: AskResult }) {
                 {citation.page_number != null ? ` · p.${citation.page_number}` : ""}
               </span>
               <blockquote className="ask-citation-excerpt">{citation.excerpt}</blockquote>
-              <span className="ask-citation-score">
-                retrieval score {citation.retrieval_score.toFixed(3)}
-              </span>
+              {citation.retrieval_score != null ? (
+                <span className="ask-citation-score">
+                  retrieval score {citation.retrieval_score.toFixed(3)}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -365,10 +365,13 @@ export type AssistAnswerState =
 
 export interface AssistCitation {
   chunk_id: string;
+  /** The evidence row the chunk was cut from — drives the document highlight. */
+  evidence_id: string;
   page_number: number | null;
   section_ref: string | null;
   excerpt: string;
-  retrieval_score: number;
+  /** Null only on a replayed answer whose retrieval-run row is missing. */
+  retrieval_score: number | null;
 }
 
 export interface AskResult {
@@ -383,4 +386,31 @@ export interface AskResult {
 export interface Conversation {
   id: string;
   contract_id: string | null;
+}
+
+/** One row of `GET /conversations` — the caller's own history, newest first. */
+export interface ConversationSummary {
+  id: string;
+  contract_id: string | null;
+  created_at: string | null;
+  message_count: number;
+  first_question: string | null;
+}
+
+/** One turn of a replayed conversation (`GET /conversations/{id}`). */
+export interface ConversationTurn {
+  id: string;
+  ordinal: number;
+  role: "USER" | "ASSISTANT";
+  content: string;
+  answer_state: AssistAnswerState | null;
+  routed_to_evaluator: boolean;
+  /** `AM-25` r5 — the SAME citations the live answer carried. `[]` on refusals. */
+  citations: AssistCitation[];
+}
+
+export interface ConversationDetail {
+  id: string;
+  contract_id: string | null;
+  messages: ConversationTurn[];
 }

@@ -51,6 +51,8 @@ EVALUATOR_ROUTE_TEXT = (
 @dataclass(frozen=True)
 class CitationView:
     chunk_id: UUID
+    # The evidence row the chunk was cut from — the unit every UI highlight shares.
+    evidence_id: UUID
     page_number: int | None
     section_ref: str | None
     excerpt: str
@@ -298,6 +300,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID,
     citations = [
         CitationView(
             chunk_id=retrieval.hits[i - 1].chunk_id,
+            evidence_id=retrieval.hits[i - 1].evidence_id,
             page_number=retrieval.hits[i - 1].page_number,
             section_ref=retrieval.hits[i - 1].section_ref,
             excerpt=retrieval.hits[i - 1].content[:240],

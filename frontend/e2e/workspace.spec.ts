@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { apiPost, createAnalysedReview, storageStatePath } from "./support";
+import { apiPost, createAnalysedReview, fixture, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -71,9 +71,10 @@ test.describe("the document pane", () => {
     await expect(lit).toBeFocused();
   });
 
-  test("a contract with no upload says so and offers the upload, nothing fake", async ({
+  test("a contract with no upload offers a real, inline upload — never a legacy link", async ({
     page,
   }) => {
+    const f = fixture();
     const created = await apiPost(page, "/contracts", {
       name: `Bare ${Date.now()}`,
       contract_type: "MSA",
@@ -81,8 +82,14 @@ test.describe("the document pane", () => {
     const contract = (await created.json()).data;
     await page.goto(`/workspace/${contract.id}`);
     await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Upload a document" })).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
+
+    // 2026-08-30 cleanup: no path back into the legacy application from here.
+    await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
+
+    await page.setInputFiles('input[type="file"]', f.document.path);
+    await page.getByRole("button", { name: "Upload" }).click();
+    await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   });
 
   test("someone else's contract reads exactly like a nonexistent one", async ({
@@ -108,6 +115,216 @@ test.describe("the document pane", () => {
     const ghost = await page.locator(".ws-state").innerText();
     expect(stolen).toBe(ghost);
     expect(stolen.toLowerCase()).not.toContain("access");
+  });
+});
+
+test.describe("the new UI is the entire post-login experience (2026-08-30 cleanup)", () => {
+  test.describe("signed out", () => {
+    // Overrides this file's top-level `owner` storageState: this test's whole
+    // point is the SIGNED-OUT redirect, which an inherited session would hide.
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test("a successful login lands on /workspace, never /contracts", async ({ page }) => {
+      const f = fixture();
+      await page.goto("/login");
+      await page.getByLabel("Work email").fill(f.accounts.owner.email);
+      await page.getByLabel("Password", { exact: true }).fill(f.accounts.owner.password);
+      await page.getByRole("button", { name: /sign in/i }).click();
+      await page.waitForURL(/\/workspace$/, { timeout: 20_000 });
+      await expect(page.locator(".ws-shell")).toBeVisible();
+      await expect(page.locator(".topbar")).toHaveCount(0);
+    });
+
+    test("a signed-out visit ends at /login — never a restricted flash (owner ruling, 2026-08-31)", async ({ page }) => {
+      // Before this ruling a signed-out visit to /workspace rendered the shell
+      // with an empty nav and "Access restricted" — which reads as an RBAC
+      // denial when the visitor simply isn't signed in. The correct flow is:
+      // sign in first, then land per RBAC. `/` still routes through /workspace
+      // (the cleanup's own guarantee), and the workspace shell then sends the
+      // signed-out visitor on to /login.
+      await page.goto("/");
+      await page.waitForURL(/\/login$/, { timeout: 20_000 });
+      await expect(page.getByLabel("Work email")).toBeVisible();
+      // Never the legacy bare-shell markup, and never the restricted note.
+      await expect(page.getByText("Access restricted")).toHaveCount(0);
+      await expect(page.getByText("You are signed out")).toHaveCount(0);
+      await expect(page.locator(".topbar")).toHaveCount(0);
+    });
+
+    test("a deep /workspace link, signed out, also ends at /login", async ({ page }) => {
+      await page.goto("/workspace/reviews");
+      await page.waitForURL(/\/login$/, { timeout: 20_000 });
+      await expect(page.getByLabel("Work email")).toBeVisible();
+    });
+  });
+
+  test("the Documents landing lists documents and links only into /workspace", async ({ page }) => {
+    const created = await apiPost(page, "/contracts", {
+      name: `Index ${Date.now()}`,
+      contract_type: "MSA",
+    });
+    const contract = (await created.json()).data;
+
+    await page.goto("/workspace");
+    await expect(page.locator(".ws-shell")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
+
+    const row = page.getByRole("link", { name: contract.name });
+    await expect(row).toHaveAttribute("href", `/workspace/${contract.id}`);
+    await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
+
+    await row.click();
+    await expect(page).toHaveURL(`/workspace/${contract.id}`);
+  });
+
+  test("intake: the type is a required choice from Step 6's ten values, and creating lands in the workspace", async ({
+    page,
+  }) => {
+    await page.goto("/workspace");
+    const form = page.getByRole("form", { name: /Add (your first |a) document/ });
+    await expect(form).toBeVisible();
+
+    // The ten locked values, and nothing else, in the select (Step 6).
+    const options = form.locator("select option");
+    await expect(options).toHaveCount(11); // ten values + the empty prompt
+    const codes = (await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).filter(Boolean);
+    expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
+
+    // Declared, never inferred: without a type the action is not available.
+    await form.getByLabel(/^Name/).fill(`Intake ${Date.now()}`);
+    await expect(form.getByRole("button", { name: "Add and open" })).toBeDisabled();
+    await form.getByLabel(/^Document type/).selectOption("NDA");
+    await expect(form.getByRole("button", { name: "Add and open" })).toBeEnabled();
+
+    await form.getByRole("button", { name: "Add and open" }).click();
+    // Intake continues in the new document's workspace, where the upload lives.
+    await page.waitForURL(/\/workspace\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+    await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
+    await expect(page.locator(".ws-context")).toContainText("NDA");
+  });
+});
+
+test.describe("the Findings pane, slice 2", () => {
+  test.use({ storageState: storageStatePath("counsel") });
+
+  test("findings render with axis chips, and an evidence link highlights the document", async ({
+    page,
+  }) => {
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    const findingsResp = await page.request.get(`/api/v1/reviews/${reviewId}/findings`);
+    const findings = (await findingsResp.json()).data;
+    const target = findings[0].evaluations[0];
+
+    await page.goto(`/workspace/${contractId}`);
+    const pane = page.locator('[data-region="findings"]');
+    await expect(pane.locator(".ws-finding").first()).toBeVisible();
+    await expect(pane.locator(".ws-finding").first()).toContainText(findings[0].classification);
+
+    if (target.evidence_refs.length > 0) {
+      const evidenceButton = pane.locator(".ws-evidence-refs button").first();
+      await evidenceButton.click();
+      const lit = page.locator('[data-region="document"] .ws-row--lit');
+      await expect(lit).toHaveCount(1);
+      await expect(evidenceButton).toHaveAttribute("aria-current", "true");
+    }
+  });
+
+  test("a decision records, and a 409 freezes the form until an explicit refresh", async ({
+    page,
+  }) => {
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    const findingsResp = await page.request.get(`/api/v1/reviews/${reviewId}/findings`);
+    const findings = (await findingsResp.json()).data;
+    const evaluationId = findings[0].evaluations[0].id;
+
+    await page.goto(`/workspace/${contractId}`);
+    const evaluation = page.locator('[data-scope]').first();
+    await expect(evaluation).toBeVisible();
+
+    // Race the form with a decision made through the API directly.
+    const csrf = decodeURIComponent(
+      (await page.context().cookies()).find((c) => c.name === "legalmind_csrf")!.value,
+    );
+    const first = await page.request.post(`/api/v1/evaluations/${evaluationId}/decisions`, {
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      data: { decision_type: "ACCEPT_DEVIATION", justification: "STRUCTURAL — not a legal position (rule 21).", expected_version: 0 },
+    });
+    expect(first.status()).toBe(201);
+
+    await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
+    await evaluation.getByRole("button", { name: "Record decision" }).click();
+
+    await expect(evaluation.locator(".ws-decision__conflict")).toContainText("Not recorded");
+    await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeDisabled();
+
+    await evaluation.getByRole("button", { name: "Refresh to see the latest decision" }).click();
+    await expect(evaluation.locator(".ws-decision")).toContainText("version 1");
+  });
+
+  test("escalation is a quiet request, distinct from the decision control", async ({ page }) => {
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/workspace/${contractId}`);
+    const finding = page.locator(".ws-finding").first();
+    await expect(finding).toBeVisible();
+
+    await finding.getByRole("button", { name: "Escalate for authorized review" }).click();
+    await finding.getByPlaceholder("Why does this need authorized review?").fill("STRUCTURAL test escalation.");
+    await finding.getByRole("button", { name: "Escalate", exact: true }).click();
+
+    await expect(finding).toContainText("a request, not an approval");
+    await expect(finding.getByRole("button", { name: "Withdraw" })).toBeVisible();
+  });
+});
+
+test.describe("the Ask pane, slice 3", () => {
+  // `AM-29` r4's constant as backend/legalmind/assist/state.py declares it — asserted
+  // verbatim so a drift in either repository shows up as a wording mismatch.
+  const REFUSAL_TEXT =
+    "Information not found in the selected document. " +
+    "The available material does not answer this question.";
+
+  test("both refusal causes render the identical quiet sentence in the new pane", async ({ page }) => {
+    // No Review needed — asking is not judging (`AM-25` r1). No generator credential
+    // exists here (CI asserts none), so an ask that clears retrieval still cannot
+    // generate: exactly production until the `AM-31` gate opens.
+    const { contractId } = await createAnalysedReview(page, { analyse: false });
+    await page.goto(`/workspace/${contractId}`);
+    const pane = page.locator('[data-region="ask"]');
+    await expect(pane.getByRole("heading", { name: "Ask" })).toBeVisible();
+
+    const question = pane.getByLabel("Question");
+    const ask = pane.getByRole("button", { name: "Ask" });
+
+    // Cause 1 — retrieval hits the fixture sentence; no generator → EVIDENCE_INSUFFICIENT.
+    await question.fill("liability shall not exceed fees paid");
+    await ask.click();
+    const first = pane.locator(".ws-ask__answer--refusal").first();
+    await expect(first).toHaveText(REFUSAL_TEXT, { timeout: 20_000 });
+    await expect(first).toHaveAttribute("data-state", "EVIDENCE_INSUFFICIENT");
+
+    // Cause 2 — vocabulary the document cannot contain → NO_EVIDENCE_RETRIEVED.
+    await question.fill("Explain the zorbulated quixotic framblewitz stipulations");
+    await ask.click();
+    const refusals = pane.locator(".ws-ask__answer--refusal");
+    await expect(refusals).toHaveCount(2, { timeout: 20_000 });
+    await expect(refusals.nth(1)).toHaveAttribute("data-state", "NO_EVIDENCE_RETRIEVED");
+    expect(await refusals.nth(0).innerText()).toBe(await refusals.nth(1).innerText());
+
+    // Quiet surface: no alert role inside a refusal; no confidence figure anywhere.
+    await expect(pane.locator(".ws-ask__answer--refusal [role='alert']")).toHaveCount(0);
+    expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("confidence");
+  });
+
+  test("a compliance-shaped question is routed to Findings, not answered or refused", async ({ page }) => {
+    const { contractId } = await createAnalysedReview(page, { analyse: false });
+    await page.goto(`/workspace/${contractId}`);
+    const pane = page.locator('[data-region="ask"]');
+    await pane.getByLabel("Question").fill("Does this liability clause meet our company standard?");
+    await pane.getByRole("button", { name: "Ask" }).click();
+    const routed = pane.locator(".ws-ask__answer--routed");
+    await expect(routed).toBeVisible({ timeout: 20_000 });
+    await expect(routed).toContainText("Not answered here");
+    await expect(pane.locator(".ws-ask__answer--refusal")).toHaveCount(0);
   });
 });
 

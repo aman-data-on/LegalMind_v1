@@ -21,9 +21,9 @@ Updated at the end of every working session.*
 | **Last worked** | 30 August 2026 |
 | **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
-| **UI/UX** | **BUILDING — slice 1 of the roadmap done** (30 Aug). Open any contract at `/workspace/<contract-id>`: the new dark shell, the document laid out as the system read it with a clause outline, and the signature gesture — click a clause (or open a shared link) and the exact passage lights up, scrolls into view and takes keyboard focus. Findings and Ask panes say plainly they arrive next. Fonts stay system-stack until you approve bundling (DD-7 §6). Roadmap: [../design/PRODUCT_UX_ROADMAP.md](../design/PRODUCT_UX_ROADMAP.md) |
+| **UI/UX** | **FROZEN (31 Aug, your order).** All six areas built, audited, baselined: 15 CI-cut screenshots pin every screen, and the whole test matrix is green. From here the UI changes only for real defects or new features — no more polishing unless you ask for another UX review. Research stays an honest placeholder until your C-16 statute decision; generated answer text waits on your two Google inputs. |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 936 backend + 86 frontend + 37 browser checks passing, none failing; 6 visual baselines reproducing; CI (15 jobs) green on every push |
+| **Health** | 938 backend + 104 frontend + 57 browser checks passing, none failing; 15 visual baselines reproducing; CI (15 jobs) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material (and the Evidence Act 1872 vs BSA 2023 answer) for statute search; and your review of the UX roadmap before broad UI implementation |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
@@ -47,6 +47,138 @@ Updated at the end of every working session.*
   document versions, because nothing did and the workspace opens on a document.
 - The Findings and Ask panes say plainly that they arrive in the next slice — no fake
   controls.
+
+**What got finished on 31 August (your product-direction R&D)**
+
+- **Audited the whole system against your product intent** — the full findings are in
+  PRODUCT_INTENT_AUDIT_2026-08-31.md. Most of what you described was already exactly
+  how the system works: chat was never gated on fixing anything, re-analysis was
+  always real, and comparison / legal decision / workflow were always separate layers.
+- **"Acceptable deviation" is now impossible, not just unused.** The old spec still
+  allowed a rule form like "12 months is acceptable"; the engine would have honored it
+  if ever configured. That form is formally withdrawn (amendment AB-6/AM-33, recorded
+  properly, history untouched) and the engine now refuses it outright — a deviation can
+  never be called acceptable by any configuration; only a human decides.
+- **Revised versions work end to end in the UI**: upload a revised contract from the
+  workspace, it becomes a new version with its own real analysis, and every earlier
+  version stays readable — its text, findings and report — via a version picker. Ask
+  says plainly that it answers about the latest version.
+
+**What got finished on 31 August (the freeze)**
+
+- **Every screen now has a pinned picture.** Nine new baselines were rendered by the
+  build system itself, each one inspected before adoption — so any future change that
+  moves a pixel unexpectedly fails the build and shows the diff.
+- **The final check-everything pass ran green**: all tests, all gates, the whole CI
+  pipeline, at the exact commit the freeze names (f9c3c0f).
+- **The UI is now frozen.** It changes only for genuine defects or new features you
+  ask for — the stable base to build the remaining product functionality on.
+
+**What got finished on 31 August (slices 7–8 + QA close — "you lead")**
+
+- **Admin lives in the new UI.** Add an account (it starts with no roles, and says
+  so), grant and revoke roles as labeled chips, disable/restore — and every server
+  refusal, including "you can't remove the last decision authority", shows up beside
+  the row in the server's own words. The audit trail reads newest-first with exact
+  filters.
+- **Research exists as an honest placeholder.** It says exactly why it's empty
+  (your C-16 statute decision) and offers no fake search box.
+- **The roadmap's build order is done.** All six areas in one shell; the QA pass
+  re-ran everything green. What's left is on-demand: visual baselines for the new
+  screens (from CI, per your rule) and whatever you want changed after using it.
+
+**What got finished on 31 August (slice 6 — "NExt phase")**
+
+- **Legal has its own queue.** Everything awaiting a Legal Decision, across all the
+  Reviews the account can see, in one list — with the escalated ones flagged. Only
+  accounts with legal review see it at all (others get a plain "access restricted",
+  and no menu entry).
+- **One click lands the decision-maker on the exact finding**, inside the document's
+  workspace — evidence on the left, the decision form right there. The queue itself
+  never records anything; ruling stays beside the evidence.
+- **Nothing new server-side** — the screen composes what the API already offered, and
+  says so plainly when it's showing a window rather than everything.
+
+**What got finished on 31 August (slice 5 — "continue")**
+
+- **Reviews has its own screen.** The queue every account sees is scoped by the server
+  (a legal reviewer automatically sees what's escalated to Legal); rows needing legal
+  attention are striped, and one click opens the Review's report.
+- **The report shows counts, never a grade.** How many requirements were checked, how
+  many findings await a decision, what matched — and a sentence on the page saying the
+  ratio has no legal meaning, because that's the locked rule.
+- **Every question you've asked is kept.** Ask history lists your own conversations
+  (only yours — enforced by the server), and opening one replays the exact answer with
+  the exact citations, each one clickable back into the document.
+
+**What got finished on 30 August (slice 4 — "go")**
+
+- **The front door is real now.** Log in → Documents: a proper intake with the document
+  type as the one required choice (your ten approved types, with a one-line reason why
+  we never guess), and "Add and open" takes you straight into the new document's
+  workspace to upload. First visit shows an invitation, not an empty table.
+- **The type list can't drift.** The interface's copy of the ten types is checked
+  against the backend's authoritative list on every build — if anyone changes one side,
+  the build fails and says so.
+- **Not built yet, on purpose**: a "review state" column on the list (needs a small
+  backend addition first — flagged, not smuggled in), and starting a Review from the
+  landing (needs a design for choosing the configuration snapshot).
+
+**What got finished on 30 August (slice 3 — "yes go ahead with next phase")**
+
+- **The Ask panel works inside the new workspace.** Type a question about the open
+  document; the answer's citations are clickable and light up the exact passage — the
+  same gesture as clicking a clause or a finding's evidence. When the document doesn't
+  answer, you get the same calm "not found" sentence every time, never an error. When
+  the question is really "does this meet our standard?", it tells you plainly that's a
+  Findings question and points you there instead of guessing.
+- **It's deliberately colourless.** No traffic-light tints, no percentages — so a cited
+  answer can never be mistaken for a legal ruling. The word "confidence" cannot appear;
+  an automated check fails the build if it ever does.
+- **One tiny backend addition**: each citation now also names the exact passage it came
+  from, so the highlight can find it. The saved API contract didn't change a byte.
+- **Honest limit**: the *written* answers themselves still can't be shown end-to-end —
+  that's the Google gate you hold the keys to. Everything up to that sentence is proven
+  in a real browser.
+
+**What got finished on 30 August (continued — "ok now go ahead")**
+
+- **The Findings column in the new workspace is real now, not a placeholder.** Open an
+  analysed document and you see what needs a decision, first — with the reasoning laid
+  out (the clause found, our standard, how they differ) instead of a bare verdict.
+  Click the cited passage and it lights up in the document, the same gesture as
+  slice 1's outline.
+- **Recording a decision and escalating both work.** If two people try to decide the
+  same thing at once, the second one sees "Not recorded" plainly and has to explicitly
+  refresh before trying again — nothing is silently overwritten.
+- **A real bug caught before it ever ran**: my first draft of the "refresh after a
+  conflict" button would have left the form stuck forever after the very first
+  conflict. Found reviewing my own code, fixed before testing, not found by a user.
+- **What's deliberately not built yet, said plainly rather than hidden**: starting a
+  brand-new review from this screen (it needs picking a configuration snapshot, a
+  separate decision), and the full history of superseded decisions.
+
+**What got finished on 30 August (later — "KEEP LOGIN ONLY" strict cleanup)**
+
+- **The confusion is fixed.** Log in now and you land in the new application, full
+  stop — not a screen that might be old or new depending on which link you clicked.
+  I audited every route and every link the new screens contained, and found the new
+  UI's own top navigation bar was still quietly pointing "Documents" and "Reviews" at
+  the old application — the exact kind of thing you asked me to find. Fixed, along
+  with three smaller ones (the wordmark, the "no document" upload button, and two
+  "coming soon" notes) that also pointed backward.
+- **A new "Documents" screen exists** in the new design — the real front door, since
+  simply saying "go to the new UI" needs somewhere to land.
+- **The upload button on the new screen now genuinely uploads**, in place — it no
+  longer sends you back to the old page to do it.
+- **Nothing old was deleted.** Every old screen still works exactly as before, still
+  reachable directly and still fully tested — you just won't run into one by accident
+  anymore.
+- **Two real, unrelated bugs surfaced and got fixed** while I was proving the
+  redirect actually worked rather than assuming it: the sign-out message was
+  blocking the new front door from ever loading for a signed-out visit, and this
+  version of the underlying web framework handles page redirects differently than
+  expected — both fixed and verified with a real browser test, not just visually.
 
 **What got finished on 27 August (evening — your UI/UX execution directive)**
 

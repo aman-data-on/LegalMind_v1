@@ -85,6 +85,14 @@ Authoritative source: [`all_lock.md`](../../all_lock.md) — the historical mast
 
 **Recorded alongside AB-5 (conflict resolutions, owner rulings 2026-08-27 — no locked text modified):** **C-10** resolved — the code's role set (Step 23 as implemented: `USER`, `LEGAL_REVIEWER`, `LEGAL_ADMIN`, `SUPER_ADMIN`, + `LEGAL_DECISION_AUTHORITY` per SEC-03) is canonical; 42.2's `USER/ADMIN/SUPER_ADMIN` is annotated as superseded illustrative seed data; `ADMIN` is never seeded. **C-08** resolved — a Legal Reviewer reviews and escalates; approval requires `legal.decision`, granted only via `LEGAL_DECISION_AUTHORITY`. **C-05/C-06/C-07** resolved by annotation in [CONFLICTS.md](CONFLICTS.md); the superseded text stays byte-identical in `all_lock.md` (rule 22).
 
+
+**Owner decision, 2026-08-31 (product-direction clarification; audit: [PRODUCT_INTENT_AUDIT_2026-08-31.md](PRODUCT_INTENT_AUDIT_2026-08-31.md)).** Lock record: **"Amendment Batch AB-6 — the threshold-band Legal Rule form is withdrawn"** in [`all_lock.md`](../../all_lock.md), appended after AB-5 — the prior **16,494** lines byte-identical and unmodified; the file is now **16,565** lines.
+
+| ID | Decision | Status | Source | Canonical Document |
+|----|----------|--------|--------|--------------------|
+| AM-33 | **Tolerance bands are not an authorized Legal Rule form.** `acceptable_max` / `acceptable_max_unit` / `approval_required_above` — and any mapping of a detected DEVIATION onto `ACCEPTABLE` — are withdrawn as configuration forms, superseding 45B.9's worked example IN FORM ONLY (the Standard-vs-Rule separation is reaffirmed; Step 20's outcome vocabulary and the zero-tolerance rule are unchanged). Only the blanket dispositions `deviation_outcome` / `unlimited_outcome` are authorized (r1); an engine meeting a band key fails closed to `NOT_APPLICABLE` and a human (r2); **a DEVIATION never maps to ACCEPTABLE through any rule form** — a blanket `ACCEPTABLE` is a misconfiguration treated the same way; ACCEPTABLE is reachable only from MATCH (r3); the import-tool/corpus-loader/redaction guards are ratified as enforcement (r4); the historical worked examples stay preserved as illustrations (r5); structural test fixtures use the authorized blanket form (r6) | LOCKED | Owner, 2026-08-31 | `all_lock.md` AB-6; [PRODUCT_INTENT_AUDIT_2026-08-31.md](PRODUCT_INTENT_AUDIT_2026-08-31.md) |
+
+
 ---
 
 ## R. Reconciliation & canonicalization decisions

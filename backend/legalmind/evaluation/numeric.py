@@ -262,6 +262,13 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
     # the comparison itself is untouched, and MATCH never reaches here.
     blanket = cfg.get(DEVIATION_OUTCOME)
     if blanket is not None:
+        # `AM-33` r3: a DEVIATION never maps to ACCEPTABLE through ANY rule form.
+        # ACCEPTABLE is reachable only from MATCH; a blanket that says otherwise
+        # is a misconfiguration and fails closed to a human, exactly like a band.
+        if blanket == RuleOutcome.ACCEPTABLE.value:
+            return (RuleOutcome.NOT_APPLICABLE,
+                    "deviation_outcome ACCEPTABLE is not an authorized "
+                    "disposition (AM-33 r3); treated as unruled")
         try:
             return (RuleOutcome(blanket),
                     f"deviation_outcome {blanket} (zero-tolerance rule)")
@@ -272,19 +279,16 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
                     f"deviation_outcome {blanket!r} is not a valid RuleOutcome; "
                     "treated as unruled")
 
-    approval_above = cfg.get(APPROVAL_REQUIRED_ABOVE)
-    acceptable_max = cfg.get(ACCEPTABLE_MAX)
-
-    if approval_above is not None and actual > approval_above:
-        return (RuleOutcome.APPROVAL_REQUIRED,
-                f"{actual} > approval_required_above {approval_above}")
-    if acceptable_max is not None and actual <= acceptable_max:
-        return (RuleOutcome.ACCEPTABLE,
-                f"{actual} <= acceptable_max {acceptable_max}")
-    if acceptable_max is not None and actual > acceptable_max:
-        return (RuleOutcome.APPROVAL_REQUIRED,
-                f"{actual} > acceptable_max {acceptable_max}")
-    return RuleOutcome.NOT_APPLICABLE, "no applicable threshold configured"
+    # `AM-33` (AB-6, owner 2026-08-31): the threshold-band rule form is withdrawn.
+    # A rule carrying a band key is never interpreted — the deviation stands and a
+    # human decides (r2). The keys remain named so the refusal is explicit rather
+    # than a silent unknown-key fallthrough.
+    if any(cfg.get(key) is not None
+           for key in (APPROVAL_REQUIRED_ABOVE, ACCEPTABLE_MAX, ACCEPTABLE_MAX_UNIT)):
+        return (RuleOutcome.NOT_APPLICABLE,
+                "tolerance-band keys are not an authorized rule form (AM-33); "
+                "treated as unruled")
+    return RuleOutcome.NOT_APPLICABLE, "no authorized rule disposition configured"
 
 
 def _unlimited_outcome(legal_rule) -> RuleOutcome:

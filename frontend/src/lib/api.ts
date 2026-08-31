@@ -18,6 +18,8 @@ import type {
   AskResult,
   AuditEvent,
   Conversation,
+  ConversationDetail,
+  ConversationSummary,
   ConfigurationSnapshot,
   Contract,
   DataEnvelope,
@@ -243,6 +245,11 @@ export const api = {
       method: "POST",
       body: { question },
     }),
+  /** The caller's own conversations — the server scopes to `user_id`, so this can
+   *  never list someone else's questions (`AM-25` r7). */
+  conversations: (query: { page?: number; page_size?: number; contract_id?: string } = {}) =>
+    requestPage<ConversationSummary>("/conversations", { query }),
+  conversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
 
   // ---- contracts & documents -------------------------------------------
   contracts: (page = 1, pageSize = 25) =>
@@ -279,7 +286,7 @@ export const api = {
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
 
   // ---- reviews ----------------------------------------------------------
-  reviews: (query: { page?: number; page_size?: number; status?: string } = {}) =>
+  reviews: (query: { page?: number; page_size?: number; status?: string; contract_id?: string } = {}) =>
     requestPage<Review>("/reviews", { query }),
   review: (id: string) => request<Review>(`/reviews/${id}`),
   createReview: (documentVersionId: string, configurationSnapshotId: string) =>

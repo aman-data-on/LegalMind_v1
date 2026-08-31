@@ -35,6 +35,7 @@ describe("AnswerView", () => {
           citations: [
             {
               chunk_id: "ch-1",
+              evidence_id: "ev-1",
               page_number: 7,
               section_ref: "22",
               excerpt: "Either party may terminate on ninety days prior written notice.",

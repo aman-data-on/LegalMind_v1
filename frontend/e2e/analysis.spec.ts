@@ -40,9 +40,9 @@ test.describe("The analysis surface", () => {
     await page.getByRole("button", { name: "Run analysis" }).click();
 
     // 52.7 — the lifecycle IS the progress report. LEGAL_REVIEW because the
-    // STRUCTURAL cap (24) exceeds the configured acceptable maximum (12), so the
-    // Evaluation requires a decision. That is the fixture exercising the path, not a
-    // legal conclusion about any contract.
+    // STRUCTURAL cap (24) deviates from the structural standard (12) and the
+    // fixture rule is the authorized blanket form (AM-33): any deviation requires
+    // a decision. The fixture exercises the path, not a legal conclusion.
     await expect(page.locator("li.evaluation").first()).toBeVisible();
     await expect(page.getByText("LEGAL_REVIEW").first()).toBeVisible();
     await expect(page.getByText(f.configuration.requirement_code)).toBeVisible();
