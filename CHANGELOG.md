@@ -12,6 +12,40 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **UI/UX slice 5 (P1) — the Reviews queue, the Review report, and Ask history**
+  (owner: "continue from the phase you completed"). Three read surfaces over endpoints
+  that already existed, completing PRODUCT_UX_ROADMAP §E screens 7–9:
+
+  **Reviews** (`/workspace/reviews`) — the queue. Scope is entirely server-side (REC-09:
+  own + assigned, plus everything escalated or in LEGAL_REVIEW for `legal.review`
+  holders); the page adds no scope logic. Status filters are the API's own allow-list,
+  one at a time; LEGAL_REVIEW rows carry the attention stripe and a filled chip — queue
+  bias, no urgency theater. Starting a Review stays deliberately absent (snapshot-choice
+  UX unscoped) and the empty state says so plainly.
+
+  **Review report** (`/workspace/reviews/{id}`) — exactly what `GET …/report` carries:
+  coverage, findings awaiting a Legal Decision, unmatched provisions, and the alignment
+  count — with the F-9 sentence on the page ("never grades the document"). No risk
+  figure, no verdict, no meter — counts in the mono voice, attention stripe only where a
+  human owes work. `report.view` is layered: without it the Review's identity shows and
+  the report body is a plain restricted note, never faked.
+
+  **Ask history** (`/workspace/ask` and `…/ask/{id}`) — the caller's OWN conversations
+  (`AM-25` r7 server-side), each transcript replaying the SAME citations the live answer
+  carried (`AM-25` r5) as real links into the workspace highlight (`?evidence=`), and the
+  byte-identical refusal sentence (`AM-29` r4) — pinned by e2e against the recorded turn,
+  not just the live one. A replayed citation may lack a retrieval score (missing run
+  row): the type now says so (`retrieval_score: number | null`) and both the new
+  transcript and the LEGACY AskPanel guard it — the widening surfaced a latent
+  `.toFixed()` crash path in the legacy pane, fixed rather than suppressed.
+
+  **Navigation grew and got correct**: Reviews and Ask history join the nav (existence +
+  permission gated), and the active item is now the LONGEST matching href
+  (`activeNavHref`) — before this, "Documents" (`/workspace`) lit on every sibling
+  screen. Verified: backend **937/1** (unchanged) · frontend **100 Vitest** (+4) ·
+  browser **49 passed / 9 gated** (+3, all first-run green) · typecheck ·
+  forbidden-terms clean. Decisions #210–#212.
+
 * **UI/UX slice 4 — the Documents landing and intake screen** (owner: "go"). The minimal
   stand-in the strict cleanup left at `/workspace` is now the real front door
   (PRODUCT_UX_ROADMAP §E screens 2–3): the document TYPE is the one prominent **required**

@@ -758,3 +758,17 @@ clean · `AM31_GATE` CLOSED.**
 (+2) · browser 46 passed / 9 gated (+1 intake spec; a regex of mine that only matched the
 first-run heading, and an orphaned test body from a bad splice, were both caught by running
 the suite unfiltered — recorded in the changelog) · typecheck · `check:terms` clean.**
+
+
+## UI/UX slice 5 (P1) — reviews queue, report, ask history, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 210 | **Document names on queue/history rows come from per-id `GET /contracts/{id}` lookups (unique ids per page, `Promise.allSettled`), not a new list-level join** | Decision #187 keeps `GET /reviews` and `GET /conversations` lean; a page holds ≤25 rows and far fewer unique contracts, and a failed lookup falls back to the bare id rather than blanking the row | Whether a summary field belongs on the list endpoints later (§19 candidate, unchanged) |
+| 211 | **Nav active state = longest matching href (`activeNavHref`)** | `pathname.startsWith(href)` lit "Documents" on every sibling screen the moment the nav grew — /workspace is a prefix of everything. Longest-match is the standard fix and is unit-pinned | — |
+| 212 | **`AssistCitation.retrieval_score` widened to `number \| null`** | The replay endpoint returns null when the retrieval-run row is missing; the old type lied and the LEGACY AskPanel would have crashed on `.toFixed()`. Both renderers now omit the score line entirely when null — never "NaN", never a blank label | — |
+
+**Verification at close: backend 937/1 (unchanged) · frontend 100 Vitest (+4) · browser 49
+passed / 9 gated (+3: queue+report, status filter, transcript replay — all green on the
+first run) · typecheck · `check:terms` clean. Screenshots of both new screens reviewed
+against the DD-4 finish bar.**

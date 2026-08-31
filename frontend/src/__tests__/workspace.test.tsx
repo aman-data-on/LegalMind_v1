@@ -11,12 +11,14 @@ import { EscalateControl } from "@/components/workspace/EscalateControl";
 import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
+  activeNavHref,
   groupByPage,
   locationLabel,
   navItemsFor,
   outlineOf,
   readiness,
 } from "@/components/workspace/model";
+import { TranscriptTurn } from "@/components/workspace/TranscriptTurn";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 
@@ -72,10 +74,24 @@ describe("reading order", () => {
 });
 
 describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)", () => {
-  it("an ordinary user sees Documents, pointed at the new UI — never /contracts", () => {
+  it("an ordinary user sees the three built destinations, all in the new UI — never /contracts", () => {
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
-    expect(items).toEqual([{ href: "/workspace", label: "Documents" }]);
+    expect(items).toEqual([
+      { href: "/workspace", label: "Documents" },
+      { href: "/workspace/reviews", label: "Reviews" },
+      { href: "/workspace/ask", label: "Ask history" },
+    ]);
+  });
+
+  it("the active item is the LONGEST matching href, so Documents never lights on a sibling screen", () => {
+    const items = navItemsFor(() => true);
+    expect(activeNavHref("/workspace", items)).toBe("/workspace");
+    expect(activeNavHref("/workspace/0a1b2c3d-0000-4000-8000-000000000000", items)).toBe("/workspace");
+    expect(activeNavHref("/workspace/reviews", items)).toBe("/workspace/reviews");
+    expect(activeNavHref("/workspace/reviews/0a1b2c3d", items)).toBe("/workspace/reviews");
+    expect(activeNavHref("/workspace/ask/0a1b2c3d", items)).toBe("/workspace/ask");
+    expect(activeNavHref("/login", items)).toBeNull();
   });
 
   it("a super admin sees an empty nav — Audit/Admin have no new-UI screen yet, so no legacy link is offered", () => {
@@ -152,5 +168,54 @@ describe("Step 6 document types (presentation copy)", () => {
     expect(documentTypeLabel("SLA")).toBe("Service Level Agreement");
     expect(documentTypeLabel("ZZZ")).toBe("ZZZ");
     expect(documentTypeLabel(null)).toBe("Type not declared");
+  });
+});
+
+describe("TranscriptTurn (ask history replay)", () => {
+  const base = { id: "m1", ordinal: 1, routed_to_evaluator: false, citations: [] as never[] };
+
+  it("a refusal replays on the quiet surface with its state attribute, exactly like the live pane", () => {
+    const html = renderToStaticMarkup(
+      <TranscriptTurn
+        contractId="c1"
+        turn={{ ...base, role: "ASSISTANT", content: "Information not found in the selected document.", answer_state: "NO_EVIDENCE_RETRIEVED" }}
+      />,
+    );
+    expect(html).toContain("ws-ask__answer--refusal");
+    expect(html).toContain('data-state="NO_EVIDENCE_RETRIEVED"');
+    expect(html.toLowerCase()).not.toContain("confidence");
+  });
+
+  it("an ANSWERED turn's citation is a real link into the workspace highlight, and a null score renders nothing", () => {
+    const citation = {
+      chunk_id: "ch1", evidence_id: "ev1", page_number: 4, section_ref: "17.2",
+      excerpt: "Liability shall not exceed…", retrieval_score: null,
+    };
+    const html = renderToStaticMarkup(
+      <TranscriptTurn
+        contractId="c1"
+        turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [citation] }}
+      />,
+    );
+    expect(html).toContain('href="/workspace/c1?evidence=ev1"');
+    expect(html).toContain("§17.2");
+    // Null score → the score line is absent entirely, never "NaN" or a blank label.
+    expect(html).not.toContain("retrieval score");
+    // With a score, it renders labeled as exactly that (AI-03 item 16).
+    const scored = renderToStaticMarkup(
+      <TranscriptTurn
+        contractId="c1"
+        turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [{ ...citation, retrieval_score: 0.8123 }] }}
+      />,
+    );
+    expect(scored).toContain("retrieval score 0.812");
+  });
+
+  it("a user turn is the question, plainly attributed", () => {
+    const html = renderToStaticMarkup(
+      <TranscriptTurn contractId={null} turn={{ ...base, role: "USER", content: "What is the cap?", answer_state: null }} />,
+    );
+    expect(html).toContain("What is the cap?");
+    expect(html).toContain("ws-turn--user");
   });
 });

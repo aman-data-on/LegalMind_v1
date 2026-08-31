@@ -74,5 +74,22 @@ export interface NavItem {
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
   if (can(P.CONTRACT_VIEW)) items.push({ href: "/workspace", label: "Documents" });
+  if (can(P.REVIEW_VIEW)) items.push({ href: "/workspace/reviews", label: "Reviews" });
+  if (can(P.ASSIST_ASK)) items.push({ href: "/workspace/ask", label: "Ask history" });
   return items;
+}
+
+/**
+ * The nav item a pathname belongs to — the LONGEST matching href, so that
+ * `/workspace/reviews/…` lights "Reviews" and never also "Documents" (whose
+ * href is a prefix of every workspace route).
+ */
+export function activeNavHref(pathname: string, items: NavItem[]): string | null {
+  let best: string | null = null;
+  for (const item of items) {
+    if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+      if (best === null || item.href.length > best.length) best = item.href;
+    }
+  }
+  return best;
 }

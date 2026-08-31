@@ -21,9 +21,9 @@ Updated at the end of every working session.*
 | **Last worked** | 30 August 2026 |
 | **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
-| **UI/UX** | **Slices 1–4 done (30 Aug)**: the new application's front door is real — log in, land on Documents, add one by name and *declared* type (the ten approved types; never guessed), and you're straight in its workspace: text with click-to-highlight, the Findings queue with decisions and escalation, and Ask with cited answers. Generated answer *text* still waits on your two Google inputs. Next: the Reviews queue for Legal, report view, ask history (P1). Roadmap: [../design/PRODUCT_UX_ROADMAP.md](../design/PRODUCT_UX_ROADMAP.md) |
+| **UI/UX** | **Slices 1–5 done (31 Aug)**: log in → Documents → a document's workspace (text, findings, ask) — and now **Reviews** (the legal queue, with a needs-legal-review filter), each Review's **report** (honest counts, never a grade), and **Ask history** (every past question, its answer replayed with the same citations). Generated answer *text* still waits on your two Google inputs. Next: the Legal Decision area or admin — say which, or I follow the roadmap (Legal next). Roadmap: [../design/PRODUCT_UX_ROADMAP.md](../design/PRODUCT_UX_ROADMAP.md) |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 937 backend + 96 frontend + 46 browser checks passing, none failing; 6 visual baselines reproducing; CI (15 jobs) green on every push |
+| **Health** | 937 backend + 100 frontend + 49 browser checks passing, none failing; 6 visual baselines reproducing; CI (15 jobs) green on every push |
 | **Waiting on you** | Google's written no-training terms and a Gemini API key (details in *What I'll need from you*); the statute material (and the Evidence Act 1872 vs BSA 2023 answer) for statute search; and your review of the UX roadmap before broad UI implementation |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
 | **Your instruction, 27 Aug** | *"Backend freeze / dependency-wait state... VERIFY → DOCUMENT → FREEZE → PREPARE HANDOFF → WAIT FOR OWNER INPUT. Do not manufacture additional coding work. Do not start UI/UX."* Done and logged — the handoff report is written, everything re-verified, no code changed, and nothing starts without your explicit word |
@@ -47,6 +47,18 @@ Updated at the end of every working session.*
   document versions, because nothing did and the workspace opens on a document.
 - The Findings and Ask panes say plainly that they arrive in the next slice — no fake
   controls.
+
+**What got finished on 31 August (slice 5 — "continue")**
+
+- **Reviews has its own screen.** The queue every account sees is scoped by the server
+  (a legal reviewer automatically sees what's escalated to Legal); rows needing legal
+  attention are striped, and one click opens the Review's report.
+- **The report shows counts, never a grade.** How many requirements were checked, how
+  many findings await a decision, what matched — and a sentence on the page saying the
+  ratio has no legal meaning, because that's the locked rule.
+- **Every question you've asked is kept.** Ask history lists your own conversations
+  (only yours — enforced by the server), and opening one replays the exact answer with
+  the exact citations, each one clickable back into the document.
 
 **What got finished on 30 August (slice 4 — "go")**
 

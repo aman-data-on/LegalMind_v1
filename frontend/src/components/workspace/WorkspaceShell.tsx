@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
 
 import { useSession } from "@/lib/session";
 
-import { navItemsFor } from "./model";
+import { activeNavHref, navItemsFor } from "./model";
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { identity, loading, can, signOut } = useSession();
@@ -49,7 +49,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              aria-current={pathname.startsWith(item.href) ? "page" : undefined}
+              aria-current={activeNavHref(pathname, items) === item.href ? "page" : undefined}
             >
               {item.label}
             </Link>

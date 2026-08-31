@@ -364,3 +364,50 @@
 .ws-docs__table td a:hover { text-decoration: underline; }
 .ws-docs__skel { display: flex; gap: var(--ws-s5); padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
 .ws-pager { display: flex; gap: var(--ws-s3); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+
+/* ================= P1 (slice 5): reviews queue · report · ask history ==== */
+
+/* Status filter — the API's allow-list, one at a time. Quiet toggles, not tabs:
+   the table below is the same table whichever is on. */
+.ws-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.ws-filter__chip {
+  border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+  color: var(--ws-ink-500); border-radius: 999px; padding: 4px 12px;
+  font: inherit; font-size: var(--ws-text-sm); cursor: pointer;
+}
+.ws-filter__chip:hover { border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
+.ws-filter__chip--on {
+  background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: var(--ws-paper);
+}
+
+/* The attention idiom on a table row: the same left stripe Findings use. */
+.ws-docs__table tr.ws-tr--attention td:first-child {
+  box-shadow: inset 3px 0 0 var(--ws-outcome);
+}
+
+/* A first-question cell keeps the row scannable however long the question ran. */
+.ws-docs__q { max-width: 34rem; }
+.ws-docs__q a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Report totals — stat tiles. Counts in the mono voice; no meter, no gauge,
+   no grade (F-9, 36.10): a number with its sentence, nothing implying a score. */
+.ws-report { display: grid; gap: 18px; }
+.ws-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px;
+}
+.ws-stat {
+  border: 1px solid var(--ws-ink-100); border-radius: 8px;
+  background: var(--ws-surface); padding: 14px 16px;
+  display: grid; gap: 4px; align-content: start;
+}
+.ws-stat__n { font-size: 1.35rem; line-height: 1.2; color: var(--ws-ink-900); }
+.ws-stat__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-stat--attention { box-shadow: inset 3px 0 0 var(--ws-outcome); }
+.ws-report__h { font-size: var(--ws-text-base); margin: 0 0 8px; color: var(--ws-ink-700); }
+.ws-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.ws-chips b { font-weight: 600; margin-left: 2px; }
+
+/* Transcript — the read-only replay of an Ask conversation. Reuses the live
+   pane's answer/citation classes; only the turn frame is new. */
+.ws-transcript { max-width: 46rem; display: grid; gap: 14px; }
+.ws-turn--user { margin-top: 6px; }
