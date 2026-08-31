@@ -16563,3 +16563,54 @@ No Company Standard value, no Requirement, no threshold of any other kind
 (mapping/extraction calibration under Step 35 is measurement machinery, not legal
 tolerance, and is untouched). No change to the evaluator's comparison itself —
 detection of MATCH / DEVIATION / MISSING / CONFLICT is exactly as locked.
+
+================================================================================
+AM-31 GATE RELEASE — the further appended record g3 requires
+Recorded 2026-08-31, on the owner's confirmation of the same day ("confirm").
+================================================================================
+
+g3 said the gate is released "only by a FURTHER APPENDED RECORD - never a flag, env
+var or review." This is that record.
+
+```text
+Provider          Google Gemini API (Generative Language API)
+Tier              PAID - billing account "LeapSwitch" (Cloud Prepay), prepay credits
+                  active; the unpaid tier remains INELIGIBLE (AM-30 t6)
+Model             gemini-3.6-flash (pinned; AM-30 t7. The provider retired
+                  gemini-2.5-flash for new accounts; AM-30 locks the family, not the
+                  version - "No version string is locked. t7 governs." Decision #223)
+Terms confirmed   2026-08-31, by the owner, in writing in the working session
+Terms location    ai.google.dev/gemini-api/terms - "Paid Services" / "How Google
+                  Uses Your Data"
+No-training term  "Google doesn't use your prompts (including associated system
+                  instructions, cached content, and files such as images, videos,
+                  or documents) or responses to improve our products" (verbatim,
+                  fetched from the terms page on 2026-08-31)
+Retention term    "Google logs prompts and responses for a limited period of time,
+                  solely for detecting and preventing violations of the Prohibited
+                  Use Policy" (verbatim, same page and date)
+
+Gate value        AM31_GATE = "RELEASED-2026-08-31" in
+                  backend/legalmind/assist/generation.py, changed in the same commit
+                  that appends this record (g3's one-commit discipline).
+
+r1   Every AM-30 term stands unchanged. In particular t2-t5 (payload minimization,
+     LEGAL-02 as an egress rule, no identifiers, hash-only audit), t7 (the pin), and
+     t8 (the network-layer allow-list, which remains a deployment precondition
+     reported ATTEST by the preflight - a production deployment without it has not
+     satisfied this release).
+
+r2   55.3 is unchanged: development and staging remain synthetic-only environments.
+     This release permits real-contract egress only where real contracts live -
+     production - and only under r1.
+
+r3   AM-28/AM-31 m-series stand: the faithfulness and citation-precision half of the
+     Tier-2 gate is now MEASURABLE and must be measured and baselined as a
+     release-pipeline act where the real documents live, before assist answers over
+     real material are relied on. The provisional model selection remains provisional
+     until that measurement (m2); the version change to gemini-3.6-flash re-triggers
+     AM-26 r4's measurement obligation at the same moment.
+
+r4   A provider-side retirement of gemini-3.6-flash, or any model change, re-triggers
+     t7 and AM-26 r4 exactly as this one did, and is recorded the same way.
+```

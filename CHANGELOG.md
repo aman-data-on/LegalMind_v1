@@ -12,6 +12,23 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **The AM-31 gate is RELEASED — Gemini is live end to end** (owner confirmation,
+  2026-08-31: paid-tier no-training terms per ai.google.dev/gemini-api/terms "Paid
+  Services", verbatim-quoted in the appended record **"AM-31 GATE RELEASE"**;
+  `all_lock.md` 16,565 → 16,616, prior lines byte-identical). One commit per g3:
+  record + `AM31_GATE = "RELEASED-2026-08-31"` + the two tests that pinned the closed
+  state now pin the released one. Same session: the provider retired
+  `gemini-2.5-flash` for new accounts, so the pin moved to **`gemini-3.6-flash`** with
+  `thinkingLevel: MINIMAL` (unconstrained thinking measurably consumed the whole
+  output budget; AM-30 locks the family, not the version — decision #223), and the
+  key was installed outside the repository (`0600`), audited absent from repo and
+  logs (hash-only audit, t5). **End-to-end proven on the live dev app** (synthetic
+  only, 55.3): upload → index → ask → `ANSWERED` with a verified citation; the
+  sufficiency floor exercised live (a 77-char evidence set refused). Still owed
+  before assist answers over real material are relied on: the Tier-2
+  faithfulness/citation-precision baseline as a release-pipeline act (release r3),
+  and t8's network allow-list stays a deployment ATTEST. Backend **941 tests** green.
+
 * **UX correction (owner-ordered "DEEP UX / PRODUCT MODEL AUDIT"): upload-first intake,
   analysis in the flow.** Full proposal + change matrix:
   [docs/design/UX_CORRECTION_2026-08-31.md](docs/design/UX_CORRECTION_2026-08-31.md).

@@ -14,7 +14,9 @@ g1  Real counterparty contract text must NOT reach the provider until its no-tra
     and data-retention terms are confirmed in writing.
 g2  Enforcement is mechanical and DEFAULT-CLOSED.
 g3  Released only by a FURTHER APPENDED RECORD — never a flag, env var or review.
-g4  Status as of 2026-08-25: CLOSED.
+g4  Status as of 2026-08-25: CLOSED. RELEASED 2026-08-31 by the appended record
+    "AM-31 GATE RELEASE" (owner's written terms confirmation of the same day;
+    provider Google Gemini API, paid tier, gemini-3.6-flash).
 g5  The mechanism composes with locked 55.3's environment separation: development and
     staging are synthetic-only environments; production is where real contracts live.
 
@@ -56,7 +58,7 @@ from legalmind.observability.logs import log_event
 # it. Change ONLY alongside the appended lock record that releases the gate, carrying
 # the provider, tier and date of the written confirmation.
 # --------------------------------------------------------------------------
-AM31_GATE = "CLOSED"
+AM31_GATE = "RELEASED-2026-08-31"
 
 # AM-30 t7: a pinned model identifier — a floating alias is not a pin, and
 # `generate()` refuses "latest". 2026-08-31: "gemini-2.5-flash" was retired for

@@ -50,11 +50,15 @@ def test_floating_model_alias_fails(monkeypatch, capsys):
     assert "floating alias" in capsys.readouterr().out
 
 
-def test_production_reports_the_closed_gate_and_is_not_ready(monkeypatch, capsys):
+def test_production_is_ready_since_the_gate_release(monkeypatch, capsys):
+    """The AM-31 gate was RELEASED 2026-08-31 by its appended record, so a
+    production posture with a key is READY. (Before the release this test
+    asserted NOT READY with the gate row failing — that behavior now lives
+    only in history, as it should.)"""
     monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "k")
-    assert tool.main(["--environment", "production"]) == 1
+    assert tool.main(["--environment", "production"]) == 0
     out = capsys.readouterr().out
-    assert "am31_gate" in out and "CLOSED" in out
+    assert "am31_gate" in out and "READY" in out
 
 
 def test_live_path_uses_the_one_seam_and_passes_on_a_cited_reply(monkeypatch, capsys):

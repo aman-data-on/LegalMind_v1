@@ -281,10 +281,14 @@ def test_the_retrieval_run_makes_the_refusal_reconstructable(db, user,
 # ==========================================================================
 # The AM-31 gate and the generation adapter's own refusals
 # ==========================================================================
-def test_the_am31_gate_is_closed_and_blocks_production():
-    assert generation.AM31_GATE == "CLOSED"
+def test_the_am31_gate_is_released_by_the_2026_08_31_record():
+    """g3: the gate value and the appended record must agree. The record "AM-31
+    GATE RELEASE" (all_lock.md, 2026-08-31) names exactly this value; a different
+    value here without its own appended record is the drift this test exists to
+    catch, in either direction."""
+    assert generation.AM31_GATE == "RELEASED-2026-08-31"
     permitted, reason = generation.gate_permits_egress("production")
-    assert not permitted and "AM-31" in reason
+    assert permitted and "released" in reason
     permitted, _ = generation.gate_permits_egress("development")
     assert permitted
 
