@@ -817,3 +817,18 @@ flagged: CI-cut visual baselines for the new screens.**
 | # | Decision | Why | Does not decide |
 |---|---|---|---|
 | 222 | **The UI is FROZEN at f9c3c0f** (owner order): no redesign, restyle or new pattern without an explicitly requested UX review; defect fixes (usability, a11y, inconsistency, responsive, broken interaction, strategy mismatch) and screens for NEW functionality remain allowed, built on the frozen tokens/components | The goal is a stable, tested baseline to build remaining functionality on — not an endlessly "better" UI. Baseline set: 15 CI-cut screenshots; matrix green everywhere | Nothing about future functionality's UI — new screens follow the frozen system |
+
+
+## Product-intent R&D + corrective implementation, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 223 | **AM-33 recorded as AB-6** — the owner's §6/§15 instruction is the authorization; the band form is withdrawn by APPENDED amendment (16,494 → 16,565 lines, zero deletions), never by editing 45B.9 | Rule 22; the owner ordered an auditable change record, not silent history editing | Nothing beyond the rule FORM: vocabulary, comparison semantics, zero-tolerance rule all unchanged |
+| 224 | **The B-3 workflow tests construct the ACCEPTABLE axis value directly** (frozen-dataclass `_with_outcome` helper) instead of minting it through the engine | The locked B-3 semantics govern the outcome AXIS — historical rows included — and must stay tested; the engine may no longer produce the value on a deviation | — |
+| 225 | **Version selection is a URL parameter (`?version=`), the picker lives in the existing context bar, and `?evidence=` is dropped on switch** | Smallest freeze-compatible change; an evidence row belongs to exactly one version's reading order, so carrying it across would point at nothing | Viewing old versions' ask answers (transcripts already serve that); a version-diff view (unrequested) |
+| 226 | **Ask stays latest-version-only, stated on-screen when an older version is open** | The server resolves a conversation to the newest version (verified in `assist.py`); a form beside v1 answering about v2 would misattribute — the frozen API is kept and honesty is rendered instead | Version-scoped ask (would need an API change nobody asked for) |
+
+**Verification at close: backend 938/1 · 104 Vitest · 57 browser passed / 18 gated · ruff
+· mypy · typecheck · terms gate · final band-semantics sweep clean. Corpus expectation
+changes were confined to STRUCTURAL fixtures (AM-33 r6 authorizes exactly that); no
+DOCUMENT_SUPPORTED or STANDARD_DERIVED expectation moved.**

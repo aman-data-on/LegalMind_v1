@@ -127,8 +127,8 @@ STRUCTURAL_CONFIGURATION: dict[str, object] = {
     "legal_rule": {
         "rule_type": "THRESHOLD",
         "configuration": {
-            "acceptable_max": 12,
-            "approval_required_above": 12,
+            "deviation_outcome": "UNACCEPTABLE",
+
             "unlimited_outcome": "UNACCEPTABLE",
             "rule_configuration": {
                 "scope_required": True,

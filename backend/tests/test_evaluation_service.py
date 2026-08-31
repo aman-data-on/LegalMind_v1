@@ -140,7 +140,7 @@ def test_rule_outcome_lives_only_on_evaluations(db, scenario):
     p = persist_evaluation(db, review=review, requirement_version_id=rv.id,
                            output=out)
     assert not hasattr(p.finding, "rule_outcome")
-    assert p.evaluations[0].rule_outcome is O.APPROVAL_REQUIRED
+    assert p.evaluations[0].rule_outcome is O.UNACCEPTABLE  # the blanket rule (AM-33)
 
 
 def test_evaluator_and_rule_versions_are_persisted(db, scenario):
@@ -246,14 +246,31 @@ def test_escalation_requires_a_decision_even_when_acceptable():
         requirement_required=True, escalated=True) is True
 
 
+def _with_outcome(out, scope_key, outcome):
+    """Rebuild frozen evaluator output with one scope's outcome replaced.
+
+    AM-33: no authorized rule form emits ACCEPTABLE on a deviation, but the
+    locked B-3 workflow semantics govern the outcome AXIS — historical rows
+    included — so these tests construct the vocabulary value directly.
+    """
+    import dataclasses
+    evaluations = [
+        dataclasses.replace(entry, rule_outcome=outcome)
+        if entry.scope_key == scope_key else entry
+        for entry in out.evaluations
+    ]
+    return dataclasses.replace(out, evaluations=type(out.evaluations)(evaluations))
+
+
 def test_match_acceptable_does_not_block_resolution(db, scenario):
     """The B-3 scenario: MATCH and ACCEPTABLE scopes are satisfied trivially."""
     user, review, rv = scenario
     e1, e2 = _evidence(db, review), _evidence(db, review)
     out = evaluate(numeric_input([
         cap(10, evidence=(e1.id,)),                               # MATCH
-        cap(20, scope="SCOPE_B", evidence=(e2.id,)),              # ACCEPTABLE
+        cap(20, scope="SCOPE_B", evidence=(e2.id,)),              # DEVIATION
     ], rule=multi_scope_rule("SCOPE_B")))
+    out = _with_outcome(out, "SCOPE_B", O.ACCEPTABLE)  # see _with_outcome (AM-33)
     p = persist_evaluation(db, review=review, requirement_version_id=rv.id,
                            output=out)
     db.flush()
@@ -277,8 +294,9 @@ def test_finding_blocked_until_the_unacceptable_scope_is_decided(db, scenario):
             kind=E.EvaluationKind.EXCEPTION, label="confidentiality",
             evidence=(e2.id,)),                                    # UNACCEPTABLE
         cap(20, scope="SCOPE_C", kind=E.EvaluationKind.EXCEPTION,
-            label="ip", evidence=(e3.id,)),                          # ACCEPTABLE
+            label="ip", evidence=(e3.id,)),                           # DEVIATION
     ], rule=multi_scope_rule("SCOPE_B", "SCOPE_C")))
+    out = _with_outcome(out, "SCOPE_C", O.ACCEPTABLE)  # see _with_outcome (AM-33)
     p = persist_evaluation(db, review=review, requirement_version_id=rv.id,
                            output=out)
     db.flush()

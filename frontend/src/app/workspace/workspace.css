@@ -443,3 +443,15 @@
 /* A page whose whole body is one state (restricted, loading, not-found) keeps
    the same centered 72rem gutter every other screen has. */
 .ws-main > .ws-state { max-width: 72rem; width: 100%; margin: 0 auto; }
+
+/* ---- version lifecycle (product-intent audit, 2026-08-31) ---------------- */
+.ws-version select {
+  font: inherit; font-size: var(--ws-text-sm); padding: 2px 6px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-700);
+}
+.ws-reupload {
+  max-width: 72rem; width: 100%; margin: 0 auto;
+  padding: var(--ws-s3) var(--ws-s4) 0;
+  display: grid; gap: var(--ws-s2);
+}

@@ -16492,3 +16492,74 @@ C-05, C-06, C-07 RESOLVED BY ANNOTATION — "Annotations add karo, lines edit ma
      live in docs/00-project/CONFLICTS.md, which now states for each exactly which
      text is superseded and by what.
 ================================================================================
+
+================================================================================
+AMENDMENT BATCH AB-6 — THE THRESHOLD-BAND LEGAL RULE FORM IS WITHDRAWN
+Approved by the owner on 2026-08-31 (product-direction clarification: "LEGALMIND —
+DEEP PRODUCT / ARCHITECTURE R&D + CORRECTIVE IMPLEMENTATION", §6 "DO NOT INVENT
+'ACCEPTABLE DEVIATION'", §15 authorization to update the decision record; audit:
+docs/00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md).
+================================================================================
+
+# `AM-33` — Tolerance bands are not an authorized Legal Rule form
+
+## Position
+
+The threshold-band Legal Rule form — `acceptable_max`, `acceptable_max_unit`,
+`approval_required_above`, and any mapping of an already-detected DEVIATION onto
+`ACCEPTABLE` by numeric comparison — is WITHDRAWN as an authorized configuration
+form. It was defined by 45B.9's worked example (and echoed in the Step 20/35
+worked examples); those lines remain byte-identical in this record per rule 22 and
+are hereby superseded IN FORM ONLY.
+
+**Explicitly reaffirmed, not amended:**
+- 45B.9's core principle: the Legal Rule is SEPARATE from the Company Standard.
+- Step 20's four-value Rule Outcome vocabulary (45B.26: no fifth value). A value
+  being unreachable by any authorized rule form is not a vocabulary change.
+- The zero-tolerance Legal Rule (manager ruling recorded 2026-08-19; owner approved
+  and wired 2026-08-20): MATCH → ACCEPTABLE; any DEVIATION → UNACCEPTABLE → Legal
+  Decision. It is now the only expressible rule form, which is the stated policy.
+- Step 20 r4 / D-3.5 / F-4: an unruled deviation stands and a human decides.
+
+## Terms
+
+r1  The only authorized Legal Rule configuration keys are the blanket dispositions
+    `deviation_outcome` and `unlimited_outcome`. No key expressing a numeric
+    tolerance, band, or threshold over a deviation is authorized.
+r2  An engine encountering a Legal Rule carrying any withdrawn band key does not
+    interpret it: the Evaluation's rule outcome is NOT_APPLICABLE with the reason
+    stated, and the deviation routes to a human (D-3.5 / UNRULED path). Fail
+    closed, never guess (rule 15).
+r3  A DEVIATION never maps to ACCEPTABLE through ANY rule form. A blanket
+    `deviation_outcome` of `ACCEPTABLE` is a misconfiguration and is treated
+    exactly as r2 treats a band key. ACCEPTABLE remains reachable only from MATCH.
+    (RESOLVED ≠ MATCH — rule 14 — is untouched: workflow resolution was never an
+    acceptance and still is not.)
+r4  The refusal guards already in force are ratified as the enforcement layer: the
+    standards import tool refuses any rule but the approved blanket form; the
+    corpus loader refuses fixtures carrying band keys; redaction and generation
+    key-lists keep treating the withdrawn keys as internal legal-position material.
+r5  Worked examples in the historical record and specification that illustrate
+    bands (6 preferred / ≤12 acceptable / >12 approval) remain preserved as
+    illustrations (CLAUDE.md: Preserve the examples) and confer no configuration
+    authority.
+r6  Structural test fixtures (e2e, unit) may not use the withdrawn form to
+    exercise outcome vocabulary; they use the authorized blanket form.
+
+## Why
+
+The owner's product clarification of 2026-08-31 states there is no authorized
+product concept of "deviation + acceptable" and orders that band logic not be
+retained. The audit found the band interpreter live in
+`legalmind/evaluation/numeric.py` (unreachable under approved configuration, but
+one config away from enacting the forbidden semantic) and the band form in active
+use by the e2e bootstrap fixture. This record closes the gap between the approved
+configuration (zero tolerance, 2026-08-19/20) and the authorized configuration
+SPACE, which until now still contained the band form.
+
+## What this record does NOT decide
+
+No Company Standard value, no Requirement, no threshold of any other kind
+(mapping/extraction calibration under Step 35 is measurement machinery, not legal
+tolerance, and is untouched). No change to the evaluator's comparison itself —
+detection of MATCH / DEVIATION / MISSING / CONFLICT is exactly as locked.

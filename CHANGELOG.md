@@ -12,6 +12,51 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Product-intent R&D + corrective implementation (owner-ordered).** Full audit of the
+  system against the owner's clarified product behavior — recorded in
+  [docs/00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](docs/00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md)
+  (§A–O: architecture, semantics, authority model, lifecycle, impacts, blockers).
+  Verdict: the locked specification and the owner's intent already agree on the five-axis
+  separation, MATCH/DEVIATION/MISSING semantics, CONFLICT's defined meaning
+  (intra-document contradiction, never company-vs-counterparty difference), ungated
+  document chat, and real re-analysis. Three genuine gaps found and corrected:
+
+  **1. `AM-33` (AB-6) — the threshold-band Legal Rule form is withdrawn.** `all_lock.md`
+  grew 16,494 → 16,565 lines (append-only; insertions verified, zero deletions). The
+  engine's live band interpreter (`acceptable_max`/`approval_required_above` — including
+  the DEVIATION→ACCEPTABLE mapping the owner explicitly forbade) is removed: band keys
+  now fail closed to `NOT_APPLICABLE` and a human, and a blanket
+  `deviation_outcome: ACCEPTABLE` is refused the same way — **ACCEPTABLE is reachable
+  only from MATCH** (r3). 45B.9's Standard-vs-Rule separation is reaffirmed; only its
+  band example is superseded. Enforcement: the corpus loader now refuses band keys on
+  EVERY tier (STRUCTURAL included, r6); the e2e bootstrap and eleven structural corpus
+  fixtures moved to the authorized blanket form; §24 regression tests added
+  (`test_band_keys_are_never_interpreted`,
+  `test_a_deviation_never_maps_to_acceptable_through_any_rule_form`). The locked B-3
+  heterogeneous-workflow tests keep exercising the ACCEPTABLE axis value by constructing
+  it directly — the vocabulary (Step 20, 45B.26) and the workflow semantics over it are
+  unchanged, historical rows included.
+
+  **2. Revised-version upload in the workspace** (intent §3): "Upload a revised version"
+  is now a quiet, always-available control once a document exists — a new version, a
+  genuinely new analysis, nothing auto-resolved (rule 14).
+
+  **3. Historical versions are first-class** (intent §4/§17): the workspace takes
+  `?version=`, the context bar grows a version picker when more than one exists, the
+  document and findings panes follow the selected version — and the Ask region states
+  plainly that answers are about the LATEST version when an older one is open (verified:
+  the server resolves conversations to the newest version), instead of misattributing.
+
+  **API unchanged** (the frozen contract already carried everything); **database
+  unchanged**; UI freeze respected (smallest semantic-necessity changes only). Two
+  journey specs pin the §23/§31 flows end-to-end: upload → analysis → report → findings
+  → ask-with-findings-open, and v1 → chat → v2 → both histories intact. Final sweep:
+  no rule configuration anywhere carries a band key; every remaining mention is a
+  guard, refusal, or redaction list. Verified: backend **938/1** (+1) · **104 Vitest**
+  (+2) · browser **57 passed / 18 gated** (+3) · ruff · mypy · typecheck · terms gate.
+  Decisions #223–#226. Expected: visual-baseline diffs where the e2e rule's outcome chip
+  changed (APPROVAL_REQUIRED → UNACCEPTABLE) — re-cut from CI per the standing rule.
+
 * **Signed-out visits now land on /login** (owner ruling, 2026-08-31: *"the correct
   process: I log in, and then I land on the page based on RBAC"*). Previously a
   signed-out visit to any `/workspace` route rendered the new shell with an empty nav

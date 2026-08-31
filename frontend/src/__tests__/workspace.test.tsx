@@ -12,6 +12,7 @@ import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   activeNavHref,
+  pickVersion,
   groupByPage,
   locationLabel,
   navItemsFor,
@@ -124,6 +125,18 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     for (const item of navItemsFor((p) => everyone.has(p))) {
       expect(item.href).not.toMatch(/^\/(contracts|reviews|configuration|audit|admin)(\/|$)/);
     }
+  });
+});
+
+describe("pickVersion (the ?version= lifecycle, 2026-08-31)", () => {
+  const versions = [{ id: "v2" }, { id: "v1" }]; // newest first, as the API lists them
+  it("opens the requested version when it belongs to this contract", () => {
+    expect(pickVersion(versions, "v1")).toEqual({ id: "v1" });
+  });
+  it("falls back to the latest for no request, a stale id, or a foreign id", () => {
+    expect(pickVersion(versions, null)).toEqual({ id: "v2" });
+    expect(pickVersion(versions, "gone")).toEqual({ id: "v2" });
+    expect(pickVersion([], "v1")).toBeNull();
   });
 });
 

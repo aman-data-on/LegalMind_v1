@@ -97,3 +97,20 @@ export function activeNavHref(pathname: string, items: NavItem[]): string | null
   }
   return best;
 }
+
+/**
+ * Which document version the workspace opens: the one the URL asks for when it
+ * exists on this contract, otherwise the latest (index 0 — the API lists
+ * newest first). A stale or foreign id falls back to latest rather than
+ * erroring: the workspace always opens on something real.
+ */
+export function pickVersion<T extends { id: string }>(
+  versions: T[],
+  requestedId: string | null,
+): T | null {
+  if (requestedId) {
+    const requested = versions.find((v) => v.id === requestedId);
+    if (requested) return requested;
+  }
+  return versions[0] ?? null;
+}
