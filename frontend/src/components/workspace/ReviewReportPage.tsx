@@ -98,7 +98,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
         <h2>{notFound ? "Not found." : "The report could not be loaded."}</h2>
         {notFound ? (
           <p>
-            <Link href="/documents/reviews">Back to reviews</Link>
+            <Link href="/dashboard/reviews">Back to reviews</Link>
           </p>
         ) : (
           <p>{describeError(state.error)}</p>
@@ -121,7 +121,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
             snapshot {review.configuration_snapshot_id.slice(0, 8)}
           </span>
           <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
-          <Link href={`/documents?id=${review.contract_id}`}>Open the workspace</Link>
+          <Link href={`/dashboard?id=${review.contract_id}`}>Open the workspace</Link>
           <ExportControl reviewId={review.id} />
         </div>
       </div>
@@ -180,7 +180,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                 {Object.entries(report.classification_counts).map(([value, count]) => (
                   <Link
                     key={value}
-                    href={`/documents?id=${review.contract_id}&classification=${value}`}
+                    href={`/dashboard?id=${review.contract_id}&classification=${value}`}
                     className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
                   >
                     {value} <b className="ws-mono">{count}</b>
@@ -203,7 +203,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
               <ul className="ws-report__unmatched">
                 {report.unmatched_provisions_detail.map((item) => (
                   <li key={item.evidence_id} className="ws-report__unmatched-item">
-                    <Link href={`/documents?id=${review.contract_id}&evidence=${item.evidence_id}`}>
+                    <Link href={`/dashboard?id=${review.contract_id}&evidence=${item.evidence_id}`}>
                       {sectionRef(item.section_number)}
                       {item.section_title ? ` ${item.section_title}` : null}
                       {!item.section_number && !item.section_title

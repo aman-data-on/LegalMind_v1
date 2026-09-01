@@ -76,6 +76,7 @@ def run_preflight(*, environment: str | None = None) -> list[Check]:
         _retention_policy(),
         _backup_restore(),
         _assist_generation_gate(),
+        _generation_credential(),
         _egress_allow_list(),
         _tier2_quality_gate(),
     ]
@@ -715,6 +716,47 @@ def _assist_generation_gate() -> Check:
                  "gate released by appended record; verify the record cites "
                  "provider, tier and date",
                  basis="AM-31 g3")
+
+
+def _generation_credential() -> Check:
+    """Is the generation credential a credential at all? — added 2026-09-01.
+
+    A NEW row, and the reason it exists is the failure it would have caught:
+    `/root/.legalmind.env` held the literal `***` for hours after a masking
+    command was written back over the file. Every existing check treated the
+    variable as set, because it WAS set — so the preflight reported a healthy
+    assist lane while Google answered 400 `API_KEY_INVALID` and `AM-34`'s type
+    suggestion degraded silently to "not confident" on every upload.
+
+    Reported as FAIL rather than BLOCKED: unlike the AM-31 gate or the IdP
+    registration, nothing here waits on anyone — the value on disk is simply
+    wrong, and one line fixes it. A missing key stays a PASS with the
+    consequence stated, because running without generation is a legitimate
+    posture (the deterministic lane is untouched by it).
+    """
+    from legalmind.assist.generation import is_placeholder_credential
+
+    raw = os.environ.get("LEGALMIND_GEMINI_API_KEY", "")
+    if not raw:
+        return Check("generation_credential", PASS,
+                     "LEGALMIND_GEMINI_API_KEY is unset, so the assist lane's "
+                     "generation seam is closed: Ask, AM-34 type suggestion and "
+                     "AM-35 Key Obligations report honestly unavailable. The "
+                     "deterministic analysis path is unaffected (AI-01)",
+                     basis="AM-30 t1, AM-34 t3")
+    if is_placeholder_credential(raw):
+        return Check("generation_credential", FAIL,
+                     "LEGALMIND_GEMINI_API_KEY is SET BUT IS A PLACEHOLDER, not a "
+                     f"credential ({len(raw.strip())} chars). The provider will "
+                     "answer 400 API_KEY_INVALID and every assist-lane feature will "
+                     "degrade silently to 'unavailable'. This is what a masking "
+                     "command written back over the env file looks like",
+                     basis="AM-30 t1")
+    return Check("generation_credential", PASS,
+                 "a non-placeholder generation credential is configured; run "
+                 "`python3 -m tools.verify_gemini_connection` to confirm the "
+                 "provider accepts it and the model pin resolves",
+                 basis="AM-30 t1/t7")
 
 
 def _egress_allow_list() -> Check:

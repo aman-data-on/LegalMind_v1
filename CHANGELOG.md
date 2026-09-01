@@ -106,6 +106,56 @@ No version has been released. The V1 specification is complete and implementatio
   a redirect URI that is plaintext or points at a route this application does not
   serve.
 
+* **DD-12: the contract workspace against the owner's reference (2026-09-01).**
+  The reference's structure was already built (DD-9/AB-7): three panes, side tabs,
+  sticky Ask. So this pass was the delta — and it was four real defects plus two
+  domain-vocabulary errors, all found by rendering the page rather than reading it.
+
+  **`AI Analysis` → `Analysis`.** The reference labelled the tab "AI ANALYSIS".
+  Everything in it except Key Obligations is the DETERMINISTIC evaluator's output —
+  status summary, clause breakdown, findings awaiting a decision — and `AI-01`
+  (reaffirmed by `AM-25`) keeps every LLM, RAG, embedding and vector store out of
+  that path. The label was backwards: it credited a model for the one part of the
+  product whose value is that no model touched it, and invited a reader to discount
+  a reproducible rule outcome as "the AI's opinion". The assist lane is labelled
+  where it actually appears (Key Obligations, Ask).
+
+  **`Key risks` → `Awaiting a decision`.** Rule 12: a Finding reconstructs as
+  Evidence → Fact → Standard → Rule → Result. There is no risk score to rank and
+  nothing here is scored. What the list *is* is `findingsNeedingDecision` — the
+  same filter the Findings pane defaults to — and naming it that says what to do
+  with it.
+
+  **The Ask card covered the analysis panel.** It was `max-width: 66rem; margin: 0
+  auto`, centred across the whole workspace, so at 1600px its right edge sat on top
+  of a Key Risks entry — a finding awaiting a Legal Decision, hidden behind a search
+  box. It now mirrors the workspace's own grid and occupies column 1 only, so it
+  tracks the document column and cannot drift as the side panel resizes between its
+  330–400px bounds.
+
+  **The document scrolled under the bar.** The height reservation existed but the
+  card grows past it once the suggestion chips wrap to a second row — which they do
+  below ~1500px. `.ws-text` now pads and `scroll-padding`s by `--ws-askbar-h`, so a
+  citation lands above the bar instead of behind it.
+
+  **`§§17.2`.** Six call sites each prepended `§` to `Evidence.section_number`,
+  which real documents supply both ways ("17.2" from one parser, "§17.2" from
+  another) — so every clause row, finding card, obligation and citation in an MSA
+  with signed headings rendered a double sign. Replaced with one shared
+  `sectionRef()` in `lib/documentTypes`. Worth noting how this went: the first fix
+  patched two call sites, a screenshot showed `§§` still present, the third patched
+  three more, and **a test written to assert the helper is the single
+  implementation found the sixth** (`TranscriptTurn.tsx`, where a parameter named
+  `sectionRef` shadowed the import). A rule copied into every caller is a rule that
+  gets fixed in some of them.
+
+  10 tests added across the two behaviours. 150 frontend tests, typecheck clean.
+
+  ⚠️ **Not verified against real data.** The panels were exercised with stubbed API
+  responses shaped to the real `Finding`/`Evidence` types; Key Obligations needs the
+  Gemini key, which is invalid (see DD-11). The layout and copy assertions hold
+  regardless; the data-driven rendering does not have a real-document check yet.
+
 * **DD-11: filler removed, width made adaptive, type pre-filled from the filename
   (2026-09-01, owner-directed).** Three instructions in one pass.
 

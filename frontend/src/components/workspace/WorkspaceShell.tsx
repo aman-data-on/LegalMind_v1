@@ -26,7 +26,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   // A signed-out visitor goes to /login — owner ruling, 2026-08-31: "the correct
   // process: I log in, and then I land on the page based on RBAC." Before this,
-  // a signed-out visit to any /documents route rendered the shell with an empty
+  // a signed-out visit to any /dashboard route rendered the shell with an empty
   // nav and the page's own "Access restricted" note — which reads as an RBAC
   // denial when the visitor simply isn't signed in. The permission gates on the
   // pages themselves are untouched: they remain the correct treatment for an
@@ -61,7 +61,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <header className="ws-shell">
-        <Link className="ws-shell__word" href="/documents">
+        <Link className="ws-shell__word" href="/dashboard">
           LegalMind
         </Link>
         <nav className="ws-shell__nav" aria-label="Primary">

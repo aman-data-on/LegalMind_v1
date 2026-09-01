@@ -124,7 +124,7 @@ export default function AdminPage() {
           {tab === "users" && pagination ? (
             <span className="ws-mono">{pagination.total} account{pagination.total === 1 ? "" : "s"}</span>
           ) : null}
-          {can(P.AUDIT_VIEW) ? <Link href="/documents/admin/audit">Audit trail</Link> : null}
+          {can(P.AUDIT_VIEW) ? <Link href="/dashboard/admin/audit">Audit trail</Link> : null}
         </div>
       </div>
 

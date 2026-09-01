@@ -52,21 +52,21 @@ export function Chrome({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") return <main className="shell shell--login">{children}</main>;
 
   // The new application (PRODUCT_UX_ROADMAP.md) brings its own shell and its own
-  // loading/signed-out states under /documents (WorkspaceShell) — checked BEFORE
+  // loading/signed-out states under /dashboard (WorkspaceShell) — checked BEFORE
   // the legacy loading/signed-out fallbacks below, which would otherwise render
   // first and put legacy markup on a new-UI route (found in browser testing,
-  // 2026-08-30: a signed-out visit to /documents showed the bare "You are signed
+  // 2026-08-30: a signed-out visit to /dashboard showed the bare "You are signed
   // out" shell before ever reaching the new one). This legacy chrome guarantees
-  // nothing for /documents; the two never render together either way.
+  // nothing for /dashboard; the two never render together either way.
   //
   // `/` is included too, and for a sharper reason than styling: the loading and
   // signed-out branches below return their OWN JSX and never render `{children}`
   // at all — so `/`'s own page component (whose only job is a client-side
-  // `router.replace("/documents")` in a `useEffect`) would never even MOUNT while
+  // `router.replace("/dashboard")` in a `useEffect`) would never even MOUNT while
   // signed out, and the redirect would silently never fire. Measured, not
   // assumed: this is what a signed-out visit to `/` actually did before this
   // line included it.
-  if (pathname === "/" || pathname.startsWith("/documents")) return <>{children}</>;
+  if (pathname === "/" || pathname.startsWith("/dashboard")) return <>{children}</>;
 
   if (loading) {
     return (

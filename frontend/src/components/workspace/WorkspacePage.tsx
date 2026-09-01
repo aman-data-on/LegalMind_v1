@@ -104,7 +104,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         <h2>{notFound ? "Not found." : "The workspace could not be loaded."}</h2>
         {notFound ? (
           <p>
-            <Link href="/documents">Back to documents</Link>
+            <Link href="/dashboard">Back to documents</Link>
           </p>
         ) : (
           <p>{describeError(state.error)}</p>
@@ -134,7 +134,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     <AskIntentProvider>
     <MaybeFindings contractId={contract.id} version={version}>
       <div className="ws-context">
-        <Link className="ws-context__back" href="/documents" aria-label="Back to documents">
+        <Link className="ws-context__back" href="/dashboard" aria-label="Back to documents">
           <IconArrowLeft size={18} />
         </Link>
         <h1>{contract.name}</h1>

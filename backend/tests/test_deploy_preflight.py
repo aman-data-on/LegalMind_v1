@@ -342,3 +342,58 @@ def test_the_register_names_the_egress_allow_list():
     assert "generativelanguage.googleapis.com" in check.detail
     assert "deny-by-default" in check.detail
     assert "AM-30 t8" in check.basis
+
+
+# =====================================================================
+# The generation credential — added 2026-09-01 after a real incident
+# =====================================================================
+def test_a_placeholder_generation_credential_fails_loudly(monkeypatch):
+    """The check exists because of what it would have caught.
+
+    `/root/.legalmind.env` held the literal `***` for hours — a masking command
+    written back over the file rather than piped to stdout. Every existing check
+    treated the variable as set, because it WAS set, so the preflight reported a
+    healthy assist lane while Google answered 400 `API_KEY_INVALID` and `AM-34`'s
+    type suggestion degraded silently to "not confident" on every upload. Two
+    debugging cycles went into a problem visible in the value itself.
+    """
+    for masked in ("***", "****", "xxxxxxxx", "changeme", "<redacted>", "  ",
+                   "----", "TODO"):
+        monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", masked)
+        check = by_name(run_preflight())["generation_credential"]
+        assert check.status == FAIL, masked
+        assert "PLACEHOLDER" in check.detail
+
+
+def test_an_absent_generation_credential_is_a_legitimate_posture(monkeypatch):
+    """Not a failure. Running without generation closes the assist seam and the
+    deterministic path is untouched (`AI-01`) — so the row states the consequence
+    rather than blocking a deployment that never wanted the feature."""
+    monkeypatch.delenv("LEGALMIND_GEMINI_API_KEY", raising=False)
+    check = by_name(run_preflight())["generation_credential"]
+    assert check.status == PASS
+    assert "unset" in check.detail
+    assert "deterministic analysis path is unaffected" in check.detail
+
+
+def test_a_real_looking_credential_passes_without_calling_the_provider(monkeypatch):
+    """The preflight must not make a network call — it runs in environments with
+    no egress, and `AM-30` t8's posture is asserted separately. So a plausible
+    credential passes here and the live check is named for the operator to run."""
+    monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "AIza" + "b" * 35)
+    check = by_name(run_preflight())["generation_credential"]
+    assert check.status == PASS
+    assert "verify_gemini_connection" in check.detail
+
+
+def test_the_placeholder_rule_never_rejects_a_plausible_key(monkeypatch):
+    """The floor is deliberately narrow. Guessing the provider's key FORMAT would
+    reject a legitimate key after a provider change — a worse failure than the one
+    this prevents — so only exact placeholders, all-mask strings and very short
+    values are refused."""
+    from legalmind.assist.generation import is_placeholder_credential
+
+    assert not is_placeholder_credential("AIzaSyD" + "9" * 30)
+    assert not is_placeholder_credential("sk-" + "a" * 40)          # another shape
+    assert not is_placeholder_credential("x" * 21 + "1")            # long, mixed
+    assert is_placeholder_credential("x" * 40)                      # all-mask, long

@@ -1,7 +1,7 @@
 /**
  * The summary → category drill's pure layer (2026-08-31 v2): counting is
  * presentational grouping of server values — attention-first order, unknown
- * values kept, MATCH-only success detection — and the Documents "needs
+ * values kept, MATCH-only success detection — and the Dashboard "needs
  * attention" grouping reads only the server's own counts.
  */
 
@@ -135,7 +135,7 @@ describe("outlineStatus", () => {
   });
 });
 
-describe("documentStatusBucket (Documents-list, mirrors the backend's own _status_bucket)", () => {
+describe("documentStatusBucket (Dashboard-list, mirrors the backend's own _status_bucket)", () => {
   it("no document, or extraction not COMPLETED, is draft", () => {
     expect(documentStatusBucket({})).toBe("draft");
     expect(documentStatusBucket({ latest_version: { processing_status: "PENDING" } })).toBe("draft");

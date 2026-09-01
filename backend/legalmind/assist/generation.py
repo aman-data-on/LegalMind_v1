@@ -106,8 +106,53 @@ class GenerationResult:
     latency_ms: int
 
 
+# A credential that is present but is obviously not a credential.
+#
+# 2026-09-01: `/root/.legalmind.env` held the literal three characters `***` for
+# hours — a masking command written back over the file instead of piped to stdout.
+# Everything downstream reported the key as CONFIGURED, the preflight said PASS,
+# and the only symptom was Google answering 400 `API_KEY_INVALID` while the
+# assist lane degraded silently to "not confident". Two debugging cycles went into
+# a problem that was visible in the value itself.
+#
+# So a placeholder is now treated as ABSENT, not as a key. Absent fails loudly and
+# in the right place; a placeholder fails at the provider, four layers away.
+_PLACEHOLDERS = frozenset({
+    "***", "****", "changeme", "change-me", "todo", "tbd", "xxx",
+    "your-api-key", "your_api_key", "redacted", "<redacted>", "none", "null",
+    "placeholder", "unset", "paste-key-here", "<paste-key-here>",
+})
+
+
+def is_placeholder_credential(value: str) -> bool:
+    """True when a value is filled in but plainly not a real credential.
+
+    Deliberately narrow: an exact match against known placeholders, plus a
+    length floor. It does NOT try to validate the provider's key format — a
+    guess at that would reject a legitimate key after a provider change, which
+    is a worse failure than the one this prevents.
+    """
+    stripped = value.strip().strip('"').strip("'")
+    if not stripped:
+        return True
+    if stripped.lower() in _PLACEHOLDERS:
+        return True
+    if set(stripped) <= {"*", "x", "X", "•", "-", "_", "."}:
+        return True          # any all-mask string, whatever its length
+    # A deliberately LOW floor. The first draft used 20, which rejected
+    # `test-not-a-secret` (17) — the suite's own non-secret sentinel — and turned
+    # two real assist-lane tests into "no credential configured". The lesson: the
+    # length floor is not the mechanism that should be catching things. Masks are
+    # caught by shape and by the exact set above; the floor exists only so a
+    # one- or two-character slip cannot pass for a credential.
+    return len(stripped) < 8
+
+
 def _api_key() -> str | None:
-    return os.environ.get("LEGALMIND_GEMINI_API_KEY") or None
+    raw = os.environ.get("LEGALMIND_GEMINI_API_KEY") or ""
+    if is_placeholder_credential(raw):
+        return None
+    return raw.strip()
 
 
 def _model() -> str:

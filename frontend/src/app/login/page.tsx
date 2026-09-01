@@ -66,7 +66,7 @@ export default function LoginPage() {
     try {
       await api.login(email, password);
       await refresh();
-      router.push("/documents");
+      router.push("/dashboard");
     } catch (cause) {
       setError(cause);
     } finally {

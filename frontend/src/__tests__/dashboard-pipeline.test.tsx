@@ -1,5 +1,5 @@
 /**
- * The Documents pipeline strip — `AI-01`, owner Q9, rule 12.
+ * The Dashboard pipeline strip — `AI-01`, owner Q9, rule 12.
  *
  * This suite exists because the owner-supplied reference for this page described
  * a different product, and its copy is the kind that gets pasted back in. The

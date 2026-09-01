@@ -43,13 +43,26 @@ def _checks(environment: str) -> list[tuple[str, bool, str]]:
     """Configuration checks that require no network. (name, ok, detail)."""
     results: list[tuple[str, bool, str]] = []
 
-    key = os.environ.get("LEGALMIND_GEMINI_API_KEY") or None
+    # "Set" is not the same question as "is a credential". This tool reported
+    # PASS for a literal `***` on 2026-09-01 while the provider answered 400
+    # API_KEY_INVALID — the check was true and useless. It now asks the question
+    # the caller actually means, using the same rule the application applies, so
+    # the tool and the runtime can never disagree.
+    raw = os.environ.get("LEGALMIND_GEMINI_API_KEY", "")
+    if not raw:
+        detail = ("LEGALMIND_GEMINI_API_KEY is not set — set it in the server "
+                  "environment (/root/.legalmind.env), never in a file in the "
+                  "repository")
+    elif generation.is_placeholder_credential(raw):
+        detail = (f"LEGALMIND_GEMINI_API_KEY is SET BUT IS A PLACEHOLDER "
+                  f"({len(raw.strip())} chars), not a credential. The provider "
+                  "will refuse it. Run `bash tools/set_gemini_key.sh`")
+    else:
+        detail = "LEGALMIND_GEMINI_API_KEY is a plausible credential (never printed)"
     results.append((
         "api_key",
-        key is not None,
-        "LEGALMIND_GEMINI_API_KEY is set (value never printed)" if key
-        else "LEGALMIND_GEMINI_API_KEY is not set — set it in the server "
-             "environment, never in a file in the repository",
+        bool(raw) and not generation.is_placeholder_credential(raw),
+        detail,
     ))
 
     model = os.environ.get("LEGALMIND_GENERATION_MODEL", generation.DEFAULT_MODEL)

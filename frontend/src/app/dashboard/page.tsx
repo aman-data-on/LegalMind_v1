@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * Documents — the working inventory and the front door — and one contract's
+ * Dashboard — the working inventory and the front door — and one contract's
  * workspace (2026-09-01 professional-polish redesign, owner-directed;
  * supersedes the 2026-08-31 UX correction's visual shape while keeping every
  * one of its rules: upload-first intake, human-declared type, permission-
  * layered `latest_analysis`, byte-identical scope).
  *
- * Both views live at the fixed pathname `/documents`; which one renders is
+ * Both views live at the fixed pathname `/dashboard`; which one renders is
  * decided by the `?id=` query parameter rather than a path segment, so no
  * record id ever appears in the URL path itself. Every other query param a
  * link into the workspace carries (`classification`, `evidence`, `finding`,
@@ -210,7 +210,7 @@ function DocumentsListView() {
     <>
       <div className="ws-context">
         <span className="ws-context__icon" aria-hidden="true"><IconFile size={18} /></span>
-        <h1>Documents</h1>
+        <h1>Dashboard</h1>
         {pagination ? (
           <span className="ws-context__meta ws-mono">{pagination.total} total contracts</span>
         ) : null}
@@ -252,7 +252,7 @@ function DocumentsListView() {
                   </button>
                 ) : null}
               </div>
-              <Link href={`/documents?id=${attention.id}`} className="ws-doctend__card">
+              <Link href={`/dashboard?id=${attention.id}`} className="ws-doctend__card">
                 <div className="ws-doctend__row">
                   <span className="ws-doctend__name">{attention.name}</span>
                   {attention.contract_type ? (
@@ -375,7 +375,7 @@ function DocumentsListView() {
                             full value must still be reachable by pointer and by
                             keyboard focus. */}
                         <Link
-                          href={`/documents?id=${contract.id}`}
+                          href={`/dashboard?id=${contract.id}`}
                           className="ws-doc-name"
                           title={contract.name}
                         >
@@ -400,7 +400,7 @@ function DocumentsListView() {
                       </td>
                       <td className="ws-mono">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
                       <td>
-                        <Link href={`/documents?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--primary">
+                        <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--primary">
                           {bucket === "draft" ? "Analyze"
                             : bucket === "analyzing" ? "View Progress" : "Review"}
                         </Link>

@@ -79,7 +79,7 @@ export function TranscriptTurn({
                 {contractId ? (
                   <Link
                     className="ws-ask__cite"
-                    href={`/documents?id=${contractId}&evidence=${citation.evidence_id}`}
+                    href={`/dashboard?id=${contractId}&evidence=${citation.evidence_id}`}
                     data-evidence-id={citation.evidence_id}
                   >
                     <span className="ws-mono">[{index + 1}]</span> {citeLabel(citation.section_ref, citation.page_number)}

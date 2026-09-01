@@ -73,19 +73,19 @@ export interface NavItem {
 
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
-  if (can(P.CONTRACT_VIEW)) items.push({ href: "/documents", label: "Documents" });
-  if (can(P.REVIEW_VIEW)) items.push({ href: "/documents/reviews", label: "Reviews" });
-  if (can(P.LEGAL_REVIEW)) items.push({ href: "/documents/legal", label: "Legal" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/documents/ask", label: "Ask History" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/documents/research", label: "Research" });
+  if (can(P.CONTRACT_VIEW)) items.push({ href: "/dashboard", label: "Dashboard" });
+  if (can(P.REVIEW_VIEW)) items.push({ href: "/dashboard/reviews", label: "Reviews" });
+  if (can(P.LEGAL_REVIEW)) items.push({ href: "/dashboard/legal", label: "Legal" });
+  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask History" });
+  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/research", label: "Research" });
   // The control plane sits last — it is not part of the legal workflow (§H).
-  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/documents/admin", label: "Admin" });
+  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Admin" });
   return items;
 }
 
 /**
  * The nav item a pathname belongs to — the LONGEST matching href, so that
- * `/documents/reviews/…` lights "Reviews" and never also "Documents" (whose
+ * `/dashboard/reviews/…` lights "Reviews" and never also "Documents" (whose
  * href is a prefix of every workspace route).
  */
 export function activeNavHref(pathname: string, items: NavItem[]): string | null {

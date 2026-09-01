@@ -162,7 +162,7 @@ export default function LegalQueuePage() {
                 {state.rows.map(({ finding, review }) => (
                   <tr key={finding.id} data-finding-id={finding.id}>
                     <td>
-                      <Link href={`/documents?id=${review.contract_id}&finding=${finding.id}`}>
+                      <Link href={`/dashboard?id=${review.contract_id}&finding=${finding.id}`}>
                         {finding.requirement.code ?? "Requirement"}
                         {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
                       </Link>
@@ -174,7 +174,7 @@ export default function LegalQueuePage() {
                       </span>
                     </td>
                     <td>
-                      <Link href={`/documents?id=${review.contract_id}`}>
+                      <Link href={`/dashboard?id=${review.contract_id}`}>
                         {state.names[review.contract_id] ?? review.contract_id.slice(0, 8)}
                       </Link>
                     </td>
@@ -182,7 +182,7 @@ export default function LegalQueuePage() {
                       <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
                         {review.status}
                       </span>{" "}
-                      <Link href={`/documents/reviews?id=${review.id}`}>Report</Link>
+                      <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
                     </td>
                   </tr>
                 ))}

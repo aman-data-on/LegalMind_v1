@@ -10,7 +10,7 @@
  * `Location` header, no `<meta refresh>`), and in a full page load through this
  * app's `RootLayout > SessionProvider > Chrome` tree that flight-based redirect
  * did not complete — the browser stayed on `/` rendering `Chrome`'s own
- * signed-out fallback instead of ever reaching `/documents`.
+ * signed-out fallback instead of ever reaching `/dashboard`.
  *
  * `useRouter().replace()` is the same mechanism `login/page.tsx` already uses
  * for its own post-login navigation, and it works there — so this follows the
@@ -24,7 +24,7 @@ import { useEffect } from "react";
 export default function Home() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/documents");
+    router.replace("/dashboard");
   }, [router]);
   return null;
 }
