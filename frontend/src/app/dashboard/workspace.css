@@ -91,7 +91,9 @@
 /* The font-variable carrier the route-group layout wraps the shell in — it must
    not participate in layout, only pass CSS variables down. */
 .ws-fonts { display: contents; }
-.ws a { color: var(--ws-accent); }
+.ws a { color: var(--ws-accent); transition: color var(--ws-t), text-decoration var(--ws-t); }
+.ws a:hover { color: var(--ws-accent-strong); text-decoration: underline; }
+.ws a:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws :focus-visible {
   outline: 2px solid var(--ws-accent);
   outline-offset: 2px;
@@ -379,12 +381,15 @@
   font: inherit; font-size: var(--ws-text-sm); font-weight: 500; padding: 8px 14px; min-height: 36px;
   border-radius: var(--ws-radius); border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
   color: var(--ws-ink-700); cursor: pointer; text-decoration: none; display: inline-block;
-  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
+  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t), transform var(--ws-t), box-shadow var(--ws-t);
 }
-.ws-btn:hover:not(:disabled) { border-color: var(--ws-ink-500); color: var(--ws-ink-900); }
+.ws-btn:hover:not(:disabled) { border-color: var(--ws-ink-500); color: var(--ws-ink-900); background: var(--ws-paper); }
+.ws-btn:active:not(:disabled) { transform: scale(0.98); }
+.ws-btn:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .ws-btn--primary { background: var(--ws-accent); border-color: var(--ws-accent); color: #fff; }
-.ws-btn--primary:hover:not(:disabled) { background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); color: #fff; }
+.ws-btn--primary:hover:not(:disabled) { background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); color: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); }
+.ws-btn--primary:active:not(:disabled) { transform: scale(0.97); }
 
 /* ==========================================================================
  * Findings pane (Phase 2 slice 2, 2026-08-30) — the Authority register.
@@ -818,9 +823,10 @@
   border: 1.5px dashed var(--ws-ink-300); border-radius: var(--ws-radius);
   background: var(--ws-surface); padding: var(--ws-s4) var(--ws-s5);
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
-  transition: border-color var(--ws-t), background-color var(--ws-t);
+  transition: border-color var(--ws-t), background-color var(--ws-t), box-shadow var(--ws-t);
 }
-.ws-drop--over { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-drop:hover { border-color: var(--ws-ink-500); box-shadow: inset 0 1px 3px rgba(14, 20, 32, 0.05); }
+.ws-drop--over { border-color: var(--ws-accent); background: var(--ws-accent-soft); box-shadow: inset 0 2px 4px rgba(37, 99, 235, 0.1); }
 .ws-drop__lede { margin: 0; max-width: 52ch; color: var(--ws-ink-700); }
 .ws-drop__pick { cursor: pointer; }
 .ws-drop__hint { font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
@@ -967,7 +973,9 @@
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
   border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
   padding: 10px var(--ws-s4); display: flex; flex-direction: column; gap: 4px;
+  transition: border-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
+.ws-doctile:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
 .ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
 .ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
 .ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
@@ -994,7 +1002,8 @@
   border-radius: var(--ws-radius); padding: 10px 12px;
   transition: border-color var(--ws-t), box-shadow var(--ws-t);
 }
-.ws-doctend__card:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
+.ws-doctend__card:hover { border-color: var(--ws-warn); box-shadow: 0 4px 12px rgba(217, 119, 6, 0.12); }
+.ws-doctend__card:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-doctend__row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ws-doctend__name { font-weight: 650; color: var(--ws-ink-900); font-size: 14px; }
 .ws-doctend__go {
