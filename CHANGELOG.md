@@ -12,6 +12,275 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **REC-02 / D-4 resolved: `UNMATCHED_PROVISION` observations are now written
+  and surfaced (2026-09-01, owner-directed).** A clause in the counterparty's
+  document with no corresponding Company Standard Requirement is recorded once
+  per CLAUSE (grouped exactly like the workspace's own outline, so a heading
+  and its body never double-count) — new `legalmind/analysis/unmatched.py`,
+  called from `run_analysis` after every Finding/Evaluation exists. Never a
+  Finding, never a classification, never a lifecycle input (REC-02 rules 1–3
+  stand); "matched" means "a Finding of this Review cites it", so nothing about
+  the still-open D-1/D-2/D-3 mapping-threshold questions was decided. Report
+  and export gained a real "needs a human look" list with location + excerpt +
+  a jump-to-clause link (`unmatched_provisions_detail`); the existing
+  `unmatched_provisions` count is unchanged. Owner-directed review-treatment
+  ruling: routed to a human, never presumed negative.
+* **Documents list redesign — search / filters / sort / real stat tiles
+  (2026-09-01, owner-directed, reference screenshot + `legalmind.lsnw.io`
+  structure).** `GET /contracts` gained `q`/`contract_type`/`status`/`sort`;
+  new `GET /contracts/summary` (real counts across every contract the caller
+  owns — total/draft/analyzing/needs_attention/analyzed). One shared
+  `_status_bucket` computation (backend) / `documentStatusBucket` (frontend)
+  so a stat tile, a `?status=` filter and a row's own pill can never disagree
+  — four DERIVED buckets, never a new lifecycle enum, never a Finding
+  Classification. `UploadContract.tsx` became a live checklist (Uploaded →
+  Content Extracted → Type Detected → Standard Identified → Analyzing) built
+  from the SAME sequential calls as before — no new backend capability there.
+  Q9/`AM-34` stand exactly as locked: when the assist lane is confident, a
+  single "Confirm & Analyze" click is still what records the type (no
+  dropdown shown by default; "Not right?" reveals one on demand); when it
+  isn't, the dropdown is the only option, unchanged. Workspace/review pages
+  untouched — this redesign is scoped to `/documents`'s list view only, via a
+  new `.ws-docs--index` wrapper class so the shared `.ws-docs__table`/
+  `.ws-pager`/`.ws-intake` styling other screens (Reviews, Legal, Ask, Admin)
+  reuse is not affected. Fixed in the same pass: `ReviewReportPage.tsx`'s own
+  unmatched-provisions copy used the word "verdict" while denying it was one —
+  caught by the existing `test_...never_a_grade` e2e assertion, reworded.
+  Verified: backend 1056 passed + ruff + mypy; frontend typecheck +
+  134 Vitest; Playwright 59 passed / 3 skipped (1 unrelated flake, confirmed
+  passing in isolation; 1 unrelated login/OIDC failure from concurrent work,
+  confirmed out of this diff's file scope).
+
+* **Corporate SSO via OIDC — "Continue with Google" — implemented (2026-09-01,
+  owner-directed).** Locked 47.1.3 / `SEC-01` (OD-9) has made OIDC the *primary*
+  authentication mechanism since Step 47; the two routes locked 49.2 names are now
+  registered and tested, and `api/permission_map.NOT_IMPLEMENTED` is empty for the
+  first time. New: `backend/legalmind/security/oidc.py` (discovery with
+  issuer-match verification, authorization-code flow with `state`, `nonce` and
+  PKCE S256, `openid email` scope only), the two routes in
+  `api/routers/auth.py`, six `LEGALMIND_OIDC_*` settings in `config.py`, the
+  four-colour Google mark and the single failure notice on the sign-in screen,
+  and 28 + 8 tests (`backend/tests/test_oidc.py`,
+  `frontend/src/__tests__/login-sso.test.tsx`).
+
+  **No new dependency, so rule 19 is never triggered.** The earlier blocker — "OIDC
+  needs an approved JWT/JWKS client library" — turned out not to apply: the ID
+  token is read from the response to our own direct, TLS-authenticated POST to the
+  issuer's token endpoint using a secret only we hold, which OIDC Core §3.1.3.7 r6
+  covers explicitly. Transport is stdlib `urllib`, the same choice already made for
+  `AM-30`'s generation adapter. The module must therefore never accept an ID token
+  from a client, and says so.
+
+  **Four deliberate constraints, each pinned by a test.** SEC-01 is unchanged —
+  a fresh SSO session resolves an empty permission array, because authentication
+  still confers no authority. **There is no just-in-time provisioning:** an identity
+  matching no existing user is refused, so an identity provider cannot mint
+  LegalMind principals and the login screen's "accounts are created by an
+  administrator" stays true. S-7 holds — one indistinguishable outcome for all nine
+  failure causes, in the API and in the UI copy. And locked S-3 is untouched: the
+  session cookie keeps `SameSite=Strict`, which is why the callback returns a
+  same-site landing page instead of a 302 (a redirect would still belong to the
+  chain that began at the IdP, so the browser would withhold the Strict cookie and
+  the user would arrive signed out).
+
+  ⚠️ **Registered `C-17` (LOW, blocks nothing).** This opened a second network
+  egress path, which `AM-30` t10's *"the provider call is the only external call in
+  the stack"* reads against — while 47.1.3 mandates a mechanism that cannot exist
+  without one. Per rule 5 the tension is registered, not resolved: see
+  [CONFLICTS.md](docs/00-project/CONFLICTS.md) C-17. Nothing else about `AM-30`
+  moves — the authentication payload carries no document, no chunk and no internal
+  legal position, and a test fails if the module ever imports a layer holding one.
+
+  **Configured on the server the same day.** The owner supplied the client secret;
+  it is set in `/root/.legalmind.env` (mode 600, outside source control per S-6) and
+  the 55.6 preflight's `oidc` row now reads `PASS`. `GET /auth/oidc/start` returns a
+  live 302 to Google carrying state, nonce and PKCE. ⚠️ **The secret was pasted into
+  a chat transcript and should be rotated** — Google Cloud console → the LegalMind
+  client → Add secret, update the env file, restart `legalmind-api`, then delete the
+  old secret.
+
+  **One owner action still outstanding:** the Authorized redirect URI on the Google
+  client is still the bare origin `https://legalmind.lsnw.io`, and Google answers the
+  authorization request with `redirect_uri_mismatch`. It must be exactly
+  `https://legalmind.lsnw.io/api/v1/auth/oidc/callback`. The preflight now also fails
+  a redirect URI that is plaintext or points at a route this application does not
+  serve.
+
+* **DD-11: filler removed, width made adaptive, type pre-filled from the filename
+  (2026-09-01, owner-directed).** Three instructions in one pass.
+
+  *Filler out.* The page lede went entirely — it restated the five-step strip
+  directly beneath it. The upload card's body copy went (it restated strip steps 3
+  and 4), as did the empty-state sentence (the heading states the condition, the
+  button the action), the "documents stay on our own infrastructure" reassurance,
+  and the footer's duplicated formats line. Step captions cut to ≤32 characters,
+  enforced by a test. The dead **"How analysis works"** link was removed rather
+  than shortened: it pointed at `?guide=1`, which renders nothing.
+
+  *Width.* `.ws-docs` caps at 72rem — correct as a reading measure for the prose
+  views sharing the class, wrong for a seven-column table, which was squeezed into
+  1152px while a 1920px display sat ~380px empty each side. Lifted for
+  `.ws-docs--index` only, to `min(112rem, 100%)` with fluid gutters: 93% of a
+  1920px viewport, 100% of a 1440px one, and it stops growing past ~1800px where a
+  table row becomes its own tracking problem. Fixed column widths ≥1200px so extra
+  width goes to the document name, which truncates on one line with the full value
+  on `title`. A short-viewport rule (≤820px tall) tightens the vertical rhythm so
+  the table header stays above the fold at 1366×768.
+
+  *Type pre-fill.* The picker now always renders and is pre-filled — assist-lane
+  proposal first, then a Step 6 code named in the filename — with help text naming
+  which source produced the value. Within `AM-34` t1, which authorises "the
+  document version's own committed evidence **plus its original filename**" and
+  says the proposal "pre-fills the intake select". Owner Q9 is untouched: filling a
+  control is not recording a type; `contract_type` is still written only by the
+  human's submit. The previous branch (prose + "Not right? Change it" link, select
+  hidden until clicked) is gone — it asserted an identification more firmly than a
+  suggestion warrants and hid the field the reader was about to be judged on.
+
+  ⚠️ **Root cause of the owner's report was external: the Gemini API key is
+  invalid.** `models?key=…` returns `API_KEY_INVALID`, so the pinned
+  `gemini-3.6-flash` call 400s and every `AM-34` suggestion degrades to "not
+  confident" — as does Ask and Key Obligations. The filename pre-fill above works
+  without it; the content-based suggestion needs a new key from the owner.
+
+  *Two defects fixed, both found by screenshot.* A filename wrapping to two lines
+  made table rows ragged. And my own earlier `flex-wrap: wrap` topbar fix was
+  wrong — `.ws-shell` has a fixed height, so the wrapped row overflowed the bar and
+  covered the page title at 390px; replaced with a non-wrapping rule that drops the
+  user's name and keeps "Sign out" reachable.
+
+* **DD-10: the Documents index rebuilt to the owner's reference (2026-09-01).**
+  Five-step explainer strip beside the intake card, icon-left stat tiles, and the
+  toolbar/table/footer unified into one card so the column header survives an
+  empty table. New `frontend/src/components/workspace/Pipeline.tsx`, seven SVG
+  icons, ~260 lines of scoped CSS on the existing `--ws-*` tokens.
+
+  ⚠️ **The reference's copy was not shipped, and the page lede already in the tree
+  was rewritten.** "AI extracts text and key clauses" contradicts `AI-01`;
+  "automatically detect the contract type" contradicts owner Q9 (declared, never
+  inferred — `AM-34` allows only a human-confirmed suggestion); "risks &
+  actionable insights" contradicts rule 12. The strip now describes what the
+  engine actually does, and 10 tests in `documents-pipeline.test.tsx` assert the
+  prohibitions against rendered markup. Full table in
+  [DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) DD-10.
+
+  Verified by screenshot at 1600/980/600/380px rather than by inspection, which
+  caught two defects: a wrapping step label that broke the row's shared baseline,
+  and a **pre-existing** `.ws-shell__user` overflow clipping "Sign out" off-screen
+  below ~720px (fixed).
+
+* **`AM-36` (AB-8): stateless JWT session tokens (2026-09-01, owner-directed,
+  against recorded engineering advice).** The owner was shown the alternatives and
+  the consequences in writing, with a recommendation to keep server-side sessions,
+  and chose to amend OD-9. Landed as an **append-only** lock record — 96 lines
+  appended, `git diff --numstat` shows **0 deletions**, so `all_lock.md`'s prior
+  16,689 lines are byte-identical (rule 22). `all_lock.md` is now 16,785 lines.
+  New `backend/legalmind/security/tokens.py`; issuance at the OIDC callback,
+  acceptance in `api/deps.get_principal`; `jwt_signing_key` added to the preflight
+  (24 checks); 29 tests in `backend/tests/test_tokens.py`.
+
+  **What was amended:** four of OD-9's five session lines — server-side-only,
+  identity-only contents, fresh-per-request authority as the sole model, and
+  "Rejected — stateless JWT model". **What was not:** OD-9's hard rule that
+  authentication never confers Legal Decision authority, which is why the
+  mechanism is shaped the way it is.
+
+  **Three bounds, each pinned by a test.** `AM-36` t3 — the `roles` claim is
+  **advisory and never enforced**: `get_principal` takes `sub` and discards the
+  rest, and `test_a_signed_token_claiming_super_roles_grants_nothing` presents a
+  validly signed token asserting every role in the system and asserts an empty
+  permission array. t4(b) — account status is re-checked from the database on the
+  token path, so a disabled account is refused immediately despite a live token.
+  t5 — HS256 only, key floor of 32 bytes, and **no downgrade**: an absent or short
+  key means refuse-to-issue *and* refuse-to-verify. `alg: none` and every other
+  declared algorithm are refused because the header is compared against a fixed
+  value rather than used to select an algorithm.
+
+  **`AM-36` t7 authorized a JWT library and it went deliberately unused.** HS256
+  verification is one stdlib HMAC and a constant-time compare; what a library adds
+  is multi-algorithm negotiation and JWKS fetching, which is the machinery behind
+  the algorithm-confusion bug class. Same reasoning as `AM-30`'s generation adapter
+  using stdlib `urllib` over a provider SDK. Rule 19's dependency surface did not
+  grow. (`PyJWT` is also un-installable here under PEP 668.)
+
+  ⚠️ **The accepted cost is asserted in the suite, not hidden.**
+  `test_the_accepted_degradation_is_real` revokes every server-side session and
+  asserts the pre-issued token *still authenticates* — because no server-side list
+  can stop it. That is precisely what OD-9's "Revocation — immediate, server-side"
+  prevented. Rotating `LEGALMIND_JWT_SECRET` is the only blunt revocation
+  available. If a future decision restores immediate revocation, that test should
+  start failing and be deleted rather than fixed.
+
+  Mitigations chosen inside the instruction: the token is issued **alongside** the
+  server-side session rather than instead of it, and `get_principal` prefers the
+  session when both cookies are present, so a normal browser sign-in stays fully
+  revocable; and logout clears the token cookie, since leaving it would mean an
+  explicit sign-out left a live 24-hour credential in the browser.
+
+* **JIT provisioning + the corporate-domain refusal message (2026-09-01,
+  owner-directed).** Reverses the same session's no-provisioning choice on the
+  owner's instruction. A first sign-in by a verified `@leapswitch.com` address now
+  creates the account; the `profile` scope was added for the one `name` claim the
+  app chrome renders. **`ROLE_USER` and nothing else** —
+  `test_provisioning_grants_work_permissions_and_no_authority` asserts the account
+  holds no `legal.decision`, `legal.approve_customization`, `legal_position.view`,
+  `user.manage`, `role.manage`, `platform.manage` or `audit.view`, so `SEC-01`
+  holds: the provider says who you are, never what you may do. Fails closed on an
+  unseeded role code rather than creating a powerless-by-accident account.
+  `LEGALMIND_OIDC_JIT_ROLES=DISABLED` restores the previous behaviour; an empty
+  value provisions with no roles. The corporate-domain refusal became the one
+  deliberately distinguishable outcome (`sso=domain`) — it runs before any database
+  lookup and the domain is already public in the request's `hd`, so it discloses
+  nothing S-7 protects. Decisions 270–273 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md); 41 tests across
+  the two suites. **No locked decision amended** — Step 47 locks the session model
+  and identity contract, not who may create a `User` row.
+
+  ⚠️ **Reported, not relied on:** `tools/dev_account.py` cites *"Locked 47.1.3 r3:
+  LegalMind never self-provisions an account"*. §47.1.3 has no r3 and no such
+  sentence — it is the eight-line OD-9 table. An implementation choice had been
+  written up as a lock.
+
+  🚫 **Requested and NOT built:** stateless JWT session management. Step 47 / OD-9
+  reads `Rejected → stateless JWT model`, `Session contents → identity (user_id)
+  ONLY` and `Authority resolution → fresh from the database on every request`;
+  four of its five session lines would have to change, so it needs owner approval
+  under rule 6 rather than an implementation.
+
+* **Fixed: the live API had been served by a stale dev process, not its systemd unit
+  (found 2026-09-01).** A `python3 -m uvicorn … --reload` started manually by an
+  earlier session at 13:16 held `127.0.0.1:8000`, so `legalmind-api.service` had been
+  crash-looping on `EADDRINUSE` **844 times** and every `systemctl restart` since had
+  been a no-op. Two consequences, both now closed: that process carried
+  `LEGALMIND_RATELIMIT_LOGIN_MAX=200` — the test-harness loosening decision 257
+  deliberately omits, so the live S-5 login limit had been relaxed — and its
+  environment predated the OIDC keys, which is why SSO reported "unavailable" after
+  the secret was set. The process tree was killed and the unit now owns the port
+  (`NRestarts=0`, and its environment carries the OIDC settings and *not* the
+  loosened limit). Worth remembering: `systemctl restart` succeeding is not evidence
+  the unit is serving — check `ss -ltnp` for who actually holds the port.
+
+* **`legalmind.lsnw.io` served over HTTPS behind an nginx edge (2026-09-01,
+  owner-directed).** The Step 55.1 shape, realized: one origin, `/api/v1/*` to
+  FastAPI and everything else to the Next.js production build, TLS terminated at
+  the edge with an auto-renewing Let's Encrypt certificate, edge rate limits on
+  the authentication endpoints per 55.2, and both application processes moved
+  from manually-started dev servers to `systemd` units bound to loopback. `ufw`
+  now admits 22/80/443 only — the frontend had been reachable on
+  `0.0.0.0:3000` over plain HTTP, bypassing TLS. Operational choices are
+  recorded as decisions 250–260 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md); none amends a
+  lock record, and Step 55.6 lists the hosting platform as `NOT YET SPECIFIED`.
+  **This is staging-shaped, not production:** the API still points at
+  `legalmind_v1_dev`, and 55.6's remaining prerequisites — production database
+  with a separate migration role, backup with verified restore, retention policy
+  (itself `NOT YET SPECIFIED`), malware-scanning decision — are open. Google is
+  the chosen OIDC provider and its client id is configured. ⚠️ **The sentence
+  that followed here — "the OIDC routes remain unregistered: they need a
+  JWT/JWKS library, which is a rule 19 dependency awaiting owner approval" — was
+  superseded later the same day; see the OIDC entry above. No dependency was
+  needed.**
+
 * **DD-9: the reference-matched workspace (2026-09-01, owner-directed — "exactly
   like the image").** Full visual restyle recorded as DD-9 in
   [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md): white

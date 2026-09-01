@@ -15,6 +15,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  FileText,
+  CheckCircle,
+  Settings,
+  LogOut,
+  LogIn,
+  Users,
+  BarChart3,
+} from "lucide-react";
 
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -23,15 +32,16 @@ interface NavItem {
   href: string;
   label: string;
   permission: string;
+  icon: React.ReactNode;
 }
 
 /** One row per locked 52.6 screen, each carrying its 49.3 permission. */
 const NAV: NavItem[] = [
-  { href: "/contracts", label: "Contracts", permission: P.CONTRACT_VIEW },
-  { href: "/reviews", label: "Reviews", permission: P.REVIEW_VIEW },
-  { href: "/configuration", label: "Legal configuration", permission: P.CONFIGURATION_VIEW },
-  { href: "/audit", label: "Audit", permission: P.AUDIT_VIEW },
-  { href: "/admin", label: "Users & roles", permission: P.USER_MANAGE },
+  { href: "/contracts", label: "Contracts", permission: P.CONTRACT_VIEW, icon: <FileText size={18} /> },
+  { href: "/reviews", label: "Reviews", permission: P.REVIEW_VIEW, icon: <CheckCircle size={18} /> },
+  { href: "/configuration", label: "Legal configuration", permission: P.CONFIGURATION_VIEW, icon: <Settings size={18} /> },
+  { href: "/audit", label: "Audit", permission: P.AUDIT_VIEW, icon: <BarChart3 size={18} /> },
+  { href: "/admin", label: "Users & roles", permission: P.USER_MANAGE, icon: <Users size={18} /> },
 ];
 
 export function Chrome({ children }: { children: React.ReactNode }) {
@@ -42,21 +52,21 @@ export function Chrome({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") return <main className="shell shell--login">{children}</main>;
 
   // The new application (PRODUCT_UX_ROADMAP.md) brings its own shell and its own
-  // loading/signed-out states under /workspace (WorkspaceShell) — checked BEFORE
+  // loading/signed-out states under /documents (WorkspaceShell) — checked BEFORE
   // the legacy loading/signed-out fallbacks below, which would otherwise render
   // first and put legacy markup on a new-UI route (found in browser testing,
-  // 2026-08-30: a signed-out visit to /workspace showed the bare "You are signed
+  // 2026-08-30: a signed-out visit to /documents showed the bare "You are signed
   // out" shell before ever reaching the new one). This legacy chrome guarantees
-  // nothing for /workspace; the two never render together either way.
+  // nothing for /documents; the two never render together either way.
   //
   // `/` is included too, and for a sharper reason than styling: the loading and
   // signed-out branches below return their OWN JSX and never render `{children}`
   // at all — so `/`'s own page component (whose only job is a client-side
-  // `router.replace("/workspace")` in a `useEffect`) would never even MOUNT while
+  // `router.replace("/documents")` in a `useEffect`) would never even MOUNT while
   // signed out, and the redirect would silently never fire. Measured, not
   // assumed: this is what a signed-out visit to `/` actually did before this
   // line included it.
-  if (pathname === "/" || pathname.startsWith("/workspace")) return <>{children}</>;
+  if (pathname === "/" || pathname.startsWith("/documents")) return <>{children}</>;
 
   if (loading) {
     return (
@@ -90,15 +100,17 @@ export function Chrome({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={pathname.startsWith(item.href) ? "active" : undefined}
+              title={item.label}
             >
-              {item.label}
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
             </Link>
           ))}
         </nav>
         <div className="topbar__identity">
           <span>{identity.name}</span>
-          <button type="button" className="link" onClick={() => void signOut()}>
-            Sign out
+          <button type="button" className="link" onClick={() => void signOut()} title="Sign out">
+            <LogOut size={18} />
           </button>
         </div>
       </header>

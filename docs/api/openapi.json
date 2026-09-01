@@ -848,6 +848,46 @@
     ]
    }
   },
+  "/api/v1/auth/oidc/callback": {
+   "get": {
+    "description": "Complete corporate SSO and establish the server-side session.\n\nS-7 governs the failure shape. An account bound to another subject, a disabled\naccount, an unverified email, a replayed state and a provider error all render\nthe identical page and the identical query string \u2014 a distinguishable message\nwould turn the login screen into a directory of who has a LegalMind account.\n\n**One refusal is deliberately distinguishable: the corporate-domain check.** It\nruns before any database lookup, and the permitted domain is already public in\nthe authorization request's ``hd`` parameter, so naming it discloses nothing an\nattacker could not already read. Telling a user with a personal Gmail address\nexactly why they were turned away is worth far more than the nothing it costs.\nEverything else stays indistinguishable, and `oidc.OidcDomainRefused` being its\nown class is what keeps that boundary deliberate rather than accidental.",
+    "operationId": "oidc_callback_api_v1_auth_oidc_callback_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Oidc Callback",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/oidc/start": {
+   "get": {
+    "description": "Begin corporate SSO \u2014 redirect the browser to the identity provider.\n\nRate-limited on the same S-5 bucket shape as password login and keyed on the\nclient address: an unauthenticated route that performs an outbound discovery\nrequest must not be a free amplifier.",
+    "operationId": "oidc_start_api_v1_auth_oidc_start_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Oidc Start",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
   "/api/v1/auth/session": {
    "get": {
     "description": "49.2 \u2014 the caller's identity plus their **effective permission names**.\n\nA convenience projection for presentation gating only (43.31, 47.6 r3).\nResolved fresh from the database here, not read from the session (S-1), so it\ncan never be staler than the checks that actually enforce anything.",
@@ -1022,9 +1062,69 @@
   },
   "/api/v1/contracts": {
    "get": {
-    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.",
+    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.\n\n``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a\nDERIVED bucket (`_status_bucket`) that does not exist as a contracts-table\ncolumn, so it cannot be pushed into the same ``WHERE`` \u2014 this owner-scoped\nset is bounded (one account's own contracts, never a global scan), so it is\ncomputed once over every matching id and paginated in Python, exactly the\nprecedent `_list_summaries` already set for the per-row projection.",
     "operationId": "list_contracts_api_v1_contracts_get",
     "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 500,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "in": "query",
+      "name": "contract_type",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 200,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Contract Type"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sort",
+      "required": false,
+      "schema": {
+       "default": "created_desc",
+       "title": "Sort",
+       "type": "string"
+      }
+     },
      {
       "in": "query",
       "name": "page",
@@ -1114,6 +1214,30 @@
      }
     },
     "summary": "Create Contract",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/summary": {
+   "get": {
+    "description": "The Documents list's stat tiles \u2014 real counts across EVERY one of the\ncaller's contracts, not just the current page (49.6 scope; additive, no\nlocked row). One aggregation, computed the same way each row's own status\nis (`_status_bucket`), so a tile and a row can never disagree.",
+    "operationId": "contracts_summary_api_v1_contracts_summary_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Contracts Summary Api V1 Contracts Summary Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Contracts Summary",
     "tags": [
      "contracts"
     ]

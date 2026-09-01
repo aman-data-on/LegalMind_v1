@@ -108,6 +108,17 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                         label="Findings awaiting a Legal Decision"))
     blocks.append(Block("kv", str(report.get("unmatched_provisions", 0)),
                         label="Unmatched provisions (document-level observations)"))
+    unmatched_detail = report.get("unmatched_provisions_detail") or []
+    if unmatched_detail:
+        blocks.append(Block(
+            "note",
+            "REC-02: not automatically negative or unacceptable. Each clause "
+            "below has no corresponding requirement in the Company Standard, so "
+            "there is nothing to compare it against — routed here for a person "
+            "to look at, never judged by this report."))
+        for item in unmatched_detail:
+            blocks.append(Block("quote", str(item.get("excerpt") or ""),
+                                label=_evidence_location(item)))
 
     blocks.append(Block("h2", "Findings"))
     if not findings:

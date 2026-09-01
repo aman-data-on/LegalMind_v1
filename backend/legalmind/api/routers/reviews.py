@@ -230,6 +230,8 @@ def analyze_review(
         "findings_created": run.findings_created,
         # Locked F-1 — coverage, not a gap: nothing was required and nothing found.
         "skipped_as_optional": run.skipped_as_optional,
+        # REC-02 / D-4 — a document-level observation, never a Finding.
+        "unmatched_provisions": run.unmatched_provisions,
         "requirements": [
             {
                 "requirement_code": outcome.requirement_code,

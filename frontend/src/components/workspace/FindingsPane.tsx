@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { describeError } from "@/lib/api";
+import { sectionRef } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, Evaluation, Evidence, Finding } from "@/lib/types";
@@ -395,7 +396,7 @@ function EvaluationCard({
                 >
                   {row
                     ? [
-                        row.section_number ? `§${row.section_number}` : null,
+                        sectionRef(row.section_number),
                         row.section_title,
                         row.page_number != null ? `p.${row.page_number}` : null,
                       ]

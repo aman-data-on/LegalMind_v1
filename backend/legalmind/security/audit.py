@@ -23,6 +23,8 @@ AUTH_LOGIN_SUCCEEDED = "auth.login_succeeded"
 AUTH_LOGIN_FAILED = "auth.login_failed"
 AUTH_LOGOUT = "auth.logout"
 AUTH_SESSION_REVOKED = "auth.session_revoked"
+AUTH_TOKEN_REFRESHED = "auth.token_refreshed"
+AUTH_TOKEN_REFRESH_FAILED = "auth.token_refresh_failed"
 # Authorization
 AUTHZ_PERMISSION_DENIED = "authz.permission_denied"
 AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"

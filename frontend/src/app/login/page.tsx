@@ -3,13 +3,10 @@
 /**
  * Sign in — locked 49.2, Step 47 §47.1.
  *
- * Only the **password fallback** is offered, because that is the only mechanism
- * the API implements: the OIDC routes need a JWT/JWKS client library (a dependency
- * requiring approval) and the deployment's identity-provider configuration. Locked
- * 47.1.3 makes corporate SSO the *primary* mechanism. The owner's copy directive
- * (DD-3 addendum) removed visible prose about it — the user cannot act on a
- * mechanism the page does not offer. When OIDC ships, it arrives as a real
- * sign-in control, not as prose.
+ * Both locked mechanisms are now offered. Locked 47.1.3 makes corporate SSO via
+ * OIDC the *primary* mechanism and password login "a controlled fallback"; the
+ * backend registered the two OIDC routes on 2026-09-01, so the Google control
+ * below is a live sign-in path rather than the placeholder it was.
  *
  * S-7 — the API returns an identical response for an unknown account, a wrong
  * credential and a disabled account. This screen must not undo that by phrasing
@@ -29,12 +26,13 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
+import { type SsoOutcome, ssoNotice, ssoOutcomeOf } from "@/lib/sso";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,6 +42,22 @@ export default function LoginPage() {
   const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [ssoOutcome, setSsoOutcome] = useState<SsoOutcome | null>(null);
+
+  /*
+   * The SSO result arrives as a query value because the callback is a top-level
+   * navigation, not a fetch. Read after mount from `window.location` rather than
+   * with `useSearchParams`, which would force this route into a Suspense boundary
+   * for no benefit — the value is only ever present on a redirect-in.
+   *
+   * The S-7 reasoning and the copy itself live in `@/lib/sso` — one outcome for
+   * every cause, and an unrecognised value renders nothing.
+   */
+  useEffect(() => {
+    setSsoOutcome(
+      ssoOutcomeOf(new URLSearchParams(window.location.search).get("sso")),
+    );
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -52,7 +66,7 @@ export default function LoginPage() {
     try {
       await api.login(email, password);
       await refresh();
-      router.push("/workspace");
+      router.push("/documents");
     } catch (cause) {
       setError(cause);
     } finally {
@@ -146,19 +160,49 @@ export default function LoginPage() {
           </form>
 
           {/*
-            Google sign-in — owner-directed placeholder (DD-4 addendum). It links
-            to the locked 49.2 OIDC entry route (`GET /api/v1/auth/oidc/start` →
-            redirect to the identity provider), which the backend does not
-            implement yet. Deliberately an <a>, not a fetch: the OIDC flow is a
-            top-level navigation, so when the backend ships this control starts
-            working with no frontend change. Generic wording — the page cannot
-            know who the user is before they authenticate.
+            Corporate SSO — the locked 49.2 entry route
+            (`GET /api/v1/auth/oidc/start` → redirect to the identity provider).
+            Deliberately an <a>, not a fetch: OIDC is a top-level navigation, and
+            an XHR cannot follow a cross-origin consent redirect.
+
+            Generic wording, and generic on purpose — the page cannot know who the
+            user is before they authenticate, so it never names an account or a
+            domain. The mark is decorative and hidden from assistive technology;
+            the accessible name comes from the visible label.
           */}
+          {ssoOutcome ? (
+            <p className="login__sso-alert" role="alert">
+              {ssoNotice(ssoOutcome)}
+            </p>
+          ) : null}
+
           <a className="login__google" href="/api/v1/auth/oidc/start">
-            <span className="login__google-mark" aria-hidden="true">
-              G
-            </span>
-            Sign in with Google
+            <svg
+              className="login__google-mark"
+              viewBox="0 0 18 18"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                fill="#4285F4"
+                d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62Z"
+              />
+              <path
+                fill="#34A853"
+                d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.34A9 9 0 0 0 9 18Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M3.97 10.72a5.41 5.41 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.01-2.34Z"
+              />
+              <path
+                fill="#EA4335"
+                d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58Z"
+              />
+            </svg>
+            Continue with Google
           </a>
 
           {/* Placeholder destination — owner-directed (DD-4 addendum). */}

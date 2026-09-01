@@ -2,7 +2,7 @@
  * Workspace slice 1 — the pure model and the honest placeholders.
  *
  * Static assertions in the house idiom; the highlight gesture, collapse tabs and
- * real data live in e2e/workspace.spec.ts against the real backend.
+ * real data live in e2e/documents.spec.ts against the real backend.
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -81,20 +81,20 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
-      { href: "/workspace", label: "Documents" },
-      { href: "/workspace/reviews", label: "Reviews" },
-      { href: "/workspace/ask", label: "Ask history" },
-      { href: "/workspace/research", label: "Research" },
+      { href: "/documents", label: "Documents" },
+      { href: "/documents/reviews", label: "Reviews" },
+      { href: "/documents/ask", label: "Ask History" },
+      { href: "/documents/research", label: "Research" },
     ]);
   });
 
   it("the active item is the LONGEST matching href, so Documents never lights on a sibling screen", () => {
     const items = navItemsFor(() => true);
-    expect(activeNavHref("/workspace", items)).toBe("/workspace");
-    expect(activeNavHref("/workspace/0a1b2c3d-0000-4000-8000-000000000000", items)).toBe("/workspace");
-    expect(activeNavHref("/workspace/reviews", items)).toBe("/workspace/reviews");
-    expect(activeNavHref("/workspace/reviews/0a1b2c3d", items)).toBe("/workspace/reviews");
-    expect(activeNavHref("/workspace/ask/0a1b2c3d", items)).toBe("/workspace/ask");
+    expect(activeNavHref("/documents", items)).toBe("/documents");
+    expect(activeNavHref("/documents/0a1b2c3d-0000-4000-8000-000000000000", items)).toBe("/documents");
+    expect(activeNavHref("/documents/reviews", items)).toBe("/documents/reviews");
+    expect(activeNavHref("/documents/reviews/0a1b2c3d", items)).toBe("/documents/reviews");
+    expect(activeNavHref("/documents/ask/0a1b2c3d", items)).toBe("/documents/ask");
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
@@ -102,19 +102,19 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     const counsel = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => counsel.has(p));
     expect(items.map((i) => i.href)).toEqual([
-      "/workspace",
-      "/workspace/reviews",
-      "/workspace/legal",
-      "/workspace/ask",
-      "/workspace/research",
+      "/documents",
+      "/documents/reviews",
+      "/documents/legal",
+      "/documents/ask",
+      "/documents/research",
     ]);
-    expect(activeNavHref("/workspace/legal", items)).toBe("/workspace/legal");
+    expect(activeNavHref("/documents/legal", items)).toBe("/documents/legal");
   });
 
   it("a super admin sees Admin — the new-UI control plane — and nothing legacy", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
     expect(navItemsFor((p) => admin.has(p))).toEqual([
-      { href: "/workspace/admin", label: "Admin" },
+      { href: "/documents/admin", label: "Admin" },
     ]);
   });
 
@@ -229,7 +229,7 @@ describe("TranscriptTurn (ask history replay)", () => {
         turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [citation] }}
       />,
     );
-    expect(html).toContain('href="/workspace?id=c1&amp;evidence=ev1"');
+    expect(html).toContain('href="/documents?id=c1&amp;evidence=ev1"');
     expect(html).toContain("§17.2");
     // Null score → the score line is absent entirely, never "NaN" or a blank label.
     expect(html).not.toContain("retrieval score");

@@ -40,6 +40,18 @@ def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         select(func.count()).select_from(M.UnmatchedProvision)
         .where(M.UnmatchedProvision.review_id == review.id)
     ).scalar_one()
+    # REC-02 / D-4 (owner, 2026-09-01) — WHICH provisions, not just how many, so
+    # a human can actually look at each one. Reading order matches every other
+    # evidence listing in the product (page, then id); the excerpt length
+    # matches the assist lane's own citation convention (240 chars).
+    unmatched_detail = db.execute(
+        select(M.DocumentEvidence)
+        .join(M.UnmatchedProvision,
+              M.UnmatchedProvision.evidence_id == M.DocumentEvidence.id)
+        .where(M.UnmatchedProvision.review_id == review.id)
+        .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
+                 M.DocumentEvidence.id.asc())
+    ).scalars().all()
 
     evaluated = len(findings)
     matched = classifications.get(E.FindingClassification.MATCH.value, 0)
@@ -63,6 +75,17 @@ def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         },
         # REC-02 — a document-level observation, never a Finding classification.
         "unmatched_provisions": unmatched,
+        # D-4 (owner, 2026-09-01): every unmatched provision is routed to a
+        # human — never presumed negative (REC-02 rule 1), just outside the
+        # system's comparison baseline. Never a Finding, never a classification,
+        # never a Legal Decision input.
+        "unmatched_provisions_detail": [{
+            "evidence_id": str(row.id),
+            "page_number": row.page_number,
+            "section_number": row.section_number,
+            "section_title": row.section_title,
+            "excerpt": row.content[:240],
+        } for row in unmatched_detail],
         "findings_requiring_decision": (
             statuses.get(E.FindingStatus.DECISION_REQUIRED.value, 0)
             + statuses.get(E.FindingStatus.AWAITING_CLARIFICATION.value, 0)

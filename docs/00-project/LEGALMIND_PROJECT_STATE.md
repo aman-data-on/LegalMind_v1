@@ -18,12 +18,15 @@ Updated at the end of every working session.*
 
 | | |
 |---|---|
-| **Last worked** | 31 August 2026 (night — the AB-7 build you approved: auto-suggested document type, Key Obligations, the 3-column workspace with the always-visible Ask bar) |
+| **Last worked** | 1 September 2026 (Google sign-in — "Continue with Google" now works end to end, and needs one thing from you: the client secret) · *(earlier:)* 31 August 2026 (night — the AB-7 build you approved: auto-suggested document type, Key Obligations, the 3-column workspace with the always-visible Ask bar) |
 | **Current phase** | **UI/UX IMPLEMENTATION — slice 1 delivered** (your GO, 30 Aug): the new workspace's shell and document pane are live at `/workspace/<contract>` with the click-to-highlight gesture proven; next slice is the Findings pane · *(earlier:)* **GAP-CLOSING + UI/UX PHASE STARTED** (your later instruction, 27 Aug, which also authorized UI/UX in parallel) · everything closable without your inputs is closed; C-15 is resolved (AM-32 built); the one real external gate left is the Gemini terms + key |
 | **AM-32 (AB-5)** | ✅ **Approved and built, 27 Aug** — the positions/statute search tables exist and C-15 is resolved. *(This row previously still asked for the approval; corrected 30 Aug — rule 23, never re-ask a decided thing.)* One question stays open in [STATUTE_INTAKE.md](STATUTE_INTAKE.md): the Evidence Act 1872 was repealed by the Bharatiya Sakshya Adhiniyam 2023 — which do you want indexed? |
 | **UI/UX** | **FROZEN — plus two passes you asked for on 31 Aug**: the polish pass ("use plugin to make frontend design better" — hover/press feedback on every clickable control, counts in the monospace voice, a bounded reading width) and **the real typefaces ("approve the font bundling" — DD-8)**: the product now renders in IBM Plex Sans/Mono and Source Serif, downloaded once at build time and served from our own server — no page ever contacts Google for a font. All checks re-run green after each; the freeze stands again. *(earlier:)* All six areas built, audited, baselined: 15 CI-cut screenshots pin every screen. From here the UI changes only for real defects or new features. Research stays an honest placeholder until your C-16 statute decision. |
 | **The freeze report (morning 27 Aug)** | [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) — the completed/blocked/operator-only breakdown and the verified API contract; superseded the same day by your gap-closing directive, but its contract verification stands |
-| **Health** | 941 backend + 107 frontend + 57 browser checks passing, none failing; 15 visual baselines reproducing; CI (15 jobs) green on every push |
+| **Health** | 1,050 backend + 129 frontend checks passing, none failing (1 skipped); 15 visual baselines reproducing; CI (15 jobs) green on every push. *(Counts re-measured 1 Sep, late, by running both suites.)* |
+| **Google sign-in, 1 Sep** | **BUILT and configured — one click left, in your Google console.** You supplied the client secret and it is set on the server; the button now really does hand you to Google. Google is currently answering *"redirect URI mismatch"*, because that client still lists `https://legalmind.lsnw.io` with no path. Change it to `https://legalmind.lsnw.io/api/v1/auth/oidc/callback` and sign-in works. ⚠️ **Rotate that secret when convenient** — it came through chat, so treat it as exposed. *(Also fixed today: the live API had been running as a leftover development process rather than its proper service since 13:16, which had quietly relaxed the login rate limit.)* Detail below. |
+| **Session tokens, 1 Sep** | **CHANGED ON YOUR INSTRUCTION, and you should know what it cost.** You asked for JWT session tokens; I recommended against it and you chose it anyway, which is your call — it is recorded as your decision, with my written objection kept inside the record. What changed in plain terms: a signed 24-hour token now rides along with the normal session. **The thing we gave up:** that token cannot be cancelled. Previously, disabling someone cut their access instantly. Now, if a token is stolen it keeps working for up to 24 hours and nothing on our side can stop it — rotating the signing key is the only blunt instrument. **What I protected anyway:** the token *says* what roles you have but the system never believes it — permissions are still looked up fresh from the database on every single request, so removing someone's rights still takes effect immediately; a disabled account is refused immediately; and signing out clears the token. There is a test that deliberately proves the loss is real, so it stays visible rather than forgotten. |
+| **Google sign-in — what it does** | **BUILT.** The "Continue with Google" button on the sign-in page is now a real sign-in, not a placeholder — this was always the *primary* way in that the specification called for, and the password form stays as the fallback. Three things worth knowing: no new software was needed (the earlier note about a "JWT library awaiting your approval" turned out not to apply); **Google cannot create accounts** — someone signing in with a Google address we have no account for is simply refused, exactly as before; and signing in with Google gives no extra powers, same as signing in with a password. **One thing left, and only you can do it: the client secret** — see [What I'll need from you](#what-ill-need-from-you-and-when) §3 |
 | **Waiting on you** | ~~Google's written no-training terms and a Gemini API key~~ — **both supplied 31 Aug: the gate is OPEN and Gemini answers work end to end** (verified live with a synthetic document; key stored outside the repository and audited absent from repo and logs). Still open: the statute material (and the Evidence Act 1872 vs BSA 2023 answer) for statute search |
 | **Gemini, 31 Aug** | **LIVE.** You confirmed the paid-tier no-training terms ("confirm"); the release record is appended and the gate opened in the same commit. One catch handled: Google retired the old Flash model for new accounts, so the pin moved to gemini-3.6-flash (family was locked, version wasn't). One follow-up for me, not you: the answer-quality baseline must be measured before AI answers over real contracts are relied on |
 | **Next step once an input arrives** | Resume exactly that thread — the mapping from each input to its work is the last section of [BACKEND_FREEZE_HANDOFF.md](BACKEND_FREEZE_HANDOFF.md) |
@@ -564,10 +567,24 @@ not weakened the permission rule to get around it.
 
 ## Decisions needed from you
 
-**None open right now.** The two that stood here — supplying real test questions, and
-approving the search-model software — were both resolved on 25–26 August (see the struck-through
-rows 5 and 6 in *Blockers*). What's still waiting on you is external action, not a decision;
-see the next section.
+**One open item, raised in session 2026-09-01 (UI review):** you asked for a status covering
+a clause the counterparty's document contains that has **no matching Requirement in our own
+Company Standard** ("extra clause on their side"). This is real and useful, but it doesn't
+exist in the engine today — it's the same gap CLAUDE.md's registry already names as
+`UNMATCHED_PROVISION` ("Persistence, surfacing, and review treatment of `UNMATCHED_PROVISION`
+observations" — explicitly **NOT YET SPECIFIED**). It was not built this session because its
+legal meaning is a policy call, not an engineering one — precisely like the zero-tolerance
+Legal Rule was your ruling, not a code choice.
+
+**What needs deciding, once you're ready:** is an unmatched provision always routed to a
+human (my recommendation — the system has no baseline to judge it against, so it fails
+closed exactly like every other undecided path), and does it get its own classification
+value or ride as a non-Finding "observation" the way the registry entry implies? Say the word
+and this gets specified and built.
+
+The two that previously stood here — supplying real test questions, and approving the
+search-model software — were resolved on 25–26 August (see the struck-through rows 5 and 6 in
+*Blockers*).
 
 ## What I'll need from you, and when
 
@@ -596,6 +613,30 @@ provide them has been logged and requires no new action from you.
   set it on the server or hand it to whoever operates it.
 - **Until then:** everything except the final generated sentence works — search,
   citations, refusals — and I've tested the generation path against a stand-in.
+
+### 3. The Google client secret — due now, and it is the only thing between us and working Google sign-in
+
+- **What:** the client secret for the LegalMind OAuth client you created in Google Cloud
+  (project `legalmind-507306`). It looks like `GOCSPX-…`. Google no longer lets you *view*
+  an existing secret, so if you don't have it saved, open that client and use **Add
+  secret** to mint a new one — the old one keeps working until you delete it.
+- **Where it goes:** the server's environment as `LEGALMIND_OIDC_CLIENT_SECRET`, exactly
+  like the Gemini key — never in a file in the repository, never in a document, and I will
+  never ask you to paste it in chat.
+- **One more click while you're in there.** The client's **Authorized redirect URI** is
+  currently `https://legalmind.lsnw.io`, and Google will reject that — a bare address with
+  no path is not allowed there. It must be, exactly:
+
+  ```
+  https://legalmind.lsnw.io/api/v1/auth/oidc/callback
+  ```
+
+  (A bare address *is* valid in the **Authorized JavaScript origins** box above it, which
+  is a different setting and one we don't need.)
+- **Until then:** the button is live but will say sign-in is unavailable, and everyone
+  signs in with email and password as they do today. Nothing is broken by waiting.
+- **Worth deciding while you're there:** sign-in is currently restricted to
+  `@leapswitch.com` addresses. Say the word if you want that opened up or changed.
 
 ### Later (not yet due)
 

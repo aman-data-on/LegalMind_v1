@@ -139,22 +139,50 @@ def test_disabled_rate_limiting_is_a_failure(monkeypatch):
 # =====================================================================
 # 55.6 — the blockers that are not ours to close
 # =====================================================================
-def test_oidc_is_blocked_not_failed():
-    """BLOCKED, because it is not a misconfiguration: OIDC is the locked primary
-    mechanism (47.1.3) and is genuinely unimplemented, needing an approved
-    dependency and provider configuration."""
+def test_oidc_is_blocked_when_unconfigured():
+    """BLOCKED, because it is not ours to close: the flow is implemented (2026-09-01)
+    but 47.1.3's primary mechanism needs the deployment's own IdP registration,
+    which is locked 55.6's first blocker."""
     check = by_name(run_preflight())["oidc"]
     assert check.status == BLOCKED
-    assert "NOT IMPLEMENTED" in check.detail
+    assert "NOT CONFIGURED" in check.detail
 
 
-def test_oidc_stays_blocked_even_when_configured(monkeypatch):
-    """Configuration alone does not implement the flow, and the preflight must not
-    imply otherwise."""
-    for name in ("LEGALMIND_OIDC_ISSUER", "LEGALMIND_OIDC_CLIENT_ID",
-                 "LEGALMIND_OIDC_CLIENT_SECRET"):
-        monkeypatch.setenv(name, "x")
-    assert by_name(run_preflight())["oidc"].status == BLOCKED
+def _configure_oidc(monkeypatch, redirect="https://x.example/api/v1/auth/oidc/callback"):
+    monkeypatch.setenv("LEGALMIND_OIDC_ISSUER", "https://accounts.google.com")
+    monkeypatch.setenv("LEGALMIND_OIDC_CLIENT_ID", "cid")
+    monkeypatch.setenv("LEGALMIND_OIDC_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("LEGALMIND_OIDC_REDIRECT_URI", redirect)
+
+
+def test_oidc_passes_once_the_deployment_configures_it(monkeypatch):
+    _configure_oidc(monkeypatch)
+    assert by_name(run_preflight())["oidc"].status == PASS
+
+
+def test_oidc_without_a_domain_restriction_says_so(monkeypatch):
+    """Not a failure — no domain restriction is a legitimate deployment choice, and
+    the account-must-already-exist rule still gates it. But the operator must be
+    told, because it is the difference between "our staff" and "anyone with a
+    Google account for whom an admin happened to create a user"."""
+    _configure_oidc(monkeypatch)
+    monkeypatch.delenv("LEGALMIND_OIDC_ALLOWED_DOMAIN", raising=False)
+    detail = by_name(run_preflight())["oidc"].detail
+    assert "NO email-domain restriction" in detail
+    assert "no just-in-time provisioning" in detail
+
+
+def test_oidc_refuses_a_plaintext_redirect_uri(monkeypatch):
+    """The authorization code is delivered to this URL. Over http it is disclosed."""
+    _configure_oidc(monkeypatch, redirect="http://x.example/api/v1/auth/oidc/callback")
+    assert by_name(run_preflight())["oidc"].status == FAIL
+
+
+def test_oidc_refuses_a_redirect_uri_that_is_not_the_served_route(monkeypatch):
+    """A redirect URI that does not match the route we serve means every sign-in
+    404s at the IdP's callback — caught before deployment, not after."""
+    _configure_oidc(monkeypatch, redirect="https://x.example/auth/callback")
+    assert by_name(run_preflight())["oidc"].status == FAIL
 
 
 def test_retention_policy_is_blocked_on_the_owner():

@@ -55,3 +55,21 @@ export function typeHintFromFilename(filename: string): string | null {
   }
   return null;
 }
+
+/**
+ * `§` in front of a section number — once, never twice.
+ *
+ * `Evidence.section_number` carries the document's own numbering, and real
+ * documents supply it both ways: "17.2" from one parser, "§17.2" from another.
+ * Prepending unconditionally rendered "§§1" on every clause of an MSA whose
+ * headings already carry the sign.
+ *
+ * It lives here, shared, because the first fix patched two of the four callers
+ * and the other two kept printing "§§" — a rule copied into every caller is a
+ * rule that gets fixed in some of them.
+ */
+export function sectionRef(sectionNumber: string | null | undefined): string | null {
+  const trimmed = (sectionNumber ?? "").trim();
+  if (!trimmed) return null;
+  return /^[§¶]/.test(trimmed) ? trimmed : `§${trimmed}`;
+}

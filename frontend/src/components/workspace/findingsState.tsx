@@ -3,7 +3,7 @@
 /**
  * One findings state machine for the whole workspace (2026-08-31 3-column
  * redesign). The findings pane, the document outline's status dots and the
- * AI Analysis panel all read THIS state — one fetch, one poll loop, so three
+ * Analysis panel all read THIS state — one fetch, one poll loop, so three
  * views can never disagree about what the analysis found.
  *
  * Extracted verbatim from FindingsPane's former internal state: progress is

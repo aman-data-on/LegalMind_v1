@@ -168,6 +168,45 @@ class UserIdentity(Base):
     )
 
 
+class OidcProviderToken(Base):
+    """OIDC provider credentials for token refresh — AM-36 hybrid implementation.
+
+    Stores access_token and refresh_token from the OIDC provider so that users
+    can refresh their local JWT tokens without re-authenticating. This respects
+    AM-36's stateless JWT decision while adding refresh capability via the
+    provider's refresh_token grant type.
+
+    One row per OIDC identity that has received tokens from the provider.
+    Tokens are encrypted at rest (refresh_token) and stored in the redaction
+    forbidden list (both tokens treated as credentials).
+
+    This table is NOT part of the locked schema and may be evolved independently
+    of the core identity/authorization tables.
+    """
+
+    __tablename__ = "oidc_provider_tokens"
+
+    id = pk_uuid()
+    user_identity_id = fk_uuid("user_identities.id", ondelete="CASCADE")
+    # Short-lived access token (~1 hour) — plaintext, used for provider API calls
+    access_token = mapped_column(Text, nullable=True)
+    # Long-lived refresh token (~6 months) — encrypted at rest for security
+    refresh_token = mapped_column(Text, nullable=True)
+    # Token type, usually "Bearer"
+    token_type = _str(nullable=True)
+    # When the access_token expires (UTC)
+    access_token_expires_at = ts_nullable()
+    # When the refresh_token expires (UTC)
+    refresh_token_expires_at = ts_nullable()
+    created_at = ts_created()
+    updated_at = ts_updated()
+
+    __table_args__ = (
+        UniqueConstraint("user_identity_id", name="uq_oidc_tokens_identity"),
+        Index("ix_oidc_tokens_refresh_expires", "refresh_token_expires_at"),
+    )
+
+
 # ==========================================================================
 # Contracts & Documents — 42.3 - 42.6
 # ==========================================================================

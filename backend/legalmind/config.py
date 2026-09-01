@@ -111,3 +111,114 @@ def max_upload_bytes() -> int:
     """Upload size ceiling — locked 34.16 (untrusted input) and Step 39's
     upload-validation checklist item. A deployment limit, not a specified one."""
     return int(os.environ.get("LEGALMIND_MAX_UPLOAD_BYTES", 50 * 1024 * 1024))
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# OIDC — Step 47 §47.1.3 / OD-9, "corporate SSO via OIDC is primary"
+# ──────────────────────────────────────────────────────────────────────────
+# The provider and its client registration are a DEPLOYMENT prerequisite
+# (locked 55.6's first blocker), which is why they are read from the
+# environment and nothing here carries a default that would work. There is no
+# fallback issuer on purpose: a mistyped variable must disable SSO, never
+# silently authenticate against somewhere else.
+#
+# S-6 — the client secret is a secret and lives only in the environment.
+
+
+def oidc_issuer() -> str | None:
+    """The IdP's issuer identifier, e.g. ``https://accounts.google.com``.
+
+    Discovery is performed against ``<issuer>/.well-known/openid-configuration``
+    and the document's own ``issuer`` must equal this value, so a wrong host
+    fails rather than being trusted.
+    """
+    return os.environ.get("LEGALMIND_OIDC_ISSUER") or None
+
+
+def oidc_client_id() -> str | None:
+    return os.environ.get("LEGALMIND_OIDC_CLIENT_ID") or None
+
+
+def oidc_client_secret() -> str | None:
+    return os.environ.get("LEGALMIND_OIDC_CLIENT_SECRET") or None
+
+
+def oidc_redirect_uri() -> str | None:
+    """Must match the value registered with the IdP **byte for byte**.
+
+    Not derived from the inbound request: `Host` is attacker-controllable, and a
+    redirect_uri built from it is the classic way an authorization code is
+    delivered somewhere else.
+    """
+    return os.environ.get("LEGALMIND_OIDC_REDIRECT_URI") or None
+
+
+def oidc_allowed_domain() -> str | None:
+    """Restrict sign-in to one email domain — a corporate-SSO deployment control.
+
+    Google's ``hd`` claim is *advisory*; this is enforced against the verified
+    email address server-side as well. ``None`` means no domain restriction, in
+    which case the account-must-already-exist rule is the only gate.
+    """
+    value = os.environ.get("LEGALMIND_OIDC_ALLOWED_DOMAIN", "").strip().lower()
+    return value.lstrip("@") or None
+
+
+# Must stay equal to where the password path sends a signed-in user
+# (`frontend/src/app/login/page.tsx`'s `router.push`). The two mechanisms landing
+# in different places would be a bug nobody notices until SSO is the primary one.
+POST_LOGIN_PATH_DEFAULT = "/documents"
+
+
+def oidc_post_login_path() -> str:
+    """Where a successful SSO sign-in lands. A path, never a full URL — an
+    open redirect is not a feature we are adding to the login flow."""
+    path = os.environ.get("LEGALMIND_OIDC_POST_LOGIN_PATH",
+                          POST_LOGIN_PATH_DEFAULT)
+    if path.startswith("/") and not path.startswith("//"):
+        return path
+    return POST_LOGIN_PATH_DEFAULT
+
+
+def oidc_configured() -> bool:
+    """All four required values present. Checked before the routes do anything,
+    and reported by the deployment preflight (55.6)."""
+    return all((oidc_issuer(), oidc_client_id(), oidc_client_secret(),
+                oidc_redirect_uri()))
+
+
+# JIT provisioning — owner instruction, 2026-09-01.
+#
+# ⚠️ This REVERSES implementation decision 262 of the same day, which had refused
+# to auto-create accounts. The owner asked for JIT explicitly, and no locked
+# decision forbids it: `all_lock.md`'s Step 47 record locks the session model, the
+# identity contract and S-7, but says nothing about who may create a User row.
+# (`tools/dev_account.py` cites "locked 47.1.3 r3 — LegalMind never
+# self-provisions"; §47.1.3 has no r3 and no such sentence. That mis-citation is
+# reported, not relied on.)
+#
+# What DOES still bind, and shapes the default below: locked Step 23's role
+# summary, `SEC-02`/`ROLE-05` (no super-role reaches `legal.decision`), and S-8.
+# So a provisioned account gets ROLE_USER — ordinary contract and review work, and
+# none of `legal.decision`, `legal_position.view`, `user.manage` or `audit.view`.
+# An identity provider must never be able to hand out legal authority.
+JIT_ROLES_DEFAULT = "USER"
+
+
+def oidc_jit_roles() -> tuple[str, ...]:
+    """Roles granted to an account created on first SSO sign-in.
+
+    ``DISABLED`` turns JIT off entirely and restores the refuse-unknown-identity
+    behaviour. An empty value provisions the account with **no** roles, which is
+    the most conservative form that still creates the user: they can sign in and
+    see nothing until an administrator grants something.
+    """
+    raw = os.environ.get("LEGALMIND_OIDC_JIT_ROLES", JIT_ROLES_DEFAULT).strip()
+    if raw.upper() == "DISABLED":
+        return ()
+    return tuple(code.strip().upper() for code in raw.split(",") if code.strip())
+
+
+def oidc_jit_enabled() -> bool:
+    return os.environ.get("LEGALMIND_OIDC_JIT_ROLES",
+                          JIT_ROLES_DEFAULT).strip().upper() != "DISABLED"

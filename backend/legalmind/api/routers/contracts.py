@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import func, select
 
 from legalmind.api.deps import Guard, get_guard
@@ -31,15 +31,84 @@ from legalmind.worker.dispatch import dispatch_indexing
 router = APIRouter(tags=["contracts"])
 
 
+#: Implementation addition (2026-09-01, owner-directed Documents redesign): the
+#: four states the list/summary UI needs, computed from data the row already
+#: carries — never a new lifecycle enum (rule 3), never a new Finding
+#: Classification (REC-02's own boundary). Fully derived from
+#: `latest_version.processing_status`, `latest_analysis.review_status` and
+#: `latest_analysis.classification_counts`, which is exactly what
+#: `analysisCell`/`rowNeedsAttention` already derive client-side — this is the
+#: SAME rule, computed once, server-side, so list filtering/sorting and the
+#: summary tiles can never disagree with each other or with the row itself.
+_IN_FLIGHT_REVIEW_STATUSES = {"DRAFT", "UPLOADED", "PROCESSING"}
+STATUS_BUCKETS = ("draft", "analyzing", "needs_attention", "analyzed")
+
+
+def _status_bucket(item: dict) -> str:
+    version = item.get("latest_version")
+    if version is None or version.get("processing_status") != "COMPLETED":
+        return "draft"
+    analysis = item.get("latest_analysis")
+    if analysis is None:
+        return "draft"
+    if analysis.get("review_status") in _IN_FLIGHT_REVIEW_STATUSES:
+        return "analyzing"
+    counts = analysis.get("classification_counts") or {}
+    if any(n > 0 for classification, n in counts.items() if classification != "MATCH"):
+        return "needs_attention"
+    return "analyzed"
+
+
 @router.get("/contracts")
-def list_contracts(guard: Guard = Depends(get_guard),
-                   page: Page = Depends(page_params)) -> dict:
-    """49.6 — the same object-level scope as ``GET /contracts/{id}``."""
+def list_contracts(
+    guard: Guard = Depends(get_guard),
+    page: Page = Depends(page_params),
+    q: str | None = Query(default=None, max_length=500),
+    contract_type: str | None = Query(default=None, max_length=200),
+    status: str | None = Query(default=None),
+    sort: str = Query(default="created_desc"),
+) -> dict:
+    """49.6 — the same object-level scope as ``GET /contracts/{id}``.
+
+    ``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a
+    DERIVED bucket (`_status_bucket`) that does not exist as a contracts-table
+    column, so it cannot be pushed into the same ``WHERE`` — this owner-scoped
+    set is bounded (one account's own contracts, never a global scan), so it is
+    computed once over every matching id and paginated in Python, exactly the
+    precedent `_list_summaries` already set for the per-row projection.
+    """
     guard.permission(P.CONTRACT_VIEW)
     stmt = select(M.Contract).where(M.Contract.owner_id == guard.user_id)
-    rows, total = run(guard.db, stmt, page,
-                      M.Contract.created_at.desc(), M.Contract.id.desc())
-    summaries = _list_summaries(guard, [c.id for c in rows])
+    if q:
+        stmt = stmt.where(M.Contract.name.ilike(f"%{q.strip()}%"))
+    if contract_type:
+        stmt = stmt.where(M.Contract.contract_type == contract_type)
+
+    order = {
+        "created_desc": (M.Contract.created_at.desc(), M.Contract.id.desc()),
+        "created_asc": (M.Contract.created_at.asc(), M.Contract.id.asc()),
+        "name_asc": (M.Contract.name.asc(), M.Contract.id.asc()),
+        "name_desc": (M.Contract.name.desc(), M.Contract.id.desc()),
+    }.get(sort, (M.Contract.created_at.desc(), M.Contract.id.desc()))
+
+    if status not in (None, *STATUS_BUCKETS):
+        raise BusinessRuleRejected(
+            f"unknown status filter {status!r}; expected one of {STATUS_BUCKETS}")
+
+    if status is None:
+        rows, total = run(guard.db, stmt, page, *order)
+        summaries = _list_summaries(guard, [c.id for c in rows])
+    else:
+        # The bucket depends on analysis data no contracts-table WHERE can
+        # reach, so filter-then-paginate rather than paginate-then-filter.
+        all_rows = guard.db.execute(stmt.order_by(*order)).scalars().all()
+        summaries = _list_summaries(guard, [c.id for c in all_rows])
+        matched = [c for c in all_rows
+                  if _status_bucket(summaries.get(c.id, {})) == status]
+        total = len(matched)
+        start = (page.page - 1) * page.page_size
+        rows = matched[start:start + page.page_size]
+
     payload = []
     for c in rows:
         item = serialize_contract(c)
@@ -48,6 +117,30 @@ def list_contracts(guard: Guard = Depends(get_guard),
         payload.append(item)
     return paginated(payload,
                      page=page.page, page_size=page.page_size, total=total)
+
+
+@router.get("/contracts/summary")
+def contracts_summary(guard: Guard = Depends(get_guard)) -> dict:
+    """The Documents list's stat tiles — real counts across EVERY one of the
+    caller's contracts, not just the current page (49.6 scope; additive, no
+    locked row). One aggregation, computed the same way each row's own status
+    is (`_status_bucket`), so a tile and a row can never disagree.
+    """
+    guard.permission(P.CONTRACT_VIEW)
+    ids = guard.db.execute(
+        select(M.Contract.id).where(M.Contract.owner_id == guard.user_id)
+    ).scalars().all()
+    summaries = _list_summaries(guard, list(ids))
+    tally = dict.fromkeys(STATUS_BUCKETS, 0)
+    for cid in ids:
+        tally[_status_bucket(summaries.get(cid, {}))] += 1
+    return data({
+        "total": len(ids),
+        "draft": tally["draft"],
+        "analyzing": tally["analyzing"],
+        "needs_attention": tally["needs_attention"],
+        "analyzed": tally["analyzed"],
+    })
 
 
 def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:

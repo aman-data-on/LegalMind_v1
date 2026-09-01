@@ -143,8 +143,27 @@ function ReportView({ reviewId }: { reviewId: string }) {
               match any Requirement.
             </p>
             <p className="hint">
-              A document-level observation, not a Finding classification.
+              A document-level observation, not a Finding classification. Not
+              automatically negative or unacceptable — routed to a person because the
+              system has nothing to compare it against, not because it is presumed
+              risky (REC-02).
             </p>
+            {report.unmatched_provisions_detail.length > 0 ? (
+              <ul>
+                {report.unmatched_provisions_detail.map((item) => (
+                  <li key={item.evidence_id}>
+                    <strong>
+                      {item.section_number ? `§${item.section_number}` : null}
+                      {item.section_title ? ` ${item.section_title}` : null}
+                      {!item.section_number && !item.section_title
+                        ? (item.page_number != null ? `p.${item.page_number}` : "Untitled clause")
+                        : null}
+                    </strong>
+                    <p className="hint">{item.excerpt}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <p>
               {report.findings_requiring_decision} Finding
               {report.findings_requiring_decision === 1 ? "" : "s"} still require a

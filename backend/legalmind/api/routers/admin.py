@@ -60,11 +60,19 @@ router = APIRouter(tags=["administration"])
 @router.get("/users")
 def list_users(guard: Guard = Depends(get_guard),
                page: Page = Depends(page_params),
-               status: E.UserStatus | None = Query(default=None)) -> dict:
+               status: E.UserStatus | None = Query(default=None),
+               search: str | None = Query(default=None)) -> dict:
+    """List users with optional filtering by status and search by email/name."""
     guard.permission(P.USER_MANAGE)
     stmt = select(M.User)
     if status is not None:
         stmt = stmt.where(M.User.status == status)
+    if search:
+        search_term = f"%{search.lower()}%"
+        stmt = stmt.where(
+            (M.User.email.ilike(search_term)) |
+            (M.User.name.ilike(search_term))
+        )
     rows, total = run(guard.db, stmt, page, M.User.email, M.User.id)
     return paginated([serialize_user(guard.db, u) for u in rows],
                      page=page.page, page_size=page.page_size, total=total)
@@ -134,6 +142,29 @@ def update_user(user_id: UUID, body: UserUpdate,
              request_id=guard.request_id, before=before,
              after={"name": user.name, "status": user.status.value})
     return data(serialize_user(guard.db, user))
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Delete a user. Only DISABLED users can be deleted."""
+    guard.permission(P.USER_MANAGE)
+    user = guard.db.get(M.User, user_id)
+    if user is None:
+        raise NotVisible("user not found")
+
+    # Only allow deleting DISABLED users (soft delete protection)
+    if user.status is not E.UserStatus.DISABLED:
+        raise BusinessRuleRejected(
+            "Only disabled users can be deleted. Disable the account first."
+        )
+
+    user_email = user.email
+    guard.db.delete(user)
+    guard.db.flush()
+    A.record(guard.db, action="admin.user_deleted", entity_type="user",
+             entity_id=user_id, actor_id=guard.user_id,
+             request_id=guard.request_id, after={"email": user_email})
+    return data({"deleted": True})
 
 
 @router.post("/users/{user_id}/roles", status_code=201)

@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sectionRef } from "@/lib/documentTypes";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
@@ -63,6 +64,7 @@ function StatusIcon({ bucket }: { bucket: StatusBucket }) {
     </span>
   );
 }
+
 
 export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [rows, setRows] = useState<EvidenceRow[] | null>(null);
@@ -132,6 +134,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     }
     return seen;
   }, [rows]);
+  const pageGroups = useMemo(() => groupByPage(rows ?? []), [rows]);
 
   // Track which page marker is on screen so the toolbar's "n of N" stays true.
   useEffect(() => {
@@ -281,7 +284,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     onClick={() => point(row.id, row.section_number ? `clause ${row.section_number}` : "the selected")}
                   >
                     <span className="ws-outline__label">
-                      {row.section_number ? <span className="ws-mono">§{row.section_number}</span> : null}
+                      {sectionRef(row.section_number) ? <span className="ws-mono">{sectionRef(row.section_number)}</span> : null}
                       {row.section_title ?? (row.section_number ? "" : "Untitled clause")}
                     </span>
                     {status ? <StatusIcon bucket={status.bucket} /> : null}
@@ -347,25 +350,34 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               </form>
             ) : null}
             <span className="ws-doccard__gap" />
-            <button type="button" className="ws-toolbtn" aria-label="Previous page" onClick={() => stepPage(-1)}>
-              <IconChevronUp />
-            </button>
-            <button type="button" className="ws-toolbtn" aria-label="Next page" onClick={() => stepPage(1)}>
-              <IconChevronDown />
-            </button>
-            <label className="ws-doccard__page">
-              <span className="ws-visually-hidden">Page</span>
-              <input
-                inputMode="numeric"
-                value={currentPage ?? pages[0] ?? ""}
-                onChange={(event) => {
-                  const n = Number(event.target.value);
-                  if (pages.includes(n)) jumpToPage(n);
-                  else setCurrentPage(Number.isNaN(n) ? null : n);
-                }}
-              />
-              <span>of {pages.length > 0 ? pages[pages.length - 1] : "—"}</span>
-            </label>
+            {pages.length > 0 ? (
+              <>
+                <button type="button" className="ws-toolbtn" aria-label="Previous page" onClick={() => stepPage(-1)}>
+                  <IconChevronUp />
+                </button>
+                <button type="button" className="ws-toolbtn" aria-label="Next page" onClick={() => stepPage(1)}>
+                  <IconChevronDown />
+                </button>
+                <label className="ws-doccard__page">
+                  <span className="ws-visually-hidden">Page</span>
+                  <input
+                    inputMode="numeric"
+                    value={currentPage ?? pages[0] ?? ""}
+                    onChange={(event) => {
+                      const n = Number(event.target.value);
+                      if (pages.includes(n)) jumpToPage(n);
+                      else setCurrentPage(Number.isNaN(n) ? null : n);
+                    }}
+                  />
+                  <span>of {pages[pages.length - 1]}</span>
+                </label>
+              </>
+            ) : (
+              // A DOCX carries no fixed page model (only rendering/print time
+              // creates pages), so "page N of M" has nothing real to say here —
+              // an empty box would be a placeholder pretending otherwise.
+              <span className="ws-pane__note">Not paginated</span>
+            )}
             <span className="ws-doccard__gap" />
             <button
               type="button"
@@ -395,14 +407,18 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             </button>
           </div>
           <div className="ws-text" ref={textRef} style={{ fontSize: `${zoom}%` }}>
-            {groupByPage(rows).map((group, index) => (
+            {pageGroups.map((group, index) => (
               <div key={`${group.page ?? "np"}-${index}`} className="ws-page">
-                <p
-                  className="ws-page__marker"
-                  data-page-marker={group.page ?? undefined}
-                >
-                  {group.page != null ? `Page ${group.page}` : "Unnumbered pages"}
-                </p>
+                {/* When the WHOLE document has no page model (a DOCX has none
+                    until printed), a lone "Unnumbered pages" banner is noise,
+                    not information — every group is the same non-fact. Shown
+                    only when it distinguishes this group from a numbered one
+                    elsewhere in the same document. */}
+                {group.page != null || pageGroups.length > 1 ? (
+                  <p className="ws-page__marker" data-page-marker={group.page ?? undefined}>
+                    {group.page != null ? `Page ${group.page}` : "Unnumbered pages"}
+                  </p>
+                ) : null}
                 {group.rows.map((row) => (
                   <article
                     key={row.id}
@@ -415,7 +431,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       <p className="ws-row__loc">
                         {row.section_number || row.section_title ? (
                           <span>
-                            {[row.section_number ? `§${row.section_number}` : null, row.section_title]
+                            {[sectionRef(row.section_number), row.section_title]
                               .filter(Boolean)
                               .join(" · ")}
                           </span>

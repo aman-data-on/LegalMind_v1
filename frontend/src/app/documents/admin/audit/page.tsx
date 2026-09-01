@@ -68,7 +68,7 @@ export default function AuditPage() {
         <h1>Audit trail</h1>
         <div className="ws-context__meta">
           {pagination ? <span className="ws-mono">{pagination.total} events</span> : null}
-          <Link href="/workspace/admin">Users &amp; roles</Link>
+          <Link href="/documents/admin">Users &amp; roles</Link>
         </div>
       </div>
       <div className="ws-docs">

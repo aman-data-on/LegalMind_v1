@@ -925,3 +925,92 @@ def test_documents_list_carries_a_permission_layered_analysis_summary(
                  if r["id"] == bare.json()["data"]["id"])
     assert fresh["latest_version"] is None
     assert fresh["latest_analysis"] is None
+
+
+# ==========================================================================
+# Documents list — search / type filter / status filter / sort / summary
+# (2026-09-01, owner-directed Documents redesign)
+# ==========================================================================
+def test_contracts_list_supports_name_search_and_type_filter(api, db, owner):
+    sign_in(api, db, owner)
+    api.post(f"{V1}/contracts", json={"name": "Leapswitch GRP MSA", "contract_type": "MSA"})
+    api.post(f"{V1}/contracts", json={"name": "CloudPe Terms of Service", "contract_type": "TOS"})
+
+    by_name = api.get(f"{V1}/contracts", params={"q": "leapswitch"}).json()["data"]
+    assert [r["name"] for r in by_name] == ["Leapswitch GRP MSA"]
+
+    by_type = api.get(f"{V1}/contracts", params={"contract_type": "TOS"}).json()["data"]
+    assert [r["name"] for r in by_type] == ["CloudPe Terms of Service"]
+
+    assert api.get(f"{V1}/contracts", params={"q": "no such contract"}).json()["data"] == []
+
+
+def test_contracts_list_sorts_by_name(api, db, owner):
+    sign_in(api, db, owner)
+    api.post(f"{V1}/contracts", json={"name": "Zeta MSA", "contract_type": "MSA"})
+    api.post(f"{V1}/contracts", json={"name": "Alpha MSA", "contract_type": "MSA"})
+    rows = api.get(f"{V1}/contracts", params={"sort": "name_asc"}).json()["data"]
+    names = [r["name"] for r in rows]
+    assert names.index("Alpha MSA") < names.index("Zeta MSA")
+
+
+def test_contracts_list_status_filter_matches_the_same_bucket_the_row_shows(
+        api, db, owner, requirement_version):
+    """The bucket a row would compute for itself (draft/analyzing/needs_attention/
+    analyzed) is exactly what `?status=` filters on — one derivation, reused,
+    never a second one that could disagree (52.7's rule applied to filtering)."""
+    from tests.conftest import make_finding
+
+    review = make_review_for(db, owner)  # ANALYSIS_COMPLETE, no findings yet -> analyzed
+    sign_in(api, db, owner)
+    api.post(f"{V1}/contracts", json={"name": "Draft Only", "contract_type": "MSA"})
+
+    analyzed = api.get(f"{V1}/contracts", params={"status": "analyzed"}).json()["data"]
+    assert {r["id"] for r in analyzed} == {str(review.contract_id)}
+
+    draft = api.get(f"{V1}/contracts", params={"status": "draft"}).json()["data"]
+    assert "Draft Only" in {r["name"] for r in draft}
+    assert str(review.contract_id) not in {r["id"] for r in draft}
+
+    # A DEVIATION finding moves the SAME contract from analyzed -> needs_attention.
+    make_finding(db, review, requirement_version,
+                classification=E.FindingClassification.DEVIATION)
+    db.flush()
+    needs_attention = api.get(f"{V1}/contracts", params={"status": "needs_attention"}).json()["data"]
+    assert {r["id"] for r in needs_attention} == {str(review.contract_id)}
+    assert api.get(f"{V1}/contracts", params={"status": "analyzed"}).json()["data"] == []
+
+    assert api.get(f"{V1}/contracts", params={"status": "not-a-real-bucket"}).status_code == 422 \
+        or api.get(f"{V1}/contracts", params={"status": "not-a-real-bucket"}).status_code == 400
+
+
+def test_contracts_summary_counts_match_the_list_buckets_across_every_contract(
+        api, db, owner, requirement_version):
+    """The summary tiles and the list's own `?status=` filter must never
+    disagree — both reduce to the identical `_status_bucket` computation."""
+    from tests.conftest import make_finding
+
+    review = make_review_for(db, owner)
+    make_finding(db, review, requirement_version,
+                classification=E.FindingClassification.MISSING)
+    sign_in(api, db, owner)
+    api.post(f"{V1}/contracts", json={"name": "Untouched Draft", "contract_type": "MSA"})
+
+    summary = api.get(f"{V1}/contracts/summary").json()["data"]
+    assert summary["total"] == 2
+    assert summary["needs_attention"] == 1
+    assert summary["draft"] == 1
+    assert summary["analyzing"] == 0
+    assert summary["analyzed"] == 0
+
+    for bucket in ("draft", "analyzing", "needs_attention", "analyzed"):
+        listed = api.get(f"{V1}/contracts", params={"status": bucket}).json()["data"]
+        assert len(listed) == summary[bucket]
+
+
+def test_contracts_summary_requires_contract_view(api, db):
+    from tests.conftest import make_user
+
+    bare = make_user(db)
+    sign_in(api, db, bare)
+    assert api.get(f"{V1}/contracts/summary").status_code == 403

@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLASSIFICATION_ORDER,
   clauseStatusByEvidenceId,
+  documentStatusBucket,
   findingsNeedingDecision,
   findingsSummary,
   outlineStatus,
@@ -131,5 +132,37 @@ describe("outlineStatus", () => {
     expect(rolled.get("h1")).toEqual({ covered: true, attention: true, bucket: "review" });
     expect(rolled.get("h2")).toEqual({ covered: true, attention: false, bucket: "match" });
     expect(rolled.get("b2")).toBeUndefined();
+  });
+});
+
+describe("documentStatusBucket (Documents-list, mirrors the backend's own _status_bucket)", () => {
+  it("no document, or extraction not COMPLETED, is draft", () => {
+    expect(documentStatusBucket({})).toBe("draft");
+    expect(documentStatusBucket({ latest_version: { processing_status: "PENDING" } })).toBe("draft");
+  });
+
+  it("a completed document with no Review yet is draft", () => {
+    expect(documentStatusBucket({ latest_version: { processing_status: "COMPLETED" } })).toBe("draft");
+  });
+
+  it("an in-flight Review is analyzing", () => {
+    expect(documentStatusBucket({
+      latest_version: { processing_status: "COMPLETED" },
+      latest_analysis: { review_status: "PROCESSING" },
+    })).toBe("analyzing");
+  });
+
+  it("a completed Review with only MATCH findings is analyzed", () => {
+    expect(documentStatusBucket({
+      latest_version: { processing_status: "COMPLETED" },
+      latest_analysis: { review_status: "ANALYSIS_COMPLETE", classification_counts: { MATCH: 3 } },
+    })).toBe("analyzed");
+  });
+
+  it("a completed Review with any non-MATCH finding needs review", () => {
+    expect(documentStatusBucket({
+      latest_version: { processing_status: "COMPLETED" },
+      latest_analysis: { review_status: "LEGAL_REVIEW", classification_counts: { MATCH: 2, DEVIATION: 1 } },
+    })).toBe("needs_attention");
   });
 });

@@ -24,6 +24,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Plus, Upload, CheckSquare } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { AskPanel } from "@/components/AskPanel";
@@ -97,7 +98,8 @@ function ContractsListView() {
               onChange={(event) => setContractType(event.target.value)}
             />
           </Field>
-          <button type="submit" className="btn btn--primary">
+          <button type="submit" className="btn btn--primary btn-icon">
+            <Plus size={18} />
             Add contract
           </button>
         </form>
@@ -224,7 +226,8 @@ function ContractDetailView({ contractId }: { contractId: string }) {
           <Field id="document-file" label="Upload a document version (PDF or DOCX)" grow>
             <input id="document-file" ref={fileInput} type="file" accept=".pdf,.docx" required />
           </Field>
-          <button type="submit" className="btn btn--primary" disabled={busy}>
+          <button type="submit" className="btn btn--primary btn-icon" disabled={busy}>
+            <Upload size={18} />
             {busy ? "Uploading…" : "Upload"}
           </button>
         </form>
@@ -334,7 +337,8 @@ function ContractDetailView({ contractId }: { contractId: string }) {
                 onChange={(event) => setSnapshotId(event.target.value)}
               />
             </Field>
-            <button type="submit" className="btn btn--primary">
+            <button type="submit" className="btn btn--primary btn-icon">
+              <CheckSquare size={18} />
               Create review
             </button>
           </form>

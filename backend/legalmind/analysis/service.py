@@ -38,6 +38,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.document_types import is_document_type
@@ -116,6 +117,9 @@ class AnalysisRun:
     document_type: str | None = None
     requirements_applicable: int = 0
     outcomes: list[RequirementOutcome] = field(default_factory=list)
+    #: REC-02 / D-4 (owner, 2026-09-01) — evidence rows this Review's Findings
+    #: never cited. A document-level observation, never a Finding classification.
+    unmatched_provisions: int = 0
 
     @property
     def findings_created(self) -> int:
@@ -227,6 +231,13 @@ def run_analysis(db: DBSession, review: M.Review, *,
     advance_after_analysis(db, review, actor_id=actor_id, request_id=request_id)
     run.review_status = review.status.value
 
+    # REC-02 / D-4 (owner, 2026-09-01) — after every Finding and Evaluation of
+    # this Review exists, whatever evidence none of them cited is a
+    # document-level UNMATCHED_PROVISION observation. Never a Finding, never a
+    # classification, never a lifecycle input (rules 1-3 of REC-02 stand).
+    run.unmatched_provisions = record_unmatched_provisions(
+        db, review, review.document_version_id)
+
     A.record(db, action=A.ANALYSIS_RUN_RECORDED, entity_type="review",
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
              after={"requirements_in_snapshot": run.requirements_in_snapshot,
@@ -235,7 +246,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
                     "findings_created": run.findings_created,
                     "skipped_as_optional": run.skipped_as_optional,
                     "failures": len(run.failures),
-                    "review_status": run.review_status})
+                    "review_status": run.review_status,
+                    "unmatched_provisions": run.unmatched_provisions})
 
     _log_signals(run, request_id=request_id)
     return run

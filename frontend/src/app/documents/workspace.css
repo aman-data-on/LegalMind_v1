@@ -581,7 +581,9 @@
 }
 
 /* ==========================================================================
- * AI Analysis panel (DD-9 reference match) — counts and facts, no scores.
+ * Analysis panel (DD-9 reference match) — counts and facts, no scores.
+ * NOT "AI Analysis": this panel renders the deterministic evaluator's output
+ * (AI-01 keeps every model out of that path). See WorkspaceLayout's LABEL.
  * ========================================================================== */
 .ws-analysis { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s5); }
 .ws-analysis__updated { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s2); }
@@ -597,14 +599,19 @@
 }
 .ws-viewall:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-/* Stat tiles — soft status tints, exact counts, an icon that repeats the word. */
-.ws-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--ws-s2); }
+/* Stat tiles — one per REAL classification present (never an invented catch-all
+   label), soft status tints, exact counts, an icon that repeats the color. */
+.ws-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--ws-s2); }
 .ws-tile {
   position: relative; display: flex; flex-direction: column; gap: 2px;
   padding: var(--ws-s3); border-radius: var(--ws-radius); border: 1px solid transparent;
+  min-width: 0;
 }
 .ws-tile__n { font-family: var(--ws-mono); font-size: 1.35rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.ws-tile__label { font-size: var(--ws-text-xs); font-weight: 550; }
+.ws-tile__label {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px;
+}
 .ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
 .ws-tile--match { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
 .ws-tile--review { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
@@ -633,7 +640,9 @@
 .ws-ring__legend li[data-bucket="match"] .ws-ring__swatch { background: var(--ws-ok); }
 .ws-ring__legend li[data-bucket="missing"] .ws-ring__swatch { background: var(--ws-bad); }
 
-/* Key risks — reference-style cards: a status left border, chip, description. */
+/* Findings awaiting a decision — reference-style cards: status left border,
+   chip, description. (Named "Key risks" until 2026-09-01; rule 12 has no risk
+   score to key a name off.) */
 .ws-risk {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
   border-left-width: 3px; border-radius: var(--ws-radius); padding: var(--ws-s3);
@@ -738,6 +747,19 @@
 .ws-report__h { font-size: var(--ws-text-base); margin: 0 0 8px; color: var(--ws-ink-700); }
 .ws-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .ws-chips b { font-weight: 600; margin-left: 2px; }
+
+/* Unmatched provisions (REC-02 / D-4, 2026-09-01) — a plain list, same weight
+   as any other observation; no attention color, since REC-02 forbids treating
+   this as automatically negative. */
+.ws-report__unmatched { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ws-report__unmatched-item {
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  padding: var(--ws-s3); background: var(--ws-surface);
+}
+.ws-report__unmatched-item a { font-size: var(--ws-text-sm); font-weight: 550; }
+.ws-report__unmatched-item .ws-quote {
+  display: block; margin: 6px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
 
 /* Transcript — the read-only replay of an Ask conversation. Reuses the live
    pane's answer/citation classes; only the turn frame is new. */
@@ -864,3 +886,702 @@
 .ws-attend__name:hover { text-decoration: underline; }
 .ws-attend__go { margin-left: auto; text-decoration: none; }
 .ws-attend__go:hover { text-decoration: underline; }
+
+/* ==========================================================================
+ * Documents INDEX page — professional polish pass (owner, 2026-09-01,
+ * explicit UX-review request; the 2026-08-31 freeze's own stated exception).
+ * Scoped under `.ws-docs--index` (a class added to nothing but this one
+ * page's wrapper) rather than the shared `.ws-docs`/`.ws-docs__table`/
+ * `.ws-pager`/`.ws-intake` selectors: those also render the Reviews queue,
+ * Legal queue, Ask history and Admin/Audit screens, and this pass is scoped
+ * to the Documents list only — zero markup, zero behavior, zero shared-class
+ * edits; every rule below only ever wins on this one page.
+ * ========================================================================== */
+.ws-docs--index { gap: var(--ws-s6); }
+
+/* Intake card — the same elevated-card language DD-9 already put on the
+ * workspace, brought here for visual consistency (not a new pattern). */
+.ws-docs--index .ws-intake {
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s5);
+}
+.ws-docs--index .ws-intake__title { font-weight: 650; letter-spacing: -0.005em; }
+.ws-docs--index .ws-field__label { font-weight: 550; }
+.ws-docs--index .ws-field input,
+.ws-docs--index .ws-field select { transition: border-color var(--ws-t), box-shadow var(--ws-t); }
+.ws-docs--index .ws-field input:focus-visible,
+.ws-docs--index .ws-field select:focus-visible {
+  border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); outline: none;
+}
+.ws-docs--index .ws-drop { border-radius: var(--ws-radius-card); }
+.ws-docs--index .ws-drop:hover { border-color: var(--ws-ink-300); }
+
+/* The table card — elevated, tinted header row, calmer borders. */
+.ws-docs--index .ws-docs__table {
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow); overflow: hidden;
+}
+.ws-docs--index .ws-docs__table:has(table) { overflow-x: auto; }
+.ws-docs--index .ws-docs__table th {
+  font-family: inherit; font-weight: 650; padding: 11px var(--ws-s4);
+  background: var(--ws-paper);
+}
+.ws-docs--index .ws-docs__table td { padding: 13px var(--ws-s4); }
+.ws-docs--index .ws-docs__table tbody tr { transition: background-color var(--ws-t); }
+.ws-docs--index .ws-docs__table tbody tr:hover td { background: var(--ws-accent-soft); }
+.ws-docs--index .ws-docs__table td a { font-weight: 550; color: var(--ws-ink-900); }
+.ws-docs--index .ws-docs__table td a:hover { color: var(--ws-accent); text-underline-offset: 3px; }
+.ws-docs--index .ws-docs__skel { padding: 13px var(--ws-s4); }
+.ws-docs--index .ws-docs__skel:last-child { border-bottom: 0; }
+
+/* Needs-attention cards — a touch more weight than a plain bordered row, and
+ * a hover state matching every other clickable card in the product. */
+.ws-docs--index .ws-attend__row {
+  box-shadow: 0 1px 2px rgba(14, 20, 32, 0.03);
+  transition: box-shadow var(--ws-t), border-color var(--ws-t);
+}
+.ws-docs--index .ws-attend__row:hover {
+  border-color: var(--ws-ink-300); box-shadow: 0 2px 6px rgba(14, 20, 32, 0.07);
+}
+.ws-docs--index .ws-attend__title { font-weight: 650; }
+
+/* Pager — real button pills instead of bare text links, right-aligned under
+ * the table the way pagination reads everywhere else in the product. */
+.ws-docs--index .ws-pager { justify-content: flex-end; }
+.ws-docs--index .ws-pager .ws-mono { color: var(--ws-ink-700); font-weight: 550; }
+
+/* ==========================================================================
+ * Documents INDEX — AI Contract Intelligence redesign (owner, 2026-09-01,
+ * explicit UX-review request; the 2026-08-31 freeze's own stated exception).
+ * New classes below are unique to this page's markup (grep-verified before
+ * writing them) — nothing here can leak onto Reviews/Legal/Admin/Ask, which
+ * share `.ws-docs`/`.ws-docs__table`/`.ws-pager`/`.ws-intake` and are
+ * deliberately left in their existing plain-card shape (`.ws-docs--index`
+ * layers new visuals on without touching the shared base rules).
+ * ========================================================================== */
+.ws-context__icon { color: var(--ws-accent); display: inline-flex; }
+.ws-docs--index { gap: var(--ws-s5); }
+
+/* Stat tiles — four real counts, never a score. */
+.ws-doctiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--ws-s3); }
+.ws-doctile {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s3) var(--ws-s4); display: flex; flex-direction: column; gap: 6px;
+}
+.ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
+.ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
+.ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
+.ws-doctile__n { font-size: 1.6rem; font-weight: 650; line-height: 1; color: var(--ws-ink-900); }
+.ws-doctile--needs_attention .ws-doctile__icon { color: var(--ws-warn); }
+.ws-doctile--needs_attention .ws-doctile__n { color: var(--ws-warn); }
+.ws-doctile--analyzed .ws-doctile__icon { color: var(--ws-ok); }
+.ws-doctile--analyzed .ws-doctile__n { color: var(--ws-ok); }
+.ws-doctile--draft .ws-doctile__icon { color: var(--ws-accent); }
+
+/* Upload card + Needs-attention preview, side by side. */
+.ws-docs__top { display: grid; grid-template-columns: minmax(280px, 1.1fr) minmax(300px, 1fr); gap: var(--ws-s4); align-items: start; }
+@media (max-width: 900px) { .ws-docs__top { grid-template-columns: 1fr; } }
+
+.ws-doctend {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s3);
+}
+.ws-doctend__head { display: flex; align-items: baseline; justify-content: space-between; }
+.ws-doctend__card {
+  display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit;
+  border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-warn);
+  border-radius: var(--ws-radius); padding: var(--ws-s3);
+  transition: border-color var(--ws-t), box-shadow var(--ws-t);
+}
+.ws-doctend__card:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
+.ws-doctend__row { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-doctend__name { font-weight: 650; color: var(--ws-ink-900); }
+.ws-doctend__go {
+  display: inline-flex; align-items: center; gap: 4px; font-size: var(--ws-text-sm);
+  font-weight: 550; color: var(--ws-accent); margin-top: 2px;
+}
+
+/* Status pills — the four real derived buckets, icon + label, never color
+ * alone (rule 12 / accessibility). */
+.ws-status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--ws-text-xs); font-weight: 600; padding: 3px 9px;
+  border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+}
+.ws-status-pill--draft { background: var(--ws-paper); color: var(--ws-ink-500); border-color: var(--ws-ink-100); }
+.ws-status-pill--analyzing { background: var(--ws-accent-soft); color: var(--ws-accent); border-color: color-mix(in srgb, var(--ws-accent) 25%, transparent); }
+.ws-status-pill--needs_attention { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
+.ws-status-pill--analyzed { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); }
+.ws-spin {
+  width: 11px; height: 11px; border-radius: 50%; flex: none;
+  border: 2px solid color-mix(in srgb, var(--ws-accent) 30%, transparent);
+  border-top-color: var(--ws-accent); animation: ws-spin-rotate 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .ws-spin { animation: none; } }
+@keyframes ws-spin-rotate { to { transform: rotate(360deg); } }
+
+/* Findings cell — real Step-19 classifications collapsed to the same
+ * three-bucket coloring the workspace uses (match/review/missing); dashes,
+ * never a fabricated zero, when nothing has been analyzed. */
+.ws-findings-cell { display: inline-flex; gap: 5px; }
+.ws-findings-badge {
+  min-width: 22px; text-align: center; font-family: var(--ws-mono); font-size: 11px;
+  font-weight: 650; padding: 2px 6px; border-radius: var(--ws-radius-sm);
+}
+.ws-findings-badge--match { background: var(--ws-ok-soft); color: var(--ws-ok); }
+.ws-findings-badge--review { background: var(--ws-warn-soft); color: var(--ws-warn); }
+.ws-findings-badge--missing { background: var(--ws-bad-soft); color: var(--ws-bad); }
+.ws-findings-badge--zero { opacity: 0.4; }
+
+.ws-doc-name { display: inline-flex; align-items: center; gap: 7px; }
+.ws-doc-name svg { color: var(--ws-ink-300); flex: none; }
+
+/* Toolbar — search + filters + sort, one row. */
+.ws-doctoolbar { display: flex; gap: var(--ws-s2); flex-wrap: wrap; align-items: center; }
+.ws-doctoolbar__search {
+  display: flex; align-items: center; gap: 7px; flex: 1; min-width: 220px;
+  padding: 8px 12px; border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-surface); color: var(--ws-ink-500);
+}
+.ws-doctoolbar__search:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
+.ws-doctoolbar__search input { border: 0; background: transparent; font: inherit; font-size: var(--ws-text-sm); outline: none; flex: 1; min-width: 0; color: var(--ws-ink-900); }
+.ws-doctoolbar__select select {
+  font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-surface); color: var(--ws-ink-700); min-height: 38px;
+}
+
+/* Pager — page numbers + prev/next, real counts stated in words first. */
+.ws-docs--index .ws-pager { flex-wrap: wrap; }
+.ws-pager__spacer { flex: 1; }
+.ws-docs--index .ws-pager button[aria-current="page"] {
+  background: var(--ws-accent); border-color: var(--ws-accent); color: #fff;
+}
+
+/* The table card itself — the same elevated language as the rest of DD-9,
+ * scoped to this page only (see file banner above). */
+.ws-docs--index .ws-intake { border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow); }
+.ws-docs--index .ws-docs__table {
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow); overflow: hidden;
+}
+.ws-docs--index .ws-docs__table:has(table) { overflow-x: auto; }
+.ws-docs--index .ws-docs__table th { font-family: inherit; font-weight: 650; background: var(--ws-paper); }
+.ws-docs--index .ws-docs__table tbody tr { transition: background-color var(--ws-t); }
+.ws-docs--index .ws-docs__table tbody tr:hover td { background: var(--ws-accent-soft); }
+
+/* Upload checklist + drop-zone icon (2026-09-01 redesign, scoped by class name
+ * — `UploadContract` renders only on this page, see the file banner above). */
+.ws-drop__icon {
+  width: 52px; height: 52px; border-radius: 50%; background: var(--ws-accent-soft);
+  color: var(--ws-accent); display: flex; align-items: center; justify-content: center;
+}
+.ws-drop__title { margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
+.ws-checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ws-checklist__row {
+  display: flex; align-items: center; gap: 9px; font-size: var(--ws-text-sm);
+  color: var(--ws-ink-500);
+}
+.ws-checklist__row--done { color: var(--ws-ink-900); }
+.ws-checklist__row--active { color: var(--ws-accent); font-weight: 550; }
+.ws-checklist__icon { display: inline-flex; flex: none; color: var(--ws-ok); }
+.ws-checklist__row:not(.ws-checklist__row--done) .ws-checklist__icon { color: var(--ws-ink-300); }
+.ws-checklist__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ws-ink-100); display: inline-block; }
+.ws-intake__confirm { display: flex; flex-direction: column; gap: var(--ws-s3); margin-top: var(--ws-s3); padding-top: var(--ws-s3); border-top: 1px dashed var(--ws-ink-100); align-items: start; }
+.ws-intake__confirm .ws-field { width: 100%; max-width: 28rem; }
+
+/* ===========================================================================
+ * Documents index — owner-supplied reference, 2026-09-01
+ * ===========================================================================
+ * Layout and structure follow the reference exactly: a fixed-width upload card
+ * beside the pipeline strip, icon-left stat tiles, and the table carrying its
+ * own header and footer so an empty table still reads as a table.
+ *
+ * The reference's palette is NOT copied in. Its values (#276df3, #16a052,
+ * #df8100, #dfe5ee, #172033) are within a few points of the tokens this sheet
+ * already defines, so every colour below resolves through `--ws-*`. Hardcoding
+ * them would have created a second, silently-diverging palette for one page —
+ * and the reference's own intent is plainly the palette we have.
+ *
+ * Type likewise stays on the DD-8 stack (IBM Plex Sans/Mono, owner-approved and
+ * self-hosted) rather than the reference's `Inter`: DD-8 is a recorded decision
+ * and a font swap on one page is not a layout change.
+ * ========================================================================= */
+
+/* --- The top row: intake beside the explainer ---------------------------- */
+/* The reference fixes the upload card at 420px. Kept, because the pipeline is
+   the element that must flex — five steps need every pixel that is going. */
+.ws-docs--index .ws-docs__top {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: var(--ws-s3);
+  align-items: stretch;
+}
+
+/* --- Pipeline strip ------------------------------------------------------ */
+.ws-pipe {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--ws-s4);
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius);
+  padding: var(--ws-s5) var(--ws-s4);
+}
+
+.ws-pipe__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each step owns the arrow that follows it, so the arrow cannot wrap away from
+   its pair and land at the start of a line. */
+.ws-pipe__step {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 0 var(--ws-s3);
+}
+
+.ws-pipe__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--ws-s3);
+  border-radius: 50%;
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent);
+}
+
+.ws-pipe__label {
+  font-size: var(--ws-text-sm);
+  font-weight: 600;
+  color: var(--ws-ink-900);
+  line-height: 1.3;
+  /* One line, reserved. Five marks in a row share a baseline; a label that wraps
+     drops its own detail text and breaks the row for all five. */
+  min-height: 1.3em;
+}
+
+.ws-pipe__detail {
+  margin-top: 3px;
+  max-width: 18ch;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ws-ink-500);
+  text-wrap: balance;
+}
+
+/* The one step the reader performs. A ring rather than a different hue: the
+   status hues (--ws-ok/warn/bad) are reserved for state and must not be spent
+   on "this one is yours". */
+.ws-pipe__step--yours .ws-pipe__mark {
+  background: var(--ws-surface);
+  box-shadow: 0 0 0 2px var(--ws-accent);
+}
+
+.ws-pipe__step--yours .ws-pipe__label { color: var(--ws-accent-strong); }
+
+.ws-pipe__arrow {
+  position: absolute;
+  top: 22px;
+  right: -8px;
+  transform: translateY(-50%);
+  color: var(--ws-ink-300);
+}
+
+.ws-pipe__note {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 11px;
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-paper);
+  color: var(--ws-ink-500);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.ws-pipe__note svg { flex: none; }
+
+/* --- Stat tiles: the reference's icon-left arrangement ------------------- */
+/* Reads left-to-right as one line — icon, then label, then the number — where
+   the previous stacked form put the number under a header row. The number stays
+   in the mono voice; it is a count, and counts are data on this page. */
+.ws-docs--index .ws-doctile {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-s3);
+  min-height: 84px;
+}
+
+.ws-docs--index .ws-doctile__head {
+  display: contents;
+}
+
+.ws-docs--index .ws-doctile__icon {
+  order: -1;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent);
+}
+
+.ws-docs--index .ws-doctile__label {
+  font-size: 11.5px;
+  color: var(--ws-ink-500);
+}
+
+/* Label above number in a single column, to the right of the icon. */
+.ws-docs--index .ws-doctile__label,
+.ws-docs--index .ws-doctile__n {
+  grid-column: 2;
+}
+
+.ws-docs--index .ws-doctile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: var(--ws-s3);
+  row-gap: 3px;
+}
+
+.ws-docs--index .ws-doctile__icon { grid-row: 1 / span 2; align-self: center; }
+.ws-docs--index .ws-doctile__n { font-size: 1.5rem; }
+
+/* Status tiles tint their own icon plate, so the row still reads as four
+   distinct states without colour being the only signal (each keeps its icon). */
+.ws-docs--index .ws-doctile--needs_attention .ws-doctile__icon {
+  background: var(--ws-warn-soft); color: var(--ws-warn);
+}
+.ws-docs--index .ws-doctile--analyzed .ws-doctile__icon {
+  background: var(--ws-ok-soft); color: var(--ws-ok);
+}
+
+/* --- The table card carries its own header and footer -------------------- */
+/* The reference shows the column header above the empty state. That is right:
+   a table with no rows should still tell you what it will hold, and it stops
+   the card from collapsing into an unrelated-looking panel. */
+.ws-doctable {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius);
+  overflow: hidden;
+}
+
+/* The toolbar and table sit inside the card now, so they shed their own frames
+   and keep only the dividing rules. */
+.ws-doctable .ws-doctoolbar {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--ws-ink-100);
+  border-radius: 0;
+  background: transparent;
+}
+
+.ws-doctable .ws-docs__table {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ws-doctable__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-s3);
+  flex-wrap: wrap;
+  padding: 11px var(--ws-s4);
+  border-top: 1px solid var(--ws-ink-100);
+  background: var(--ws-paper);
+  color: var(--ws-ink-500);
+  font-size: 11px;
+}
+
+.ws-doctable__foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ws-accent);
+  text-decoration: none;
+}
+
+.ws-doctable__foot a:hover { text-decoration: underline; }
+
+/* --- Empty state inside the card ---------------------------------------- */
+.ws-docempty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 260px;
+  padding: var(--ws-s6) var(--ws-s4);
+}
+
+.ws-docempty__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  margin-bottom: var(--ws-s3);
+  border-radius: 50%;
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent);
+}
+
+.ws-docempty h2 { margin: 0 0 6px; font-size: var(--ws-text-md); }
+
+.ws-docempty p {
+  margin: 0 0 var(--ws-s4);
+  max-width: 46ch;
+  color: var(--ws-ink-500);
+  font-size: var(--ws-text-sm);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* --- Responsive --------------------------------------------------------- */
+/* The pipeline is the constraint: below ~1080px five steps cannot hold a
+   readable measure side by side, so it becomes a 3-then-2 grid and the arrows
+   go — they described a horizontal flow that no longer exists. The <ol> still
+   carries the order for assistive technology. */
+@media (max-width: 1080px) {
+  .ws-docs--index .ws-docs__top { grid-template-columns: minmax(0, 1fr); }
+
+  .ws-pipe__row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--ws-s4) var(--ws-s3);
+  }
+
+  .ws-pipe__arrow { display: none; }
+  .ws-pipe__detail { max-width: 22ch; }
+}
+
+@media (max-width: 620px) {
+  .ws-pipe__row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* At two columns the tiles are the thing that must stay legible; a 38px
+     plate beside a 1.5rem number in a 160px column is too tight. */
+  .ws-docs--index .ws-doctile { min-height: 74px; padding: var(--ws-s3); }
+  .ws-docs--index .ws-doctile__n { font-size: 1.3rem; }
+
+  .ws-doctable__foot { justify-content: flex-start; }
+}
+
+@media (max-width: 420px) {
+  .ws-pipe__row { grid-template-columns: minmax(0, 1fr); }
+  .ws-pipe__step { display: flex; align-items: center; gap: var(--ws-s3); text-align: left; }
+  .ws-pipe__mark { margin-bottom: 0; }
+  .ws-pipe__detail { max-width: none; }
+}
+
+/* Reduced motion: nothing here animates, but the hover lift on the table rows
+   and the intake card is inherited from earlier rules — left as-is, since a
+   background change is not motion. */
+
+
+/* ---------------------------------------------------------------------------
+ * `.ws-shell` at narrow widths — two attempts, and why the second is right.
+ *
+ * The defect (pre-existing, found by the Documents responsive check):
+ * `.ws-shell__user` overflowed the viewport — measured 615px inside a 600px
+ * window — clipping the "Sign out" control off the right edge.
+ *
+ * FIRST ATTEMPT, WRONG, and it made things worse: `flex-wrap: wrap` on
+ * `.ws-shell`. That header has a FIXED `height: var(--ws-shell-h)`, so wrapping
+ * did not make the bar taller — it pushed the second row straight out of the bar
+ * and over the page title beneath it. A screenshot at 390px caught it.
+ *
+ * SECOND ATTEMPT: do not wrap. Keep the bar one row and let the one droppable
+ * thing drop — the name. The avatar still identifies the account and "Sign out"
+ * stays reachable, which is the part that must never be clipped: a control the
+ * user cannot reach is a different order of problem from a label they cannot see.
+ * ------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  .ws-shell { flex-wrap: nowrap; gap: var(--ws-s3); min-width: 0; }
+
+  /* The nav is the flexible part; it may scroll rather than push the bar wide. */
+  .ws-shell__nav { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .ws-shell__nav::-webkit-scrollbar { display: none; }
+
+  .ws-shell__user { min-width: 0; flex: none; }
+
+  /* The name is the only thing that goes. Hidden, not shrunk to an ellipsis:
+     "Ama…" is noise, and the avatar already carries the identity. */
+  .ws-shell__user > span:not(.ws-shell__avatar) { display: none; }
+}
+
+
+/* ===========================================================================
+ * Adaptive width — owner, 2026-09-01: "make the screen adaptable according to
+ * the display"
+ * ===========================================================================
+ * `.ws-docs` caps at 72rem (1152px). That is a READING MEASURE and it is right
+ * for the prose-carrying views that share the class — a line of body text past
+ * ~75 characters is measurably harder to track, which is why the cap exists.
+ *
+ * It is the wrong rule for THIS view. The index is a seven-column table, a row
+ * of four counts and a five-step strip: none of them is prose, and all of them
+ * were being squeezed into 1152px while a 1920px display sat ~380px empty on
+ * each side. So the cap is lifted for `.ws-docs--index` only, and every other
+ * view keeps its measure untouched.
+ *
+ * Not fully fluid either. Past roughly 1800px a table row becomes a tracking
+ * problem of its own — the eye loses the line between "Document" on the left and
+ * "Action" on the right. `min()` takes whichever is smaller, so the page fills a
+ * 1440px laptop completely, uses a 1920px monitor nearly completely, and stops
+ * growing on a 2560px one instead of stretching a row to 2.4 metres of pixels.
+ * ========================================================================= */
+.ws-docs--index {
+  max-width: min(112rem, 100%);
+  /* Gutters scale with the viewport rather than sitting at a fixed 1rem, so a
+     wide display gets breathing room and a phone does not waste any. */
+  padding-inline: clamp(var(--ws-s4), 2.5vw, var(--ws-s6));
+}
+
+/* The intake card was pinned at 420px to match the reference. At 1600px+ that
+   left the strip with more room than it can use and the card looking stranded,
+   so above the reference's own width the column becomes proportional instead. */
+@media (min-width: 1500px) {
+  .ws-docs--index .ws-docs__top { grid-template-columns: minmax(420px, 26%) minmax(0, 1fr); }
+
+  /* With the room available, the step captions no longer need to wrap at all. */
+  .ws-pipe__detail { max-width: 24ch; }
+  .ws-pipe { padding: var(--ws-s5); }
+}
+
+/* Counts stay on one row as long as four of them fit legibly; `auto-fit` on the
+   existing rule already handles the fall to 2×2 and 1×4, so nothing is added
+   here — noted only so the next reader does not add a redundant breakpoint. */
+
+/* The table is the element that actually needs the width. Give the columns that
+   carry variable-length values the slack, and hold the short ones steady, so
+   widening the page widens the document name rather than the "Added" date. */
+@media (min-width: 1200px) {
+  .ws-docs--index .ws-docs__table table { table-layout: fixed; }
+  .ws-docs--index .ws-docs__table th:nth-child(1) { width: 32%; }
+  .ws-docs--index .ws-docs__table th:nth-child(2) { width: 8%; }
+  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 13%; }
+  .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
+  .ws-docs--index .ws-docs__table th:nth-child(5) { width: 13%; }
+  .ws-docs--index .ws-docs__table th:nth-child(6) { width: 11%; }
+  .ws-docs--index .ws-docs__table th:nth-child(7) { width: 11%; }
+
+  /* A long filename must not force the row taller. It clips to one line with the
+     full value on the link's `title`, which is the pattern for an unpredictable
+     value in a fixed column: bound it, keep it shrinkable, and expose the whole
+     string to pointer and keyboard rather than a hover-only tooltip. */
+  .ws-docs--index .ws-docs__table td:nth-child(1) .ws-doc-name {
+    display: inline-flex; align-items: center; gap: 7px;
+    max-width: 100%; min-width: 0;
+  }
+  .ws-docs--index .ws-docs__table td:nth-child(1) .ws-doc-name > svg { flex: none; }
+  .ws-doc-name__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Vertical adaptation. On a short viewport — a laptop at 1366×768, or any window
+   half-height — the strip and the intake row push the table entirely below the
+   fold, so the first thing the page is for is the last thing visible. Tightening
+   the vertical rhythm buys back roughly 90px, which is the difference between
+   seeing the table header and not. */
+@media (min-height: 0px) and (max-height: 820px) and (min-width: 1100px) {
+  .ws-docs--index { gap: var(--ws-s4); padding-block: var(--ws-s4) var(--ws-s5); }
+  .ws-pipe { padding-block: var(--ws-s4); gap: var(--ws-s3); }
+  .ws-pipe__mark { width: 38px; height: 38px; margin-bottom: var(--ws-s2); }
+  .ws-docs--index .ws-doctile { min-height: 72px; }
+}
+
+/* Icon button styling */
+.ws-btn--icon { display: flex; align-items: center; gap: 0.5rem; justify-content: center; }
+.ws-btn--icon svg { flex-shrink: 0; }
+.ws-escalate__link--icon { display: inline-flex; align-items: center; gap: 0.35rem; }
+.ws-rolechip__revoke--icon { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.ws-pager .ws-btn--icon { gap: 0.35rem; }
+
+
+/* Caption block, evened out.
+ *
+ * Below 1500px the captions have room for one line or two depending on their
+ * length, which left the row with alternating 16px and 32px caption blocks. The
+ * labels above them still lined up, so this was never the baseline break a
+ * wrapping *label* causes — but a ragged lower edge across five equal marks reads
+ * as carelessness. Reserving two lines costs 16px once and makes the row settle.
+ *
+ * Above 1500px every caption fits on one line, so nothing is reserved there. */
+@media (max-width: 1499px) and (min-width: 621px) {
+  .ws-pipe__detail { min-height: 2.9em; }
+}
+
+
+/* ===========================================================================
+ * The Ask bar must not cover the analysis panel — 2026-09-01
+ * ===========================================================================
+ * `.ws-askbar__card` was `max-width: 66rem; margin: 0 auto`, centred across the
+ * WHOLE workspace. At 1600px that put its right edge inside the analysis column,
+ * so the card sat on top of a Key Risks entry — a finding awaiting a Legal
+ * Decision, hidden behind a search box. Screenshot caught it; no test would have.
+ *
+ * The fix mirrors the workspace's own grid rather than guessing a width, so the
+ * card tracks the document column exactly and cannot drift out of it when the
+ * side panel resizes between its 330px and 400px bounds.
+ * ========================================================================= */
+@media (min-width: 1101px) {
+  .ws-askbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 400px);
+    gap: var(--ws-s4);
+    align-items: end;
+  }
+
+  /* Column 1 only. The side column stays empty so the panel beneath it is
+     reachable all the way down. */
+  .ws-askbar__card { grid-column: 1; max-width: none; margin: 0; }
+
+  /* The gutter the grid adds on the right would otherwise swallow clicks aimed at
+     the analysis panel; the bar is already `pointer-events: none`, and this keeps
+     it that way for the empty column. */
+  .ws-askbar > :not(.ws-askbar__card) { pointer-events: none; }
+}
+
+/* And the document must not scroll UNDER the bar.
+ *
+ * The workspace height already subtracts `--ws-askbar-h`, but the card grows
+ * taller than that reservation once the suggestion chips wrap to a second row —
+ * which they do at every width below ~1500px. Padding the scroll area by the
+ * card's real height keeps the last line of a clause readable instead of sitting
+ * behind a shadow. */
+.ws-text {
+  /* `--ws-s7` was already the bottom pad; this replaces it with the Ask bar's own
+     height so the reservation cannot drift out of step with the bar. */
+  padding-bottom: var(--ws-askbar-h);
+  /* And a clause scrolled to by a citation lands above the bar, not under it. */
+  scroll-padding-bottom: var(--ws-askbar-h);
+}

@@ -73,19 +73,19 @@ export interface NavItem {
 
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
-  if (can(P.CONTRACT_VIEW)) items.push({ href: "/workspace", label: "Documents" });
-  if (can(P.REVIEW_VIEW)) items.push({ href: "/workspace/reviews", label: "Reviews" });
-  if (can(P.LEGAL_REVIEW)) items.push({ href: "/workspace/legal", label: "Legal" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/workspace/ask", label: "Ask history" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/workspace/research", label: "Research" });
+  if (can(P.CONTRACT_VIEW)) items.push({ href: "/documents", label: "Documents" });
+  if (can(P.REVIEW_VIEW)) items.push({ href: "/documents/reviews", label: "Reviews" });
+  if (can(P.LEGAL_REVIEW)) items.push({ href: "/documents/legal", label: "Legal" });
+  if (can(P.ASSIST_ASK)) items.push({ href: "/documents/ask", label: "Ask History" });
+  if (can(P.ASSIST_ASK)) items.push({ href: "/documents/research", label: "Research" });
   // The control plane sits last — it is not part of the legal workflow (§H).
-  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/workspace/admin", label: "Admin" });
+  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/documents/admin", label: "Admin" });
   return items;
 }
 
 /**
  * The nav item a pathname belongs to — the LONGEST matching href, so that
- * `/workspace/reviews/…` lights "Reviews" and never also "Documents" (whose
+ * `/documents/reviews/…` lights "Reviews" and never also "Documents" (whose
  * href is a prefix of every workspace route).
  */
 export function activeNavHref(pathname: string, items: NavItem[]): string | null {
@@ -306,6 +306,44 @@ export function rowNeedsAttention(row: {
     ([classification, n]) => classification !== "MATCH" && n > 0,
   );
 }
+
+/** Review lifecycle states that mean "a result is still coming" (Step 30) —
+ *  the same set `findingsState.tsx` polls on. */
+const IN_FLIGHT_REVIEW_STATUSES = new Set(["DRAFT", "UPLOADED", "PROCESSING"]);
+
+/**
+ * The four Documents-list buckets (2026-09-01 redesign), mirroring the
+ * server's own `_status_bucket` field for field: never a new lifecycle enum,
+ * never a Finding Classification (REC-02's boundary) — purely a rendering
+ * grouping of `latest_version`/`latest_analysis`, the exact fields
+ * `analysisCell`/`rowNeedsAttention` already read. Kept in lockstep with the
+ * backend intentionally; if either changes, `test_contracts_list_status_filter_
+ * matches_the_same_bucket_the_row_shows` (backend) is the tripwire.
+ */
+export type DocumentStatusBucket = "draft" | "analyzing" | "needs_attention" | "analyzed";
+
+export function documentStatusBucket(row: {
+  latest_version?: { processing_status: string } | null;
+  latest_analysis?: {
+    review_status: string;
+    classification_counts?: Record<string, number>;
+  } | null;
+}): DocumentStatusBucket {
+  if (!row.latest_version || row.latest_version.processing_status !== "COMPLETED") return "draft";
+  const analysis = row.latest_analysis;
+  if (!analysis) return "draft";
+  if (IN_FLIGHT_REVIEW_STATUSES.has(analysis.review_status)) return "analyzing";
+  const counts = analysis.classification_counts ?? {};
+  const hasIssue = Object.entries(counts).some(([classification, n]) => classification !== "MATCH" && n > 0);
+  return hasIssue ? "needs_attention" : "analyzed";
+}
+
+export const STATUS_BUCKET_LABEL: Record<DocumentStatusBucket, string> = {
+  draft: "Draft",
+  analyzing: "Analyzing",
+  needs_attention: "Needs Review",
+  analyzed: "Analyzed",
+};
 
 export function analysisCell(row: {
   latest_version?: { processing_status: string } | null;

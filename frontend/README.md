@@ -1,4 +1,26 @@
-# LegalMind V1 — frontend
+# LegalMind frontend
+
+## ⚠️ Deploying — do not run a bare `next build` here
+
+`legalmind-frontend.service` serves `.next` **directly out of this working tree**,
+and `next build` deletes and rewrites that directory in place. A build that fails
+partway therefore takes the live site down — and does it invisibly: nginx keeps
+answering 200 while every page hangs on "Loading…". That happened on 2026-09-01.
+
+```bash
+npm run deploy      # scripts/deploy-frontend.sh
+```
+
+Typechecks first, builds into `.next-staging`, refuses to deploy without a
+`BUILD_ID`, swaps atomically, probes the live URL, and **rolls back** to
+`.next-previous` if the probe fails.
+
+`npm run build` is blocked by a `prebuild` hook whenever the service is active.
+To build without touching what is served: `LEGALMIND_NEXT_DIST=.next-staging npx
+next build`. To override deliberately: `LEGALMIND_ALLOW_INPLACE=1 npm run build`.
+
+**And the wider rule this came from:** HTTP 200 is not evidence a page works. For
+anything user-facing, render it in a browser and read the DOM.
 
 Implementation of locked **Step 52 — Frontend Architecture**, against the locked
 Step 49 API. The specification is the source of truth: `../all_lock.md`

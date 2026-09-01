@@ -8,6 +8,7 @@
  * every request (S-1), so this array can only ever be a rendering hint.
  */
 
+import { useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -95,4 +96,40 @@ export function useSession(): SessionState {
 export function useSeesLegalPosition(): boolean {
   const { can } = useSession();
   return can("legal_position.view");
+}
+
+/**
+ * Wrap API calls to handle session expiry (401 errors) globally. If a 401 occurs,
+ * attempt to refresh the session. If that fails, redirect to login. This ensures
+ * expired sessions are caught immediately and users are prompted to sign in again.
+ *
+ * Usage: `const result = await useApiError(() => api.someEndpoint())`
+ */
+export function useApiError(): <T,>(fn: () => Promise<T>) => Promise<T> {
+  const { refresh } = useSession();
+  const router = useRouter();
+
+  return useCallback(
+    async <T,>(fn: () => Promise<T>): Promise<T> => {
+      try {
+        return await fn();
+      } catch (error) {
+        // If it's a 401 (session expired), try to refresh and redirect to login
+        if (error instanceof ApiError && error.isUnauthenticated) {
+          try {
+            await refresh();
+            // If refresh succeeds, the session is restored - retry the operation
+            return await fn();
+          } catch {
+            // Refresh failed - redirect to login page
+            router.replace("/login");
+            throw error;
+          }
+        }
+        // For all other errors, re-throw to let the caller handle
+        throw error;
+      }
+    },
+    [refresh, router],
+  );
 }

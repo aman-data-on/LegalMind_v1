@@ -16,7 +16,7 @@
  * where Reviews come from rather than faking a creation path.
  *
  * The queue and one Review's report both live at the fixed pathname
- * `/workspace/reviews`; which one renders is decided by `?id=` rather than a
+ * `/documents/reviews`; which one renders is decided by `?id=` rather than a
  * path segment, so no Review id appears in the URL path itself.
  */
 
@@ -164,7 +164,7 @@ function ReviewsQueueView() {
                   return (
                     <tr key={review.id} data-review-id={review.id} className={attention ? "ws-tr--attention" : undefined}>
                       <td>
-                        <Link href={`/workspace?id=${review.contract_id}`}>
+                        <Link href={`/documents?id=${review.contract_id}`}>
                           {names[review.contract_id] ?? review.contract_id.slice(0, 8)}
                         </Link>
                       </td>
@@ -175,7 +175,7 @@ function ReviewsQueueView() {
                       </td>
                       <td className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
                       <td>
-                        <Link href={`/workspace/reviews?id=${review.id}`}>Report</Link>
+                        <Link href={`/documents/reviews?id=${review.id}`}>Report</Link>
                       </td>
                     </tr>
                   );

@@ -40,13 +40,23 @@ def test_every_registered_route_declares_a_permission():
     assert set(ENDPOINT_PERMISSIONS) - routes == set()
 
 
-def test_only_health_is_unauthenticated_by_design():
-    """Two routes are deliberately reachable without a session: the liveness
-    probe and the login endpoint itself. Anything else would be an oversight."""
+def test_only_the_probe_and_the_two_sign_in_mechanisms_are_unauthenticated():
+    """Four routes are deliberately reachable without a session, and no fifth may
+    appear without this test failing (49.3: "No endpoint is implicitly public").
+
+    The liveness probe; the password login 47.1.3 calls the controlled fallback;
+    and the two OIDC routes that ARE the primary mechanism — they cannot require a
+    session, because they are how one is obtained. Both OIDC routes are rate-limited
+    on the login bucket, and the callback's CSRF defence is the OIDC `state`
+    parameter rather than the double-submit cookie, which a top-level GET
+    navigation cannot carry.
+    """
     unauthenticated = {route for route, perm in ENDPOINT_PERMISSIONS.items()
                        if perm == UNAUTHENTICATED}
     assert unauthenticated == {("GET", "/health"),
-                               ("POST", f"{V1}/auth/login")}
+                               ("POST", f"{V1}/auth/login"),
+                               ("GET", f"{V1}/auth/oidc/start"),
+                               ("GET", f"{V1}/auth/oidc/callback")}
 
 
 def test_openapi_document_is_not_served_by_default():

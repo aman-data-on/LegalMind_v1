@@ -189,6 +189,7 @@ def _summary(run: AnalysisRun) -> dict:
         "findings_created": run.findings_created,
         "skipped_as_optional": run.skipped_as_optional,
         "failures": len(run.failures),
+        "unmatched_provisions": run.unmatched_provisions,
     }
 
 

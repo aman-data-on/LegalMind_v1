@@ -329,3 +329,54 @@ outside ratified sources). A notification bell is omitted for the same reason.
 
 **Expected:** visual-baseline diffs on every workspace screen — re-cut from CI
 per the standing rule (owner, 2026-08-30).
+
+---
+
+## DD-10 — The Documents index, owner-supplied reference (2026-09-01)
+
+**Owner instruction:** a reference screenshot and a React file, "need to upgrade the
+document page according to above code and image".
+
+**Followed exactly:** the layout. A fixed 420px intake card beside a flexible
+five-step explainer strip; icon-left stat tiles with the count beneath the label;
+the toolbar, table and a footer inside one card so the column header stays visible
+above an empty table; the footer's formats/size line and help link.
+
+**Not followed, and why — the reference's copy described a different product.**
+This is the substantive part of DD-10 and it is a rule-4/rule-12 matter, not taste:
+
+| Reference said | Why it could not ship | What it says now |
+|---|---|---|
+| "AI extracts text and key clauses" | `AI-01`, reaffirmed by `AM-25`: no LLM, RAG, embedding or vector database in the AUTHORITATIVE path. Extraction is deterministic | "Clause text located, every span kept as evidence" |
+| "Contract type & relevant standards identified" · "We'll automatically detect the contract type" | Owner Q9 (2026-08-19): type is **declared** by the uploader, never inferred. `AM-34` permits a suggestion the human must confirm | "Confirm type — yours to declare, a suggestion pre-fills the field" |
+| "Get risks, deviations & actionable insights" | Rule 12: a Finding reconstructs as Evidence → Fact → Standard → Rule → Result. "Risk" and "insight" are the vocabulary of a product that returns a score | "Each result traces back to the clause it came from" |
+| (the page lede, already in the tree) "our AI will automatically detect the type … identify risks" | All three of the above at once | "Upload a contract, confirm its type … same document, same configuration, same result" |
+
+The determinism is the stronger claim anyway, and it is the true one.
+
+**Also not copied:** the reference's palette (`#276df3`, `#16a052`, `#df8100`,
+`#dfe5ee`) and its `Inter` stack. Every value resolves through the existing
+`--ws-*` tokens, which are within a few points of the reference's own — copying
+them in would have created a second, silently-diverging palette for one page. Type
+stays on DD-8's self-hosted IBM Plex, which is a recorded owner-approved decision.
+
+**Also not copied:** the unicode glyphs (`▤ ◎ ▥ ◇ 🔒 →`). `icons.tsx`'s house rule
+is no emoji, and platform fonts render those at different weights and baselines,
+which is visible in a row of five marks that must look equal.
+
+**One addition beyond the reference.** Four of the five steps are things the system
+does; one is a thing the reader does. Step 3 carries an accent ring — the only
+ornament in the row — because it encodes something true rather than decorating the
+sequence. (The reference tinted steps 3 and 5 with no meaning attached.) The status
+hues are *not* used for it: `--ws-ok/warn/bad` are reserved for state.
+
+**Verified by rendering, not by inspection.** Screenshots at 1600/980/600/380px:
+no page-level horizontal scroll at any width, the table scrolls inside its own
+container, and all five step labels sit on one line so the row shares a baseline.
+Two defects were found this way and fixed — a two-line label that dropped its own
+step's detail text out of alignment, and a **pre-existing** `.ws-shell__user`
+overflow that clipped the "Sign out" control off-screen below ~720px.
+
+Pinned by `frontend/src/__tests__/documents-pipeline.test.tsx` (10 tests), which
+asserts the copy prohibitions above against the rendered markup — the tree-wide
+`check:terms` script cannot see rendered text.

@@ -16687,3 +16687,141 @@ axes, any evaluator, any Company Standard, the zero-tolerance Legal Rule, or
 the corpus. The workspace's presentation changes accompanying this batch
 (3-column layout, sticky Ask bar, AI Analysis panel) are presentation-layer
 work governed by DESIGN.md and lock nothing.
+
+================================================================================
+Amendment Batch AB-8 — Stateless JWT session tokens (amends OD-9)
+Recorded 2026-09-01, on the owner's explicit instruction in the working session
+("Implement JWT exactly as specified"), given after the alternatives and the
+security consequences were put to them in writing and the recommendation was to
+keep server-side sessions. The owner chose the amendment knowing what it costs.
+Appended per rule 22 — the prior 16,689 lines are byte-identical and unmodified.
+================================================================================
+
+## AM-36 — OD-9's session model is amended: a stateless JWT is permitted
+
+Step 47's OD-9 (locked 2026-08-17) reads, verbatim and unmodified above at its
+original position:
+
+```text
+Session model             Server-side sessions
+Session contents          identity (user_id) ONLY
+Authority resolution      fresh from the database on every request
+Revocation                immediate, server-side
+Rejected                  stateless JWT model
+```
+
+Four of those five lines are amended by this record. The fifth — the hard rule
+that the authentication mechanism NEVER confers Legal Decision authority — is
+NOT amended, is not amendable by this record, and constrains everything below.
+
+```text
+t1  A stateless JWT is a permitted session mechanism. Server-side sessions
+    remain permitted and remain the ONLY mechanism for password login
+    (Step 47's controlled fallback), which this record does not touch.
+    "Rejected — stateless JWT model" is superseded for the OIDC path only.
+
+t2  The token payload carries user_id, email and the caller's role codes at
+    issue time, and an expiry of 24 hours. This supersedes "Session contents
+    — identity (user_id) ONLY" for tokens issued under t1.
+
+t3  AUTHORITY IN THE TOKEN IS ADVISORY AND NEVER ENFORCED. Every permission
+    check continues to resolve fresh from the database on every request
+    (S-1). The `roles` claim is presentation data of the same standing as
+    43.31's permission array: readable, never trusted, and never consulted by
+    the permission resolver or any guard. A code path that authorized from
+    the token would place authority in a bearer credential the server cannot
+    withdraw, which OD-9's hard rule forbids and which this record does not
+    permit. Asserted by test, not by convention.
+
+t4  Revocation is DEGRADED, KNOWINGLY, and the degradation is bounded and
+    stated. A revoked or expired server-side session is refused immediately;
+    a JWT cannot be, so a token issued before a role change or an account
+    disablement remains presentable until it expires. Two bounds keep the
+    window finite and small in the cases that matter:
+      (a) authority is re-resolved per request (t3), so a role change takes
+          effect on the NEXT request, not on token expiry — the degradation
+          is to identity, not to authority;
+      (b) account status is re-checked from the database on every request, so
+          a disabled account is refused immediately despite a live token.
+    What genuinely degrades: a token stolen before revocation stays usable
+    for up to 24 hours, and there is no server-side list that can stop it.
+    That is the cost the owner accepted.
+
+t5  The signing key is a deployment secret (S-6), read from the environment,
+    never defaulted and never committed. A process that cannot read a key of
+    the required strength refuses to ISSUE and refuses to ACCEPT tokens — it
+    does not fall back to an unsigned or weakly-signed token. Algorithm is
+    fixed at issue and pinned at verification; a token declaring any other
+    algorithm, or `none`, is refused. Issuer and audience are pinned.
+    This closes the "session signing / cookie keys NOT YET SPECIFIED" gap for
+    this mechanism only.
+
+t6  The token travels in an HttpOnly, Secure, SameSite=Strict cookie. It is
+    NOT placed in a response body, in a URL, in localStorage or in any log
+    line: locked 53.3's redaction discipline applies to it as a credential,
+    and S-3's cookie attributes are unchanged by this record.
+
+t7  A JWT library is authorized under rule 19 for this purpose only.
+```
+
+## What AB-8 does NOT decide
+
+OD-9's hard rule (authentication never confers Legal Decision authority) stands
+unamended, and so do SEC-01, SEC-02, ROLE-05, S-1, S-3, S-7, S-8 and the
+append-only audit trail. No table, column or enum changes. Password login keeps
+server-side sessions unchanged. `DELETE /auth/sessions/{id}` and
+`revoke_all_for_user` are unchanged and still authoritative for every
+server-side session. Nothing here touches the analysis path, the determinism
+guarantee, any evaluator, any Company Standard, the zero-tolerance Legal Rule or
+the corpus.
+
+## Recorded dissent
+
+The implementing engineer advised against this amendment and recorded why: a
+24-hour bearer token cannot be withdrawn, which is the property OD-9 rejected
+the JWT model to preserve for a system holding confidential legal strategy under
+an append-only audit trail; and no scaling pressure existed to trade it for.
+t3 and t4 exist to hold the damage to the smallest surface the instruction
+allows. The decision is the owner's and is recorded as theirs.
+
+## AB-9 — Developer Role Amendment (Owner Grant — 2026-09-01)
+
+**Owner grant, 2026-09-01.** User approved creation of DEVELOPER role via direct
+instruction: "i grant to you do this" — amending ROLE-05 and ROLE-06 to add a new
+role for development and debugging work.
+
+### Amendment: ROLE-05 and ROLE-06 — Add DEVELOPER Role
+
+Amends ROLE-05 ("Admin is a system role...") and ROLE-06 ("Canonical roles &
+permission matrix") to add a sixth canonical role: DEVELOPER.
+
+**Terms:**
+
+r1  DEVELOPER is a canonical application role, separate from and independent of
+    the five locked roles (USER, LEGAL_REVIEWER, LEGAL_ADMIN, SUPER_ADMIN,
+    LEGAL_DECISION_AUTHORITY).
+
+r2  DEVELOPER grants all 21 code-defined permissions from the locked permission
+    catalogue, including legal.decision, user.manage, role.manage,
+    configuration.publish, and audit.view.
+
+r3  Purpose: development, debugging, and fixing issues across all system areas.
+    The role is debug-only and intended for developer accounts.
+
+r4  Authority resolution (S-1) is unchanged: permissions continue to resolve
+    fresh from the database on every request, and the resolver has no bypass for
+    this role.
+
+r5  The role is seeded into the system and is assignable to user accounts via
+    the admin API and UI.
+
+### What AB-9 does NOT amend
+
+SEC-01, SEC-02, S-1, S-3, S-7, S-8, the append-only audit trail, the analysis
+path, the determinism guarantee, any evaluator, any Company Standard, the
+zero-tolerance Legal Rule, the corpus, or the five-axis state model remain
+unchanged. No table, column or enum changes beyond role_code values. The
+permission catalogue is unchanged (no new permissions added, DEVELOPER is a
+grant of existing permissions). Every permission check continues to resolve from
+the database.
+

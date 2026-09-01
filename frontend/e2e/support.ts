@@ -172,7 +172,7 @@ export async function signIn(
   await page.getByLabel("Work email").fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/workspace/, { timeout: 20_000 });
+  await page.waitForURL(/\/documents/, { timeout: 20_000 });
 }
 
 /**

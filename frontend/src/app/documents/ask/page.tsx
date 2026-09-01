@@ -7,7 +7,7 @@
  * workspace; this screen is for rereading.
  *
  * The list and one recorded conversation both live at the fixed pathname
- * `/workspace/ask`; which one renders is decided by `?id=` rather than a path
+ * `/documents/ask`; which one renders is decided by `?id=` rather than a path
  * segment, so no conversation id appears in the URL path itself.
  */
 
@@ -120,14 +120,14 @@ function AskHistoryListView() {
                 {conversations.map((conversation) => (
                   <tr key={conversation.id}>
                     <td className="ws-docs__q">
-                      <Link href={`/workspace/ask?id=${conversation.id}`}>
+                      <Link href={`/documents/ask?id=${conversation.id}`}>
                         {conversation.first_question ?? "(nothing asked)"}
                       </Link>
                     </td>
                     <td className="ws-mono">{conversation.message_count}</td>
                     <td>
                       {conversation.contract_id ? (
-                        <Link href={`/workspace?id=${conversation.contract_id}`}>
+                        <Link href={`/documents?id=${conversation.contract_id}`}>
                           {names[conversation.contract_id] ?? conversation.contract_id.slice(0, 8)}
                         </Link>
                       ) : (

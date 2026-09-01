@@ -18,7 +18,7 @@ test.describe("the document pane", () => {
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
 
     // The new shell, not the legacy chrome.
     await expect(page.locator(".ws-shell")).toBeVisible();
@@ -30,7 +30,13 @@ test.describe("the document pane", () => {
     await expect(doc.locator(".ws-outline__title")).toHaveText("Clauses");
     await expect(doc.locator(".ws-doccard__bar")).toBeVisible();
     await expect(doc.locator(".ws-row").first()).toBeVisible();
-    await expect(doc.locator(".ws-page__marker").first()).toContainText(/Page \d+|Unnumbered/);
+    // A lone "Unnumbered pages" banner is noise when the WHOLE document has no
+    // page model (a DOCX has none until printed) — it renders only where it
+    // distinguishes a group from a numbered one elsewhere in the SAME document.
+    // The fixture is entirely unnumbered, so no marker renders at all; the
+    // toolbar says so plainly instead of a fake "— of —".
+    await expect(doc.locator(".ws-page__marker")).toHaveCount(0);
+    await expect(doc.locator(".ws-doccard__bar")).toContainText("Not paginated");
     await expect(doc.locator(".ws-readiness")).toHaveAttribute(
       "data-readiness",
       /ready|lexical-only|not-indexed/,
@@ -44,7 +50,7 @@ test.describe("the document pane", () => {
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
 
@@ -63,12 +69,12 @@ test.describe("the document pane", () => {
 
   test("a shared link lands on the exact row", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     const targetId = await doc.locator(".ws-row").last().getAttribute("data-evidence-id");
 
-    await page.goto(`/workspace?id=${contractId}&evidence=${targetId}`);
+    await page.goto(`/documents?id=${contractId}&evidence=${targetId}`);
     const lit = doc.locator(".ws-row--lit");
     await expect(lit).toHaveAttribute("data-evidence-id", targetId!);
     await expect(lit).toBeFocused();
@@ -83,7 +89,7 @@ test.describe("the document pane", () => {
       contract_type: "MSA",
     });
     const contract = (await created.json()).data;
-    await page.goto(`/workspace?id=${contract.id}`);
+    await page.goto(`/documents?id=${contract.id}`);
     await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
@@ -109,11 +115,11 @@ test.describe("the document pane", () => {
     const theirs = (await created.json()).data.id;
     await counsel.close();
 
-    await page.goto(`/workspace?id=${theirs}`);
+    await page.goto(`/documents?id=${theirs}`);
     await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
     const stolen = await page.locator(".ws-state").innerText();
 
-    await page.goto(`/workspace?id=00000000-0000-4000-8000-000000000000`);
+    await page.goto(`/documents?id=00000000-0000-4000-8000-000000000000`);
     await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
     const ghost = await page.locator(".ws-state").innerText();
     expect(stolen).toBe(ghost);
@@ -127,22 +133,22 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // point is the SIGNED-OUT redirect, which an inherited session would hide.
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test("a successful login lands on /workspace, never /contracts", async ({ page }) => {
+    test("a successful login lands on /documents, never /contracts", async ({ page }) => {
       const f = fixture();
       await page.goto("/login");
       await page.getByLabel("Work email").fill(f.accounts.owner.email);
       await page.getByLabel("Password", { exact: true }).fill(f.accounts.owner.password);
       await page.getByRole("button", { name: /sign in/i }).click();
-      await page.waitForURL(/\/workspace$/, { timeout: 20_000 });
+      await page.waitForURL(/\/documents$/, { timeout: 20_000 });
       await expect(page.locator(".ws-shell")).toBeVisible();
       await expect(page.locator(".topbar")).toHaveCount(0);
     });
 
     test("a signed-out visit ends at /login — never a restricted flash (owner ruling, 2026-08-31)", async ({ page }) => {
-      // Before this ruling a signed-out visit to /workspace rendered the shell
+      // Before this ruling a signed-out visit to /documents rendered the shell
       // with an empty nav and "Access restricted" — which reads as an RBAC
       // denial when the visitor simply isn't signed in. The correct flow is:
-      // sign in first, then land per RBAC. `/` still routes through /workspace
+      // sign in first, then land per RBAC. `/` still routes through /documents
       // (the cleanup's own guarantee), and the workspace shell then sends the
       // signed-out visitor on to /login.
       await page.goto("/");
@@ -154,37 +160,37 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
       await expect(page.locator(".topbar")).toHaveCount(0);
     });
 
-    test("a deep /workspace link, signed out, also ends at /login", async ({ page }) => {
-      await page.goto("/workspace/reviews");
+    test("a deep /documents link, signed out, also ends at /login", async ({ page }) => {
+      await page.goto("/documents/reviews");
       await page.waitForURL(/\/login$/, { timeout: 20_000 });
       await expect(page.getByLabel("Work email")).toBeVisible();
     });
   });
 
-  test("the Documents landing lists documents and links only into /workspace", async ({ page }) => {
+  test("the Documents landing lists documents and links only into /documents", async ({ page }) => {
     const created = await apiPost(page, "/contracts", {
       name: `Index ${Date.now()}`,
       contract_type: "MSA",
     });
     const contract = (await created.json()).data;
 
-    await page.goto("/workspace");
+    await page.goto("/documents");
     await expect(page.locator(".ws-shell")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
 
     const row = page.getByRole("link", { name: contract.name });
-    await expect(row).toHaveAttribute("href", `/workspace?id=${contract.id}`);
+    await expect(row).toHaveAttribute("href", `/documents?id=${contract.id}`);
     await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
 
     await row.click();
-    await expect(page).toHaveURL(`/workspace?id=${contract.id}`);
+    await expect(page).toHaveURL(`/documents?id=${contract.id}`);
   });
 
   test("intake is upload-first: file → derived name + declared type → workspace (2026-08-31 UX correction)", async ({
     page,
   }) => {
     const f = fixture();
-    await page.goto("/workspace");
+    await page.goto("/documents");
     // The primary act is the file, not a form.
     await page.setInputFiles('input[type="file"]', f.document.path);
 
@@ -206,13 +212,13 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
 
     // Without the type the action stays unavailable.
-    await expect(page.getByRole("button", { name: "Confirm and analyze" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Confirm & Analyze" })).toBeDisabled();
     await select.selectOption("NDA");
-    await page.getByRole("button", { name: "Confirm and analyze" }).click();
+    await page.getByRole("button", { name: "Confirm & Analyze" }).click();
 
     // One act lands in the workspace with the document there — no empty-record
     // detour, no "No document uploaded yet".
-    await page.waitForURL(/\/workspace\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/documents\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     await expect(page.locator(".ws-context")).toContainText("NDA");
   });
@@ -229,7 +235,7 @@ test.describe("the Findings pane, slice 2", () => {
     const findings = (await findingsResp.json()).data;
     const target = findings[0].evaluations[0];
 
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     await openFindingsTab(page);
     const pane = page.locator('[data-region="findings"]');
     await expect(pane.locator(".ws-finding").first()).toBeVisible();
@@ -255,7 +261,7 @@ test.describe("the Findings pane, slice 2", () => {
     const findings = (await findingsResp.json()).data;
     const evaluationId = findings[0].evaluations[0].id;
 
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     await openFindingsTab(page);
     const evaluation = page.locator('[data-scope]').first();
     await expect(evaluation).toBeVisible();
@@ -282,7 +288,7 @@ test.describe("the Findings pane, slice 2", () => {
 
   test("escalation is a quiet request, distinct from the decision control", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     await openFindingsTab(page);
     const finding = page.locator(".ws-finding").first();
     await expect(finding).toBeVisible();
@@ -308,7 +314,7 @@ test.describe("the Ask pane, slice 3", () => {
     // exists here (CI asserts none), so an ask that clears retrieval still cannot
     // generate: exactly production until the `AM-31` gate opens.
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     // Ask is the sticky bar below the grid now — always mounted, never a tab.
     const pane = page.locator(".ws-askbar");
     await expect(pane).toBeVisible();
@@ -338,7 +344,7 @@ test.describe("the Ask pane, slice 3", () => {
 
   test("a compliance-shaped question is routed to Findings, not answered or refused", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     const pane = page.locator(".ws-askbar");
     await pane.getByLabel("Question").fill("Does this liability clause meet our company standard?");
     await pane.getByRole("button", { name: "Ask" }).click();
@@ -355,12 +361,21 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
 
     // AI Analysis is the side card's DEFAULT tab (DD-9).
     await expect(page.getByRole("tab", { name: "AI Analysis" })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
     await expect(panel.locator(".ws-tiles")).toBeVisible();
+
+    // Every stat tile is labeled with a REAL Step 19 classification — never an
+    // invented catch-all like "Needs review" (owner correction, 2026-09-01).
+    const REAL_CLASSIFICATIONS = ["MATCH", "DEVIATION", "MISSING", "CONFLICT",
+      "UNABLE_TO_EVALUATE", "AMBIGUOUS", "UNRESOLVED"];
+    const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
+    expect(tileLabels.length).toBeGreaterThan(0);
+    for (const label of tileLabels) expect(REAL_CLASSIFICATIONS).toContain(label);
+    expect(await panel.innerText()).not.toContain("Needs review");
 
     // The ring is real counts — a raw total in the center; the legend's
     // percentages are shares of those counts, never a grade or confidence.
@@ -385,7 +400,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
   test("the outline carries DD-9 status markers derived from findings", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
 
     // The fixture analysis yields a DEVIATION, so at least one outline row is
     // marked needs-review. Every marker is one of the three DD-9 buckets and
@@ -402,7 +417,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
   test("the Ask bar stays reachable at the bottom of a scrolled document", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 700 });
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
     // Scroll the document pane to its end — the bar's input must still be in
@@ -420,7 +435,7 @@ test.describe("collapse behavior", () => {
   test("narrow viewports keep every region reachable as a tab, and Ask stays a sticky bar", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 800, height: 900 });
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
 
     const tabs = page.getByRole("tab");
     await expect(tabs).toHaveCount(3);
@@ -447,7 +462,7 @@ test.describe("collapse behavior", () => {
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     await expect(page.locator(".ws-shell")).toBeVisible();
 
     // First tabbable element in DOM order is the skip link — headless Chromium

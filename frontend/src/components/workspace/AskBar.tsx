@@ -29,6 +29,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { sectionRef } from "@/lib/documentTypes";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import type { AskResult, ConversationTurn } from "@/lib/types";
@@ -324,7 +325,7 @@ export function WsAnswerView({ result }: { result: AskResult }) {
                 data-evidence-id={citation.evidence_id}
               >
                 <span className="ws-mono">[{index + 1}]</span>{" "}
-                {citation.section_ref ? `§${citation.section_ref}` : "passage"}
+                {sectionRef(citation.section_ref) ?? "passage"}
                 {citation.page_number != null ? ` · p.${citation.page_number}` : ""}
               </button>
               <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>

@@ -39,6 +39,13 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
 
     # ---- 49.2 authentication -------------------------------------------
     ("POST", f"{API_PREFIX}/auth/login"): UNAUTHENTICATED,
+    # 49.2 lines 1–2. Unauthenticated by necessity — they ARE the act of
+    # authenticating, and 47.1.3 makes this the primary mechanism. Both are
+    # rate-limited on the login bucket, and the callback's own CSRF defence is
+    # the OIDC `state` parameter rather than the double-submit cookie (a GET
+    # top-level navigation cannot carry a header).
+    ("GET", f"{API_PREFIX}/auth/oidc/start"): UNAUTHENTICATED,
+    ("GET", f"{API_PREFIX}/auth/oidc/callback"): UNAUTHENTICATED,
     ("POST", f"{API_PREFIX}/auth/logout"): AUTHENTICATED_ONLY,
     ("GET", f"{API_PREFIX}/auth/session"): AUTHENTICATED_ONLY,
     ("DELETE", f"{API_PREFIX}/auth/sessions/{{session_id}}"): P.USER_MANAGE,
@@ -46,6 +53,9 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     # ---- 49.3 contracts & documents ------------------------------------
     ("GET", f"{API_PREFIX}/contracts"): P.CONTRACT_VIEW,
     ("POST", f"{API_PREFIX}/contracts"): P.CONTRACT_CREATE,
+    # Implementation addition (2026-09-01, Documents redesign): the stat-tile
+    # summary, same permission and same object-level scope as the list itself.
+    ("GET", f"{API_PREFIX}/contracts/summary"): P.CONTRACT_VIEW,
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_UPDATE,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/document-versions"):
@@ -103,6 +113,7 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/users"): P.USER_MANAGE,
     ("GET", f"{API_PREFIX}/users/{{user_id}}"): P.USER_MANAGE,
     ("PATCH", f"{API_PREFIX}/users/{{user_id}}"): P.USER_MANAGE,
+    ("DELETE", f"{API_PREFIX}/users/{{user_id}}"): P.USER_MANAGE,
     ("POST", f"{API_PREFIX}/users/{{user_id}}/roles"): P.USER_MANAGE,
     ("DELETE", f"{API_PREFIX}/users/{{user_id}}/roles/{{role_code}}"): P.USER_MANAGE,
     ("GET", f"{API_PREFIX}/roles"): P.ROLE_MANAGE,
@@ -153,12 +164,11 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 
 NOT_IMPLEMENTED: Final[dict[tuple[str, str], str]] = {
-    ("GET", f"{API_PREFIX}/auth/oidc/start"):
-        "OIDC needs an approved JWT/JWKS client dependency (rule 19) and the "
-        "deployment's IdP configuration. Neither exists; Step 47's password "
-        "fallback is implemented instead.",
-    ("GET", f"{API_PREFIX}/auth/oidc/callback"):
-        "As above.",
     # /reviews/{id}/export left this list on 2026-08-31: the owner's export
     # directive specified the formats 49.12 had left open (PDF, DOCX).
+    # The two OIDC routes left it on 2026-09-01: no JWT/JWKS dependency turned out
+    # to be needed (the ID token is read from our own direct TLS exchange with the
+    # token endpoint, never accepted from a client), so the rule-19 blocker
+    # dissolved and only the deployment's IdP configuration remained. That is a
+    # deployment prerequisite, which the 55.6 preflight reports.
 }

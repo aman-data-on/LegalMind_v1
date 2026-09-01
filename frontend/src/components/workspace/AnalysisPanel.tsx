@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The AI Analysis panel — the side card's default tab, matched to the owner's
+ * The Analysis panel — the side card's default tab, matched to the owner's
  * reference design (2026-09-01). A digest of what the deterministic analysis
  * found, built ONLY from fields the server already returns; nothing here
  * derives, ranks or scores a legal outcome.
@@ -13,7 +13,7 @@
  *   Breakdown        a donut of the same buckets, legend per EXACT
  *                    classification value (the vocabulary always renders
  *                    beside the color).
- *   Key risks        the findings-needing-decision set the findings pane
+ *   Awaiting a decision  the findings-needing-decision set the findings pane
  *                    defaults to (one shared filter), as reference-style
  *                    cards; "View all" opens the Findings tab.
  *   Key obligations  the assist lane's descriptive extraction, grouped under
@@ -21,6 +21,7 @@
  */
 
 import { useMemo } from "react";
+import { sectionRef } from "@/lib/documentTypes";
 
 import { describeError } from "@/lib/api";
 import type { Finding } from "@/lib/types";
@@ -119,31 +120,35 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
     <>
       <section className="ws-analysis__section" aria-label="Status summary">
         <h3 className="ws-analysis__title">Status summary</h3>
+        {/* One tile per classification that ACTUALLY occurred — the real Step 19
+            vocabulary, never an invented catch-all label. "Needs review" is not
+            a status in this system; DEVIATION and UNABLE_TO_EVALUATE are
+            different facts and stay named as themselves (rule 7/12/14). */}
         <div className="ws-tiles">
-          <div className="ws-tile ws-tile--match">
-            <span className="ws-tile__n">{buckets.match}</span>
-            <span className="ws-tile__label">Match</span>
-            <span className="ws-status ws-status--match"><IconCheckCircle size={18} /></span>
-          </div>
-          <div className="ws-tile ws-tile--review">
-            <span className="ws-tile__n">{buckets.review}</span>
-            <span className="ws-tile__label">Needs review</span>
-            <span className="ws-status ws-status--review"><IconAlertCircle size={18} /></span>
-          </div>
-          <div className="ws-tile ws-tile--missing">
-            <span className="ws-tile__n">{buckets.missing}</span>
-            <span className="ws-tile__label">Missing</span>
-            <span className="ws-status ws-status--missing"><IconXCircle size={18} /></span>
-          </div>
+          {summary.counts.map(({ classification, n }) => {
+            const bucket = classificationBucket(classification);
+            return (
+              <div key={classification} className={`ws-tile ws-tile--${bucket}`}>
+                <span className="ws-tile__n">{n}</span>
+                <span className="ws-tile__label ws-mono">{classification}</span>
+                <span className={`ws-status ws-status--${bucket}`}>
+                  {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
+                </span>
+              </div>
+            );
+          })}
         </div>
-        <div className="ws-bar" role="img"
-             aria-label={`${buckets.match} match, ${buckets.review} need review, ${buckets.missing} missing`}>
-          {(["match", "review", "missing"] as const).map((bucket) =>
-            buckets[bucket] > 0 ? (
+        <div
+          className="ws-bar"
+          role="img"
+          aria-label={summary.counts.map(({ classification, n }) => `${n} ${classification}`).join(", ")}
+        >
+          {summary.counts.map(({ classification, n }) =>
+            n > 0 ? (
               <span
-                key={bucket}
-                className={`ws-bar__seg ws-bar__seg--${bucket}`}
-                style={{ flexGrow: buckets[bucket] }}
+                key={classification}
+                className={`ws-bar__seg ws-bar__seg--${classificationBucket(classification)}`}
+                style={{ flexGrow: n }}
               />
             ) : null,
           )}
@@ -170,9 +175,18 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
         </div>
       </section>
 
-      <section className="ws-analysis__section" aria-label="Key risks">
+      {/*
+        ⚠️ "Awaiting a decision", not "Key risks" (renamed 2026-09-01).
+        Rule 12: a Finding reconstructs as Evidence → Fact → Standard → Rule →
+        Result — there is no risk score to rank, and nothing here is scored. What
+        this list actually is, exactly, is the set of findings that need a human
+        ruling (`findingsNeedingDecision`, the same filter the Findings pane
+        defaults to). Naming it that tells the reader what to DO with it, which
+        "risk" never did.
+      */}
+      <section className="ws-analysis__section" aria-label="Findings awaiting a decision">
         <div className="ws-analysis__head">
-          <h3 className="ws-analysis__title">Key risks</h3>
+          <h3 className="ws-analysis__title">Awaiting a decision</h3>
           {risks.length > 0 && sideTabs ? (
             <button type="button" className="ws-viewall" onClick={sideTabs.openFindings}>
               View all
@@ -252,7 +266,7 @@ function RiskCard({ finding }: { finding: Finding }) {
         <span>
           {finding.requirement.code ?? "Requirement"}
           {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
-          {firstEvidence?.section_number ? ` · §${firstEvidence.section_number}` : ""}
+          {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
         </span>
         <span className={`ws-chip ws-chip--bucket-${bucket}`}>{finding.classification}</span>
       </p>

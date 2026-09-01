@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { sectionRef } from "@/lib/documentTypes";
 
 import { api } from "@/lib/api";
 import type { ObligationGroup } from "@/lib/types";
@@ -123,7 +124,9 @@ function ObligationGroupView({ group, expanded }: { group: ObligationGroup; expa
                 type="button"
                 className="ws-obligations__jump"
                 aria-current={target === item.evidence_id ? "true" : undefined}
-                title={item.section_ref ? `Show §${item.section_ref} in the document` : "Show in the document"}
+                title={sectionRef(item.section_ref)
+                ? `Show ${sectionRef(item.section_ref)} in the document`
+                : "Show in the document"}
                 onClick={() => point(item.evidence_id!, "the cited")}
               >
                 {item.obligation_text}

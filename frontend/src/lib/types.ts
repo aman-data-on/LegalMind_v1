@@ -99,6 +99,19 @@ export interface Contract {
   updated_at: string | null;
 }
 
+/** The Documents list's stat tiles — real counts across EVERY contract the
+ *  caller owns (`GET /contracts/summary`), computed server-side by the exact
+ *  same bucket rule `?status=` filters the list on, so a tile and a row can
+ *  never disagree. Four states, all derived from data already on the row —
+ *  never a new lifecycle enum, never a Finding Classification. */
+export interface ContractsSummary {
+  total: number;
+  draft: number;
+  analyzing: number;
+  needs_attention: number;
+  analyzed: number;
+}
+
 export interface DocumentVersion {
   id: string;
   contract_id: string;
@@ -278,6 +291,17 @@ export interface ReviewReport {
     ratio: number | null;
   };
   unmatched_provisions: number;
+  /** REC-02 / D-4 (owner, 2026-09-01) — WHICH provisions, so a human can look
+   *  at each one. Never a Finding, never a classification, never presumed
+   *  negative (REC-02 rule 1) — routed to a human only because the system
+   *  has no Requirement to compare it against. */
+  unmatched_provisions_detail: Array<{
+    evidence_id: string;
+    page_number: number | null;
+    section_number: string | null;
+    section_title: string | null;
+    excerpt: string;
+  }>;
   findings_requiring_decision: number;
   // There is deliberately no risk score and no overall verdict (36.10, F-8).
 }

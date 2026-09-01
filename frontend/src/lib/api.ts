@@ -22,6 +22,7 @@ import type {
   ConversationSummary,
   ConfigurationSnapshot,
   Contract,
+  ContractsSummary,
   DataEnvelope,
   Decision,
   DocumentVersion,
@@ -255,8 +256,23 @@ export const api = {
   conversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
 
   // ---- contracts & documents -------------------------------------------
-  contracts: (page = 1, pageSize = 25) =>
-    requestPage<Contract>("/contracts", { query: { page, page_size: pageSize } }),
+  contracts: (
+    page = 1,
+    pageSize = 25,
+    filters: {
+      q?: string | undefined;
+      contract_type?: string | undefined;
+      status?: string | undefined;
+      sort?: string | undefined;
+    } = {},
+  ) =>
+    requestPage<Contract>("/contracts", {
+      query: { page, page_size: pageSize, ...filters },
+    }),
+  /** Real counts across EVERY contract the caller owns, not just the current
+   *  page — the same bucket the list's own `?status=` filters on (server:
+   *  `_status_bucket`), so a tile and a row can never disagree. */
+  contractsSummary: () => request<ContractsSummary>("/contracts/summary"),
   contract: (id: string) => request<Contract>(`/contracts/${id}`),
   createContract: (name: string, contractType?: string) =>
     request<Contract>("/contracts", {
@@ -450,12 +466,14 @@ export const api = {
   ) => requestPage<AuditEvent>("/audit-events", { query }),
 
   // ---- administration --------------------------------------------------
-  users: (query: { page?: number; page_size?: number; status?: string } = {}) =>
+  users: (query: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
     requestPage<User>("/users", { query }),
   createUser: (email: string, name: string) =>
     request<User>("/users", { method: "POST", body: { email, name } }),
   updateUser: (id: string, patch: Record<string, unknown>) =>
     request<User>(`/users/${id}`, { method: "PATCH", body: patch }),
+  deleteUser: (id: string) =>
+    request<{ deleted: boolean }>(`/users/${id}`, { method: "DELETE" }),
   grantRole: (userId: string, roleCode: string) =>
     request<User>(`/users/${userId}/roles`, {
       method: "POST",

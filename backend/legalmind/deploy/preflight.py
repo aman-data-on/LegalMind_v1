@@ -71,6 +71,7 @@ def run_preflight(*, environment: str | None = None) -> list[Check]:
         _safe_parsing(),
         _reproducibility_gate(),
         _oidc_configured(),
+        _jwt_signing_key(),
         _malware_scanning(),
         _retention_policy(),
         _backup_restore(),
@@ -314,23 +315,78 @@ def _reproducibility_gate() -> Check:
 
 
 def _oidc_configured() -> Check:
-    """55.6's first blocker. OIDC is the locked primary mechanism (47.1.3), and it is
-    not implemented: it needs a JWT/JWKS client dependency plus issuer and client
-    configuration. Reported as blocked rather than silently absent."""
+    """55.6's first blocker. OIDC is the locked primary mechanism (47.1.3).
+
+    Implemented on 2026-09-01 (``security/oidc.py``), so this is now a pure
+    configuration check: the flow needs the deployment's issuer, client id, client
+    secret and the registered redirect URI. Missing any of them leaves only the
+    password fallback, which 47.1.3 permits but does not make primary — hence
+    still a blocker for production rather than a warning.
+    """
     required = ("LEGALMIND_OIDC_ISSUER", "LEGALMIND_OIDC_CLIENT_ID",
-                "LEGALMIND_OIDC_CLIENT_SECRET")
+                "LEGALMIND_OIDC_CLIENT_SECRET", "LEGALMIND_OIDC_REDIRECT_URI")
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
         return Check("oidc", BLOCKED,
                      "OIDC is the locked primary authentication mechanism (47.1.3) "
-                     "and is NOT IMPLEMENTED — it requires an approved JWT/JWKS "
-                     f"client dependency and {missing}. Only the password fallback "
-                     "is available",
+                     f"and is implemented but NOT CONFIGURED — {missing} are unset. "
+                     "Only the password fallback is available",
                      basis="55.6, 47.1.3")
-    return Check("oidc", BLOCKED,
-                 "OIDC configuration is present but the provider flow is not "
-                 "implemented; the endpoints are absent by design",
-                 basis="55.6, 47.1.3")
+    redirect = os.environ.get("LEGALMIND_OIDC_REDIRECT_URI", "")
+    if not redirect.startswith("https://"):
+        # An authorization code delivered over plaintext is a disclosed code.
+        return Check("oidc", FAIL,
+                     "LEGALMIND_OIDC_REDIRECT_URI must be an https URL; the "
+                     "authorization code is delivered to it",
+                     basis="55.6, 47.1.3, S-6")
+    if not redirect.endswith("/api/v1/auth/oidc/callback"):
+        return Check("oidc", FAIL,
+                     "LEGALMIND_OIDC_REDIRECT_URI must end with the route this "
+                     "application actually serves, /api/v1/auth/oidc/callback, and "
+                     "must match the value registered with the identity provider "
+                     "byte for byte",
+                     basis="55.6, 49.2")
+    domain = os.environ.get("LEGALMIND_OIDC_ALLOWED_DOMAIN", "").strip()
+    detail = ("OIDC is configured and implemented"
+              + (f"; sign-in restricted to @{domain.lstrip('@')}" if domain else
+                 "; NO email-domain restriction is set, so any verified account at "
+                 "the provider may sign in IF an administrator has already created "
+                 "a matching LegalMind user — there is no just-in-time provisioning"))
+    return Check("oidc", PASS, detail, basis="55.6, 47.1.3")
+
+
+def _jwt_signing_key() -> Check:
+    """`AM-36` t5 (AB-8) — the JWT signing key is a deployment secret.
+
+    A FAIL rather than a BLOCKED when weak or absent: unlike OIDC's IdP
+    registration, nothing here is waiting on a third party. The one nuance worth
+    reporting is that an absent key is not a broken deployment — `AM-36` t5 forbids
+    a downgrade, so the callback simply issues no token and the (revocable)
+    server-side session carries the sign-in. That is a *safer* posture than a live
+    token, so it is reported as a PASS with the fact stated, not as a failure.
+    """
+    from legalmind.security import tokens
+
+    raw = os.environ.get("LEGALMIND_JWT_SECRET", "")
+    if not raw:
+        return Check("jwt_signing_key", PASS,
+                     "LEGALMIND_JWT_SECRET is unset, so no AM-36 stateless token is "
+                     "issued and sign-in uses the revocable server-side session "
+                     "only. This is the safer posture; set a key only if the "
+                     "AM-36 mechanism is wanted",
+                     basis="AM-36 t5, 55.6")
+    if len(raw.encode()) < tokens.MIN_SECRET_BYTES:
+        return Check("jwt_signing_key", FAIL,
+                     f"LEGALMIND_JWT_SECRET is {len(raw.encode())} bytes; AM-36 t5 "
+                     f"requires at least {tokens.MIN_SECRET_BYTES}. Below that an "
+                     "offline attack on the MAC is the cheapest way in and every "
+                     "other control on the token is decorative",
+                     basis="AM-36 t5")
+    return Check("jwt_signing_key", PASS,
+                 "AM-36 stateless tokens are enabled and the signing key meets the "
+                 "length floor. ⚠️ AM-36 t4: a token cannot be revoked server-side "
+                 "— rotating this key is the only blunt revocation available",
+                 basis="AM-36 t4/t5")
 
 
 def _malware_scanning() -> Check:

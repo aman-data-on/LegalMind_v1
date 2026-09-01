@@ -3,7 +3,7 @@
 /**
  * The reference-matched workspace shape (owner, 2026-09-01): the document area
  * (clauses card + document card) with ONE side card whose header is a small
- * tab pair — **AI Analysis** (default) and **Findings**. The reference design
+ * tab pair — **Analysis** (default) and **Findings**. The reference design
  * has no separate findings column; the full findings pane — decisions,
  * escalation, the legal core — lives one tab away, never hidden behind a
  * scroll or a page change, and a `?finding=` / `?classification=` deep link
@@ -23,13 +23,30 @@ export type Region = "document" | "findings" | "analysis";
 type Mode = "wide" | "one";
 type SideTab = "analysis" | "findings";
 
+/*
+ * ⚠️ "Analysis", NOT "AI Analysis" — renamed 2026-09-01.
+ *
+ * The owner's reference labelled this tab "AI ANALYSIS". Everything in it except
+ * Key Obligations is the output of the DETERMINISTIC evaluator: the status
+ * summary, the clause breakdown and the findings awaiting a decision all come
+ * from rule evaluation against a ratified Company Standard, with no model
+ * anywhere near them. `AI-01` (reaffirmed by `AM-25`) keeps every LLM, RAG,
+ * embedding and vector store OUT of that path.
+ *
+ * So the label was not just imprecise, it was backwards: it credited a model for
+ * the one part of the product whose value is that no model touched it — and it
+ * would invite a reader to discount a Finding as "the AI's opinion" when it is a
+ * reproducible rule outcome. The assist lane's own contributions are labelled
+ * where they appear (Key Obligations, Ask), which is where the distinction
+ * belongs.
+ */
 const LABEL: Record<Region, string> = {
   document: "Document",
   findings: "Findings",
-  analysis: "AI Analysis",
+  analysis: "Analysis",
 };
 
-/** Lets the AI Analysis panel's "View all" open the Findings tab. */
+/** Lets the Analysis panel's "View all" open the Findings tab. */
 const SideTabCtx = createContext<{ openFindings: () => void } | null>(null);
 export function useSideTabs() {
   return useContext(SideTabCtx);

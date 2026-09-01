@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Plus, Upload } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
@@ -113,7 +114,8 @@ export default function ConfigurationPage() {
               onChange={(event) => setCode(event.target.value)}
             />
           </Field>
-          <button type="submit" className="btn btn--primary">
+          <button type="submit" className="btn btn--primary btn-icon">
+            <Plus size={18} />
             Create draft Requirement
           </button>
         </form>
@@ -156,7 +158,8 @@ export default function ConfigurationPage() {
                 onChange={(event) => setPublishCodes(event.target.value)}
               />
             </Field>
-            <button type="submit" className="btn btn--primary">
+            <button type="submit" className="btn btn--primary btn-icon">
+              <Upload size={18} />
               Publish
             </button>
           </form>

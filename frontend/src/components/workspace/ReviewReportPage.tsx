@@ -17,6 +17,7 @@
  */
 
 import Link from "next/link";
+import { sectionRef } from "@/lib/documentTypes";
 import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
@@ -97,7 +98,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
         <h2>{notFound ? "Not found." : "The report could not be loaded."}</h2>
         {notFound ? (
           <p>
-            <Link href="/workspace/reviews">Back to reviews</Link>
+            <Link href="/documents/reviews">Back to reviews</Link>
           </p>
         ) : (
           <p>{describeError(state.error)}</p>
@@ -120,7 +121,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
             snapshot {review.configuration_snapshot_id.slice(0, 8)}
           </span>
           <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
-          <Link href={`/workspace?id=${review.contract_id}`}>Open the workspace</Link>
+          <Link href={`/documents?id=${review.contract_id}`}>Open the workspace</Link>
           <ExportControl reviewId={review.id} />
         </div>
       </div>
@@ -148,7 +149,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                 {report.findings_requiring_decision === 1 ? "Finding awaits" : "Findings await"} a Legal Decision
               </span>
             </div>
-            <div className="ws-stat">
+            <div className={`ws-stat${report.unmatched_provisions > 0 ? " ws-stat--attention" : ""}`}>
               <span className="ws-stat__n ws-mono">{report.unmatched_provisions}</span>
               <span className="ws-stat__label">unmatched provisions — document-level observations, never Findings</span>
             </div>
@@ -179,13 +180,41 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                 {Object.entries(report.classification_counts).map(([value, count]) => (
                   <Link
                     key={value}
-                    href={`/workspace?id=${review.contract_id}&classification=${value}`}
+                    href={`/documents?id=${review.contract_id}&classification=${value}`}
                     className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
                   >
                     {value} <b className="ws-mono">{count}</b>
                   </Link>
                 ))}
               </div>
+            </section>
+          ) : null}
+
+          {report.unmatched_provisions_detail.length > 0 ? (
+            <section aria-label="Unmatched provisions">
+              <h2 className="ws-report__h">Unmatched provisions — needs a human look</h2>
+              <p className="ws-pane__note">
+                These clauses appear in the counterparty&rsquo;s document but have no
+                corresponding requirement in our Company Standard — the system has
+                nothing to compare them against, so each one is routed to a person
+                rather than judged. Not automatically negative or unacceptable
+                (REC-02): a fact to review, not a determination.
+              </p>
+              <ul className="ws-report__unmatched">
+                {report.unmatched_provisions_detail.map((item) => (
+                  <li key={item.evidence_id} className="ws-report__unmatched-item">
+                    <Link href={`/documents?id=${review.contract_id}&evidence=${item.evidence_id}`}>
+                      {sectionRef(item.section_number)}
+                      {item.section_title ? ` ${item.section_title}` : null}
+                      {!item.section_number && !item.section_title
+                        ? (item.page_number != null ? `p.${item.page_number}` : "View clause")
+                        : null}
+                      {" →"}
+                    </Link>
+                    <blockquote className="ws-quote">{item.excerpt}</blockquote>
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 

@@ -91,7 +91,7 @@ test.describe("signed in (counsel)", () => {
   test("workspace — document pane, slice 1", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page);
-    await page.goto(`/workspace?id=${contractId}`);
+    await page.goto(`/documents?id=${contractId}`);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     await expect(page).toHaveScreenshot("workspace.png", {
       ...SHOT,
@@ -161,7 +161,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
   test("documents landing — intake and list", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await createAnalysedReview(page);
-    await page.goto("/workspace");
+    await page.goto("/documents");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-documents.png", {
       ...SHOT,
@@ -174,7 +174,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
   test("reviews queue — filters and rows", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await createAnalysedReview(page);
-    await page.goto("/workspace/reviews");
+    await page.goto("/documents/reviews");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-reviews.png", {
       ...SHOT,
@@ -186,7 +186,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
   test("review report — counts, never a grade", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/workspace/reviews?id=${reviewId}`);
+    await page.goto(`/documents/reviews?id=${reviewId}`);
     await expect(page.locator(".ws-stat").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-report.png", {
       ...SHOT,
@@ -199,7 +199,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
   test("legal queue — one flat list, ruling elsewhere", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await createAnalysedReview(page);
-    await page.goto("/workspace/legal");
+    await page.goto("/documents/legal");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-legal.png", {
       ...SHOT,
@@ -212,7 +212,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await askAbout(page, contractId);
-    await page.goto("/workspace/ask");
+    await page.goto("/documents/ask");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-ask-history.png", {
       ...SHOT,
@@ -225,7 +225,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     const conversationId = await askAbout(page, contractId);
-    await page.goto(`/workspace/ask?id=${conversationId}`);
+    await page.goto(`/documents/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-transcript.png", {
       ...SHOT,
@@ -236,7 +236,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
 
   test("research — the one disclosed placeholder", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    await page.goto("/workspace/research");
+    await page.goto("/documents/research");
     await expect(page.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
     await expect(page).toHaveScreenshot("ws-research.png", { ...SHOT, fullPage: true });
   });
@@ -247,14 +247,14 @@ test.describe("the new UI at the freeze (admin)", () => {
 
   test("admin — users, roles, grants", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    await page.goto("/workspace/admin");
+    await page.goto("/documents/admin");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-admin.png", { ...SHOT, fullPage: true });
   });
 
   test("audit trail — the dense read-only table", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    await page.goto("/workspace/admin/audit");
+    await page.goto("/documents/admin/audit");
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-audit.png", {
       ...SHOT,

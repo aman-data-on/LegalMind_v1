@@ -18,11 +18,15 @@
 
 import Link from "next/link";
 
+import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
-function citeLabel(sectionRef: string | null, pageNumber: number | null): string {
+/** The parameter is named `ref` rather than `sectionRef` so it does not shadow
+ *  the shared helper — that shadowing is how this file kept its own `§` prefix
+ *  when the other five callers were converted. */
+function citeLabel(ref: string | null, pageNumber: number | null): string {
   return (
-    (sectionRef ? `§${sectionRef}` : "passage") +
+    (sectionRef(ref) ?? "passage") +
     (pageNumber != null ? ` · p.${pageNumber}` : "")
   );
 }
@@ -75,7 +79,7 @@ export function TranscriptTurn({
                 {contractId ? (
                   <Link
                     className="ws-ask__cite"
-                    href={`/workspace?id=${contractId}&evidence=${citation.evidence_id}`}
+                    href={`/documents?id=${contractId}&evidence=${citation.evidence_id}`}
                     data-evidence-id={citation.evidence_id}
                   >
                     <span className="ws-mono">[{index + 1}]</span> {citeLabel(citation.section_ref, citation.page_number)}
