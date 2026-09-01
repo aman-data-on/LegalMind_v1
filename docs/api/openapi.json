@@ -1244,6 +1244,50 @@
    }
   },
   "/api/v1/contracts/{contract_id}": {
+   "delete": {
+    "description": "Delete one contract \u2014 owner approval 2026-09-01.\n\nCloses the gap `AM-31` left explicitly open (*\"No hard-delete path for a\nContract exists today, and this record does not create one or assume its\nshape\"*). The shape is two modes behind one verb, chosen by whether the\ncontract has ever been analyzed:\n\n* **No Review** \u2014 hard delete. The contract was uploaded and never\n  evaluated, so nothing downstream cites it and nothing is lost: the row,\n  its document versions, their processing runs and extracted evidence, the\n  stored bytes, and the assist-lane chunks and obligation extractions all\n  go. `AM-27 r5` requires the chunks to go with the document.\n* **A Review exists** \u2014 soft delete. `deleted_at` is stamped and the\n  contract leaves every list, summary and by-id response, but its findings,\n  evaluations, decisions and audit entries are untouched.\n\nThat split is the whole point. **Rule 17** \u2014 append-only audit trail,\nhistorical Reviews stay reproducible \u2014 was not authorised for override, and\nhard-deleting an analyzed contract would break it. The response names which\nmode ran so the caller can tell the user what actually happened rather than\nimplying a permanence it did not deliver.\n\nOwnership is the scope, as everywhere else here: `guard.contract` resolves\n`owner_id` per request, so a contract belonging to someone else is a 404 \u2014\nand so is one that is already soft-deleted.",
+    "operationId": "delete_contract_api_v1_contracts__contract_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete Contract Api V1 Contracts  Contract Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Contract",
+    "tags": [
+     "contracts"
+    ]
+   },
    "get": {
     "description": "The contract with its document versions, newest first.\n\n`document_versions` is an implementation addition (2026-08-30, UI phase): a\ndocument-anchored workspace opened on a contract must be able to find its\ndocument through the API, and nothing listed versions \u2014 the legacy screen only\never showed the version it had just uploaded. Additive, same permission the\ncontract already required (a version is reachable only through a contract the\ncaller can see \u2014 47.6 one level down), and the summary is the existing\n`serialize_document_version` shape, so nothing new is disclosed. Recorded in\nStep 49's implementation-additions section.",
     "operationId": "get_contract_api_v1_contracts__contract_id__get",
@@ -3064,6 +3108,7 @@
   },
   "/api/v1/users": {
    "get": {
+    "description": "List users with optional filtering by status and search by email/name.",
     "operationId": "list_users_api_v1_users_get",
     "parameters": [
      {
@@ -3080,6 +3125,22 @@
         }
        ],
        "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "search",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Search"
       }
      },
      {
@@ -3178,6 +3239,50 @@
    }
   },
   "/api/v1/users/{user_id}": {
+   "delete": {
+    "description": "Delete a user. Only DISABLED users can be deleted.",
+    "operationId": "delete_user_api_v1_users__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete User Api V1 Users  User Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete User",
+    "tags": [
+     "administration"
+    ]
+   },
    "get": {
     "operationId": "get_user_api_v1_users__user_id__get",
     "parameters": [

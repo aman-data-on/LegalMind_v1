@@ -30,7 +30,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
@@ -57,6 +57,9 @@ import {
 } from "@/components/workspace/icons";
 
 const PAGE_SIZE = 25;
+/** How many rows the priority queue shows before deferring to "View all". Five
+ *  is a glance; a longer list is the table's job, and the table is right there. */
+const ATTENTION_LIMIT = 5;
 
 const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
   draft: <IconClock size={13} />,
@@ -105,6 +108,16 @@ function FindingsCell({ contract }: { contract: Contract }) {
   );
 }
 
+/** "Review 9 issues" — everything the analysis did not classify as a MATCH.
+ *  Counted from the classifications the server sent, never re-derived from
+ *  anything else: 52.7 keeps the client from computing a second opinion. */
+function openIssueLabel(contract: Contract): string {
+  const counts = contract.latest_analysis?.classification_counts ?? {};
+  const n = Object.entries(counts)
+    .reduce((sum, [c, v]) => sum + (c !== "MATCH" ? v : 0), 0);
+  return `Review ${n} issue${n === 1 ? "" : "s"}`;
+}
+
 function relativeTime(iso: string | null): string {
   if (!iso) return "—";
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -115,17 +128,32 @@ function relativeTime(iso: string | null): string {
   return `${Math.round(seconds / 86400)} d ago`;
 }
 
+/** A count, and — only where one exists — somewhere to go with it. `onSelect`
+ *  turns the tile into a real button; without it the tile stays inert markup
+ *  rather than a control that looks clickable and does nothing. */
 function StatTile({
-  icon, n, label, bucket,
-}: { icon: React.ReactNode; n: number; label: string; bucket?: DocumentStatusBucket }) {
-  return (
-    <div className={`ws-doctile${bucket ? ` ws-doctile--${bucket}` : ""}`}>
+  icon, n, label, bucket, onSelect,
+}: {
+  icon: React.ReactNode; n: number; label: string;
+  bucket?: DocumentStatusBucket; onSelect?: () => void;
+}) {
+  const className = `ws-doctile${bucket ? ` ws-doctile--${bucket}` : ""}`
+    + (onSelect ? " ws-doctile--act" : "");
+  const body = (
+    <>
       <div className="ws-doctile__head">
         <span className="ws-doctile__label">{label}</span>
         <span className="ws-doctile__icon" aria-hidden="true">{icon}</span>
       </div>
       <span className="ws-doctile__n ws-mono">{n}</span>
-    </div>
+    </>
+  );
+  if (!onSelect) return <div className={className}>{body}</div>;
+  return (
+    <button type="button" className={className} onClick={onSelect}>
+      {body}
+      <span className="ws-visually-hidden">Show these contracts</span>
+    </button>
   );
 }
 
@@ -141,6 +169,13 @@ function DocumentsListView() {
   const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "">("");
   const [sort, setSort] = useState("created_desc");
   const [error, setError] = useState<unknown>(null);
+  /** The priority queue, fetched on its own terms — see the effect below. */
+  const [attention, setAttention] = useState<Contract[] | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  /** The row whose action menu is open, and the row being edited or deleted. */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Contract | null>(null);
+  const [deleting, setDeleting] = useState<Contract | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -177,6 +212,41 @@ function DocumentsListView() {
     };
   }, [contracts]);
 
+  /*
+   * The priority queue asks its own question, so it makes its own request.
+   *
+   * It used to be derived — `contracts.find(c => bucket(c) === "needs_attention")`
+   * over whatever the table happened to be showing. That reads the wrong
+   * dataset: the table is one page of 25, ordered by the user's current sort and
+   * narrowed by their current filters, so a contract needing attention that sat
+   * at position 26, or that fell outside an active filter, was invisible while
+   * the tile beside it still counted it. The section rendered nothing and looked
+   * like "all clear".
+   *
+   * `status` is a real server-side filter (the API computes the same
+   * `_status_bucket` the row displays), so this asks the whole collection
+   * directly and the queue can no longer disagree with the tile above it.
+   */
+  useEffect(() => {
+    // Wait for the first list load rather than racing it. Without this the
+    // effect fires twice on every mount — once at `contracts === null` and
+    // again when the list arrives — asking the same question of the server
+    // twice and rendering the answer twice.
+    if (contracts === null) return;
+    let cancelled = false;
+    api.contracts(1, ATTENTION_LIMIT, {
+      status: "needs_attention",
+      sort: "created_desc",
+    }).then((result) => {
+      if (!cancelled) setAttention(result.items);
+    }).catch(() => {
+      // The queue is a shortcut into the table below; the table still stands.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [contracts]);
+
   // Debounce the search box so every keystroke doesn't fire a request.
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -195,16 +265,32 @@ function DocumentsListView() {
     );
   }
 
+  const canUpload = can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD);
+  const canEdit = can(P.CONTRACT_UPDATE);
+  const canDelete = can(P.CONTRACT_DELETE);
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
     && !q && !typeFilter && !statusFilter;
   // Only shown on the plain, unfiltered landing view — under an active
   // search/filter it would be answering a different question than the table
   // below it.
   const isDefaultView = page === 1 && !q && !typeFilter && !statusFilter;
-  const attention = isDefaultView && summary && summary.needs_attention > 0
-    ? contracts?.find((c) => documentStatusBucket(c) === "needs_attention") ?? null
-    : null;
+  const queue = isDefaultView ? attention ?? [] : [];
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
+
+  /** Send the table to one bucket. Every entry point resets the page — landing
+   *  on page 3 of a filter you just applied shows an empty table. */
+  function filterTo(bucket: DocumentStatusBucket) {
+    setStatusFilter(bucket);
+    setPage(1);
+  }
+
+  /** Both mutations refetch rather than editing local state: the server owns
+   *  the row, and a soft delete in particular changes what the summary counts
+   *  say. A spliced array would drift from both. */
+  async function refresh() {
+    setMenuFor(null);
+    await load();
+  }
 
   return (
     <>
@@ -228,54 +314,95 @@ function DocumentsListView() {
           `documents-pipeline.test.tsx` guards it there.
         */}
 
+        {/*
+          Upload is the page's primary action, so it reads as one — a button,
+          not a permanently-open form occupying the fold. The panel below is a
+          disclosure, absent from the DOM until asked for, rather than an
+          overlay: DESIGN.md reserves modals for a genuine interruption (a
+          destructive confirmation, a truly blocking choice), and starting an
+          upload is neither.
+
+          `UploadContract` itself is untouched — same state machine, same calls,
+          same human-declared type on confirm (owner Q9). Only where it lives
+          changed.
+        */}
+        {canUpload ? (
+          <div className="ws-dash__act">
+            <button
+              type="button"
+              className="ws-btn ws-btn--primary"
+              aria-expanded={uploadOpen}
+              aria-controls="ws-upload-panel"
+              onClick={() => setUploadOpen((open) => !open)}
+            >
+              {uploadOpen ? "Close" : "+ Upload Contract"}
+            </button>
+          </div>
+        ) : null}
+
+        {uploadOpen ? (
+          <section id="ws-upload-panel" className="ws-dash__upload">
+            <UploadContract firstRun={!!firstRun} />
+          </section>
+        ) : null}
+
         {summary ? (
-          <section className="ws-doctiles" aria-label="Document totals">
+          <section className="ws-doctiles" aria-label="Contract totals">
             <StatTile icon={<IconFile size={16} />} n={summary.total} label="Total Contracts" />
-            <StatTile icon={<IconAlertCircle size={16} />} n={summary.needs_attention} label="Needs Attention" bucket="needs_attention" />
+            {/* The one tile with somewhere to go: it names a queue the table can
+                actually show. The other three describe states nobody navigates
+                to on purpose, and a link that resolves to a shrug is worse than
+                no link. */}
+            <StatTile
+              icon={<IconAlertCircle size={16} />}
+              n={summary.needs_attention}
+              label="Needs Attention"
+              bucket="needs_attention"
+              {...(summary.needs_attention > 0
+                ? { onSelect: () => filterTo("needs_attention") } : {})}
+            />
             <StatTile icon={<IconCheckCircle size={16} />} n={summary.analyzed} label="Analyzed" bucket="analyzed" />
             <StatTile icon={<IconClock size={16} />} n={summary.draft + summary.analyzing} label="Draft / In Progress" bucket="draft" />
           </section>
         ) : null}
 
-        <div className="ws-docs__top">
-          <UploadContract firstRun={!!firstRun} />
-          <Pipeline />
-        </div>
-
-        {attention ? (
-          <section className="ws-doctend" aria-label="Needs attention preview">
-              <div className="ws-doctend__head">
-                <h2 className="ws-attend__title">Needs Attention</h2>
-                {summary && summary.needs_attention > 1 ? (
-                  <button type="button" className="ws-viewall" onClick={() => setStatusFilter("needs_attention")}>
-                    View all
-                  </button>
-                ) : null}
-              </div>
-              <Link href={`/dashboard?id=${attention.id}`} className="ws-doctend__card">
-                <div className="ws-doctend__row">
-                  <span className="ws-doctend__name">{attention.name}</span>
-                  {attention.contract_type ? (
-                    <span className="ws-chip ws-chip--type">{attention.contract_type}</span>
-                  ) : null}
-                  <StatusPill contract={attention} />
-                </div>
-                <p className="ws-pane__note">
-                  Added {attention.created_at ? attention.created_at.slice(0, 10) : "—"}
-                  {attention.latest_analysis?.completed_at
-                    ? ` · Analyzed ${relativeTime(attention.latest_analysis.completed_at)}` : ""}
-                </p>
-                <FindingsCell contract={attention} />
-                <span className="ws-doctend__go">
-                  {(() => {
-                    const counts = attention.latest_analysis?.classification_counts ?? {};
-                    const n = Object.entries(counts)
-                      .reduce((sum, [c, v]) => sum + (c !== "MATCH" ? v : 0), 0);
-                    return `Review ${n} issue${n === 1 ? "" : "s"}`;
-                  })()}
-                  {" "}<IconChevronRight size={14} />
-                </span>
-            </Link>
+        {queue.length > 0 ? (
+          <section className="ws-doctend" aria-label="Contracts needing attention">
+            <div className="ws-doctend__head">
+              <h2 className="ws-attend__title">Needs Attention</h2>
+              {summary && summary.needs_attention > queue.length ? (
+                <button type="button" className="ws-viewall"
+                        onClick={() => filterTo("needs_attention")}>
+                  View all {summary.needs_attention}
+                </button>
+              ) : null}
+            </div>
+            <ul className="ws-queue">
+              {queue.map((row) => (
+                <li key={row.id}>
+                  <Link href={`/dashboard?id=${row.id}`} className="ws-queue__row">
+                    <span className="ws-queue__main">
+                      <span className="ws-doctend__name">{row.name}</span>
+                      {row.contract_type ? (
+                        <span className="ws-chip ws-chip--type">{row.contract_type}</span>
+                      ) : null}
+                      <StatusPill contract={row} />
+                    </span>
+                    <span className="ws-queue__meta">
+                      <FindingsCell contract={row} />
+                      <span className="ws-pane__note ws-queue__when">
+                        {row.latest_analysis?.completed_at
+                          ? `Analyzed ${relativeTime(row.latest_analysis.completed_at)}`
+                          : `Added ${row.created_at ? row.created_at.slice(0, 10) : "—"}`}
+                      </span>
+                      <span className="ws-doctend__go">
+                        {openIssueLabel(row)} <IconChevronRight size={14} />
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 
@@ -400,10 +527,56 @@ function DocumentsListView() {
                       </td>
                       <td className="ws-mono">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
                       <td>
-                        <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--primary">
-                          {bucket === "draft" ? "Analyze"
-                            : bucket === "analyzing" ? "View Progress" : "Review"}
-                        </Link>
+                        <div className="ws-rowact">
+                          <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--primary">
+                            {bucket === "draft" ? "Analyze"
+                              : bucket === "analyzing" ? "View Progress" : "Review"}
+                          </Link>
+                          {/* Only the operations this caller actually has. An
+                              action shown-but-disabled advertises a capability
+                              the account does not carry; hiding it says the
+                              truth. The server re-checks regardless — this
+                              gating is presentation only (47.6). */}
+                          {canEdit || canDelete ? (
+                            <div className="ws-menu">
+                              <button
+                                type="button"
+                                className="ws-btn ws-btn--sm ws-menu__toggle"
+                                aria-haspopup="menu"
+                                aria-expanded={menuFor === contract.id}
+                                aria-label={`More actions for ${contract.name}`}
+                                onClick={() => setMenuFor(
+                                  menuFor === contract.id ? null : contract.id)}
+                              >
+                                ⋯
+                              </button>
+                              {menuFor === contract.id ? (
+                                <div className="ws-menu__list" role="menu">
+                                  {canEdit ? (
+                                    <button type="button" role="menuitem"
+                                            className="ws-menu__item"
+                                            onClick={() => {
+                                              setMenuFor(null);
+                                              setEditing(contract);
+                                            }}>
+                                      Edit details
+                                    </button>
+                                  ) : null}
+                                  {canDelete ? (
+                                    <button type="button" role="menuitem"
+                                            className="ws-menu__item ws-menu__item--bad"
+                                            onClick={() => {
+                                              setMenuFor(null);
+                                              setDeleting(contract);
+                                            }}>
+                                      Delete
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -426,16 +599,15 @@ function DocumentsListView() {
                   {/* No body copy: the heading states the condition, the button
                       states the action. A sentence between them restates both. */}
                   <h2>No contracts yet</h2>
-                  <button
-                    type="button"
-                    className="ws-btn ws-btn--primary"
-                    onClick={() => document
-                      .getElementById("ws-upload-file")?.scrollIntoView({
-                        behavior: "smooth", block: "center",
-                      })}
-                  >
-                    Upload your first contract
-                  </button>
+                  {canUpload ? (
+                    <button
+                      type="button"
+                      className="ws-btn ws-btn--primary"
+                      onClick={() => setUploadOpen(true)}
+                    >
+                      Upload your first contract
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="ws-docempty">
@@ -515,8 +687,200 @@ function DocumentsListView() {
             </button>
           </nav>
         ) : null}
+
+        {/*
+          The five-step explainer, for the one reader it is for.
+
+          It used to render on every visit. It says the same five words every
+          time and never reflects the state of anything, so for someone who has
+          already uploaded a contract it is a permanent block of the fold
+          spent restating what they just did. On an empty account it is
+          orientation. `Pipeline` itself is unchanged — only when the page asks
+          for it changed.
+        */}
+        {firstRun ? <Pipeline /> : null}
       </div>
+
+      {editing ? (
+        <EditContractDialog
+          contract={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); void refresh(); }}
+        />
+      ) : null}
+
+      {deleting ? (
+        <DeleteContractDialog
+          contract={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => { setDeleting(null); void refresh(); }}
+        />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * Rename a contract, or correct its declared type.
+ *
+ * Both write through `api.updateContract` — the same PATCH the intake confirm
+ * has always used. Nothing new is being decided here: the type stays
+ * human-declared (owner Q9), and this is simply the second chance to declare it
+ * that the product previously lacked. A contract typed wrongly at upload was,
+ * until now, typed wrongly forever, and the declared type is what selects the
+ * Company Standard the contract is measured against.
+ */
+function EditContractDialog({
+  contract, onClose, onSaved,
+}: { contract: Contract; onClose: () => void; onSaved: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const [name, setName] = useState(contract.name);
+  const [type, setType] = useState(contract.contract_type ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, []);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateContract(contract.id, {
+        name: name.trim(),
+        contract_type: type || null,
+      });
+      onSaved();
+    } catch (cause) {
+      setError(cause);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-edit-title" tabIndex={-1}
+           onKeyDown={(e) => {
+             if (e.key === "Escape") onClose();
+             e.stopPropagation();
+           }}>
+        <h2 id="ws-edit-title">Edit contract details</h2>
+        <form onSubmit={save}>
+          <label className="ws-field">
+            <span className="ws-field__label">Name</span>
+            <input required value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Document type</span>
+            <select value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="">Not declared</option>
+              {DOCUMENT_TYPES.map((t) => (
+                <option key={t.code} value={t.code}>{t.label} ({t.code})</option>
+              ))}
+            </select>
+            <span className="ws-field__help">
+              The type selects which approved standard this contract is measured
+              against. Changing it does not re-run an analysis already on record.
+            </span>
+          </label>
+          {error ? (
+            <p className="ws-field__error" role="alert">{describeError(error)}</p>
+          ) : null}
+          <div className="ws-modal__acts">
+            <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ws-btn ws-btn--primary"
+                    disabled={saving || !name.trim()}>
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Delete confirmation — the one modal shape DESIGN.md names outright, because a
+ * destructive act is a genuine interruption.
+ *
+ * The copy differs by whether the contract has been analyzed, because the
+ * server's behaviour differs: an unanalyzed contract is destroyed, an analyzed
+ * one is withdrawn from view while its findings and audit trail are kept
+ * (rule 17). Saying "permanently deleted" in both cases would be a lie in one
+ * of them, and it is the case involving legal records.
+ */
+function DeleteContractDialog({
+  contract, onClose, onDeleted,
+}: { contract: Contract; onClose: () => void; onDeleted: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, []);
+
+  // Analyzed exactly as the row's own status reports it — not a second opinion
+  // computed here (52.7). Whether the server hard- or soft-deletes follows the
+  // same fact, so the warning and the outcome cannot disagree.
+  const analyzed = contract.latest_analysis != null;
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteContract(contract.id);
+      onDeleted();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-del-title" tabIndex={-1}
+           onKeyDown={(e) => {
+             if (e.key === "Escape") onClose();
+             e.stopPropagation();
+           }}>
+        <h2 id="ws-del-title">Delete this contract?</h2>
+        <p className="ws-modal__body">
+          <strong>{contract.name}</strong>
+        </p>
+        <p className="ws-modal__body">
+          {analyzed
+            ? "It has an analysis on record, so it will be removed from your workspace while its findings, decisions and audit history are retained."
+            : "It has not been analyzed, so the contract and the file you uploaded will be permanently removed."}
+        </p>
+        {error ? (
+          <p className="ws-field__error" role="alert">{describeError(error)}</p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="ws-btn ws-btn--bad"
+                  disabled={busy} onClick={() => void confirm()}>
+            {busy ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

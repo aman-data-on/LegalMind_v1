@@ -38,37 +38,7 @@ const nextConfig: NextConfig = {
   // still requires a secure context — use an SSH tunnel to localhost.
   allowedDevOrigins: ["202.66.172.110"],
   async rewrites() {
-    return [
-      { source: "/api/v1/:path*", destination: `${apiOrigin}/api/v1/:path*` },
-      /**
-       * ⚠️ TEMPORARY SHIM — added 2026-09-01. Remove once the Google console is
-       * corrected; it is not part of the design.
-       *
-       * The OAuth client has `https://legalmind.lsnw.io/api/auth/google/callback`
-       * registered as its Authorized redirect URI — an incorrect path suggested in
-       * error before the locked 49.2 route was read, and pasted into the console in
-       * good faith. Google matches redirect URIs byte-for-byte, so sign-in fails
-       * with `redirect_uri_mismatch` until the two agree.
-       *
-       * This forwards that ONE exact path to the callback the API actually serves.
-       * It belongs here rather than in nginx because `/api/v1/*` is the only prefix
-       * the edge sends to FastAPI — `/api/auth/*` already arrives at Next.js.
-       *
-       * To remove: set the console's Authorized redirect URI to
-       * `https://legalmind.lsnw.io/api/v1/auth/oidc/callback`, point
-       * LEGALMIND_OIDC_REDIRECT_URI at the same value, delete this entry, rebuild.
-       *
-       * Safe by construction: an exact source path forwarded to one fixed
-       * destination. It grants no new surface — that callback is already a public
-       * route (it is how a session is obtained) and still performs the full state,
-       * nonce, PKCE, domain and status checks. Its `Set-Cookie` is same-origin
-       * either way, so no locked cookie attribute is affected.
-       */
-      {
-        source: "/api/auth/google/callback",
-        destination: `${apiOrigin}/api/v1/auth/oidc/callback`,
-      },
-    ];
+    return [{ source: "/api/v1/:path*", destination: `${apiOrigin}/api/v1/:path*` }];
   },
 };
 

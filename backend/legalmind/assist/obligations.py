@@ -194,6 +194,32 @@ def extract_obligations(db: DBSession, *, document_version_id: UUID,
     return ExtractionResult(extracted=True, obligations=obligations)
 
 
+def delete_obligation_extractions(db: DBSession,
+                                  document_version_id: UUID) -> int:
+    """Remove a document version's obligation extractions and their runs.
+
+    Called only from the hard-delete branch of contract deletion (owner
+    approval 2026-09-01), which runs solely for a contract that was never
+    analyzed. `AM-27 r5`'s reasoning for chunks applies identically here: this
+    is assist-lane data derived from a document, and it must not outlive the
+    document it describes.
+
+    Extractions before runs — the extraction rows carry a `run_id` FK.
+    """
+    schema = config.assist_schema()
+    removed = db.execute(
+        text(f'DELETE FROM "{schema}".obligation_extractions '
+             'WHERE document_version_id = :d RETURNING id'),
+        {"d": document_version_id},
+    ).all()
+    db.execute(
+        text(f'DELETE FROM "{schema}".obligation_extraction_runs '
+             'WHERE document_version_id = :d'),
+        {"d": document_version_id},
+    )
+    return len(removed)
+
+
 def read_obligations(db: DBSession, document_version_id: UUID) -> dict:
     """The GET shape: `extracted` plus groups under the document's own labels."""
     schema = config.assist_schema()

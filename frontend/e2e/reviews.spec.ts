@@ -25,10 +25,10 @@ test.describe("the reviews queue and the report", () => {
   }) => {
     const { contractId, reviewId } = await createAnalysedReview(page);
 
-    await page.goto("/documents/reviews");
+    await page.goto("/dashboard/reviews");
     await expect(page.getByRole("heading", { name: "Reviews" })).toBeVisible();
     // The nav offers the new destinations and nothing legacy.
-    await expect(page.locator('nav a[href="/documents/reviews"]')).toHaveAttribute(
+    await expect(page.locator('nav a[href="/dashboard/reviews"]')).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -39,11 +39,11 @@ test.describe("the reviews queue and the report", () => {
     // The document is named, not a bare id, and links into its workspace.
     await expect(row.getByRole("link", { name: /Structural MSA/ })).toHaveAttribute(
       "href",
-      `/documents?id=${contractId}`,
+      `/dashboard?id=${contractId}`,
     );
 
     await row.getByRole("link", { name: "Report" }).click();
-    await expect(page).toHaveURL(`/documents/reviews?id=${reviewId}`);
+    await expect(page).toHaveURL(`/dashboard/reviews?id=${reviewId}`);
     await expect(page.getByText("requirements in the snapshot produced Findings")).toBeVisible();
     await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
     await expect(page.getByText("never grades the document")).toBeVisible();
@@ -56,12 +56,12 @@ test.describe("the reviews queue and the report", () => {
     expect(body).not.toContain("verdict");
 
     await page.getByRole("link", { name: "Open the workspace" }).click();
-    await expect(page).toHaveURL(`/documents?id=${contractId}`);
+    await expect(page).toHaveURL(`/dashboard?id=${contractId}`);
   });
 
   test("the status filter narrows through the API's allow-list", async ({ page }) => {
     await createAnalysedReview(page);
-    await page.goto("/documents/reviews");
+    await page.goto("/dashboard/reviews");
     await expect(page.locator("tbody tr").first()).toBeVisible();
 
     // The fixture pipeline never leaves a Review CANCELLED-adjacent: filtering to
@@ -86,11 +86,11 @@ test.describe("ask history", () => {
     const asked = await apiPost(page, `/conversations/${conversationId}/messages`, { question });
     expect(asked.status(), await asked.text()).toBe(201);
 
-    await page.goto("/documents/ask");
+    await page.goto("/dashboard/ask");
     await expect(page.getByRole("heading", { name: "Ask history" })).toBeVisible();
     await page.getByRole("link", { name: question }).click();
 
-    await expect(page).toHaveURL(`/documents/ask?id=${conversationId}`);
+    await expect(page).toHaveURL(`/dashboard/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn--user")).toContainText(question);
     const refusal = page.locator(".ws-ask__answer--refusal");
     await expect(refusal).toHaveText(REFUSAL_TEXT);

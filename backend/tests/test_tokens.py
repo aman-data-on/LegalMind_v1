@@ -342,7 +342,8 @@ def test_the_token_cookie_carries_the_locked_S3_attributes(
     # SameSite=Lax is required for OIDC callback which is a cross-site top-level
     # navigation from the IdP; Strict would withhold the cookie on the callback.
     # t6 covers the Cookie attributes but the SameSite value depends on context.
-    assert "samesite=lax" in header
+    # AM-36 t6 keeps S-3's attributes; restored 2026-09-01 with _COOKIE_KW.
+    assert "samesite=strict" in header
     # 24 hours, per t2.
     assert "max-age=86400" in header
 

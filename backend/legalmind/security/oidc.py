@@ -291,31 +291,16 @@ def _decode_id_token_claims(id_token: str) -> dict[str, Any]:
     return claims
 
 
-@dataclass(frozen=True)
-class ProviderTokens:
-    """Tokens received from the OIDC provider during the authorization code exchange.
-
-    These are hybrid-stored: access_token is short-lived (~1h) and access_token_expires_at
-    tracks when it expires. refresh_token is long-lived (~6 months for Google) and can be
-    used to obtain new access tokens without re-authentication. This respects AM-36's
-    stateless JWT decision while enabling refresh via the provider's credentials.
-    """
-
-    access_token: str | None
-    refresh_token: str | None
-    token_type: str | None
-    access_token_expires_at: int | None  # Unix timestamp
-
-
-def exchange_code(code: str, transaction: Transaction, state: str
-                  ) -> tuple[Claims, ProviderTokens]:
-    """Redeem the authorization code and return the asserted identity + provider tokens.
+def exchange_code(code: str, transaction: Transaction, state: str) -> Claims:
+    """Redeem the authorization code and return the asserted identity.
 
     Order matters: ``state`` is compared before the code is spent, so a forged
     callback never causes a token request at all.
 
-    Returns a tuple of (identity claims, provider tokens). The identity is validated
-    completely; the provider tokens are stored as-is for later refresh operations.
+    Nothing about the provider's own tokens is retained: the authorization code is
+    exchanged, the identity is read from the ID token, and the access/refresh
+    tokens are discarded with the response. Storing them was reverted on
+    2026-09-01 — see the module docstring.
     """
     issuer, client_id, client_secret, redirect_uri = _require_configured()
 
@@ -369,15 +354,11 @@ def exchange_code(code: str, transaction: Transaction, state: str
     # back to the local part so the chrome always has something to render.
     name = str(claims.get("name") or "").strip() or email.split("@")[0]
 
-    # Capture provider tokens for refresh capability (hybrid AM-36 implementation)
-    provider_tokens = ProviderTokens(
-        access_token=tokens.get("access_token"),
-        refresh_token=tokens.get("refresh_token"),
-        token_type=tokens.get("token_type"),
-        access_token_expires_at=tokens.get("expires_in"),
-    )
-
-    return Claims(subject=subject, email=email, name=name[:200]), provider_tokens
+    # The provider's own access and refresh tokens are deliberately NOT retained.
+    # Storing them (table `oidc_provider_tokens`) was reverted on 2026-09-01: no
+    # lock record authorised the table, and `AM-36` — the record it cited — says
+    # "No table, column or enum changes". The identity is all this flow needs.
+    return Claims(subject=subject, email=email, name=name[:200])
 
 
 
@@ -467,39 +448,6 @@ def resolve_user(db: DBSession,
         raise OidcFailure("account is not active")
 
     return user, identity
-
-
-def refresh_access_token(issuer: str, client_id: str, client_secret: str,
-                         refresh_token: str) -> ProviderTokens:
-    """Obtain a new access_token using the provider's refresh_token grant.
-
-    This is part of the hybrid AM-36 implementation: our JWT tokens are stateless,
-    but we can refresh them by exchanging the provider's refresh_token for a new
-    access_token (which we discard) and reissuing our own JWT.
-
-    The access_token we receive is not used locally — it's for provider API calls
-    if we ever need to query user info or manage resources. Our own JWT is
-    self-contained.
-    """
-    try:
-        tokens = _post_form(discover(issuer)["token_endpoint"], {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": client_id,
-            "client_secret": client_secret,
-        })
-    except OidcFailure as e:
-        # Include the reason so the caller can decide whether to force re-auth
-        e.reason = f"refresh_token grant failed: {e.reason}"
-        raise
-
-    # The response should include a new access_token and usually a new refresh_token
-    return ProviderTokens(
-        access_token=tokens.get("access_token"),
-        refresh_token=tokens.get("refresh_token") or refresh_token,  # Fall back to old if not rotated
-        token_type=tokens.get("token_type"),
-        access_token_expires_at=tokens.get("expires_in"),
-    )
 
 
 def log_failure(reason: str, client: str, request_id: str) -> None:

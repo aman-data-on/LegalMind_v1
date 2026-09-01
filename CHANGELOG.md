@@ -12,6 +12,57 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Added
 
+* **Contract deletion (2026-09-01, `AM-37` / AB-10 — owner approval).** Closes
+  the gap `AM-31` left explicitly open and answers `AUTO_MODE_DECISIONS` #85 for
+  the Contract entity. `DELETE /api/v1/contracts/{id}`, with the mode decided by
+  the server and never by the caller: **hard** when the Contract has no Review
+  (row, document versions, processing runs, evidence, stored bytes, and the
+  assist lane's chunks and obligation extractions destroyed — `AM-27` r5
+  satisfied and extended to obligation extractions for the same reason);
+  **soft** when a Review exists (`contracts.deleted_at` set, gone from list,
+  summary and by-id responses, 404 by id per 47.7, findings/decisions/audit
+  untouched). The split is what preserves **rule 17**, and a hard delete of an
+  analyzed Contract is unreachable by any input. Both modes are audited
+  (`contract.soft_deleted` / `contract.hard_deleted`), so the append-only record
+  outlives even a destroyed row. `contract.delete` granted to `ROLE_USER` and
+  scoped by `owner_id`; deliberately not to Legal Admin or Super Admin (Step 24
+  r8/r9). Migration `a3d5f9c17b46`; `ContractStatus` unchanged; locked-column
+  snapshot moved 195 → 196 in the same change. 16 new tests.
+
+* **Dashboard: real Edit and Delete row actions (2026-09-01).** An overflow menu
+  per contract row, each entry hidden rather than disabled when the caller lacks
+  the permission. *Edit details* renames a contract and corrects its declared
+  type through the existing `PATCH /contracts/{id}` — closing the gap where a
+  type mis-declared at intake could never be corrected, and the declared type is
+  what selects the Company Standard the contract is measured against. *Delete*
+  confirms in a modal whose copy branches on whether an analysis exists, because
+  the server's behaviour does; both actions refetch from the server rather than
+  editing local state.
+
+### Changed
+
+* **Dashboard redesign (2026-09-01, owner-directed).** Fixes a real defect
+  first: the "Needs Attention" section was derived from whatever page of the
+  table happened to be loaded (`contracts.find(...)` over 25 rows under the
+  user's current sort and filters), so a contract needing attention outside that
+  window was invisible while the tile beside it counted it — the section
+  rendered nothing and read as "all clear". It now issues its own
+  `status=needs_attention` request against the whole collection and shows a
+  compact queue of up to five, not one oversized card. Upload became a primary
+  action with an inline disclosure panel instead of a permanently-open form
+  holding the fold; the five-step explainer strip now renders only on an empty
+  account, where it is orientation rather than a restatement of what the reader
+  just did; the "Needs Attention" stat tile became a real control that filters
+  the table; and table body text moved from 13px to the page's own 15px, with
+  padding tightened so rows grew ~2px — density belongs to spacing, not to type
+  size. `UploadContract` and `Pipeline` are unchanged internally; only where the
+  page renders them changed.
+
+* **The Documents screen is named Dashboard (2026-09-01, `AM-38` / AB-11).**
+  Route `/dashboard`, heading and navigation label to match, every sub-route
+  moved with it. Presentation only — the fixed-pathname convention stands (a
+  contract is still `/dashboard?id=…`) and no domain term is renamed.
+
 * **REC-02 / D-4 resolved: `UNMATCHED_PROVISION` observations are now written
   and surfaced (2026-09-01, owner-directed).** A clause in the counterparty's
   document with no corresponding Company Standard Requirement is recorded once
@@ -105,6 +156,100 @@ No version has been released. The V1 specification is complete and implementatio
   `https://legalmind.lsnw.io/api/v1/auth/oidc/callback`. The preflight now also fails
   a redirect URI that is plaintext or points at a route this application does not
   serve.
+
+* **App icons from the owner-supplied artwork (2026-09-02).** `favicon.png`
+  (1536×1024, owner-supplied) becomes `src/app/favicon.ico` (16 + 32 + 48),
+  `src/app/icon.png` (512) and `src/app/apple-icon.png` (180). Next emits the
+  `<link>` tags itself and derives `sizes` from each file, so `layout.tsx` needs no
+  `metadata.icons` entry — the conventions were read from
+  `node_modules/next/dist/docs/.../app-icons.md` rather than assumed, per this
+  repo's `AGENTS.md`. Built by `frontend/scripts/build-icons.cjs`, so re-running it
+  after an art change is one command.
+
+  **The fitting work, since the source is not square.** Measured opaque bounds
+  (alpha ≥ 250): the tile is 1004×957 at (266,16) — 4.8% wider than tall, the same
+  ratio at every alpha threshold, so the non-squareness is an artifact of the 3:2
+  canvas rather than intent. A favicon frame is square, so squaring is not
+  optional. `contain` was rejected: padding transparent bars costs ~2.4% of height
+  each side and makes the icon render visibly smaller than its neighbours in a tab
+  strip, which fits *worse*. The tile is scaled to an exact square instead — 4.8%
+  on a monogram is below the perceptual threshold at 16–512px. `FIT=contain`
+  switches it back.
+
+  **Three details that needed measuring rather than guessing.** The 16px frame
+  gets a sigma-0.6 unsharp pass, because downscaling a 1004px tile turns the
+  scales glyph into a grey blob; verified at 10× magnification, and not applied
+  above 32px where it only adds ringing. The apple icon is **full-bleed at the
+  centre 86%**, cropping the tile's own rounded corners off: iOS ignores alpha (so
+  transparent corners become black notches) and applies its own squircle (so a
+  pre-rounded tile gets a double bevel). And a 256-colour palette takes the 512px
+  icon from **394 KB to 84 KB** — indistinguishable side by side, and 394 KB of
+  gradient for a tab mark is not a reasonable price.
+
+  Verified live: all three serve 200 with the correct `sizes` attributes.
+
+* **Reverted: `oidc_provider_tokens` and `POST /auth/token/refresh` (2026-09-01,
+  owner decision).** Escalated under rule 6 and reverted on the owner's word.
+
+  The table had no authorising lock record. `AM-36` — the record its own docstring
+  cited — says verbatim *"No table, column or enum changes."* The docstring also
+  asserted *"This table is NOT part of the locked schema and may be evolved
+  independently"*, which is the code authorising itself; rule 1 is explicit that the
+  code is not a specification. And it stored the provider's **access token in
+  plaintext** (its own comment said so) beside a ~6-month refresh token encrypted
+  under `LEGALMIND_TOKEN_ENCRYPTION_KEY`, a key whose management is
+  `NOT YET SPECIFIED`.
+
+  Removed: the model, migration `f2c8a1b3d4e5`, the route, `oidc.ProviderTokens`,
+  `oidc.refresh_access_token`, `security/token_encryption.py`, two audit action
+  constants, `tests/test_token_refresh.py`, and the `offline_access` scope and
+  `access_type=offline` parameter that existed only to obtain a refresh token.
+  `exchange_code` returns `Claims` again. The successor migration
+  (`a3d5f9c17b46`) was re-chained to `e5b8d3f17a2c`; nothing about it changed.
+
+  ⚠️ One thing was removed by accident and restored: `_set_token_cookie`, the
+  `AM-36` JWT helper, sat immediately below the reverted block. Caught by ruff and
+  mypy in the same minute.
+
+* **Locked S-3 restored, and the defect behind its weakening fixed properly
+  (2026-09-01).** `_COOKIE_KW` was `SameSite=Lax` — application-wide, so password
+  login too — to make a plain 302 from the OIDC callback carry the session cookie.
+  The tests written to prove S-3 was untouched had been edited to assert `lax`.
+
+  The 302's justification was real: a meta-refresh leaves the callback URL in
+  session history, so Back re-runs the callback with a spent transaction cookie and
+  shows a bogus "sign-in failed". Fixed without the trade — `location.replace()`
+  navigates **and** drops the entry from history, with the meta refresh as the
+  no-script fallback. No CSP is configured (checked), so the inline script needs no
+  allowance. `Strict` is back and the back-button defect is gone.
+
+* **Fixed: Google sign-in landed on a 404 after the Dashboard rename
+  (2026-09-01).** `/documents` became `/dashboard`; the password path's
+  `router.push` was updated and `config.POST_LOGIN_PATH_DEFAULT` was not, so SSO
+  sent users to a dead route and nothing failed loudly. Two guards added:
+  `POST_LOGIN_PATH_DEFAULT` is compared against the real `frontend/src/app` route
+  directory, and against the login page's own `router.push`. 63 stale
+  `/documents/*` references in the e2e suite rewritten (API paths untouched).
+
+* **Fixed: signing out only redirected on one page (2026-09-01, owner).**
+  `/dashboard` redirected because `WorkspaceShell` has its own signed-out guard;
+  `/reviews`, `/contracts`, `/audit`, `/configuration` and `/admin` stayed put and
+  rendered "You are signed out", which reads as a broken page rather than a
+  completed action. The redirect moved into `signOut` — one act, one outcome, and a
+  per-shell guard is how the two diverged. `replace` not `push` so Back cannot
+  return to a signed-out page, and in `finally` because a failed logout request has
+  still discarded the local session. Verified in a browser on all six pages.
+
+* **The generation credential can no longer lie (2026-09-01).** `/root/.legalmind.env`
+  held the literal `***` for hours after a masking command was written back over
+  the file. Every check reported the key as configured, the preflight said PASS, and
+  the only symptom was Google answering 400 `API_KEY_INVALID` while `AM-34`'s type
+  suggestion degraded silently on every upload. Now: `_api_key()` treats a
+  placeholder as **absent**, a new preflight row `generation_credential` names it
+  explicitly (25 checks), `verify_gemini_connection` refuses to spend a provider
+  call on one, and `tools/set_gemini_key.sh` writes the right file and verifies the
+  provider accepts it. Key supplied and verified live: 38 usable models,
+  `gemini-3.6-flash` valid, `AM-34` suggestion returns `MSA` confidently.
 
 * **DD-12: the contract workspace against the owner's reference (2026-09-01).**
   The reference's structure was already built (DD-9/AB-7): three panes, side tabs,

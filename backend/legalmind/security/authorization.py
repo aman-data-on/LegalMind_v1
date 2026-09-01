@@ -156,6 +156,14 @@ def require_contract_visible(db: DBSession, user_id: UUID,
     c = db.get(M.Contract, contract_id)
     if c is None or c.owner_id != user_id:
         raise NotVisible("contract not found")
+    # A soft-deleted contract is gone as far as every caller is concerned —
+    # 404, exactly as if it had never existed, because existence is itself a
+    # disclosure (47.7). This is the single choke point for by-id contract
+    # access, so detail, update, upload and document-version traversal all
+    # inherit the rule here rather than each remembering it. The row itself
+    # stays put: rule 17 keeps its findings and audit trail reproducible.
+    if c.deleted_at is not None:
+        raise NotVisible("contract not found")
     return c
 
 

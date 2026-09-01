@@ -31,9 +31,9 @@ test.describe("the Legal queue", () => {
     expect(findings.length).toBeGreaterThan(0);
     const finding = findings[0];
 
-    await page.goto("/documents/legal");
+    await page.goto("/dashboard/legal");
     await expect(page.getByRole("heading", { name: "Legal" })).toBeVisible();
-    await expect(page.locator('nav a[href="/documents/legal"]')).toHaveAttribute(
+    await expect(page.locator('nav a[href="/dashboard/legal"]')).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -48,7 +48,7 @@ test.describe("the Legal queue", () => {
     // The deep link: workspace, `?finding=`, and focus ON the finding card —
     // the ruler arrives beside the evidence, not at the top of a long page.
     await row.getByRole("link", { name: new RegExp(finding.requirement.code) }).click();
-    await expect(page).toHaveURL(`/documents?id=${contractId}&finding=${finding.id}`);
+    await expect(page).toHaveURL(`/dashboard?id=${contractId}&finding=${finding.id}`);
     const card = page.locator(`article[data-finding-id="${finding.id}"]`);
     await expect(card).toBeVisible();
     await expect(card).toBeFocused();
@@ -63,9 +63,9 @@ test.describe("the Legal queue", () => {
     // itself must refuse with the restricted state, not an empty queue.
     const context = await browser.newContext({ storageState: storageStatePath("owner") });
     const page = await context.newPage();
-    await page.goto("/documents/legal");
+    await page.goto("/dashboard/legal");
     await expect(page.getByText("Access restricted")).toBeVisible();
-    await expect(page.locator('nav a[href="/documents/legal"]')).toHaveCount(0);
+    await expect(page.locator('nav a[href="/dashboard/legal"]')).toHaveCount(0);
     await context.close();
   });
 });

@@ -34,6 +34,7 @@ interface SessionState {
 const SessionContext = createContext<SessionState | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [identity, setIdentity] = useState<SessionIdentity | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,12 +58,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signOut = useCallback(async () => {
+    /*
+     * Signing out ALWAYS lands on /login — added 2026-09-01 (owner).
+     *
+     * It used to only clear the identity. `WorkspaceShell` has its own
+     * signed-out guard, so /dashboard redirected and looked correct; the older
+     * Chrome-based pages (/reviews, /contracts, /admin, /audit,
+     * /configuration) simply stayed put and rendered "You are signed out",
+     * which reads as a broken page rather than a completed action. Verified
+     * with a browser: /dashboard → /login, /reviews → /reviews.
+     *
+     * The redirect lives HERE rather than in a second shell guard because
+     * signing out is one act with one outcome, and duplicating the rule per
+     * shell is how the two diverged in the first place.
+     *
+     * `replace`, not `push`: Back must not return to a page that is now
+     * signed out. And it runs in `finally` — a logout whose request failed has
+     * still discarded the local session, so leaving the user on an
+     * authenticated-looking page would be the worse outcome. The server-side
+     * session is revoked by the endpoint; the cookie is cleared by its
+     * response (including the AM-36 token, which cannot be revoked any other
+     * way).
+     */
     try {
       await api.logout();
     } finally {
       setIdentity(null);
+      router.replace("/login");
     }
-  }, []);
+  }, [router]);
 
   const value = useMemo<SessionState>(
     () => ({

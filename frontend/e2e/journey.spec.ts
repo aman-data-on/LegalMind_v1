@@ -29,7 +29,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // ENTIRELY through the UI (2026-08-31 UX correction): one upload act chains
   // create → version → current-standards snapshot → Review → analysis.
   const f = fixture();
-  await page.goto("/documents");
+  await page.goto("/dashboard");
   await page.setInputFiles('input[type="file"]', f.document.path);
   // Create + upload + type suggestion run behind the file gesture; the select
   // re-enables when the confirm panel is ready. In e2e there is no generation
@@ -38,8 +38,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
   await typeSelect.selectOption("MSA");
   await page.getByRole("button", { name: "Confirm & Analyze" }).click();
-  await page.waitForURL(/\/documents\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
-  const contractId = page.url().match(/documents\?id=([0-9a-f-]{36})/)![1];
+  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+  const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
 
   // The workspace shows the document; the full findings pane is the side
   // card's second tab (DD-9), one click away, with Ask pinned below throughout.
@@ -82,7 +82,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // The report exists and speaks in counts — reached from the Reviews queue.
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
   const reviewId = (await listed.json()).data[0].id;
-  await page.goto(`/documents/reviews?id=${reviewId}`);
+  await page.goto(`/dashboard/reviews?id=${reviewId}`);
   await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
 
   // And the Documents list now answers "what did analysis find" — a status
@@ -90,8 +90,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // badge, matching the DEVIATION finding just recorded (2026-09-01 redesign:
   // classification names moved from a text chip to a status pill + count
   // badges — the underlying fact is the same).
-  await page.goto("/documents");
-  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/documents?id=${contractId}"]`) });
+  await page.goto("/dashboard");
+  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
   await expect(row.locator(".ws-status-pill")).toContainText("Needs Review");
   await expect(row.locator(".ws-findings-badge--review")).not.toHaveClass(/ws-findings-badge--zero/);
 });
@@ -103,7 +103,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   const v1 = await createAnalysedReview(page);
 
   // Upload the revision through the workspace's own control.
-  await page.goto(`/documents?id=${v1.contractId}`);
+  await page.goto(`/dashboard?id=${v1.contractId}`);
   await page.getByRole("button", { name: "Upload a revised version" }).click();
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);
@@ -142,11 +142,11 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await expect(page.locator(".ws-askbar").getByRole("button", { name: "Open the latest version" })).toBeVisible();
 
   // v1's Review and report remain exactly where they were.
-  await page.goto(`/documents/reviews?id=${v1.reviewId}`);
+  await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
   await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
 
   // And the reviews queue lists both analyses.
-  await page.goto("/documents/reviews");
+  await page.goto("/dashboard/reviews");
   await expect(page.locator(`tr[data-review-id="${v1.reviewId}"]`)).toBeVisible();
   await expect(page.locator(`tr[data-review-id="${review2.id}"]`)).toBeVisible();
 });

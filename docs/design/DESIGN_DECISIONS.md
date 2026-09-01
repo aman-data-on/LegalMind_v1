@@ -380,3 +380,49 @@ overflow that clipped the "Sign out" control off-screen below ~720px.
 Pinned by `frontend/src/__tests__/documents-pipeline.test.tsx` (10 tests), which
 asserts the copy prohibitions above against the rendered markup — the tree-wide
 `check:terms` script cannot see rendered text.
+
+---
+
+## DD-11 — Upload is a disclosure, not a modal (2026-09-01)
+
+**The conflict, reported rather than resolved.** Redesigning the Dashboard, the
+owner was offered three shapes for the upload trigger and chose "modal from
+header button". [DESIGN.md](../../DESIGN.md) lists, among the things this product
+does not do:
+
+> Modals for anything that isn't a genuine interruption (a destructive
+> confirmation, a truly blocking choice). Most of this product's "detail" needs
+> are drill-down navigation, not modal overlays.
+
+CLAUDE.md's UI/UX precedence is explicit that where a design skill's default
+conflicts with a recorded DD decision, the DD decision wins **and the conflict is
+reported** — rule 5, not silently resolved in either direction. So the conflict
+was surfaced to the owner in the plan rather than either quietly building the
+overlay or quietly dropping the request.
+
+**What shipped.** An inline disclosure panel. A primary `+ Upload Contract`
+button in the page header (`aria-expanded` / `aria-controls`) toggles a panel
+that is absent from the DOM when closed and expands in place beneath the button
+when open. No backdrop, no scroll lock, no focus trap.
+
+**Why this satisfies the actual requirement.** What the owner was solving for was
+space: an always-visible upload card occupied a large block of the fold whether
+or not anyone was uploading. A disclosure collapses to zero height, which is the
+same saving an overlay would have delivered — the overlay was a means, not the
+end. The panel also keeps the upload flow in the page's own scroll and reading
+order, which matters because the flow is multi-step (upload → extract → suggest
+type → **human confirms the type** → analyze) and the confirm step is a real
+decision the reader may want to leave and return to.
+
+`UploadContract.tsx` is untouched. Its state machine, its API calls and owner
+Q9's human-declared type are exactly as they were; only the container changed.
+
+**Where a modal *is* used, and why that is consistent.** Two places, both of
+which DESIGN.md names outright: the delete confirmation (a destructive
+confirmation) and the edit-details form (a small blocking choice the user
+summoned, dismissed by Escape or Cancel, restoring focus to the control that
+opened it — the same pattern `KeyboardShortcutsHelp` established).
+
+**If the owner still wants an overlay for upload**, that is theirs to decide;
+this entry is superseded in place when they do, with the reasoning above
+recorded as what was traded away.

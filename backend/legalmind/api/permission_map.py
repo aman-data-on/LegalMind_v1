@@ -58,6 +58,11 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/contracts/summary"): P.CONTRACT_VIEW,
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_UPDATE,
+    # Owner approval 2026-09-01 (closes the gap AM-31 left open). Two modes
+    # behind one verb — hard delete when the contract was never analyzed, soft
+    # delete once a Review exists, so rule 17's audit trail and reproducible
+    # history survive. Ownership, not role reach, is the real scope.
+    ("DELETE", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_DELETE,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/document-versions"):
         P.DOCUMENT_UPLOAD,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}"):

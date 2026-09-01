@@ -29,11 +29,20 @@ def fingerprint(data: bytes) -> str:
 
 
 class StorageBackend(Protocol):
-    """Write-once object storage. No update, no overwrite (34.18)."""
+    """Write-once object storage. No update, no overwrite (34.18).
+
+    ``discard`` is not an exception to write-once: an object is still never
+    rewritten in place, and the only caller is the hard-delete branch of
+    contract deletion (owner approval 2026-09-01), which runs solely for a
+    contract that was never analyzed. A contract carrying a Review is
+    soft-deleted instead and its bytes stay exactly where they are, because
+    rule 17 requires that history remain reproducible.
+    """
 
     def put(self, data: bytes, *, suggested_name: str) -> str: ...
     def get(self, storage_key: str) -> bytes: ...
     def exists(self, storage_key: str) -> bool: ...
+    def discard(self, storage_key: str) -> bool: ...
 
 
 class LocalFilesystemStorage:
@@ -68,6 +77,20 @@ class LocalFilesystemStorage:
 
     def exists(self, storage_key: str) -> bool:
         return (self.root / storage_key).exists()
+
+    def discard(self, storage_key: str) -> bool:
+        """Remove one object. True if it was there, False if it was not.
+
+        Missing is not an error: the caller is deleting a contract, and a key
+        already gone is the state it wanted. `put` chmods objects to 0o440, so
+        the parent directory's write permission is what governs removal here.
+        """
+        path = self.root / storage_key
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True
 
 
 def _suffix(name: str) -> str:

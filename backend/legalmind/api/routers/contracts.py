@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
@@ -20,11 +20,14 @@ from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import ContractCreate, ContractUpdate
 from legalmind.api.serializers import serialize_contract, serialize_document_version
 from legalmind.api.storage import get_storage
+from legalmind.assist.obligations import delete_obligation_extractions
+from legalmind.assist.store import delete_chunks
 from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
+from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.worker.dispatch import dispatch_indexing
 
@@ -78,7 +81,10 @@ def list_contracts(
     precedent `_list_summaries` already set for the per-row projection.
     """
     guard.permission(P.CONTRACT_VIEW)
-    stmt = select(M.Contract).where(M.Contract.owner_id == guard.user_id)
+    stmt = select(M.Contract).where(
+        M.Contract.owner_id == guard.user_id,
+        M.Contract.deleted_at.is_(None),
+    )
     if q:
         stmt = stmt.where(M.Contract.name.ilike(f"%{q.strip()}%"))
     if contract_type:
@@ -128,7 +134,10 @@ def contracts_summary(guard: Guard = Depends(get_guard)) -> dict:
     """
     guard.permission(P.CONTRACT_VIEW)
     ids = guard.db.execute(
-        select(M.Contract.id).where(M.Contract.owner_id == guard.user_id)
+        select(M.Contract.id).where(
+            M.Contract.owner_id == guard.user_id,
+            M.Contract.deleted_at.is_(None),
+        )
     ).scalars().all()
     summaries = _list_summaries(guard, list(ids))
     tally = dict.fromkeys(STATUS_BUCKETS, 0)
@@ -264,6 +273,99 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
     contract.updated_at = datetime.now(UTC)
     guard.db.flush()
     return data(serialize_contract(contract))
+
+
+@router.delete("/contracts/{contract_id}")
+def delete_contract(contract_id: UUID,
+                    guard: Guard = Depends(get_guard),
+                    storage: StorageBackend = Depends(get_storage)) -> dict:
+    """Delete one contract — owner approval 2026-09-01.
+
+    Closes the gap `AM-31` left explicitly open (*"No hard-delete path for a
+    Contract exists today, and this record does not create one or assume its
+    shape"*). The shape is two modes behind one verb, chosen by whether the
+    contract has ever been analyzed:
+
+    * **No Review** — hard delete. The contract was uploaded and never
+      evaluated, so nothing downstream cites it and nothing is lost: the row,
+      its document versions, their processing runs and extracted evidence, the
+      stored bytes, and the assist-lane chunks and obligation extractions all
+      go. `AM-27 r5` requires the chunks to go with the document.
+    * **A Review exists** — soft delete. `deleted_at` is stamped and the
+      contract leaves every list, summary and by-id response, but its findings,
+      evaluations, decisions and audit entries are untouched.
+
+    That split is the whole point. **Rule 17** — append-only audit trail,
+    historical Reviews stay reproducible — was not authorised for override, and
+    hard-deleting an analyzed contract would break it. The response names which
+    mode ran so the caller can tell the user what actually happened rather than
+    implying a permanence it did not deliver.
+
+    Ownership is the scope, as everywhere else here: `guard.contract` resolves
+    `owner_id` per request, so a contract belonging to someone else is a 404 —
+    and so is one that is already soft-deleted.
+    """
+    contract = guard.contract(contract_id, P.CONTRACT_DELETE)
+
+    analyzed = guard.db.execute(
+        select(func.count()).select_from(M.Review)
+        .where(M.Review.contract_id == contract_id)
+    ).scalar_one() > 0
+
+    before = serialize_contract(contract)
+
+    if analyzed:
+        contract.deleted_at = datetime.now(UTC)
+        contract.updated_at = contract.deleted_at
+        guard.db.flush()
+        audit.record(
+            guard.db, action=audit.CONTRACT_SOFT_DELETED,
+            entity_type="contract", entity_id=contract_id,
+            actor_id=guard.user_id, before=before,
+            after={"deleted_at": contract.deleted_at.isoformat()},
+        )
+        return data({"deleted": True, "mode": "soft"})
+
+    versions = guard.db.execute(
+        select(M.DocumentVersion)
+        .where(M.DocumentVersion.contract_id == contract_id)
+    ).scalars().all()
+
+    for version in versions:
+        # Assist-lane derived data first: chunks (which cascade to
+        # answer_citations) and obligation extractions both key off the version
+        # and would otherwise outlive the document they describe.
+        delete_chunks(guard.db, version.id)
+        delete_obligation_extractions(guard.db, version.id)
+
+    version_ids = [v.id for v in versions]
+    if version_ids:
+        # Evidence before runs: evidence carries a processing_run_id FK.
+        guard.db.execute(
+            delete(M.DocumentEvidence)
+            .where(M.DocumentEvidence.document_version_id.in_(version_ids)))
+        guard.db.execute(
+            delete(M.DocumentProcessingRun)
+            .where(M.DocumentProcessingRun.document_version_id.in_(version_ids)))
+        guard.db.execute(
+            delete(M.DocumentVersion)
+            .where(M.DocumentVersion.id.in_(version_ids)))
+
+    guard.db.delete(contract)
+    guard.db.flush()
+
+    # Bytes last: the database transaction can still roll back, and an orphaned
+    # object is recoverable where a row pointing at deleted bytes is not.
+    for version in versions:
+        storage.discard(version.storage_key)
+
+    audit.record(
+        guard.db, action=audit.CONTRACT_HARD_DELETED,
+        entity_type="contract", entity_id=contract_id,
+        actor_id=guard.user_id, before=before,
+        after={"document_versions_removed": len(versions)},
+    )
+    return data({"deleted": True, "mode": "hard"})
 
 
 @router.post("/contracts/{contract_id}/document-versions", status_code=201)

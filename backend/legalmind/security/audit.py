@@ -23,8 +23,6 @@ AUTH_LOGIN_SUCCEEDED = "auth.login_succeeded"
 AUTH_LOGIN_FAILED = "auth.login_failed"
 AUTH_LOGOUT = "auth.logout"
 AUTH_SESSION_REVOKED = "auth.session_revoked"
-AUTH_TOKEN_REFRESHED = "auth.token_refreshed"
-AUTH_TOKEN_REFRESH_FAILED = "auth.token_refresh_failed"
 # Authorization
 AUTHZ_PERMISSION_DENIED = "authz.permission_denied"
 AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"
@@ -56,6 +54,14 @@ ASSIST_GENERATION_CALLED = "assist.generation_called"
 # what it proposed — the human confirmation that later records a type is a
 # separate, ordinary contract update. Hash only, never the payload (AM-30 t5).
 ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
+# Contract deletion (owner approval 2026-09-01, closing the gap AM-31 left
+# open). Two actions, not one, because the two modes are genuinely different
+# events: a soft delete hides a contract whose findings and history remain
+# queryable, a hard delete destroys a contract that was never analyzed. The
+# audit entry outlives the row in both cases — it is append-only (AUD-01), so
+# even a hard delete leaves a record that it happened and who did it.
+CONTRACT_SOFT_DELETED = "contract.soft_deleted"
+CONTRACT_HARD_DELETED = "contract.hard_deleted"
 # Administration
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"

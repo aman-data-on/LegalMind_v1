@@ -41,7 +41,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
 from legalmind.security import audit as A
-from legalmind.security import oidc, token_encryption, tokens
+from legalmind.security import oidc, tokens
 from legalmind.security import permissions as P
 from legalmind.security.errors import Unauthenticated
 from legalmind.security.guards import require_can_administer_user
@@ -71,9 +71,19 @@ class _CookieKeywords(TypedDict):
     path: str
 
 
+# ⚠️ RESTORED to "strict" on 2026-09-01. It had been changed to "lax" so that a
+# plain 302 from the OIDC callback would carry the session cookie — a real
+# problem, solved the wrong way: `samesite` here governs EVERY session cookie in
+# the application, including password login, so the whole app's CSRF posture was
+# relaxed to fix one redirect. Locked OD-9 / S-3 fixes these attributes precisely
+# so a deployment cannot weaken them by accident, and `AM-36` t6 restates it.
+#
+# The redirect problem is solved instead by `_same_site_landing`, which lands the
+# browser on our own origin first so the follow-up navigation is same-site. See
+# that function for how the back-button issue is handled without this trade.
 _COOKIE_KW: _CookieKeywords = {
     "secure": True,
-    "samesite": "lax",
+    "samesite": "strict",
     "path": "/",
 }
 
@@ -243,20 +253,28 @@ _TX_COOKIE_KW: _CookieKeywords = {
 
 
 def _same_site_landing(target: str, heading: str) -> HTMLResponse:
-    """Land the browser back on our own origin, then navigate from there.
+    """Land the browser on our own origin, then navigate from there.
 
-    Locked S-3 with SameSite=Lax: the callback's 302 redirect to /documents is
-    now safe because SameSite=Lax sends cookies on top-level navigations. This
-    avoids storing the callback URL in browser history, preventing back-button
-    re-triggers that would fail when the transaction cookie is gone.
+    **Why not a 302.** A redirect from this callback still belongs to the chain
+    that began at the identity provider, so the follow-up request is cross-site
+    and a `SameSite=Strict` cookie is withheld — the user would arrive signed
+    out. Landing here first makes the next navigation *same-site*, which is what
+    lets locked S-3 keep `strict` instead of being relaxed to `lax` for the whole
+    application.
 
-    This function is kept for error cases (oidc/start failures, callback failures)
-    that still need an intermediate page to land back on our origin before
-    redirecting with error messages.
+    **The back button.** A `<meta http-equiv="refresh">` leaves this callback URL
+    in session history, so Back re-runs the callback with a spent transaction
+    cookie and shows a bogus "sign-in failed". That was the real defect behind the
+    302 experiment, and it is fixed here rather than by trading the cookie:
+    `location.replace()` navigates AND drops this entry from history, so Back
+    skips straight past it. The meta refresh stays as the no-script fallback and
+    the anchor as the no-meta fallback — in that degraded case the history entry
+    remains, which is a cosmetic annoyance rather than a security property.
 
-    ``<meta http-equiv="refresh">`` provides navigation without script; the anchor
-    is the manual fallback if both meta refresh and script are unavailable.
-    No inline script, so no CSP script-src allowance is needed.
+    No CSP is configured on this deployment (checked 2026-09-01), so the inline
+    script needs no `script-src` allowance. If a CSP is ever added it needs a
+    nonce or hash for this one script, and the meta refresh keeps the flow
+    working in the meantime.
     """
     return HTMLResponse(
         "<!doctype html><html lang=\"en\"><head>"
@@ -264,7 +282,9 @@ def _same_site_landing(target: str, heading: str) -> HTMLResponse:
         f"<meta http-equiv=\"refresh\" content=\"0;url={target}\">"
         "<title>Signing in…</title></head>"
         f"<body><p>{heading}</p>"
-        f"<p><a href=\"{target}\">Continue</a></p></body></html>",
+        f"<p><a href=\"{target}\">Continue</a></p>"
+        f"<script>location.replace({target!r})</script>"
+        "</body></html>",
         # Never cached: this response carries Set-Cookie for a session.
         headers={"Cache-Control": "no-store"},
     )
@@ -330,13 +350,11 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
     try:
         transaction = oidc.Transaction.decode(
             request.cookies.get(oidc.TRANSACTION_COOKIE))
-        claims, provider_tokens = oidc.exchange_code(
+        claims = oidc.exchange_code(
             code=request.query_params.get("code", ""),
             transaction=transaction,
             state=request.query_params.get("state", ""))
         user, identity = oidc.resolve_user(db, claims)
-        # Store provider tokens for later refresh operations
-        _store_provider_tokens(db, identity, provider_tokens)
     except oidc.OidcDomainRefused as refusal:
         # No audit event and no actor: the domain check precedes every lookup, so
         # no account was named and there is nothing to attribute this to.
@@ -363,12 +381,11 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
     db.commit()
 
     max_age = int((session.expires_at - session.created_at).total_seconds())
-    # Use 302 redirect instead of meta-refresh landing page. With SameSite=Lax,
-    # the redirect sends the session cookie correctly and avoids storing the
-    # callback URL in browser history. This prevents back-button re-triggers of
-    # the callback with a stale/missing transaction cookie (which would show
-    # "login sso failed").
-    response = RedirectResponse(config.oidc_post_login_path(), status_code=302)
+    # A same-site landing page, not a 302 — see `_same_site_landing`. The 302 that
+    # briefly replaced it required weakening the session cookie to SameSite=Lax
+    # application-wide, which locked S-3 forbids.
+    response = _same_site_landing(config.oidc_post_login_path(),
+                                  "Signed in. Taking you to LegalMind…")
     _set_session_cookies(response, session.id, max_age)
     _set_token_cookie(response, db, user)
     # The pre-authentication transaction is spent; it must not be replayable.
@@ -376,90 +393,23 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
     response.headers["Cache-Control"] = "no-store"
     return response
 
-
-def _store_provider_tokens(db: DBSession, user_identity: M.UserIdentity,
-                            provider_tokens: oidc.ProviderTokens) -> None:
-    """Store OIDC provider tokens for later refresh operations.
-
-    The refresh_token is encrypted before storage; the access_token is stored
-    plaintext (it's short-lived anyway). If we already have tokens for this
-    identity, they are updated (rotated).
-
-    If token encryption fails, we log but do not fail the sign-in — the user
-    still gets a session, they just won't be able to refresh later. This is
-    a graceful degradation: local sessions are still revocable (AM-36 t4).
-    """
-    from datetime import UTC, datetime, timedelta
-    from sqlalchemy import select
-
-    # Compute expiry times if the provider told us how long tokens live
-    access_expires = None
-    if provider_tokens.access_token_expires_at:
-        access_expires = datetime.fromtimestamp(
-            datetime.now(UTC).timestamp() + provider_tokens.access_token_expires_at,
-            UTC)
-
-    refresh_expires = None
-    if provider_tokens.refresh_token:
-        # Assume Google's default of ~6 months (exact is configurable by provider)
-        refresh_expires = datetime.now(UTC) + timedelta(days=180)
-
-    try:
-        refresh_encrypted = None
-        if provider_tokens.refresh_token:
-            refresh_encrypted = token_encryption.encrypt(provider_tokens.refresh_token)
-
-        # Check if we already have a token row for this identity
-        existing = db.execute(
-            select(M.OidcProviderToken).where(
-                M.OidcProviderToken.user_identity_id == user_identity.id)
-        ).scalars().first()
-
-        if existing:
-            # Update existing row (token rotation)
-            existing.access_token = provider_tokens.access_token
-            existing.refresh_token = refresh_encrypted
-            existing.token_type = provider_tokens.token_type
-            existing.access_token_expires_at = access_expires
-            existing.refresh_token_expires_at = refresh_expires
-            existing.updated_at = datetime.now(UTC)
-        else:
-            # Create new row
-            token_row = M.OidcProviderToken(
-                user_identity_id=user_identity.id,
-                access_token=provider_tokens.access_token,
-                refresh_token=refresh_encrypted,
-                token_type=provider_tokens.token_type,
-                access_token_expires_at=access_expires,
-                refresh_token_expires_at=refresh_expires,
-            )
-            db.add(token_row)
-
-        db.flush()
-        log_event("auth.oidc_tokens_stored", user_id=str(user_identity.user_id))
-    except token_encryption.TokenEncryptionError as e:
-        # Log but don't fail — the user still has a session
-        log_event("auth.oidc_token_encryption_failed", level=logging.WARNING,
-                  user_id=str(user_identity.user_id), reason=e.reason,
-                  signal="auth.token_storage_failure")
-
-
 def _set_token_cookie(response: Response, db: DBSession, user: M.User) -> None:
     """Issue the `AM-36` (AB-8) stateless token alongside the session.
 
     **Alongside, not instead.** `AM-36` t1 leaves server-side sessions permitted,
     and `get_principal` prefers the session when both cookies are present — so a
     normal browser sign-in stays fully revocable and the token is what survives if
-    the session is ever dropped. Issuing only the token would have thrown away
-    revocation for no gain the owner asked for.
+    the session is ever dropped.
 
     Cookie attributes are S-3's, unchanged: t6 requires exactly them, and the
     token is a credential — it goes in no response body, no URL and no log line.
 
     Failure to sign is NOT fatal to the sign-in. t5 forbids a downgrade, so an
     unset or weak key means no token is issued at all; the session cookie has
-    already established the caller and the flow completes normally. The operator
-    sees the reason in the log.
+    already established the caller and the flow completes normally.
+
+    (Restored 2026-09-01: this helper was removed by accident while reverting the
+    unrelated `oidc_provider_tokens` feature, which sat immediately above it.)
     """
     try:
         # The roles claim is `AM-36` t2's requirement and is ADVISORY (t3) — read
@@ -477,99 +427,6 @@ def _set_token_cookie(response: Response, db: DBSession, user: M.User) -> None:
     response.set_cookie(
         tokens.TOKEN_COOKIE, token, httponly=True,
         max_age=int(tokens.TOKEN_LIFETIME.total_seconds()), **_COOKIE_KW)
-
-
-@router.post("/token/refresh")
-def refresh_token(request: Request, response: Response,
-                  db: DBSession = Depends(get_db),
-                  principal: Principal = Depends(get_principal)) -> dict:
-    """Refresh the JWT token using the stored OIDC refresh_token.
-
-    This implements the hybrid AM-36 approach: our JWT is stateless and short-lived
-    (24h), but users can refresh it before expiry without re-authenticating via OIDC.
-    Behind the scenes, we exchange the stored provider refresh_token for a new
-    access_token (which we discard) and issue a new JWT.
-
-    Returns a new JWT token in the response cookie.
-
-    Failure modes:
-    - No OIDC identity bound to this user → 403 (cannot refresh)
-    - No stored refresh_token → 403 (must re-authenticate)
-    - Provider refused the refresh → 401 (token revoked or expired)
-    - Encryption failure → 500 (operator error with key)
-    """
-    from sqlalchemy import select
-
-    user = db.get(M.User, principal.user_id)
-    if user is None:
-        raise Unauthenticated("no valid session")
-
-    # Find the OIDC identity for this user
-    identity = db.execute(
-        select(M.UserIdentity).where(
-            M.UserIdentity.user_id == principal.user_id,
-            M.UserIdentity.provider == E.IdentityProvider.OIDC)
-    ).scalars().first()
-
-    if identity is None:
-        # User signed in with password, not SSO — cannot refresh
-        A.record(db, action=A.AUTH_TOKEN_REFRESH_FAILED,
-                 entity_type="authentication",
-                 actor_id=principal.user_id, request_id=request_id_of(request))
-        raise Unauthenticated("this account does not use OIDC authentication")
-
-    # Get the stored provider tokens
-    token_row = db.execute(
-        select(M.OidcProviderToken).where(
-            M.OidcProviderToken.user_identity_id == identity.id)
-    ).scalars().first()
-
-    if token_row is None or not token_row.refresh_token:
-        # No refresh token stored — must re-authenticate via OIDC
-        A.record(db, action=A.AUTH_TOKEN_REFRESH_FAILED,
-                 entity_type="authentication",
-                 actor_id=principal.user_id, request_id=request_id_of(request))
-        raise Unauthenticated("no refresh token available; please sign in again")
-
-    # Attempt to decrypt the refresh_token
-    try:
-        refresh_token_plaintext = token_encryption.decrypt(token_row.refresh_token)
-    except token_encryption.TokenEncryptionError as e:
-        log_event("auth.token_decryption_failed", level=logging.WARNING,
-                  user_id=str(principal.user_id), reason=e.reason)
-        raise Unauthenticated("token refresh unavailable; please sign in again")
-
-    # Exchange the refresh_token for new tokens via the OIDC provider
-    try:
-        issuer = config.oidc_issuer()
-        client_id = config.oidc_client_id()
-        client_secret = config.oidc_client_secret()
-        new_tokens = oidc.refresh_access_token(
-            issuer=issuer,
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token_plaintext)
-    except oidc.OidcFailure as failure:
-        # Provider refused the refresh — token is invalid/expired
-        log_event("auth.oidc_refresh_failed", level=logging.WARNING,
-                  user_id=str(principal.user_id), reason=failure.reason,
-                  signal="auth.token_refresh_failure")
-        A.record(db, action=A.AUTH_TOKEN_REFRESH_FAILED,
-                 entity_type="authentication",
-                 actor_id=principal.user_id, request_id=request_id_of(request))
-        raise Unauthenticated("token refresh failed; please sign in again")
-
-    # Update the stored tokens (rotation + new expiry)
-    _store_provider_tokens(db, identity, new_tokens)
-
-    # Issue a new JWT token
-    _set_token_cookie(response, db, user)
-
-    A.record(db, action=A.AUTH_TOKEN_REFRESHED, entity_type="token",
-             actor_id=principal.user_id, request_id=request_id_of(request))
-    db.commit()
-
-    return data({"refreshed": True})
 
 
 def _fail_sso(outcome: str = "failed") -> Response:

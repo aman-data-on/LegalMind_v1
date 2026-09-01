@@ -167,7 +167,14 @@ def oidc_allowed_domain() -> str | None:
 # Must stay equal to where the password path sends a signed-in user
 # (`frontend/src/app/login/page.tsx`'s `router.push`). The two mechanisms landing
 # in different places would be a bug nobody notices until SSO is the primary one.
-POST_LOGIN_PATH_DEFAULT = "/documents"
+#
+# ⚠️ That is exactly what happened on 2026-09-01: the Documents page was renamed
+# to Dashboard, `router.push("/dashboard")` was updated, and THIS was not — so a
+# Google sign-in landed on a 404 while password login worked fine. `/documents`
+# returned 404 on the live site and nothing failed loudly.
+# `tests/test_oidc.py::test_the_post_login_path_points_at_a_route_that_exists`
+# now compares this against the frontend's own route directory.
+POST_LOGIN_PATH_DEFAULT = "/dashboard"
 
 
 def oidc_post_login_path() -> str:

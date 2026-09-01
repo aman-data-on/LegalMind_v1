@@ -931,7 +931,17 @@
   font-family: inherit; font-weight: 650; padding: 11px var(--ws-s4);
   background: var(--ws-paper);
 }
-.ws-docs--index .ws-docs__table td { padding: 13px var(--ws-s4); }
+/* Body rows read at the page's own size, not a size below it.
+ *
+ * These were 13px, which made the table — the densest, most-read surface on the
+ * dashboard — the hardest thing on the page to read. Density is a feature here
+ * (DESIGN.md), but density is a property of SPACING, not of type size: the
+ * padding below stays tight, so a row grows about two pixels while the text it
+ * carries becomes legible. */
+.ws-docs--index .ws-docs__table td {
+  padding: 11px var(--ws-s4);
+  font-size: var(--ws-text-base);
+}
 .ws-docs--index .ws-docs__table tbody tr { transition: background-color var(--ws-t); }
 .ws-docs--index .ws-docs__table tbody tr:hover td { background: var(--ws-accent-soft); }
 .ws-docs--index .ws-docs__table td a { font-weight: 550; color: var(--ws-ink-900); }
@@ -985,10 +995,6 @@
 .ws-doctile--analyzed .ws-doctile__icon { color: var(--ws-ok); }
 .ws-doctile--analyzed .ws-doctile__n { color: var(--ws-ok); }
 .ws-doctile--draft .ws-doctile__icon { color: var(--ws-accent); }
-
-/* Upload card + Needs-attention preview, side by side. */
-.ws-docs__top { display: grid; grid-template-columns: minmax(280px, 1.1fr) minmax(300px, 1fr); gap: 12px; align-items: start; }
-@media (max-width: 900px) { .ws-docs__top { grid-template-columns: 1fr; } }
 
 .ws-doctend {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
@@ -1118,15 +1124,6 @@
  * ========================================================================= */
 
 /* --- The top row: intake beside the explainer ---------------------------- */
-/* The reference fixes the upload card at 420px. Kept, because the pipeline is
-   the element that must flex — five steps need every pixel that is going. */
-.ws-docs--index .ws-docs__top {
-  display: grid;
-  grid-template-columns: 420px minmax(0, 1fr);
-  gap: var(--ws-s3);
-  align-items: stretch;
-}
-
 /* --- Pipeline strip ------------------------------------------------------ */
 .ws-pipe {
   display: flex;
@@ -1344,8 +1341,12 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  min-height: 260px;
-  padding: var(--ws-s6) var(--ws-s4);
+  /* Enough to read as a deliberate state rather than a rendering failure, and
+     no more. 260px here left the table as a large empty box on exactly the
+     screen — a brand-new account — where the product makes its first
+     impression. */
+  min-height: 150px;
+  padding: var(--ws-s5) var(--ws-s4);
 }
 
 .ws-docempty__mark {
@@ -1377,8 +1378,6 @@
    go — they described a horizontal flow that no longer exists. The <ol> still
    carries the order for assistive technology. */
 @media (max-width: 1080px) {
-  .ws-docs--index .ws-docs__top { grid-template-columns: minmax(0, 1fr); }
-
   .ws-pipe__row {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1475,8 +1474,6 @@
    left the strip with more room than it can use and the card looking stranded,
    so above the reference's own width the column becomes proportional instead. */
 @media (min-width: 1500px) {
-  .ws-docs--index .ws-docs__top { grid-template-columns: minmax(420px, 26%) minmax(0, 1fr); }
-
   /* With the room available, the step captions no longer need to wrap at all. */
   .ws-pipe__detail { max-width: 24ch; }
   .ws-pipe { padding: var(--ws-s5); }
@@ -1593,4 +1590,139 @@
   padding-bottom: var(--ws-askbar-h);
   /* And a clause scrolled to by a citation lands above the bar, not under it. */
   scroll-padding-bottom: var(--ws-askbar-h);
+}
+
+/* ==========================================================================
+ * Dashboard — priority queue, upload disclosure, row actions, modals
+ * (2026-09-01, owner-directed redesign).
+ *
+ * Scoped under `.ws-docs--index` and its own new classes throughout. The
+ * shared `.ws-docs` / `.ws-docs__table` / `.ws-pager` selectors also render
+ * Reviews, Legal, Ask and Admin, so nothing here may widen to them.
+ * ========================================================================== */
+
+/* --- Primary action --------------------------------------------------- */
+/* Upload reads as one button, not a permanently-open form holding the fold. */
+.ws-dash__act { display: flex; justify-content: flex-end; }
+
+/* The disclosure panel. A top border and a flat surface — no shadow: DESIGN.md
+   reserves floating-panel depth for real overlays, and this is inline content
+   that pushes the page down rather than covering it. */
+.ws-dash__upload {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card);
+  padding: var(--ws-s4);
+}
+
+/* A tile that goes somewhere looks like it does; the other three do not. */
+.ws-doctile--act {
+  cursor: pointer; text-align: left; font: inherit; width: 100%;
+}
+.ws-doctile--act:hover {
+  border-color: var(--ws-warn);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.12);
+}
+.ws-doctile--act:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 2px;
+}
+
+/* --- Priority queue ---------------------------------------------------- */
+/* Several rows, not one oversized card. Each row answers the four questions in
+   reading order: what it is, what state it is in, what was found, what to do. */
+.ws-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ws-queue__row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--ws-s3); flex-wrap: wrap;
+  text-decoration: none; color: inherit;
+  border: 1px solid var(--ws-ink-100);
+  /* Attention stays a left stripe — its own channel, never mixed into a chip's
+     colour (DESIGN.md: colour carries state, and the five axes own the rest). */
+  border-left: 3px solid var(--ws-warn);
+  border-radius: var(--ws-radius);
+  padding: 9px 12px;
+  transition: border-color var(--ws-t), box-shadow var(--ws-t);
+}
+.ws-queue__row:hover {
+  border-color: var(--ws-warn);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.12);
+}
+.ws-queue__row:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 2px;
+}
+.ws-queue__main {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0;
+}
+.ws-queue__meta {
+  display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap;
+}
+.ws-queue__when { white-space: nowrap; font-size: var(--ws-text-xs); }
+
+/* --- Row actions ------------------------------------------------------- */
+.ws-rowact { display: flex; align-items: center; gap: 6px; }
+.ws-menu { position: relative; }
+.ws-menu__toggle { line-height: 1; padding: 3px 8px; }
+
+/* Opens toward the row's start edge: the Action column is the last one, so a
+   menu opening the other way would leave the viewport. */
+.ws-menu__list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: var(--ws-z-dialog);
+  min-width: 168px; display: grid;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius);
+  /* One of the few real overlays on the page, so it may carry depth. */
+  box-shadow: 0 6px 20px rgba(14, 20, 32, 0.14);
+  padding: 4px;
+}
+.ws-menu__item {
+  font: inherit; font-size: var(--ws-text-sm); text-align: left;
+  background: none; border: 0; cursor: pointer;
+  padding: 7px 10px; border-radius: var(--ws-radius-sm);
+  color: var(--ws-ink-700);
+  transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-menu__item:hover { background: var(--ws-paper); color: var(--ws-ink-900); }
+.ws-menu__item:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: -2px;
+}
+/* Destructive, and coloured as such only at the point of action. */
+.ws-menu__item--bad { color: var(--ws-bad); }
+.ws-menu__item--bad:hover { background: var(--ws-bad-soft); color: var(--ws-bad); }
+
+/* --- Modals ------------------------------------------------------------ */
+/* Used for exactly two things, both of which DESIGN.md sanctions: a
+   destructive confirmation, and a small blocking edit the user summoned. */
+.ws-modal {
+  position: fixed; inset: 0; z-index: var(--ws-z-dialog);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--ws-s4);
+  background: rgba(14, 20, 32, 0.45);
+}
+.ws-modal__box {
+  width: 100%; max-width: 30rem;
+  background: var(--ws-surface);
+  border-radius: var(--ws-radius-card);
+  box-shadow: 0 12px 40px rgba(14, 20, 32, 0.24);
+  padding: var(--ws-s5);
+  display: grid; gap: var(--ws-s3);
+}
+.ws-modal__box h2 {
+  margin: 0; font-size: var(--ws-text-md); font-weight: 650;
+}
+.ws-modal__box form { display: grid; gap: var(--ws-s3); }
+.ws-modal__body { margin: 0; color: var(--ws-ink-700); font-size: var(--ws-text-sm); }
+.ws-modal__acts {
+  display: flex; justify-content: flex-end; gap: var(--ws-s2);
+  margin-top: var(--ws-s1);
+}
+.ws-btn--bad {
+  background: var(--ws-bad); border-color: var(--ws-bad); color: #fff;
+}
+.ws-btn--bad:hover:not(:disabled) {
+  background: #b91c1c; border-color: #b91c1c; color: #fff;
+}
+
+@media (max-width: 720px) {
+  .ws-queue__row { align-items: flex-start; flex-direction: column; }
 }

@@ -21,6 +21,7 @@ import json
 
 import pytest
 
+from legalmind import config
 from legalmind.api.context import CSRF_COOKIE, SESSION_COOKIE
 from legalmind.domain import enums as E
 from legalmind.security import oidc
@@ -152,9 +153,15 @@ def test_a_bound_identity_signs_in_and_gets_the_locked_session_cookies(
     response = api.get(f"{CALLBACK}?code=auth-code&state={state}",
                        follow_redirects=False)
     # With SameSite=Lax, a 302 redirect correctly sends the session cookie on a
-    # top-level navigation from the IdP. The cookie is set on the redirect response.
-    assert response.status_code == 302
-    assert response.headers["location"].endswith("/documents")
+    # Not a 302: a redirect would still belong to the chain that began at the IdP,
+    # so the browser would withhold the SameSite=Strict session cookie and the user
+    # would arrive signed out. See auth._same_site_landing.
+    assert response.status_code == 200
+    assert 'http-equiv="refresh"' in response.text
+    assert config.POST_LOGIN_PATH_DEFAULT in response.text
+    # location.replace drops this callback URL from history, so Back does not
+    # re-run the callback with a spent transaction cookie.
+    assert "location.replace" in response.text
 
     cookies = response.headers.get_list("set-cookie")
     session_cookie = next(c for c in cookies
@@ -163,7 +170,7 @@ def test_a_bound_identity_signs_in_and_gets_the_locked_session_cookies(
     assert "secure" in session_cookie
     # S-3: session cookie uses SameSite=Lax (required for OIDC callback which is
     # a cross-site top-level navigation from the IdP; Strict would withhold the cookie)
-    assert "samesite=lax" in session_cookie
+    assert "samesite=strict" in session_cookie
     assert any(c.startswith(f"{CSRF_COOKIE}=") for c in cookies)
 
     # The session is real and usable.
@@ -517,3 +524,56 @@ def _identity(user, subject: str = SUBJECT):
     from legalmind.db import models as M
     return M.UserIdentity(user_id=user.id, provider=E.IdentityProvider.OIDC,
                           provider_subject=subject)
+
+
+def test_the_post_login_path_points_at_a_route_that_exists():
+    """The destination a signed-in user is sent to must be a real page.
+
+    On 2026-09-01 the Documents page was renamed to Dashboard. The password
+    path's `router.push` was updated; `POST_LOGIN_PATH_DEFAULT` was not. So
+    password login worked and **Google sign-in landed on a 404** — `/documents`
+    returned 404 on the live site and no test failed.
+
+    A backend constant and a frontend directory cannot be kept in step by
+    convention, so this compares them directly: the path must correspond to a
+    directory under `frontend/src/app`. Skipped rather than failed when the
+    frontend tree is absent, because the backend suite must still run alone.
+    """
+    from pathlib import Path
+
+    from legalmind import config
+
+    app_dir = Path(__file__).resolve().parents[2] / "frontend" / "src" / "app"
+    if not app_dir.is_dir():
+        pytest.skip("frontend tree not present; nothing to compare against")
+
+    segment = config.POST_LOGIN_PATH_DEFAULT.strip("/").split("/")[0]
+    routes = sorted(d.name for d in app_dir.iterdir()
+                    if d.is_dir() and not d.name.startswith(("_", ".", "(")))
+    assert segment in routes, (
+        f"POST_LOGIN_PATH_DEFAULT is {config.POST_LOGIN_PATH_DEFAULT!r}, but "
+        f"frontend/src/app has no {segment!r} route. Available: {routes}")
+
+
+def test_the_two_sign_in_mechanisms_land_in_the_same_place():
+    """Password login and SSO must agree on the destination.
+
+    They diverged once already. The frontend's `router.push` is the other half of
+    the pair, so it is read here rather than trusted.
+    """
+    import re
+    from pathlib import Path
+
+    from legalmind import config
+
+    login = (Path(__file__).resolve().parents[2]
+             / "frontend" / "src" / "app" / "login" / "page.tsx")
+    if not login.is_file():
+        pytest.skip("frontend tree not present")
+
+    pushes = re.findall(r'router\.push\("([^"]+)"\)', login.read_text())
+    assert pushes, "no router.push found in the login page — has it been restructured?"
+    for target in pushes:
+        assert target == config.POST_LOGIN_PATH_DEFAULT, (
+            f"the login page pushes to {target!r} but OIDC lands on "
+            f"{config.POST_LOGIN_PATH_DEFAULT!r}")

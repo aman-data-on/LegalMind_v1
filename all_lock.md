@@ -16825,3 +16825,105 @@ permission catalogue is unchanged (no new permissions added, DEVELOPER is a
 grant of existing permissions). Every permission check continues to resolve from
 the database.
 
+
+---
+
+## AB-10 — Contract Deletion Enters V1 Scope (Owner Approval — 2026-09-01)
+
+**Owner approval, 2026-09-01.** The owner was asked directly whether to defer
+contract deletion (which `AM-31` had left undecided), build it, or substitute an
+archive, and chose to build it — then chose its two-mode shape and its permission
+grant when the consequences for rule 17 were put to them. This record closes the
+gap `AM-31` named:
+
+> "Retention / deletion — AM-27 r5 requires deleting a document to hard-delete
+> its chunks. **No hard-delete path for a Contract exists today, and this record
+> does not create one or assume its shape.**"
+
+`AUTO_MODE_DECISIONS.md` #85 independently flagged the same question as
+"genuinely undecided and owner-owned". It is now decided for the Contract
+entity. Document-version retention in isolation remains undecided.
+
+### Amendment: AM-31 — a Contract may be deleted, in two modes
+
+**Terms:**
+
+r1  A Contract may be deleted. `DELETE /api/v1/contracts/{contract_id}` is the
+    verb, and it resolves to one of two modes decided by the server, never by
+    the caller.
+
+r2  **Hard delete** applies when the Contract has no Review. The contract row,
+    its Document Versions, their processing runs and extracted evidence, the
+    stored file bytes, and the assist lane's chunks and obligation extractions
+    for those versions are all destroyed. `AM-27` r5's requirement that deleting
+    a document hard-deletes its chunks is satisfied here and extends to
+    obligation extractions for the same reason.
+
+r3  **Soft delete** applies when the Contract has at least one Review. A
+    `deleted_at` timestamp is set. The Contract leaves every list, summary and
+    by-id response, and a by-id request returns 404 exactly as for a contract
+    that never existed (47.7 — existence is itself a disclosure). Its Reviews,
+    Findings, Evaluations, Legal Decisions and audit entries are untouched.
+
+r4  **Rule 17 is preserved and is the reason for the split.** The audit trail
+    remains append-only and historical Reviews remain reproducible. A hard
+    delete of an analyzed Contract would break both, and is therefore not
+    reachable through any input: the mode is derived from the presence of a
+    Review, not supplied by the caller.
+
+r5  The deletion is itself an audited event, recorded as `contract.soft_deleted`
+    or `contract.hard_deleted`. Because the audit trail is append-only (AUD-01),
+    a hard delete still leaves a record that it occurred and who performed it,
+    outliving the row it destroyed.
+
+r6  `contract.delete` — already present in the locked permission catalogue
+    (Step 24 / 43.22) and previously granted to no ordinary role — is granted to
+    ROLE_USER. Ownership remains the scope: the object-level check resolves
+    `owner_id` per request, so a user may delete their own Contracts and a
+    Contract belonging to another user returns 404, never 403.
+
+r7  The grant is deliberately NOT extended to LEGAL_ADMIN or SUPER_ADMIN. Step
+    24 r8/r9 keeps contract-content access separate from platform
+    administration, and deletion is contract content.
+
+r8  Schema: `contracts.deleted_at TIMESTAMPTZ NULL`, with a partial index on
+    `deleted_at IS NULL`. `ContractStatus` is NOT amended — DRAFT / ACTIVE /
+    SUPERSEDED stand as locked by 42.3, because deletion is a visibility marker
+    orthogonal to contract lifecycle, not a sixth lifecycle state.
+
+r9  No restore or undelete surface is created by this record. A soft-deleted
+    Contract is recoverable at the database level, but exposing that is a
+    separate decision and is not made here.
+
+### What AB-10 does NOT amend
+
+Rule 17, SEC-01, SEC-02, S-1, the five-axis state model, the determinism
+guarantee, the analysis path, any evaluator, any Company Standard, the
+zero-tolerance Legal Rule, the golden corpus, and the permission catalogue
+itself (no permission is added — `contract.delete` already existed) all remain
+unchanged. `ContractStatus` is unchanged. No other table, column or enum
+changes. Document-version retention in isolation remains undecided.
+
+---
+
+## AB-11 — The Documents Screen Is Named Dashboard (Owner Instruction — 2026-09-01)
+
+**Owner instruction, 2026-09-01.** The owner observed that the screen's name no
+longer described what it does, and instructed the rename, then confirmed it when
+told a locked decision would have to move: *"this my decion now permission hein
+update kro."*
+
+**Terms:**
+
+r1  The Documents screen is named **Dashboard**. Its route is `/dashboard`, its
+    heading is "Dashboard", and its navigation label is "Dashboard". Every
+    sub-route moves with it (`/dashboard/reviews`, `/dashboard/legal`,
+    `/dashboard/ask`, `/dashboard/research`, `/dashboard/admin`).
+
+r2  This is a presentation change only. The fixed-pathname convention is
+    unchanged: a single contract is still reached at `/dashboard?id=…`, and no
+    record id appears in a URL path segment.
+
+r3  Nothing in the domain vocabulary is renamed. Contract, Document Version,
+    Review, Finding, Evaluation and the five state axes are untouched — this
+    record names a screen, not a concept.

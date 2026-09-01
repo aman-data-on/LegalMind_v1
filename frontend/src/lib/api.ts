@@ -283,6 +283,21 @@ export const api = {
     request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
 
   /**
+   * Delete one contract — owner approval 2026-09-01, closing the gap `AM-31`
+   * left open.
+   *
+   * `mode` reports what the server actually did, and the caller must say so
+   * rather than assuming: a contract that was never analyzed is destroyed
+   * (`"hard"`), while one carrying a Review is withdrawn from every view with
+   * its findings and audit trail preserved (`"soft"`) — rule 17 keeps history
+   * reproducible. Telling a user "permanently deleted" when the server soft-
+   * deleted would be a lie about legal records.
+   */
+  deleteContract: (id: string) =>
+    request<{ deleted: boolean; mode: "hard" | "soft" }>(
+      `/contracts/${id}`, { method: "DELETE" }),
+
+  /**
    * The body **is** the file. Locked 34.16 treats the declared content type as a
    * claim; the server sniffs the magic bytes and rejects a mismatch, so nothing
    * here needs to (or may) decide whether a file is acceptable.
