@@ -9,7 +9,20 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json next.config.ts vitest.config.ts ./
+# `scripts/` is needed at BUILD time, not runtime: package.json has a `prebuild`
+# hook (`scripts/guard-build-target.mjs`) that refuses an in-place `next build`
+# while the live service is serving `.next`. Without this COPY the container
+# build failed with "Cannot find module '/app/scripts/guard-build-target.mjs'",
+# which is what broke CI job 14 on 2026-09-01 — the image never built, so Trivy
+# then had nothing to scan.
+COPY scripts ./scripts
 COPY src ./src
+# The guard exists to protect a HOST's live `.next`; inside an image build there
+# is no service to protect. It already self-disables when it cannot ask systemd,
+# but stating the intent is better than relying on `systemctl` being absent from
+# the base image — a future base that happens to ship it would break the build
+# again for a reason nobody would look for here.
+ENV LEGALMIND_ALLOW_INPLACE=1
 RUN npm run build
 
 FROM node:22-alpine AS runtime

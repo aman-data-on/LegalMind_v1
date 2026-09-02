@@ -177,7 +177,7 @@ export async function signIn(
 
 /**
  * DD-9 (2026-09-01): on the wide layout the full findings pane is the side
- * card's second tab ("AI Analysis" is the default); on the narrow layout it is
+ * card's second tab ("Analysis" is the default); on the narrow layout it is
  * a top tab. Either way, one click opens it — no-op when already open.
  */
 export async function openFindingsTab(page: Page): Promise<void> {

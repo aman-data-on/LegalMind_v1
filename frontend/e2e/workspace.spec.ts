@@ -356,15 +356,20 @@ test.describe("the Ask pane, slice 3", () => {
 });
 
 test.describe("the 3-column redesign (2026-08-31)", () => {
-  test("the AI Analysis panel shows real counts, key risks, and honest obligations degradation", async ({
+  test("the Analysis panel shows real counts, findings awaiting a decision, and honest obligations degradation", async ({
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/dashboard?id=${contractId}`);
 
-    // AI Analysis is the side card's DEFAULT tab (DD-9).
-    await expect(page.getByRole("tab", { name: "AI Analysis" })).toHaveAttribute("aria-selected", "true");
+    // "Analysis" is the side card's DEFAULT tab (DD-9). Renamed from "AI
+    // Analysis" on 2026-09-01: everything in it except Key Obligations is the
+    // DETERMINISTIC evaluator's output, and AI-01 keeps every model out of that
+    // path — the old label credited a model for the one part of the product
+    // whose value is that no model touched it. `exact` because "Analysis" is a
+    // substring of nothing else here, but a future tab could make it one.
+    await expect(page.getByRole("tab", { name: "Analysis", exact: true })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
     await expect(panel.locator(".ws-tiles")).toBeVisible();
 
@@ -384,7 +389,8 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
-    // Key risks mirror the findings pane's needs-a-decision set, and the risk
+    // The awaiting-a-decision list mirrors the findings pane's needs-a-decision
+    // set (renamed from "Key risks" — rule 12 has no risk score to rank), and the
     // card's "View clause" lights the passage in the document pane.
     const risk = panel.locator(".ws-risk").first();
     await expect(risk).toContainText("DEVIATION");
@@ -441,7 +447,7 @@ test.describe("collapse behavior", () => {
     await expect(tabs).toHaveCount(3);
     await expect(page.getByRole("tab", { name: "Document" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "AI Analysis" }).click();
+    await page.getByRole("tab", { name: "Analysis", exact: true }).click();
     await expect(page.locator('[data-region="analysis"]')).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
@@ -452,7 +458,7 @@ test.describe("collapse behavior", () => {
     await expect(page.locator(".ws-askbar").getByLabel("Question")).toBeVisible();
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
-    await page.getByRole("tab", { name: "AI Analysis" }).focus();
+    await page.getByRole("tab", { name: "Analysis", exact: true }).focus();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "Findings" })).toBeFocused();
     await expect(page.locator('[data-region="findings"]')).toBeVisible();
