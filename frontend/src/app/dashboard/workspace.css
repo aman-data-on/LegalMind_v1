@@ -1763,3 +1763,33 @@
 @media (max-width: 720px) {
   .ws-queue__row { align-items: flex-start; flex-direction: column; }
 }
+
+/* ===========================================================================
+ * The reviews queue's columns — deterministic, 2026-09-02
+ * ===========================================================================
+ * Four columns: Document · Status · Created · Report.
+ *
+ * They used to size to content, which made the visual baseline unstable in a
+ * way that looked like a design regression and was not. `ws-reviews.png` masks
+ * the Document and Created cells because their text is volatile (generated
+ * names, timestamps) — but a mask hides PIXELS, not LAYOUT. A longer document
+ * name in one run therefore widened its column, shifted the other three, and
+ * failed job 15 on 75,266 pixels with the rendered content byte-identical.
+ *
+ * Fixing the widths is the honest fix rather than re-adopting a baseline each
+ * run, and it is better UI besides: the columns no longer jump between pages of
+ * results. Document takes the slack because it is the only column whose content
+ * is long and variable; the other three hold steady.
+ * ========================================================================= */
+.ws-docs--queue .ws-docs__table table { table-layout: fixed; }
+.ws-docs--queue .ws-docs__table th:nth-child(1) { width: 46%; }
+.ws-docs--queue .ws-docs__table th:nth-child(2) { width: 20%; }
+.ws-docs--queue .ws-docs__table th:nth-child(3) { width: 20%; }
+.ws-docs--queue .ws-docs__table th:nth-child(4) { width: 14%; }
+
+/* A long name truncates on one line rather than wrapping the row taller; the
+   full value stays reachable via the link's own title attribute. */
+.ws-docs--queue .ws-docs__table td:nth-child(1) > * {
+  display: block; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

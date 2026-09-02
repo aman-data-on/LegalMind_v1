@@ -96,7 +96,12 @@ function ReviewsQueueView() {
           <span className="ws-context__meta ws-mono">{pagination.total} total</span>
         ) : null}
       </div>
-      <div className="ws-docs">
+      {/* `--queue` scopes the fixed column widths in workspace.css to this
+          four-column table. Without them the columns size to content, and the
+          two the visual baseline masks (Document, Created) still drive that
+          sizing — so a longer document name in one run moved every column and
+          failed job 15 on 7% of pixels with no visible change. */}
+      <div className="ws-docs ws-docs--queue">
         <div className="ws-filter" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((filter) => (
             <button
