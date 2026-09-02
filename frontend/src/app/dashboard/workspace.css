@@ -106,7 +106,20 @@
   --ws-accent-strong: #1d4ed8;
   --ws-shell-h: 52px;
   --ws-context-h: 64px;
+  /* Unreferenced since the 2026-09-02 scroll-ownership fix (the Ask bar sizes to
+     its content inside .ws-workmain); kept only so a stale reference fails soft. */
   --ws-askbar-h: 128px;
+  /* Workspace column widths (2026-09-02 owner reference pass). FIXED, not minmax,
+     and shared as tokens on purpose: the clauses card, the document grid and the
+     Ask bar's alignment grid all read the SAME two numbers, so the Ask card can
+     sit exactly under the document card at every viewport instead of drifting
+     over the clause list the way a minmax column let it. */
+  --ws-clauses-w: 264px;
+  --ws-side-w: 380px;
+  /* (overridden to 236px/340px below 1440px — see the media block after .ws) */
+  /* The document viewer's well — the grey ground the white paper sheet sits on.
+     Slightly darker than --ws-paper so the sheet reads as a page, not a card. */
+  --ws-viewer: #dfe3eb;
   --ws-z-shell: 20;
   --ws-z-dialog: 30;
 
@@ -136,6 +149,11 @@
 .ws .ws-visually-hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+/* Mid-width laptops: slimmer fixed columns so the document sheet keeps a
+   readable measure down to the 1101px point where .ws-doc stacks anyway. */
+@media (max-width: 1439px) {
+  .ws { --ws-clauses-w: 236px; --ws-side-w: 340px; }
 }
 
 /* --------------------------------------------------------------------------
@@ -234,14 +252,32 @@
   min-width: 0; min-height: 0;
 }
 .ws-card--pad { padding: var(--ws-s4); }
+/* --------------------------------------------------------------------------
+ * Scroll ownership (2026-09-02). The workspace previously sized itself with
+ * `100vh − shell − context − askbar`, which assumed the context bar is exactly
+ * 64px — a long contract name or wrapped chips made it taller, the sum
+ * overflowed, and the PAGE grew a scrollbar: dragging the document moved the
+ * clause list and the analysis panel with it.
+ *
+ * `.ws-workmain` (the workspace route's wrapper) makes no height assumptions:
+ * it takes the viewport below the shell and hides its own overflow, so the page
+ * can never scroll here. Context bar and Ask bar are fixed rows; the workspace
+ * grid takes the remainder; and the ONLY scrollbars are the three panels' own —
+ * clause list (.ws-outline__list), document (.ws-text), side panel
+ * (.ws-side__panel). Scrolling one never moves the others.
+ * -------------------------------------------------------------------------- */
+.ws-workmain {
+  height: calc(100vh - var(--ws-shell-h));
+  height: calc(100dvh - var(--ws-shell-h));
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+}
+.ws-workmain .ws-context, .ws-workmain .ws-reupload, .ws-workmain .ws-tabs { flex: none; }
 .ws-workspace {
   flex: 1; min-height: 0;
   display: grid; gap: var(--ws-s4);
   padding: var(--ws-s4);
-  /* The sticky Ask bar owns the last --ws-askbar-h of the viewport. */
-  height: calc(100vh - var(--ws-shell-h) - var(--ws-context-h) - var(--ws-askbar-h));
 }
-.ws-workspace--wide { grid-template-columns: minmax(0, 1fr) minmax(330px, 400px); }
+.ws-workspace--wide { grid-template-columns: minmax(0, 1fr) var(--ws-side-w); }
 .ws-workspace--one { grid-template-columns: 1fr; }
 .ws-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .ws-workspace--one .ws-pane { overflow-y: auto; }
@@ -296,7 +332,7 @@
  * Document area — the clauses card and the document card (DD-9).
  * -------------------------------------------------------------------------- */
 .ws-doc {
-  display: grid; grid-template-columns: minmax(200px, 240px) 1fr;
+  display: grid; grid-template-columns: var(--ws-clauses-w) minmax(0, 1fr);
   gap: var(--ws-s4); min-height: 0; flex: 1;
 }
 @media (max-width: 1100px) { .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 30%) 1fr; } }
@@ -315,7 +351,7 @@
 .ws-outline__search input { border: 0; background: transparent; font: inherit; font-size: var(--ws-text-sm); min-width: 0; flex: 1; outline: none; }
 .ws-outline__list { overflow-y: auto; min-height: 0; flex: 1; padding-bottom: var(--ws-s2); }
 .ws-outline__list button {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s2);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ws-s2);
   width: 100%; text-align: left; font: inherit; font-size: var(--ws-text-sm);
   padding: 7px var(--ws-s4); min-height: 34px; border: 0; background: transparent; cursor: pointer;
   color: var(--ws-ink-700); border-left: 3px solid transparent;
@@ -326,7 +362,19 @@
   border-left-color: var(--ws-accent); color: var(--ws-accent);
   background: var(--ws-accent-soft); font-weight: 550;
 }
-.ws-outline__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Hierarchy is indentation (owner reference): §4.3.1 sits under §4.3 under §4.
+   Depth comes from the section number itself, computed in DocumentPane. */
+.ws-outline__list button[data-depth="1"] { padding-left: calc(var(--ws-s4) + 14px); }
+.ws-outline__list button[data-depth="2"] { padding-left: calc(var(--ws-s4) + 28px); }
+.ws-outline__list button[data-depth="3"] { padding-left: calc(var(--ws-s4) + 42px); }
+/* Wrap to two lines rather than truncate — "DEFINITIONS AND INTERPR…" hid the
+   words that distinguish one clause from the next (owner, 2026-09-02: ellipsis
+   only when genuinely necessary). Two lines, then clamp. */
+.ws-outline__label {
+  min-width: 0; overflow: hidden; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.ws-outline__list .ws-status { margin-top: 1px; }
 .ws-outline .ws-mono { color: var(--ws-ink-500); margin-right: 6px; }
 .ws-outline__list button[aria-current="true"] .ws-mono { color: var(--ws-accent); }
 .ws-outline__pages {
@@ -374,19 +422,31 @@
 .ws-doccard__meta {
   margin: 0; padding: var(--ws-s1) var(--ws-s4); border-top: 1px solid var(--ws-ink-100);
   font-size: 10.5px; color: var(--ws-ink-500); flex: none;
+  display: flex; justify-content: space-between; gap: var(--ws-s3); align-items: baseline;
 }
+.ws-doccard__meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-doccard:fullscreen { border-radius: 0; }
 
-.ws-text { overflow-y: auto; padding: var(--ws-s4) var(--ws-s5) var(--ws-s7); min-height: 0; flex: 1; }
-/* Bound the serif reading measure on wide monitors — an unbounded line of
-   italic document text past ~75ch measurably slows re-finding the next line.
-   Left-anchored, never centered: the margin column stays where the eye expects. */
-.ws-page { position: relative; margin-bottom: var(--ws-s5); max-width: 74ch; }
+/* The viewer well + paper sheet (2026-09-02 owner reference pass). The text no
+   longer sits flat on the card: the scroll area is a grey well and each page
+   group renders as a centered white SHEET with document margins — the reader
+   should understand "I am reading the original agreement in a viewer", not an
+   HTML article. Centering replaces the earlier left-anchored rule deliberately:
+   the sheet's own edges now give the eye its column, the way every PDF viewer
+   does. The measure stays bounded by the sheet width (~78ch at 100% zoom). */
+.ws-text { overflow-y: auto; padding: var(--ws-s5) var(--ws-s5) var(--ws-s7); min-height: 0; flex: 1; background: var(--ws-viewer); }
+.ws-page {
+  position: relative; margin: 0 auto var(--ws-s5); max-width: 800px;
+  background: var(--ws-surface); border-radius: 2px;
+  padding: 56px 64px;
+  box-shadow: 0 1px 3px rgba(14, 20, 32, 0.14), 0 10px 28px rgba(14, 20, 32, 0.10);
+}
 .ws-page__marker {
   font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ws-ink-500); border-bottom: 1px dashed var(--ws-ink-100);
-  padding-bottom: var(--ws-s1); margin-bottom: var(--ws-s3);
+  padding-bottom: var(--ws-s1); margin-bottom: var(--ws-s4);
 }
+@media (max-width: 1400px) { .ws-page { padding: 40px 44px; } }
 .ws-row {
   padding: var(--ws-s2) var(--ws-s3); margin: 0 0 var(--ws-s1) calc(-1 * var(--ws-s3));
   border-radius: var(--ws-radius); border-left: 3px solid transparent;
@@ -394,7 +454,14 @@
 }
 .ws-row__loc { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin: 0 0 2px; display: flex; gap: var(--ws-s2); }
 .ws-row__ocr { color: var(--ws-outcome); }
-.ws-row__text { margin: 0; font-family: var(--ws-serif); font-style: italic; font-size: var(--ws-text-md); line-height: 1.55; color: var(--ws-ink-700); white-space: pre-wrap; }
+/* Upright serif ON THE SHEET (2026-09-02) — a deliberate departure from the
+   italic verbatim voice, and only here. The italic exists to mark verbatim
+   document text apart from application prose; inside the paper sheet the WHOLE
+   surface is the document, the sheet boundary carries that signal, and a real
+   agreement is set upright. Everywhere a document excerpt appears inside
+   application chrome (.ws-quote, .ws-evidence__quote, ask citations) the italic
+   voice is unchanged. */
+.ws-row__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-md); line-height: 1.62; color: var(--ws-ink-900); white-space: pre-wrap; }
 .ws-row--lit { background: var(--ws-accent-soft); border-left-color: var(--ws-accent); }
 .ws-row--lit .ws-row__text { color: var(--ws-ink-900); }
 
@@ -550,12 +617,13 @@
  * bottom, mounted at EVERY breakpoint, never behind a tab. The turn history
  * is a slide-up sheet anchored above it.
  * ========================================================================== */
+/* (2026-09-02) No longer sticky and no longer a fixed 128px: inside
+   `.ws-workmain` the bar is the layout's own bottom row, so it cannot cover
+   anything and sizes to its content (the chips row comes and goes). */
 .ws-askbar {
-  position: sticky; bottom: 0; z-index: var(--ws-z-shell);
-  height: var(--ws-askbar-h);
+  flex: none;
   display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 0 var(--ws-s4);
-  pointer-events: none; /* the grey gutter around the card stays click-through */
+  padding: 0 var(--ws-s4) var(--ws-s3);
 }
 .ws-askbar__card {
   pointer-events: auto;
@@ -643,7 +711,11 @@
 
 /* Stat tiles — one per REAL classification present (never an invented catch-all
    label), soft status tints, exact counts, an icon that repeats the color. */
-.ws-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--ws-s2); }
+/* Two per row (2026-09-02): auto-fit at 96px packed 4 classifications as 3+1
+   with the fourth full-width, and "UNABLE_TO_EVALUATE" ellipsized to
+   "UNABLE_TO…" — a status the reader could not read. 2×2 gives every tile the
+   same shape and every label the room to wrap out in full. */
+.ws-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ws-s2); }
 .ws-tile {
   position: relative; display: flex; flex-direction: column; gap: 2px;
   padding: var(--ws-s3); border-radius: var(--ws-radius); border: 1px solid transparent;
@@ -652,7 +724,10 @@
 .ws-tile__n { font-family: var(--ws-mono); font-size: 1.35rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ws-tile__label {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px;
+  /* Wraps, never truncates — the classification NAME is the information
+     (rule 12: the exact vocabulary always renders). Long values like
+     UNABLE_TO_EVALUATE break at the underscores. */
+  overflow-wrap: anywhere; line-height: 1.3; padding-right: 20px;
 }
 .ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
 .ws-tile--match { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
@@ -1597,37 +1672,23 @@
  * side panel resizes between its 330px and 400px bounds.
  * ========================================================================= */
 @media (min-width: 1101px) {
+  /* Mirror the workspace's real geometry — clauses | document | side — with the
+     SAME width tokens, and put the card in the document column only. It sits
+     exactly under the document sheet: never over the clause list (the 2026-09-02
+     complaint) and never under the analysis panel (the 2026-09-01 one). */
   .ws-askbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(330px, 400px);
+    grid-template-columns: var(--ws-clauses-w) minmax(0, 1fr) var(--ws-side-w);
     gap: var(--ws-s4);
     align-items: end;
   }
-
-  /* Column 1 only. The side column stays empty so the panel beneath it is
-     reachable all the way down. */
-  .ws-askbar__card { grid-column: 1; max-width: none; margin: 0; }
-
-  /* The gutter the grid adds on the right would otherwise swallow clicks aimed at
-     the analysis panel; the bar is already `pointer-events: none`, and this keeps
-     it that way for the empty column. */
-  .ws-askbar > :not(.ws-askbar__card) { pointer-events: none; }
+  .ws-askbar__card { grid-column: 2; max-width: none; margin: 0; }
 }
 
-/* And the document must not scroll UNDER the bar.
- *
- * The workspace height already subtracts `--ws-askbar-h`, but the card grows
- * taller than that reservation once the suggestion chips wrap to a second row —
- * which they do at every width below ~1500px. Padding the scroll area by the
- * card's real height keeps the last line of a clause readable instead of sitting
- * behind a shadow. */
-.ws-text {
-  /* `--ws-s7` was already the bottom pad; this replaces it with the Ask bar's own
-     height so the reservation cannot drift out of step with the bar. */
-  padding-bottom: var(--ws-askbar-h);
-  /* And a clause scrolled to by a citation lands above the bar, not under it. */
-  scroll-padding-bottom: var(--ws-askbar-h);
-}
+/* (2026-09-02) The under-the-bar padding compensation is gone WITH its cause:
+ * under `.ws-workmain` the Ask bar is a flex row BELOW the workspace, sized by
+ * its own content — nothing can scroll under it any more, so the document keeps
+ * its ordinary bottom padding and citations land normally. */
 
 /* ==========================================================================
  * Dashboard — priority queue, upload disclosure, row actions, modals

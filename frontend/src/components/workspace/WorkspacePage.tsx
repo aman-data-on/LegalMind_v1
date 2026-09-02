@@ -133,6 +133,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     <HighlightProvider>
     <AskIntentProvider>
     <MaybeFindings contractId={contract.id} version={version}>
+    {/* `.ws-workmain` gives the workspace the viewport below the shell and owns
+        ALL scrolling (each panel scrolls itself; the page never does), so the
+        context bar and Ask bar stay put while any panel scrolls. Only when a
+        document exists — the empty state is an ordinary page. */}
+    <div className={version ? "ws-workmain" : undefined}>
       <div className="ws-context">
         <Link className="ws-context__back" href="/dashboard" aria-label="Back to documents">
           <IconArrowLeft size={18} />
@@ -227,6 +232,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           )}
         </div>
       )}
+    </div>
     </MaybeFindings>
     </AskIntentProvider>
     </HighlightProvider>

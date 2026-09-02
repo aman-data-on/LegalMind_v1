@@ -505,3 +505,49 @@ Contrast computed from the stylesheet's own declared pairs, then confirmed again
 ⚠️ **The 15 visual baselines will fail once.** These are colour changes on pinned screenshots.
 Per the standing rule, baselines are cut in CI only — let job 15 fail, then adopt its
 `*-actual.png`. Do not run `design-qa --update-snapshots` locally.
+
+---
+
+## DD-13 — The workspace reference pass: scroll ownership, the paper sheet, panel geometry (2026-09-02)
+
+**Owner instruction, 2026-09-02**, against the DD-9/DD-10 reference screenshots: make the
+`/dashboard?id=` workspace match the reference's 3-panel behaviour — independent panel
+scrolling above all — keep the existing header exactly, and change no functionality.
+
+Presentation only; no locked decision amended. The reference's already-rejected labels stay
+rejected with their recorded rationales: "Analysis" not "AI ANALYSIS" (`AI-01`, WorkspaceLayout
+banner), "Awaiting a decision" not "Key risks" (rule 12, AnalysisPanel banner), the four real
+classifications never merged into a green "Match/Deviation" (rule 14 + zero tolerance), honest
+"Not paginated" for a DOCX (no fixed page model exists to report).
+
+1. **Scroll ownership — `.ws-workmain`.** The old sizing (`100vh − shell − context − askbar`)
+   assumed a 64px context bar; a long name or wrapped chips overflowed the sum and the PAGE
+   scrolled — dragging the document moved all three panels. The workspace route now wraps in
+   `.ws-workmain`: viewport below the shell, `overflow: hidden`, context and Ask bar as fixed
+   flex rows, the grid taking the remainder. The only scrollbars are `.ws-outline__list`,
+   `.ws-text`, `.ws-side__panel`. Proven in a browser: page `scrollHeight ≤ viewport`, and
+   scrolling any one panel moves neither of the other two.
+2. **Shared geometry tokens.** `--ws-clauses-w: 264px` and `--ws-side-w: 380px` (236/340 below
+   1440px) are read by the clauses column, the workspace grid AND the Ask bar's alignment grid,
+   so the Ask card sits **exactly** under the document card — measured equal left edges at 1440
+   and 1280 — never over the clause list (this pass) and never under the analysis panel (the
+   2026-09-01 incident that block guards against).
+3. **The paper sheet.** `.ws-text` is now a grey well (`--ws-viewer`); each page group is a
+   centered white sheet with document margins and a paper shadow. **Upright serif on the sheet
+   only** — a recorded departure from the italic verbatim voice: the italic marks verbatim text
+   apart from application prose, and on the sheet the *sheet* is that mark; a real agreement is
+   set upright. Every excerpt inside app chrome (`.ws-quote`, `.ws-evidence__quote`) stays
+   italic. Centering replaces DD-9's left-anchored rule for the same reason every PDF viewer
+   centers: the sheet edge now gives the eye its column.
+4. **Clause navigator.** Wider (token above), names wrap to two lines before clamping (the old
+   single-line ellipsis hid the distinguishing words), and hierarchy is indented from the
+   section number's own dot depth (`data-depth`, §4.3.1 under §4.3 under §4).
+5. **Toolbar/footer.** The document toolbar keeps only viewer controls (find · page nav · zoom ·
+   fullscreen); the AM-29 readiness fact moved to the meta footer beside the filename. The
+   status tiles go 2×2 with wrapping labels — `UNABLE_TO_EVALUATE` was ellipsizing to
+   "UNABLE_TO…", an unreadable status (rule 12: the exact vocabulary renders).
+6. **Ask bar** is no longer sticky/fixed-height — as the layout's own bottom row it cannot
+   cover anything, so the `.ws-text` under-bar padding compensation is deleted with its cause.
+
+⚠️ Visual baselines: the workspace screenshots change substantially; CI job 15 fails once and
+its `*-actual.png` are adopted per the standing rule.

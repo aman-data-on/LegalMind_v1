@@ -10,7 +10,108 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Investigated — no behaviour changed
+
+* **E1 follow-on: `COSINE_FLOOR`'s two responsibilities separated; a candidate
+  `EVIDENCE_COSINE_FLOOR` proposed, not shipped (2026-09-02).** Owner-authorized as an
+  explicit experiment, not a production change. Phase 1: `calibration.COSINE_FLOOR`
+  now serves `gate_is_open()` only (unchanged, still 0.50, never relaxed); a new
+  `EVIDENCE_COSINE_FLOOR` serves `search_hybrid`'s per-hit evidence prune only,
+  defaulting to the same 0.50 so the split alone changes no behaviour — confirmed by
+  a bit-for-bit identical `AM-28` gate re-run. Phase 2: swept `EVIDENCE_COSINE_FLOOR`
+  through 0.50/0.48/0.45/0.42/0.40/0.38/0.35 via the real `search_hybrid`/`service.ask`
+  path on one ingest; `retained`, `wrongly_answered`, `correct_refusals`, faithfulness
+  (1.0) and citation precision (1.0) were **identical at every threshold** — provably
+  so, since the gate never reads this constant — while recall rose 0.438 → 0.625 at
+  the floor. Phase 3: every newly admitted chunk, at every threshold, belonged to a
+  question whose gate was **already open** at 0.50 — no previously refused question is
+  ever newly answered; zero regressions; the one wrongly-answered question is the same
+  pre-existing case at every threshold. Phase 4: selected `0.42` — not the
+  highest-recall candidate — as the least permissive value capturing the one large,
+  safety-neutral jump (0.438 → 0.594, 73% of the total recoverable gap). Phase 6: the
+  real `python -m tools.verify_assist_quality` at 0.42 reports recall 0.594, all else
+  held, SHIPPABLE; full suite 1093 passed / 1 skipped / 1 xfailed (still fails —
+  0.594 remains below the 0.938 basis); ruff/mypy clean. `EVIDENCE_COSINE_FLOOR` was
+  then reverted to 0.50 (confirmed by an empty diff) — the instruction that authorized
+  this drew an explicit line between experimenting and shipping, so the change is
+  proposed, not applied. Full record, including the exact diff to apply, in
+  [docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md](docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md) §R.
+
+* **E1 retrieval audit: the assist lane's recall@10 is 0.438 against the 0.938 basis
+  `AM-26` r2 selected the embedding model on, and reciprocal rank fusion is NOT the
+  cause (2026-09-02).** Measured on the owner-ratified evaluation set with the real
+  `gate_is_open` recomputed for every variant. The 2×2 over the two places
+  `COSINE_FLOOR = 0.50` is applied settles it: with neither applied, RRF over
+  lexical + vector returns **60/64 — bit-identical to the vector branch alone**, so
+  fusion displaces nothing. Corroborated by candidate pools 10→100, vector weighting
+  2×/5×/20× and lexical caps 0/3/5 (0 = lexical excluded outright) all leaving recall
+  unmoved. The two applications are super-additive — the refusal gate alone recovers
+  **+0.016**, the per-hit evidence filter alone **+0.188**, both **+0.500** — because
+  they are one constant read twice. Also measured: the lexical branch alone reaches
+  **1/64**, so `gate_is_open`'s `if lexical_hit` short-circuit effectively never fires
+  on this corpus. **No production code, threshold, gate or model was changed:** every
+  effective lever is `COSINE_FLOOR`/`PEAK_MARGIN`/refusal thresholds, which the
+  authorizing instruction placed out of scope, so the remedy is an owner calibration
+  decision. `AM-28` re-run after the record-only edits: recall 0.438, retained 41,
+  wrongly answered 1, user-visible wrong 0, faithfulness 1.0, citation precision 1.0 —
+  all held, SHIPPABLE. Full report, including the honest caveat that relaxing the
+  per-hit filter has an **unmeasured** faithfulness cost, in
+  [docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md](docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md).
+
 ### Fixed
+
+* **Two of my own published root causes for that gap retracted (2026-09-02).** Commit
+  `612c148` named RRF fusion; measured displacement is **0**. Commit `23fb976` then
+  named the refusal gate at **+0.312**; measured, it is **+0.016**. The first error came
+  from an "ungated" arm that read `search_hybrid`'s returned hits — empty whenever the
+  gate closes — so refusals scored as retrieval misses. The second came from assigning
+  each lost question to whichever check fired first, which measures blame order rather
+  than recoverability. `tests/test_assist_retrieval_fusion.py` now carries the 2×2 and
+  two passing guard tests that pin the diagnosis; its strict xfail is preserved,
+  unweakened, and still xfails.
+* **A stale visual baseline failed CI job 15 (2026-09-02).** `workspace.png` differed by
+  38,563 px (4%) after the workspace redesign; forbidden terms were clean and every other
+  baseline matched. Verified before adopting rather than adopted to turn CI green — the
+  diff is entirely the intended redesign. `KEY OBLIGATIONS` falling out of the shot was
+  checked and cleared: `AnalysisPanel.tsx:81` still renders `ObligationsPanel`
+  unconditionally, and the rail now scrolls internally, so the section sits below the fold
+  of a viewport-only screenshot. Baseline taken from the CI artifact, never a local
+  `--update-snapshots` run.
+
+* **A Review could get stuck in DRAFT forever after `/analyze` reported success
+  (2026-09-02, production incident, contract `d9ee54a1-…`).** `persist_evaluation()`
+  flushed the `Finding` row before validating its Evaluations' evidence cardinality
+  (N-34). When one Requirement's evaluation legitimately had no evidence to cite (a
+  presence evaluation on an UNRESOLVED mapping) and got correctly refused
+  (`EvidenceCardinalityViolation`), the already-flushed Finding was left orphaned —
+  invisible to every check in Python, because EV-MIN is a *deferred* constraint
+  trigger that only fires at COMMIT. That commit happens in the request-scoped
+  session's teardown, **after** the endpoint had already built and logged a 201
+  response — so the client was told analysis succeeded, and only then did Postgres
+  roll back the entire transaction, including every OTHER Requirement's Finding in
+  the same Review, leaving it permanently in `DRAFT` with zero Findings and no
+  visible error. A retry would deterministically hit the identical crash forever
+  (same document, same evaluator edge case). Fixed by validating every result's
+  evidence cardinality **before** any row is written, so a refusal never leaves
+  anything behind for a later Requirement's Finding to be rolled back by. Confirmed
+  this was not a general pattern: `persist_evaluation()` is the only site in the
+  codebase that constructs a `Finding`. Regression test reproduces the exact
+  `EV-MIN violated` error against the unfixed code and passes against the fix
+  (`tests/test_evaluation_service.py::test_a_refused_finding_leaves_nothing_behind_in_the_session`).
+  Separately ruled out as the cause: the two-pass DOCX pagination traversal
+  (`_docx_paragraph_pages()`) initially suspected for this — measured at ~9ms for
+  the real 27-page MSA (386 paragraphs), and the document actually stuck was a PDF,
+  not a DOCX.
+
+* **Deploys are now visible on an ordinary reload (2026-09-02).** Page HTML was served with
+  `s-maxage=31536000` and no private-cache directive (Next's static-prerender default), so a
+  browser could keep stale HTML — referencing chunk URLs the deploy swap had already deleted —
+  across normal reloads; the owner loaded the workspace right after a verified deploy and saw
+  none of it. `next.config.ts` now sends `Cache-Control: no-cache` on page HTML (revalidate
+  every time; unchanged pages are a cheap 304) while `/_next/static/*` keeps immutable
+  year-long caching. Deploy-verification rule recorded: check the served HTML references the
+  new chunk names AND that a new chunk contains the new code — a 200 alone proves nothing.
+
 
 * **Text contrast on the dashboard — five real WCAG AA failures (2026-09-02, owner request,
   [DD-12](docs/design/DESIGN_DECISIONS.md)).** Auditing every foreground/background pair the
@@ -25,6 +126,39 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Changed
 
+* **Upload ceiling 50 → 25 MB, PDF stated as the preferred format (2026-09-02, owner
+  instruction).** Server default (`LEGALMIND_MAX_UPLOAD_BYTES` — deployment configuration
+  per 34.16, not locked text) and the frontend preflight + copy both moved; DOCX remains
+  fully supported. Intake hint now reads "PDF or DOCX, up to 25 MB — PDF preferred (it
+  carries its own page layout)".
+
+
+* **Workspace second pass: source fidelity + annotations + live Analysis panel (2026-09-02,
+  owner instruction, [DD-14](docs/design/DESIGN_DECISIONS.md)).** The document sheet now sets
+  the structural shapes the extracted text still carries the way the source sets them —
+  centered underlined title, bold section headings, hanging-indent `(a)`-items, justified
+  paragraphs — via a pure, unit-tested recogniser grounded on the real MSA rows (recognised,
+  never invented; a row carrying body text stays a paragraph). Select-to-highlight reader
+  annotations with notes: this-device localStorage marks, visually distinct from evidence
+  highlights, never a Finding and labelled so (no annotations endpoint exists and none was
+  invented — rule 4). Every Analysis card now navigates: status tiles and donut legend open
+  Findings filtered to that exact classification, a finding card's name opens its full card,
+  and the clause panel gains a page-jump select on paginated documents. 11 new unit tests
+  (169 total).
+
+* **Workspace reference pass (2026-09-02, owner instruction, [DD-13](docs/design/DESIGN_DECISIONS.md)).**
+  The `/dashboard?id=` document workspace now matches the owner's reference: `.ws-workmain`
+  gives the route the viewport and each panel its OWN scrollbar (the page-level scroll that
+  moved all three panels together is gone — the old height calc assumed a 64px context bar);
+  the document renders as centered white paper sheets on a grey viewer well, upright serif on
+  the sheet only; the clause navigator is wider, wraps names instead of truncating, and indents
+  by section depth; the status tiles are 2×2 so `UNABLE_TO_EVALUATE` is finally readable; and
+  the Ask card aligns exactly under the document card via shared width tokens, covering neither
+  the clause list nor the analysis panel. Zero functional change; header/nav untouched. The
+  reference's rejected labels stay rejected ("Analysis" not "AI ANALYSIS" — `AI-01`; "Awaiting
+  a decision" not "Key risks" — rule 12; no merged Match/Deviation bucket — rule 14).
+  ⚠️ Visual baselines change again — one CI job-15 failure, adopt its `*-actual.png`.
+
 * **Two-tone wordmark (2026-09-02, owner instruction, [DD-12](docs/design/DESIGN_DECISIONS.md)).**
   "Legal" white, "Mind" brand blue `#0055AA`, on both the workspace shell and the legacy topbar.
   New `--ws-brand` token, deliberately separate from `--ws-accent` (identity vs function).
@@ -33,6 +167,20 @@ No version has been released. The V1 specification is complete and implementatio
   in the top bar. One-line swap documented in DD-12 §2 if the owner wants it to meet AA.
 
 ### Added
+
+* **DOCX page numbers from the document's own pagination record (2026-09-02, owner
+  request).** `legalmind-ingest-v2` reads Word's `w:lastRenderedPageBreak` markers and
+  author-inserted page breaks (a hard break + its rendered marker = one boundary), so DOCX
+  documents get real "Page X of Y", page navigation, outline page-jump and finding→page —
+  with provenance recorded per processing run (`pagination_source`). Nothing is computed or
+  guessed: a DOCX whose producer stripped pagination metadata keeps `page_number = null`
+  and the viewer keeps saying "Not paginated" (locked 34.9/34.12 discipline). Validated on
+  the live MSA: 27 monotonic pages whose boundaries match the owner's own Word rendering.
+  `tools/backfill_docx_pages.py` fills the column for pre-v2 rows only under a 1:1
+  content+offset match with a re-parse (dry-run by default; refuses any discrepancy; only
+  ever writes null→value) — run for the live MSA: 351/356 rows, pages 1–27. 8 new parser
+  tests (1090 backend total). Design record: AUTO_MODE_DECISIONS 2026-09-02.
+
 
 * **Contract deletion (2026-09-01, `AM-37` / AB-10 — owner approval).** Closes
   the gap `AM-31` left explicitly open and answers `AUTO_MODE_DECISIONS` #85 for

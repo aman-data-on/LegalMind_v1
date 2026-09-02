@@ -1030,3 +1030,65 @@ points at the default `legalmind_v1_dev` database; there is no production databa
 separate migration role (55.2), no backup or verified restore, and Step 55.6's remaining
 prerequisites are open. Step 55.3 reserves real counterparty contracts for production, so
 that gap is load-bearing and was surfaced to the owner rather than closed by assumption.
+
+---
+
+## Correction, 2026-09-02 — two items I escalated, re-examined
+
+Both were raised to the owner (and to a peer session) on 2026-09-01 as blocking
+questions. On re-reading the locked text, one had already been answered and the
+other was **mis-framed by me**. Recording both so a future reader does not chase
+a phantom.
+
+### `contracts.deleted_at` — RESOLVED, and it already was
+
+I reported it as an unauthorized schema change with no lock record, and that the
+schema guard's expected column count had been moved 195 → 196 to accommodate it.
+
+That was true when measured and is no longer: **`AB-10` / `AM-37`** was appended
+at `all_lock.md` line 16831 — right after the grep that found nothing — and its
+**r8** authorizes `contracts.deleted_at TIMESTAMPTZ NULL` with the partial index
+on `deleted_at IS NULL` explicitly. `ContractStatus` is untouched. So the column
+is authorized, the 196 is correct, and nothing needs doing.
+
+The lesson is the one CLAUDE.md's greeting protocol already states: `all_lock.md`
+grows under a long task. My grep was a point-in-time measurement presented as a
+standing fact.
+
+### AB-9 r2 vs `SEC-02` — NOT a contradiction. My claim was too strong.
+
+I wrote that AB-9 r2 grants DEVELOPER `legal.decision` while its "does NOT amend"
+section says `SEC-02` stands, and that "both cannot hold". That is wrong, and the
+distinction is the whole point of the control:
+
+* `SEC-02` / `ROLE-05` forbid a **super-role bypass** from reaching
+  `legal.decision` or `legal.approve_customization`. `permissions.py`'s own
+  comment on `LEGAL_AUTHORITY_PERMISSIONS` puts it exactly: *"These require an
+  EXPLICIT grant. Never inherited, never implied, never reachable by any bypass
+  or wildcard path."*
+* DEVELOPER holds them through an explicit entry in `DEFAULT_ROLE_GRANTS` — the
+  same mechanism `LEGAL_DECISION_AUTHORITY` uses. Not a bypass, not a wildcard,
+  not inheritance.
+* The code's guard, `assert_no_bypass_reaches_legal_authority`, governs bypass
+  paths and is unaffected. AB-9 r4 keeps S-1 intact: authority still resolves
+  from the database per request.
+
+So AB-9 can grant them explicitly and leave `SEC-02` genuinely unamended. There
+is no spec conflict to resolve and **no amendment is warranted on that basis**.
+
+### What actually remains, stated accurately
+
+A judgement for the owner, not a contradiction: a role its own record calls
+*"debug-only … intended for developer accounts"* (r3) holds the two permissions
+the specification is otherwise arranged to keep behind a deliberate human grant.
+**One account holds DEVELOPER today** (measured 2026-09-02), so this is live
+rather than latent.
+
+Rule 13's separation survives formally — the engine still never produces a Legal
+Decision, an authorized human does — but that human would be whoever is
+debugging. Whether that is acceptable is the owner's call, and it was never the
+question I actually put to them.
+
+**Nothing was changed in response to either item.** Narrowing r2 would amend a
+locked owner grant on a premise that turned out to be false.
+

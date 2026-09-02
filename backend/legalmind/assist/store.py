@@ -372,7 +372,7 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     branch-native ones — an RRF sum is a rank artifact and would read as meaning.
     """
     from legalmind.assist.calibration import (
-        COSINE_FLOOR,
+        EVIDENCE_COSINE_FLOOR,
         RETRIEVAL_STRATEGY_VERSION,
         RETRIEVAL_TOP_K,
         gate_is_open,
@@ -419,12 +419,16 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                                 strategy_version=RETRIEVAL_STRATEGY_VERSION,
                                 embedding_model=model_identity)
 
-    # Individual vector hits below the floor are never evidence, gate or no gate.
+    # Individual vector hits below the evidence-inclusion floor are never evidence,
+    # gate or no gate. This is deliberately EVIDENCE_COSINE_FLOOR, not the gate's
+    # COSINE_FLOOR — the gate has already made its decision above, from the raw
+    # `scores` list, before this prune runs. See calibration.py's "Two
+    # responsibilities, two constants".
     vector_hits = [
         SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
                   section_number=r[4], section_title=r[5], source_type=str(r[6]),
                   retrieval_score=float(r[7]))
-        for r in vector_rows if float(r[7]) >= COSINE_FLOOR
+        for r in vector_rows if float(r[7]) >= EVIDENCE_COSINE_FLOOR
     ]
 
     # Reciprocal rank fusion; branch-native score reported (cosine preferred where a

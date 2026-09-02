@@ -276,10 +276,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             <div className="ws-outline__list">
               {shownOutline.map((row) => {
                 const status = clauseStatus.get(row.id);
+                // §4.3.1 indents under §4.3 under §4 — depth is the section
+                // number's own dot count (capped; deeper than 3 reads as 3).
+                const depth = Math.min(3, row.section_number?.match(/\./g)?.length ?? 0);
                 return (
                   <button
                     key={row.id}
                     type="button"
+                    data-depth={depth > 0 ? depth : undefined}
                     aria-current={target === row.id ? "true" : undefined}
                     onClick={() => point(row.id, row.section_number ? `clause ${row.section_number}` : "the selected")}
                   >
@@ -398,10 +402,6 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             >
               +
             </button>
-            <span className="ws-doccard__gap" />
-            <span className="ws-readiness" data-readiness={ready}>
-              {READINESS_TEXT[ready]}
-            </span>
             <button type="button" className="ws-toolbtn" aria-label="Fullscreen" onClick={toggleFullscreen}>
               <IconMaximize />
             </button>
@@ -452,8 +452,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               </p>
             ) : null}
           </div>
+          {/* Readiness lives on the footer line (2026-09-02) — it is a fact about
+              search capability (AM-29 honesty), not a control; the toolbar keeps
+              only the PDF-viewer controls. */}
           <p className="ws-doccard__meta ws-mono">
-            v{version.version_number} · {version.original_filename}
+            <span>
+              v{version.version_number} · {version.original_filename}
+            </span>
+            <span className="ws-readiness" data-readiness={ready}>
+              {READINESS_TEXT[ready]}
+            </span>
           </p>
         </div>
       </div>
