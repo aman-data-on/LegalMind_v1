@@ -25,6 +25,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Changed
 
+* **Workspace reference pass (2026-09-02, owner instruction, [DD-13](docs/design/DESIGN_DECISIONS.md)).**
+  The `/dashboard?id=` document workspace now matches the owner's reference: `.ws-workmain`
+  gives the route the viewport and each panel its OWN scrollbar (the page-level scroll that
+  moved all three panels together is gone — the old height calc assumed a 64px context bar);
+  the document renders as centered white paper sheets on a grey viewer well, upright serif on
+  the sheet only; the clause navigator is wider, wraps names instead of truncating, and indents
+  by section depth; the status tiles are 2×2 so `UNABLE_TO_EVALUATE` is finally readable; and
+  the Ask card aligns exactly under the document card via shared width tokens, covering neither
+  the clause list nor the analysis panel. Zero functional change; header/nav untouched. The
+  reference's rejected labels stay rejected ("Analysis" not "AI ANALYSIS" — `AI-01`; "Awaiting
+  a decision" not "Key risks" — rule 12; no merged Match/Deviation bucket — rule 14).
+  ⚠️ Visual baselines change again — one CI job-15 failure, adopt its `*-actual.png`.
+
 * **Two-tone wordmark (2026-09-02, owner instruction, [DD-12](docs/design/DESIGN_DECISIONS.md)).**
   "Legal" white, "Mind" brand blue `#0055AA`, on both the workspace shell and the legacy topbar.
   New `--ws-brand` token, deliberately separate from `--ws-accent` (identity vs function).
