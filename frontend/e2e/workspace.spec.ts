@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { apiPost, createAnalysedReview, fixture, openFindingsTab, storageStatePath } from "./support";
+import {
+  apiPost,
+  createAnalysedReview,
+  fixture,
+  openFindingsTab,
+  openUploadPanel,
+  storageStatePath,
+} from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -167,7 +174,7 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     });
   });
 
-  test("the Documents landing lists documents and links only into /dashboard", async ({ page }) => {
+  test("the Dashboard lists documents and links only into /dashboard", async ({ page }) => {
     const created = await apiPost(page, "/contracts", {
       name: `Index ${Date.now()}`,
       contract_type: "MSA",
@@ -176,7 +183,8 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 
     await page.goto("/dashboard");
     await expect(page.locator(".ws-shell")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
+    // `AM-38` (AB-11, 2026-09-01) renamed this screen: the heading is "Dashboard".
+    await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
     const row = page.getByRole("link", { name: contract.name });
     await expect(row).toHaveAttribute("href", `/dashboard?id=${contract.id}`);
@@ -191,7 +199,9 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
   }) => {
     const f = fixture();
     await page.goto("/dashboard");
-    // The primary act is the file, not a form.
+    // The primary act is still the file — DD-4 just put the input behind the
+    // page's primary action rather than leaving a form open in the fold.
+    await openUploadPanel(page);
     await page.setInputFiles('input[type="file"]', f.document.path);
 
     // The confirm panel: name derived from the filename, editable. The upload

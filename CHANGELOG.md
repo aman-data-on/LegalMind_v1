@@ -10,6 +10,28 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed
+
+* **Text contrast on the dashboard — five real WCAG AA failures (2026-09-02, owner request,
+  [DD-12](docs/design/DESIGN_DECISIONS.md)).** Auditing every foreground/background pair the
+  stylesheet actually declares found the status colours painted as 10–11px text on their own
+  `-soft` tint, below the 4.5:1 small-text minimum: `--ws-warn` 2.90:1, `--ws-ok` 2.98:1,
+  `--ws-bad` 4.23:1, `--ws-decision` 4.39:1, `--ws-outcome` 4.47:1. The worst was the
+  `Needs Review` pill — the dashboard's most important status was its least readable text.
+  All five now clear 4.5:1 by the **minimum** darkening that does so; only lightness moved,
+  so DD-9's owner-approved traffic light reads as the same three colours. Nothing regressed
+  (on white, amber 3.19→5.00, green 3.30→5.03; the white-on-red button 4.83→5.15).
+  ⚠️ The 15 visual baselines will fail once and must be re-adopted from CI job 15.
+
+### Changed
+
+* **Two-tone wordmark (2026-09-02, owner instruction, [DD-12](docs/design/DESIGN_DECISIONS.md)).**
+  "Legal" white, "Mind" brand blue `#0055AA`, on both the workspace shell and the legacy topbar.
+  New `--ws-brand` token, deliberately separate from `--ws-accent` (identity vs function).
+  ⚠️ Recorded, not fixed: `#0055AA` is 7.29:1 on white but **2.56:1** on the near-black shell —
+  legal under WCAG's logotype exemption and shipped exactly as specified, but the dimmest text
+  in the top bar. One-line swap documented in DD-12 §2 if the owner wants it to meet AA.
+
 ### Added
 
 * **Contract deletion (2026-09-01, `AM-37` / AB-10 — owner approval).** Closes

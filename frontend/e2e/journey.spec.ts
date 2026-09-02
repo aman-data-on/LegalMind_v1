@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from "./support";
+import {
+  createAnalysedReview,
+  fixture,
+  openFindingsTab,
+  openUploadPanel,
+  storageStatePath,
+} from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -30,6 +36,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // create → version → current-standards snapshot → Review → analysis.
   const f = fixture();
   await page.goto("/dashboard");
+  // DD-4: upload is a disclosure behind the primary action, not an open form.
+  await openUploadPanel(page);
   await page.setInputFiles('input[type="file"]', f.document.path);
   // Create + upload + type suggestion run behind the file gesture; the select
   // re-enables when the confirm panel is ready. In e2e there is no generation

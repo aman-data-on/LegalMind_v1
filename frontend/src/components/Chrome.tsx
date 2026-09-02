@@ -93,7 +93,9 @@ export function Chrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="topbar__brand">LegalMind</span>
+        {/* Two-tone wordmark (owner, 2026-09-02) — matches `.ws-shell__word` on the
+            new shell. No whitespace between the spans; see WorkspaceShell.tsx. */}
+        <span className="topbar__brand"><span className="topbar__brand-a">Legal</span><span className="topbar__brand-b">Mind</span></span>
         <nav className="topbar__nav">
           {NAV.filter((item) => can(item.permission)).map((item) => (
             <Link

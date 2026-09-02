@@ -31,18 +31,50 @@
   /* The one non-state accent: links, focus, primary actions, the highlight. */
   --ws-accent: #2563eb;
   --ws-accent-soft: #eff4ff;
+  /* Brand blue — the wordmark's "Mind" half only (owner, 2026-09-02). Deliberately
+     NOT the accent: the accent is a functional colour (links, focus, primary
+     action) and the brand is an identity colour. Keeping them apart means
+     restyling one never silently restyles the other.
+
+     ⚠️ Two variables, one colour, and the reason matters. #0055AA measures
+     7.29:1 on white — excellent — but only 2.56:1 on this shell's #0d1220,
+     because it is a deep blue built for light surfaces. A wordmark is exempt
+     from WCAG contrast (SC 1.4.3 excludes logotypes), so this is legible-enough
+     and not a violation — but it IS the dimmest text in the top bar.
+     To make the mark meet AA on dark, change `--ws-brand-on-dark` to #007af3
+     (4.52:1) or #005fbe (3.01:1, AA-large) — same hue, lifted lightness only.
+     `--ws-brand` stays #0055AA for light surfaces regardless. */
+  --ws-brand: #0055aa;
+  --ws-brand-on-dark: #0055aa;
   /* DD-9 status buckets (owner-approved traffic light): match / review / missing.
      Presentation grouping only — the exact classification always renders beside
      the color. */
-  --ws-ok: #16a34a;    --ws-ok-soft: #e9f7ee;
-  --ws-warn: #d97706;  --ws-warn-soft: #fdf3e3;
-  --ws-bad: #dc2626;   --ws-bad-soft: #fdecec;
+  /* ⚠️ Contrast-corrected 2026-09-02 (owner: "ensure every text element is fully
+     visible against its background"). These three are painted as TEXT on their own
+     -soft tint in the status pills (10px) and findings badges (11px), and at their
+     previous values that text failed WCAG AA badly: amber 2.90:1, green 2.98:1,
+     red 4.23:1, against the 4.5:1 small-text minimum. The status pill reading
+     "Needs Review" was the least legible text on the dashboard.
+
+     Only LIGHTNESS moved — hue and saturation are untouched, so DD-9's
+     owner-approved traffic light still reads as the same three colours. Each
+     value is the *minimum* darkening that clears 4.5:1, so the palette shifted
+     as little as it could. Every other use improved too: on white 3.19→5.00
+     (amber) and 3.30→5.03 (green); as a bar-segment or legend-dot fill there is
+     no text to affect; and the one white-on-red button went 4.83→5.15.
+     Previous values: #16a34a / #d97706 / #dc2626. */
+  --ws-ok: #11803a;    --ws-ok-soft: #e9f7ee;
+  --ws-warn: #a85c05;  --ws-warn-soft: #fdf3e3;
+  --ws-bad: #d52222;   --ws-bad-soft: #fdecec;
   --ws-card-shadow: 0 1px 2px rgba(14, 20, 32, 0.04), 0 1px 3px rgba(14, 20, 32, 0.06);
   /* Axis hues — chips only, never backgrounds (master prompt §4.2). */
   --ws-mapping: #0e7490;      --ws-mapping-soft: #e3f2f5;
   --ws-classify: #4338ca;     --ws-classify-soft: #edebfb;
-  --ws-outcome: #b45309;      --ws-outcome-soft: #fcf0e1;
-  --ws-decision: #15803d;     --ws-decision-soft: #e6f3ea;
+  /* Same correction, same reason, much smaller move — these two sat just under
+     the line on their own tint (outcome 4.47:1, decision 4.39:1) where they are
+     the text of a filled axis chip. Previous: #b45309 / #15803d. */
+  --ws-outcome: #b35209;      --ws-outcome-soft: #fcf0e1;
+  --ws-decision: #157e3c;     --ws-decision-soft: #e6f3ea;
   --ws-error: #dc2626;        --ws-error-soft: #fdecec;
 
   /* Type roles — the master prompt §4.3 faces, bundled at build time via
@@ -123,10 +155,15 @@
   padding: 0 var(--ws-s4);
   position: sticky; top: 0; z-index: var(--ws-z-shell);
 }
+/* Two-tone wordmark (owner, 2026-09-02). `--ws-brand` is the brand blue itself;
+   `--ws-brand-on-dark` is the value actually painted on the near-black shell.
+   They are separate variables on purpose — see the note below. */
 .ws-shell__word {
-  font-weight: 600; font-size: var(--ws-text-md); letter-spacing: 0.01em; color: #fff;
+  font-weight: 600; font-size: var(--ws-text-md); letter-spacing: 0.01em;
   text-decoration: none;
 }
+.ws-shell__word-a { color: #fff; }
+.ws-shell__word-b { color: var(--ws-brand-on-dark); }
 .ws-shell__nav { display: flex; gap: var(--ws-s1); }
 .ws-shell__nav a {
   font-size: var(--ws-text-sm); padding: 6px 11px; border-radius: var(--ws-radius);

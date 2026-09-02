@@ -154,6 +154,12 @@ body {
   font-family: var(--font-display); font-weight: 700; font-size: 1.35rem;
   letter-spacing: -0.01em; color: #fff;
 }
+/* Two-tone wordmark (owner, 2026-09-02) — the same split the new shell uses.
+   The brand blue is repeated as a literal here rather than shared: this legacy
+   stylesheet and workspace.css deliberately never reference each other's
+   variables (see the file banner), and the legacy screens are being retired. */
+.topbar__brand-a { color: #fff; }
+.topbar__brand-b { color: #0055aa; }
 .topbar__nav { display: flex; gap: var(--space-5); flex: 1; flex-wrap: wrap; }
 .topbar__nav a { color: var(--on-deep-muted); text-decoration: none; padding: 0.35rem 0; display: flex; align-items: center; gap: 0.45rem; }
 .topbar__nav a:hover { color: var(--on-deep); }

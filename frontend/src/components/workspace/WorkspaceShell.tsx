@@ -61,8 +61,15 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <header className="ws-shell">
+        {/*
+          Two-tone wordmark (owner, 2026-09-02): "Legal" white, "Mind" brand blue.
+          The two spans carry NO whitespace or newline between them — JSX would
+          render that as a text node and the mark would read "Legal Mind". The
+          accessible name is unaffected either way: both spans are plain text
+          inside one link, so it is announced as "LegalMind, link".
+        */}
         <Link className="ws-shell__word" href="/dashboard">
-          LegalMind
+          <span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span>
         </Link>
         <nav className="ws-shell__nav" aria-label="Primary">
           {items.map((item) => (

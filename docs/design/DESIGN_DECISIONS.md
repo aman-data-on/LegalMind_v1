@@ -426,3 +426,82 @@ opened it — the same pattern `KeyboardShortcutsHelp` established).
 **If the owner still wants an overlay for upload**, that is theirs to decide;
 this entry is superseded in place when they do, with the reasoning above
 recorded as what was traded away.
+
+---
+
+## DD-12 — Two-tone wordmark, and the contrast audit it triggered (2026-09-02)
+
+**Owner instruction, 2026-09-02:** *"Change the logo so that 'Legal' is white and 'Mind' is
+brand blue (#0055AA). … Audit all text on the dashboard. Ensure every text element is fully
+visible against its background."*
+
+Presentation only. No locked decision is amended; `LOCKED_DECISIONS.md` is untouched.
+
+### 1. The wordmark
+
+`LegalMind` is now two spans inside the one link — `.ws-shell__word-a` (`#fff`) and
+`.ws-shell__word-b` (`var(--ws-brand-on-dark)`). Two implementation notes that are easy to
+get wrong:
+
+* **No whitespace between the spans.** JSX renders a newline between sibling elements as a
+  text node, which would produce "Legal Mind". Verified in a real browser:
+  `textContent === "LegalMind"`.
+* **The accessible name is unchanged.** Both spans are plain text in one link, so it is still
+  announced "LegalMind, link" — splitting for colour does not split it for a screen reader.
+
+`--ws-brand` is a **new token, deliberately not `--ws-accent`.** The accent is functional
+(links, focus, primary action); the brand is identity. Merging them would mean that restyling
+one silently restyles the other.
+
+### 2. ⚠️ The brand blue does not meet contrast on the dark shell — and that is recorded, not fixed
+
+`#0055AA` measures **7.29:1 on white** and **2.56:1 on the shell's `#0d1220`**. It is a deep
+blue built for light surfaces; the top bar is near-black.
+
+It ships **exactly as specified**, for two reasons: the owner named the hex, and WCAG SC 1.4.3
+explicitly exempts logotypes from contrast requirements — so this is a legibility observation,
+not a violation. But it is the dimmest text in the top bar, and that sits in tension with the
+same instruction's second half.
+
+The swap is therefore **one line**: set `--ws-brand-on-dark` to `#007af3` (4.52:1, AA) or
+`#005fbe` (3.01:1, AA-large). Both are the same hue with lightness lifted — no new colour.
+`--ws-brand` stays `#0055AA` for light surfaces either way.
+
+### 3. The audit found five real failures, and they were not the logo
+
+Measured every foreground/background pair the stylesheet actually declares in one rule — not
+a theoretical matrix. The status colours were painted as **text on their own `-soft` tint**,
+at 10–11px, and failed the 4.5:1 small-text minimum:
+
+| Token | Was | On its `-soft` tint | Now | Now |
+|---|---|---|---|---|
+| `--ws-warn` | `#d97706` | **2.90:1** ❌ | `#a85c05` | 4.55:1 ✅ |
+| `--ws-ok` | `#16a34a` | **2.98:1** ❌ | `#11803a` | 4.55:1 ✅ |
+| `--ws-bad` | `#dc2626` | **4.23:1** ❌ | `#d52222` | 4.51:1 ✅ |
+| `--ws-decision` | `#15803d` | **4.39:1** ❌ | `#157e3c` | 4.50:1 ✅ |
+| `--ws-outcome` | `#b45309` | **4.47:1** ❌ | `#b35209` | 4.53:1 ✅ |
+
+The worst of these was the `Needs Review` pill — the single most important status on the
+dashboard was its least readable text.
+
+**Only lightness moved.** Hue and saturation are untouched, so DD-9's owner-approved traffic
+light still reads as the same three colours, and each value is the *minimum* darkening that
+clears the line. Nothing regressed: on white, amber went 3.19→5.00 and green 3.30→5.03; as
+bar-segment and legend-dot fills there is no text to affect; and the one white-on-red button
+improved 4.83→5.15.
+
+**Not changed, and why:** `--ws-ink-300` measures 2.20:1 on white but is used as a text colour
+only for decorative icons that sit beside the text naming the same thing (the stat-tile plate,
+the file glyph before a document name, the pending-step dot). SC 1.4.11 exempts a graphic whose
+information is available in adjacent text. Changing it would dull a deliberate hierarchy for no
+accessibility gain.
+
+### 4. Verification
+
+Contrast computed from the stylesheet's own declared pairs, then confirmed against
+`getComputedStyle` in a headless browser; the deployed bundle was re-fetched from
+`https://legalmind.lsnw.io` and checked to carry the new token values.
+
+⚠️ **The 15 visual baselines will fail once.** These are colour changes on pinned screenshots.
+Per the standing rule, baselines are cut in CI only — let job 15 fail, then adopt its
+`*-actual.png`. Do not run `design-qa --update-snapshots` locally.
