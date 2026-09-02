@@ -155,6 +155,19 @@ def _api_key() -> str | None:
     return raw.strip()
 
 
+def credential_present() -> bool:
+    """Whether a usable generation credential is configured.
+
+    Public because the Tier-2 gate needs to distinguish "cannot measure" from
+    "measured badly", and reaching into `_api_key` from a tool would couple the
+    harness to a private name. Placeholder handling lives in `_api_key`, so this
+    answers the question the caller actually has rather than "is the variable
+    set" — the distinction that let a literal `***` read as configured for hours
+    on 2026-09-01.
+    """
+    return _api_key() is not None
+
+
 def _model() -> str:
     return os.environ.get("LEGALMIND_GENERATION_MODEL", DEFAULT_MODEL)
 

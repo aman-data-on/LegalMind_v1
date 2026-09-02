@@ -334,3 +334,77 @@ def test_every_package_is_covered_by_a_boundary_rule_or_explicitly_exempt():
         f"package(s) {uncovered} have no layering rule and are not listed as exempt. "
         "Add a LAYERING entry or an exemption with a reason — a new package must not "
         "escape review by default.")
+
+
+# ==========================================================================
+# `AM-28` r2 — the citation guardrail is independent of prompt and model
+# ==========================================================================
+def test_the_citation_guardrail_imports_no_prompt_or_model_code():
+    """`AM-28` r2, the half that was true but unasserted.
+
+    r2: *"The citation-enforcement component is tested independently of prompt
+    and model code, **and does not import them**. A guardrail that a prompt
+    change can affect is not a guardrail."*
+
+    The LAYERING test above works at PACKAGE level — it permits `assist` to
+    import `db`, `domain`, `observability` and `security`, and says nothing about
+    imports WITHIN the package. So `guardrails.py` importing `generation.py`
+    would have passed every existing test while breaking r2 outright, which is
+    the failure r2's second sentence is about: the verification would then move
+    whenever the prompt moved, and could be tuned until it agreed with the model
+    it is supposed to check.
+
+    Asserted structurally on the import graph rather than by reading the file,
+    so a transitive route in (guardrails -> X -> generation) fails too.
+    """
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "legalmind"
+    forbidden = {"generation", "service", "type_suggestion", "obligations"}
+
+    def imports_of(module: str) -> set[str]:
+        path = root / "assist" / f"{module}.py"
+        if not path.is_file():
+            return set()
+        tree = ast.parse(path.read_text())
+        found: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                if not node.module.startswith("legalmind.assist"):
+                    continue
+                # `from legalmind.assist.generation import x` — the sibling is the
+                # last segment of the module.
+                tail = node.module.rsplit(".", 1)[-1]
+                if tail != "assist":
+                    found.add(tail)
+                # `from legalmind.assist import generation` — the sibling is an
+                # imported NAME, not part of the module path. Missing this is why
+                # the first draft of this test could not fail: it only ever looked
+                # at `node.module`, so the most natural way to write the violation
+                # was invisible to it.
+                else:
+                    found.update(a.name for a in node.names)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("legalmind.assist."):
+                        found.add(alias.name.rsplit(".", 1)[-1])
+        return found
+
+    # Walk the closure so an indirect route is caught as well as a direct one.
+    seen: set[str] = set()
+    frontier = {"guardrails"}
+    while frontier:
+        module = frontier.pop()
+        if module in seen:
+            continue
+        seen.add(module)
+        reached = imports_of(module)
+        leaked = reached & forbidden
+        assert not leaked, (
+            f"AM-28 r2 violated: legalmind.assist.guardrails reaches "
+            f"{sorted(leaked)} via {module}. The citation guardrail must not "
+            f"import prompt or model code — a guardrail a prompt change can "
+            f"affect is not a guardrail."
+        )
+        frontier |= reached - seen
