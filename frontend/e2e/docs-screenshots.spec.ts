@@ -27,7 +27,7 @@ test.describe("documentation screenshots", () => {
       test.skip(!process.env.DOCS_SHOTS, "run with DOCS_SHOTS=1 to regenerate docs images");
       mkdirSync(ASSETS, { recursive: true });
       const { reviewId } = await createAnalysedReview(page);
-      await page.goto(`/reviews/${reviewId}`);
+      await page.goto(`/reviews?id=${reviewId}`);
       const evaluation = page.locator("li.evaluation").first();
       await expect(evaluation).toBeVisible();
       await evaluation.screenshot({
@@ -43,7 +43,7 @@ test.describe("documentation screenshots", () => {
       test.skip(!process.env.DOCS_SHOTS, "run with DOCS_SHOTS=1 to regenerate docs images");
       mkdirSync(ASSETS, { recursive: true });
       const { reviewId } = await createAnalysedReview(page);
-      await page.goto(`/reviews/${reviewId}`);
+      await page.goto(`/reviews?id=${reviewId}`);
       const evaluation = page.locator("li.evaluation").first();
       await expect(evaluation).toBeVisible();
       // LEGAL-02 / 52.4: no lock icon, no placeholder — the field is absent.
@@ -61,7 +61,7 @@ test.describe("documentation screenshots", () => {
       test.skip(!process.env.DOCS_SHOTS, "run with DOCS_SHOTS=1 to regenerate docs images");
       mkdirSync(ASSETS, { recursive: true });
       const { contractId } = await createAnalysedReview(page, { analyse: false });
-      await page.goto(`/contracts/${contractId}`);
+      await page.goto(`/contracts?id=${contractId}`);
       const ask = page.getByPlaceholder("What does this document say about…");
       await ask.fill("What is the moon made of?");
       await page.getByRole("button", { name: "Ask" }).click();

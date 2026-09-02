@@ -33,7 +33,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     const f = fixture();
     const { reviewId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const evaluation = page.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
 
@@ -51,7 +51,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
   test("the rendered result comes from a server re-read", async ({ page }) => {
     const f = fixture();
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const evaluation = page.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
 
@@ -91,7 +91,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     const evaluationId = findings.data[0].evaluations[0].id;
 
     // Decide once through the API, so the browser's copy is now stale.
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const evaluation = page.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
 
@@ -142,7 +142,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
   test("a Finding cannot be resolved from the screen", async ({ page }) => {
     const f = fixture();
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     await expect(page.locator("li.evaluation").first()).toBeVisible();
 
     // D-3.6 / Step 30 r3, r16 — resolution is DERIVED server-side. No resolve control

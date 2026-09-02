@@ -107,6 +107,28 @@ EGRESS_ALLOWED: dict[str, str] = {
     # separate dependency approval is never triggered — and the AM-31 gate inside it
     # refuses production egress while no written no-training confirmation exists.
     "legalmind.assist.generation": "AM-30 t1/t8; AM-31 gate enforced in-module",
+    # ⚠️ SECOND EGRESS, ADDED 2026-09-01, AND REGISTERED AS CONFLICT C-17 — read
+    # CONFLICTS.md before assuming this entry is settled.
+    #
+    # Locked 47.1.3 (OD-9) makes corporate SSO via OIDC the PRIMARY authentication
+    # mechanism, and no OIDC flow can exist without a server-to-server call to the
+    # identity provider's discovery and token endpoints. So one locked record
+    # mandates an egress path that `AM-30` t10's sentence "the provider call is the
+    # only external call in the stack" appears to forbid.
+    #
+    # Per rule 5 that tension is REGISTERED, not resolved: this entry exists so the
+    # code matches the mandate in 47.1.3, and C-17 records that the owner must say
+    # which reading of t10 governs. The narrow reading — t10 scoped to the document
+    # path, which is what its own first sentence is about — is the one the code
+    # currently reflects, and it is an interpretation, not a lock.
+    #
+    # What is NOT in tension, and must stay that way: this path carries an email
+    # address and a subject identifier to an authentication provider. It carries no
+    # document, no chunk, no clause text and no internal legal position, so `AM-30`
+    # t2 and t3 are untouched by it. A test below pins that.
+    "legalmind.security.oidc":
+        "47.1.3 / SEC-01 (OD-9) mandates OIDC; egress to the IdP is inherent to it. "
+        "Registered as C-17 pending the owner's reading of AM-30 t10",
 }
 
 
@@ -129,16 +151,50 @@ def test_no_outbound_network_client_is_imported(package):
         )
 
 
-def test_the_egress_allowlist_names_exactly_the_generation_adapter():
+def test_the_egress_allowlist_names_exactly_the_two_authorized_modules():
     """A guard on the guard.
 
-    Exactly one module may reach the network — `AM-30` t1's generation adapter — and
-    its entry must cite the record. A second entry is a second egress path, which t1
-    forbids; an empty list means the adapter moved without its authorization moving
-    with it.
+    TWO modules may reach the network, and no third may appear without this test
+    failing. Each entry must cite the record that mandates it:
+
+    * `AM-30` t1's generation adapter — the assist lane's one AI egress;
+    * the OIDC provider flow, which locked 47.1.3 mandates and which cannot exist
+      without an IdP call. Registered as **C-17**, because `AM-30` t10's "the
+      provider call is the only external call in the stack" reads against it and
+      rule 5 forbids resolving that here.
+
+    An empty list means a module moved without its authorization moving with it.
     """
-    assert set(EGRESS_ALLOWED) == {"legalmind.assist.generation"}
+    assert set(EGRESS_ALLOWED) == {"legalmind.assist.generation",
+                                    "legalmind.security.oidc"}
     assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.generation"]
+    assert "C-17" in EGRESS_ALLOWED["legalmind.security.oidc"]
+    assert "47.1.3" in EGRESS_ALLOWED["legalmind.security.oidc"]
+
+
+def test_the_oidc_egress_carries_no_document_and_no_legal_position():
+    """`AM-30` t2/t3 are untouched by the authentication egress, and must stay so.
+
+    Not a stylistic check. t3 makes LEGAL-02 an egress rule: no Company Standard
+    value, Legal Rule, threshold, Rule Outcome, Evaluation or Finding may appear in
+    an egressing payload. The OIDC module is therefore forbidden from importing the
+    modules that hold any of those, so a future change cannot quietly put a legal
+    position into a token request.
+    """
+    import ast
+    from pathlib import Path
+
+    source = Path("legalmind/security/oidc.py").read_text()
+    imported = {
+        node.module for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
+    forbidden = {"evaluation", "mapping", "extraction", "analysis", "workflow",
+                 "assist", "reporting"}
+    reached = {module for module in imported
+               if module.startswith("legalmind.")
+               and module.split(".")[1] in forbidden}
+    assert reached == set(), reached
 
 
 # ==========================================================================

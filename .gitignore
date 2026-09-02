@@ -46,6 +46,8 @@ htmlcov/
 # ─── Node / frontend (Step 39 stack: Next.js + TypeScript) ──────────────────
 node_modules/
 .next/
+.next-staging/
+.next-previous/
 out/
 .turbo/
 *.tsbuildinfo

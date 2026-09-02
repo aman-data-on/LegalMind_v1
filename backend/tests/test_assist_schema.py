@@ -45,6 +45,11 @@ EXPECTED_TABLES = frozenset({
     "statutes",
     "statute_chunks",
     "statute_chunk_embeddings",
+    # Key Obligations — owner authorization, 2026-08-31 (this session's
+    # "add a new backend extraction capability"). Additive, same derived-store
+    # posture; recorded in CHANGELOG and AUTO_MODE_DECISIONS.
+    "obligation_extraction_runs",
+    "obligation_extractions",
 })
 
 # The nine values `AM-29` r2 forbids an assist-lane state from reusing.

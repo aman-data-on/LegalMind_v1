@@ -39,6 +39,13 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
 
     # ---- 49.2 authentication -------------------------------------------
     ("POST", f"{API_PREFIX}/auth/login"): UNAUTHENTICATED,
+    # 49.2 lines 1–2. Unauthenticated by necessity — they ARE the act of
+    # authenticating, and 47.1.3 makes this the primary mechanism. Both are
+    # rate-limited on the login bucket, and the callback's own CSRF defence is
+    # the OIDC `state` parameter rather than the double-submit cookie (a GET
+    # top-level navigation cannot carry a header).
+    ("GET", f"{API_PREFIX}/auth/oidc/start"): UNAUTHENTICATED,
+    ("GET", f"{API_PREFIX}/auth/oidc/callback"): UNAUTHENTICATED,
     ("POST", f"{API_PREFIX}/auth/logout"): AUTHENTICATED_ONLY,
     ("GET", f"{API_PREFIX}/auth/session"): AUTHENTICATED_ONLY,
     ("DELETE", f"{API_PREFIX}/auth/sessions/{{session_id}}"): P.USER_MANAGE,
@@ -46,8 +53,16 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     # ---- 49.3 contracts & documents ------------------------------------
     ("GET", f"{API_PREFIX}/contracts"): P.CONTRACT_VIEW,
     ("POST", f"{API_PREFIX}/contracts"): P.CONTRACT_CREATE,
+    # Implementation addition (2026-09-01, Documents redesign): the stat-tile
+    # summary, same permission and same object-level scope as the list itself.
+    ("GET", f"{API_PREFIX}/contracts/summary"): P.CONTRACT_VIEW,
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_UPDATE,
+    # Owner approval 2026-09-01 (closes the gap AM-31 left open). Two modes
+    # behind one verb — hard delete when the contract was never analyzed, soft
+    # delete once a Review exists, so rule 17's audit trail and reproducible
+    # history survive. Ownership, not role reach, is the real scope.
+    ("DELETE", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_DELETE,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/document-versions"):
         P.DOCUMENT_UPLOAD,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}"):
@@ -69,6 +84,9 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}"): P.REVIEW_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/findings"): P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/report"): P.REPORT_VIEW,
+    # 49.3's own row. Formats were NOT YET SPECIFIED (49.12) until the owner's
+    # 2026-08-31 directive named PDF and DOCX — recorded in AUTO_MODE_DECISIONS.
+    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/export"): P.EXPORT_GENERATE,
     ("GET", f"{API_PREFIX}/findings/{{finding_id}}"): P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/findings/{{finding_id}}/evaluations"): P.EVALUATION_VIEW,
     # 49.3 maps escalation to review.view, NOT to legal.decision: locked Step 4
@@ -89,6 +107,7 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
         P.CONFIGURATION_DRAFT,
     ("POST", f"{API_PREFIX}/requirements/{{requirement_id}}/standard"):
         P.CONFIGURATION_DRAFT,
+    ("GET", f"{API_PREFIX}/configuration/snapshots"): P.REVIEW_CREATE,
     ("POST", f"{API_PREFIX}/configuration/publish"): P.CONFIGURATION_PUBLISH,
 
     # ---- 49.3 audit -----------------------------------------------------
@@ -99,6 +118,7 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/users"): P.USER_MANAGE,
     ("GET", f"{API_PREFIX}/users/{{user_id}}"): P.USER_MANAGE,
     ("PATCH", f"{API_PREFIX}/users/{{user_id}}"): P.USER_MANAGE,
+    ("DELETE", f"{API_PREFIX}/users/{{user_id}}"): P.USER_MANAGE,
     ("POST", f"{API_PREFIX}/users/{{user_id}}/roles"): P.USER_MANAGE,
     ("DELETE", f"{API_PREFIX}/users/{{user_id}}/roles/{{role_code}}"): P.USER_MANAGE,
     ("GET", f"{API_PREFIX}/roles"): P.ROLE_MANAGE,
@@ -121,6 +141,18 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/messages"): P.ASSIST_ASK,
+    # Type suggestion (owner, 2026-08-31): a proposal for the intake pre-fill,
+    # same risk profile as Ask — no new legal authority.
+    ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/suggest-type"):
+        P.ASSIST_ASK,
+    # Key Obligations (owner, 2026-08-31): descriptive facts about text the
+    # caller can already read in full — the findings-viewer's scope, and never
+    # the organization's negotiating position (LEGAL-02 does not apply).
+    ("POST",
+     f"{API_PREFIX}/document-versions/{{document_version_id}}/extract-obligations"):
+        P.FINDING_VIEW,
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/obligations"):
+        P.FINDING_VIEW,
 }
 ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
 
@@ -137,14 +169,11 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 
 NOT_IMPLEMENTED: Final[dict[tuple[str, str], str]] = {
-    ("GET", f"{API_PREFIX}/auth/oidc/start"):
-        "OIDC needs an approved JWT/JWKS client dependency (rule 19) and the "
-        "deployment's IdP configuration. Neither exists; Step 47's password "
-        "fallback is implemented instead.",
-    ("GET", f"{API_PREFIX}/auth/oidc/callback"):
-        "As above.",
-    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/export"):
-        "49.12 records export formats as locked NOT YET SPECIFIED. There is no "
-        "format to emit, and the locked error taxonomy (49.5) has no status for "
-        "'specified later', so the route is absent rather than dishonest.",
+    # /reviews/{id}/export left this list on 2026-08-31: the owner's export
+    # directive specified the formats 49.12 had left open (PDF, DOCX).
+    # The two OIDC routes left it on 2026-09-01: no JWT/JWKS dependency turned out
+    # to be needed (the ID token is read from our own direct TLS exchange with the
+    # token endpoint, never accepted from a client), so the rule-19 blocker
+    # dissolved and only the deployment's IdP configuration remained. That is a
+    # deployment prerequisite, which the 55.6 preflight reports.
 }

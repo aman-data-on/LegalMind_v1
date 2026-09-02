@@ -65,7 +65,7 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     const f = fixture();
     const { reviewId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     // Wait for an Evaluation to have rendered before asserting an absence, or the
     // assertion would pass against an empty screen — the commonest way a
     // confidentiality test proves nothing.
@@ -122,7 +122,7 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
 
   test("and the screen renders it", async ({ page }) => {
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const evaluation = page.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
 

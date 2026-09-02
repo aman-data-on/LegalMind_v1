@@ -43,7 +43,7 @@ test.describe("A user without legal.decision", () => {
     page,
   }) => {
     const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews/${reviewId}`);
+    await page.goto(`/reviews?id=${reviewId}`);
     const evaluation = page.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
 

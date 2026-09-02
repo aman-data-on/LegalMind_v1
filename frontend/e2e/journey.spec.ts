@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { apiPost, createAnalysedReview, fixture, snapshotId, storageStatePath } from "./support";
+import {
+  createAnalysedReview,
+  fixture,
+  openFindingsTab,
+  openUploadPanel,
+  storageStatePath,
+} from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -26,18 +32,51 @@ const REFUSAL_TEXT =
 test("journey: upload → analysis → report → findings → ask, with findings still open", async ({
   page,
 }) => {
-  const { contractId, reviewId } = await createAnalysedReview(page);
+  // ENTIRELY through the UI (2026-08-31 UX correction): one upload act chains
+  // create → version → current-standards snapshot → Review → analysis.
+  const f = fixture();
+  await page.goto("/dashboard");
+  // DD-4: upload is a disclosure behind the primary action, not an open form.
+  await openUploadPanel(page);
+  await page.setInputFiles('input[type="file"]', f.document.path);
+  // Create + upload + type suggestion run behind the file gesture; the select
+  // re-enables when the confirm panel is ready. In e2e there is no generation
+  // credential, so the suggestion honestly degrades and the human declares.
+  const typeSelect = page.getByLabel(/^Document type/);
+  await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
+  await typeSelect.selectOption("MSA");
+  await page.getByRole("button", { name: "Confirm & Analyze" }).click();
+  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+  const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
 
-  // The report exists and speaks in counts.
-  await page.goto(`/workspace/reviews/${reviewId}`);
-  await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
-
-  // The workspace shows the document, the finding — and Ask, all at once.
-  await page.goto(`/workspace/${contractId}`);
+  // The workspace shows the document; the full findings pane is the side
+  // card's second tab (DD-9), one click away, with Ask pinned below throughout.
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+  await openFindingsTab(page);
   const finding = page.locator("article[data-finding-id]").first();
   await expect(finding).toBeVisible();
   await expect(finding).toContainText("DEVIATION");
+
+  // The drill (2026-08-31 v2): the summary strip's counts are pressable
+  // filters — category → finding → evidence without leaving the pane.
+  const filters = page.locator(".ws-filter");
+  await expect(filters.getByRole("button", { name: /^DEVIATION \(\d+\)$/ })).toBeVisible();
+  await filters.getByRole("button", { name: /^DEVIATION/ }).click();
+  await expect(finding).toBeVisible();
+  // …and the drill ends in verbatim text: the cited excerpt sits beside the
+  // finding, and its location button lights the passage in the document.
+  await expect(finding.locator(".ws-evidence__quote").first()).toBeVisible();
+  await finding.locator(".ws-evidence__loc").first().click();
+  await expect(page.locator(".ws-row--lit")).toBeVisible();
+
+  // Finding → Ask handoff: an EDITABLE draft lands in the input, nothing sends.
+  await finding.getByRole("button", { name: "Ask about this" }).click();
+  await expect(page.getByLabel("Question")).toHaveValue(/What does this document say about/);
+
+  // Export — the analysis leaves as a real file (owner directive §30).
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "PDF", exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await page.getByLabel("Question").fill("Explain the zorbulated framblewitz stipulations");
@@ -47,6 +86,22 @@ test("journey: upload → analysis → report → findings → ask, with finding
   });
   // …and the finding is still open beside it. Nothing was auto-resolved.
   await expect(finding).toContainText("Decision required");
+
+  // The report exists and speaks in counts — reached from the Reviews queue.
+  const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
+  const reviewId = (await listed.json()).data[0].id;
+  await page.goto(`/dashboard/reviews?id=${reviewId}`);
+  await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
+
+  // And the Documents list now answers "what did analysis find" — a status
+  // pill (real derived bucket) plus the findings cell's non-zero "review"
+  // badge, matching the DEVIATION finding just recorded (2026-09-01 redesign:
+  // classification names moved from a text chip to a status pill + count
+  // badges — the underlying fact is the same).
+  await page.goto("/dashboard");
+  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
+  await expect(row.locator(".ws-status-pill")).toContainText("Needs Review");
+  await expect(row.locator(".ws-findings-badge--review")).not.toHaveClass(/ws-findings-badge--zero/);
 });
 
 test("journey: a revised version is a real new analysis; v1 stays historically valid", async ({
@@ -56,7 +111,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   const v1 = await createAnalysedReview(page);
 
   // Upload the revision through the workspace's own control.
-  await page.goto(`/workspace/${v1.contractId}`);
+  await page.goto(`/dashboard?id=${v1.contractId}`);
   await page.getByRole("button", { name: "Upload a revised version" }).click();
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);
@@ -64,41 +119,42 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // The workspace lands on v2; the picker knows both versions.
   const picker = page.locator(".ws-version select");
-  await expect(picker).toBeVisible();
+  await expect(picker).toBeVisible({ timeout: 20_000 });
   await expect(picker.locator("option")).toHaveCount(2);
   await expect(picker).toHaveValue(/^(?!$)/); // a concrete id
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
-  // v2 gets its OWN analysis — a genuinely new Review, not a status flip on v1.
+  // v2 got its OWN analysis IN THE FLOW (2026-08-31 v2: the revised upload
+  // chains the same best-effort analysis as a first upload — one loop).
+  await openFindingsTab(page);
+  await expect(page.locator("article[data-finding-id]").first()).toBeVisible({ timeout: 20_000 });
   const contract = (await (await page.request.get(`/api/v1/contracts/${v1.contractId}`)).json()).data;
   expect(contract.document_versions.length).toBe(2);
-  const v2Id = contract.document_versions[0].id;
-  const created = await apiPost(page, "/reviews", {
-    document_version_id: v2Id,
-    configuration_snapshot_id: snapshotId(),
-  });
-  const review2 = (await created.json()).data;
-  expect(review2.id).not.toBe(v1.reviewId);
-  await apiPost(page, `/reviews/${review2.id}/analyze`, {});
-
-  // v2's findings are its own.
-  await page.reload();
-  await expect(page.locator("article[data-finding-id]").first()).toBeVisible();
+  const listed = await page.request.get(
+    `/api/v1/reviews?contract_id=${v1.contractId}`);
+  const reviewIds = (await listed.json()).data.map((r: { id: string }) => r.id);
+  const review2 = { id: reviewIds.find((id: string) => id !== v1.reviewId)! };
+  expect(review2.id).toBeTruthy();
 
   // Switch to v1: its document text and ITS findings render; Ask defers to the
   // latest version, plainly, instead of misattributing answers.
   await picker.selectOption({ index: 1 });
   await expect(page).toHaveURL(/[?&]version=/);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+  await openFindingsTab(page);
   await expect(page.locator("article[data-finding-id]").first()).toBeVisible();
-  await expect(page.getByText("Ask answers about the latest version")).toBeVisible();
+  // The bar stays visible but disabled — never hidden, never misattributing.
+  const askInput = page.locator(".ws-askbar").getByLabel("Question");
+  await expect(askInput).toBeDisabled();
+  await expect(askInput).toHaveAttribute("placeholder", /Ask answers about the latest version/);
+  await expect(page.locator(".ws-askbar").getByRole("button", { name: "Open the latest version" })).toBeVisible();
 
   // v1's Review and report remain exactly where they were.
-  await page.goto(`/workspace/reviews/${v1.reviewId}`);
+  await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
   await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
 
   // And the reviews queue lists both analyses.
-  await page.goto("/workspace/reviews");
+  await page.goto("/dashboard/reviews");
   await expect(page.locator(`tr[data-review-id="${v1.reviewId}"]`)).toBeVisible();
   await expect(page.locator(`tr[data-review-id="${review2.id}"]`)).toBeVisible();
 });

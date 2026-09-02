@@ -10,7 +10,707 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed
+
+* **Text contrast on the dashboard — five real WCAG AA failures (2026-09-02, owner request,
+  [DD-12](docs/design/DESIGN_DECISIONS.md)).** Auditing every foreground/background pair the
+  stylesheet actually declares found the status colours painted as 10–11px text on their own
+  `-soft` tint, below the 4.5:1 small-text minimum: `--ws-warn` 2.90:1, `--ws-ok` 2.98:1,
+  `--ws-bad` 4.23:1, `--ws-decision` 4.39:1, `--ws-outcome` 4.47:1. The worst was the
+  `Needs Review` pill — the dashboard's most important status was its least readable text.
+  All five now clear 4.5:1 by the **minimum** darkening that does so; only lightness moved,
+  so DD-9's owner-approved traffic light reads as the same three colours. Nothing regressed
+  (on white, amber 3.19→5.00, green 3.30→5.03; the white-on-red button 4.83→5.15).
+  ⚠️ The 15 visual baselines will fail once and must be re-adopted from CI job 15.
+
+### Changed
+
+* **Two-tone wordmark (2026-09-02, owner instruction, [DD-12](docs/design/DESIGN_DECISIONS.md)).**
+  "Legal" white, "Mind" brand blue `#0055AA`, on both the workspace shell and the legacy topbar.
+  New `--ws-brand` token, deliberately separate from `--ws-accent` (identity vs function).
+  ⚠️ Recorded, not fixed: `#0055AA` is 7.29:1 on white but **2.56:1** on the near-black shell —
+  legal under WCAG's logotype exemption and shipped exactly as specified, but the dimmest text
+  in the top bar. One-line swap documented in DD-12 §2 if the owner wants it to meet AA.
+
 ### Added
+
+* **Contract deletion (2026-09-01, `AM-37` / AB-10 — owner approval).** Closes
+  the gap `AM-31` left explicitly open and answers `AUTO_MODE_DECISIONS` #85 for
+  the Contract entity. `DELETE /api/v1/contracts/{id}`, with the mode decided by
+  the server and never by the caller: **hard** when the Contract has no Review
+  (row, document versions, processing runs, evidence, stored bytes, and the
+  assist lane's chunks and obligation extractions destroyed — `AM-27` r5
+  satisfied and extended to obligation extractions for the same reason);
+  **soft** when a Review exists (`contracts.deleted_at` set, gone from list,
+  summary and by-id responses, 404 by id per 47.7, findings/decisions/audit
+  untouched). The split is what preserves **rule 17**, and a hard delete of an
+  analyzed Contract is unreachable by any input. Both modes are audited
+  (`contract.soft_deleted` / `contract.hard_deleted`), so the append-only record
+  outlives even a destroyed row. `contract.delete` granted to `ROLE_USER` and
+  scoped by `owner_id`; deliberately not to Legal Admin or Super Admin (Step 24
+  r8/r9). Migration `a3d5f9c17b46`; `ContractStatus` unchanged; locked-column
+  snapshot moved 195 → 196 in the same change. 16 new tests.
+
+* **Dashboard: real Edit and Delete row actions (2026-09-01).** An overflow menu
+  per contract row, each entry hidden rather than disabled when the caller lacks
+  the permission. *Edit details* renames a contract and corrects its declared
+  type through the existing `PATCH /contracts/{id}` — closing the gap where a
+  type mis-declared at intake could never be corrected, and the declared type is
+  what selects the Company Standard the contract is measured against. *Delete*
+  confirms in a modal whose copy branches on whether an analysis exists, because
+  the server's behaviour does; both actions refetch from the server rather than
+  editing local state.
+
+### Changed
+
+* **Dashboard redesign (2026-09-01, owner-directed).** Fixes a real defect
+  first: the "Needs Attention" section was derived from whatever page of the
+  table happened to be loaded (`contracts.find(...)` over 25 rows under the
+  user's current sort and filters), so a contract needing attention outside that
+  window was invisible while the tile beside it counted it — the section
+  rendered nothing and read as "all clear". It now issues its own
+  `status=needs_attention` request against the whole collection and shows a
+  compact queue of up to five, not one oversized card. Upload became a primary
+  action with an inline disclosure panel instead of a permanently-open form
+  holding the fold; the five-step explainer strip now renders only on an empty
+  account, where it is orientation rather than a restatement of what the reader
+  just did; the "Needs Attention" stat tile became a real control that filters
+  the table; and table body text moved from 13px to the page's own 15px, with
+  padding tightened so rows grew ~2px — density belongs to spacing, not to type
+  size. `UploadContract` and `Pipeline` are unchanged internally; only where the
+  page renders them changed.
+
+* **The Documents screen is named Dashboard (2026-09-01, `AM-38` / AB-11).**
+  Route `/dashboard`, heading and navigation label to match, every sub-route
+  moved with it. Presentation only — the fixed-pathname convention stands (a
+  contract is still `/dashboard?id=…`) and no domain term is renamed.
+
+* **REC-02 / D-4 resolved: `UNMATCHED_PROVISION` observations are now written
+  and surfaced (2026-09-01, owner-directed).** A clause in the counterparty's
+  document with no corresponding Company Standard Requirement is recorded once
+  per CLAUSE (grouped exactly like the workspace's own outline, so a heading
+  and its body never double-count) — new `legalmind/analysis/unmatched.py`,
+  called from `run_analysis` after every Finding/Evaluation exists. Never a
+  Finding, never a classification, never a lifecycle input (REC-02 rules 1–3
+  stand); "matched" means "a Finding of this Review cites it", so nothing about
+  the still-open D-1/D-2/D-3 mapping-threshold questions was decided. Report
+  and export gained a real "needs a human look" list with location + excerpt +
+  a jump-to-clause link (`unmatched_provisions_detail`); the existing
+  `unmatched_provisions` count is unchanged. Owner-directed review-treatment
+  ruling: routed to a human, never presumed negative.
+* **Documents list redesign — search / filters / sort / real stat tiles
+  (2026-09-01, owner-directed, reference screenshot + `legalmind.lsnw.io`
+  structure).** `GET /contracts` gained `q`/`contract_type`/`status`/`sort`;
+  new `GET /contracts/summary` (real counts across every contract the caller
+  owns — total/draft/analyzing/needs_attention/analyzed). One shared
+  `_status_bucket` computation (backend) / `documentStatusBucket` (frontend)
+  so a stat tile, a `?status=` filter and a row's own pill can never disagree
+  — four DERIVED buckets, never a new lifecycle enum, never a Finding
+  Classification. `UploadContract.tsx` became a live checklist (Uploaded →
+  Content Extracted → Type Detected → Standard Identified → Analyzing) built
+  from the SAME sequential calls as before — no new backend capability there.
+  Q9/`AM-34` stand exactly as locked: when the assist lane is confident, a
+  single "Confirm & Analyze" click is still what records the type (no
+  dropdown shown by default; "Not right?" reveals one on demand); when it
+  isn't, the dropdown is the only option, unchanged. Workspace/review pages
+  untouched — this redesign is scoped to `/documents`'s list view only, via a
+  new `.ws-docs--index` wrapper class so the shared `.ws-docs__table`/
+  `.ws-pager`/`.ws-intake` styling other screens (Reviews, Legal, Ask, Admin)
+  reuse is not affected. Fixed in the same pass: `ReviewReportPage.tsx`'s own
+  unmatched-provisions copy used the word "verdict" while denying it was one —
+  caught by the existing `test_...never_a_grade` e2e assertion, reworded.
+  Verified: backend 1056 passed + ruff + mypy; frontend typecheck +
+  134 Vitest; Playwright 59 passed / 3 skipped (1 unrelated flake, confirmed
+  passing in isolation; 1 unrelated login/OIDC failure from concurrent work,
+  confirmed out of this diff's file scope).
+
+* **Corporate SSO via OIDC — "Continue with Google" — implemented (2026-09-01,
+  owner-directed).** Locked 47.1.3 / `SEC-01` (OD-9) has made OIDC the *primary*
+  authentication mechanism since Step 47; the two routes locked 49.2 names are now
+  registered and tested, and `api/permission_map.NOT_IMPLEMENTED` is empty for the
+  first time. New: `backend/legalmind/security/oidc.py` (discovery with
+  issuer-match verification, authorization-code flow with `state`, `nonce` and
+  PKCE S256, `openid email` scope only), the two routes in
+  `api/routers/auth.py`, six `LEGALMIND_OIDC_*` settings in `config.py`, the
+  four-colour Google mark and the single failure notice on the sign-in screen,
+  and 28 + 8 tests (`backend/tests/test_oidc.py`,
+  `frontend/src/__tests__/login-sso.test.tsx`).
+
+  **No new dependency, so rule 19 is never triggered.** The earlier blocker — "OIDC
+  needs an approved JWT/JWKS client library" — turned out not to apply: the ID
+  token is read from the response to our own direct, TLS-authenticated POST to the
+  issuer's token endpoint using a secret only we hold, which OIDC Core §3.1.3.7 r6
+  covers explicitly. Transport is stdlib `urllib`, the same choice already made for
+  `AM-30`'s generation adapter. The module must therefore never accept an ID token
+  from a client, and says so.
+
+  **Four deliberate constraints, each pinned by a test.** SEC-01 is unchanged —
+  a fresh SSO session resolves an empty permission array, because authentication
+  still confers no authority. **There is no just-in-time provisioning:** an identity
+  matching no existing user is refused, so an identity provider cannot mint
+  LegalMind principals and the login screen's "accounts are created by an
+  administrator" stays true. S-7 holds — one indistinguishable outcome for all nine
+  failure causes, in the API and in the UI copy. And locked S-3 is untouched: the
+  session cookie keeps `SameSite=Strict`, which is why the callback returns a
+  same-site landing page instead of a 302 (a redirect would still belong to the
+  chain that began at the IdP, so the browser would withhold the Strict cookie and
+  the user would arrive signed out).
+
+  ⚠️ **Registered `C-17` (LOW, blocks nothing).** This opened a second network
+  egress path, which `AM-30` t10's *"the provider call is the only external call in
+  the stack"* reads against — while 47.1.3 mandates a mechanism that cannot exist
+  without one. Per rule 5 the tension is registered, not resolved: see
+  [CONFLICTS.md](docs/00-project/CONFLICTS.md) C-17. Nothing else about `AM-30`
+  moves — the authentication payload carries no document, no chunk and no internal
+  legal position, and a test fails if the module ever imports a layer holding one.
+
+  **Configured on the server the same day.** The owner supplied the client secret;
+  it is set in `/root/.legalmind.env` (mode 600, outside source control per S-6) and
+  the 55.6 preflight's `oidc` row now reads `PASS`. `GET /auth/oidc/start` returns a
+  live 302 to Google carrying state, nonce and PKCE. ⚠️ **The secret was pasted into
+  a chat transcript and should be rotated** — Google Cloud console → the LegalMind
+  client → Add secret, update the env file, restart `legalmind-api`, then delete the
+  old secret.
+
+  **One owner action still outstanding:** the Authorized redirect URI on the Google
+  client is still the bare origin `https://legalmind.lsnw.io`, and Google answers the
+  authorization request with `redirect_uri_mismatch`. It must be exactly
+  `https://legalmind.lsnw.io/api/v1/auth/oidc/callback`. The preflight now also fails
+  a redirect URI that is plaintext or points at a route this application does not
+  serve.
+
+* **App icons from the owner-supplied artwork (2026-09-02).** `favicon.png`
+  (1536×1024, owner-supplied) becomes `src/app/favicon.ico` (16 + 32 + 48),
+  `src/app/icon.png` (512) and `src/app/apple-icon.png` (180). Next emits the
+  `<link>` tags itself and derives `sizes` from each file, so `layout.tsx` needs no
+  `metadata.icons` entry — the conventions were read from
+  `node_modules/next/dist/docs/.../app-icons.md` rather than assumed, per this
+  repo's `AGENTS.md`. Built by `frontend/scripts/build-icons.cjs`, so re-running it
+  after an art change is one command.
+
+  **The fitting work, since the source is not square.** Measured opaque bounds
+  (alpha ≥ 250): the tile is 1004×957 at (266,16) — 4.8% wider than tall, the same
+  ratio at every alpha threshold, so the non-squareness is an artifact of the 3:2
+  canvas rather than intent. A favicon frame is square, so squaring is not
+  optional. `contain` was rejected: padding transparent bars costs ~2.4% of height
+  each side and makes the icon render visibly smaller than its neighbours in a tab
+  strip, which fits *worse*. The tile is scaled to an exact square instead — 4.8%
+  on a monogram is below the perceptual threshold at 16–512px. `FIT=contain`
+  switches it back.
+
+  **Three details that needed measuring rather than guessing.** The 16px frame
+  gets a sigma-0.6 unsharp pass, because downscaling a 1004px tile turns the
+  scales glyph into a grey blob; verified at 10× magnification, and not applied
+  above 32px where it only adds ringing. The apple icon is **full-bleed at the
+  centre 86%**, cropping the tile's own rounded corners off: iOS ignores alpha (so
+  transparent corners become black notches) and applies its own squircle (so a
+  pre-rounded tile gets a double bevel). And a 256-colour palette takes the 512px
+  icon from **394 KB to 84 KB** — indistinguishable side by side, and 394 KB of
+  gradient for a tab mark is not a reasonable price.
+
+  Verified live: all three serve 200 with the correct `sizes` attributes.
+
+* **Reverted: `oidc_provider_tokens` and `POST /auth/token/refresh` (2026-09-01,
+  owner decision).** Escalated under rule 6 and reverted on the owner's word.
+
+  The table had no authorising lock record. `AM-36` — the record its own docstring
+  cited — says verbatim *"No table, column or enum changes."* The docstring also
+  asserted *"This table is NOT part of the locked schema and may be evolved
+  independently"*, which is the code authorising itself; rule 1 is explicit that the
+  code is not a specification. And it stored the provider's **access token in
+  plaintext** (its own comment said so) beside a ~6-month refresh token encrypted
+  under `LEGALMIND_TOKEN_ENCRYPTION_KEY`, a key whose management is
+  `NOT YET SPECIFIED`.
+
+  Removed: the model, migration `f2c8a1b3d4e5`, the route, `oidc.ProviderTokens`,
+  `oidc.refresh_access_token`, `security/token_encryption.py`, two audit action
+  constants, `tests/test_token_refresh.py`, and the `offline_access` scope and
+  `access_type=offline` parameter that existed only to obtain a refresh token.
+  `exchange_code` returns `Claims` again. The successor migration
+  (`a3d5f9c17b46`) was re-chained to `e5b8d3f17a2c`; nothing about it changed.
+
+  ⚠️ One thing was removed by accident and restored: `_set_token_cookie`, the
+  `AM-36` JWT helper, sat immediately below the reverted block. Caught by ruff and
+  mypy in the same minute.
+
+* **Locked S-3 restored, and the defect behind its weakening fixed properly
+  (2026-09-01).** `_COOKIE_KW` was `SameSite=Lax` — application-wide, so password
+  login too — to make a plain 302 from the OIDC callback carry the session cookie.
+  The tests written to prove S-3 was untouched had been edited to assert `lax`.
+
+  The 302's justification was real: a meta-refresh leaves the callback URL in
+  session history, so Back re-runs the callback with a spent transaction cookie and
+  shows a bogus "sign-in failed". Fixed without the trade — `location.replace()`
+  navigates **and** drops the entry from history, with the meta refresh as the
+  no-script fallback. No CSP is configured (checked), so the inline script needs no
+  allowance. `Strict` is back and the back-button defect is gone.
+
+* **Fixed: Google sign-in landed on a 404 after the Dashboard rename
+  (2026-09-01).** `/documents` became `/dashboard`; the password path's
+  `router.push` was updated and `config.POST_LOGIN_PATH_DEFAULT` was not, so SSO
+  sent users to a dead route and nothing failed loudly. Two guards added:
+  `POST_LOGIN_PATH_DEFAULT` is compared against the real `frontend/src/app` route
+  directory, and against the login page's own `router.push`. 63 stale
+  `/documents/*` references in the e2e suite rewritten (API paths untouched).
+
+* **Fixed: signing out only redirected on one page (2026-09-01, owner).**
+  `/dashboard` redirected because `WorkspaceShell` has its own signed-out guard;
+  `/reviews`, `/contracts`, `/audit`, `/configuration` and `/admin` stayed put and
+  rendered "You are signed out", which reads as a broken page rather than a
+  completed action. The redirect moved into `signOut` — one act, one outcome, and a
+  per-shell guard is how the two diverged. `replace` not `push` so Back cannot
+  return to a signed-out page, and in `finally` because a failed logout request has
+  still discarded the local session. Verified in a browser on all six pages.
+
+* **The generation credential can no longer lie (2026-09-01).** `/root/.legalmind.env`
+  held the literal `***` for hours after a masking command was written back over
+  the file. Every check reported the key as configured, the preflight said PASS, and
+  the only symptom was Google answering 400 `API_KEY_INVALID` while `AM-34`'s type
+  suggestion degraded silently on every upload. Now: `_api_key()` treats a
+  placeholder as **absent**, a new preflight row `generation_credential` names it
+  explicitly (25 checks), `verify_gemini_connection` refuses to spend a provider
+  call on one, and `tools/set_gemini_key.sh` writes the right file and verifies the
+  provider accepts it. Key supplied and verified live: 38 usable models,
+  `gemini-3.6-flash` valid, `AM-34` suggestion returns `MSA` confidently.
+
+* **DD-12: the contract workspace against the owner's reference (2026-09-01).**
+  The reference's structure was already built (DD-9/AB-7): three panes, side tabs,
+  sticky Ask. So this pass was the delta — and it was four real defects plus two
+  domain-vocabulary errors, all found by rendering the page rather than reading it.
+
+  **`AI Analysis` → `Analysis`.** The reference labelled the tab "AI ANALYSIS".
+  Everything in it except Key Obligations is the DETERMINISTIC evaluator's output —
+  status summary, clause breakdown, findings awaiting a decision — and `AI-01`
+  (reaffirmed by `AM-25`) keeps every LLM, RAG, embedding and vector store out of
+  that path. The label was backwards: it credited a model for the one part of the
+  product whose value is that no model touched it, and invited a reader to discount
+  a reproducible rule outcome as "the AI's opinion". The assist lane is labelled
+  where it actually appears (Key Obligations, Ask).
+
+  **`Key risks` → `Awaiting a decision`.** Rule 12: a Finding reconstructs as
+  Evidence → Fact → Standard → Rule → Result. There is no risk score to rank and
+  nothing here is scored. What the list *is* is `findingsNeedingDecision` — the
+  same filter the Findings pane defaults to — and naming it that says what to do
+  with it.
+
+  **The Ask card covered the analysis panel.** It was `max-width: 66rem; margin: 0
+  auto`, centred across the whole workspace, so at 1600px its right edge sat on top
+  of a Key Risks entry — a finding awaiting a Legal Decision, hidden behind a search
+  box. It now mirrors the workspace's own grid and occupies column 1 only, so it
+  tracks the document column and cannot drift as the side panel resizes between its
+  330–400px bounds.
+
+  **The document scrolled under the bar.** The height reservation existed but the
+  card grows past it once the suggestion chips wrap to a second row — which they do
+  below ~1500px. `.ws-text` now pads and `scroll-padding`s by `--ws-askbar-h`, so a
+  citation lands above the bar instead of behind it.
+
+  **`§§17.2`.** Six call sites each prepended `§` to `Evidence.section_number`,
+  which real documents supply both ways ("17.2" from one parser, "§17.2" from
+  another) — so every clause row, finding card, obligation and citation in an MSA
+  with signed headings rendered a double sign. Replaced with one shared
+  `sectionRef()` in `lib/documentTypes`. Worth noting how this went: the first fix
+  patched two call sites, a screenshot showed `§§` still present, the third patched
+  three more, and **a test written to assert the helper is the single
+  implementation found the sixth** (`TranscriptTurn.tsx`, where a parameter named
+  `sectionRef` shadowed the import). A rule copied into every caller is a rule that
+  gets fixed in some of them.
+
+  10 tests added across the two behaviours. 150 frontend tests, typecheck clean.
+
+  ⚠️ **Not verified against real data.** The panels were exercised with stubbed API
+  responses shaped to the real `Finding`/`Evidence` types; Key Obligations needs the
+  Gemini key, which is invalid (see DD-11). The layout and copy assertions hold
+  regardless; the data-driven rendering does not have a real-document check yet.
+
+* **DD-11: filler removed, width made adaptive, type pre-filled from the filename
+  (2026-09-01, owner-directed).** Three instructions in one pass.
+
+  *Filler out.* The page lede went entirely — it restated the five-step strip
+  directly beneath it. The upload card's body copy went (it restated strip steps 3
+  and 4), as did the empty-state sentence (the heading states the condition, the
+  button the action), the "documents stay on our own infrastructure" reassurance,
+  and the footer's duplicated formats line. Step captions cut to ≤32 characters,
+  enforced by a test. The dead **"How analysis works"** link was removed rather
+  than shortened: it pointed at `?guide=1`, which renders nothing.
+
+  *Width.* `.ws-docs` caps at 72rem — correct as a reading measure for the prose
+  views sharing the class, wrong for a seven-column table, which was squeezed into
+  1152px while a 1920px display sat ~380px empty each side. Lifted for
+  `.ws-docs--index` only, to `min(112rem, 100%)` with fluid gutters: 93% of a
+  1920px viewport, 100% of a 1440px one, and it stops growing past ~1800px where a
+  table row becomes its own tracking problem. Fixed column widths ≥1200px so extra
+  width goes to the document name, which truncates on one line with the full value
+  on `title`. A short-viewport rule (≤820px tall) tightens the vertical rhythm so
+  the table header stays above the fold at 1366×768.
+
+  *Type pre-fill.* The picker now always renders and is pre-filled — assist-lane
+  proposal first, then a Step 6 code named in the filename — with help text naming
+  which source produced the value. Within `AM-34` t1, which authorises "the
+  document version's own committed evidence **plus its original filename**" and
+  says the proposal "pre-fills the intake select". Owner Q9 is untouched: filling a
+  control is not recording a type; `contract_type` is still written only by the
+  human's submit. The previous branch (prose + "Not right? Change it" link, select
+  hidden until clicked) is gone — it asserted an identification more firmly than a
+  suggestion warrants and hid the field the reader was about to be judged on.
+
+  ⚠️ **Root cause of the owner's report was external: the Gemini API key is
+  invalid.** `models?key=…` returns `API_KEY_INVALID`, so the pinned
+  `gemini-3.6-flash` call 400s and every `AM-34` suggestion degrades to "not
+  confident" — as does Ask and Key Obligations. The filename pre-fill above works
+  without it; the content-based suggestion needs a new key from the owner.
+
+  *Two defects fixed, both found by screenshot.* A filename wrapping to two lines
+  made table rows ragged. And my own earlier `flex-wrap: wrap` topbar fix was
+  wrong — `.ws-shell` has a fixed height, so the wrapped row overflowed the bar and
+  covered the page title at 390px; replaced with a non-wrapping rule that drops the
+  user's name and keeps "Sign out" reachable.
+
+* **DD-10: the Documents index rebuilt to the owner's reference (2026-09-01).**
+  Five-step explainer strip beside the intake card, icon-left stat tiles, and the
+  toolbar/table/footer unified into one card so the column header survives an
+  empty table. New `frontend/src/components/workspace/Pipeline.tsx`, seven SVG
+  icons, ~260 lines of scoped CSS on the existing `--ws-*` tokens.
+
+  ⚠️ **The reference's copy was not shipped, and the page lede already in the tree
+  was rewritten.** "AI extracts text and key clauses" contradicts `AI-01`;
+  "automatically detect the contract type" contradicts owner Q9 (declared, never
+  inferred — `AM-34` allows only a human-confirmed suggestion); "risks &
+  actionable insights" contradicts rule 12. The strip now describes what the
+  engine actually does, and 10 tests in `documents-pipeline.test.tsx` assert the
+  prohibitions against rendered markup. Full table in
+  [DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) DD-10.
+
+  Verified by screenshot at 1600/980/600/380px rather than by inspection, which
+  caught two defects: a wrapping step label that broke the row's shared baseline,
+  and a **pre-existing** `.ws-shell__user` overflow clipping "Sign out" off-screen
+  below ~720px (fixed).
+
+* **`AM-36` (AB-8): stateless JWT session tokens (2026-09-01, owner-directed,
+  against recorded engineering advice).** The owner was shown the alternatives and
+  the consequences in writing, with a recommendation to keep server-side sessions,
+  and chose to amend OD-9. Landed as an **append-only** lock record — 96 lines
+  appended, `git diff --numstat` shows **0 deletions**, so `all_lock.md`'s prior
+  16,689 lines are byte-identical (rule 22). `all_lock.md` is now 16,785 lines.
+  New `backend/legalmind/security/tokens.py`; issuance at the OIDC callback,
+  acceptance in `api/deps.get_principal`; `jwt_signing_key` added to the preflight
+  (24 checks); 29 tests in `backend/tests/test_tokens.py`.
+
+  **What was amended:** four of OD-9's five session lines — server-side-only,
+  identity-only contents, fresh-per-request authority as the sole model, and
+  "Rejected — stateless JWT model". **What was not:** OD-9's hard rule that
+  authentication never confers Legal Decision authority, which is why the
+  mechanism is shaped the way it is.
+
+  **Three bounds, each pinned by a test.** `AM-36` t3 — the `roles` claim is
+  **advisory and never enforced**: `get_principal` takes `sub` and discards the
+  rest, and `test_a_signed_token_claiming_super_roles_grants_nothing` presents a
+  validly signed token asserting every role in the system and asserts an empty
+  permission array. t4(b) — account status is re-checked from the database on the
+  token path, so a disabled account is refused immediately despite a live token.
+  t5 — HS256 only, key floor of 32 bytes, and **no downgrade**: an absent or short
+  key means refuse-to-issue *and* refuse-to-verify. `alg: none` and every other
+  declared algorithm are refused because the header is compared against a fixed
+  value rather than used to select an algorithm.
+
+  **`AM-36` t7 authorized a JWT library and it went deliberately unused.** HS256
+  verification is one stdlib HMAC and a constant-time compare; what a library adds
+  is multi-algorithm negotiation and JWKS fetching, which is the machinery behind
+  the algorithm-confusion bug class. Same reasoning as `AM-30`'s generation adapter
+  using stdlib `urllib` over a provider SDK. Rule 19's dependency surface did not
+  grow. (`PyJWT` is also un-installable here under PEP 668.)
+
+  ⚠️ **The accepted cost is asserted in the suite, not hidden.**
+  `test_the_accepted_degradation_is_real` revokes every server-side session and
+  asserts the pre-issued token *still authenticates* — because no server-side list
+  can stop it. That is precisely what OD-9's "Revocation — immediate, server-side"
+  prevented. Rotating `LEGALMIND_JWT_SECRET` is the only blunt revocation
+  available. If a future decision restores immediate revocation, that test should
+  start failing and be deleted rather than fixed.
+
+  Mitigations chosen inside the instruction: the token is issued **alongside** the
+  server-side session rather than instead of it, and `get_principal` prefers the
+  session when both cookies are present, so a normal browser sign-in stays fully
+  revocable; and logout clears the token cookie, since leaving it would mean an
+  explicit sign-out left a live 24-hour credential in the browser.
+
+* **JIT provisioning + the corporate-domain refusal message (2026-09-01,
+  owner-directed).** Reverses the same session's no-provisioning choice on the
+  owner's instruction. A first sign-in by a verified `@leapswitch.com` address now
+  creates the account; the `profile` scope was added for the one `name` claim the
+  app chrome renders. **`ROLE_USER` and nothing else** —
+  `test_provisioning_grants_work_permissions_and_no_authority` asserts the account
+  holds no `legal.decision`, `legal.approve_customization`, `legal_position.view`,
+  `user.manage`, `role.manage`, `platform.manage` or `audit.view`, so `SEC-01`
+  holds: the provider says who you are, never what you may do. Fails closed on an
+  unseeded role code rather than creating a powerless-by-accident account.
+  `LEGALMIND_OIDC_JIT_ROLES=DISABLED` restores the previous behaviour; an empty
+  value provisions with no roles. The corporate-domain refusal became the one
+  deliberately distinguishable outcome (`sso=domain`) — it runs before any database
+  lookup and the domain is already public in the request's `hd`, so it discloses
+  nothing S-7 protects. Decisions 270–273 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md); 41 tests across
+  the two suites. **No locked decision amended** — Step 47 locks the session model
+  and identity contract, not who may create a `User` row.
+
+  ⚠️ **Reported, not relied on:** `tools/dev_account.py` cites *"Locked 47.1.3 r3:
+  LegalMind never self-provisions an account"*. §47.1.3 has no r3 and no such
+  sentence — it is the eight-line OD-9 table. An implementation choice had been
+  written up as a lock.
+
+  🚫 **Requested and NOT built:** stateless JWT session management. Step 47 / OD-9
+  reads `Rejected → stateless JWT model`, `Session contents → identity (user_id)
+  ONLY` and `Authority resolution → fresh from the database on every request`;
+  four of its five session lines would have to change, so it needs owner approval
+  under rule 6 rather than an implementation.
+
+* **Fixed: the live API had been served by a stale dev process, not its systemd unit
+  (found 2026-09-01).** A `python3 -m uvicorn … --reload` started manually by an
+  earlier session at 13:16 held `127.0.0.1:8000`, so `legalmind-api.service` had been
+  crash-looping on `EADDRINUSE` **844 times** and every `systemctl restart` since had
+  been a no-op. Two consequences, both now closed: that process carried
+  `LEGALMIND_RATELIMIT_LOGIN_MAX=200` — the test-harness loosening decision 257
+  deliberately omits, so the live S-5 login limit had been relaxed — and its
+  environment predated the OIDC keys, which is why SSO reported "unavailable" after
+  the secret was set. The process tree was killed and the unit now owns the port
+  (`NRestarts=0`, and its environment carries the OIDC settings and *not* the
+  loosened limit). Worth remembering: `systemctl restart` succeeding is not evidence
+  the unit is serving — check `ss -ltnp` for who actually holds the port.
+
+* **`legalmind.lsnw.io` served over HTTPS behind an nginx edge (2026-09-01,
+  owner-directed).** The Step 55.1 shape, realized: one origin, `/api/v1/*` to
+  FastAPI and everything else to the Next.js production build, TLS terminated at
+  the edge with an auto-renewing Let's Encrypt certificate, edge rate limits on
+  the authentication endpoints per 55.2, and both application processes moved
+  from manually-started dev servers to `systemd` units bound to loopback. `ufw`
+  now admits 22/80/443 only — the frontend had been reachable on
+  `0.0.0.0:3000` over plain HTTP, bypassing TLS. Operational choices are
+  recorded as decisions 250–260 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md); none amends a
+  lock record, and Step 55.6 lists the hosting platform as `NOT YET SPECIFIED`.
+  **This is staging-shaped, not production:** the API still points at
+  `legalmind_v1_dev`, and 55.6's remaining prerequisites — production database
+  with a separate migration role, backup with verified restore, retention policy
+  (itself `NOT YET SPECIFIED`), malware-scanning decision — are open. Google is
+  the chosen OIDC provider and its client id is configured. ⚠️ **The sentence
+  that followed here — "the OIDC routes remain unregistered: they need a
+  JWT/JWKS library, which is a rule 19 dependency awaiting owner approval" — was
+  superseded later the same day; see the OIDC entry above. No dependency was
+  needed.**
+
+* **DD-9: the reference-matched workspace (2026-09-01, owner-directed — "exactly
+  like the image").** Full visual restyle recorded as DD-9 in
+  [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md): white
+  cards on a grey canvas, brighter accent, the owner-approved three-bucket
+  status traffic light (match/needs-review/missing — presentation grouping
+  only, exact classifications always render beside the color), clauses card
+  with search + status markers + legend, document card with a real toolbar
+  (find, page nav, zoom, fullscreen), side card with AI Analysis (stat tiles,
+  segmented bar, three-bucket donut, key risks, two-up obligations) and
+  Findings as internal tabs (deep links open Findings directly), floating Ask
+  card with suggestion chips, header Download/Share. Deliberate omissions (no
+  fake controls): Compare, Add custom clause, View suggestion, notification
+  bell. In the same landing: the **route migration to fixed pathnames** (a
+  parallel session, same day) — all six dynamic-segment routes now carry the
+  record id as `?id=`; every internal link, `router.push` and e2e spec updated.
+  Verified: typecheck + terms gate + **118 Vitest** + **60 Playwright**;
+  backend untouched. Visual baselines: every workspace screen will diff —
+  adopt from CI per the standing rule.
+
+* **DD-8 — the master-prompt typefaces are real (owner approval 2026-08-31,
+  "approve the font bundling"; closes DD-7 §6).** IBM Plex Sans (UI,
+  400/500/600), IBM Plex Mono (machine-tracked values), Source Serif 4
+  (verbatim quotes, normal+italic) bundled via `next/font` in the `/workspace`
+  route-group layout: downloaded at **build time**, served from our own origin
+  (33 woff2 in `.next/static/media`; zero built-asset references to Google
+  hosts — DD-4's runtime-CDN concern never occurs). Role tokens keep the system
+  stacks as fallbacks; legacy screens untouched. Verified: build · typecheck ·
+  terms gate · **118 Vitest** · browser **60 passed / 18 gated**. Expected:
+  new-UI visual-baseline diffs, re-cut from CI per the standing rule.
+
+* **AB-7: suggestion-assisted intake, Key Obligations, and the 3-column
+  workspace redesign (2026-08-31, owner-directed).** Lock record "Amendment
+  Batch AB-7" appended to `all_lock.md` (now **16,689** lines); AM-34/AM-35
+  indexed in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).
+  - **AM-34 — type suggestion (assist lane, human-confirmed).** New
+    `backend/legalmind/assist/type_suggestion.py` +
+    `POST /document-versions/{id}/suggest-type` (permission `assist.ask`, new
+    `SUGGEST_TYPE` rate limit, audit event `assist.type_suggestion_called`,
+    hash-only). `generation.py` gained `generate_raw()` — the same single
+    egress seam under a second prompt; `EGRESS_ALLOWED` unchanged. The intake
+    (`UploadContract.tsx`) is now upload-first: choosing a file creates the
+    contract + uploads immediately, the suggestion pre-fills the type select
+    when confident, and the type is recorded only by the user's
+    "Confirm and analyze" (PATCH). Every failure degrades to the old empty
+    select; Q9's substance (human-declared) intact.
+  - **AM-35 — Key Obligations (assist lane, descriptive only).** New migration
+    `e5b8d3f17a2c` adds `obligation_extraction_runs` / `obligation_extractions`
+    to the assist schema (additive; locked 30 untouched;
+    `test_locked_schema_columns.py` passes unchanged). New
+    `assist/obligations.py` — synchronous extraction through the single seam,
+    idempotent-by-refusal, grounded-or-discarded, and a mechanical
+    judgment-language guardrail (`guardrails.is_judgment_language`). Endpoints
+    `POST …/extract-obligations` and `GET …/obligations` behind `finding.view`.
+  - **Workspace redesign (presentation only, locks nothing).** Regions are now
+    document · findings · **AI Analysis** (`AnalysisPanel.tsx`: classification
+    ring of real counts — raw total, no percentage; Key Risks sharing the
+    findings pane's exact needs-decision filter; `ObligationsPanel`). Ask left
+    the grid entirely: `AskPane.tsx` → **`AskBar.tsx`**, a sticky bottom bar
+    mounted at every breakpoint with a slide-up history panel — reachable at
+    any scroll position or tab; disabled-but-visible on an older version. One
+    shared findings state machine (`findingsState.tsx`) now feeds the findings
+    pane, the outline's new two-state clause dots (calm/attention —
+    deliberately NOT the reference's 3-way traffic light: no severity ranking
+    within an axis), and the AI Analysis panel.
+  - Verified: backend **981 passed** + ruff + mypy clean; frontend typecheck +
+    **117 Vitest**; browser suite **60 passed / 3 skipped** (visual baselines
+    excluded — CI-only adoption per the 2026-08-30 rule; diffs are expected
+    from the layout change and must be adopted from CI's `*-actual.png`).
+
+* **Owner-requested design polish pass (2026-08-31, "use plugin to make frontend
+  design better")** — an explicit design-improvement request, so it lifts the
+  2026-08-31 freeze for this one pass; the freeze stands again after it. The
+  design skills (`ui-ux-pro-max`, `frontend-design`) were loaded first per the
+  standing rule; the plugin's UX database rated the missing hover feedback a
+  real defect, not taste. Presentation-only changes in
+  `frontend/src/app/workspace/workspace.css` — zero markup, zero behavior:
+  - **Interaction feedback everywhere something is clickable**: hover states
+    added where none existed (`.ws-btn` both variants + a disabled treatment,
+    filter pills, collapsed-mode tabs, shell nav/sign-out, evidence-ref and
+    evidence-loc buttons, ask citations, escalate link, table rows, attend
+    "Open" links), all driven by one shared motion token (`--ws-t`, 0.13s,
+    color/border/background only — never layout) that the existing global
+    reduced-motion rule already zeroes.
+  - **`--ws-accent-strong`** (#16407e — the hue's one deeper stop, same value
+    the legacy sheet already used) for primary-button hover.
+  - **Stat tiles now actually use the mono voice** their own comment claimed
+    (`.ws-stat__n`: mono face, tabular numerals, weight 600).
+  - **The document pane's serif measure is bounded at 74ch** (left-anchored) so
+    wide monitors don't produce unreadably long italic lines.
+  - `::selection` in the accent-soft tint; drop-zone drag-over state now
+    transitions instead of snapping.
+  No axis color, chip semantics, register rule (Authority/Inquiry), or DD
+  decision touched. Verified: typecheck · terms gate · **113 Vitest** ·
+  browser suite **57 passed / 18 gated**. Expected: DESIGN_QA visual-baseline
+  diffs on hover-independent screens are unlikely (hover states don't render in
+  static captures) but any that appear are re-cut from CI per the standing rule.
+
+* **Owner UX rethink (2026-08-31, "rethink the UX around the real user journey") —
+  the drill, export, contextual Ask, the work dashboard.** The owner's 38-section
+  directive is the explicit UX-review request the 2026-08-31 freeze anticipated;
+  decisions #231–#241 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md). The audit found
+  the core journey already built (upload-first intake, in-flow analysis, ungated
+  Ask, real versioning — the two earlier 2026-08-31 passes); what was missing was
+  the drill and the exits:
+
+  - **Summary → category → finding → evidence, clickable end to end** (#233): the
+    findings pane opens with classification counts as pressable filters; the report
+    page's classification chips and the Documents rows' count chips deep-link
+    `?classification=`; the cited excerpt now renders verbatim beside each finding
+    (the highlight gesture kept); and the Evidence → Fact → Standard → Rule → Result
+    explanation chain returned to the workspace card — it had regressed against the
+    legacy screen (rule 12). All grouping is presentational counting of server
+    values (52.7).
+  - **The all-MATCH success state is designed, not an afterthought** (#234): a calm
+    banner from real fields; no grade, no percentage.
+  - **`POST /reviews/{id}/export` — PDF and DOCX** (#231/#232): 49.3's own row,
+    formats per the owner's §30 list (49.12's open question closed by that
+    directive). One content model built from the caller's own serializations —
+    LEGAL-02 omission holds in the file exactly as on the wire, pinned by test.
+    pymupdf + python-docx (already in the stack, rule 19 clean); audited
+    (`report.exported`); rate-limited (49.10). `export.generate` granted alongside
+    `report.view` (USER, LEGAL_REVIEWER, LEGAL_ADMIN) — **flagged for
+    ratification**. Email summary deliberately not built (no mail component in the
+    locked stack). Export buttons live on the findings pane and the report page.
+  - **Finding → Ask handoff** (#235): "Ask about this" places an editable,
+    document-shaped question in the Ask input and focuses it (switching to the Ask
+    tab in collapsed layouts); nothing auto-sends, no hidden context enters the
+    assist lane.
+  - **The Ask pane is durable** (#236): it reopens the contract's latest
+    conversation on mount, citations intact — the 2026-08-26 reopen endpoints,
+    finally used by the pane itself.
+  - **One loop, not two journeys** (#237): a revised version chains the same
+    best-effort analysis as a first upload (shared `chainAnalysis`); the manual
+    Analyze action stays for every degraded path.
+  - **Documents is the work dashboard** (#238): a "Needs attention" group (any
+    non-MATCH count, from the server's own counts) above "All documents"; no KPI
+    cards, no synthesized metrics.
+  - **Live analysis state** (#239): the findings pane polls the Review lifecycle
+    (bounded, silent) and renders "Analysing against snapshot <id>…" plus an honest
+    ANALYSIS_FAILED terminal state. **Upload preflight** (#240): friendly immediate
+    messages for unsupported type / >50 MB / empty file, server validation still
+    authoritative.
+  - Consistency fixes: `NOT_APPLICABLE` removed from the frontend's classification
+    rendering order (it is a Rule Outcome — different axis); the CALM set unified to
+    MATCH; the reviews empty state no longer points at "the current application".
+  - **Deliberate deviation from the owner's §22 (remove obsolete UI)** (#241): the
+    legacy screens stay in the tree, unlinked and unreachable from the product,
+    because ~10 browser specs and the visual baselines still drive them as the
+    verification harness. Their retirement is a named follow-up: port the unique
+    coverage, then delete screens + specs + baselines together.
+
+  Verified: backend **949 passed / 1 skipped** (+7 export tests) · ruff · mypy ·
+  **113 Vitest** (+6) · typecheck · terms gate · browser suite (see below) ·
+  `openapi.json` regenerated deliberately (48 operations; the drift guard was
+  satisfied, not silenced). Expected: visual-baseline diffs on the reworked screens —
+  re-cut from CI per the standing rule (owner 2026-08-30).
+
+* **The AM-31 gate is RELEASED — Gemini is live end to end** (owner confirmation,
+  2026-08-31: paid-tier no-training terms per ai.google.dev/gemini-api/terms "Paid
+  Services", verbatim-quoted in the appended record **"AM-31 GATE RELEASE"**;
+  `all_lock.md` 16,565 → 16,616, prior lines byte-identical). One commit per g3:
+  record + `AM31_GATE = "RELEASED-2026-08-31"` + the two tests that pinned the closed
+  state now pin the released one. Same session: the provider retired
+  `gemini-2.5-flash` for new accounts, so the pin moved to **`gemini-3.6-flash`** with
+  `thinkingLevel: MINIMAL` (unconstrained thinking measurably consumed the whole
+  output budget; AM-30 locks the family, not the version — decision #223), and the
+  key was installed outside the repository (`0600`), audited absent from repo and
+  logs (hash-only audit, t5). **End-to-end proven on the live dev app** (synthetic
+  only, 55.3): upload → index → ask → `ANSWERED` with a verified citation; the
+  sufficiency floor exercised live (a 77-char evidence set refused). Still owed
+  before assist answers over real material are relied on: the Tier-2
+  faithfulness/citation-precision baseline as a release-pipeline act (release r3),
+  and t8's network allow-list stays a deployment ATTEST. Backend **941 tests** green.
+
+* **UX correction (owner-ordered "DEEP UX / PRODUCT MODEL AUDIT"): upload-first intake,
+  analysis in the flow.** Full proposal + change matrix:
+  [docs/design/UX_CORRECTION_2026-08-31.md](docs/design/UX_CORRECTION_2026-08-31.md).
+  The intake had leaked the backend object lifecycle into the product (create an empty
+  named/typed record → open an empty workspace → attach the file), and — the root
+  finding — **analysis was unreachable in the UI** because no endpoint read published
+  configuration snapshots, so "analyze against the current standards" could not be
+  resolved. Corrected end-to-end:
+
+  - **Documents is upload-first**: one primary act ("Upload a contract", picker + drop
+    zone). The confirm panel keeps exactly two decisions with the user — Name (derived
+    from the filename as an editable default) and Type (HUMAN-declared, owner Q9 intact:
+    the select starts empty; a filename token hint is text beside it, applied only by the
+    user's click; deliberately no LLM classification — AM-31 is closed, and a model
+    pre-filling an authoritative comparison choice would blur classification/authority).
+    "Upload and analyze" chains create → upload → latest-snapshot → Review → analysis,
+    best-effort: every failure degrades to an honest workspace state, never a dead end.
+  - **The absent Review is now an ACTION**: the findings pane's no-review state is
+    "Analyze against current standards" with the snapshot id named on screen (AUD-04
+    visible), honest blocked states for no permission / no published snapshot / still
+    processing. A freshly uploaded revision gets the same control — Journey D is one
+    screen.
+  - **Documents rows speak analysis, not lifecycle enums**: DRAFT is gone from the list;
+    each row shows classification counts (attention-first order) or the real stage
+    ("Processing…", "Not analysed yet", "No document yet").
+  - **Two additive API reads** (Step 49 record updated, the #187 precedent):
+    `GET /configuration/snapshots` (metadata only, `review.create`) and
+    `latest_version`/`latest_analysis` on `GET /contracts` rows (permission-layered;
+    counts OMITTED without `finding.view`). No schema change, no engine change, nothing
+    removed; the API drift guards fired and were satisfied deliberately (registry +
+    regenerated `openapi.json`).
+  - Journey specs are now END-TO-END THROUGH THE UI: upload → chained analysis →
+    findings → ask, and revision → one-click analyze → both histories intact.
+
+  Verified: backend **941/1** (+3) · **107 Vitest** (+3) · browser **57 passed / 18
+  gated** · ruff · mypy · typecheck · terms gate. The visual system is untouched (freeze
+  respected; this is the owner-requested UX review #222 anticipated); the
+  `ws-documents.png` baseline diff re-cuts from CI in one round. Decisions #227–#230.
 
 * **Product-intent R&D + corrective implementation (owner-ordered).** Full audit of the
   system against the owner's clarified product behavior — recorded in

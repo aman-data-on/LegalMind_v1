@@ -14,7 +14,9 @@ g1  Real counterparty contract text must NOT reach the provider until its no-tra
     and data-retention terms are confirmed in writing.
 g2  Enforcement is mechanical and DEFAULT-CLOSED.
 g3  Released only by a FURTHER APPENDED RECORD — never a flag, env var or review.
-g4  Status as of 2026-08-25: CLOSED.
+g4  Status as of 2026-08-25: CLOSED. RELEASED 2026-08-31 by the appended record
+    "AM-31 GATE RELEASE" (owner's written terms confirmation of the same day;
+    provider Google Gemini API, paid tier, gemini-3.6-flash).
 g5  The mechanism composes with locked 55.3's environment separation: development and
     staging are synthetic-only environments; production is where real contracts live.
 
@@ -56,11 +58,16 @@ from legalmind.observability.logs import log_event
 # it. Change ONLY alongside the appended lock record that releases the gate, carrying
 # the provider, tier and date of the written confirmation.
 # --------------------------------------------------------------------------
-AM31_GATE = "CLOSED"
+AM31_GATE = "RELEASED-2026-08-31"
 
-# AM-30 t7: a dated, pinned model identifier. A floating alias is not a pin — the
-# default carries a dated snapshot name and `generate()` refuses "latest".
-DEFAULT_MODEL = "gemini-2.5-flash"
+# AM-30 t7: a pinned model identifier — a floating alias is not a pin, and
+# `generate()` refuses "latest". 2026-08-31: "gemini-2.5-flash" was retired for
+# new accounts (the provider's own 404 said to move to gemini-3.6-flash); AM-30
+# locks the FAMILY (Gemini Flash), not the version — "No version string is
+# locked. t7 governs." The change is recorded in AUTO_MODE_DECISIONS.md, and the
+# model identity is recorded against every answer (AM-26 r4), so which version
+# produced which answer stays a fact, never a guess.
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 _ENDPOINT_TEMPLATE = ("https://generativelanguage.googleapis.com/v1beta/models/"
                       "{model}:generateContent")
@@ -99,8 +106,53 @@ class GenerationResult:
     latency_ms: int
 
 
+# A credential that is present but is obviously not a credential.
+#
+# 2026-09-01: `/root/.legalmind.env` held the literal three characters `***` for
+# hours — a masking command written back over the file instead of piped to stdout.
+# Everything downstream reported the key as CONFIGURED, the preflight said PASS,
+# and the only symptom was Google answering 400 `API_KEY_INVALID` while the
+# assist lane degraded silently to "not confident". Two debugging cycles went into
+# a problem that was visible in the value itself.
+#
+# So a placeholder is now treated as ABSENT, not as a key. Absent fails loudly and
+# in the right place; a placeholder fails at the provider, four layers away.
+_PLACEHOLDERS = frozenset({
+    "***", "****", "changeme", "change-me", "todo", "tbd", "xxx",
+    "your-api-key", "your_api_key", "redacted", "<redacted>", "none", "null",
+    "placeholder", "unset", "paste-key-here", "<paste-key-here>",
+})
+
+
+def is_placeholder_credential(value: str) -> bool:
+    """True when a value is filled in but plainly not a real credential.
+
+    Deliberately narrow: an exact match against known placeholders, plus a
+    length floor. It does NOT try to validate the provider's key format — a
+    guess at that would reject a legitimate key after a provider change, which
+    is a worse failure than the one this prevents.
+    """
+    stripped = value.strip().strip('"').strip("'")
+    if not stripped:
+        return True
+    if stripped.lower() in _PLACEHOLDERS:
+        return True
+    if set(stripped) <= {"*", "x", "X", "•", "-", "_", "."}:
+        return True          # any all-mask string, whatever its length
+    # A deliberately LOW floor. The first draft used 20, which rejected
+    # `test-not-a-secret` (17) — the suite's own non-secret sentinel — and turned
+    # two real assist-lane tests into "no credential configured". The lesson: the
+    # length floor is not the mechanism that should be catching things. Masks are
+    # caught by shape and by the exact set above; the floor exists only so a
+    # one- or two-character slip cannot pass for a credential.
+    return len(stripped) < 8
+
+
 def _api_key() -> str | None:
-    return os.environ.get("LEGALMIND_GEMINI_API_KEY") or None
+    raw = os.environ.get("LEGALMIND_GEMINI_API_KEY") or ""
+    if is_placeholder_credential(raw):
+        return None
+    return raw.strip()
 
 
 def _model() -> str:
@@ -141,11 +193,27 @@ def _forbidden_payload_check(payload: str) -> None:
 
 def generate(question: str, evidence: list[str], *,
              environment: str, request_id: str | None = None) -> GenerationResult:
-    """One grounded generation call. The single seam every caller goes through.
+    """One grounded generation call — the Ask flow's entry to the single seam.
 
     Raises GenerationRefused when the gate, the payload screen or configuration
     forbids the call — the caller maps that to the identical user-facing refusal
     (`AM-29` r4). Raises GenerationUnavailable on provider failure.
+    """
+    numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(evidence, start=1))
+    prompt = PROMPT_TEMPLATE.format(evidence=numbered, question=question)
+    return generate_raw(prompt, prompt_version=PROMPT_VERSION,
+                        environment=environment, request_id=request_id,
+                        evidence_count=len(evidence))
+
+
+def generate_raw(prompt: str, *, prompt_version: str, environment: str,
+                 request_id: str | None = None,
+                 evidence_count: int | None = None,
+                 max_output_tokens: int = 1024) -> GenerationResult:
+    """The transport under every assist-lane prompt. STILL the single egress seam
+    (AM-30 t1): every gate, payload screen, pin check and audit-hash rule applies
+    identically whatever the prompt — a second prompt shape must never mean a
+    second network path.
     """
     import time
 
@@ -163,13 +231,18 @@ def generate(question: str, evidence: list[str], *,
         raise GenerationRefused(
             f"model identifier {model!r} is a floating alias; AM-30 t7 requires a pin")
 
-    numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(evidence, start=1))
-    prompt = PROMPT_TEMPLATE.format(evidence=numbered, question=question)
     _forbidden_payload_check(prompt)
 
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 1024},
+        # Gemini 3.x Flash are thinking models; unconstrained thinking consumes
+        # the output budget before any text is produced (measured: 45 of 50
+        # tokens on a one-word reply). MINIMAL keeps the grounded-extraction
+        # task deterministic and the answer inside the budget. thinkingBudget:0
+        # is refused by 3.6-flash (HTTP 400) — the level form is the one it
+        # accepts.
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_output_tokens,
+                             "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
     }).encode("utf-8")
     digest = hashlib.sha256(body).hexdigest()
 
@@ -202,7 +275,7 @@ def generate(question: str, evidence: list[str], *,
         raise GenerationUnavailable("provider response had no text candidate") from exc
 
     log_event("assist.generation.completed", request_id=request_id, model=model,
-              prompt_version=PROMPT_VERSION, payload_sha256=digest,
-              latency_ms=latency_ms, evidence_count=len(evidence))
-    return GenerationResult(text=text, model=model, prompt_version=PROMPT_VERSION,
+              prompt_version=prompt_version, payload_sha256=digest,
+              latency_ms=latency_ms, evidence_count=evidence_count)
+    return GenerationResult(text=text, model=model, prompt_version=prompt_version,
                             payload_sha256=digest, latency_ms=latency_ms)

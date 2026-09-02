@@ -115,6 +115,7 @@ ROLE_LEGAL_REVIEWER: Final = "LEGAL_REVIEWER"
 ROLE_LEGAL_ADMIN: Final = "LEGAL_ADMIN"
 ROLE_SUPER_ADMIN: Final = "SUPER_ADMIN"
 ROLE_LEGAL_DECISION_AUTHORITY: Final = "LEGAL_DECISION_AUTHORITY"
+ROLE_DEVELOPER: Final = "DEVELOPER"
 
 ROLE_NAMES: Final[dict[str, str]] = {
     ROLE_USER: "User",
@@ -122,9 +123,23 @@ ROLE_NAMES: Final[dict[str, str]] = {
     ROLE_LEGAL_ADMIN: "Legal Admin",
     ROLE_SUPER_ADMIN: "Super Admin",
     ROLE_LEGAL_DECISION_AUTHORITY: "Legal Decision Authority",
+    ROLE_DEVELOPER: "Developer",
 }
 
-# Default grants — every cell traces to Step 23's locked role summary.
+# Default grants — every cell traces to Step 23's locked role summary, plus two
+# owner-directed additions:
+#
+#  * EXPORT_GENERATE (owner directive 2026-08-31, "Export Report … PDF, DOCX …
+#    table stakes for a legal product") granted alongside REPORT_VIEW, since an
+#    export renders only what the report and findings endpoints already serve
+#    that caller. Recorded in AUTO_MODE_DECISIONS.md and flagged for
+#    ratification.
+#  * CONTRACT_DELETE on ROLE_USER (owner approval 2026-09-01, closing the gap
+#    `AM-31` left open). Scoped by ownership, not by role reach: `guard.contract`
+#    resolves `owner_id` per request, so this grant lets a user delete what they
+#    uploaded and nothing else. Deliberately NOT extended to Legal Admin or
+#    Super Admin — Step 24 r8/r9 keeps contract-content access separate from
+#    platform administration, and deletion is contract content.
 #
 # Note what Super Admin does NOT get: no legal.*, no legal_position.view, no
 # contract/review content. Locked Step 23 ("No automatic Legal Decision
@@ -132,12 +147,12 @@ ROLE_NAMES: Final[dict[str, str]] = {
 # administration are separate permissions").
 DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
     ROLE_USER: (
-        CONTRACT_VIEW, CONTRACT_CREATE, CONTRACT_UPDATE,
+        CONTRACT_VIEW, CONTRACT_CREATE, CONTRACT_UPDATE, CONTRACT_DELETE,
         DOCUMENT_UPLOAD, DOCUMENT_VIEW, DOCUMENT_DOWNLOAD,
         REVIEW_CREATE, REVIEW_VIEW,
         FINDING_VIEW, FINDING_COMMENT,
         EVALUATION_VIEW,
-        REPORT_VIEW,
+        REPORT_VIEW, EXPORT_GENERATE,
         ASSIST_ASK,
     ),
     ROLE_LEGAL_REVIEWER: (
@@ -145,7 +160,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         REVIEW_VIEW, FINDING_VIEW, FINDING_COMMENT, EVALUATION_VIEW,
         LEGAL_REVIEW, LEGAL_POSITION_VIEW,
         CONFIGURATION_VIEW,
-        REPORT_VIEW, REPORT_GENERATE,
+        REPORT_VIEW, REPORT_GENERATE, EXPORT_GENERATE,
         ASSIST_ASK,
     ),
     ROLE_LEGAL_ADMIN: (
@@ -154,7 +169,7 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
         LEGAL_REVIEW, LEGAL_POSITION_VIEW,
         CONFIGURATION_VIEW, CONFIGURATION_DRAFT,
         CONFIGURATION_PUBLISH, CONFIGURATION_DEPRECATE,
-        REPORT_VIEW, REPORT_GENERATE,
+        REPORT_VIEW, REPORT_GENERATE, EXPORT_GENERATE,
         ASSIST_ASK,
     ),
     ROLE_SUPER_ADMIN: (
@@ -162,5 +177,21 @@ DEFAULT_ROLE_GRANTS: Final[dict[str, tuple[str, ...]]] = {
     ),
     ROLE_LEGAL_DECISION_AUTHORITY: (
         LEGAL_DECISION, LEGAL_APPROVE_CUSTOMIZATION,
+    ),
+    ROLE_DEVELOPER: (
+        # All 21 permissions (AB-9 amendment — debugging role)
+        CONTRACT_VIEW, CONTRACT_CREATE, CONTRACT_UPDATE, CONTRACT_DELETE,
+        DOCUMENT_UPLOAD, DOCUMENT_VIEW, DOCUMENT_DOWNLOAD,
+        REVIEW_CREATE, REVIEW_VIEW,
+        FINDING_VIEW, FINDING_COMMENT,
+        EVALUATION_VIEW,
+        LEGAL_REVIEW, LEGAL_DECISION, LEGAL_APPROVE_CUSTOMIZATION,
+        LEGAL_POSITION_VIEW,
+        CONFIGURATION_VIEW, CONFIGURATION_DRAFT,
+        CONFIGURATION_PUBLISH, CONFIGURATION_DEPRECATE,
+        REPORT_VIEW, REPORT_GENERATE, EXPORT_GENERATE,
+        ASSIST_ASK,
+        AUDIT_VIEW,
+        USER_MANAGE, ROLE_MANAGE, PLATFORM_MANAGE,
     ),
 }

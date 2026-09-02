@@ -41,11 +41,27 @@ CONFIG_REQUIREMENT_CREATED = "config.requirement_created"
 CONFIG_VERSION_CREATED = "config.version_created"
 CONFIG_STANDARD_UPDATED = "config.standard_updated"
 CONFIG_PUBLISHED = "config.published"
+# Reporting — a rendered copy of legal analysis leaving the system (owner
+# directive 2026-08-31; 49.10 already named export generation as a limited
+# surface, so the act was always expected to be consequential).
+REPORT_EXPORTED = "report.exported"
 # Assist lane (AB-3/AB-4). AM-30 t5: every generation call is recorded with the
 # model identity, prompt version and a payload HASH — never the payload. 53.1 keeps
 # this in the audit trail proper, because an operational log is never a substitute
 # for the record of what left the building.
 ASSIST_GENERATION_CALLED = "assist.generation_called"
+# Type suggestion (owner, 2026-08-31): the assist lane proposed a Step 6 code and
+# what it proposed — the human confirmation that later records a type is a
+# separate, ordinary contract update. Hash only, never the payload (AM-30 t5).
+ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
+# Contract deletion (owner approval 2026-09-01, closing the gap AM-31 left
+# open). Two actions, not one, because the two modes are genuinely different
+# events: a soft delete hides a contract whose findings and history remain
+# queryable, a hard delete destroys a contract that was never analyzed. The
+# audit entry outlives the row in both cases — it is append-only (AUD-01), so
+# even a hard delete leaves a record that it happened and who did it.
+CONTRACT_SOFT_DELETED = "contract.soft_deleted"
+CONTRACT_HARD_DELETED = "contract.hard_deleted"
 # Administration
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"

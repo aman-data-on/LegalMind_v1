@@ -22,6 +22,7 @@ import type {
   ConversationSummary,
   ConfigurationSnapshot,
   Contract,
+  ContractsSummary,
   DataEnvelope,
   Decision,
   DocumentVersion,
@@ -35,6 +36,9 @@ import type {
   ReviewReport,
   Role,
   SessionIdentity,
+  ObligationsResult,
+  SnapshotSummary,
+  TypeSuggestion,
   UploadResult,
   User,
 } from "./types";
@@ -252,8 +256,23 @@ export const api = {
   conversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
 
   // ---- contracts & documents -------------------------------------------
-  contracts: (page = 1, pageSize = 25) =>
-    requestPage<Contract>("/contracts", { query: { page, page_size: pageSize } }),
+  contracts: (
+    page = 1,
+    pageSize = 25,
+    filters: {
+      q?: string | undefined;
+      contract_type?: string | undefined;
+      status?: string | undefined;
+      sort?: string | undefined;
+    } = {},
+  ) =>
+    requestPage<Contract>("/contracts", {
+      query: { page, page_size: pageSize, ...filters },
+    }),
+  /** Real counts across EVERY contract the caller owns, not just the current
+   *  page — the same bucket the list's own `?status=` filters on (server:
+   *  `_status_bucket`), so a tile and a row can never disagree. */
+  contractsSummary: () => request<ContractsSummary>("/contracts/summary"),
   contract: (id: string) => request<Contract>(`/contracts/${id}`),
   createContract: (name: string, contractType?: string) =>
     request<Contract>("/contracts", {
@@ -262,6 +281,21 @@ export const api = {
     }),
   updateContract: (id: string, patch: Record<string, unknown>) =>
     request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
+
+  /**
+   * Delete one contract — owner approval 2026-09-01, closing the gap `AM-31`
+   * left open.
+   *
+   * `mode` reports what the server actually did, and the caller must say so
+   * rather than assuming: a contract that was never analyzed is destroyed
+   * (`"hard"`), while one carrying a Review is withdrawn from every view with
+   * its findings and audit trail preserved (`"soft"`) — rule 17 keeps history
+   * reproducible. Telling a user "permanently deleted" when the server soft-
+   * deleted would be a lie about legal records.
+   */
+  deleteContract: (id: string) =>
+    request<{ deleted: boolean; mode: "hard" | "soft" }>(
+      `/contracts/${id}`, { method: "DELETE" }),
 
   /**
    * The body **is** the file. Locked 34.16 treats the declared content type as a
@@ -278,6 +312,25 @@ export const api = {
       },
     }),
   documentVersion: (id: string) => request<DocumentVersion>(`/document-versions/${id}`),
+  /**
+   * Assist-lane type suggestion (owner, 2026-08-31) — a proposal for the intake
+   * screen's pre-fill, never a write: the type is recorded only by the user's
+   * own confirm (PATCH). `confident: false` means "behave as before this
+   * feature existed" — an empty select the user fills in.
+   */
+  suggestType: (documentVersionId: string) =>
+    request<TypeSuggestion>(`/document-versions/${documentVersionId}/suggest-type`, {
+      method: "POST",
+    }),
+  /** Key Obligations (assist lane): descriptive facts about the document's own
+   *  text, grouped by its own role labels — never a Finding or a judgment. */
+  obligations: (documentVersionId: string) =>
+    request<ObligationsResult>(`/document-versions/${documentVersionId}/obligations`),
+  extractObligations: (documentVersionId: string) =>
+    request<{ extracted: boolean; error_code: string | null }>(
+      `/document-versions/${documentVersionId}/extract-obligations`,
+      { method: "POST" },
+    ),
   /** Evidence rows in reading order — the document pane and every citation target. */
   documentEvidence: (id: string, page = 1, pageSize = 100) =>
     requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
@@ -318,6 +371,28 @@ export const api = {
     query: { page?: number; page_size?: number; classification?: string; status?: string } = {},
   ) => requestPage<Finding>(`/reviews/${reviewId}/findings`, { query }),
   report: (reviewId: string) => request<ReviewReport>(`/reviews/${reviewId}/report`),
+
+  /** 49.3's export row (formats per the owner's 2026-08-31 directive). Returns
+   *  the rendered file; the caller hands it to the browser as a download. */
+  exportReview: async (reviewId: string, format: "pdf" | "docx") => {
+    const headers: Record<string, string> = {};
+    const token = csrfToken();
+    if (token) headers[CSRF_HEADER] = token;
+    headers["Content-Type"] = "application/json";
+    const response = await fetch(url(`/reviews/${reviewId}/export`), {
+      method: "POST",
+      headers,
+      credentials: "same-origin",
+      body: JSON.stringify({ format }),
+    });
+    if (!response.ok) {
+      throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+    }
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename =
+      /filename="([^"]+)"/.exec(disposition)?.[1] ?? `analysis.${format}`;
+    return { blob: await response.blob(), filename };
+  },
 
   // ---- findings & escalation -------------------------------------------
   finding: (id: string) => request<Finding>(`/findings/${id}`),
@@ -384,6 +459,10 @@ export const api = {
       method: "POST",
       body: payload,
     }),
+  /** Published snapshots, newest first — metadata only. What "analyze against
+   *  the current standards" resolves to (2026-08-31 UX correction). */
+  snapshots: (query: { page?: number; page_size?: number } = {}) =>
+    requestPage<SnapshotSummary>("/configuration/snapshots", { query }),
   publishConfiguration: (requirementCodes?: string[]) =>
     request<ConfigurationSnapshot>("/configuration/publish", {
       method: "POST",
@@ -402,12 +481,14 @@ export const api = {
   ) => requestPage<AuditEvent>("/audit-events", { query }),
 
   // ---- administration --------------------------------------------------
-  users: (query: { page?: number; page_size?: number; status?: string } = {}) =>
+  users: (query: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
     requestPage<User>("/users", { query }),
   createUser: (email: string, name: string) =>
     request<User>("/users", { method: "POST", body: { email, name } }),
   updateUser: (id: string, patch: Record<string, unknown>) =>
     request<User>(`/users/${id}`, { method: "PATCH", body: patch }),
+  deleteUser: (id: string) =>
+    request<{ deleted: boolean }>(`/users/${id}`, { method: "DELETE" }),
   grantRole: (userId: string, roleCode: string) =>
     request<User>(`/users/${userId}/roles`, {
       method: "POST",

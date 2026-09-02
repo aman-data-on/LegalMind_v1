@@ -1,75 +1,67 @@
 "use client";
 
 /**
- * The decision queue — needs-decision first, all-findings one click away
- * (locked 52.5, DD-1's own recommendation, finalized by DD-7 §3): a Finding
- * shows its derived `classification` AND every scoped Evaluation, never a
- * single collapsed verdict (49.7 r1). Decision controls attach to the
- * Evaluation, never the Finding (AB-1).
+ * The findings pane — summary first, then the drill: category → finding →
+ * evidence, without ever leaving the workspace (owner directive 2026-08-31
+ * §10–§13). A Finding shows its derived `classification` AND every scoped
+ * Evaluation, never a single collapsed verdict (49.7 r1, locked 52.5); decision
+ * controls attach to the Evaluation, never the Finding (AB-1).
  *
- * A Review is resolved for the CURRENT document version via
- * `GET /reviews?contract_id=` (2026-08-30 addition to the frontend client only
- * — the backend already allow-lists this filter, 49.6) — the workspace has no
- * Review of its own to hand down from `WorkspacePage`. Creating a Review needs
- * a published configuration snapshot, a distinct capability this slice
- * deliberately does not build (excluded, stated plainly): the pane says so
- * rather than offering a raw id-pasting form or a link back into the legacy
- * app.
+ * The summary strip renders the loaded findings' classification counts as
+ * pressable filters — presentational grouping of server values, never a
+ * client-side re-derivation (52.7). "Needs decision" stays the default view
+ * when anything needs one. When every finding is a MATCH, that is a designed
+ * success state, not an empty table (§29) — built from real fields only, no
+ * grade, no percentage.
  *
- * Evidence links reuse the highlight mechanism from slice 1 — a citation and a
- * verdict now point at the document through the exact same gesture.
+ * While the Review is still moving through its lifecycle the pane says so and
+ * polls `GET /reviews/{id}` — the lifecycle is the single source of progress
+ * (52.7); no fake stages are invented.
+ *
+ * Evidence appears twice, deliberately: the verbatim excerpt beside the
+ * finding (so the drill ends in text, not a pointer), and the highlight
+ * gesture into the document pane for full context. "Ask about this" hands an
+ * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { ErrorBanner } from "@/components/Feedback";
-import { api, describeError } from "@/lib/api";
+import { describeError } from "@/lib/api";
+import { sectionRef } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { DocumentVersion, Evaluation, Finding, Review } from "@/lib/types";
+import type { DocumentVersion, Evaluation, Evidence, Finding } from "@/lib/types";
 
+import { AnalyzeControl } from "./AnalyzeControl";
+import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
+import { useFindingsState } from "./findingsState";
 import { useHighlight } from "./highlight";
+import { findingsSummary } from "./model";
 
-type Load =
-  | { kind: "loading" }
-  | { kind: "no-review" }
-  | { kind: "ready"; review: Review; findings: Finding[] }
-  | { kind: "error"; error: unknown };
+type View = "attention" | "all" | { classification: string };
 
 const ATTENTION_OUTCOMES = new Set(["APPROVAL_REQUIRED", "UNACCEPTABLE"]);
 const CALM_CLASSIFICATIONS = new Set(["MATCH"]);
 const CALM_OUTCOMES = new Set(["ACCEPTABLE", "NOT_APPLICABLE"]);
 
-export function FindingsPane({ contractId, version }: { contractId: string; version: DocumentVersion }) {
+function initialView(): View {
+  if (typeof window === "undefined") return "attention";
+  const pointed = new URLSearchParams(window.location.search).get("classification");
+  return pointed ? { classification: pointed } : "attention";
+}
+
+export function FindingsPane({ version }: { version: DocumentVersion }) {
   const { can } = useSession();
-  const [state, setState] = useState<Load>({ kind: "loading" });
-  const [view, setView] = useState<"attention" | "all">("attention");
-
-  const load = useCallback(async () => {
-    setState({ kind: "loading" });
-    try {
-      const { items: reviews } = await api.reviews({ contract_id: contractId, page_size: 100 });
-      const review = reviews.find((r) => r.document_version_id === version.id);
-      if (!review) {
-        setState({ kind: "no-review" });
-        return;
-      }
-      const { items: findings } = await api.findings(review.id, { page_size: 100 });
-      setState({ kind: "ready", review, findings });
-    } catch (error) {
-      setState({ kind: "error", error });
-    }
-  }, [contractId, version.id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // The one findings state machine, shared with the outline and the AI
+  // Analysis panel (findingsState.tsx) — fetch and poll live there.
+  const { state, reload } = useFindingsState();
+  const [view, setView] = useState<View>(initialView);
 
   // `?finding=` — the Legal queue's deep link. One-shot per target: scroll to
   // the card and move focus to it (the same gesture the document pane gives
-  // `?evidence=`). A target hidden by the attention view widens the view first.
+  // `?evidence=`). A target hidden by the current view widens the view first.
   const pointedDone = useRef<string | null>(null);
   useEffect(() => {
     if (state.kind !== "ready") return;
@@ -77,7 +69,7 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
     if (!pointed || pointedDone.current === pointed) return;
     const card = document.querySelector<HTMLElement>(`article[data-finding-id="${pointed}"]`);
     if (!card) {
-      if (view === "attention") setView("all");
+      if (view !== "all") setView("all");
       return;
     }
     pointedDone.current = pointed;
@@ -114,17 +106,51 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
   }
 
   if (state.kind === "no-review") {
+    // 2026-08-31 UX correction: the absent Review is an ACTION, not a dead end.
     return (
       <>
         <div className="ws-pane__head">
           <h2 className="ws-pane__title">Findings</h2>
         </div>
         <div className="ws-state">
-          <h3>This document version hasn&rsquo;t been analysed yet.</h3>
+          <AnalyzeControl version={version} onAnalysed={reload} />
+        </div>
+      </>
+    );
+  }
+
+  if (state.kind === "in-flight") {
+    return (
+      <>
+        <div className="ws-pane__head">
+          <h2 className="ws-pane__title">Findings</h2>
+        </div>
+        <div className="ws-state" aria-busy="true">
+          <p role="status" aria-live="polite">
+            Analysing against configuration snapshot{" "}
+            <span className="ws-mono">{state.review.configuration_snapshot_id.slice(0, 8)}</span>…
+          </p>
+          <p className="ws-pane__note">
+            You can keep working — this pane updates when the analysis completes.
+          </p>
+          <span className="ws-skel ws-skel--line" style={{ width: "70%" }} aria-hidden="true" />
+        </div>
+      </>
+    );
+  }
+
+  if (state.kind === "failed") {
+    return (
+      <>
+        <div className="ws-pane__head">
+          <h2 className="ws-pane__title">Findings</h2>
+        </div>
+        <div className="ws-state ws-state--error" role="alert">
+          <h3>The analysis could not be completed.</h3>
           <p>
-            Findings appear once a Review runs this document against a published
-            configuration snapshot. Starting a Review isn&rsquo;t built into this
-            screen yet.
+            No findings were produced. The most common causes are an undeclared
+            document type or configuration this document type has no standards
+            for. Nothing was decided about this document.
           </p>
         </div>
       </>
@@ -144,37 +170,83 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
     );
   }
 
-  const { findings } = state;
-  const attention = findings.filter((f) => f.requires_decision);
-  const effectiveView = attention.length > 0 ? view : "all";
-  const shown = effectiveView === "attention" ? attention : findings;
+  const { review, findings } = state;
+  const summary = findingsSummary(findings);
+  const effectiveView: View =
+    view === "attention" && summary.needsDecision === 0 ? "all" : view;
+  const shown =
+    effectiveView === "all"
+      ? findings
+      : effectiveView === "attention"
+        ? findings.filter((f) => f.requires_decision)
+        : findings.filter((f) => f.classification === effectiveView.classification);
 
   return (
     <>
       <div className="ws-pane__head">
         <h2 className="ws-pane__title">Findings</h2>
+        {/* Export moved to the page header (DD-9) — one Download, one place. */}
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
       </div>
       <div className="ws-pane__body" style={{ padding: "16px" }}>
         {findings.length === 0 ? (
-          <p>This Review has no Findings yet.</p>
+          <div className="ws-state" role="note">
+            <h3>Analysis completed — no findings.</h3>
+            <p>
+              No ratified requirement for this document type produced a finding.
+              That is a factual result, not an approval.
+            </p>
+          </div>
         ) : (
           <>
-            {attention.length > 0 ? (
-              <div className="ws-filter">
-                <button type="button" aria-pressed={effectiveView === "attention"} onClick={() => setView("attention")}>
-                  Needs decision ({attention.length})
-                </button>
-                <button type="button" aria-pressed={effectiveView === "all"} onClick={() => setView("all")}>
-                  All findings ({findings.length})
-                </button>
+            {summary.allMatch ? (
+              <div className="ws-success" role="note">
+                <h3>Every evaluated provision matches the company standard.</h3>
+                <p className="ws-pane__note">
+                  {findings.length === 1
+                    ? "1 requirement was evaluated; it matched."
+                    : `${findings.length} requirements were evaluated; all matched.`}{" "}
+                  No deviations, nothing missing. The findings below show each
+                  match and its evidence.
+                </p>
               </div>
             ) : null}
+            <div className="ws-filter" role="group" aria-label="Filter findings">
+              {summary.needsDecision > 0 ? (
+                <button
+                  type="button"
+                  aria-pressed={effectiveView === "attention"}
+                  onClick={() => setView("attention")}
+                >
+                  Needs decision ({summary.needsDecision})
+                </button>
+              ) : null}
+              <button
+                type="button"
+                aria-pressed={effectiveView === "all"}
+                onClick={() => setView("all")}
+              >
+                All ({findings.length})
+              </button>
+              {summary.counts.map(({ classification, n }) => (
+                <button
+                  key={classification}
+                  type="button"
+                  aria-pressed={
+                    typeof effectiveView === "object" &&
+                    effectiveView.classification === classification
+                  }
+                  onClick={() => setView({ classification })}
+                >
+                  {classification} ({n})
+                </button>
+              ))}
+            </div>
             {shown.length === 0 ? (
-              <p>No Findings on this page need a decision.</p>
+              <p role="status">No findings in this view.</p>
             ) : (
               shown.map((finding) => (
-                <FindingCard key={finding.id} finding={finding} onChanged={() => void load()} />
+                <FindingCard key={finding.id} finding={finding} onChanged={reload} />
               ))
             )}
           </>
@@ -184,8 +256,18 @@ export function FindingsPane({ contractId, version }: { contractId: string; vers
   );
 }
 
+function askQuestionFor(finding: Finding): string {
+  const name = finding.requirement.name ?? finding.requirement.code ?? "this provision";
+  const where = finding.evidence.find((e) => e.section_number)?.section_number;
+  return finding.classification === "MISSING"
+    ? `Does this document say anything about ${name}?`
+    : `What does this document say about ${name}${where ? ` (§${where})` : ""}?`;
+}
+
 function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () => void }) {
+  const askIntent = useAskIntent();
   const calm = CALM_CLASSIFICATIONS.has(finding.classification);
+  const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   return (
     <article className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`} data-finding-id={finding.id} tabIndex={-1}>
       <header className="ws-finding__head">
@@ -202,21 +284,52 @@ function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () =
       <p className="ws-finding__note">
         Classification is a derived summary — the Evaluations below are the authoritative results.
       </p>
+      {finding.classification === "MISSING" ? (
+        <p className="ws-finding__missing">
+          This requirement is expected for this document type and was not found
+          in the document.
+        </p>
+      ) : null}
       {finding.evaluations.map((evaluation) => (
-        <EvaluationCard key={evaluation.id} evaluation={evaluation} onChanged={onChanged} />
+        <EvaluationCard
+          key={evaluation.id}
+          evaluation={evaluation}
+          evidenceById={evidenceById}
+          onChanged={onChanged}
+        />
       ))}
-      <EscalateControl finding={finding} onChanged={onChanged} />
+      <div className="ws-finding__acts">
+        {askIntent ? (
+          <button
+            type="button"
+            className="ws-escalate__link"
+            onClick={() => askIntent.ask(askQuestionFor(finding))}
+          >
+            Ask about this
+          </button>
+        ) : null}
+        <EscalateControl finding={finding} onChanged={onChanged} />
+      </div>
     </article>
   );
 }
 
-function EvaluationCard({ evaluation, onChanged }: { evaluation: Evaluation; onChanged: () => void }) {
+function EvaluationCard({
+  evaluation,
+  evidenceById,
+  onChanged,
+}: {
+  evaluation: Evaluation;
+  evidenceById: Map<string, Evidence>;
+  onChanged: () => void;
+}) {
   const { point, target } = useHighlight();
   const attention =
     ("rule_outcome" in evaluation && evaluation.rule_outcome !== undefined
       ? ATTENTION_OUTCOMES.has(evaluation.rule_outcome)
       : false) || evaluation.requires_decision;
   const showDecision = evaluation.requires_decision || evaluation.current_decision !== null;
+  const explanation = evaluation.explanation ?? [];
 
   return (
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>
@@ -247,20 +360,56 @@ function EvaluationCard({ evaluation, onChanged }: { evaluation: Evaluation; onC
             <dd>{renderValue(evaluation.expected_value)}</dd>
           </>
         ) : null}
+        {evaluation.operator ? (
+          <>
+            <dt>Comparison</dt>
+            <dd className="ws-mono">{evaluation.operator}</dd>
+          </>
+        ) : null}
       </dl>
 
+      {explanation.length > 0 ? (
+        // Rule 12 — the Evidence → Fact → Standard → Rule → Result chain, in
+        // the engine's own words, beside the verdict it explains.
+        <details className="ws-explain">
+          <summary>How this result was reached</summary>
+          <ol>
+            {explanation.map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ol>
+          <p className="ws-pane__note ws-mono">{evaluation.evaluator_version}</p>
+        </details>
+      ) : null}
+
       {evaluation.evidence_refs.length > 0 ? (
-        <div className="ws-evidence-refs">
-          {evaluation.evidence_refs.map((evidenceId, index) => (
-            <button
-              key={evidenceId}
-              type="button"
-              aria-current={target === evidenceId ? "true" : undefined}
-              onClick={() => point(evidenceId, "the cited")}
-            >
-              Evidence {index + 1}
-            </button>
-          ))}
+        <div className="ws-evidence">
+          {evaluation.evidence_refs.map((evidenceId, index) => {
+            const row = evidenceById.get(evidenceId);
+            return (
+              <div key={evidenceId} className="ws-evidence__item">
+                <button
+                  type="button"
+                  className="ws-evidence__loc"
+                  aria-current={target === evidenceId ? "true" : undefined}
+                  onClick={() => point(evidenceId, "the cited")}
+                >
+                  {row
+                    ? [
+                        sectionRef(row.section_number),
+                        row.section_title,
+                        row.page_number != null ? `p.${row.page_number}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || `Evidence ${index + 1}`
+                    : `Evidence ${index + 1}`}
+                </button>
+                {row ? (
+                  <blockquote className="ws-evidence__quote ws-quote">{row.content}</blockquote>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="ws-pane__note">No supporting text was found in the document for this Requirement.</p>

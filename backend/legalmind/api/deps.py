@@ -18,7 +18,7 @@ import logging
 from collections.abc import Iterator
 from functools import cached_property
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session as DBSession
@@ -26,9 +26,11 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.api.context import SESSION_COOKIE, request_id_of
 from legalmind.db import models as M
 from legalmind.db.session import new_session
+from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
+from legalmind.security import tokens
 from legalmind.security.authorization import (
     require_contract_visible,
     require_evaluation_visible,
@@ -64,22 +66,56 @@ def get_db() -> Iterator[DBSession]:
 
 def get_principal(request: Request,
                   db: DBSession = Depends(get_db)) -> Principal:
-    """Resolve the server-side session — locked SEC-01, S-1.
+    """Resolve the caller's identity — locked SEC-01, S-1, and `AM-36` (AB-8).
 
-    Only ``user_id`` comes out of the session. Authority is resolved from the
-    database on every request, so a permission revoked mid-session takes effect
-    on the very next one.
+    Two mechanisms, in a deliberate order.
+
+    **The server-side session is tried first**, and it is the only mechanism the
+    password fallback ever uses (`AM-36` t1 leaves it untouched). It is preferred
+    because it is the revocable one: when both cookies are present, honouring the
+    session means an administrator's revocation still bites.
+
+    **Then the `AM-36` stateless token.** Only ``sub`` is taken from it. The
+    ``email`` and ``roles`` claims are read past and discarded here — t3 makes
+    them advisory, and this function is the one place a careless change could turn
+    them into authority. Authority is resolved from the database on every request
+    regardless of which mechanism identified the caller, so a permission revoked
+    mid-session still takes effect on the very next request.
+
+    **Account status is re-checked on the token path** (`AM-36` t4(b)). A
+    server-side session is already refused the moment it is revoked; a token
+    cannot be, so the one thing that must not wait 24 hours — a disabled account
+    — is checked against the database here instead.
     """
     raw = request.cookies.get(SESSION_COOKIE)
-    if not raw:
+    if raw:
+        try:
+            session_id = UUID(raw)
+        except (ValueError, AttributeError):
+            # A malformed cookie is indistinguishable from being signed out
+            # (47.1.1 r2) — never an error that discloses session state.
+            raise Unauthenticated("no valid session") from None
+        return resolve_session(db, session_id)
+
+    token = request.cookies.get(tokens.TOKEN_COOKIE)
+    if not token:
         raise Unauthenticated("no session cookie")
-    try:
-        session_id = UUID(raw)
-    except (ValueError, AttributeError):
-        # A malformed cookie is indistinguishable from being signed out (47.1.1
-        # r2) — never an error that discloses anything about session state.
-        raise Unauthenticated("no valid session") from None
-    return resolve_session(db, session_id)
+    claims = tokens.verify(token)          # raises the same non-disclosing 401
+    user = db.get(M.User, claims.user_id)
+    if user is None or user.status is not E.UserStatus.ACTIVE:
+        # 47.1.3's status gating applies to EVERY mechanism. Amending the session
+        # model must not create a route around a disabled account.
+        raise Unauthenticated("no valid session")
+    return Principal(user_id=claims.user_id,
+                     session_id=uuid5(_TOKEN_NAMESPACE, token),
+                     authenticated_at=claims.issued_at)
+
+
+# A stateless token has no session row, but `Principal.session_id` is used for
+# correlation in audit metadata and logs. Deriving it from the token gives a
+# stable, non-reversible identifier for "this token" without inventing a row and
+# without ever writing the token itself anywhere.
+_TOKEN_NAMESPACE = UUID("6f0d5f1e-1c2b-4f6a-9a3d-7e8b0c1d2e3f")
 
 
 class Guard:

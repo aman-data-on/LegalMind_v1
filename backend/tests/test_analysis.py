@@ -666,9 +666,14 @@ def test_unusable_mapping_configuration_is_a_failure_never_a_finding(build, db):
     assert db.execute(select(M.Finding)).first() is None
 
 
-def test_no_unmatched_provision_rows_are_written(build, db):
-    """Owner decision D-4 — `REC-02` defers the persistence and surfacing of
-    `UNMATCHED_PROVISION`, so the orchestrator writes none."""
+def test_unmatched_provision_rows_are_written_for_a_clause_no_finding_cites(build, db):
+    """Owner decision D-4, resolved 2026-09-01 — `REC-02`'s document-level
+    observation IS now written: one row per CLAUSE this Review's Findings
+    never cite (grouped the same way the workspace outline groups rows, so a
+    heading paragraph and its body count as ONE clause, not two). This decides
+    nothing D-1/D-2/D-3 left open — "matched" here means "a Finding of this
+    Review cites it", already fully decided by the existing pipeline, not a
+    new scored threshold."""
     build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
                       mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
     review = build.review([
@@ -678,7 +683,35 @@ def test_no_unmatched_provision_rows_are_written(build, db):
         "Fees are payable within 30 days.",
     ])
 
-    run_analysis(db, review)
+    run = run_analysis(db, review)
+    assert run.unmatched_provisions == 1  # one CLAUSE (§2), not one per row
+
+    rows = db.execute(select(M.UnmatchedProvision)).scalars().all()
+    assert len(rows) == 1
+    # Anchored at the clause's heading row, per the module's own contract.
+    unmatched_evidence = db.get(M.DocumentEvidence, rows[0].evidence_id)
+    assert unmatched_evidence.section_title == "Payment" \
+        or unmatched_evidence.section_number == "2"
+
+    # Never a Finding, never a classification — REC-02 rules 1-3 stand.
+    finding_evidence_ids = set(db.execute(select(M.FindingEvidence.evidence_id)).scalars().all())
+    assert rows[0].evidence_id not in finding_evidence_ids
+
+
+def test_unmatched_provision_is_never_written_for_evidence_a_finding_cites(build, db):
+    """The liability clause IS cited by LIABILITY-001's Finding, so it must
+    never also appear as an unmatched provision — REC-02 observes only what
+    genuinely has no Finding behind it."""
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+
+    run = run_analysis(db, review)
+    assert run.findings_created == 1
+    assert run.unmatched_provisions == 0
     assert db.execute(select(M.UnmatchedProvision)).first() is None
 
 

@@ -379,3 +379,27 @@ def make_review_for(db, owner):
                  status=E.ReviewStatus.ANALYSIS_COMPLETE, created_by=owner.id)
     db.add(r); db.flush()
     return r
+
+# ---------------------------------------------------------------------------
+# OIDC (Step 47 §47.1.3) — shared by tests/test_oidc.py and tests/test_tokens.py,
+# which drive the same callback for different properties. Lives here rather than in
+# either suite so neither imports the other's fixtures.
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def configured(monkeypatch):
+    """A configured deployment, and a discovery cache that cannot leak between tests."""
+    from tests.test_oidc import CLIENT_ID, ISSUER, REDIRECT
+
+    monkeypatch.setenv("LEGALMIND_OIDC_ISSUER", ISSUER)
+    monkeypatch.setenv("LEGALMIND_OIDC_CLIENT_ID", CLIENT_ID)
+    monkeypatch.setenv("LEGALMIND_OIDC_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("LEGALMIND_OIDC_REDIRECT_URI", REDIRECT)
+    monkeypatch.delenv("LEGALMIND_OIDC_ALLOWED_DOMAIN", raising=False)
+    from legalmind.security import oidc
+
+    monkeypatch.setattr(oidc, "_discovery_cache", {})
+    monkeypatch.setattr(oidc, "_get_json", lambda url: {
+        "issuer": ISSUER,
+        "authorization_endpoint": f"{ISSUER}/authorize",
+        "token_endpoint": f"{ISSUER}/token",
+    })

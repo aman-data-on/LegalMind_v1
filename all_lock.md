@@ -16563,3 +16563,367 @@ No Company Standard value, no Requirement, no threshold of any other kind
 (mapping/extraction calibration under Step 35 is measurement machinery, not legal
 tolerance, and is untouched). No change to the evaluator's comparison itself —
 detection of MATCH / DEVIATION / MISSING / CONFLICT is exactly as locked.
+
+================================================================================
+AM-31 GATE RELEASE — the further appended record g3 requires
+Recorded 2026-08-31, on the owner's confirmation of the same day ("confirm").
+================================================================================
+
+g3 said the gate is released "only by a FURTHER APPENDED RECORD - never a flag, env
+var or review." This is that record.
+
+```text
+Provider          Google Gemini API (Generative Language API)
+Tier              PAID - billing account "LeapSwitch" (Cloud Prepay), prepay credits
+                  active; the unpaid tier remains INELIGIBLE (AM-30 t6)
+Model             gemini-3.6-flash (pinned; AM-30 t7. The provider retired
+                  gemini-2.5-flash for new accounts; AM-30 locks the family, not the
+                  version - "No version string is locked. t7 governs." Decision #223)
+Terms confirmed   2026-08-31, by the owner, in writing in the working session
+Terms location    ai.google.dev/gemini-api/terms - "Paid Services" / "How Google
+                  Uses Your Data"
+No-training term  "Google doesn't use your prompts (including associated system
+                  instructions, cached content, and files such as images, videos,
+                  or documents) or responses to improve our products" (verbatim,
+                  fetched from the terms page on 2026-08-31)
+Retention term    "Google logs prompts and responses for a limited period of time,
+                  solely for detecting and preventing violations of the Prohibited
+                  Use Policy" (verbatim, same page and date)
+
+Gate value        AM31_GATE = "RELEASED-2026-08-31" in
+                  backend/legalmind/assist/generation.py, changed in the same commit
+                  that appends this record (g3's one-commit discipline).
+
+r1   Every AM-30 term stands unchanged. In particular t2-t5 (payload minimization,
+     LEGAL-02 as an egress rule, no identifiers, hash-only audit), t7 (the pin), and
+     t8 (the network-layer allow-list, which remains a deployment precondition
+     reported ATTEST by the preflight - a production deployment without it has not
+     satisfied this release).
+
+r2   55.3 is unchanged: development and staging remain synthetic-only environments.
+     This release permits real-contract egress only where real contracts live -
+     production - and only under r1.
+
+r3   AM-28/AM-31 m-series stand: the faithfulness and citation-precision half of the
+     Tier-2 gate is now MEASURABLE and must be measured and baselined as a
+     release-pipeline act where the real documents live, before assist answers over
+     real material are relied on. The provisional model selection remains provisional
+     until that measurement (m2); the version change to gemini-3.6-flash re-triggers
+     AM-26 r4's measurement obligation at the same moment.
+
+r4   A provider-side retirement of gemini-3.6-flash, or any model change, re-triggers
+     t7 and AM-26 r4 exactly as this one did, and is recorded the same way.
+```
+
+================================================================================
+Amendment Batch AB-7 — suggestion-assisted intake and Key Obligations
+Recorded 2026-08-31, on the owner's instructions in the working session
+("Reopen the locked decision now" — type suggestion with mandatory human
+confirmation; "Add a new backend extraction capability" — Key Obligations;
+"all the tech related decisions you take").
+Appended per rule 22 — the prior 16,616 lines are byte-identical and unmodified.
+================================================================================
+
+## AM-34 — Assist-lane document-type SUGGESTION, human-confirmed
+
+Owner Q9 (2026-08-19, "declared, never inferred") is amended IN WORKFLOW ONLY;
+its substance stands: the authoritative `contract_type` is only ever written by
+an explicit human act, and analysis still refuses an undeclared type.
+
+t1  The assist lane may propose exactly one Step 6 code (or nothing) from the
+    document version's own committed evidence plus its original filename. The
+    proposal pre-fills the intake select; the human confirms, changes, or
+    clears it, and only the human's confirmation (an ordinary contract update)
+    records the type. A suggestion is never a Classification, never a Finding,
+    and never enters the authoritative analysis path (AI-01/AM-25 unchanged).
+t2  Egress goes through the single generation seam (AM-30 t1); every AM-30
+    term applies unchanged, including hash-only audit (t5). The audit event
+    `assist.type_suggestion_called` records model, prompt version, payload
+    hash, and what was suggested — never the payload.
+t3  Parsing is defensive and un-normalising, matching Step 6's boundary rule:
+    anything but an exact code degrades to "not confident", and every failure
+    (gate, credential, provider, parse) degrades to the pre-AM-34 behaviour —
+    an empty select the human fills in. No suggestion is ever an error state.
+t4  Permission is `assist.ask` (the same risk profile as Ask); the endpoint is
+    rate-limited as deployment configuration (49.10).
+
+## AM-35 — Key Obligations extraction (assist lane, descriptive only)
+
+A new assist-lane capability: what each party has to do, grouped under the
+DOCUMENT'S OWN verbatim role labels, each line grounded in the evidence row it
+was read from.
+
+t1  An obligation is a fact about the text — never a Finding, Evaluation,
+    Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle
+    transition, and never a comparison against any Company Standard or Legal
+    Rule. AM-25's boundary applies in full.
+t2  The descriptive/judgment boundary is enforced MECHANICALLY (AM-28 r2's
+    spirit): a line carrying compliance/risk/recommendation vocabulary is
+    discarded before persistence, whatever the prompt said; a line whose
+    source marker does not resolve to a real evidence row is discarded too
+    (rule 11's spirit — ungrounded output is never stored).
+t3  Storage is two additive tables in the assist schema
+    (`obligation_extraction_runs`, `obligation_extractions`), extending
+    AM-27's authorized set by this record; AM-27 r2 stands — no locked table,
+    column, constraint, index or enum changes. `evidence_id` is NOT NULL.
+    The tables keep AM-27's derived-store posture: cascade-deleted with the
+    document, recomputable, never a source of legal truth.
+t4  Extraction runs synchronously through the single generation seam (the Ask
+    precedent); it is idempotent-by-refusal on the immutable version; failure
+    records a FAILED run so "never extracted" and "extracted, nothing found"
+    stay distinguishable, and the UI degrades to an honest quiet sentence.
+t5  Permission is `finding.view`: obligations are facts about text the caller
+    can already read in full, not the organization's negotiating position —
+    LEGAL-02's stricter gate does not apply, and AM-30 t3's egress screen
+    still does.
+t6  No forced party classification: the primary grouping is the document's own
+    label (`party_label`); `party_role_hint` is nullable and best-effort,
+    because nothing in V1 records which contracting party is "us".
+
+## What AB-7 does NOT decide
+
+No change to Q9's substance, AI-01, the determinism guarantee, the five state
+axes, any evaluator, any Company Standard, the zero-tolerance Legal Rule, or
+the corpus. The workspace's presentation changes accompanying this batch
+(3-column layout, sticky Ask bar, AI Analysis panel) are presentation-layer
+work governed by DESIGN.md and lock nothing.
+
+================================================================================
+Amendment Batch AB-8 — Stateless JWT session tokens (amends OD-9)
+Recorded 2026-09-01, on the owner's explicit instruction in the working session
+("Implement JWT exactly as specified"), given after the alternatives and the
+security consequences were put to them in writing and the recommendation was to
+keep server-side sessions. The owner chose the amendment knowing what it costs.
+Appended per rule 22 — the prior 16,689 lines are byte-identical and unmodified.
+================================================================================
+
+## AM-36 — OD-9's session model is amended: a stateless JWT is permitted
+
+Step 47's OD-9 (locked 2026-08-17) reads, verbatim and unmodified above at its
+original position:
+
+```text
+Session model             Server-side sessions
+Session contents          identity (user_id) ONLY
+Authority resolution      fresh from the database on every request
+Revocation                immediate, server-side
+Rejected                  stateless JWT model
+```
+
+Four of those five lines are amended by this record. The fifth — the hard rule
+that the authentication mechanism NEVER confers Legal Decision authority — is
+NOT amended, is not amendable by this record, and constrains everything below.
+
+```text
+t1  A stateless JWT is a permitted session mechanism. Server-side sessions
+    remain permitted and remain the ONLY mechanism for password login
+    (Step 47's controlled fallback), which this record does not touch.
+    "Rejected — stateless JWT model" is superseded for the OIDC path only.
+
+t2  The token payload carries user_id, email and the caller's role codes at
+    issue time, and an expiry of 24 hours. This supersedes "Session contents
+    — identity (user_id) ONLY" for tokens issued under t1.
+
+t3  AUTHORITY IN THE TOKEN IS ADVISORY AND NEVER ENFORCED. Every permission
+    check continues to resolve fresh from the database on every request
+    (S-1). The `roles` claim is presentation data of the same standing as
+    43.31's permission array: readable, never trusted, and never consulted by
+    the permission resolver or any guard. A code path that authorized from
+    the token would place authority in a bearer credential the server cannot
+    withdraw, which OD-9's hard rule forbids and which this record does not
+    permit. Asserted by test, not by convention.
+
+t4  Revocation is DEGRADED, KNOWINGLY, and the degradation is bounded and
+    stated. A revoked or expired server-side session is refused immediately;
+    a JWT cannot be, so a token issued before a role change or an account
+    disablement remains presentable until it expires. Two bounds keep the
+    window finite and small in the cases that matter:
+      (a) authority is re-resolved per request (t3), so a role change takes
+          effect on the NEXT request, not on token expiry — the degradation
+          is to identity, not to authority;
+      (b) account status is re-checked from the database on every request, so
+          a disabled account is refused immediately despite a live token.
+    What genuinely degrades: a token stolen before revocation stays usable
+    for up to 24 hours, and there is no server-side list that can stop it.
+    That is the cost the owner accepted.
+
+t5  The signing key is a deployment secret (S-6), read from the environment,
+    never defaulted and never committed. A process that cannot read a key of
+    the required strength refuses to ISSUE and refuses to ACCEPT tokens — it
+    does not fall back to an unsigned or weakly-signed token. Algorithm is
+    fixed at issue and pinned at verification; a token declaring any other
+    algorithm, or `none`, is refused. Issuer and audience are pinned.
+    This closes the "session signing / cookie keys NOT YET SPECIFIED" gap for
+    this mechanism only.
+
+t6  The token travels in an HttpOnly, Secure, SameSite=Strict cookie. It is
+    NOT placed in a response body, in a URL, in localStorage or in any log
+    line: locked 53.3's redaction discipline applies to it as a credential,
+    and S-3's cookie attributes are unchanged by this record.
+
+t7  A JWT library is authorized under rule 19 for this purpose only.
+```
+
+## What AB-8 does NOT decide
+
+OD-9's hard rule (authentication never confers Legal Decision authority) stands
+unamended, and so do SEC-01, SEC-02, ROLE-05, S-1, S-3, S-7, S-8 and the
+append-only audit trail. No table, column or enum changes. Password login keeps
+server-side sessions unchanged. `DELETE /auth/sessions/{id}` and
+`revoke_all_for_user` are unchanged and still authoritative for every
+server-side session. Nothing here touches the analysis path, the determinism
+guarantee, any evaluator, any Company Standard, the zero-tolerance Legal Rule or
+the corpus.
+
+## Recorded dissent
+
+The implementing engineer advised against this amendment and recorded why: a
+24-hour bearer token cannot be withdrawn, which is the property OD-9 rejected
+the JWT model to preserve for a system holding confidential legal strategy under
+an append-only audit trail; and no scaling pressure existed to trade it for.
+t3 and t4 exist to hold the damage to the smallest surface the instruction
+allows. The decision is the owner's and is recorded as theirs.
+
+## AB-9 — Developer Role Amendment (Owner Grant — 2026-09-01)
+
+**Owner grant, 2026-09-01.** User approved creation of DEVELOPER role via direct
+instruction: "i grant to you do this" — amending ROLE-05 and ROLE-06 to add a new
+role for development and debugging work.
+
+### Amendment: ROLE-05 and ROLE-06 — Add DEVELOPER Role
+
+Amends ROLE-05 ("Admin is a system role...") and ROLE-06 ("Canonical roles &
+permission matrix") to add a sixth canonical role: DEVELOPER.
+
+**Terms:**
+
+r1  DEVELOPER is a canonical application role, separate from and independent of
+    the five locked roles (USER, LEGAL_REVIEWER, LEGAL_ADMIN, SUPER_ADMIN,
+    LEGAL_DECISION_AUTHORITY).
+
+r2  DEVELOPER grants all 21 code-defined permissions from the locked permission
+    catalogue, including legal.decision, user.manage, role.manage,
+    configuration.publish, and audit.view.
+
+r3  Purpose: development, debugging, and fixing issues across all system areas.
+    The role is debug-only and intended for developer accounts.
+
+r4  Authority resolution (S-1) is unchanged: permissions continue to resolve
+    fresh from the database on every request, and the resolver has no bypass for
+    this role.
+
+r5  The role is seeded into the system and is assignable to user accounts via
+    the admin API and UI.
+
+### What AB-9 does NOT amend
+
+SEC-01, SEC-02, S-1, S-3, S-7, S-8, the append-only audit trail, the analysis
+path, the determinism guarantee, any evaluator, any Company Standard, the
+zero-tolerance Legal Rule, the corpus, or the five-axis state model remain
+unchanged. No table, column or enum changes beyond role_code values. The
+permission catalogue is unchanged (no new permissions added, DEVELOPER is a
+grant of existing permissions). Every permission check continues to resolve from
+the database.
+
+
+---
+
+## AB-10 — Contract Deletion Enters V1 Scope (Owner Approval — 2026-09-01)
+
+**Owner approval, 2026-09-01.** The owner was asked directly whether to defer
+contract deletion (which `AM-31` had left undecided), build it, or substitute an
+archive, and chose to build it — then chose its two-mode shape and its permission
+grant when the consequences for rule 17 were put to them. This record closes the
+gap `AM-31` named:
+
+> "Retention / deletion — AM-27 r5 requires deleting a document to hard-delete
+> its chunks. **No hard-delete path for a Contract exists today, and this record
+> does not create one or assume its shape.**"
+
+`AUTO_MODE_DECISIONS.md` #85 independently flagged the same question as
+"genuinely undecided and owner-owned". It is now decided for the Contract
+entity. Document-version retention in isolation remains undecided.
+
+### Amendment: AM-31 — a Contract may be deleted, in two modes
+
+**Terms:**
+
+r1  A Contract may be deleted. `DELETE /api/v1/contracts/{contract_id}` is the
+    verb, and it resolves to one of two modes decided by the server, never by
+    the caller.
+
+r2  **Hard delete** applies when the Contract has no Review. The contract row,
+    its Document Versions, their processing runs and extracted evidence, the
+    stored file bytes, and the assist lane's chunks and obligation extractions
+    for those versions are all destroyed. `AM-27` r5's requirement that deleting
+    a document hard-deletes its chunks is satisfied here and extends to
+    obligation extractions for the same reason.
+
+r3  **Soft delete** applies when the Contract has at least one Review. A
+    `deleted_at` timestamp is set. The Contract leaves every list, summary and
+    by-id response, and a by-id request returns 404 exactly as for a contract
+    that never existed (47.7 — existence is itself a disclosure). Its Reviews,
+    Findings, Evaluations, Legal Decisions and audit entries are untouched.
+
+r4  **Rule 17 is preserved and is the reason for the split.** The audit trail
+    remains append-only and historical Reviews remain reproducible. A hard
+    delete of an analyzed Contract would break both, and is therefore not
+    reachable through any input: the mode is derived from the presence of a
+    Review, not supplied by the caller.
+
+r5  The deletion is itself an audited event, recorded as `contract.soft_deleted`
+    or `contract.hard_deleted`. Because the audit trail is append-only (AUD-01),
+    a hard delete still leaves a record that it occurred and who performed it,
+    outliving the row it destroyed.
+
+r6  `contract.delete` — already present in the locked permission catalogue
+    (Step 24 / 43.22) and previously granted to no ordinary role — is granted to
+    ROLE_USER. Ownership remains the scope: the object-level check resolves
+    `owner_id` per request, so a user may delete their own Contracts and a
+    Contract belonging to another user returns 404, never 403.
+
+r7  The grant is deliberately NOT extended to LEGAL_ADMIN or SUPER_ADMIN. Step
+    24 r8/r9 keeps contract-content access separate from platform
+    administration, and deletion is contract content.
+
+r8  Schema: `contracts.deleted_at TIMESTAMPTZ NULL`, with a partial index on
+    `deleted_at IS NULL`. `ContractStatus` is NOT amended — DRAFT / ACTIVE /
+    SUPERSEDED stand as locked by 42.3, because deletion is a visibility marker
+    orthogonal to contract lifecycle, not a sixth lifecycle state.
+
+r9  No restore or undelete surface is created by this record. A soft-deleted
+    Contract is recoverable at the database level, but exposing that is a
+    separate decision and is not made here.
+
+### What AB-10 does NOT amend
+
+Rule 17, SEC-01, SEC-02, S-1, the five-axis state model, the determinism
+guarantee, the analysis path, any evaluator, any Company Standard, the
+zero-tolerance Legal Rule, the golden corpus, and the permission catalogue
+itself (no permission is added — `contract.delete` already existed) all remain
+unchanged. `ContractStatus` is unchanged. No other table, column or enum
+changes. Document-version retention in isolation remains undecided.
+
+---
+
+## AB-11 — The Documents Screen Is Named Dashboard (Owner Instruction — 2026-09-01)
+
+**Owner instruction, 2026-09-01.** The owner observed that the screen's name no
+longer described what it does, and instructed the rename, then confirmed it when
+told a locked decision would have to move: *"this my decion now permission hein
+update kro."*
+
+**Terms:**
+
+r1  The Documents screen is named **Dashboard**. Its route is `/dashboard`, its
+    heading is "Dashboard", and its navigation label is "Dashboard". Every
+    sub-route moves with it (`/dashboard/reviews`, `/dashboard/legal`,
+    `/dashboard/ask`, `/dashboard/research`, `/dashboard/admin`).
+
+r2  This is a presentation change only. The fixed-pathname convention is
+    unchanged: a single contract is still reached at `/dashboard?id=…`, and no
+    record id appears in a URL path segment.
+
+r3  Nothing in the domain vocabulary is renamed. Contract, Document Version,
+    Review, Finding, Evaluation and the five state axes are untouched — this
+    record names a screen, not a concept.

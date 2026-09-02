@@ -172,5 +172,49 @@ export async function signIn(
   await page.getByLabel("Work email").fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/workspace/, { timeout: 20_000 });
+  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+}
+
+/**
+ * DD-9 (2026-09-01): on the wide layout the full findings pane is the side
+ * card's second tab ("Analysis" is the default); on the narrow layout it is
+ * a top tab. Either way, one click opens it — no-op when already open.
+ */
+/**
+ * Open the Dashboard's upload disclosure and wait for its file input.
+ *
+ * DD-4 (2026-09-01) made upload the page's primary ACTION rather than a
+ * permanently-open form: a "+ Upload Contract" button, and the panel is absent
+ * from the DOM until asked for. So `setInputFiles('input[type="file"]')`
+ * straight after `goto("/dashboard")` now waits 60s for an input that does not
+ * exist yet — which is exactly how CI job 10 failed.
+ *
+ * Idempotent: a no-op when the panel is already open, so it is safe to call
+ * before any dashboard upload. It deliberately drives the real control instead
+ * of reaching past it — the disclosure is part of the flow under test.
+ *
+ * Only for the DASHBOARD LIST. The workspace's own upload surfaces (the
+ * "no document uploaded yet" state, and "Upload a revised version") are
+ * different controls and are not behind this toggle.
+ */
+export async function openUploadPanel(page: Page): Promise<void> {
+  const input = page.locator('input[type="file"]');
+  if (await input.count()) return;          // already open — nothing to do
+
+  // Located by `aria-controls`, NOT by the label: the button's text flips from
+  // "+ Upload Contract" to "Close" once the panel opens, so a name-based
+  // locator stops matching exactly when this helper is asked to be idempotent.
+  // A probe against the live page caught that, having claimed otherwise.
+  const toggle = page.locator('[aria-controls="ws-upload-panel"]');
+  await toggle.waitFor({ state: "visible", timeout: 15_000 });
+  await toggle.click();
+  await input.waitFor({ state: "attached", timeout: 15_000 });
+}
+
+export async function openFindingsTab(page: Page): Promise<void> {
+  const tab = page.getByRole("tab", { name: "Findings" });
+  await tab.waitFor({ state: "visible", timeout: 15_000 });
+  if ((await tab.getAttribute("aria-selected")) !== "true") {
+    await tab.click();
+  }
 }

@@ -166,8 +166,6 @@ class UserIdentity(Base):
                          name="uq_user_identities_user_provider"),
         Index("ix_user_identities_user_id", "user_id"),
     )
-
-
 # ==========================================================================
 # Contracts & Documents — 42.3 - 42.6
 # ==========================================================================
@@ -183,11 +181,17 @@ class Contract(Base):
     status = mapped_column(_enum(E.ContractStatus, "contract_status"), nullable=False)
     created_at = ts_created()
     updated_at = ts_updated()
+    # Soft-delete marker. NOT a sixth value on ContractStatus: that enum is the
+    # locked 42.3 / Step 2 vocabulary and a delete is not a contract lifecycle
+    # state. Set only when the contract already carries a Review, so rule 17's
+    # append-only audit and reproducible history survive the deletion.
+    deleted_at = ts_nullable()
 
     __table_args__ = (
         Index("ix_contracts_owner_id", "owner_id"),
         Index("ix_contracts_status", "status"),
         Index("ix_contracts_created_at", "created_at"),
+        Index("ix_contracts_deleted_at", "deleted_at"),
     )
 
 

@@ -427,6 +427,24 @@
     "title": "ReviewCreate",
     "type": "object"
    },
+   "ReviewExportRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "format": {
+      "enum": [
+       "pdf",
+       "docx"
+      ],
+      "title": "Format",
+      "type": "string"
+     }
+    },
+    "required": [
+     "format"
+    ],
+    "title": "ReviewExportRequest",
+    "type": "object"
+   },
    "ReviewStatus": {
     "enum": [
      "DRAFT",
@@ -830,6 +848,46 @@
     ]
    }
   },
+  "/api/v1/auth/oidc/callback": {
+   "get": {
+    "description": "Complete corporate SSO and establish the server-side session.\n\nS-7 governs the failure shape. An account bound to another subject, a disabled\naccount, an unverified email, a replayed state and a provider error all render\nthe identical page and the identical query string \u2014 a distinguishable message\nwould turn the login screen into a directory of who has a LegalMind account.\n\n**One refusal is deliberately distinguishable: the corporate-domain check.** It\nruns before any database lookup, and the permitted domain is already public in\nthe authorization request's ``hd`` parameter, so naming it discloses nothing an\nattacker could not already read. Telling a user with a personal Gmail address\nexactly why they were turned away is worth far more than the nothing it costs.\nEverything else stays indistinguishable, and `oidc.OidcDomainRefused` being its\nown class is what keeps that boundary deliberate rather than accidental.",
+    "operationId": "oidc_callback_api_v1_auth_oidc_callback_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Oidc Callback",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/oidc/start": {
+   "get": {
+    "description": "Begin corporate SSO \u2014 redirect the browser to the identity provider.\n\nRate-limited on the same S-5 bucket shape as password login and keyed on the\nclient address: an unauthenticated route that performs an outbound discovery\nrequest must not be a free amplifier.",
+    "operationId": "oidc_start_api_v1_auth_oidc_start_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Oidc Start",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
   "/api/v1/auth/session": {
    "get": {
     "description": "49.2 \u2014 the caller's identity plus their **effective permission names**.\n\nA convenience projection for presentation gating only (43.31, 47.6 r3).\nResolved fresh from the database here, not read from the session (S-1), so it\ncan never be staler than the checks that actually enforce anything.",
@@ -944,11 +1002,129 @@
     ]
    }
   },
+  "/api/v1/configuration/snapshots": {
+   "get": {
+    "description": "Published snapshots, newest first \u2014 metadata ONLY (2026-08-31 UX\ncorrection; Step 49 implementation addition, the #187 precedent).\n\nExists so the client can resolve \"analyze against the current standards\"\nto a concrete snapshot id \u2014 without it, starting a Review from the UI was\nimpossible. Gated on ``review.create`` because that is this listing's one\npurpose. No snapshot ITEM and no standard value is disclosed (LEGAL-02):\nthe payload is id, hash, timestamp and a requirement count, all of which a\ncaller already sees on any Review it can read.",
+    "operationId": "list_snapshots_api_v1_configuration_snapshots_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Snapshots Api V1 Configuration Snapshots Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Snapshots",
+    "tags": [
+     "configuration"
+    ]
+   }
+  },
   "/api/v1/contracts": {
    "get": {
-    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.",
+    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.\n\n``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a\nDERIVED bucket (`_status_bucket`) that does not exist as a contracts-table\ncolumn, so it cannot be pushed into the same ``WHERE`` \u2014 this owner-scoped\nset is bounded (one account's own contracts, never a global scan), so it is\ncomputed once over every matching id and paginated in Python, exactly the\nprecedent `_list_summaries` already set for the per-row projection.",
     "operationId": "list_contracts_api_v1_contracts_get",
     "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 500,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "in": "query",
+      "name": "contract_type",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 200,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Contract Type"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sort",
+      "required": false,
+      "schema": {
+       "default": "created_desc",
+       "title": "Sort",
+       "type": "string"
+      }
+     },
      {
       "in": "query",
       "name": "page",
@@ -1043,7 +1219,75 @@
     ]
    }
   },
+  "/api/v1/contracts/summary": {
+   "get": {
+    "description": "The Documents list's stat tiles \u2014 real counts across EVERY one of the\ncaller's contracts, not just the current page (49.6 scope; additive, no\nlocked row). One aggregation, computed the same way each row's own status\nis (`_status_bucket`), so a tile and a row can never disagree.",
+    "operationId": "contracts_summary_api_v1_contracts_summary_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Contracts Summary Api V1 Contracts Summary Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Contracts Summary",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}": {
+   "delete": {
+    "description": "Delete one contract \u2014 owner approval 2026-09-01.\n\nCloses the gap `AM-31` left explicitly open (*\"No hard-delete path for a\nContract exists today, and this record does not create one or assume its\nshape\"*). The shape is two modes behind one verb, chosen by whether the\ncontract has ever been analyzed:\n\n* **No Review** \u2014 hard delete. The contract was uploaded and never\n  evaluated, so nothing downstream cites it and nothing is lost: the row,\n  its document versions, their processing runs and extracted evidence, the\n  stored bytes, and the assist-lane chunks and obligation extractions all\n  go. `AM-27 r5` requires the chunks to go with the document.\n* **A Review exists** \u2014 soft delete. `deleted_at` is stamped and the\n  contract leaves every list, summary and by-id response, but its findings,\n  evaluations, decisions and audit entries are untouched.\n\nThat split is the whole point. **Rule 17** \u2014 append-only audit trail,\nhistorical Reviews stay reproducible \u2014 was not authorised for override, and\nhard-deleting an analyzed contract would break it. The response names which\nmode ran so the caller can tell the user what actually happened rather than\nimplying a permanence it did not deliver.\n\nOwnership is the scope, as everywhere else here: `guard.contract` resolves\n`owner_id` per request, so a contract belonging to someone else is a 404 \u2014\nand so is one that is already soft-deleted.",
+    "operationId": "delete_contract_api_v1_contracts__contract_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete Contract Api V1 Contracts  Contract Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Contract",
+    "tags": [
+     "contracts"
+    ]
+   },
    "get": {
     "description": "The contract with its document versions, newest first.\n\n`document_versions` is an implementation addition (2026-08-30, UI phase): a\ndocument-anchored workspace opened on a contract must be able to find its\ndocument through the API, and nothing listed versions \u2014 the legacy screen only\never showed the version it had just uploaded. Additive, same permission the\ncontract already required (a version is reachable only through a contract the\ncaller can see \u2014 47.6 one level down), and the summary is the existing\n`serialize_document_version` shape, so nothing new is disclosed. Recorded in\nStep 49's implementation-additions section.",
     "operationId": "get_contract_api_v1_contracts__contract_id__get",
@@ -1567,6 +1811,143 @@
     "summary": "List Document Evidence",
     "tags": [
      "documents"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/extract-obligations": {
+   "post": {
+    "description": "Key Obligations extraction (owner, 2026-08-31) \u2014 descriptive facts about\nthe document's own text, never a Finding or a judgment. Runs synchronously\n(the Ask precedent: one bounded generation call); idempotent-by-refusal \u2014\na version already extracted keeps its record, since the version is\nimmutable and re-running buys nothing.\n\nPermission is `finding.view`: obligations are facts about text the caller\ncan already read in full, not the organization's negotiating position, so\nLEGAL-02's stricter gate does not apply.",
+    "operationId": "extract_obligations_api_v1_document_versions__document_version_id__extract_obligations_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Extract Obligations Api V1 Document Versions  Document Version Id  Extract Obligations Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Extract Obligations",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/obligations": {
+   "get": {
+    "operationId": "read_obligations_api_v1_document_versions__document_version_id__obligations_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Read Obligations Api V1 Document Versions  Document Version Id  Obligations Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Read Obligations",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/suggest-type": {
+   "post": {
+    "description": "Assist-lane type suggestion (owner, 2026-08-31) \u2014 a proposal, never a write.\n\nThe Guard resolves the version through its contract (47.6), the assist lane\nreads the opening evidence, and the response is only ever advice for the UI's\npre-fill. The type itself is recorded exclusively by the human's own\n`PATCH /contracts/{id}` \u2014 Q9's substance (human-declared) survives intact.\nEvery failure shape is the same honest `confident: false`, so the screen\ndegrades to the plain empty select rather than erroring.",
+    "operationId": "suggest_type_api_v1_document_versions__document_version_id__suggest_type_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Suggest Type Api V1 Document Versions  Document Version Id  Suggest Type Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Suggest Type",
+    "tags": [
+     "assist"
     ]
    }
   },
@@ -2373,6 +2754,57 @@
     ]
    }
   },
+  "/api/v1/reviews/{review_id}/export": {
+   "post": {
+    "operationId": "export_review_api_v1_reviews__review_id__export_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReviewExportRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Export Review",
+    "tags": [
+     "export"
+    ]
+   }
+  },
   "/api/v1/reviews/{review_id}/findings": {
    "get": {
     "description": "Every item nests its Evaluations.\n\n49.7 r1 \u2014 a Finding's ``classification`` is a derived summary and is never\nreturned without them, in a list any more than in a single resource.",
@@ -2676,6 +3108,7 @@
   },
   "/api/v1/users": {
    "get": {
+    "description": "List users with optional filtering by status and search by email/name.",
     "operationId": "list_users_api_v1_users_get",
     "parameters": [
      {
@@ -2692,6 +3125,22 @@
         }
        ],
        "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "search",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Search"
       }
      },
      {
@@ -2790,6 +3239,50 @@
    }
   },
   "/api/v1/users/{user_id}": {
+   "delete": {
+    "description": "Delete a user. Only DISABLED users can be deleted.",
+    "operationId": "delete_user_api_v1_users__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete User Api V1 Users  User Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete User",
+    "tags": [
+     "administration"
+    ]
+   },
    "get": {
     "operationId": "get_user_api_v1_users__user_id__get",
     "parameters": [

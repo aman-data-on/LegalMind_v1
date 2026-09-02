@@ -242,7 +242,8 @@ constraints (§0).
 5. **Admin is a separate control plane** — verified: SUPER_ADMIN holds only
    user/role/audit/platform permissions and cannot open a contract; "user UI + admin
    menu" is structurally false here.
-6. **Font conflict flagged, not resolved**: master prompt §4.3 (IBM Plex/Source Serif
+6. **Font conflict flagged, not resolved** *(→ resolved by DD-8, owner approval
+   2026-08-31)*: master prompt §4.3 (IBM Plex/Source Serif
    via Google Fonts) vs DD-4's no-runtime-CDN ruling. Implementation stays on the
    system stack until the owner approves `next/font` bundling (rule 19 line-item);
    the type *roles* (mono = precise values, italic serif = verbatim quotes) apply
@@ -251,3 +252,256 @@ constraints (§0).
 **Build-first decision:** the document pane + highlight mechanism as a thin vertical
 slice — the signature interaction and the one unproven technical risk
 (offsets → rendered DOM spans). Full reasoning: PRODUCT_UX_ROADMAP.md §G.
+
+---
+
+## DD-8 — Master-prompt typefaces bundled via `next/font` (closes DD-7 §6)
+
+**Status:** `DECIDED AND IMPLEMENTED` (owner approval, 2026-08-31: *"approve the font
+bundling"* — the explicit rule-19 line-item DD-7 §6 required).
+
+**What was decided:** the UI_UX_MASTER_PROMPT §4.3 faces are now real: **IBM Plex Sans**
+(all UI chrome — weights 400/500/600, the only weights the stylesheet uses), **IBM Plex
+Mono** (machine-tracked values — same weights), and **Source Serif 4** (verbatim quoted
+document text, normal + italic). No other face anywhere, per §4.3.
+
+**How, and why this satisfies DD-4's concern:** `next/font/google` downloads the font
+files at **build time** and serves them from the application's own origin
+(`.next/static/media`, verified: 33 woff2 files, zero built-asset references to
+`fonts.googleapis.com`/`fonts.gstatic.com`). No page load ever reaches a third-party
+host — the runtime-CDN leak DD-4 ruled out never occurs. `display: swap` keeps first
+paint on the fallback stacks, which remain in every role token (`--ws-sans`/`--ws-mono`/
+`--ws-serif`), so a failed font file degrades to exactly the previous system rendering.
+
+**Scope:** the new application only — the variables are mounted by the `/workspace`
+route-group layout (a `display: contents` carrier, no layout participation). Legacy
+screens keep their system stacks untouched until their retirement pass.
+
+**Build note:** the production build now requires egress to Google Fonts **at build
+time only** (CI and the frontend image build both have it; the runtime `data` network
+rules are unaffected). Expected: visual-baseline diffs on every new-UI screen — re-cut
+from CI per the standing rule (owner, 2026-08-30).
+
+---
+
+## DD-9 — The reference-matched workspace (owner directive, 2026-09-01)
+
+**Status:** `DECIDED AND IMPLEMENTED` (owner, in session, with a reference
+screenshot: *"I want exactly like the image I attached"* — an explicit UX-review
+request, which is what lifts the 2026-08-31 freeze for this pass).
+
+**What was decided:**
+
+1. **Cards on a grey canvas.** The workspace surface moves from flat bordered
+   panes to white rounded cards (`--ws-radius-card: 10px`, one soft shadow
+   token) on a `#f2f4f8` canvas. The accent brightens to `#2563eb`
+   (hover `#1d4ed8`); the shell deepens to `#0d1220` with a blue active-nav
+   treatment and an avatar chip.
+2. **The three-bucket status mapping — supersedes the "equal weight within an
+   axis" rendering rule** for the workspace's summary surfaces. The owner chose
+   the reference's traffic light: green = `MATCH`, red = `MISSING`, amber =
+   every other classification ("needs review" — DEVIATION, CONFLICT,
+   UNABLE_TO_EVALUATE, AMBIGUOUS, UNRESOLVED, and any future value, which fails
+   toward amber, never toward calm). PRESENTATION grouping only: the exact
+   classification value always renders beside the color (chips, donut legend),
+   the five-axis vocabularies are untouched, and rule 12 stands — counts and
+   count-shares only, never a score, never confidence. Markers are icons with
+   accessible names, never color alone.
+3. **Layout = clauses card | document card | side card.** The document region
+   splits into a Clauses card (search, status markers, legend, pages footer)
+   and a Document card under a toolbar (find-in-document, page navigation
+   tracked by intersection, zoom 85–150%, fullscreen). The side card carries
+   two tabs — **AI Analysis** (default: stat tiles, segmented bar, three-bucket
+   donut with per-classification legend and count-share percentages, Key
+   Risks, Key Obligations two-up) and **Findings** (the full pane, decisions
+   and escalation intact); `?finding=`/`?classification=` deep links open the
+   Findings tab directly.
+4. **The Ask bar becomes a floating card** with the sparkle mark, prefill
+   suggestion chips (editable drafts — nothing sends itself), a circular send,
+   the history toggle, and an honesty note. Header gains back-arrow, Download
+   (the existing export, relocated), and Share (copy the deep-linkable URL).
+
+**Deliberate omissions from the literal reference (no fake controls):**
+"Compare" (no comparison capability exists), "Add custom clause" (clauses come
+from the document, not the user), and Key Risks' "View suggestion" (clause
+suggestions would state an organizational legal position — AM-25 forbids it
+outside ratified sources). A notification bell is omitted for the same reason.
+
+**Expected:** visual-baseline diffs on every workspace screen — re-cut from CI
+per the standing rule (owner, 2026-08-30).
+
+---
+
+## DD-10 — The Documents index, owner-supplied reference (2026-09-01)
+
+**Owner instruction:** a reference screenshot and a React file, "need to upgrade the
+document page according to above code and image".
+
+**Followed exactly:** the layout. A fixed 420px intake card beside a flexible
+five-step explainer strip; icon-left stat tiles with the count beneath the label;
+the toolbar, table and a footer inside one card so the column header stays visible
+above an empty table; the footer's formats/size line and help link.
+
+**Not followed, and why — the reference's copy described a different product.**
+This is the substantive part of DD-10 and it is a rule-4/rule-12 matter, not taste:
+
+| Reference said | Why it could not ship | What it says now |
+|---|---|---|
+| "AI extracts text and key clauses" | `AI-01`, reaffirmed by `AM-25`: no LLM, RAG, embedding or vector database in the AUTHORITATIVE path. Extraction is deterministic | "Clause text located, every span kept as evidence" |
+| "Contract type & relevant standards identified" · "We'll automatically detect the contract type" | Owner Q9 (2026-08-19): type is **declared** by the uploader, never inferred. `AM-34` permits a suggestion the human must confirm | "Confirm type — yours to declare, a suggestion pre-fills the field" |
+| "Get risks, deviations & actionable insights" | Rule 12: a Finding reconstructs as Evidence → Fact → Standard → Rule → Result. "Risk" and "insight" are the vocabulary of a product that returns a score | "Each result traces back to the clause it came from" |
+| (the page lede, already in the tree) "our AI will automatically detect the type … identify risks" | All three of the above at once | "Upload a contract, confirm its type … same document, same configuration, same result" |
+
+The determinism is the stronger claim anyway, and it is the true one.
+
+**Also not copied:** the reference's palette (`#276df3`, `#16a052`, `#df8100`,
+`#dfe5ee`) and its `Inter` stack. Every value resolves through the existing
+`--ws-*` tokens, which are within a few points of the reference's own — copying
+them in would have created a second, silently-diverging palette for one page. Type
+stays on DD-8's self-hosted IBM Plex, which is a recorded owner-approved decision.
+
+**Also not copied:** the unicode glyphs (`▤ ◎ ▥ ◇ 🔒 →`). `icons.tsx`'s house rule
+is no emoji, and platform fonts render those at different weights and baselines,
+which is visible in a row of five marks that must look equal.
+
+**One addition beyond the reference.** Four of the five steps are things the system
+does; one is a thing the reader does. Step 3 carries an accent ring — the only
+ornament in the row — because it encodes something true rather than decorating the
+sequence. (The reference tinted steps 3 and 5 with no meaning attached.) The status
+hues are *not* used for it: `--ws-ok/warn/bad` are reserved for state.
+
+**Verified by rendering, not by inspection.** Screenshots at 1600/980/600/380px:
+no page-level horizontal scroll at any width, the table scrolls inside its own
+container, and all five step labels sit on one line so the row shares a baseline.
+Two defects were found this way and fixed — a two-line label that dropped its own
+step's detail text out of alignment, and a **pre-existing** `.ws-shell__user`
+overflow that clipped the "Sign out" control off-screen below ~720px.
+
+Pinned by `frontend/src/__tests__/documents-pipeline.test.tsx` (10 tests), which
+asserts the copy prohibitions above against the rendered markup — the tree-wide
+`check:terms` script cannot see rendered text.
+
+---
+
+## DD-11 — Upload is a disclosure, not a modal (2026-09-01)
+
+**The conflict, reported rather than resolved.** Redesigning the Dashboard, the
+owner was offered three shapes for the upload trigger and chose "modal from
+header button". [DESIGN.md](../../DESIGN.md) lists, among the things this product
+does not do:
+
+> Modals for anything that isn't a genuine interruption (a destructive
+> confirmation, a truly blocking choice). Most of this product's "detail" needs
+> are drill-down navigation, not modal overlays.
+
+CLAUDE.md's UI/UX precedence is explicit that where a design skill's default
+conflicts with a recorded DD decision, the DD decision wins **and the conflict is
+reported** — rule 5, not silently resolved in either direction. So the conflict
+was surfaced to the owner in the plan rather than either quietly building the
+overlay or quietly dropping the request.
+
+**What shipped.** An inline disclosure panel. A primary `+ Upload Contract`
+button in the page header (`aria-expanded` / `aria-controls`) toggles a panel
+that is absent from the DOM when closed and expands in place beneath the button
+when open. No backdrop, no scroll lock, no focus trap.
+
+**Why this satisfies the actual requirement.** What the owner was solving for was
+space: an always-visible upload card occupied a large block of the fold whether
+or not anyone was uploading. A disclosure collapses to zero height, which is the
+same saving an overlay would have delivered — the overlay was a means, not the
+end. The panel also keeps the upload flow in the page's own scroll and reading
+order, which matters because the flow is multi-step (upload → extract → suggest
+type → **human confirms the type** → analyze) and the confirm step is a real
+decision the reader may want to leave and return to.
+
+`UploadContract.tsx` is untouched. Its state machine, its API calls and owner
+Q9's human-declared type are exactly as they were; only the container changed.
+
+**Where a modal *is* used, and why that is consistent.** Two places, both of
+which DESIGN.md names outright: the delete confirmation (a destructive
+confirmation) and the edit-details form (a small blocking choice the user
+summoned, dismissed by Escape or Cancel, restoring focus to the control that
+opened it — the same pattern `KeyboardShortcutsHelp` established).
+
+**If the owner still wants an overlay for upload**, that is theirs to decide;
+this entry is superseded in place when they do, with the reasoning above
+recorded as what was traded away.
+
+---
+
+## DD-12 — Two-tone wordmark, and the contrast audit it triggered (2026-09-02)
+
+**Owner instruction, 2026-09-02:** *"Change the logo so that 'Legal' is white and 'Mind' is
+brand blue (#0055AA). … Audit all text on the dashboard. Ensure every text element is fully
+visible against its background."*
+
+Presentation only. No locked decision is amended; `LOCKED_DECISIONS.md` is untouched.
+
+### 1. The wordmark
+
+`LegalMind` is now two spans inside the one link — `.ws-shell__word-a` (`#fff`) and
+`.ws-shell__word-b` (`var(--ws-brand-on-dark)`). Two implementation notes that are easy to
+get wrong:
+
+* **No whitespace between the spans.** JSX renders a newline between sibling elements as a
+  text node, which would produce "Legal Mind". Verified in a real browser:
+  `textContent === "LegalMind"`.
+* **The accessible name is unchanged.** Both spans are plain text in one link, so it is still
+  announced "LegalMind, link" — splitting for colour does not split it for a screen reader.
+
+`--ws-brand` is a **new token, deliberately not `--ws-accent`.** The accent is functional
+(links, focus, primary action); the brand is identity. Merging them would mean that restyling
+one silently restyles the other.
+
+### 2. ⚠️ The brand blue does not meet contrast on the dark shell — and that is recorded, not fixed
+
+`#0055AA` measures **7.29:1 on white** and **2.56:1 on the shell's `#0d1220`**. It is a deep
+blue built for light surfaces; the top bar is near-black.
+
+It ships **exactly as specified**, for two reasons: the owner named the hex, and WCAG SC 1.4.3
+explicitly exempts logotypes from contrast requirements — so this is a legibility observation,
+not a violation. But it is the dimmest text in the top bar, and that sits in tension with the
+same instruction's second half.
+
+The swap is therefore **one line**: set `--ws-brand-on-dark` to `#007af3` (4.52:1, AA) or
+`#005fbe` (3.01:1, AA-large). Both are the same hue with lightness lifted — no new colour.
+`--ws-brand` stays `#0055AA` for light surfaces either way.
+
+### 3. The audit found five real failures, and they were not the logo
+
+Measured every foreground/background pair the stylesheet actually declares in one rule — not
+a theoretical matrix. The status colours were painted as **text on their own `-soft` tint**,
+at 10–11px, and failed the 4.5:1 small-text minimum:
+
+| Token | Was | On its `-soft` tint | Now | Now |
+|---|---|---|---|---|
+| `--ws-warn` | `#d97706` | **2.90:1** ❌ | `#a85c05` | 4.55:1 ✅ |
+| `--ws-ok` | `#16a34a` | **2.98:1** ❌ | `#11803a` | 4.55:1 ✅ |
+| `--ws-bad` | `#dc2626` | **4.23:1** ❌ | `#d52222` | 4.51:1 ✅ |
+| `--ws-decision` | `#15803d` | **4.39:1** ❌ | `#157e3c` | 4.50:1 ✅ |
+| `--ws-outcome` | `#b45309` | **4.47:1** ❌ | `#b35209` | 4.53:1 ✅ |
+
+The worst of these was the `Needs Review` pill — the single most important status on the
+dashboard was its least readable text.
+
+**Only lightness moved.** Hue and saturation are untouched, so DD-9's owner-approved traffic
+light still reads as the same three colours, and each value is the *minimum* darkening that
+clears the line. Nothing regressed: on white, amber went 3.19→5.00 and green 3.30→5.03; as
+bar-segment and legend-dot fills there is no text to affect; and the one white-on-red button
+improved 4.83→5.15.
+
+**Not changed, and why:** `--ws-ink-300` measures 2.20:1 on white but is used as a text colour
+only for decorative icons that sit beside the text naming the same thing (the stat-tile plate,
+the file glyph before a document name, the pending-step dot). SC 1.4.11 exempts a graphic whose
+information is available in adjacent text. Changing it would dull a deliberate hierarchy for no
+accessibility gain.
+
+### 4. Verification
+
+Contrast computed from the stylesheet's own declared pairs, then confirmed against
+`getComputedStyle` in a headless browser; the deployed bundle was re-fetched from
+`https://legalmind.lsnw.io` and checked to carry the new token values.
+
+⚠️ **The 15 visual baselines will fail once.** These are colour changes on pinned screenshots.
+Per the standing rule, baselines are cut in CI only — let job 15 fail, then adopt its
+`*-actual.png`. Do not run `design-qa --update-snapshots` locally.

@@ -37,7 +37,7 @@ submitted content (t6 makes such a tier ineligible *whatever its cost*).
 ```bash
 # In the server's environment (systemd unit, compose .env, or secret store):
 LEGALMIND_GEMINI_API_KEY=<the key>
-# Optional pin override (default: gemini-2.5-flash):
+# Optional pin override (default: gemini-3.6-flash):
 LEGALMIND_GENERATION_MODEL=<pinned, dated identifier — "latest" is refused>
 ```
 

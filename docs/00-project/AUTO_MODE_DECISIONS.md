@@ -344,7 +344,7 @@ technology beyond `AM-26` as amended.
 | 82 | **`ai_answers.model_identity` and `prompt_version_id` are nullable** | `AM-29` r3's `EVIDENCE_INSUFFICIENT` means *"the model is not called at all"*. A NOT NULL column would force a placeholder, and a placeholder model identity on an answer that never reached a model is a fabricated record of an external call | Nothing about which model. `AM-30` t7 governs the identity format |
 | 83 | **No `confidence` column anywhere**, asserted by a test | `AI-03` locked item 16: *"The system does not use generic AI confidence scores."* The sanctioned signal is the `AM-29` answer state plus per-citation retrieval scores, labelled as retrieval scores | How the frontend renders the answer state |
 | 84 | **`messages.role` is a CHECK-constrained string, not an enum** | It is a transport concern, not a controlled legal vocabulary. Minting an enum type would place a non-legal vocabulary beside the five axes, which `AM-29` r1 spends its length keeping apart | Nothing about the answer state, which *is* an enum because it is the sixth axis |
-| 85 | **The `AM-27` r5 cascade is tested at the evidence row**, plus a test pinning that a document version cannot be deleted at all | Discovered while testing: `document_processing_runs` and `reviews` both reference `document_versions` with no cascade, so the locked schema has **no delete path for a document version**. r5's cascade is implemented and verified where it is defined; r5's *premise* is currently unreachable. `test_the_locked_schema_has_no_delete_path_for_a_document_version` records that, and fails if someone later adds cascades — which would change whether historical Reviews stay reproducible | The retention and deletion policy, which remains genuinely undecided and owner-owned |
+| 85 | **The `AM-27` r5 cascade is tested at the evidence row**, plus a test pinning that a document version cannot be deleted at all | Discovered while testing: `document_processing_runs` and `reviews` both reference `document_versions` with no cascade, so the locked schema has **no delete path for a document version**. r5's cascade is implemented and verified where it is defined; r5's *premise* is currently unreachable. `test_the_locked_schema_has_no_delete_path_for_a_document_version` records that, and fails if someone later adds cascades — which would change whether historical Reviews stay reproducible | ~~The retention and deletion policy, which remains genuinely undecided and owner-owned~~ — **DECIDED for the Contract entity, 2026-09-01** by `AM-37` (AB-10, owner approval): a Contract may be deleted, hard when it has no Review and soft (`deleted_at`) once it does, so rule 17's reproducible history survives. The observation in this row still stands and its test is unchanged: there is still no FK *cascade* delete path, and `AM-37`'s hard branch removes document versions by explicit statement in a single authorized operation rather than by cascade — which is why `test_the_locked_schema_has_no_delete_path_for_a_document_version` still passes. **Deleting a document version in isolation remains undecided**, as does the wider retention policy (how long a soft-deleted Contract is kept, and whether it can be restored) |
 | 86 | **MinIO deferred from A1 to A10** | Locked 55.6 makes the object-storage *provider* a deployment choice, the existing `StorageBackend` Protocol already isolates it, and it is not on the retrieval critical path. Deferring also avoids settling the `boto3` dependency question (rule 19) before anything needs it | That MinIO is the provider; 55.6 still owns that |
 | 87 | **Both compose and CI moved to `pgvector/pgvector:pg16`** | Keeping dev, CI and the staging reference on one image removes an environment difference, and it exercises the more production-like preflight path (extension *available but not installed*, rather than *absent*). Authorized by `AM-26` | Nothing about production hosting, which 55.6 leaves open |
 
@@ -832,3 +832,201 @@ flagged: CI-cut visual baselines for the new screens.**
 · mypy · typecheck · terms gate · final band-semantics sweep clean. Corpus expectation
 changes were confined to STRUCTURAL fixtures (AM-33 r6 authorizes exactly that); no
 DOCUMENT_SUPPORTED or STANDARD_DERIVED expectation moved.**
+
+
+## UX correction — upload-first intake, 2026-08-31
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 227 | **`GET /configuration/snapshots` added** — metadata only, gated `review.create` | Without it "analyze against the current standards" was unresolvable and the core journey dead-ended after upload; values stay confidential (LEGAL-02) | Snapshot content disclosure (still `configuration.view` territory) |
+| 228 | **`latest_version`/`latest_analysis` on `GET /contracts` rows**, permission-layered, counts OMITTED without `finding.view` | The list must answer "what did analysis find"; three page-bounded grouped queries, no N+1; Step 24 r8 applied to a projection | — |
+| 229 | **Type stays human-declared at the upload confirm; the filename hint is text applied only by the user's click; NO LLM classification** | Owner Q9 is locked ("declared, never inferred") — the hint never preselects and never enters the record; AM-31 is closed so an LLM path is impossible today, and pre-filling an authoritative comparison choice would blur the owner's §6 classification/authority line | Revisiting model-assisted suggestion after AM-31 opens, if the owner asks |
+| 230 | **Analysis chains into the upload act, best-effort, and the no-review state becomes the Analyze action** — always against the LATEST published snapshot, named on screen | One user act, honest degradation (no snapshot → names Legal; no permission → says so; processing → wait); the Review creator is the uploader, auditable; reproducibility stays visible (AUD-04) | Snapshot CHOICE for specialists (the latest is the default; picking older snapshots is unrequested) |
+
+**Verification at close: backend 941/1 (+3: snapshots list, layered summary, drift guards
+resatisfied deliberately) · 107 Vitest (+3) · 57 browser / 18 gated (journeys now fully
+UI-driven) · ruff · mypy · typecheck · terms. The owner-ordered §17 A–L proposal and §18
+matrix: docs/design/UX_CORRECTION_2026-08-31.md.**
+
+
+## Gemini key installed; model pin moved to gemini-3.6-flash, 2026-08-31
+
+The owner supplied the paid-tier key (billing verified: LeapSwitch prepay account).
+Stored at `/root/.legalmind.env` (chmod 600, outside the repository); audited absent
+from the repo, the server log, and every log line (payload hash only, AM-30 t5).
+`AM31_GATE` remains CLOSED — production egress still refuses until the owner's
+written-terms confirmation is recorded (AM-31 g3).
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 223 | **`DEFAULT_MODEL` → `gemini-3.6-flash`, with `thinkingConfig: {thinkingLevel: "MINIMAL"}`** | The provider retired `gemini-2.5-flash` for new accounts — its own 404 names 3.6-flash as the successor. AM-30 locks the FAMILY (Gemini Flash), explicitly not the version ("No version string is locked. t7 governs"); the identity is recorded against every answer (AM-26 r4). Thinking control is required, measured: unconstrained thinking consumed 45 of 50 output tokens producing NO text; `thinkingBudget: 0` is refused (HTTP 400) while `thinkingLevel: MINIMAL` returns clean grounded text | The Tier-2 faithfulness bar — still unmeasurable until the gate opens (AM-31 m4), and the version change re-triggers AM-26 r4's measurement when it does |
+
+**End-to-end verified on the live dev app (synthetic-only, 55.3):** login → contract →
+synthetic DOCX upload → parse COMPLETED → index (4 chunks, 4 embedded) → ask →
+**ANSWERED**, one verified citation resolving to a real evidence row; refusal paths
+also exercised live (a sub-80-char evidence set correctly refused as
+EVIDENCE_INSUFFICIENT — the floor working, found 3 characters under it). Tool run:
+`verify_gemini_connection --live` READY (config PASS ×3 + grounded synthetic call,
+latency ~1.7s). Backend suite green on the touched files; ruff/mypy clean.
+
+
+## Owner UX rethink — the drill, export, contextual Ask, work dashboard, 2026-08-31
+
+The owner's 38-section directive ("STOP AND RETHINK THE UX AROUND THE REAL USER
+JOURNEY") is an explicit UX-review request — the exact condition the 2026-08-31 UI
+freeze named — so the freeze is lifted for this work by its own terms.
+
+| # | Decision | Why | Does not decide |
+|---|---|---|---|
+| 231 | **`POST /reviews/{id}/export` implemented — PDF and DOCX** (49.3's own row; 49.12's open formats question closed by the owner's §30 list). One content model assembled from the caller's OWN serializations, two renderers (pymupdf Story, python-docx — both already in the stack, rule 19 clean). Audited (`report.exported`), rate-limited (49.10's EXPORT). **Email summary deliberately NOT built** — no mail component exists in the locked Step 39 stack | The owner named the formats and the required contents; the export can never disclose more than the exporter's screens (LEGAL-02 held by construction, pinned by test) | Email delivery (rule 19 — needs a mail dependency decision); export of anything but a Review's analysis |
+| 232 | **`export.generate` granted to USER, LEGAL_REVIEWER, LEGAL_ADMIN** — alongside `report.view` | The owner's §31 Definition of Done has a normal user exporting; the permission existed in the Step 47 catalogue granted to no one, which made the locked endpoint dead. An export renders only what report+findings already serve that caller. **Flagged for ratification** — Step 23's role summary predates the export permission | — |
+| 233 | **The findings pane is the drill: summary counts → category filter → finding → verbatim evidence** (owner §10–§13). Classification counts render as pressable filters; report chips and Documents-row chips deep-link `?classification=`; the cited excerpt renders beside the finding AND keeps the highlight gesture; the explanation chain (Evidence→Fact→Standard→Rule→Result) returns to the workspace card (it had regressed vs the legacy screen — rule 12). All grouping is presentational counting of server values (52.7) | A summary must never substitute for its parts (DESIGN.md); the drill must end in text, not a pointer | No severity ranking; no new state axis; MISSING keeps its "expected for this type, not found" sentence as fact, not alarm |
+| 234 | **The all-MATCH result is a designed success state** (owner §29): a calm banner built from real fields ("N requirements evaluated; all matched"), findings still listed beneath | A clean result is an outcome, not an empty table; no grade, no percentage, no celebration animation | Nothing — MATCH stays a classification, never a verdict |
+| 235 | **Finding → Ask handoff** (owner §17): "Ask about this" places an EDITABLE, document-shaped question in the Ask input and focuses it (switching to the Ask tab in collapsed layouts); NOTHING auto-sends, and no hidden context is injected into the assist lane | The user always sees exactly what is asked; the assist lane's scope (document text, AM-25) is unchanged; a compliance-shaped question would still be routed to the evaluator | — |
+| 236 | **The Ask pane restores the contract's most recent conversation on mount** (citations intact — the 2026-08-26 reopen endpoints, until now used only by Ask history) | Leaving the workspace silently discarded the thread the server had kept | Cross-contract or cross-version retrieval (unchanged, AM-25) |
+| 237 | **A revised version chains the same best-effort analysis as a first upload** (shared `chainAnalysis`, one loop not two journeys); the manual Analyze action remains for every degraded path | Journey consistency (owner §9); analysis of a new version was the only place the user still had to know the pipeline | Auto-analysis where the chain legitimately fails (honest states stand) |
+| 238 | **Documents is the work dashboard** (owner §5): a "Needs attention" group (any non-MATCH count, from the server's own counts) above "All documents"; count chips are links into the pre-filtered findings. No KPI cards, no synthesized metrics | Answers "what needs my attention / what next" with real fields only (DESIGN.md anti-patterns hold) | No severity ordering within the group; MATCH-only rows never flagged |
+| 239 | **Review-in-flight is a polled, bounded live state** in the findings pane ("Analysing against snapshot <id>…", 2.5s × ≤120, silent refresh); ANALYSIS_FAILED gets an honest terminal state | Progress is the Review lifecycle and nothing else (52.7) — no fake stages, no percentage | No new lifecycle state; queued-but-unstarted stays indistinguishable (the API deliberately carries no job state) |
+| 240 | **Client-side upload preflight** (extension, 50MB, empty-file) with the owner's §27 wording, BEFORE the confirm panel; the server's validation remains the authority (34.16) | An immediate, friendly message beats a round-trip; mirrors `LEGALMIND_MAX_UPLOAD_BYTES`' default | Nothing server-side |
+| 241 | **The legacy screens (`/contracts`, `/reviews`, `/configuration`, `/audit`, `/admin`) stay in the tree, unlinked** — owner §22 authorizes removal, but ~10 browser specs and the visual baselines still drive them as the verification harness | Deleting them today would trade a green matrix for tidiness against §23/§26; they are unreachable from the product (nav-by-existence since 2026-08-30) | Their retirement — named as the next dedicated pass: port the unique coverage (S-3, LEGAL-02, 409, keyboard) to workspace equivalents, then delete screens + specs + baselines together |
+
+**Verification at close: recorded after the full matrix below ran green.**
+
+## AB-7 implementation, 2026-08-31 (owner: "all the tech related decisions you take")
+
+The owner authorized the features (AM-34/AM-35, see `all_lock.md` AB-7) and delegated
+the technical choices. Decisions taken:
+
+| # | Decision | Why | What it does NOT decide |
+|---|----------|-----|------------------------|
+| 242 | **`generate_raw()` extracted inside `generation.py`** — the second prompt (type suggestion) and the third (obligations) run through the SAME module and function path as Ask; `generate()` is now a thin grounded-answer wrapper | AM-30 t1: a second prompt shape must never mean a second network path; `EGRESS_ALLOWED` and `test_import_boundaries.py` pass unchanged as the mechanical proof | Nothing about the Ask prompt or its verification |
+| 243 | **Obligations extraction runs synchronously in the request — no Celery task, no dispatch** | The strongest in-repo precedent: Ask already runs its generation call in-request; same magnitude (one bounded call). A queue would be new complexity guarding nothing | The plan had sketched a `dispatch_obligation_extraction`; deliberately not built |
+| 244 | **`obligation_extraction_runs.status` has no RUNNING value** ('COMPLETED'/'FAILED' only) | Synchronous execution means a row is written once the outcome is known; a RUNNING state would be a stranded-state hazard for no benefit | — |
+| 245 | **`party_role_hint` is a constrained string, not an enum type** (nullable; ORGANIZATION/COUNTERPARTY/BOTH/UNKNOWN) | The `messages.role` precedent: a best-effort transport annotation, not a controlled legal vocabulary; an enum would sit a non-legal vocabulary next to the five axes | Which party is "us" — nothing in V1 records it; `party_label` verbatim stays the honest grouping |
+| 246 | **Outline dots are TWO-state (calm/attention) and roll up to the owning outline row** (`outlineStatus`: rows between outline entries belong to that clause) | The reference's 3-way traffic light is a severity ranking, which no classification axis may render; a finding cites a clause's body text while the outline shows its heading | No new hues; reuses `--ws-decision`/`--ws-outcome` |
+| 247 | **The Ask history is a slide-up sheet anchored above the sticky bar** (absolute, `bottom: 100%`, max-height transition), overlaying the grid; the grid subtracts `--ws-askbar-h` | The input must own viewport space at every breakpoint (owner brief), but the history must not permanently halve the mobile grid | — |
+| 248 | **Type-suggestion permission is `assist.ask`; obligations are `finding.view`; both share the `SUGGEST_TYPE` rate limit** | Same risk profiles as their nearest neighbours (Ask; seeing findings); thresholds are deployment configuration (49.10) | — |
+| 249 | **RiskCard carries no `data-finding-id`** | The `?finding=` deep link must resolve uniquely to the findings pane's card (Playwright strict-mode caught the duplicate) | — |
+
+Verification at close: backend **981 passed** + ruff + mypy; frontend typecheck +
+**117 Vitest**; Playwright **60 passed / 3 skipped** (visual baselines excluded —
+CI-only adoption; layout diffs are expected and must be adopted from CI's
+`*-actual.png` per the 2026-08-30 rule).
+
+## Edge deployment of `legalmind.lsnw.io`, 2026-09-01 (owner-directed)
+
+The owner mapped `legalmind.lsnw.io` → `202.66.172.110` and instructed "baki ka setup
+complete kro" ahead of Google SSO. Google was named as the OIDC provider (client id
+supplied). Operational choices taken — Step 55.6 lists the hosting platform as
+`NOT YET SPECIFIED`, so each of these is an **operational choice at deployment time**,
+not a locked decision, and none amends a lock record:
+
+| # | Decision | Why | What it does NOT decide |
+|---|----------|-----|------------------------|
+| 250 | **nginx as the edge reverse proxy**, one origin serving frontend and API (`/api/v1/*` → `127.0.0.1:8000`, everything else → `127.0.0.1:3000`) | Step 55.1's shape is exactly this, and 55.2 requires rate limiting "at the edge (reverse proxy)" — a reverse proxy is contemplated by the locked spec, not a new technology in the rule 19 sense | The hosting platform, orchestration or monitoring stack — all still `NOT YET SPECIFIED` |
+| 251 | **API routed straight to FastAPI at the edge**, bypassing `frontend/next.config.ts`' rewrite | One fewer hop, and the rewrite is documented there as a dev-time device; the locked S-3 cookie still never travels cross-origin because the origin is single either way | Nothing about the cookie attributes, which are untouched |
+| 252 | **Edge rate limits keyed on the client address** — 10 r/m on `/api/v1/auth/`, 120 r/m on the rest of the API | Mirrors the application limiter's own key (`routers/auth.py`, keyed on client precisely so an attacker cannot lock a named user out). The application limiter stays authoritative; this is defence in depth per 55.2 | The thresholds themselves, which 49.10 makes deployment configuration |
+| 253 | **`client_max_body_size 50M`**, the same number as `LEGALMIND_MAX_UPLOAD_BYTES`' default | The edge must not admit a body the application will refuse, nor refuse one it would accept | The limit's value, which stays where the code puts it |
+| 254 | **Let's Encrypt certificate via certbot**, HTTP 301 → HTTPS, automatic renewal timer | 55.6 requires "TLS terminated correctly, secure cookie flags set"; the locked cookie is `Secure`, so nothing could sign in without it | — |
+| 255 | **Registered with Let's Encrypt WITHOUT an account email** | The owner's address was not offered for an external service. Renewal is automatic; expiry notices are the only thing forgone. Reversible: `certbot update_account --email <addr>` | — |
+| 256 | **systemd units** (`legalmind-api`, `legalmind-frontend`) replacing the manually-started dev processes, both bound to `127.0.0.1` | The frontend had been bound `0.0.0.0:3000` and was serving the app over plain HTTP on the public interface, bypassing TLS entirely | — |
+| 257 | **The API unit deliberately omits `LEGALMIND_RATELIMIT_LOGIN_MAX`** | The process it replaced carried `=200`, a test-harness loosening. Omitting it restores the application's own S-5 login limit | — |
+| 258 | **Frontend served from `next build` output (`npm run start`), not `next dev`** | `next dev` is not a production server; the build passed clean (17 routes) | — |
+| 259 | **`ufw` enabled: 22, 80, 443 only** | Ports 3000/8000 were publicly reachable. Loopback binding plus a firewall is belt and braces | — |
+| 260 | **OIDC configuration keys written to `/root/.legalmind.env`** (issuer, client id, redirect uri; secret left empty), NOT to `.env.example` | S-6: outside source control. `.env.example` states it "lists only variables the code actually reads" — the OIDC routes are not registered yet, so adding them there would misrepresent the code | Nothing about the flow, which is still unbuilt |
+
+---
+
+## Session of 1 September 2026 — the OIDC provider flow (decisions 261–269)
+
+Implementing locked 47.1.3's primary authentication mechanism. **`IMPL-01` authorizes
+this**: 47.1.3 and 49.2 are locked, and what was missing was implementation, not a
+decision. Every choice below is an implementation detail of a locked mechanism; none
+amends a lock record. The one place a locked record is genuinely in tension is registered
+as **C-17** in [CONFLICTS.md](CONFLICTS.md), not decided here.
+
+| # | Decision | Why | What it does NOT decide |
+|---|----------|-----|------------------------|
+| 261 | **No JWT/JWKS dependency. The ID token's claims are read, never verified as a bearer token** | The token arrives only in the response to our own direct, TLS-authenticated POST to the issuer's token endpoint, using a secret only we hold — OIDC Core §3.1.3.7 r6 permits omitting signature validation in exactly that case. Transport is stdlib `urllib`, the same choice `AM-30`'s generation adapter already made, so rule 19 is never triggered and the earlier "awaiting dependency approval" blocker dissolves | That an ID token may ever be accepted from a client. It may not, and the module says so — a future change that added such a path would need this decision revisited |
+| 262 | **No just-in-time provisioning.** An identity matching no existing user is refused | SEC-01 keeps authentication and authority separate; JIT would let an identity provider mint LegalMind principals. The login screen already states that accounts are created by an administrator | Whether an admin-initiated invite flow should exist. Nothing here forecloses one |
+| 263 | **Bind on `sub` once bound, on email only for the first sign-in.** An account already bound to a different subject is never rebound by a sign-in | `sub` is immutable; a Workspace email address can be reassigned, and email-only matching would let a recycled address inherit a departed user's Reviews and audit history | Whether an administrator may rebind. That is a `user.manage` operation and is not built |
+| 264 | **Require `email_verified`; enforce the domain restriction on the verified email, not on Google's `hd`** | `hd` is advisory and a crafted authorization request can omit it. An unverified email is an impersonation vector precisely because it is the value we bind on | The domain value itself, which is deployment configuration |
+| 265 | **The callback returns a same-site landing page with `<meta http-equiv="refresh">`, not a 302** | A 302 to the post-login path still belongs to the redirect chain that began at the IdP, so the browser withholds the `SameSite=Strict` session cookie and the user arrives signed out. This keeps locked S-3 **exactly** as it is instead of weakening the cookie to make SSO work | Any cookie attribute. All of S-3 is untouched, which is the point |
+| 266 | **Pre-authentication state (`state`, `nonce`, PKCE verifier) lives in a short-lived `HttpOnly` `SameSite=Lax` cookie**, not a database row | A new table is outside `IMPL-01`'s authorization, and session-key management is `NOT YET SPECIFIED` so there is no key to sign with. `Lax` rather than `Strict` is forced: the callback is a cross-site top-level navigation and a Strict cookie would never come back | Session-key management, still `NOT YET SPECIFIED` |
+| 267 | **Scope is `openid email` only, and PKCE S256 is used despite the client being confidential** | Locked 53.3 in spirit — a display name we never render is personal data held for no reason. PKCE costs one hash and removes the value of a stolen authorization code | — |
+| 268 | **Discovery is fetched per issuer and cached, and the document's own `issuer` must equal the configured one** | Without the equality check a mistyped `LEGALMIND_OIDC_ISSUER` would silently authenticate against whatever host answered | — |
+| 269 | **`LEGALMIND_OIDC_ALLOWED_DOMAIN=leapswitch.com` set on the server** | Corporate SSO means our own staff, and the owner was told plainly, with the one-line reversal | Nothing locked. Removing the line reverts it; the account-must-already-exist rule remains either way |
+
+**Surfaced, not decided:** the second network egress path this opens is registered as
+**C-17** — `AM-30` t10's *"the provider call is the only external call in the stack"*
+against 47.1.3's mandatory IdP call. The code follows 47.1.3 and declares the egress in
+`EGRESS_ALLOWED` naming the conflict; one owner reading closes it.
+
+**Supplied by the owner the same day:** the client secret, and the corrected redirect
+URI (propagating at Google at time of writing).
+
+---
+
+## Same session, later — JIT provisioning turned ON by owner instruction (270–273)
+
+**Owner instruction, 1 September 2026**, requesting Google SSO with just-in-time
+provisioning and a default safe role. This **reverses decision 262 above**, recorded
+hours earlier in the same session. Recording both rather than editing 262: the reversal
+and its reason are the useful record.
+
+**No locked decision is amended.** `all_lock.md`'s Step 47 record locks the session
+model, the identity contract, revocation and S-7 — it says nothing about who may create
+a `User` row. What still binds, and shapes 271: locked Step 23's role summary,
+`SEC-01`, `SEC-02`/`ROLE-05` and S-8.
+
+| # | Decision | Why | What it does NOT decide |
+|---|----------|-----|------------------------|
+| 270 | **JIT provisioning ON.** A first sign-in by a verified address inside the permitted corporate domain creates the account | Owner instruction. The domain gate is what makes it safe — only the corporate Workspace can self-provision, and it is enforced on the provider's *verified* email before any row is written | Nothing about authority — see 271 |
+| 271 | **Provisioned accounts get `ROLE_USER` and nothing else**, configurable via `LEGALMIND_OIDC_JIT_ROLES` (`DISABLED` restores 262's behaviour; empty provisions with no roles at all) | The owner specified a safe default role. `USER` carries ordinary contract/review work and **none** of `legal.decision`, `legal.approve_customization`, `legal_position.view`, `user.manage`, `role.manage`, `platform.manage` or `audit.view`. `SEC-01` survives intact: Google says *who*, never *what you may do*. Pinned by `test_provisioning_grants_work_permissions_and_no_authority` | Any role's grant set, which comes from Step 23 |
+| 272 | **Provisioning fails closed on an unseeded role code** — no account is created | Rule 15. Creating the user and skipping the grant yields an account whose authority nobody chose; refusing leaves no half-provisioned row and one clear operator log line | — |
+| 273 | **The corporate-domain refusal is the ONE distinguishable failure outcome** (`sso=domain`), with its own exception class and its own message | It runs before any database lookup, and the permitted domain is already public in the authorization request's `hd` parameter — so naming it discloses nothing S-7 protects. Telling someone with a personal Gmail why they were turned away is worth more than the nothing it costs. The copy names the requirement, never the rejected address | That a third outcome may be added. Every extra value is another bit readable off the login screen; a test pins the set at three |
+
+**Also added under 270:** the `profile` scope, for the single `name` claim, because
+`serialize_session_identity` returns it and `Chrome.tsx` renders it — locked 53.3's
+"hold what we use" satisfied rather than stretched. `picture` is **not** stored: `users`
+has no column and adding one is outside `IMPL-01`.
+
+### ⚠️ Discrepancy found and reported, not relied on
+
+`backend/tools/dev_account.py`'s docstring asserts *"Locked 47.1.3 r3: LegalMind never
+self-provisions an account"*. **§47.1.3 has no r3 and contains no such sentence** — it is
+the eight-line OD-9 table (primary/fallback mechanism, session model, session contents,
+authority resolution, revocation, rejected JWT, hard rule), and `all_lock.md`'s Step 47
+record matches it verbatim. The no-self-provisioning rule was an implementation choice
+presented as a lock. Flagged here per rule 5; the docstring should be corrected to say
+what it actually is, and **no decision above rests on that citation**.
+
+### Stateless JWT — escalated under rule 6, then approved and built (274–277)
+
+The same instruction asked for stateless JWT session management. Unlike JIT this
+contradicts locked text **verbatim**, so it was escalated rather than implemented: the
+locked lines, the security consequences and three alternatives were put to the owner in
+writing, with the recommendation to keep server-side sessions. **The owner chose
+"implement JWT exactly as specified."** That is their decision to make; it is recorded as
+theirs, and the engineering dissent is recorded inside the lock record itself.
+
+Landed as **`AM-36` (AB-8)** — appended, never edited: 96 lines added, 0 deleted, prior
+16,689 lines byte-identical (rule 22).
+
+| # | Decision | Why | What it does NOT decide |
+|---|----------|-----|------------------------|
+| 274 | **The token is issued ALONGSIDE the server-side session, not instead of it**, and `get_principal` prefers the session when both cookies are present | `AM-36` t1 leaves sessions permitted. Preferring the session means a normal browser sign-in stays fully revocable, so the degradation applies only where the session is genuinely absent. Issuing only the token would have discarded revocation for no gain the instruction asked for | Password login, which `AM-36` t1 leaves entirely on server-side sessions |
+| 275 | **No JWT library, though `AM-36` t7 authorizes one** — stdlib `hmac`/`hashlib`, HS256 only | HS256 verification is one MAC and a constant-time compare. A library adds multi-algorithm negotiation and JWKS fetching — the machinery behind algorithm confusion, and exactly what this module refuses to have. Same reasoning as `AM-30`'s stdlib `urllib` adapter. Rule 19's surface does not grow, and `PyJWT` is un-installable here under PEP 668 besides | That a library may never be used; t7's authorization stands unused, not revoked |
+| 276 | **The token header is COMPARED against a fixed value, never parsed to select an algorithm** | This is the whole defence against `alg: none` and algorithm confusion, and it is structural rather than a check that could be forgotten | — |
+| 277 | **Logout clears the token cookie, and account status is re-checked per request on the token path** | The two things that would otherwise be indefensible: an explicit sign-out leaving a live 24-hour credential in the browser, and a disabled account still working for a day. Neither is required by the amendment; both are the least this mechanism should do | The stolen-token window, which remains up to 24 hours — `AM-36` t4, accepted by the owner |
+
+**The cost is asserted in the suite, not hidden.**
+`test_the_accepted_degradation_is_real` revokes every server-side session and asserts the
+pre-issued token still authenticates. It is written to be **deleted, not fixed**, if
+immediate revocation is ever restored.
+
+**NOT done, and reported as such:** this is a **staging-shaped** deployment. The API still
+points at the default `legalmind_v1_dev` database; there is no production database, no
+separate migration role (55.2), no backup or verified restore, and Step 55.6's remaining
+prerequisites are open. Step 55.3 reserves real counterparty contracts for production, so
+that gap is load-bearing and was surfaced to the owner rather than closed by assumption.

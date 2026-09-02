@@ -42,6 +42,7 @@ def _limit(env: str, default_max: int, default_window: int) -> Limit:
 LOGIN = _limit("LEGALMIND_RATELIMIT_LOGIN", 10, 300)
 ANALYSIS = _limit("LEGALMIND_RATELIMIT_ANALYSIS", 30, 3600)
 EXPORT = _limit("LEGALMIND_RATELIMIT_EXPORT", 20, 3600)
+SUGGEST_TYPE = _limit("LEGALMIND_RATELIMIT_SUGGEST_TYPE", 30, 3600)
 
 
 class RateLimiter(Protocol):

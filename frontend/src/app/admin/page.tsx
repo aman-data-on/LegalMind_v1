@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Plus, X, Key, Power } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
@@ -123,7 +124,8 @@ export default function AdminPage() {
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-          <button type="submit" className="btn btn--primary">
+          <button type="submit" className="btn btn--primary btn-icon">
+            <Plus size={18} />
             Create user
           </button>
         </form>
@@ -165,10 +167,11 @@ export default function AdminPage() {
                           {code}{" "}
                           <button
                             type="button"
-                            className="link"
+                            className="link icon-link"
                             onClick={() => void revoke(user.id, code)}
+                            title="Revoke role"
                           >
-                            revoke
+                            <X size={16} />
                           </button>{" "}
                         </span>
                       ))
@@ -198,7 +201,8 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </label>
-                      <button type="submit" className="btn btn--secondary btn--sm">
+                      <button type="submit" className="btn btn--secondary btn--sm btn-icon">
+                        <Key size={16} />
                         Grant
                       </button>
                     </form>
@@ -207,8 +211,8 @@ export default function AdminPage() {
                       type="button"
                       className={
                         user.status === "ACTIVE"
-                          ? "btn btn--danger btn--sm"
-                          : "btn btn--secondary btn--sm"
+                          ? "btn btn--danger btn--sm btn-icon"
+                          : "btn btn--secondary btn--sm btn-icon"
                       }
                       onClick={() =>
                         void setStatus(
@@ -216,7 +220,9 @@ export default function AdminPage() {
                           user.status === "ACTIVE" ? "DISABLED" : "ACTIVE",
                         )
                       }
+                      title={user.status === "ACTIVE" ? "Disable account" : "Re-enable account"}
                     >
+                      <Power size={16} />
                       {user.status === "ACTIVE" ? "Disable" : "Re-enable"}
                     </button>
                   </td>

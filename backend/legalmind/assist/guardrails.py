@@ -219,3 +219,27 @@ def verify_answer(answer: str, chunks: list[str]) -> Verification:
         else AssistAnswerState.CLAIM_UNSUPPORTED
     )
     return Verification(state, citations, failures)
+
+
+# --------------------------------------------------------------------------
+# Key Obligations (owner, 2026-08-31) — the descriptive/judgment boundary,
+# enforced mechanically. An extracted obligation is a fact about the text;
+# any line that reads as a compliance verdict, a risk assessment or advice is
+# discarded before persistence, whatever the prompt said.
+# --------------------------------------------------------------------------
+_JUDGMENT_LANGUAGE = re.compile(
+    r"\b(compli(?:es|ant|ance)|non-compliant|acceptable|unacceptable|risk[sy]?|"
+    r"recommend(?:s|ed|ation)?|should (?:not )?accept|violat(?:es|ion)|"
+    r"meets? (?:our|the) standard|deviat(?:es|ion))\b",
+    re.IGNORECASE)
+
+
+def is_judgment_language(text: str) -> bool:
+    """True when an extracted line carries compliance/risk vocabulary.
+
+    The obligations feature never produces a Finding, a Classification or any
+    judgment (AM-25) — this screen makes that a property of the code, not of
+    the prompt (`AM-28` r2's spirit: a guardrail a prompt change can affect is
+    not a guardrail).
+    """
+    return bool(_JUDGMENT_LANGUAGE.search(text or ""))

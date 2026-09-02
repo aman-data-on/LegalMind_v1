@@ -307,6 +307,13 @@ operation requires, and that follows 49.3's own mapping for the object it reads.
 | GET | `/conversations/{id}` | `assist.ask` | As above; since 2026-08-26 carries per-turn **citations rebuilt from the verified rows** so a reload renders what the live answer showed (`AM-25` r5). Since 2026-08-30 every citation (live and replayed) also carries `evidence_id` — the evidence row the chunk was cut from, the unit the workspace highlights (#204) | #163 |
 | POST | `/conversations/{id}/messages` | `assist.ask` | The ask; response shape in `legalmind/api/routers/assist.py`, refusal states per `AM-29` | #137–#139 |
 | GET | `/document-versions/{id}/evidence` | `document.view` | A paginated read projection of the locked Evidence model (42.6, Step 34) under the permission that already governs seeing the version; the target every `evidence_refs` entry and every citation points at | #164 |
+| GET | `/configuration/snapshots` | `review.create` | 2026-08-31 UX correction: resolves "analyze against the current standards" to a snapshot id. Metadata ONLY (id, hash, created_at, requirement count) — no item, no standard value (`LEGAL-02`) | #227 |
+
+`GET /contracts` list rows additionally return `latest_version` and `latest_analysis`
+(2026-08-31 UX correction, #228): the newest version's processing status and its newest
+Review's status + classification counts, permission-layered — the version block needs
+`document.view`, the analysis block `review.view`, and `classification_counts` needs
+`finding.view` and is OMITTED (never nulled) without it (Step 24 r8).
 
 `GET /contracts/{id}` additionally returns `document_versions: [...]` (newest first, the
 `serialize_document_version` shape, `storage_key` still absent) — added 2026-08-30 so a

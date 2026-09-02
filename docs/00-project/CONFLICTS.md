@@ -6,6 +6,8 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **C-05 – C-08, C-10, C-12 and C-13 remain open, and C-14 – C-16 were registered on 2026-08-25 — nine open in total.** (This line previously read "C-05 – C-08, C-10 and C-12", omitting `C-13`, which was registered later on 2026-08-19; corrected 2026-08-25.) **C-11 was resolved on 2026-08-17** by `REC-08` (CI/CD tooling is GitHub Actions). Do not resolve any open item without explicit approval.
 
+**Update 2026-09-01 — C-17 registered.** Implementing locked 47.1.3's OIDC sign-in opened a second network egress path, which `AM-30` t10 reads against. Per rule 5 the tension is registered, not resolved; the implementation follows 47.1.3 and says so in the allow-list. See [C-17](#c-17--am-30-t10s-only-external-call-vs-47113s-mandatory-oidc-flow) below. **Five open in total: C-12, C-13, C-14, C-17 (all LOW) and C-16 (MEDIUM).**
+
 **Update 2026-08-27 — six resolved by owner ruling in one session** (recorded alongside AB-5 in `all_lock.md`): **C-15** by `AM-32`; **C-10** and **C-08** by "code is authoritative" rulings; **C-05/C-06/C-07** by annotation (rule 22 — the superseded lines stay byte-identical in `all_lock.md`; the annotations are the entries below). **Three remain open: C-12, C-13, C-14 (all LOW, blocking nothing) — plus C-16 (MEDIUM, awaiting owner-supplied statute material).** Four, counting C-16.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
@@ -28,6 +30,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-14 | `AM-27` r2 and AB-3's Position block say **30 existing tables**; the ORM declares **29** `__tablename__` and the four migrations issue **29** `create_table` calls | ⏳ Open (LOW) — **blocks nothing**; `alembic_version` is the probable reconciliation |
 | C-15 | The owner's 2026-08-25 instruction requires Domains A/B/C to share a retrieval abstraction while each keeps its own source type, authority, version semantics, citation semantics, ownership, ingestion rules, provenance and access control — but `AM-27` authorizes nine tables and "no other table", and its r4 defines a chunk as derived from a Document Version referencing a Document Evidence row | ✅ **RESOLVED 2026-08-27** — `AM-32` (AB-5) authorizes the Domain A/C tables |
 | C-16 | The product vision's headline statute example is "what does Section 138 of the NI Act say" and names the Evidence Act in the v1 set, but neither statute was ever supplied; and vision §9.2 makes India Code the canonical source as "a hard rule" while the seven statutes on disk did not come from there | ⏳ Open (MEDIUM) — **blocks Domain C**; requires owner-supplied material ([STATUTE_INTAKE.md](STATUTE_INTAKE.md)), plus one owner answer: Evidence Act 1872 vs the Bharatiya Sakshya Adhiniyam 2023 that repealed it |
+| C-17 | `AM-30` t10 says *"The provider call is the only external call in the stack"*, but locked 47.1.3 (OD-9) makes corporate SSO via OIDC the **primary** authentication mechanism — and no OIDC flow can exist without a server-to-server call to the identity provider | ⏳ Open (LOW) — **blocks nothing**; the code implements 47.1.3 and the egress is registered in the allow-list naming this conflict. One owner reading required: is t10 scoped to the document path (its own first sentence) or to the whole process? |
 
 ---
 
@@ -491,3 +494,30 @@ that rule is unaffected by anything here.
 
 Documented at: [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENTATION_READINESS_GATE.md)
 §5b unit A8, [LEGALMIND_PROJECT_STATE.md](LEGALMIND_PROJECT_STATE.md) § External inputs required.
+
+
+---
+
+## C-17 — `AM-30` t10's "only external call" vs 47.1.3's mandatory OIDC flow
+
+**Registered 2026-09-01. Open (LOW). Blocks nothing — the implementation follows 47.1.3 and declares the egress.**
+
+| Source | Status | Says |
+|---|---|---|
+| **`AM-30` t10** (AB-4, locked 2026-08-25) | 🔒 LOCKED | *"No third-party telemetry, analytics or crash reporting is present anywhere in the document path. **The provider call is the only external call in the stack.**"* |
+| **`AM-30` t1** (same record) | 🔒 LOCKED | *"Generation is the ONLY permitted egress. Embedding, reranking, chunking, parsing and OCR remain local and self-hosted. No document, no chunk, and no embedding input leaves LeapSwitch-controlled infrastructure for any of them."* |
+| **Step 47 §47.1.3 / `SEC-01`** (OD-9) | 🔒 LOCKED | Corporate SSO via **OIDC is the primary** authentication mechanism; password login is "a controlled fallback" |
+| **Locked 55.6** | 🔒 LOCKED | The IdP's issuer and client registration are a **deployment prerequisite** — i.e. the flow is expected to talk to an external provider |
+| **The repository** — `backend/legalmind/security/oidc.py` | measured 2026-09-01 | Implemented; calls the issuer's discovery and token endpoints over `urllib`. Registered in `tests/test_import_boundaries.EGRESS_ALLOWED` citing 47.1.3 and this conflict |
+
+**Why it matters.** `AM-30` t8 requires the network egress posture to be *"asserted by a test — not by configuration review alone"*, and `test_import_boundaries` is that test. Implementing 47.1.3 necessarily makes it fail unless a second allow-list entry is added. So the choice is not cosmetic: either t10 is narrower than its second sentence reads, or 47.1.3 cannot be implemented at all — and 47.1.3 is the record that makes SSO **primary**, not optional.
+
+**The reading the code currently reflects, stated as an interpretation and not as a lock.** t10's subject is the document path and the AI provider stack: its first sentence says so explicitly, and t1's enumeration (embedding, reranking, chunking, parsing, OCR) is entirely about document processing. On that reading an authentication call to the organization's own identity provider is outside t10's scope. **This is an interpretation. Rule 5 forbids settling it here, so it is registered.**
+
+**What is NOT in tension, and must stay that way.** The OIDC path carries an email address and a provider subject identifier to an authentication provider. It carries **no document, no chunk, no clause text, no Company Standard value, no Legal Rule, no threshold, no Rule Outcome, no Evaluation and no Finding** — so `AM-30` t2 and t3 (LEGAL-02 as an egress rule) are untouched by it. That is pinned by `test_the_oidc_egress_carries_no_document_and_no_legal_position`, which fails if the module ever imports the layers that hold any of those.
+
+**One owner answer would close this:** is t10's "only external call in the stack" scoped to the document/AI path, or to the whole process? If the latter, then 47.1.3 needs an amendment or SSO cannot ship, and that is a decision, not an implementation detail.
+
+**Until decided:** the two egress paths are exactly the generation adapter and the OIDC provider flow, each named in `EGRESS_ALLOWED` with the record that mandates it. No third may be added. `AM-31`'s real-contract gate is unaffected — no contract text travels on the authentication path.
+
+Documented at: [test_import_boundaries.py](../../backend/tests/test_import_boundaries.py) `EGRESS_ALLOWED`, [oidc.py](../../backend/legalmind/security/oidc.py) module docstring.

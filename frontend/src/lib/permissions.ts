@@ -16,6 +16,10 @@
 export const CONTRACT_VIEW = "contract.view";
 export const CONTRACT_CREATE = "contract.create";
 export const CONTRACT_UPDATE = "contract.update";
+/** Granted to ROLE_USER and scoped by ownership (owner approval 2026-09-01):
+ *  a user may delete what they uploaded and nothing else. Presentation gating
+ *  only, as always — the server re-resolves `owner_id` on every request. */
+export const CONTRACT_DELETE = "contract.delete";
 export const DOCUMENT_UPLOAD = "document.upload";
 export const DOCUMENT_VIEW = "document.view";
 export const DOCUMENT_DOWNLOAD = "document.download";
@@ -38,6 +42,8 @@ export const CONFIGURATION_DRAFT = "configuration.draft";
 export const CONFIGURATION_PUBLISH = "configuration.publish";
 
 export const REPORT_VIEW = "report.view";
+/** 49.3's export row; formats per the owner's 2026-08-31 directive. */
+export const EXPORT_GENERATE = "export.generate";
 export const ASSIST_ASK = "assist.ask";
 export const AUDIT_VIEW = "audit.view";
 export const USER_MANAGE = "user.manage";

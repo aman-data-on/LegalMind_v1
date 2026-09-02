@@ -44,7 +44,12 @@ from sqlalchemy import text
 from legalmind.db.base import Base
 
 # --------------------------------------------------------------------------
-# The snapshot. 29 application tables, 195 columns, as locked.
+# The snapshot. 29 application tables, 196 columns.
+#
+# 196, not the originally locked 195: `contracts.deleted_at` was added on
+# 2026-09-01 under the owner-approved contract-deletion amendment, recorded in
+# the same change as its migration and its lock record — the one procedure the
+# docstring above permits for moving this snapshot.
 #
 # `alembic_version` is deliberately absent: it is Alembic's own bookkeeping, not part of the
 # locked domain model. It is, however, the most likely explanation for `AM-27` r2's "30" —
@@ -56,7 +61,12 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "company_standard_versions": ('configuration', 'created_at', 'created_by', 'id', 'requirement_version_id', 'version_number'),
     "configuration_snapshot_items": ('company_standard_version_id', 'evaluation_rule_version_id', 'legal_rule_version_id', 'mapping_rule_version_id', 'requirement_version_id', 'snapshot_id'),
     "configuration_snapshots": ('created_at', 'created_by', 'id', 'snapshot_hash'),
-    "contracts": ('contract_type', 'created_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
+    # `deleted_at` added 2026-09-01 under the owner-approved contract-deletion
+    # amendment (see the lock record appended to `all_lock.md` that day, closing
+    # the gap `AM-31` left open). Recorded here in the same change as the
+    # migration and the lock record, which is the only way this snapshot may
+    # ever move.
+    "contracts": ('contract_type', 'created_at', 'deleted_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
     "document_evidence": ('content', 'created_at', 'document_version_id', 'end_offset', 'id', 'metadata', 'page_number', 'processing_run_id', 'section_number', 'section_title', 'source_type', 'start_offset'),
     "document_processing_runs": ('completed_at', 'created_at', 'document_version_id', 'error_code', 'error_message', 'id', 'metadata', 'processor_version', 'run_type', 'started_at', 'status'),
     "document_versions": ('contract_id', 'created_at', 'extraction_status', 'file_hash', 'file_size_bytes', 'id', 'metadata', 'mime_type', 'original_filename', 'processing_status', 'storage_key', 'uploaded_by', 'version_number'),
@@ -142,9 +152,13 @@ def test_locked_table_columns_are_exactly_as_recorded(db, table):
 
 
 def test_the_total_locked_column_count_is_unchanged(db):
-    """A single number a reviewer can eyeball against a migration diff."""
+    """A single number a reviewer can eyeball against a migration diff.
+
+    196 since 2026-09-01: `contracts.deleted_at`, added under the owner-approved
+    contract-deletion amendment alongside its migration and lock record.
+    """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 195
+    assert sum(len(c) for c in live.values()) == 196
 
 
 # --------------------------------------------------------------------------

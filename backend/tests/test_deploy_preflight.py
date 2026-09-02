@@ -139,22 +139,50 @@ def test_disabled_rate_limiting_is_a_failure(monkeypatch):
 # =====================================================================
 # 55.6 — the blockers that are not ours to close
 # =====================================================================
-def test_oidc_is_blocked_not_failed():
-    """BLOCKED, because it is not a misconfiguration: OIDC is the locked primary
-    mechanism (47.1.3) and is genuinely unimplemented, needing an approved
-    dependency and provider configuration."""
+def test_oidc_is_blocked_when_unconfigured():
+    """BLOCKED, because it is not ours to close: the flow is implemented (2026-09-01)
+    but 47.1.3's primary mechanism needs the deployment's own IdP registration,
+    which is locked 55.6's first blocker."""
     check = by_name(run_preflight())["oidc"]
     assert check.status == BLOCKED
-    assert "NOT IMPLEMENTED" in check.detail
+    assert "NOT CONFIGURED" in check.detail
 
 
-def test_oidc_stays_blocked_even_when_configured(monkeypatch):
-    """Configuration alone does not implement the flow, and the preflight must not
-    imply otherwise."""
-    for name in ("LEGALMIND_OIDC_ISSUER", "LEGALMIND_OIDC_CLIENT_ID",
-                 "LEGALMIND_OIDC_CLIENT_SECRET"):
-        monkeypatch.setenv(name, "x")
-    assert by_name(run_preflight())["oidc"].status == BLOCKED
+def _configure_oidc(monkeypatch, redirect="https://x.example/api/v1/auth/oidc/callback"):
+    monkeypatch.setenv("LEGALMIND_OIDC_ISSUER", "https://accounts.google.com")
+    monkeypatch.setenv("LEGALMIND_OIDC_CLIENT_ID", "cid")
+    monkeypatch.setenv("LEGALMIND_OIDC_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("LEGALMIND_OIDC_REDIRECT_URI", redirect)
+
+
+def test_oidc_passes_once_the_deployment_configures_it(monkeypatch):
+    _configure_oidc(monkeypatch)
+    assert by_name(run_preflight())["oidc"].status == PASS
+
+
+def test_oidc_without_a_domain_restriction_says_so(monkeypatch):
+    """Not a failure — no domain restriction is a legitimate deployment choice, and
+    the account-must-already-exist rule still gates it. But the operator must be
+    told, because it is the difference between "our staff" and "anyone with a
+    Google account for whom an admin happened to create a user"."""
+    _configure_oidc(monkeypatch)
+    monkeypatch.delenv("LEGALMIND_OIDC_ALLOWED_DOMAIN", raising=False)
+    detail = by_name(run_preflight())["oidc"].detail
+    assert "NO email-domain restriction" in detail
+    assert "no just-in-time provisioning" in detail
+
+
+def test_oidc_refuses_a_plaintext_redirect_uri(monkeypatch):
+    """The authorization code is delivered to this URL. Over http it is disclosed."""
+    _configure_oidc(monkeypatch, redirect="http://x.example/api/v1/auth/oidc/callback")
+    assert by_name(run_preflight())["oidc"].status == FAIL
+
+
+def test_oidc_refuses_a_redirect_uri_that_is_not_the_served_route(monkeypatch):
+    """A redirect URI that does not match the route we serve means every sign-in
+    404s at the IdP's callback — caught before deployment, not after."""
+    _configure_oidc(monkeypatch, redirect="https://x.example/auth/callback")
+    assert by_name(run_preflight())["oidc"].status == FAIL
 
 
 def test_retention_policy_is_blocked_on_the_owner():
@@ -314,3 +342,58 @@ def test_the_register_names_the_egress_allow_list():
     assert "generativelanguage.googleapis.com" in check.detail
     assert "deny-by-default" in check.detail
     assert "AM-30 t8" in check.basis
+
+
+# =====================================================================
+# The generation credential — added 2026-09-01 after a real incident
+# =====================================================================
+def test_a_placeholder_generation_credential_fails_loudly(monkeypatch):
+    """The check exists because of what it would have caught.
+
+    `/root/.legalmind.env` held the literal `***` for hours — a masking command
+    written back over the file rather than piped to stdout. Every existing check
+    treated the variable as set, because it WAS set, so the preflight reported a
+    healthy assist lane while Google answered 400 `API_KEY_INVALID` and `AM-34`'s
+    type suggestion degraded silently to "not confident" on every upload. Two
+    debugging cycles went into a problem visible in the value itself.
+    """
+    for masked in ("***", "****", "xxxxxxxx", "changeme", "<redacted>", "  ",
+                   "----", "TODO"):
+        monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", masked)
+        check = by_name(run_preflight())["generation_credential"]
+        assert check.status == FAIL, masked
+        assert "PLACEHOLDER" in check.detail
+
+
+def test_an_absent_generation_credential_is_a_legitimate_posture(monkeypatch):
+    """Not a failure. Running without generation closes the assist seam and the
+    deterministic path is untouched (`AI-01`) — so the row states the consequence
+    rather than blocking a deployment that never wanted the feature."""
+    monkeypatch.delenv("LEGALMIND_GEMINI_API_KEY", raising=False)
+    check = by_name(run_preflight())["generation_credential"]
+    assert check.status == PASS
+    assert "unset" in check.detail
+    assert "deterministic analysis path is unaffected" in check.detail
+
+
+def test_a_real_looking_credential_passes_without_calling_the_provider(monkeypatch):
+    """The preflight must not make a network call — it runs in environments with
+    no egress, and `AM-30` t8's posture is asserted separately. So a plausible
+    credential passes here and the live check is named for the operator to run."""
+    monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "AIza" + "b" * 35)
+    check = by_name(run_preflight())["generation_credential"]
+    assert check.status == PASS
+    assert "verify_gemini_connection" in check.detail
+
+
+def test_the_placeholder_rule_never_rejects_a_plausible_key(monkeypatch):
+    """The floor is deliberately narrow. Guessing the provider's key FORMAT would
+    reject a legitimate key after a provider change — a worse failure than the one
+    this prevents — so only exact placeholders, all-mask strings and very short
+    values are refused."""
+    from legalmind.assist.generation import is_placeholder_credential
+
+    assert not is_placeholder_credential("AIzaSyD" + "9" * 30)
+    assert not is_placeholder_credential("sk-" + "a" * 40)          # another shape
+    assert not is_placeholder_credential("x" * 21 + "1")            # long, mixed
+    assert is_placeholder_credential("x" * 40)                      # all-mask, long

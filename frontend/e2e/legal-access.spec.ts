@@ -62,7 +62,7 @@ test.describe("REC-09 — a Legal Reviewer reaches another user's Review", () =>
     // The Review screen renders for them, including the internal legal position that
     // `LEGAL-02` gates on `legal_position.view` — which counsel holds and the owner
     // does not (see confidentiality.spec.ts for the other half).
-    await legalPage.goto(`/reviews/${reviewId}`);
+    await legalPage.goto(`/reviews?id=${reviewId}`);
     const evaluation = legalPage.locator("li.evaluation").first();
     await expect(evaluation).toBeVisible();
     await expect(evaluation.locator(".outcome")).toHaveCount(1);

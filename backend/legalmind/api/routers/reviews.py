@@ -13,11 +13,10 @@ advanced by the workflow, not asserted by a caller.
 
 from __future__ import annotations
 
-from collections import Counter
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 
 from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.api import ratelimit
@@ -25,6 +24,7 @@ from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params, run
+from legalmind.api.reporting import report_payload
 from legalmind.api.schemas import ReviewCreate
 from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
@@ -230,6 +230,8 @@ def analyze_review(
         "findings_created": run.findings_created,
         # Locked F-1 — coverage, not a gap: nothing was required and nothing found.
         "skipped_as_optional": run.skipped_as_optional,
+        # REC-02 / D-4 — a document-level observation, never a Finding.
+        "unmatched_provisions": run.unmatched_provisions,
         "requirements": [
             {
                 "requirement_code": outcome.requirement_code,
@@ -294,50 +296,4 @@ def review_report(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     reported as counts plus a ratio, and never as a conclusion.
     """
     review = guard.review(review_id, P.REPORT_VIEW)
-
-    findings = guard.db.execute(
-        select(M.Finding).where(M.Finding.review_id == review_id)
-    ).scalars().all()
-
-    classifications = Counter(f.classification.value for f in findings)
-    statuses = Counter(f.status.value for f in findings)
-
-    requirements_in_snapshot = guard.db.execute(
-        select(func.count())
-        .select_from(M.ConfigurationSnapshotItem)
-        .where(M.ConfigurationSnapshotItem.snapshot_id
-               == review.configuration_snapshot_id)
-    ).scalar_one()
-
-    unmatched = guard.db.execute(
-        select(func.count()).select_from(M.UnmatchedProvision)
-        .where(M.UnmatchedProvision.review_id == review_id)
-    ).scalar_one()
-
-    evaluated = len(findings)
-    matched = classifications.get(E.FindingClassification.MATCH.value, 0)
-
-    return data({
-        "review_id": str(review.id),
-        "review_status": review.status.value,
-        # F-1 / Step 8 — coverage reporting is what answers "which Requirements
-        # were reviewed", now that an optional absent Requirement produces no
-        # Finding at all. The gap between the two numbers is meaningful.
-        "coverage": {
-            "requirements_in_snapshot": requirements_in_snapshot,
-            "requirements_with_findings": evaluated,
-        },
-        "classification_counts": dict(classifications),
-        "status_counts": dict(statuses),
-        "alignment": {
-            "requirements_evaluated": evaluated,
-            "matched": matched,
-            "ratio": round(matched / evaluated, 4) if evaluated else None,
-        },
-        # REC-02 — a document-level observation, never a Finding classification.
-        "unmatched_provisions": unmatched,
-        "findings_requiring_decision": (
-            statuses.get(E.FindingStatus.DECISION_REQUIRED.value, 0)
-            + statuses.get(E.FindingStatus.AWAITING_CLARIFICATION.value, 0)
-        ),
-    })
+    return data(report_payload(guard.db, review))

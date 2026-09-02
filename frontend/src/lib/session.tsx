@@ -8,6 +8,7 @@
  * every request (S-1), so this array can only ever be a rendering hint.
  */
 
+import { useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -33,6 +34,7 @@ interface SessionState {
 const SessionContext = createContext<SessionState | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [identity, setIdentity] = useState<SessionIdentity | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,12 +58,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signOut = useCallback(async () => {
+    /*
+     * Signing out ALWAYS lands on /login — added 2026-09-01 (owner).
+     *
+     * It used to only clear the identity. `WorkspaceShell` has its own
+     * signed-out guard, so /dashboard redirected and looked correct; the older
+     * Chrome-based pages (/reviews, /contracts, /admin, /audit,
+     * /configuration) simply stayed put and rendered "You are signed out",
+     * which reads as a broken page rather than a completed action. Verified
+     * with a browser: /dashboard → /login, /reviews → /reviews.
+     *
+     * The redirect lives HERE rather than in a second shell guard because
+     * signing out is one act with one outcome, and duplicating the rule per
+     * shell is how the two diverged in the first place.
+     *
+     * `replace`, not `push`: Back must not return to a page that is now
+     * signed out. And it runs in `finally` — a logout whose request failed has
+     * still discarded the local session, so leaving the user on an
+     * authenticated-looking page would be the worse outcome. The server-side
+     * session is revoked by the endpoint; the cookie is cleared by its
+     * response (including the AM-36 token, which cannot be revoked any other
+     * way).
+     */
     try {
       await api.logout();
     } finally {
       setIdentity(null);
+      router.replace("/login");
     }
-  }, []);
+  }, [router]);
 
   const value = useMemo<SessionState>(
     () => ({
@@ -95,4 +120,40 @@ export function useSession(): SessionState {
 export function useSeesLegalPosition(): boolean {
   const { can } = useSession();
   return can("legal_position.view");
+}
+
+/**
+ * Wrap API calls to handle session expiry (401 errors) globally. If a 401 occurs,
+ * attempt to refresh the session. If that fails, redirect to login. This ensures
+ * expired sessions are caught immediately and users are prompted to sign in again.
+ *
+ * Usage: `const result = await useApiError(() => api.someEndpoint())`
+ */
+export function useApiError(): <T,>(fn: () => Promise<T>) => Promise<T> {
+  const { refresh } = useSession();
+  const router = useRouter();
+
+  return useCallback(
+    async <T,>(fn: () => Promise<T>): Promise<T> => {
+      try {
+        return await fn();
+      } catch (error) {
+        // If it's a 401 (session expired), try to refresh and redirect to login
+        if (error instanceof ApiError && error.isUnauthenticated) {
+          try {
+            await refresh();
+            // If refresh succeeds, the session is restored - retry the operation
+            return await fn();
+          } catch {
+            // Refresh failed - redirect to login page
+            router.replace("/login");
+            throw error;
+          }
+        }
+        // For all other errors, re-throw to let the caller handle
+        throw error;
+      }
+    },
+    [refresh, router],
+  );
 }

@@ -68,9 +68,28 @@ export interface EvidenceRow {
   end_offset: number | null;
 }
 
+/** One list row's analysis reality (2026-08-31 UX correction). `classification_counts`
+ *  needs `finding.view` and arrives OMITTED without it — presence-test, never null-test. */
+export interface LatestAnalysis {
+  review_id: string;
+  review_status: string;
+  created_at: string | null;
+  completed_at: string | null;
+  classification_counts?: Record<string, number>;
+}
+
+export interface LatestVersionSummary {
+  id: string;
+  version_number: number;
+  processing_status: string;
+}
+
 export interface Contract {
   /** Newest first. Present on the detail endpoint (2026-08-30 addition). */
   document_versions?: DocumentVersion[];
+  /** List rows only (2026-08-31): the newest version and its newest Review. */
+  latest_version?: LatestVersionSummary | null;
+  latest_analysis?: LatestAnalysis | null;
   id: string;
   owner_id: string;
   name: string;
@@ -78,6 +97,19 @@ export interface Contract {
   status: string;
   created_at: string | null;
   updated_at: string | null;
+}
+
+/** The Documents list's stat tiles — real counts across EVERY contract the
+ *  caller owns (`GET /contracts/summary`), computed server-side by the exact
+ *  same bucket rule `?status=` filters the list on, so a tile and a row can
+ *  never disagree. Four states, all derived from data already on the row —
+ *  never a new lifecycle enum, never a Finding Classification. */
+export interface ContractsSummary {
+  total: number;
+  draft: number;
+  analyzing: number;
+  needs_attention: number;
+  analyzed: number;
 }
 
 export interface DocumentVersion {
@@ -111,6 +143,36 @@ export interface UploadResult {
   /** 34.5 — reported, never silently suppressed. */
   duplicate_of: string | null;
   diagnostics: string[];
+}
+
+/** Key Obligations — the assist lane's descriptive extraction. Facts about the
+ *  document's text under its OWN role labels; never a judgment, never a Finding. */
+export interface ObligationItem {
+  id: string;
+  obligation_text: string;
+  evidence_id: string | null;
+  section_ref: string | null;
+  page_number: number | null;
+}
+
+export interface ObligationGroup {
+  /** The document's own verbatim role label (e.g. "Customer"). */
+  party_label: string;
+  items: ObligationItem[];
+}
+
+export interface ObligationsResult {
+  /** False while no extraction has completed for this version. */
+  extracted: boolean;
+  groups: ObligationGroup[];
+}
+
+/** Assist-lane type suggestion — advice for the intake pre-fill, never a record.
+ *  `confident: false` collapses to today's empty select. */
+export interface TypeSuggestion {
+  suggested_type: string | null;
+  confident: boolean;
+  reason: string;
 }
 
 // ------------------------------------------------------------- reviews
@@ -229,6 +291,17 @@ export interface ReviewReport {
     ratio: number | null;
   };
   unmatched_provisions: number;
+  /** REC-02 / D-4 (owner, 2026-09-01) — WHICH provisions, so a human can look
+   *  at each one. Never a Finding, never a classification, never presumed
+   *  negative (REC-02 rule 1) — routed to a human only because the system
+   *  has no Requirement to compare it against. */
+  unmatched_provisions_detail: Array<{
+    evidence_id: string;
+    page_number: number | null;
+    section_number: string | null;
+    section_title: string | null;
+    excerpt: string;
+  }>;
   findings_requiring_decision: number;
   // There is deliberately no risk score and no overall verdict (36.10, F-8).
 }
@@ -262,6 +335,14 @@ export interface Requirement {
   status: string;
   versions: RequirementVersion[];
   created_at: string | null;
+}
+
+/** `GET /configuration/snapshots` rows — metadata only, never items or values. */
+export interface SnapshotSummary {
+  id: string;
+  snapshot_hash: string;
+  created_at: string;
+  requirement_count: number;
 }
 
 export interface ConfigurationSnapshot {

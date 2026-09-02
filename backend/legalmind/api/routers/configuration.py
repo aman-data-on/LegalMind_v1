@@ -244,6 +244,40 @@ def update_company_standard(requirement_id: UUID,
     return data(serialize_requirement(guard.db, req, include_values=True))
 
 
+@router.get("/configuration/snapshots")
+def list_snapshots(guard: Guard = Depends(get_guard),
+                   page: Page = Depends(page_params)) -> dict:
+    """Published snapshots, newest first — metadata ONLY (2026-08-31 UX
+    correction; Step 49 implementation addition, the #187 precedent).
+
+    Exists so the client can resolve "analyze against the current standards"
+    to a concrete snapshot id — without it, starting a Review from the UI was
+    impossible. Gated on ``review.create`` because that is this listing's one
+    purpose. No snapshot ITEM and no standard value is disclosed (LEGAL-02):
+    the payload is id, hash, timestamp and a requirement count, all of which a
+    caller already sees on any Review it can read.
+    """
+    guard.permission(P.REVIEW_CREATE)
+    rows, total = run(guard.db, select(M.ConfigurationSnapshot),
+                      page, M.ConfigurationSnapshot.created_at.desc(),
+                      M.ConfigurationSnapshot.id.desc())
+    counts: dict[UUID, int] = {}
+    if rows:
+        for snapshot_id, n in guard.db.execute(
+            select(M.ConfigurationSnapshotItem.snapshot_id, func.count())
+            .where(M.ConfigurationSnapshotItem.snapshot_id.in_([r.id for r in rows]))
+            .group_by(M.ConfigurationSnapshotItem.snapshot_id)
+        ).all():
+            counts[snapshot_id] = n
+    return paginated([{
+        "id": str(snapshot.id),
+        "snapshot_hash": snapshot.snapshot_hash,
+        "created_at": snapshot.created_at.isoformat(),
+        "requirement_count": counts.get(snapshot.id, 0),
+    } for snapshot in rows], page=page.page, page_size=page.page_size,
+        total=total)
+
+
 @router.post("/configuration/publish", status_code=201)
 def publish(body: ConfigurationPublish,
             guard: Guard = Depends(get_guard)) -> dict:

@@ -80,7 +80,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         <h2>{notFound ? "Not found." : "The conversation could not be loaded."}</h2>
         {notFound ? (
           <p>
-            <Link href="/workspace/ask">Back to ask history</Link>
+            <Link href="/dashboard/ask">Back to ask history</Link>
           </p>
         ) : (
           <p>{describeError(state.error)}</p>
@@ -97,7 +97,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         <h1>Ask history</h1>
         <div className="ws-context__meta">
           {conversation.contract_id ? (
-            <Link href={`/workspace/${conversation.contract_id}`}>
+            <Link href={`/dashboard?id=${conversation.contract_id}`}>
               {contractName ?? "Open the workspace"}
             </Link>
           ) : (

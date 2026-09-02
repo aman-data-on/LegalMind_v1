@@ -21,9 +21,9 @@ test.describe("users & roles", () => {
   }) => {
     const email = `provisioned-${Date.now()}@e2e.test`;
 
-    await page.goto("/workspace/admin");
+    await page.goto("/dashboard/admin");
     await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
-    await expect(page.locator('nav a[href="/workspace/admin"]')).toHaveAttribute(
+    await expect(page.locator('nav a[href="/dashboard/admin"]')).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -61,7 +61,7 @@ test.describe("the audit trail", () => {
   test("events list newest first and the exact-value action filter narrows to them", async ({
     page,
   }) => {
-    await page.goto("/workspace/admin/audit");
+    await page.goto("/dashboard/admin/audit");
     await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible();
     await expect(page.locator("tbody tr").first()).toBeVisible();
 
@@ -83,9 +83,9 @@ test.describe("the audit trail", () => {
   test("no admin plane for an account without the permissions", async ({ browser }) => {
     const context = await browser.newContext({ storageState: storageStatePath("owner") });
     const page = await context.newPage();
-    await page.goto("/workspace/admin");
+    await page.goto("/dashboard/admin");
     await expect(page.getByText("Access restricted")).toBeVisible();
-    await expect(page.locator('nav a[href="/workspace/admin"]')).toHaveCount(0);
+    await expect(page.locator('nav a[href="/dashboard/admin"]')).toHaveCount(0);
     await context.close();
   });
 });

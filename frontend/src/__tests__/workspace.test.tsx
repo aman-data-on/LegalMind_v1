@@ -2,16 +2,17 @@
  * Workspace slice 1 — the pure model and the honest placeholders.
  *
  * Static assertions in the house idiom; the highlight gesture, collapse tabs and
- * real data live in e2e/workspace.spec.ts against the real backend.
+ * real data live in e2e/dashboard.spec.ts against the real backend.
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
-import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   activeNavHref,
+  analysisCell,
   pickVersion,
   groupByPage,
   locationLabel,
@@ -80,20 +81,20 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
-      { href: "/workspace", label: "Documents" },
-      { href: "/workspace/reviews", label: "Reviews" },
-      { href: "/workspace/ask", label: "Ask history" },
-      { href: "/workspace/research", label: "Research" },
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/dashboard/reviews", label: "Reviews" },
+      { href: "/dashboard/ask", label: "Ask History" },
+      { href: "/dashboard/research", label: "Research" },
     ]);
   });
 
-  it("the active item is the LONGEST matching href, so Documents never lights on a sibling screen", () => {
+  it("the active item is the LONGEST matching href, so Dashboard never lights on a sibling screen", () => {
     const items = navItemsFor(() => true);
-    expect(activeNavHref("/workspace", items)).toBe("/workspace");
-    expect(activeNavHref("/workspace/0a1b2c3d-0000-4000-8000-000000000000", items)).toBe("/workspace");
-    expect(activeNavHref("/workspace/reviews", items)).toBe("/workspace/reviews");
-    expect(activeNavHref("/workspace/reviews/0a1b2c3d", items)).toBe("/workspace/reviews");
-    expect(activeNavHref("/workspace/ask/0a1b2c3d", items)).toBe("/workspace/ask");
+    expect(activeNavHref("/dashboard", items)).toBe("/dashboard");
+    expect(activeNavHref("/dashboard/0a1b2c3d-0000-4000-8000-000000000000", items)).toBe("/dashboard");
+    expect(activeNavHref("/dashboard/reviews", items)).toBe("/dashboard/reviews");
+    expect(activeNavHref("/dashboard/reviews/0a1b2c3d", items)).toBe("/dashboard/reviews");
+    expect(activeNavHref("/dashboard/ask/0a1b2c3d", items)).toBe("/dashboard/ask");
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
@@ -101,19 +102,19 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     const counsel = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => counsel.has(p));
     expect(items.map((i) => i.href)).toEqual([
-      "/workspace",
-      "/workspace/reviews",
-      "/workspace/legal",
-      "/workspace/ask",
-      "/workspace/research",
+      "/dashboard",
+      "/dashboard/reviews",
+      "/dashboard/legal",
+      "/dashboard/ask",
+      "/dashboard/research",
     ]);
-    expect(activeNavHref("/workspace/legal", items)).toBe("/workspace/legal");
+    expect(activeNavHref("/dashboard/legal", items)).toBe("/dashboard/legal");
   });
 
   it("a super admin sees Admin — the new-UI control plane — and nothing legacy", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
     expect(navItemsFor((p) => admin.has(p))).toEqual([
-      { href: "/workspace/admin", label: "Admin" },
+      { href: "/dashboard/admin", label: "Admin" },
     ]);
   });
 
@@ -228,7 +229,7 @@ describe("TranscriptTurn (ask history replay)", () => {
         turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [citation] }}
       />,
     );
-    expect(html).toContain('href="/workspace/c1?evidence=ev1"');
+    expect(html).toContain('href="/dashboard?id=c1&amp;evidence=ev1"');
     expect(html).toContain("§17.2");
     // Null score → the score line is absent entirely, never "NaN" or a blank label.
     expect(html).not.toContain("retrieval score");
@@ -259,5 +260,39 @@ describe("ResearchPlaceholder (the one disclosed placeholder — C-16)", () => {
     expect(html).not.toContain("<a ");
     expect(html).not.toContain("<button");
     expect(html).not.toContain("<input");
+  });
+});
+
+describe("upload-first intake helpers (2026-08-31 UX correction)", () => {
+  it("derives an editable name from the filename — never a demand", () => {
+    expect(nameFromFilename("RSA.pdf")).toBe("RSA");
+    expect(nameFromFilename("acme_msa-v2 final.docx")).toBe("acme msa v2 final");
+    expect(nameFromFilename("no-extension")).toBe("no extension");
+  });
+
+  it("hints a type from filename tokens, and only from plain tokens", () => {
+    expect(typeHintFromFilename("Acme MSA (final).pdf")).toBe("MSA");
+    expect(typeHintFromFilename("counterparty-nda.docx")).toBe("NDA");
+    expect(typeHintFromFilename("privacy_policy.pdf")).toBe("PRIVACY_POLICY");
+    // No token, no hint — the hint never guesses ("msal" is not "msa").
+    expect(typeHintFromFilename("agreement.pdf")).toBeNull();
+    expect(typeHintFromFilename("msal-config.pdf")).toBeNull();
+  });
+
+  it("the analysis cell speaks stages and counts, never a lifecycle enum", () => {
+    expect(analysisCell({}).kind).toBe("none");
+    expect(analysisCell({ latest_version: { processing_status: "PROCESSING" } }).kind).toBe("processing");
+    expect(analysisCell({ latest_version: { processing_status: "COMPLETED" }, latest_analysis: null }).kind).toBe("unanalysed");
+    const analysed = analysisCell({
+      latest_version: { processing_status: "COMPLETED" },
+      latest_analysis: {
+        review_id: "r1", review_status: "LEGAL_REVIEW",
+        classification_counts: { MATCH: 18, DEVIATION: 3, MISSING: 1 },
+      },
+    });
+    expect(analysed).toMatchObject({ kind: "analysed", review_status: "LEGAL_REVIEW" });
+    // Attention-first, MATCH last — a fixed scan order, not object-key order.
+    expect((analysed as { counts: { classification: string }[] }).counts.map((c) => c.classification))
+      .toEqual(["DEVIATION", "MISSING", "MATCH"]);
   });
 });

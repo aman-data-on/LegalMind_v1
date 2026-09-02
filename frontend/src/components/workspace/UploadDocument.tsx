@@ -24,7 +24,8 @@ export function UploadDocument({
   onUploaded,
 }: {
   contractId: string;
-  onUploaded: () => void;
+  /** Awaited, so a caller chaining analysis keeps the busy state honest. */
+  onUploaded: () => void | Promise<void>;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -38,7 +39,7 @@ export function UploadDocument({
     setError(null);
     try {
       await api.uploadDocument(contractId, file);
-      onUploaded();
+      await onUploaded();
     } catch (cause) {
       setError(cause);
     } finally {
