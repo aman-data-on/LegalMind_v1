@@ -12,6 +12,31 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### Investigated — no behaviour changed
 
+* **E1 follow-on: `COSINE_FLOOR`'s two responsibilities separated; a candidate
+  `EVIDENCE_COSINE_FLOOR` proposed, not shipped (2026-09-02).** Owner-authorized as an
+  explicit experiment, not a production change. Phase 1: `calibration.COSINE_FLOOR`
+  now serves `gate_is_open()` only (unchanged, still 0.50, never relaxed); a new
+  `EVIDENCE_COSINE_FLOOR` serves `search_hybrid`'s per-hit evidence prune only,
+  defaulting to the same 0.50 so the split alone changes no behaviour — confirmed by
+  a bit-for-bit identical `AM-28` gate re-run. Phase 2: swept `EVIDENCE_COSINE_FLOOR`
+  through 0.50/0.48/0.45/0.42/0.40/0.38/0.35 via the real `search_hybrid`/`service.ask`
+  path on one ingest; `retained`, `wrongly_answered`, `correct_refusals`, faithfulness
+  (1.0) and citation precision (1.0) were **identical at every threshold** — provably
+  so, since the gate never reads this constant — while recall rose 0.438 → 0.625 at
+  the floor. Phase 3: every newly admitted chunk, at every threshold, belonged to a
+  question whose gate was **already open** at 0.50 — no previously refused question is
+  ever newly answered; zero regressions; the one wrongly-answered question is the same
+  pre-existing case at every threshold. Phase 4: selected `0.42` — not the
+  highest-recall candidate — as the least permissive value capturing the one large,
+  safety-neutral jump (0.438 → 0.594, 73% of the total recoverable gap). Phase 6: the
+  real `python -m tools.verify_assist_quality` at 0.42 reports recall 0.594, all else
+  held, SHIPPABLE; full suite 1093 passed / 1 skipped / 1 xfailed (still fails —
+  0.594 remains below the 0.938 basis); ruff/mypy clean. `EVIDENCE_COSINE_FLOOR` was
+  then reverted to 0.50 (confirmed by an empty diff) — the instruction that authorized
+  this drew an explicit line between experimenting and shipping, so the change is
+  proposed, not applied. Full record, including the exact diff to apply, in
+  [docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md](docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md) §R.
+
 * **E1 retrieval audit: the assist lane's recall@10 is 0.438 against the 0.938 basis
   `AM-26` r2 selected the embedding model on, and reciprocal rank fusion is NOT the
   cause (2026-09-02).** Measured on the owner-ratified evaluation set with the real

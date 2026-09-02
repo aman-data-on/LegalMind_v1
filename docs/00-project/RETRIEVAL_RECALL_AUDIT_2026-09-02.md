@@ -325,3 +325,148 @@ taken from the CI artifact, never a local `--update-snapshots` run.
 **Not reported as fixed.** Recall did not increase, because nothing was changed. Per
 constraint #10, the measured result of the authorized change is **+0.000**, and that is
 the finding.
+
+---
+
+## R · Follow-on experiment — separating the two `COSINE_FLOOR` applications (2026-09-02)
+
+**Status of this section: 📁 ANALYSIS, and a PROPOSAL.** Authorized separately, after §Q,
+as an explicit **experiment, not a production threshold change** — the owner's own framing.
+Eleven strict rules governed it, chief among them: never touch the refusal gate's 0.50,
+never widen `AM-28`'s criteria, and do not automatically choose the highest-recall
+candidate. **No production default has been changed.** `EVIDENCE_COSINE_FLOOR` — introduced
+below — ships at **0.50**, bit-identical to `COSINE_FLOOR`, until the owner confirms
+otherwise. This section documents a candidate and asks for that confirmation.
+
+### R.1 Phase 1 — the two responsibilities, separated
+
+§Q.1 of this document already named the fork in the road: "should LegalMind answer?" and
+"which chunks may become evidence?" were the same question mechanically, because one
+constant, `COSINE_FLOOR`, was read at both `calibration.gate_is_open()` and
+`store.search_hybrid`'s per-hit prune.
+
+They are now two named constants in `legalmind/assist/calibration.py`:
+
+| Constant | Used by | Value | Changed here? |
+|---|---|---|---|
+| `COSINE_FLOOR` | `gate_is_open()` — the refusal decision | 0.50 | **No — untouched** |
+| `EVIDENCE_COSINE_FLOOR` | `store.search_hybrid`'s per-hit prune — what may be shown as evidence | 0.50 | New name, same default |
+
+`gate_is_open()` was already receiving the **raw, unfiltered** vector scores before this
+split — `search_hybrid` computes `scores` before the per-hit filter runs. The split makes
+that true in the code's naming and provenance, not just its data flow; it was previously
+true only by reading the function body carefully.
+
+**Verified behavior-neutral**, not assumed: full backend suite 1093 passed / 1 skipped / 1
+xfailed (unchanged), ruff and mypy clean, and the `AM-28` gate re-run bit-for-bit identical
+to pre-split — recall 0.438, retained 41, wrongly-answered 1, faithfulness 1.0, citation
+precision 1.0. Committed as `d24a29b`.
+
+### R.2 Phase 2 — the threshold sweep
+
+Seven `EVIDENCE_COSINE_FLOOR` candidates, `COSINE_FLOOR` held at 0.50 throughout, each run
+through the **real production path** — `store.search_hybrid` and `service.ask` (the same
+functions `tools.verify_assist_quality` uses), on the same single ingest of the
+owner-ratified corpus so retrieval candidates are identical across the sweep and only the
+prune differs:
+
+| `EVIDENCE_COSINE_FLOOR` | recall@10 | hit@1 | retained | wrongly answered | correct refusals | faithfulness | citation precision | user-visible wrong |
+|---|---|---|---|---|---|---|---|---|
+| 0.50 (shipped) | 0.438 | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+| 0.48 | 0.484 | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+| 0.45 | 0.516 | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+| **0.42** | **0.594** | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+| 0.40 | 0.594 | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+| 0.38 | 0.609 | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+| 0.35 | 0.625 | 0.281 | 41/64 | 1/13 | 12/13 | 1.0 | 1.0 | 0/13 |
+
+Every safety-relevant quantity is **identical at every threshold tested**, down to 0.35.
+This is not luck: `retained`/`wrongly_answered`/`correct_refusals` are gate-level counts,
+and the gate never sees `EVIDENCE_COSINE_FLOOR` — Phase 1's separation makes this provable
+rather than merely observed. Faithfulness and citation precision held at 1.0 on a real
+sample each time (65–92 claims scored per run, 0 unfaithful answers at every threshold —
+not a small-sample artifact).
+
+One number moved for reasons unrelated to the floor: `user_answered` fluctuated
+non-monotonically (24, 28, 31, 30, 32, 31, 32) across the sweep, most likely call-level
+variance in the live Gemini path (the sufficiency check ahead of it is an 80-character
+total-length bar that any admitted chunk clears trivially, so it is not the source). This
+does not touch any `AM-28` safety quantity and is noted rather than chased further.
+
+### R.3 Phase 3 — failure-mode inspection of newly admitted evidence
+
+Every newly admitted chunk, at every threshold, was inspected against the specific
+questions and safety concerns the authorizing instruction named:
+
+* **Does generation start answering previously refused questions? No.** Every question
+  that gained a correct hit as the floor lowered **already had `gate_open: True` at the
+  0.50 baseline** — the recall gain is entirely "a question already being answered gets
+  better evidence," never "a previously refused question gets answered." Directly
+  observed in the per-question detail, not inferred from the aggregate counts.
+* **Are unanswerable questions newly exposed? No.** The one wrongly-answered question
+  (`N-11`) is the *same* pre-existing gate-level false positive at **every** threshold
+  including the 0.50 baseline — not a new exposure from this change. No other
+  unanswerable question ever showed non-empty evidence at any threshold tested.
+* **Any regression — an answerable question that loses a previously correct hit? No.**
+  Checked at every threshold; the newly-admitted set only grows as the floor lowers,
+  never shrinks.
+* **Is admitted evidence within the expected score band, or is something clearly
+  irrelevant slipping in?** All newly admitted scores at every threshold sit inside
+  0.35–0.499 — the same compressed answerable-score band this audit's §A already
+  documented (answerable median 0.539, unanswerable median 0.416). Nothing near the
+  unanswerable distribution was ever admitted.
+* **Faithfulness / citation precision degrade? No** — 1.0/1.0 at every threshold, §R.2.
+
+### R.4 Phase 4 — selecting a candidate, not the maximum
+
+The instruction explicitly forbids picking the highest-recall candidate automatically and
+asks instead for the **least permissive threshold that provides a meaningful improvement**,
+once safety is equal across candidates — which it is, uniformly, here.
+
+Recall gains by step: 0.438 → 0.484 (+0.046) → 0.516 (+0.032) → **0.594 (+0.078)** → 0.594
+(+0.000) → 0.609 (+0.015) → 0.625 (+0.016). The single large jump is at **0.42**, which
+recovers **0.156 recall (73% of the entire 0.438→0.625 gap this filter can ever close)**.
+0.40 gives the identical result and is therefore strictly dominated by 0.42 — same
+benefit, more permissive, no reason to prefer it. Going further, to 0.35, buys only 0.031
+more recall (2 more of 64 questions) while extending the floor into progressively weaker
+individual scores (some newly admitted chunks at 0.35–0.39, against 0.42's 0.42–0.499).
+
+**Candidate selected for proposal: `EVIDENCE_COSINE_FLOOR = 0.42`.** It is the least
+permissive value tested that captures the large, safety-neutral recall recovery; 0.35 is
+available and safety-equal if the owner prefers the extra 0.031.
+
+### R.5 Phase 6 — full verification at the candidate value
+
+`EVIDENCE_COSINE_FLOOR` was temporarily set to 0.42 (never `COSINE_FLOOR`) and the complete
+verification run through the actual entrypoints, not just the sweep's internal calls:
+
+| Check | Result |
+|---|---|
+| `python -m tools.verify_assist_quality` (the real `AM-28` gate) | recall@10 **0.594** (baseline 0.438) · retained 41 · wrongly-answered 1 · user-visible wrong 0/13 · faithfulness 1.0 · citation precision 1.0 · **SHIPPABLE** |
+| Full backend suite | 1093 passed, 1 skipped, **1 xfailed** (unchanged — 0.594 is still below the 0.938 `AM-26` basis, so the strict xfail correctly still fails) |
+| `ruff` | clean |
+| `mypy` | clean, 103 files |
+
+`EVIDENCE_COSINE_FLOOR` was then **reverted to 0.50** — confirmed by an empty `git diff`
+against the committed Phase 1 state. Nothing shipped from this section.
+
+### R.6 Production decision — awaiting the owner
+
+**A candidate passed the complete safety evaluation. It is proposed, not shipped**, because
+the instruction that authorized this work opened by drawing that line explicitly: *"I am
+approving an EXPERIMENT, NOT an immediate production threshold change."*
+
+If confirmed, the change is exactly:
+
+```python
+# legalmind/assist/calibration.py
+EVIDENCE_COSINE_FLOOR = 0.42   # was 0.50 — proposal in RETRIEVAL_RECALL_AUDIT_2026-09-02.md §R
+```
+
+plus: re-record `tests/assist_eval/baseline.json` at the new operating point (recall 0.594,
+`evidence_cosine_floor: 0.42`), add a regression test pinning `EVIDENCE_COSINE_FLOOR` to a
+value `< COSINE_FLOOR` is never possible to silently re-couple the two constants, and a
+`CHANGELOG.md` entry. `COSINE_FLOOR`, `PEAK_MARGIN`, the embedding model, and the
+owner-ratified evaluation set are untouched by this proposal, as required. `AM-26`'s
+original 60/64 record remains, as it was throughout, historically visible and unedited.
+
