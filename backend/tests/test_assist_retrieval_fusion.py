@@ -57,6 +57,15 @@ what should be trusted.
 `xfail(strict=True)` is deliberate: the suite stays green while the gap stands,
 and the moment it closes this XPASSes and fails the run, which is the prompt to
 re-run the Tier-2 gate and re-baseline as `AM-28` requires of a retrieval change.
+
+PHASE 1 SEPARATION, 2026-09-02 (owner-approved experiment, not yet a production
+change). Everything above described one constant, `COSINE_FLOOR`, read at two call
+sites. It is now two: `calibration.COSINE_FLOOR` for the refusal gate
+(`gate_is_open`, unchanged) and `calibration.EVIDENCE_COSINE_FLOOR` for
+`search_hybrid`'s per-hit evidence prune. Both default to 0.50, so this record's
+numbers are unchanged and the split alone changes no behavior — see
+`docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md` and the follow-on threshold
+experiment for what, if anything, is proposed for `EVIDENCE_COSINE_FLOOR` next.
 """
 
 from __future__ import annotations

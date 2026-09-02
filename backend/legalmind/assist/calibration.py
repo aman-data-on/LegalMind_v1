@@ -27,8 +27,8 @@ questions almost never (1/64 — `websearch_to_tsquery` ANDs every term) but ref
 perfectly (13/13); dense retrieval finds clauses well (60/64 in top-10) but refuses
 NEVER, because a nearest neighbour always exists. So the rule composes them:
 
-    evidence  =  lexical hits  UNION  vector hits with cosine >= FLOOR
-    gate open iff  lexical hit  OR  (top cosine >= FLOOR and top-gap >= PEAK)
+    evidence  =  lexical hits  UNION  vector hits with cosine >= EVIDENCE_COSINE_FLOOR
+    gate open iff  lexical hit  OR  (top cosine >= COSINE_FLOOR and top-gap >= PEAK)
 
 where top-gap = top cosine minus the mean of the remaining top-k — a flat profile means
 the "best" chunk is not meaningfully better than the field. A single absolute floor was
@@ -41,6 +41,28 @@ customer-insurance question). Measured: those score INSIDE the answerable distri
 so no similarity feature separates them, for any candidate. Catching them is the
 citation-verification guardrail's job (`AM-29`'s third outcome), and pretending a
 threshold could do it would trade half the answerable set for the illusion.
+
+--------------------------------------------------------------------------
+Two responsibilities, two constants (separated 2026-09-02, E1 phase 1)
+--------------------------------------------------------------------------
+"Should LegalMind answer?" and "which retrieved chunks are allowed to become evidence
+for generation?" are different questions, and until this separation they were answered
+by the same number read at two call sites — `gate_is_open` (below) and
+`store.search_hybrid`'s per-hit prune. The E1 retrieval audit
+(`docs/00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md`) measured them as
+super-additive: relaxing either alone recovers only part of the gap, because closing the
+gate on vector grounds already implies the per-hit filter would have emptied the branch.
+
+    COSINE_FLOOR           the REFUSAL GATE's floor — `gate_is_open` only. Calibrated
+                            2026-08-26, unchanged by this split, never relaxed since.
+    EVIDENCE_COSINE_FLOOR   the EVIDENCE-INCLUSION floor — `store.search_hybrid`'s
+                            per-hit prune only. Same calibrated value by default; this
+                            name exists so the two can be evaluated and, if ever
+                            changed, changed independently — never so the gate can be
+                            weakened through the back door of the other name.
+
+Do not read them as interchangeable, and do not let a future edit collapse them back
+into one constant — that is the exact ambiguity this record removes.
 """
 
 from __future__ import annotations
@@ -51,14 +73,25 @@ EMBEDDING_MODEL_REPO = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_MODEL_REVISION = "main"
 EMBEDDING_DIMENSIONS = 384
 
-# The calibrated gate — measured 2026-08-26, ratified dataset.
-#   COSINE_FLOOR: individual vector hits below this are never evidence.
+# The calibrated gate — measured 2026-08-26, ratified dataset. `gate_is_open` ONLY.
+#   COSINE_FLOOR: the top vector score must clear this for the gate to open on
+#                 vector grounds alone (lexical hits open the gate regardless).
 #   PEAK_MARGIN:  gate opens on vector evidence only when the top hit stands out
 #                 from the field by at least this much (top - mean(rest of top-k)).
 # Operating point: 12/13 unanswerable refused at the gate, 41/64 answerable retained
 # on vector evidence alone (lexical hits pass regardless); Youden's J = 0.564.
+# NEVER weaken this to improve recall — it is the safety control. See the module
+# docstring's "Two responsibilities, two constants" before touching either name.
 COSINE_FLOOR = 0.50
 PEAK_MARGIN = 0.059
+
+# The evidence-inclusion floor — `store.search_hybrid`'s per-hit prune ONLY, applied
+# AFTER the gate has already decided to answer. Individual vector hits below this are
+# never surfaced as evidence to generation. Defaults to the same calibrated value as
+# COSINE_FLOOR (this split changes no behavior on its own) but is a DISTINCT constant
+# so the two responsibilities can be evaluated, and if ever changed, changed
+# independently under their own measurement and their own AM-28 gate run.
+EVIDENCE_COSINE_FLOOR = 0.50
 
 # Candidates fetched per query before gating. Top-10 was the calibrated depth.
 RETRIEVAL_TOP_K = 10

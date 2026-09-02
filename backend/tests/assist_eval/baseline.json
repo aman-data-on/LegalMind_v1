@@ -9,6 +9,7 @@
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2@main",
   "strategy_version": "hybrid-rrf-gate-1 (calibrated 2026-08-26)",
   "cosine_floor": 0.5,
+  "evidence_cosine_floor": 0.5,
   "peak_margin": 0.059,
   "top_k": 10
  },

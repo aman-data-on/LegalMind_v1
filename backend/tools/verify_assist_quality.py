@@ -337,6 +337,7 @@ def _baseline_payload(metrics: dict, dataset_sha: str, n_questions: int) -> dict
             "embedding_model": embedding_runtime.identity(),
             "strategy_version": calibration.RETRIEVAL_STRATEGY_VERSION,
             "cosine_floor": calibration.COSINE_FLOOR,
+            "evidence_cosine_floor": calibration.EVIDENCE_COSINE_FLOOR,
             "peak_margin": calibration.PEAK_MARGIN,
             "top_k": calibration.RETRIEVAL_TOP_K,
         },
