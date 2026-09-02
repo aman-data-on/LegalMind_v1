@@ -339,3 +339,15 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 **Approval is required for:** beginning implementation · changing any locked decision · resolving an open conflict or `OD-*` · adding a technology, dependency or service · altering a domain boundary · changing a golden-corpus expectation. [CONTRIBUTING.md](CONTRIBUTING.md) has the procedure and the six kinds of change.
 
 Once implementation is authorized, the constraints in [IMPLEMENTATION_READINESS_GATE.md](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) §6 do not relax, and the recommended build sequence is in §5.
+
+---
+
+## Git workflow — one owner, keep it in `main`
+
+**Owner instruction, 2026-09-02:** *"i am the only one who work in this project so i want everything in main."* Multiple Claude sessions may run concurrently against this repository, but there is exactly one human owner — this is not a multi-contributor project, and the branch hygiene that convention assumes is not needed here.
+
+- **Do not create a new branch for routine work.** Prefer committing straight to the branch already in flight (or `main`, once nothing is mid-review) over opening another one. A branch is justified only when it is gating something through CI/PR review before `main` — not as a default habit per task.
+- **Merge promptly and delete the branch in the same action.** A branch that outlives its PR is exactly how this repository accumulated dead weight — see the 2026-09-02 cleanup below.
+- **Never leave a manual merge attempt on a branch.** If a merge needs redoing, redo it on the same branch or via the open PR; do not create a second (`-work`, `-work2`, …) branch to retry in. Two such branches, each an abandoned single-commit merge attempt, sat for days.
+- **Before starting new work, check for stale branches** (`git branch -a -vv`, and `git log origin/main..<branch> --oneline` for anything that looks orphaned) and clear out what a merge or `git cherry` shows is already fully in `main`.
+- **2026-09-02 incident this rule responds to:** six stale branches had accumulated — two abandoned local merge attempts 55 commits behind `main`, three branches fully merged already, one whose two commits were content-equivalent to what `main` already had. None were an active git conflict (`main` merged the one real open PR with zero conflicts) — they were just clutter nobody had deleted. All six removed; verified redundant first via `git cherry` / diff against `main` before deletion, per the Git Safety Protocol's rule that `branch -D` needs explicit confirmation. One old branch (`feat/worker-playwright-rec09`, pre-dating the current architecture) was left for the owner to decide rather than deleted on assumption.
