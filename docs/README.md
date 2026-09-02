@@ -14,6 +14,7 @@
 | **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 - [00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md) — 📁 the owner-ordered product-intent audit behind AB-6/AM-33 and the version-lifecycle UI
+- [00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md](00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md) — 📁 the E1 retrieval audit: assist recall@10 is 0.438 against a 0.938 basis, attributed to COSINE_FLOOR's two applications and **not** to fusion; awaits an owner calibration decision
 - [design/UX_CORRECTION_2026-08-31.md](design/UX_CORRECTION_2026-08-31.md) — 📁 the owner-ordered UX/product-model audit behind the upload-first intake and in-flow analysis
 | **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
 | **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
