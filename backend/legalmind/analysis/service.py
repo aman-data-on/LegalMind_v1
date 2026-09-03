@@ -46,6 +46,7 @@ from legalmind.domain.enums import (
     EvaluatorType,
     FindingClassification,
     MappingState,
+    ProcessingStatus,
     ReviewStatus,
 )
 from legalmind.evaluation.contracts import (
@@ -473,6 +474,18 @@ def assert_analysable(db: DBSession, review: M.Review) -> None:
                          ReviewStatus.CANCELLED}:
         raise AnalysisNotPermitted(
             f"a Review in {review.status.value} cannot be analysed")
+
+    # A document whose processing has not concluded has no evidence to analyse
+    # yet (the deferred-OCR path, 2026-09-03). Analysing it now would evaluate
+    # over zero rows and mint MISSING findings against text that is still being
+    # recovered — refused here so both the inline and the queued path refuse on
+    # identical grounds, per this function's contract.
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    if version is not None and version.processing_status in {
+            ProcessingStatus.PENDING, ProcessingStatus.PROCESSING}:
+        raise AnalysisNotPermitted(
+            "the document is still being processed; analysis can start when "
+            "text extraction completes")
 
 
 def _to_processing(db: DBSession, review: M.Review, *, actor_id: UUID | None,

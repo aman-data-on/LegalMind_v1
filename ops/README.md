@@ -1,5 +1,16 @@
 # LegalMind — production operations guide
 
+
+## Deploying
+
+`bash ops/deploy.sh` — the full-stack deploy, in dependency order: backend import
+sanity check → `alembic upgrade head` → restart `legalmind-api` → `/health` probe →
+staged frontend build + atomic swap (`frontend/scripts/deploy-frontend.sh`).
+Backend first is load-bearing: the API rejects unrecognised request fields
+(`extra="forbid"`), so a frontend shipped ahead of the API breaks any request that
+gained a field. The frontend script refuses that ordering on its own
+(`LEGALMIND_ALLOW_STALE_API=1` overrides for a deliberate frontend-only deploy).
+
 **Status: 📁 DERIVED — an operator runbook. It decides nothing.** Prepared 2026-08-27.
 The authoritative register of what a deployment owes is the code, not this page:
 

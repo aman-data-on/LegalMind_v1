@@ -7,6 +7,7 @@ else's contract is a 404, never a 403 — existence is itself a disclosure (47.7
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -29,7 +30,7 @@ from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
 from legalmind.security import permissions as P
-from legalmind.worker.dispatch import dispatch_indexing
+from legalmind.worker.dispatch import dispatch_indexing, dispatch_ocr
 
 router = APIRouter(tags=["contracts"])
 
@@ -368,6 +369,35 @@ def delete_contract(contract_id: UUID,
     return data({"deleted": True, "mode": "hard"})
 
 
+_PERCENT_ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")
+
+
+def _decode_percent_encoded_filename(value: str) -> str:
+    """Decode a ``%XX``-escaped filename — the other half of the client's
+    ``encodeURIComponent`` fix (2026-09-03).
+
+    HTTP header values are restricted to ISO-8859-1 bytes, and a filename
+    carrying any character outside that range made the browser's ``fetch``
+    throw before the request ever left the tab — no request reached this
+    endpoint at all, and the caller saw only a generic client-side error. The
+    client now percent-encodes ``X-Filename``; this reverses it.
+
+    A hand-rolled decoder rather than ``urllib.parse.unquote``: this router
+    sits in the authoritative API path, where `AM-25` r9 / `AM-30` t1 forbid
+    any network-capable import, and the import-boundary test (rightly)
+    cannot distinguish ``urllib.parse`` from ``urllib.request`` by import
+    root — it would flag this file as reaching the network, which it never
+    does. This handles exactly what ``encodeURIComponent`` produces:
+    percent-escaped UTF-8 byte sequences. A value with no ``%`` sequences
+    (any existing non-browser caller sending the header un-encoded) passes
+    through unchanged.
+    """
+    if "%" not in value:
+        return value
+    raw_bytes = _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), value)
+    return raw_bytes.encode("latin-1").decode("utf-8", errors="replace")
+
+
 @router.post("/contracts/{contract_id}/document-versions", status_code=201)
 async def upload_document_version(
     contract_id: UUID,
@@ -390,6 +420,16 @@ async def upload_document_version(
     """
     guard.contract(contract_id, P.DOCUMENT_UPLOAD)
 
+    # The client percent-encodes this header (2026-09-03): HTTP header values are
+    # restricted to ISO-8859-1 bytes, and a filename carrying any character outside
+    # that range (an en dash, a curly quote, anything non-ASCII) made the browser's
+    # `fetch` throw before the request even left the tab — no request ever reached
+    # here, and the caller saw only a generic client-side error. Decoding back to
+    # the real filename is the other half of that fix; `unquote` is lenient by
+    # design and never raises, so a caller that sends the header un-encoded (any
+    # existing non-browser client) still gets its literal value back unchanged.
+    original_filename = _decode_percent_encoded_filename(x_filename)
+
     declared_length = request.headers.get("content-length")
     limit = max_upload_bytes()
     if declared_length is not None and int(declared_length) > limit:
@@ -400,23 +440,36 @@ async def upload_document_version(
     if not payload:
         raise BusinessRuleRejected("the request body is empty")
 
+    # `defer_ocr` — the ~63s-upload fix (2026-09-03). A document that needs OCR
+    # returns from ingest as PROCESSING with no evidence, the request finishes in
+    # native-parse time, and the OCR runs as its own background ProcessingRun
+    # (42.5's OCR run type). The original bytes are already stored (34.5), so the
+    # document is viewable the moment this returns. Everything not needing OCR
+    # concludes inline exactly as before.
     result = ingest_document(
         guard.db, storage,
         contract_id=contract_id,
         uploaded_by=guard.user_id,
         data=payload,
-        filename=x_filename,
+        filename=original_filename,
         declared_mime=request.headers.get("content-type", ""),
+        defer_ocr=True,
     )
 
-    # Assist-lane indexing — AB-3 / AB-4, Gate section 5b unit A2. Additive and
-    # non-authoritative: it builds a derived search index over evidence the parser has
-    # already produced, and it can never fail this upload. `dispatch_indexing` swallows
-    # its own faults for that reason, and the response below is unchanged either way —
-    # no field reports index state, because a document is ingested whether or not a
-    # derived index was built.
-    dispatch_indexing(guard.db, result.document_version.id,
-                      request_id=guard.request_id)
+    if result.document_version.processing_status is E.ProcessingStatus.PROCESSING:
+        # The deferred path: OCR (and then indexing, over the evidence OCR
+        # writes) continues in the background; the response below says
+        # PROCESSING, which is exactly the truth.
+        dispatch_ocr(result.document_version.id, request_id=guard.request_id)
+    else:
+        # Assist-lane indexing — AB-3 / AB-4, Gate section 5b unit A2. Additive and
+        # non-authoritative: it builds a derived search index over evidence the parser
+        # has already produced, and it can never fail this upload. `dispatch_indexing`
+        # swallows its own faults for that reason, and the response below is unchanged
+        # either way — no field reports index state, because a document is ingested
+        # whether or not a derived index was built.
+        dispatch_indexing(guard.db, result.document_version.id,
+                          request_id=guard.request_id)
 
     return data({
         "document_version": serialize_document_version(result.document_version),

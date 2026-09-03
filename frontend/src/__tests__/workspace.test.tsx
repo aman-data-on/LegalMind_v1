@@ -204,7 +204,11 @@ describe("Step 6 document types (presentation copy)", () => {
 });
 
 describe("TranscriptTurn (ask history replay)", () => {
-  const base = { id: "m1", ordinal: 1, routed_to_evaluator: false, citations: [] as never[] };
+  const base = {
+    id: "m1", ordinal: 1, routed_to_evaluator: false, citations: [] as never[],
+    // Which version answered this turn (2026-09-02).
+    document_version_id: "dv1", version_number: 1,
+  };
 
   it("a refusal replays on the quiet surface with its state attribute, exactly like the live pane", () => {
     const html = renderToStaticMarkup(
@@ -229,7 +233,11 @@ describe("TranscriptTurn (ask history replay)", () => {
         turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [citation] }}
       />,
     );
-    expect(html).toContain('href="/dashboard?id=c1&amp;evidence=ev1"');
+    // The link names the VERSION the answer was read from as well as the
+    // evidence row (2026-09-02): an evidence row belongs to exactly one
+    // version's reading order, so landing on the newest version would point the
+    // highlight at a row that page does not contain.
+    expect(html).toContain('href="/dashboard?id=c1&amp;version=dv1&amp;evidence=ev1"');
     expect(html).toContain("§17.2");
     // Null score → the score line is absent entirely, never "NaN" or a blank label.
     expect(html).not.toContain("retrieval score");

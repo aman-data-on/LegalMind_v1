@@ -19,6 +19,18 @@ export function readiness(index?: { chunks: number; embedded_chunks: number }): 
   return "ready";
 }
 
+/** "3 h ago", "yesterday" — a plain-language age for a timestamp. Shared so the
+ *  dashboard table and the Analysis panel can't drift into two tiers. */
+export function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 90) return "just now";
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  if (seconds < 172800) return "yesterday";
+  return `${Math.round(seconds / 86400)} d ago`;
+}
+
 export const READINESS_TEXT: Record<Readiness, string> = {
   ready: "Searchable by wording and meaning",
   "lexical-only": "Searchable by exact wording",
@@ -367,4 +379,80 @@ export function analysisCell(row: {
     review_status: row.latest_analysis.review_status,
     counts,
   };
+}
+
+/* --------------------------------------------------------------------------
+ * Document presentation (2026-09-02, DD-14). The extraction stores plain text
+ * spans — no bold, no alignment, no font survives it — so the viewer cannot
+ * REPRODUCE the source formatting, only recognise the structural shapes the
+ * text itself still carries and set them the way a legal agreement sets them.
+ * Every rule below re-renders the UNMODIFIED string; nothing is added,
+ * dropped or reworded, and a row that matches no shape stays a paragraph.
+ * Grounded against the real MSA rows, not guessed (see the DD-14 record).
+ * -------------------------------------------------------------------------- */
+export type RowKind = "title" | "heading" | "subheading" | "item" | "para";
+
+/** `(a) `, `(iv) `, `(B) ` — the enumerated-item lead the source indents. */
+const ITEM_LEAD = /^\((?:[a-z]{1,3}|[A-Z]{1,3}|\d{1,2})\)\s/;
+
+export function rowPresentation(
+  row: Pick<EvidenceRow, "content" | "section_number" | "section_title">,
+  index: number,
+): RowKind {
+  const text = row.content.trim();
+  // The document title: the first row, before any numbering exists, one short
+  // line with no sentence punctuation ("Master Services Agreement").
+  if (index === 0 && !row.section_number && text.length <= 80 && !/[.:;,]$/.test(text)) {
+    return "title";
+  }
+  // A heading row is one whose content IS its own section label and nothing
+  // else: strip the leading number ("1." / "4.3") and compare what remains to
+  // the recorded section title. "1. DEFINITIONS AND INTERPRETATION" qualifies;
+  // "1.1 Defined Terms: Capitalized terms used…" carries body text and stays a
+  // paragraph.
+  if (row.section_number && row.section_title) {
+    const stripped = text
+      .replace(/^[\s§]*[\d.]+[).:]?\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    const title = row.section_title.replace(/\s+/g, " ").trim().toLowerCase();
+    if (stripped === title && text.length <= 120) {
+      return row.section_number.includes(".") ? "subheading" : "heading";
+    }
+  }
+  if (ITEM_LEAD.test(text)) return "item";
+  return "para";
+}
+
+/**
+ * Which empty state the document pane owes a reader when no evidence rows came
+ * back (2026-09-03).
+ *
+ * A pure decision because the branch was WRONG and silently so: the pane tested
+ * `processing_status !== "COMPLETED"` and therefore told a reader to "reload to
+ * check" a document whose processing had definitively FAILED and would never
+ * change. That state went from rare to reachable when extraction started
+ * refusing text it cannot read rather than returning glyph codes as content, so
+ * it now needs to be right — and pinned somewhere a static test can reach it.
+ *
+ *   "processing"  still running; reloading genuinely helps
+ *   "unreadable"  finished and unsuccessful — a scan with no recoverable
+ *                 characters, or fonts that do not map to readable text
+ *   "empty"       processing succeeded and the document genuinely has no text
+ *
+ * The two statuses are separate axes (34.15) and either may carry the failure,
+ * so both are consulted rather than one standing in for the other.
+ */
+export type DocumentTextState = "processing" | "unreadable" | "empty";
+
+export function documentTextState(version: {
+  processing_status: string;
+  extraction_status?: string | null;
+}): DocumentTextState {
+  if (version.processing_status === "FAILED" || version.extraction_status === "FAILED") {
+    return "unreadable";
+  }
+  if (version.processing_status !== "COMPLETED") return "processing";
+  return "empty";
 }

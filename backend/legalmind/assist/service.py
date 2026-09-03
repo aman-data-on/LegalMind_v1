@@ -107,11 +107,13 @@ def conversation_owner(db: DBSession, conversation_id: UUID) -> UUID | None:
 
 
 def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
-                       outcome: store.RetrievalOutcome) -> UUID:
+                       outcome: store.RetrievalOutcome, *,
+                       document_version_id: UUID) -> UUID:
     """The retrieval record behind the answer — `AM-27`'s `retrieval_runs`.
 
     Chunk ids and scores only, never text (r6), plus the gate's raw features so the
-    refusal is reconstructable from the row alone.
+    refusal is reconstructable from the row alone, and the document version the
+    retrieval was scoped to so the answer's provenance needs no inference.
     """
     import json as _json
 
@@ -126,12 +128,19 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
                  "vector_peak_gap": outcome.vector_peak_gap},
         "embedding_model": outcome.embedding_model,
     })
+    # `filters` is the column AM-27 describes as part of "the retrieval record
+    # behind an answer: query, filters, chunk ids, scores", and the document scope
+    # is the only filter this retrieval applies. Recording it here makes the
+    # version an answer was read from a first-class part of the record instead of
+    # something a reader has to infer from a chunk id — no new column, and no
+    # document text (r6 stands: identifiers and scores only).
+    filters = _json.dumps({"document_version_id": str(document_version_id)})
     db.execute(text(f"""
         INSERT INTO "{schema}".retrieval_runs
-            (id, message_id, query_text, results, strategy_version)
-        VALUES (:i, :m, :q, CAST(:r AS jsonb), :v)
-    """), {"i": run_id, "m": message_id, "q": question, "r": results,
-           "v": outcome.strategy_version})
+            (id, message_id, query_text, filters, results, strategy_version)
+        VALUES (:i, :m, :q, CAST(:f AS jsonb), CAST(:r AS jsonb), :v)
+    """), {"i": run_id, "m": message_id, "q": question, "f": filters,
+           "r": results, "v": outcome.strategy_version})
     return run_id
 
 
@@ -228,7 +237,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID,
     retrieval = store.search_hybrid(
         db, document_version_id=document_version_id, query=question,
         embed_query=embedding_runtime.embed_query)
-    run_id = _persist_retrieval(db, user_message_id, question, retrieval)
+    run_id = _persist_retrieval(db, user_message_id, question, retrieval,
+                                document_version_id=document_version_id)
 
     if not retrieval.gate_open:
         log_event("assist.ask.refused", request_id=request_id, cause="gate_closed",

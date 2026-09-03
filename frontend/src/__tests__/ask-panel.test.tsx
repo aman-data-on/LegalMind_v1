@@ -21,6 +21,9 @@ function result(overrides: Partial<AskResult>): AskResult {
     answer_state: "ANSWERED",
     text: "",
     routed_to_evaluator: false,
+    // The version the answer was read from — always present on a real reply.
+    document_version_id: "dv-1",
+    version_number: 1,
     citations: [],
     ...overrides,
   };

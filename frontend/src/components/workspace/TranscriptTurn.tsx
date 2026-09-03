@@ -79,7 +79,17 @@ export function TranscriptTurn({
                 {contractId ? (
                   <Link
                     className="ws-ask__cite"
-                    href={`/dashboard?id=${contractId}&evidence=${citation.evidence_id}`}
+                    /* The link carries the VERSION the answer was read from
+                     * (2026-09-02). Without it the workspace opens on the
+                     * newest version, and an `evidence_id` belongs to exactly
+                     * one version's reading order — so a citation from an
+                     * earlier version used to land on a page that does not
+                     * contain the row, and nothing highlighted. */
+                    href={
+                      `/dashboard?id=${contractId}` +
+                      (turn.document_version_id ? `&version=${turn.document_version_id}` : "") +
+                      `&evidence=${citation.evidence_id}`
+                    }
                     data-evidence-id={citation.evidence_id}
                   >
                     <span className="ws-mono">[{index + 1}]</span> {citeLabel(citation.section_ref, citation.page_number)}

@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  askSend,
   createAnalysedReview,
   fixture,
+  openAsk,
   openFindingsTab,
   openUploadPanel,
   storageStatePath,
@@ -69,9 +71,13 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await finding.locator(".ws-evidence__loc").first().click();
   await expect(page.locator(".ws-row--lit")).toBeVisible();
 
-  // Finding → Ask handoff: an EDITABLE draft lands in the input, nothing sends.
+  // Finding → Ask handoff: the dock OPENS, an EDITABLE draft lands in the input,
+  // and nothing sends. Opening is part of the handoff now that the input is not
+  // permanently on screen — otherwise "Ask about this" would appear to do nothing.
   await finding.getByRole("button", { name: "Ask about this" }).click();
-  await expect(page.getByLabel("Question")).toHaveValue(/What does this document say about/);
+  const askInput = page.getByLabel("Your question about this document");
+  await expect(askInput).toBeVisible();
+  await expect(askInput).toHaveValue(/What does this document say about/);
 
   // Export — the analysis leaves as a real file (owner directive §30).
   const downloaded = page.waitForEvent("download");
@@ -79,8 +85,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
-  await page.getByLabel("Question").fill("Explain the zorbulated framblewitz stipulations");
-  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await (await openAsk(page)).fill("Explain the zorbulated framblewitz stipulations");
+  await askSend(page).click();
   await expect(page.locator(".ws-ask__answer--refusal").first()).toHaveText(REFUSAL_TEXT, {
     timeout: 20_000,
   });
@@ -136,18 +142,34 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   const review2 = { id: reviewIds.find((id: string) => id !== v1.reviewId)! };
   expect(review2.id).toBeTruthy();
 
-  // Switch to v1: its document text and ITS findings render; Ask defers to the
-  // latest version, plainly, instead of misattributing answers.
+  // Switch to v1: its document text and ITS findings render, and Ask ANSWERS
+  // ABOUT V1.
+  //
+  // This assertion is the inverse of what it was before 2026-09-02, and
+  // deliberately so. It used to require the input to be DISABLED with a
+  // "Open the latest version" button — it pinned the defect the owner reported,
+  // because the server could only ever answer from the newest version and an
+  // answer's citations would have pointed at evidence rows absent from this
+  // page. The endpoint now takes the version being asked about (DD-15), so the
+  // correct behaviour is the opposite: enabled, scoped, and saying which version
+  // answers.
   await picker.selectOption({ index: 1 });
   await expect(page).toHaveURL(/[?&]version=/);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   await openFindingsTab(page);
   await expect(page.locator("article[data-finding-id]").first()).toBeVisible();
-  // The bar stays visible but disabled — never hidden, never misattributing.
-  const askInput = page.locator(".ws-askbar").getByLabel("Question");
-  await expect(askInput).toBeDisabled();
-  await expect(askInput).toHaveAttribute("placeholder", /Ask answers about the latest version/);
-  await expect(page.locator(".ws-askbar").getByRole("button", { name: "Open the latest version" })).toBeVisible();
+
+  const v1Ask = await openAsk(page);
+  await expect(v1Ask).toBeEnabled();
+  await expect(page.locator(".ws-dock__scope")).toContainText("Version 1");
+  await expect(page.getByRole("button", { name: "Open the latest version" })).toHaveCount(0);
+  // And the request that leaves the page names v1, not the newest version.
+  const [asked] = await Promise.all([
+    page.waitForRequest((r) => r.url().includes("/messages") && r.method() === "POST"),
+    v1Ask.fill("liability shall not exceed fees paid").then(() => askSend(page).click()),
+  ]);
+  expect(JSON.parse(asked.postData()!).document_version_id).toBeTruthy();
+  await page.keyboard.press("Escape");
 
   // v1's Review and report remain exactly where they were.
   await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);

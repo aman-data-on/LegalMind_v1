@@ -88,7 +88,13 @@ test.describe("ask history", () => {
 
     await page.goto("/dashboard/ask");
     await expect(page.getByRole("heading", { name: "Ask history" })).toBeVisible();
-    await page.getByRole("link", { name: question }).click();
+    // Target the conversation this test created, by id. Matching on question
+    // TEXT made the spec depend on no other spec ever asking the same thing in
+    // the shared e2e database — which stopped being true, and is not a property
+    // this test is about.
+    await page.getByRole("link", { name: question })
+      .and(page.locator(`a[href="/dashboard/ask?id=${conversationId}"]`))
+      .click();
 
     await expect(page).toHaveURL(`/dashboard/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn--user")).toContainText(question);

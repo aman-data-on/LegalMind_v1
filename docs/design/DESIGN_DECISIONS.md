@@ -286,6 +286,11 @@ from CI per the standing rule (owner, 2026-08-30).
 
 ## DD-9 — The reference-matched workspace (owner directive, 2026-09-01)
 
+> ⚠️ **§4 SUPERSEDED by [DD-15](#dd-15--ask-is-a-floating-secondary-tool-and-it-asks-about-the-version-on-screen-owner-directive-2026-09-02)
+> (2026-09-02).** The Ask bar was floating in appearance only — it was the bottom
+> flex row of the workspace and reserved height unconditionally. §§1–3 stand
+> unchanged.
+
 **Status:** `DECIDED AND IMPLEMENTED` (owner, in session, with a reference
 screenshot: *"I want exactly like the image I attached"* — an explicit UX-review
 request, which is what lifts the 2026-08-31 freeze for this pass).
@@ -510,6 +515,11 @@ Per the standing rule, baselines are cut in CI only — let job 15 fail, then ad
 
 ## DD-13 — The workspace reference pass: scroll ownership, the paper sheet, panel geometry (2026-09-02)
 
+> ⚠️ **§6 SUPERSEDED by DD-15 (later the same day).** The Ask bar is no longer
+> the layout's bottom row at all — it reserves no height. §1's scroll ownership
+> stands and DD-15 depends on it: `.ws-workmain` is now also the dock's
+> containing block.
+
 **Owner instruction, 2026-09-02**, against the DD-9/DD-10 reference screenshots: make the
 `/dashboard?id=` workspace match the reference's 3-panel behaviour — independent panel
 scrolling above all — keep the existing header exactly, and change no functionality.
@@ -551,3 +561,277 @@ classifications never merged into a green "Match/Deviation" (rule 14 + zero tole
 
 ⚠️ Visual baselines: the workspace screenshots change substantially; CI job 15 fails once and
 its `*-actual.png` are adopted per the standing rule.
+
+---
+
+## DD-14 — Source-faithful rendering, reader annotations, a live Analysis panel (2026-09-02)
+
+**Owner instruction, 2026-09-02** (same workspace, second pass): the document read
+differently in LegalMind than in Word — "spacing alignment padding change ho rha hai" —
+plus: outline page navigation, select-to-highlight annotation, and no dead cards in the
+Analysis panel ("nothing should look clickable but do nothing"). Header, routing, backend,
+permissions untouched, per the same instruction.
+
+### 1. Presentation recognised, never invented
+
+Extraction stores plain text spans — no bold, alignment or font survives it — so the source
+formatting cannot be *reproduced*, only the structural shapes still present in the text
+*recognised* and set the way the source sets them. `rowPresentation` (model.ts, pure,
+unit-tested against the REAL MSA rows read from the database, not guessed):
+
+| Shape | Recognised by | Set as |
+|---|---|---|
+| title | first row, unnumbered, ≤80 chars, no sentence punctuation | centered, bold, underlined |
+| heading / subheading | content **is** its own section label (`"1. DEFINITIONS AND INTERPRETATION"` = number + recorded title, nothing else) | bold; dotted numbers smaller |
+| item | `(a) ` / `(B) ` / `(12) ` lead | hanging indent, marker in the margin |
+| para | everything else | justified (as the source is) |
+
+§1.1's row ("1.1 Defined Terms: Capitalized terms **used in this Agreement shall have…**")
+correctly stays a paragraph — it carries body text, and promoting it would be manufacture.
+The mono `§n · title` line above rows was removed: it duplicated the clause text now visible
+in its own shape, and the duplication was itself part of the "doesn't look like my document"
+complaint. `aria-label={locationLabel(row)}` still announces the location.
+
+### 2. Reader annotations — marks, not records
+
+Select text on the sheet → "✎ Highlight" → a yellow mark, with an optional note (click the
+mark to edit/remove). Three boundaries make this buildable WITHOUT a specification change:
+
+* **Presentation only** — an annotation never touches a Finding, Evaluation or Decision
+  (rule 18), and its yellow is visually distinct from the blue evidence highlight.
+* **This browser only** — localStorage keyed by document version. No endpoint exists for
+  annotations, and inventing one is a schema decision the specification has not made
+  (rule 4). The editor says so on its face: *"Saved on this device only — never part of a
+  Finding."* If the owner wants shared/portable annotations, that is a backend decision to
+  take explicitly, not a UI patch.
+* **Anchored to evidence** — row id + character offsets into the unmodified content;
+  `segmentContent` is unit-tested to re-emit the original string exactly (marks re-wrap
+  text, never edit it), and each version keeps its own set.
+
+### 3. Every Analysis card navigates (and the outline gets page jump)
+
+Status tiles and donut-legend rows open the Findings tab **filtered to exactly that
+classification**; a finding card's name opens **that finding's full card** (evaluations,
+evidence, decision controls); "View clause →" keeps lighting the passage; obligations
+already jumped to their evidence. Plumbing: `useSideTabs().openFindings({classification |
+findingId})` with a seq-deduped pointer the FindingsPane answers — the same gesture as the
+existing `?finding=`/`?classification=` deep links, in-app. The clause panel's footer gains
+a page select (real pages only; a DOCX still honestly has none).
+
+**What stays non-clickable, on purpose:** the segmented bar and donut are `role="img"`
+duplicates of the tiles/legend beside them and do not *look* clickable; the classification
+CHIP on a finding card states a fact, it is not a control.
+
+### Verification
+
+`rowPresentation` cases pinned against rows read from the live database; `segmentContent`
+round-trip property tested; 169 unit tests + typecheck + forbidden-terms green; rendered
+harness screenshots compared against the owner's source-document screenshot (centered
+underlined title, justified body, hanging-indent items, bold headings all match); deployed
+via the safe script and the live bundle re-fetched. Visual baselines: same standing CI note
+as DD-13.
+
+---
+
+## DD-15 — Ask is a floating secondary tool, and it asks about the version on screen (owner directive, 2026-09-02)
+
+**Status:** `DECIDED AND IMPLEMENTED`. **Supersedes DD-9 §4** ("The Ask bar becomes
+a floating card") — the card was floating in appearance only; it was the bottom
+flex row of `.ws-workmain` and reserved workspace height unconditionally.
+Everything else in DD-9 stands.
+
+**Owner report, in their words:** the chat "takes too much permanent space —
+chat is a secondary interaction, not the primary workspace", and uploading a
+revised version produced a message directing them to *"go to the update"*
+instead of answering about the document they had open.
+
+### 1. The version defect was not copy — and it is the more serious half
+
+`POST /conversations/{id}/messages` resolved its target as `MAX(version_number)`
+over the conversation's contract and offered the caller no way to say otherwise.
+So an answer read while version 1 was on screen came from version 2, including
+every citation's `evidence_id` — and an evidence row belongs to exactly one
+version's reading order, so the workspace's highlight gesture pointed at a row
+the open page does not contain: nothing moved, and the `aria-live` region
+announced that something had. The only honest thing the UI could do with that
+API was disable the input and offer "open the latest version", which is what it
+did.
+
+Verified in the owner's own data before anything was changed: contract
+`dea89208` held version 1 (the real MSA, 356 chunks) and version 2 (an exported
+analysis PDF that had been re-uploaded, 90 chunks), and the answer they received
+had retrieved from version 2 while version 1 was the document on screen.
+
+**Nothing here was locked.** `AM-25` and `AM-27` say nothing about
+conversation-to-version scope; `conversations` carries `contract_id` only, and
+the per-turn version was already recoverable through `retrieval_runs`. So the
+existing model — *a conversation belongs to a contract; each turn is answered
+from one version* — was made explicit rather than replaced. No new table, no new
+column, no amended decision.
+
+**Fixed by making the ask target explicit:** `AskRequest` gains an optional
+`document_version_id`; the workspace passes the version on screen; the server
+authorizes it through the full `guard.document_version` chain and additionally
+requires it to belong to the conversation's own contract, so the field can only
+ever narrow scope. Omitted, it still means "the newest", which is what makes the
+change additive. The retrieval record now carries the document scope in
+`retrieval_runs.filters` — the column `AM-27` describes for exactly that — and
+each replayed turn reports the version it was answered from.
+
+**A transcript may therefore legitimately span versions, and says so:** a turn
+answered from a different version than the one open is labelled, and its
+citations offer to **open that version** instead of a highlight that cannot land.
+
+### 2. Ask reserves no workspace height
+
+`.ws-dock` is absolutely positioned inside `.ws-workmain`, which owns the
+workspace viewport and clips its children. Closed, Ask is a 44px launcher pill in
+the bottom-right corner; the clauses card, document card and side card take the
+whole remaining height. The old bar's row — input, suggestion chips and honesty
+note, roughly 128px on every screen — is gone, not restyled. The browser suite
+measures the gap below the document region rather than trusting the markup.
+
+### 3. A disclosure, not a modal — and deliberately not hover
+
+The owner asked for "when the user moves/engages with the trigger, the chat can
+open" and, in the same breath, not to ship hover-only if it harms usability. It
+does, twice over: hover cannot be performed on a touch screen at all, and a
+corner panel that opens on pointer transit opens constantly by accident while
+someone is reading. **Hover therefore drives visual affordance only**;
+click/Enter/Space open.
+
+The panel is `role="dialog"` with `aria-modal="false"`. Focus moves to the input
+on open and back to the launcher on close, but is never trapped — a reader can
+tab out into the clause list, click a clause, or scroll the document with the
+conversation still open. Escape closes. Below 620px it becomes a bottom sheet
+with a dismiss scrim, the expected touch gesture, while Escape and the close
+button remain the accessible paths.
+
+**WCAG 2.2 AA 2.4.11 "Focus Not Obscured" names chat widgets explicitly**, so
+there are two defences, both needed: the launcher hides itself while the panel is
+open, and the scrolling panels reserve its footprint as bottom padding. Nothing
+can come to rest underneath it.
+
+### 4. What was deliberately NOT added
+
+No chat modes, no personas, no model controls, no filters, no settings, no
+"regenerate", no typing indicator and no progress theatre. The one status line
+while a request is in flight is the existing honest one. Suggestion chips survive
+as editable drafts in the empty state only — they were noise once a conversation
+had started.
+
+### Verification
+
+9 new backend tests (version honoured, cross-contract refused, foreign version
+byte-identical 404, malformed id refused not ignored, replay states each turn's
+version, routed turn reports none, scope recorded in `filters`); 15 new unit
+tests; 11 new browser tests run **as `owner` — USER and nothing else**, measuring
+the reclaimed height, the 44px target, keyboard open/Escape/focus-restore, the
+outgoing request's `document_version_id` on both versions, reload persistence and
+a 390px viewport. The browser suite caught two real defects before release: the
+launcher's `display: inline-flex` out-specified the UA `[hidden]` rule so it
+stayed visible over the open panel, and focus-restore ran before React had
+unhidden it. Visual baselines: same standing CI note as DD-13 — Ask changed shape
+on every workspace screen.
+
+---
+
+## DD-16 — The Original document view, and OCR off the upload's critical path (owner directive, 2026-09-03)
+
+**Status:** `DECIDED, IMPLEMENTED AND DEPLOYED` (owner-approved, 2026-09-03 17:37 IST, commit `e03bef9`).
+**Complements DD-14 §1**, which stands unchanged for the text view: extraction
+cannot *reproduce* formatting, only recognise structural shapes. What DD-14
+could not do, this does by not extracting at all: the preserved original bytes
+(34.5) rendered by the **browser's own PDF renderer** — logo, typography,
+spacing, underlines, byte-for-byte the uploaded file. No library, no new
+dependency (rule 19: the renderer ships with the browser).
+
+**Owner report, in their words:** a legal PDF took ~62 seconds to become usable,
+and the viewer showed an OCR/text-derived representation — `OCR` printed above
+every paragraph, the logo reduced to the words "STRAD" / "solutions" — "instead
+of the actual original visual page. This is NOT acceptable for a legal-document
+viewer."
+
+### 1. Four concerns, finally separated
+
+Original viewing · text extraction · analysis · retrieval are different
+concerns, and only the first needs zero seconds of OCR:
+
+| Concern | Where it now lives |
+|---|---|
+| SEE the document | Original tab — the stored bytes, available the moment upload returns |
+| READ/point at text | Text tab — Evidence rows, unchanged; every citation, outline click, find and annotation lands here (the pane switches itself when a pointing gesture arrives) |
+| Analysis | unchanged; refused while extraction is in flight |
+| Retrieval | unchanged; indexed after extraction concludes |
+
+The Original tab is the default for PDFs and is gated on `document.download`
+(rendering the bytes IS handing the bytes over; every canonical role holds it).
+A DOCX gets no Original tab — no browser renders one, and pretending otherwise
+was exactly the failure mode being fixed.
+
+### 2. The ~62s: measured, then removed from the critical path
+
+Stage-by-stage on the real 30-page document (idle box): validate + hash +
+store + native extraction + legibility, **under 0.5s combined**; tesseract,
+**63.4s** — inside the upload POST. Two structural changes, no quality trade:
+
+* **OCR is its own background ProcessingRun.** Locked 42.5 already reserves
+  `ProcessingRunType.OCR`; the upload now runs only the native parse + the
+  legibility verdict, returns `processing_status=PROCESSING` /
+  `extraction_status=NULL` / zero evidence (honest vocabulary, no new enum
+  values — 45B.7 untouched), and a background pass finishes the job:
+  PARSE → `ocr_required`, OCR → COMPLETED/FAILED. No toolchain → fail closed
+  NOW, exactly as before. The workspace polls the version (bounded), then runs
+  the same in-flow analysis chain every upload gets.
+* **Pages OCR in parallel, at the same 300dpi.** 4 workers, each one tesseract
+  pinned to one thread (`OMP_THREAD_LIMIT=1`), reassembled in page order —
+  measured **byte-identical output** to the sequential pass, 65.6s → 16.2s.
+  150dpi was measured (~35% faster still) and rejected: its output differs
+  slightly, and the speed was no longer needed once the pass left the critical
+  path. `PROCESSOR_VERSION` bumped to v3.
+
+Result: upload returns in ~2–3s for every document; an OCR document is viewable
+(Original tab) immediately and its text, clauses and findings arrive ~17s later
+without anyone staring at a spinner. A legible document's flow is unchanged.
+
+### 3. 34.8 identification at the level it is true at
+
+The per-paragraph `OCR` chip made a recovered document unreadable a second way.
+A wholly-OCR page is now labelled once, on its page marker ("Page 3 · recovered
+by OCR"); a mixed page keeps the per-row chip, because there the page-level
+claim would be false. Identification is not weakened — it is placed where it is
+true.
+
+### 4. What was deliberately NOT done
+
+No PDF.js (a dependency decision rule 19 reserves to the owner — the built-in
+renderer needs none); no server-side page rasterisation (a second render
+pipeline to maintain, for no fidelity gain over the browser's own); no DOCX
+visual renderer (LibreOffice-class dependency); no change to the `content`
+endpoint or its `attachment` disposition (direct navigation still downloads;
+the viewer fetches with the session's credentials and renders from a blob URL);
+no touch to retrieval thresholds, guardrails, citation logic or the AM-28/29
+surfaces.
+
+### Verification
+
+8 new backend tests (`test_deferred_ocr.py`: deferral only when OCR is required
+AND available, honest in-between state, zero evidence in the gap, PARSE→OCR run
+history, fail-closed OCR outcome, analysis refused while processing, endpoint
+dispatch); 3 new unit tests (analysis chain steps aside only for the in-between
+states); 3 new browser tests (`original-view.spec.ts`: Original default with
+real bytes in the frame, pointing gesture lands in Text, DOCX offers no
+pretend tab). Full suites green. Measured before/after on the real document in
+the final report.
+
+### DD-16 addendum — durability review (2026-09-03, pre-deployment)
+
+The owner's production-readiness review found the one real gap: the OCR thread
+was not durable across a process death (stuck PROCESSING). Closed inside the
+existing run architecture — claim-run committed before the work, the whole
+completion (evidence + statuses + index) as one transaction, a per-version
+advisory lock, startup reconciliation, and a 3-attempt cap that converges a
+process-killing document to deterministic FAILED. Proved by `kill -9` mid-OCR
++ restart on the real document (clean rollback, reconciled to COMPLETED, 413
+rows, no duplicates) and by racing two jobs on one version (exactly one
+wrote). Decision #295 has the full record.

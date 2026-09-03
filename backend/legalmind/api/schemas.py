@@ -54,9 +54,20 @@ class ConversationCreate(Body):
 
 
 class AskRequest(Body):
-    """One question. Length-bounded at the boundary; content rules live server-side."""
+    """One question, about ONE document version.
+
+    Length-bounded at the boundary; content rules live server-side.
+
+    ``document_version_id`` names the version the question is about — the one the
+    reader has open. It is OPTIONAL and defaults to the contract's newest version,
+    which is what every caller got before this field existed. Authorization is not
+    weakened by naming it: the version is resolved through `guard.document_version`
+    and additionally required to belong to the conversation's own contract, so this
+    field can only ever narrow the scope, never widen it.
+    """
 
     question: str = Field(min_length=1, max_length=2000)
+    document_version_id: str | None = Field(default=None, max_length=64)
 
 
 # ------------------------------------------------------------------ auth

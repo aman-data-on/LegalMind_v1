@@ -11,11 +11,12 @@
  * document exists — re-uploading is OPTIONAL, never a gate — and lands on the
  * new version while every earlier version, Review and Finding stays reachable.
  *
- * Ask answers about the LATEST version only (the server resolves the
- * conversation's contract to its newest version — verified, not assumed). When
- * an OLDER version is open, the ask region says so plainly instead of rendering
- * a form whose answers would misattribute — the same honesty rule as every
- * other blocked surface (never fake, never silently misdirect).
+ * Ask answers about THE VERSION ON SCREEN (2026-09-02). It used to answer about
+ * the newest version only — the server resolved the conversation's contract to
+ * its newest version and offered no way to say otherwise — so a reader with an
+ * older version open got a disabled input and a button to "open the latest
+ * version". The ask endpoint now takes the version being asked about, so the
+ * open version is simply passed down and Ask works on every one of them.
  *
  * Denial semantics (49.5 / 52.4): an out-of-scope contract and a nonexistent one
  * are byte-identical on the wire and read identically here — "Not found." — never
@@ -33,7 +34,7 @@ import { useSession } from "@/lib/session";
 import type { Contract, DocumentVersion } from "@/lib/types";
 
 import { AnalysisPanel } from "./AnalysisPanel";
-import { AskBar } from "./AskBar";
+import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
 import { DocumentPane } from "./DocumentPane";
 import { ExportControl } from "./ExportControl";
@@ -49,6 +50,12 @@ type Load =
   | { kind: "loading" }
   | { kind: "ready"; contract: Contract; version: DocumentVersion | null }
   | { kind: "error"; error: unknown };
+
+/** How often, and for how long, a still-processing version is re-asked about.
+ *  3s x 100 = five minutes — comfortably past the measured background OCR pass
+ *  (~17s for a 30-page document), then it stops rather than polling forever. */
+const PROCESSING_POLL_MS = 3000;
+const PROCESSING_POLL_LIMIT = 100;
 
 /** The `?version=` param, read client-side (the house idiom — no useSearchParams). */
 function requestedVersionId(): string | null {
@@ -75,6 +82,52 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * A version whose processing has not concluded (the deferred-OCR path,
+   * 2026-09-03) is watched: poll the version until PROCESSING resolves, then
+   * complete the same in-flow analysis every upload gets (idempotent — 49.8
+   * makes Review creation idempotent and a repeat analyze returns
+   * `already_analysed`) and reload the workspace. Bounded, silent, and every
+   * rendered state along the way is the server's own.
+   */
+  const watchedVersionId =
+    state.kind === "ready" &&
+    state.version !== null &&
+    (state.version.processing_status === "PENDING" ||
+      state.version.processing_status === "PROCESSING")
+      ? state.version.id
+      : null;
+  useEffect(() => {
+    if (!watchedVersionId) return;
+    let polls = 0;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      polls += 1;
+      if (polls > PROCESSING_POLL_LIMIT) {
+        window.clearInterval(timer);
+        return;
+      }
+      void api
+        .documentVersion(watchedVersionId)
+        .then(async (fresh) => {
+          if (cancelled) return;
+          if (fresh.processing_status === "PENDING" || fresh.processing_status === "PROCESSING") return;
+          window.clearInterval(timer);
+          await chainAnalysis(contractId, can(P.REVIEW_CREATE));
+          if (!cancelled) void load();
+        })
+        .catch(() => {
+          /* transient — the next tick asks again */
+        });
+    }, PROCESSING_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+    // `can` is stable for a session; deliberately keyed on the version watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedVersionId, contractId, load]);
 
   if (!can(P.CONTRACT_VIEW)) {
     return (
@@ -209,13 +262,16 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             findings={<FindingsPane version={version} />}
             analysis={<AnalysisPanel documentVersionId={version.id} />}
           />
-          {/* Sticky, mounted at every breakpoint — reachable whatever is open
-              or scrolled. When an older version is open the bar stays visible
-              but disabled, saying so plainly (never hidden). */}
-          <AskBar
+          {/* A floating launcher, not a layout row (DD-15): it reserves no
+              workspace height, is mounted at every breakpoint, and opens over
+              the canvas without replacing the document. It asks about the
+              version on screen, whichever that is. */}
+          <AskDock
             contractId={contract.id}
-            notLatestVersion={isLatest ? undefined : version.version_number}
-            onOpenLatest={() => openVersion(null)}
+            documentVersionId={version.id}
+            versionNumber={version.version_number}
+            isLatest={isLatest}
+            onOpenVersion={(id) => openVersion(id)}
           />
         </>
       ) : (
@@ -271,18 +327,29 @@ function HeaderDownload() {
  *  durable form). Nothing is published anywhere — it is the address bar. */
 function ShareControl() {
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
   return (
     <button
       type="button"
       className="ws-btn ws-btn--primary ws-btn--share"
       onClick={() => {
-        void navigator.clipboard.writeText(window.location.href).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1600);
-        });
+        void navigator.clipboard.writeText(window.location.href).then(
+          () => {
+            setFailed(false);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          },
+          // Clipboard access can be denied (permissions, an insecure context) —
+          // without this the button did nothing at all and looked broken.
+          () => {
+            setCopied(false);
+            setFailed(true);
+            window.setTimeout(() => setFailed(false), 1600);
+          },
+        );
       }}
     >
-      <IconLink size={15} /> {copied ? "Link copied" : "Share"}
+      <IconLink size={15} /> {copied ? "Link copied" : failed ? "Couldn't copy — copy from the address bar" : "Share"}
     </button>
   );
 }

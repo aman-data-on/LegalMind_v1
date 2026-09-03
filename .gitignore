@@ -48,6 +48,10 @@ node_modules/
 .next/
 .next-staging/
 .next-previous/
+# The browser suite's own build target — kept off `.next` so a suite run can
+# never rewrite what the live frontend service is serving (2026-09-02).
+.next-e2e/
+.next-usertest/
 out/
 .turbo/
 *.tsbuildinfo

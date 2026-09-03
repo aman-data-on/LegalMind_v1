@@ -10,6 +10,194 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — deployed to production 2026-09-03 17:37 IST (owner-approved; commit e03bef9)
+
+* **The Original document view (DD-16).** The workspace's document card gains an
+  Original | Text toggle for PDFs: Original renders the preserved original bytes
+  (34.5) in the browser's own PDF renderer — logo, typography, layout,
+  byte-for-byte the uploaded file — fetched with the session's credentials
+  through the existing `document.download`-gated content endpoint and shown from
+  a blob URL. Default view for PDFs; every pointing gesture (citation, outline
+  click, find) switches to Text, where Evidence rows live. A DOCX honestly gets
+  no Original tab. No new dependency (rule 19), no endpoint change. 34.8's OCR
+  identification moved to the level it is true at: one label on a wholly-OCR
+  page's marker instead of a chip on every paragraph.
+
+* **OCR left the upload's critical path (DD-16 §2).** Measured on the real
+  30-page document: 63.4s of a ~64s upload was tesseract, inside the POST.
+  Upload now runs only the native parse + legibility verdict (~2–3s) and, when
+  OCR is required and the toolchain exists, returns the honest in-between state
+  (`processing_status=PROCESSING`, `extraction_status` NULL, zero evidence — no
+  new vocabulary) and dispatches the OCR as its own background ProcessingRun
+  (`ProcessingRunType.OCR`, the run type locked 42.5 already reserves; attempt
+  history reads PARSE → OCR). Pages OCR in parallel at the same 300dpi
+  (4 tesseract processes, one thread each) — **byte-identical output**,
+  65.6s → 16.2s. `PROCESSOR_VERSION` → `legalmind-ingest-v3`. Analysis is
+  refused while a document is processing (`assert_analysable`), the in-flow
+  analysis chain steps aside for the in-between states only, and the workspace
+  polls the version (bounded) and completes the chain when extraction lands.
+  No toolchain → fail closed at upload, exactly as before. 8 new backend tests
+  (`test_deferred_ocr.py`), 3 unit tests, 3 browser tests
+  (`original-view.spec.ts`).
+
+* **The background OCR job is durable (2026-09-03, pre-deployment review).**
+  Each attempt commits its STARTED run before parsing (42.5's attempt history
+  as the crash ledger); the completion — evidence, statuses AND the assist
+  index — is one transaction; a per-version Postgres advisory lock admits one
+  job database-wide; `reconcile_interrupted_ocr` at API startup re-dispatches
+  whatever a death orphaned; and `OCR_MAX_ATTEMPTS=3` converges a
+  process-killing document to deterministic FAILED instead of a restart loop.
+  Proved by `kill -9` mid-OCR + restart (clean rollback → reconciled →
+  COMPLETED, 413 rows, no duplicates) and by racing two jobs on one version
+  (exactly one wrote). 4 further tests. Decision #295.
+
+### Fixed
+
+* **A document whose fonts carry a broken character map is no longer presented as
+  the contract, and can no longer produce Findings (2026-09-03).** A real upload
+  displayed as `"MaVWeU SeUYLceV AgUeePeQW"` for "Master Services Agreement": the
+  PDF's `Identity-H` font subsets carry a `/ToUnicode` CMap that is present,
+  valid, and **wrong** — every code point at or above `0x6D` shifted down by 29.
+  The usable-text check asked only whether text was PRESENT, and ~1,960
+  characters on page 1 satisfied it, so OCR was never attempted (locked 34.3 asks
+  for detection when extraction is *insufficient*; only *absent* was
+  implemented). The glyph stream reached the viewer, the clause list, the chunk
+  index and a Review that reported **3 MATCH findings against text nobody could
+  read**.
+
+  Extraction now measures legibility — the share of alphabetic tokens that are
+  common English function words, a fixed 24-word list, deterministic and offline.
+  Judged per **document** and only above 200 words, because a cover page or a
+  website footer legitimately scores as low as 0.055 and a per-page rule would
+  send correctly-extracted pages to OCR. The threshold (0.15) was measured, not
+  picked: 0.210–0.422 across the 21 supplied contract and statute PDFs, 0.080 for
+  the garbled upload, re-validated at **1 flagged, 20 kept native, 0 false
+  positives**. A failing document is re-extracted by OCR where the toolchain
+  exists — marked OCR-derived (34.8) and adopted **only when measurably better**,
+  so working text can never be traded for worse — and otherwise refused outright:
+  `ExtractionStatus.FAILED`, which 45B.7 routes to `UNABLE_TO_EVALUATE` and
+  `run_analysis` already refuses (`no_extracted_clauses`), so **no Finding is
+  produced at all** — not MATCH, and not MISSING either, which would wrongly
+  assert absence. No character-level repair was attempted: inverting the shift
+  recovers the body text and corrupts every capital ("Strad" → "ptrad"), which is
+  the invented text 34.9 forbids. Decisions 285–288.
+
+* **`export.generate` and `contract.delete` never reached the roles they were
+  granted to (2026-09-03).** `seed_default_grants` skips any role that already
+  holds permissions, so that re-running a bootstrap never restores a grant an
+  administrator removed. The cost is seeding chronology: both grants were added
+  to `DEFAULT_ROLE_GRANTS` *after* those roles were first seeded, so Export and
+  Delete worked only for `DEVELOPER` — the one role created afterwards.
+  `tools/reconcile_role_grants.py` adds the missing default grants and nothing
+  else: it never removes, and it **refuses to run once any
+  `admin.permission_changed` audit event exists**, because from that point the
+  database reflects administrator decisions rather than seeding history and
+  reconciliation belongs to the audited `PATCH /roles` API. Dry-run by default.
+
+### Investigated — no behaviour changed
+
+* **Upload/processing timing: measured, and there is no bottleneck
+  (2026-09-03).** A reported ~10-minute "In Progress" was traced by measurement
+  rather than inference: DOCX extraction 199 ms, PDF extraction 260 ms, embedding
+  model load 410 ms, 325 chunk embeddings 1.60 s — **~2.2 s of machine time**, and
+  every processing run in the live database is recorded at 0.0–0.2 s. The wait is
+  the intake's deliberate human confirmation step (locked owner Q9). Nothing was
+  changed; caching, batching or a queue would be optimizing a two-second stage.
+
+* **The in-place-build refusal now sits where no entry point can bypass it
+  (2026-09-02, decision #286).** `next.config.ts` exports a phase function that
+  throws on `PHASE_PRODUCTION_BUILD` when the build targets `.next` while the
+  `legalmind-frontend` service is active. The npm `prebuild` hook only guarded
+  `npm run build`; `npx next build` — the Playwright web server's invocation —
+  walked past it and rewrote the live build in place. The refusal is causally
+  ordered before any write (`distDir` is a value of the config being loaded), and
+  was proven empirically: a bare build refuses with `.next/BUILD_ID`
+  byte-identical, a `LEGALMIND_NEXT_DIST` build succeeds.
+
+* **A frontend can no longer be deployed AHEAD of the API (decision #287).**
+  `deploy-frontend.sh` refuses when any `backend/legalmind`/`backend/alembic`
+  source is newer than the running `legalmind-api` process — the exact condition
+  under which `extra="forbid"` made every Ask question fail with "The request
+  could not be validated." on 2026-09-02. `ops/deploy.sh` (new, decision #288)
+  deploys both in dependency order: import sanity check → migrations → API
+  restart → health probe → staged frontend deploy.
+
+### Added
+
+* **`tools/reconcile_role_grants.py` (decision #285)** — additive-only
+  reconciliation of role grants to `DEFAULT_ROLE_GRANTS`, for the
+  seeding-chronology drift that left `export.generate` granted to no role and
+  `contract.delete` (locked AB-10 r6) missing from USER on the development
+  instance. Refuses to apply while any `admin.permission_changed` audit event
+  exists — once an administrator has shaped role permissions through the audited
+  API, reconciliation belongs there, not to seeding. Six tests, including the
+  repair observed through `effective_permissions` and the structural
+  never-removes property. **Not yet applied to the development instance** —
+  held for owner approval.
+
+* **Browser regression nets**: `e2e/revision-upload.spec.ts` pins the
+  workspace's revised-version upload after an Ask interaction and fails unless
+  the POST leaves the page within 15s (the 2026-09-02 live hang, not reproduced
+  locally, now cannot recur silently); `ask-dock.spec.ts` gains the
+  cross-version transcript case — a turn answered about version 2 is labelled as
+  such when read from version 1, and the label survives a reload.
+
+### Fixed (earlier this day)
+
+* **Ask answers about the version you are reading, and no longer directs you to
+  another one (2026-09-02).** Owner report: uploading a revised version made Ask
+  say to go to the update instead of answering about the document on screen.
+  **The copy was a symptom.** `POST /conversations/{id}/messages` resolved its
+  target as `MAX(version_number)` over the conversation's contract and gave the
+  caller no way to say otherwise, so an answer read while version 1 was open came
+  from version 2 — including every citation's `evidence_id`, and an evidence row
+  belongs to exactly one version's reading order, so the workspace's highlight
+  pointed at a row absent from the page: nothing moved and the `aria-live` region
+  announced that something had. Disabling the input was the only honest thing the
+  UI could do with that API. Confirmed in the owner's own data first: contract
+  `dea89208` held version 1 (the real MSA, 356 chunks) and version 2 (an exported
+  analysis PDF re-uploaded, 90 chunks), and their answer had retrieved from
+  version 2 while version 1 was on screen.
+
+  **Nothing locked was touched.** `AM-25`/`AM-27` fix nothing about
+  conversation-to-version scope; `conversations` carries `contract_id` only and
+  the per-turn version was already recoverable through `retrieval_runs`. So the
+  existing model — a conversation belongs to a contract, each turn is answered
+  from one version — was made explicit: `AskRequest` gains an **optional**
+  `document_version_id` (omitted still means the newest, so the API change is
+  additive), authorized through the full `guard.document_version` chain *and*
+  required to belong to the conversation's own contract so it can only narrow
+  scope; the document scope is recorded in `retrieval_runs.filters`, the column
+  `AM-27` describes for it, with **no schema change**; and each replayed turn
+  reports the version it was answered from, so a transcript spanning versions
+  labels the difference and offers to open that version rather than faking a
+  highlight. Decisions 278–283 in
+  [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md).
+
+* **Two defects found by the browser while verifying the above:** the Ask
+  launcher's `display: inline-flex` out-specified the UA `[hidden]` rule, so it
+  stayed visible over the open panel and could obscure focus inside it (WCAG 2.2
+  AA 2.4.11); and focus-restore on close ran before React had unhidden it, so
+  Escape left focus nowhere. Neither is visible to a static test.
+
+### Changed
+
+* **Ask is a floating secondary tool and reserves no workspace height
+  (2026-09-02, [DD-15](docs/design/DESIGN_DECISIONS.md), superseding DD-9 §4).**
+  The Ask bar was floating in appearance only — it was the bottom flex row of
+  `.ws-workmain` and held roughly 128px of every screen (input, suggestion chips,
+  honesty note) whether or not anyone was asking anything. It is now a 44px
+  launcher pinned in the workspace's bottom-right corner plus a **non-modal**
+  panel (`role="dialog"`, `aria-modal="false"`): focus moves to the input on open
+  and back to the launcher on close but is never trapped, so the document, the
+  clause list and the findings stay usable with the conversation open, and Escape
+  closes. **Deliberately not hover-to-open** — it cannot be performed on a touch
+  screen and a corner panel that opens on pointer transit opens by accident while
+  someone reads; hover drives affordance only. Below 620px it becomes a bottom
+  sheet with a dismiss scrim. The panel stays mounted while closed, so a draft
+  and the restored history survive closing and reopening. Nothing was added: no
+  chat modes, no personas, no model controls, no progress theatre.
+
 ### Investigated — no behaviour changed
 
 * **E1 follow-on: `COSINE_FLOOR`'s two responsibilities separated; a candidate

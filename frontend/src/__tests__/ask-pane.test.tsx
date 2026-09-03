@@ -7,14 +7,17 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { WsAnswerView } from "@/components/workspace/AskBar";
+import { WsAnswerView } from "@/components/workspace/AskDock";
 import { HighlightProvider } from "@/components/workspace/highlight";
 import type { AskResult } from "@/lib/types";
 
 function result(overrides: Partial<AskResult>): AskResult {
   return {
     conversation_id: "c-1", message_id: "m-1", answer_state: "ANSWERED", text: "",
-    routed_to_evaluator: false, citations: [], ...overrides,
+    routed_to_evaluator: false,
+    // The version the answer was read from — always present on a real reply.
+    document_version_id: "dv-1", version_number: 1,
+    citations: [], ...overrides,
   };
 }
 const render = (r: AskResult) =>
