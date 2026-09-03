@@ -24,6 +24,15 @@ export async function chainAnalysis(
     const detail = await api.contract(contractId);
     const versionId = detail.document_versions?.[0]?.id;
     if (!versionId) return;
+    // A document still being processed (the deferred-OCR path) has no evidence
+    // yet, and the server refuses to analyse it. Skip the whole chain — the
+    // workspace watches processing and runs this chain when extraction
+    // completes, so the analysis still happens without anyone waiting on it.
+    // Only the in-between states skip: a FAILED extraction still gets its
+    // Review and the honest ANALYSIS_FAILED surface, exactly as before.
+    const version = await api.documentVersion(versionId);
+    if (version.processing_status === "PENDING" ||
+        version.processing_status === "PROCESSING") return;
     const review = await api.createReview(versionId, snapshot.id);
     await api.analyzeReview(review.id);
   } catch {

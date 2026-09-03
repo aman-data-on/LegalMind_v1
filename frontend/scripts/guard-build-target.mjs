@@ -10,6 +10,12 @@
  * Documentation does not prevent that — a hook does. This runs as `prebuild`, so
  * it fires on `npm run build` no matter who or what invokes it.
  *
+ * ⚠️ It does NOT fire on a bare `npx next build`, which is how the Playwright
+ * web server rebuilt the live `.next` on 2026-09-02. The load-bearing layer is
+ * therefore the phase guard inside `next.config.ts`, which every `next build`
+ * invocation must pass through before `distDir` is even known. This hook stays
+ * as the friendlier, earlier message on the `npm run build` path.
+ *
  * Escape hatches, both explicit:
  *   LEGALMIND_NEXT_DIST=<dir>   build somewhere else (what the deploy script does)
  *   LEGALMIND_ALLOW_INPLACE=1   "I know, do it anyway"

@@ -60,7 +60,32 @@ def persist_evaluation(
     evaluation_rule_version_id: UUID | None = None,
     requirement_required: bool = True,
 ) -> PersistedFinding:
-    """Persist a Finding and its scoped Evaluations."""
+    """Persist a Finding and its scoped Evaluations.
+
+    Every result is validated BEFORE anything is written. EV-MIN is a
+    DEFERRED constraint trigger — it only fires at COMMIT, which in this
+    codebase happens once, in the request-scoped session teardown, well after
+    every Requirement in the Review has been processed. Raising
+    ``EvidenceCardinalityViolation`` after the Finding row was already
+    flushed (as this function used to) leaves that Finding sitting in the
+    session with no Evaluation attached to it — invisible to every check here
+    in Python, since nothing re-reads it, but very much still pending in the
+    transaction. It surfaces only when the WHOLE Review's transaction
+    commits, and EV-MIN then rolls back every Finding for every Requirement
+    in the Review, not just the one that failed — the caller sees a 201, the
+    log line says the analysis completed, and the Review is left stuck in
+    DRAFT forever with no Finding and no error anyone can see. Validating
+    first keeps the failure scoped to the one Requirement it actually
+    belongs to (Step 30 r13's "recorded failure, never a guessed one").
+    """
+    for result in output.evaluations:
+        if (not result.evidence_refs
+                and result.classification not in _EVIDENCE_OPTIONAL):
+            raise EvidenceCardinalityViolation(
+                f"{result.classification.value} evaluation for scope "
+                f"{result.scope_key} has no evidence; synthetic evidence must "
+                "not be created (N-34)")
+
     # findings.status is NOT NULL, so an initial value is written and then
     # replaced by the DERIVED one below. It is never asserted by a caller
     # (Step 30 r16: summaries are derived, not manually editable).
@@ -75,13 +100,6 @@ def persist_evaluation(
 
     persisted: list[M.Evaluation] = []
     for result in output.evaluations:
-        if (not result.evidence_refs
-                and result.classification not in _EVIDENCE_OPTIONAL):
-            raise EvidenceCardinalityViolation(
-                f"{result.classification.value} evaluation for scope "
-                f"{result.scope_key} has no evidence; synthetic evidence must "
-                "not be created (N-34)")
-
         evaluation = M.Evaluation(
             finding_id=finding.id,
             evaluator_type=_evaluator_type_of(db, requirement_version_id),

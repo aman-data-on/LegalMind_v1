@@ -49,6 +49,45 @@ def _latest_document_version(guard: Guard, contract_id: UUID) -> M.DocumentVersi
     return row
 
 
+def _asked_document_version(guard: Guard, contract_id: UUID,
+                            requested: str | None) -> M.DocumentVersion:
+    """The version a question is about: the one the caller names, else the newest.
+
+    Why this exists (2026-09-02). Before it, the ask endpoint ALWAYS resolved the
+    newest version of the conversation's contract. A reader with version 1 open
+    therefore could not ask about what was on their screen — the answer, and the
+    `evidence_id` in every citation, would have come from a different version's
+    reading order, so the workspace's highlight gesture would point at a row that
+    does not exist on the open page. The UI's only honest move was to disable the
+    input and say "open the latest version", which is what the owner reported.
+
+    The scope can only NARROW here, never widen. Two independent checks:
+    `guard.document_version` runs the full 47.6 chain (visibility of the owning
+    contract, then the permission), and the version is then required to belong to
+    THIS conversation's contract — so a valid id from another contract the caller
+    happens to be able to read is still refused rather than answered.
+
+    Omitting the field keeps the previous behaviour exactly, which is what makes
+    this an additive API change.
+    """
+    if requested is None:
+        return _latest_document_version(guard, contract_id)
+    try:
+        version_id = UUID(requested)
+    except ValueError as exc:
+        raise BusinessRuleRejected(
+            "document_version_id is not a valid identifier") from exc
+    version = guard.document_version(version_id, P.ASSIST_ASK)
+    if version.contract_id != contract_id:
+        # Not a 404: the caller can see this version, it simply is not part of the
+        # conversation they are asking in. Answering across contracts would let one
+        # conversation mix two documents' evidence, which is what AM-25 r6's
+        # single-scope retrieval exists to prevent.
+        raise BusinessRuleRejected(
+            "the document version does not belong to this conversation's contract")
+    return version
+
+
 def _visible_conversation(guard: Guard, conversation_id: UUID) -> dict:
     """Ownership check with the byte-identical-404 discipline.
 
@@ -191,10 +230,28 @@ def get_conversation(conversation_id: UUID,
     guard.permission(P.ASSIST_ASK)
     conversation = _visible_conversation(guard, conversation_id)
     schema = config.assist_schema()
+    # Each assistant turn also reports WHICH document version it was answered
+    # from. A conversation is contract-scoped (AM-27: "an assist-lane session"),
+    # so a contract that gains a revised version can hold turns answered from
+    # more than one — and a replayed citation's `evidence_id` belongs to exactly
+    # one version's reading order. Stating the version per turn is what lets the
+    # workspace refuse to point at a row that is not on the open page, instead of
+    # highlighting nothing and announcing that it did.
+    #
+    # Preferred source is the retrieval run's `filters` (written since
+    # 2026-09-02). Rows written before that fall back to the version of the first
+    # chunk the run actually hit — the same fact, recovered rather than guessed.
     turns = guard.db.execute(text(f"""
-        SELECT m.id, m.ordinal, m.role, m.content, a.answer_state, a.id
+        SELECT m.id, m.ordinal, m.role, m.content, a.answer_state, a.id,
+               v.id AS document_version_id, v.version_number
           FROM "{schema}".messages m
           LEFT JOIN "{schema}".ai_answers a ON a.message_id = m.id
+          LEFT JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id
+          LEFT JOIN document_versions v
+                 ON v.id = COALESCE(
+                      (r.filters->>'document_version_id')::uuid,
+                      (SELECT ch.document_version_id FROM "{schema}".chunks ch
+                        WHERE ch.id::text = (r.results->'hits'->0->>'chunk_id')))
          WHERE m.conversation_id = :c
          ORDER BY m.ordinal
     """), {"c": conversation_id}).all()
@@ -238,6 +295,10 @@ def get_conversation(conversation_id: UUID,
             "answer_state": t[4],
             "routed_to_evaluator": (t[2] == "ASSISTANT"
                                     and t[3] == service.EVALUATOR_ROUTE_TEXT),
+            # None for a user turn, and for an assistant turn that never
+            # retrieved (a compliance-shaped question routed to the evaluator).
+            "document_version_id": str(t[6]) if t[6] else None,
+            "version_number": t[7],
             "citations": by_answer.get(t[5], []),
         } for t in turns],
     })
@@ -260,7 +321,8 @@ def ask(conversation_id: UUID, body: AskRequest,
     # resolver every other document read goes through (AM-25 r6: server-side, before
     # retrieval).
     guard.contract(conversation["contract_id"], P.ASSIST_ASK)
-    version = _latest_document_version(guard, conversation["contract_id"])
+    version = _asked_document_version(guard, conversation["contract_id"],
+                                      body.document_version_id)
 
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
@@ -273,6 +335,12 @@ def ask(conversation_id: UUID, body: AskRequest,
     return data({
         "conversation_id": str(outcome.conversation_id),
         "message_id": str(outcome.message_id),
+        # Which version this answer is about — stated, never inferred by the
+        # caller. A conversation may span versions (the table is contract-scoped),
+        # so the answer says which one it read rather than leaving the reader to
+        # assume it matched whatever was on screen.
+        "document_version_id": str(version.id),
+        "version_number": version.version_number,
         "answer_state": outcome.answer_state.value,
         "text": outcome.text,
         "routed_to_evaluator": outcome.routed_to_evaluator,

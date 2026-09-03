@@ -31,6 +31,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
@@ -40,6 +41,7 @@ import type { Contract, ContractsSummary, Pagination } from "@/lib/types";
 
 import {
   documentStatusBucket,
+  relativeTime,
   STATUS_BUCKET_LABEL,
   type DocumentStatusBucket,
 } from "@/components/workspace/model";
@@ -57,9 +59,6 @@ import {
 } from "@/components/workspace/icons";
 
 const PAGE_SIZE = 25;
-/** How many rows the priority queue shows before deferring to "View all". Five
- *  is a glance; a longer list is the table's job, and the table is right there. */
-const ATTENTION_LIMIT = 5;
 
 const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
   draft: <IconClock size={13} />,
@@ -108,26 +107,6 @@ function FindingsCell({ contract }: { contract: Contract }) {
   );
 }
 
-/** "Review 9 issues" — everything the analysis did not classify as a MATCH.
- *  Counted from the classifications the server sent, never re-derived from
- *  anything else: 52.7 keeps the client from computing a second opinion. */
-function openIssueLabel(contract: Contract): string {
-  const counts = contract.latest_analysis?.classification_counts ?? {};
-  const n = Object.entries(counts)
-    .reduce((sum, [c, v]) => sum + (c !== "MATCH" ? v : 0), 0);
-  return `Review ${n} issue${n === 1 ? "" : "s"}`;
-}
-
-function relativeTime(iso: string | null): string {
-  if (!iso) return "—";
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 90) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
-  if (seconds < 172800) return "yesterday";
-  return `${Math.round(seconds / 86400)} d ago`;
-}
-
 /** A count, and — only where one exists — somewhere to go with it. `onSelect`
  *  turns the tile into a real button; without it the tile stays inert markup
  *  rather than a control that looks clickable and does nothing. */
@@ -169,13 +148,77 @@ function DocumentsListView() {
   const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "">("");
   const [sort, setSort] = useState("created_desc");
   const [error, setError] = useState<unknown>(null);
-  /** The priority queue, fetched on its own terms — see the effect below. */
-  const [attention, setAttention] = useState<Contract[] | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  /** The row whose action menu is open, and the row being edited or deleted. */
+  /** The row whose action menu is open, and the row being edited or deleted.
+   *
+   *  The menu itself renders through a portal (see `.ws-menu__list` below and
+   *  `menuPortalTarget` further down): `menuPos` is the fixed-viewport
+   *  coordinate it renders at, captured from the toggle button's own position
+   *  at open time. Without the portal, the menu's nearest positioned ancestor
+   *  is inside `.ws-docs__table`, which clips overflow for its own reasons
+   *  (the horizontal scroller, the rounded card on the index view) — so a
+   *  menu opened on any row got silently cut off at the table's edge instead
+   *  of floating above the page. Positioning by viewport coordinates escapes
+   *  every such ancestor, not just this one. */
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{
+    top?: number; bottom?: number; right: number; minWidth: number;
+  } | null>(null);
   const [editing, setEditing] = useState<Contract | null>(null);
   const [deleting, setDeleting] = useState<Contract | null>(null);
+
+  function closeMenu() {
+    setMenuFor(null);
+    setMenuPos(null);
+  }
+
+  /** Where the portal renders (2026-09-03 fix, owner-reported against the
+   *  live site). EVERY design token this app has — `--ws-surface`,
+   *  `--ws-z-dialog`, `--ws-radius`, all of it — is scoped to the `.ws`
+   *  wrapper class (`WorkspaceShell.tsx`), not `:root` (deliberately, so this
+   *  stylesheet and the legacy one never fight over a global scope). A first
+   *  version of this fix portaled straight into `document.body`, which sits
+   *  OUTSIDE `.ws` — so the menu lost every one of those tokens. `z-index:
+   *  var(--ws-z-dialog)` fell back to `auto` and `background:
+   *  var(--ws-surface)` fell back to transparent. It still correctly
+   *  occluded clicks (confirmed by hit-testing: DOM order alone put it on
+   *  top), but with no opaque background to back that up, the row underneath
+   *  visually painted straight through it — exactly the "still overlapping"
+   *  screenshot this fix answers. Portaling into `.ws` itself instead keeps
+   *  every token, and `.ws` sets no `transform`/`filter`/`contain` of its
+   *  own, so `position: fixed` still resolves against the viewport exactly
+   *  as the positioning math in `openMenu` assumes. */
+  function menuPortalTarget(): Element {
+    return document.querySelector(".ws") ?? document.body;
+  }
+
+  /** Opens toward the row's start edge, flipping to open ABOVE the toggle when
+   *  the row is near the bottom of the viewport — otherwise a menu on the last
+   *  visible row would render below the fold instead of just below the
+   *  table's clipping edge.
+   *
+   *  Width is the wider of 168px and the row's own Action `<td>` (2026-09-03
+   *  fix, owner-reported against the live site): a menu narrower than the
+   *  cell it floats over covers only PART of the row below — that row's own
+   *  "Review"/"Analyze" link and toggle peek out from under one edge instead
+   *  of being cleanly hidden, which reads as a rendering glitch rather than an
+   *  intentional overlay. Every row shares one table column, so anchoring to
+   *  THIS row's cell width and right edge guarantees full coverage of
+   *  whichever row's Action cell the menu ends up floating over. */
+  function openMenu(id: string, toggle: HTMLElement) {
+    const rect = toggle.getBoundingClientRect();
+    const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
+    const estimatedHeight = 96; // up to two items (Edit, Delete) plus padding
+    const opensAbove = window.innerHeight - rect.bottom < estimatedHeight + 8;
+    setMenuPos({
+      right: window.innerWidth - rect.right,
+      minWidth: Math.max(168, cellRect.width),
+      ...(opensAbove
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    });
+    setMenuFor(id);
+  }
 
   const load = useCallback(async () => {
     setError(null);
@@ -212,41 +255,6 @@ function DocumentsListView() {
     };
   }, [contracts]);
 
-  /*
-   * The priority queue asks its own question, so it makes its own request.
-   *
-   * It used to be derived — `contracts.find(c => bucket(c) === "needs_attention")`
-   * over whatever the table happened to be showing. That reads the wrong
-   * dataset: the table is one page of 25, ordered by the user's current sort and
-   * narrowed by their current filters, so a contract needing attention that sat
-   * at position 26, or that fell outside an active filter, was invisible while
-   * the tile beside it still counted it. The section rendered nothing and looked
-   * like "all clear".
-   *
-   * `status` is a real server-side filter (the API computes the same
-   * `_status_bucket` the row displays), so this asks the whole collection
-   * directly and the queue can no longer disagree with the tile above it.
-   */
-  useEffect(() => {
-    // Wait for the first list load rather than racing it. Without this the
-    // effect fires twice on every mount — once at `contracts === null` and
-    // again when the list arrives — asking the same question of the server
-    // twice and rendering the answer twice.
-    if (contracts === null) return;
-    let cancelled = false;
-    api.contracts(1, ATTENTION_LIMIT, {
-      status: "needs_attention",
-      sort: "created_desc",
-    }).then((result) => {
-      if (!cancelled) setAttention(result.items);
-    }).catch(() => {
-      // The queue is a shortcut into the table below; the table still stands.
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [contracts]);
-
   // Debounce the search box so every keystroke doesn't fire a request.
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -255,6 +263,42 @@ function DocumentsListView() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [qInput]);
+
+  // The row action menu (⋯) is a click-outside/Escape dismissible popover like
+  // every other disclosure in this app (AskDock's Escape handling, the modals
+  // below) — without this it stayed open until another toggle was clicked.
+  //
+  // The menu list itself renders through a portal (see `menuPortalTarget`
+  // above), so it is no longer a DOM descendant of `.ws-menu` — the
+  // outside-click check has to recognise `.ws-menu__list` explicitly rather
+  // than relying on ancestry. And because its position is captured once, in
+  // viewport coordinates, at open time, any scroll (the page, or the table's
+  // own horizontal scroller) would leave it floating over the wrong row —
+  // so a scroll closes it instead of rendering it stale.
+  useEffect(() => {
+    if (!menuFor) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!(event.target instanceof Element)
+          || !event.target.closest(".ws-menu, .ws-menu__list")) {
+        closeMenu();
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+    function onScroll(event: Event) {
+      if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
+      closeMenu();
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [menuFor]);
 
   if (!can(P.CONTRACT_VIEW)) {
     return (
@@ -270,11 +314,6 @@ function DocumentsListView() {
   const canDelete = can(P.CONTRACT_DELETE);
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
     && !q && !typeFilter && !statusFilter;
-  // Only shown on the plain, unfiltered landing view — under an active
-  // search/filter it would be answering a different question than the table
-  // below it.
-  const isDefaultView = page === 1 && !q && !typeFilter && !statusFilter;
-  const queue = isDefaultView ? attention ?? [] : [];
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
 
   /** Send the table to one bucket. Every entry point resets the page — landing
@@ -288,7 +327,7 @@ function DocumentsListView() {
    *  the row, and a soft delete in particular changes what the summary counts
    *  say. A spliced array would drift from both. */
   async function refresh() {
-    setMenuFor(null);
+    closeMenu();
     await load();
   }
 
@@ -366,45 +405,21 @@ function DocumentsListView() {
           </section>
         ) : null}
 
-        {queue.length > 0 ? (
-          <section className="ws-doctend" aria-label="Contracts needing attention">
-            <div className="ws-doctend__head">
-              <h2 className="ws-attend__title">Needs Attention</h2>
-              {summary && summary.needs_attention > queue.length ? (
-                <button type="button" className="ws-viewall"
-                        onClick={() => filterTo("needs_attention")}>
-                  View all {summary.needs_attention}
-                </button>
-              ) : null}
-            </div>
-            <ul className="ws-queue">
-              {queue.map((row) => (
-                <li key={row.id}>
-                  <Link href={`/dashboard?id=${row.id}`} className="ws-queue__row">
-                    <span className="ws-queue__main">
-                      <span className="ws-doctend__name">{row.name}</span>
-                      {row.contract_type ? (
-                        <span className="ws-chip ws-chip--type">{row.contract_type}</span>
-                      ) : null}
-                      <StatusPill contract={row} />
-                    </span>
-                    <span className="ws-queue__meta">
-                      <FindingsCell contract={row} />
-                      <span className="ws-pane__note ws-queue__when">
-                        {row.latest_analysis?.completed_at
-                          ? `Analyzed ${relativeTime(row.latest_analysis.completed_at)}`
-                          : `Added ${row.created_at ? row.created_at.slice(0, 10) : "—"}`}
-                      </span>
-                      <span className="ws-doctend__go">
-                        {openIssueLabel(row)} <IconChevronRight size={14} />
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        {/*
+          No separate "Needs Attention" list here any more (2026-09-02
+          redesign — previously `.ws-doctend`/`.ws-queue`, a whole card of its
+          own above the table). The row that needs attention is now flagged
+          IN the table itself (a soft amber row, see `ws-tr--attention`
+          below), which is where the owner asked for the cue to live instead.
+
+          That still leaves the cross-page/cross-filter question the old
+          section existed to answer: a contract needing attention that is not
+          on the page or filter you're currently looking at. Two things below
+          still cover it without a dedicated section: the "Needs Attention"
+          stat tile is a real link into `status=needs_attention` account-wide
+          (see `filterTo`), and the same value is one option in the Status
+          filter. Nothing that was reachable before is unreachable now.
+        */}
 
         {error ? (
           <div className="ws-state ws-state--error" role="alert">
@@ -495,7 +510,7 @@ function DocumentsListView() {
                 {contracts.map((contract) => {
                   const bucket = documentStatusBucket(contract);
                   return (
-                    <tr key={contract.id}>
+                    <tr key={contract.id} className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
                       <td>
                         {/* `title` carries the untruncated name: the cell clips
                             to one line so rows stay a uniform height, and the
@@ -528,9 +543,14 @@ function DocumentsListView() {
                       <td className="ws-mono">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
                       <td>
                         <div className="ws-rowact">
-                          <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--primary">
+                          {/* A per-row action reads better as a link than a
+                              repeated solid button (2026-09-02) — the page's
+                              one true `.btn--primary` stays "+ Upload
+                              Contract" in the header above. */}
+                          <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--link">
                             {bucket === "draft" ? "Analyze"
                               : bucket === "analyzing" ? "View Progress" : "Review"}
+                            <IconChevronRight size={13} aria-hidden="true" />
                           </Link>
                           {/* Only the operations this caller actually has. An
                               action shown-but-disabled advertises a capability
@@ -545,35 +565,49 @@ function DocumentsListView() {
                                 aria-haspopup="menu"
                                 aria-expanded={menuFor === contract.id}
                                 aria-label={`More actions for ${contract.name}`}
-                                onClick={() => setMenuFor(
-                                  menuFor === contract.id ? null : contract.id)}
+                                onClick={(event) => menuFor === contract.id
+                                  ? closeMenu()
+                                  : openMenu(contract.id, event.currentTarget)}
                               >
                                 ⋯
                               </button>
-                              {menuFor === contract.id ? (
-                                <div className="ws-menu__list" role="menu">
-                                  {canEdit ? (
-                                    <button type="button" role="menuitem"
-                                            className="ws-menu__item"
-                                            onClick={() => {
-                                              setMenuFor(null);
-                                              setEditing(contract);
-                                            }}>
-                                      Edit details
-                                    </button>
-                                  ) : null}
-                                  {canDelete ? (
-                                    <button type="button" role="menuitem"
-                                            className="ws-menu__item ws-menu__item--bad"
-                                            onClick={() => {
-                                              setMenuFor(null);
-                                              setDeleting(contract);
-                                            }}>
-                                      Delete
-                                    </button>
-                                  ) : null}
-                                </div>
-                              ) : null}
+                              {menuFor === contract.id && menuPos
+                                ? createPortal(
+                                  <div
+                                    className="ws-menu__list"
+                                    role="menu"
+                                    style={{
+                                      position: "fixed",
+                                      right: menuPos.right,
+                                      top: menuPos.top,
+                                      bottom: menuPos.bottom,
+                                      minWidth: menuPos.minWidth,
+                                    }}
+                                  >
+                                    {canEdit ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item"
+                                              onClick={() => {
+                                                closeMenu();
+                                                setEditing(contract);
+                                              }}>
+                                        Edit details
+                                      </button>
+                                    ) : null}
+                                    {canDelete ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item ws-menu__item--bad"
+                                              onClick={() => {
+                                                closeMenu();
+                                                setDeleting(contract);
+                                              }}>
+                                        Delete
+                                      </button>
+                                    ) : null}
+                                  </div>,
+                                  menuPortalTarget(),
+                                )
+                                : null}
                             </div>
                           ) : null}
                         </div>
@@ -643,7 +677,7 @@ function DocumentsListView() {
           "forgot password".
         */}
         <div className="ws-doctable__foot">
-          <span>Maximum file size 50&nbsp;MB</span>
+          <span>Maximum file size 25&nbsp;MB</span>
         </div>
         </div>
 

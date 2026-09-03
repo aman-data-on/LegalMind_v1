@@ -461,6 +461,12 @@ export interface AskResult {
   answer_state: AssistAnswerState;
   text: string;
   routed_to_evaluator: boolean;
+  /** The document version this answer was read from — STATED by the server, never
+   *  inferred here. A conversation is contract-scoped, so it can hold turns from
+   *  more than one version, and an answer's `evidence_id`s only highlight on the
+   *  version they came from. */
+  document_version_id: string;
+  version_number: number;
   citations: AssistCitation[];
 }
 
@@ -486,6 +492,11 @@ export interface ConversationTurn {
   content: string;
   answer_state: AssistAnswerState | null;
   routed_to_evaluator: boolean;
+  /** Which version this turn was answered from. Null on a question turn, and on
+   *  an answer that never retrieved (a compliance-shaped question routed to the
+   *  evaluator) — reporting a version there would be a fabrication. */
+  document_version_id: string | null;
+  version_number: number | null;
   /** `AM-25` r5 — the SAME citations the live answer carried. `[]` on refusals. */
   citations: AssistCitation[];
 }

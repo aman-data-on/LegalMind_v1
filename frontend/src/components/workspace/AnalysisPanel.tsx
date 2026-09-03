@@ -33,6 +33,7 @@ import {
   classificationBucket,
   findingsNeedingDecision,
   findingsSummary,
+  relativeTime,
   type StatusBucket,
 } from "./model";
 import { ObligationsPanel } from "./ObligationsPanel";
@@ -83,14 +84,6 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
   );
 }
 
-function relativeTime(iso: string): string {
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 90) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
-  return `${Math.round(seconds / 86400)} d ago`;
-}
-
 function AnalysisSummary({ findings }: { findings: Finding[] }) {
   const sideTabs = useSideTabs();
   const summary = findingsSummary(findings);
@@ -119,22 +112,37 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
   return (
     <>
       <section className="ws-analysis__section" aria-label="Status summary">
-        <h3 className="ws-analysis__title">Status summary</h3>
+        <div className="ws-analysis__head">
+          <h3 className="ws-analysis__title">Status summary</h3>
+          {sideTabs ? (
+            <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
+              View all
+            </button>
+          ) : null}
+        </div>
         {/* One tile per classification that ACTUALLY occurred — the real Step 19
             vocabulary, never an invented catch-all label. "Needs review" is not
             a status in this system; DEVIATION and UNABLE_TO_EVALUATE are
-            different facts and stay named as themselves (rule 7/12/14). */}
+            different facts and stay named as themselves (rule 7/12/14).
+            Each tile is a real control (DD-14): it opens the Findings tab
+            filtered to exactly that classification. */}
         <div className="ws-tiles">
           {summary.counts.map(({ classification, n }) => {
             const bucket = classificationBucket(classification);
             return (
-              <div key={classification} className={`ws-tile ws-tile--${bucket}`}>
+              <button
+                key={classification}
+                type="button"
+                className={`ws-tile ws-tile--${bucket}`}
+                aria-label={`Show the ${n} ${classification} finding${n === 1 ? "" : "s"}`}
+                onClick={() => sideTabs?.openFindings({ classification })}
+              >
                 <span className="ws-tile__n">{n}</span>
                 <span className="ws-tile__label ws-mono">{classification}</span>
                 <span className={`ws-status ws-status--${bucket}`}>
                   {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -165,10 +173,18 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
           <ul className="ws-ring__legend">
             {summary.counts.map(({ classification, n }) => (
               <li key={classification} data-bucket={classificationBucket(classification)}>
-                <span className="ws-ring__swatch" aria-hidden="true" />
-                <span className="ws-mono">{n}</span>
-                <span className="ws-ring__pct">({Math.round((n / total) * 100)}%)</span>
-                {classification}
+                {/* The legend row is the same control as its tile (DD-14). */}
+                <button
+                  type="button"
+                  className="ws-ring__go"
+                  aria-label={`Show the ${n} ${classification} finding${n === 1 ? "" : "s"}`}
+                  onClick={() => sideTabs?.openFindings({ classification })}
+                >
+                  <span className="ws-ring__swatch" aria-hidden="true" />
+                  <span className="ws-mono">{n}</span>
+                  <span className="ws-ring__pct">({Math.round((n / total) * 100)}%)</span>
+                  {classification}
+                </button>
               </li>
             ))}
           </ul>
@@ -188,7 +204,7 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
         <div className="ws-analysis__head">
           <h3 className="ws-analysis__title">Awaiting a decision</h3>
           {risks.length > 0 && sideTabs ? (
-            <button type="button" className="ws-viewall" onClick={sideTabs.openFindings}>
+            <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
               View all
             </button>
           ) : null}
@@ -263,11 +279,25 @@ function RiskCard({ finding }: { finding: Finding }) {
   return (
     <article className={`ws-risk ws-risk--${bucket}`}>
       <p className="ws-risk__name">
-        <span>
-          {finding.requirement.code ?? "Requirement"}
-          {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
-          {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
-        </span>
+        {/* The name opens THIS finding's full card — evaluations, evidence,
+            decision controls — on the Findings tab (DD-14). */}
+        {sideTabs ? (
+          <button
+            type="button"
+            className="ws-risk__open"
+            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
+          >
+            {finding.requirement.code ?? "Requirement"}
+            {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
+            {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
+          </button>
+        ) : (
+          <span>
+            {finding.requirement.code ?? "Requirement"}
+            {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
+            {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
+          </span>
+        )}
         <span className={`ws-chip ws-chip--bucket-${bucket}`}>{finding.classification}</span>
       </p>
       <p className="ws-risk__desc">{riskDescription(finding)}</p>
@@ -281,8 +311,13 @@ function RiskCard({ finding }: { finding: Finding }) {
           >
             View clause →
           </button>
-        ) : sideTabs ? (
-          <button type="button" className="ws-evidence__loc" onClick={sideTabs.openFindings}>
+        ) : null}
+        {sideTabs ? (
+          <button
+            type="button"
+            className="ws-evidence__loc"
+            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
+          >
             Open finding →
           </button>
         ) : null}

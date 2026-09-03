@@ -46,8 +46,23 @@ const LABEL: Record<Region, string> = {
   analysis: "Analysis",
 };
 
-/** Lets the Analysis panel's "View all" open the Findings tab. */
-const SideTabCtx = createContext<{ openFindings: () => void } | null>(null);
+/**
+ * What an Analysis-panel click asks the Findings pane to show (2026-09-02,
+ * DD-14 — every analysis card navigates somewhere real): a classification
+ * filter, a specific finding, or neither (just the tab). `seq` makes each
+ * request distinct so clicking the same tile twice still re-points.
+ */
+export interface FindingsPoint {
+  classification?: string;
+  findingId?: string;
+  seq: number;
+}
+
+/** Lets the Analysis panel open the Findings tab, optionally pointed. */
+const SideTabCtx = createContext<{
+  openFindings: (target?: Omit<FindingsPoint, "seq">) => void;
+  findingsPoint: FindingsPoint | null;
+} | null>(null);
 export function useSideTabs() {
   return useContext(SideTabCtx);
 }
@@ -80,14 +95,16 @@ export function WorkspaceLayout({
   const mode = useMode();
   const [tab, setTab] = useState<Region>("document");
   const [sideTab, setSideTab] = useState<SideTab>(initialSideTab);
+  const [findingsPoint, setFindingsPoint] = useState<FindingsPoint | null>(null);
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const sideTabsRef = useRef<HTMLDivElement | null>(null);
 
-  const openFindings = useCallback(() => {
+  const openFindings = useCallback((target?: Omit<FindingsPoint, "seq">) => {
     setSideTab("findings");
     setTab("findings");
+    if (target) setFindingsPoint((p) => ({ ...target, seq: (p?.seq ?? 0) + 1 }));
   }, []);
-  const sideCtx = useMemo(() => ({ openFindings }), [openFindings]);
+  const sideCtx = useMemo(() => ({ openFindings, findingsPoint }), [openFindings, findingsPoint]);
 
   // ---- narrow: one region at a time, top tabs -----------------------------
   const tabbed: Region[] = ["document", "findings", "analysis"];

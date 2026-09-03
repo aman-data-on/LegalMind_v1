@@ -98,6 +98,36 @@ def test_upload_produces_a_document_version_and_evidence(api, db, owner):
     assert "storage_key" not in body["document_version"]
 
 
+def test_a_non_ascii_filename_round_trips_through_the_percent_encoded_header(
+        api, db, owner):
+    """2026-09-03 defect, reported against the live site with a real filename.
+
+    HTTP header values are restricted to ISO-8859-1 bytes. A filename with any
+    character outside that range — an en dash, a curly quote, anything non-
+    ASCII — made the browser's `fetch` throw before the request even left the
+    tab, so the upload never reached the server at all: no request logged, no
+    structured error, just the client's generic fallback message. The frontend
+    now percent-encodes `X-Filename`; this pins the server's half — decoding it
+    back to the real filename rather than storing the encoded form."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+
+    # The en dash (U+2013) is the POINT of this test — a real uploaded filename
+    # contained one and threw in `fetch` before reaching the network. RUF001
+    # flags ambiguous characters in strings; here the ambiguity is the subject,
+    # so the character must not be "corrected".
+    real_name = "MUTUAL NON – DISCLOSURE AGREEMENT.docx"  # noqa: RUF001 - en dash, U+2013
+    from urllib.parse import quote
+    response = api.post(
+        f"{V1}/contracts/{contract_id}/document-versions",
+        content=build_docx(["1. Limitation of Liability",
+                            "Liability is capped at fees paid."]),
+        headers={"Content-Type": DOCX_MIME, "X-Filename": quote(real_name)})
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["document_version"]["original_filename"] == real_name
+
+
 def test_upload_with_mismatched_magic_bytes_is_rejected(api, db, owner):
     """34.16 — the declared content type is a claim, not a fact. This is the case
     the sniffing exists for."""

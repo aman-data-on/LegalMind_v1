@@ -2,8 +2,10 @@ import { expect, test } from "@playwright/test";
 
 import {
   apiPost,
+  askSend,
   createAnalysedReview,
   fixture,
+  openAsk,
   openFindingsTab,
   openUploadPanel,
   storageStatePath,
@@ -325,12 +327,11 @@ test.describe("the Ask pane, slice 3", () => {
     // generate: exactly production until the `AM-31` gate opens.
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
-    // Ask is the sticky bar below the grid now — always mounted, never a tab.
-    const pane = page.locator(".ws-askbar");
-    await expect(pane).toBeVisible();
-
-    const question = pane.getByLabel("Question");
-    const ask = pane.getByRole("button", { name: "Ask" });
+    // Ask is a floating dock now (DD-15): a launcher, then a non-modal panel.
+    // Every assertion below is unchanged — only the way the input is reached is.
+    const question = await openAsk(page);
+    const pane = page.locator(".ws-dock");
+    const ask = askSend(page);
 
     // Cause 1 — retrieval hits the fixture sentence; no generator → EVIDENCE_INSUFFICIENT.
     await question.fill("liability shall not exceed fees paid");
@@ -355,9 +356,10 @@ test.describe("the Ask pane, slice 3", () => {
   test("a compliance-shaped question is routed to Findings, not answered or refused", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
-    const pane = page.locator(".ws-askbar");
-    await pane.getByLabel("Question").fill("Does this liability clause meet our company standard?");
-    await pane.getByRole("button", { name: "Ask" }).click();
+    const question = await openAsk(page);
+    const pane = page.locator(".ws-dock");
+    await question.fill("Does this liability clause meet our company standard?");
+    await askSend(page).click();
     const routed = pane.locator(".ws-ask__answer--routed");
     await expect(routed).toBeVisible({ timeout: 20_000 });
     await expect(routed).toContainText("Not answered here");
@@ -430,25 +432,28 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     }
   });
 
-  test("the Ask bar stays reachable at the bottom of a scrolled document", async ({ page }) => {
+  test("Ask stays reachable at the bottom of a scrolled document", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 700 });
     await page.goto(`/dashboard?id=${contractId}`);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
-    // Scroll the document pane to its end — the bar's input must still be in
-    // the viewport without any scrolling back (the owner's core complaint).
+    // Scroll the document pane to its end — Ask must still be reachable without
+    // scrolling back (the 2026-08-31 complaint, which DD-15 must not regress).
+    // The dock is anchored to the workspace, not to the document's scroller, so
+    // it is in the same place at the end as at the start.
     await page.locator('[data-region="document"] .ws-pane__body, [data-region="document"] .ws-text').first()
       .evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    const input = page.locator(".ws-askbar").getByLabel("Question");
-    await expect(input).toBeVisible();
+    const launcher = page.getByRole("button", { name: /Ask about this document/i });
+    await expect(launcher).toBeVisible();
+    const input = await openAsk(page);
     await input.click();
     await expect(input).toBeFocused();
   });
 });
 
 test.describe("collapse behavior", () => {
-  test("narrow viewports keep every region reachable as a tab, and Ask stays a sticky bar", async ({ page }) => {
+  test("narrow viewports keep every region reachable as a tab, and Ask stays a floating dock", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 800, height: 900 });
     await page.goto(`/dashboard?id=${contractId}`);
@@ -461,11 +466,16 @@ test.describe("collapse behavior", () => {
     await expect(page.locator('[data-region="analysis"]')).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
-    // Ask is not a tab any more: the sticky bar's input is reachable on EVERY
-    // tab and at every breakpoint (owner brief, 2026-08-31).
-    await expect(page.locator(".ws-askbar").getByLabel("Question")).toBeVisible();
+    // Ask is not a tab, and it never became one: the launcher is mounted on
+    // EVERY tab and at every breakpoint (owner brief, 2026-08-31, preserved by
+    // DD-15 — what changed is that it costs no height, not that it hides).
+    const launcher = page.getByRole("button", { name: /Ask about this document/i });
+    await expect(launcher).toBeVisible();
     await page.getByRole("tab", { name: "Findings" }).click();
-    await expect(page.locator(".ws-askbar").getByLabel("Question")).toBeVisible();
+    await expect(launcher).toBeVisible();
+    // And it opens from here, on this tab, without changing tabs.
+    await expect(await openAsk(page)).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
     await page.getByRole("tab", { name: "Analysis", exact: true }).focus();

@@ -112,11 +112,31 @@ export default defineConfig({
       // actually deploys, so the suite exercises the same rendering path; and Next
       // refuses to start a second dev server in one directory, which made the suite
       // fail against a developer's own running server rather than against the code.
+      //
+      // ⚠️ IT MUST BUILD INTO ITS OWN DIRECTORY. This ran `npx next build` with
+      // the default `distDir` until 2026-09-02, which meant every local suite
+      // run deleted and rewrote `.next` — the directory the live
+      // `legalmind-frontend` service serves from this same working tree. The
+      // running `next start` keeps serving HTML that names the OLD chunk
+      // hashes, so the moment the rebuild finishes the live workspace's
+      // stylesheet 500s and every page renders unstyled. nginx still answers
+      // 200, so nothing looks broken until someone opens a browser — the exact
+      // incident `scripts/guard-build-target.mjs` was written for on
+      // 2026-09-01. The guard runs as `prebuild` on `npm run build`, and
+      // `npx next build` walks straight past it. Observed and fixed here after
+      // it took the live workspace down mid-session.
+      //
+      // `LEGALMIND_NEXT_DIST` is the escape hatch `next.config.ts` already
+      // reads and the deploy script already uses. Nothing the suite does can
+      // now touch `.next`.
       command: `npx next build && npx next start --port ${WEB_PORT}`,
       url: `http://localhost:${WEB_PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
-      env: { LEGALMIND_API_ORIGIN: `http://127.0.0.1:${API_PORT}` },
+      env: {
+        LEGALMIND_API_ORIGIN: `http://127.0.0.1:${API_PORT}`,
+        LEGALMIND_NEXT_DIST: ".next-e2e",
+      },
       stdout: "pipe",
       stderr: "pipe",
     },

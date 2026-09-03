@@ -14,7 +14,8 @@ authorization logic even if it wanted to. The permission array from
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
@@ -53,9 +54,31 @@ def _docs_enabled() -> bool:
     return os.environ.get("LEGALMIND_ENABLE_DOCS", "").lower() in {"1", "true", "yes"}
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Re-dispatch OCR jobs a previous process left unfinished (2026-09-03).
+
+    Deferred OCR runs as a daemon thread, which dies with its process — so a
+    restart or deploy mid-OCR would otherwise strand the version in PROCESSING
+    forever. The database is the ledger; this replays it. In a thread so a slow
+    or briefly-absent database cannot block the API from binding;
+    `reconcile_interrupted_ocr` itself never raises. Runs when a SERVER starts
+    (uvicorn drives the lifespan); a bare TestClient does not, which keeps the
+    test harness quiet.
+    """
+    import threading
+
+    from legalmind.worker.dispatch import reconcile_interrupted_ocr
+
+    threading.Thread(target=reconcile_interrupted_ocr,
+                     name="legalmind-ocr-reconcile", daemon=True).start()
+    yield
+
+
 def create_app() -> FastAPI:
     docs = _docs_enabled()
     app = FastAPI(
+        lifespan=_lifespan,
         title="LegalMind API",
         version="1",
         # The generated document is a convenience, never the specification. The

@@ -245,15 +245,21 @@ def test_same_file_in_two_contracts_is_not_a_duplicate(db, storage, contract):
 
 
 # ============================================== fail-closed extraction (34.9)
-def test_no_text_layer_and_no_ocr_fails_closed(db, storage, contract):
+def test_no_text_layer_and_no_ocr_fails_closed(db, storage, contract, monkeypatch):
     """34.4 / 34.7 / 34.9 — the scanned-document case.
 
     With no native text and no OCR toolchain, extraction FAILS. It must not
     produce empty-but-successful evidence, because a Requirement evaluated
     against silently-missing text would yield a false MISSING rather than
     UNABLE_TO_EVALUATE (34.17).
+
+    The absent toolchain is FORCED rather than assumed. This line used to read
+    `assert parsing.ocr_available() is False  # documents this environment`,
+    which passed only because no OCR was installed on the machine — so the test
+    broke the moment one was (2026-09-03), while the property it names was still
+    perfectly true. A test about "and no OCR" has to establish that itself.
     """
-    assert parsing.ocr_available() is False      # documents this environment
+    monkeypatch.setattr(parsing, "ocr_available", lambda: False)
     result = ingest_document(
         db, storage, contract_id=contract.id, uploaded_by=contract._owner.id,
         data=build_image_only_pdf(), filename="scan.pdf", declared_mime=PDF_MIME)
@@ -295,8 +301,12 @@ def test_corrupt_pdf_fails_without_inventing_text(db, storage, contract):
     assert result.evidence_count == 0
 
 
-def test_retry_creates_a_new_run_and_preserves_history(db, storage, contract):
+def test_retry_creates_a_new_run_and_preserves_history(db, storage, contract,
+                                                       monkeypatch):
     """42.5 — Attempt 1 FAILED, Attempt 2 COMPLETED must both remain visible."""
+    # The first attempt must fail for a stated reason, not because a blank page
+    # happens to OCR to nothing on this machine.
+    monkeypatch.setattr(parsing, "ocr_available", lambda: False)
     result = ingest_document(
         db, storage, contract_id=contract.id, uploaded_by=contract._owner.id,
         data=build_image_only_pdf(), filename="scan.pdf", declared_mime=PDF_MIME)

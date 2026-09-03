@@ -1,15 +1,18 @@
 /**
- * Dashboard — the priority queue's data source, and the two real mutations.
+ * Dashboard — attention discovery, and the two real mutations.
  *
  * Three things are worth pinning here, and all three are places where a
  * plausible-looking implementation is wrong:
  *
- * 1. **The queue must ask its own question.** It used to be derived from
- *    whatever page of the table happened to be loaded, so a contract needing
- *    attention at position 26 was invisible while the tile beside it counted
- *    it. The section rendered nothing and read as "all clear". The fix is a
- *    `status`-filtered request against the whole collection, and this file is
- *    what stops it regressing to a `.find()` over local state.
+ * 1. **A contract needing attention must stay discoverable off the current
+ *    page or filter.** History: a standalone "Needs Attention" list once
+ *    rendered zero rows in that situation and read as "all clear" (§ below).
+ *    2026-09-02 redesign: that dedicated section is gone — the cue now lives
+ *    as a row highlight IN the table — so the guarantee now rests entirely on
+ *    `documentStatusBucket` returning the SAME `"needs_attention"` value the
+ *    row-highlight condition, the stat tile's filter link and the Status
+ *    filter option all key off. If this value drifts from what the server's
+ *    `_status_bucket` computes, all three go stale together and silently.
  *
  * 2. **Delete must go to the server.** Splicing a row out of a React array
  *    looks identical to the user and deletes nothing. It also can't know which
@@ -47,26 +50,32 @@ const analyzed = contract({
   },
 } as Partial<Contract>);
 
-describe("the priority queue asks the server, not the loaded page", () => {
-  it("requests the needs_attention bucket across the whole collection", async () => {
+describe("attention discovery survives off the current page or filter", () => {
+  it("the Status filter and the stat tile both request the real server bucket", async () => {
+    // Both the "Needs Attention" stat tile's onSelect and the Status <select>
+    // option end up calling exactly this — a `status`-filtered request
+    // against the WHOLE collection (page 1, not whatever page the table
+    // happens to be showing), the same shape `filterTo()` builds. If this
+    // regressed to something derived from the currently-loaded page instead,
+    // a contract at position 26 would go back to being invisible while the
+    // stat tile beside it still counted it — the original defect.
     const spy = vi.spyOn(api, "contracts").mockResolvedValue({
-      items: [], pagination: { page: 1, page_size: 5, total: 0 },
+      items: [], pagination: { page: 1, page_size: 25, total: 0 },
     });
 
-    await api.contracts(1, 5, { status: "needs_attention", sort: "created_desc" });
+    await api.contracts(1, 25, { status: "needs_attention", sort: "created_desc" });
 
     const [page, , filters] = spy.mock.calls[0]!;
-    // Page 1 of a dedicated request — never the table's current page, which
-    // carries the user's filters and sort and answers a different question.
     expect(page).toBe(1);
     expect(filters).toMatchObject({ status: "needs_attention" });
     spy.mockRestore();
   });
 
-  it("uses a status the server actually implements as a filter", () => {
+  it("is the same value the row-highlight condition and the server bucket agree on", () => {
     // The bucket names are a cross-stack contract: the API computes the same
-    // `_status_bucket` the row renders. A filter value outside this set is
-    // rejected server-side, so the queue would silently show nothing.
+    // `_status_bucket` the table row's `ws-tr--attention` class and the stat
+    // tile both key off. A value outside this set makes the row highlight,
+    // the tile link and the Status filter option all silently disagree.
     expect(documentStatusBucket(analyzed)).toBe("needs_attention");
   });
 });

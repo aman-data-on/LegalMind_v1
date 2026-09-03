@@ -149,7 +149,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (options.raw) {
     body = options.raw.data;
     headers["Content-Type"] = options.raw.contentType;
-    headers["X-Filename"] = options.raw.filename;
+    // HTTP header values are restricted to ISO-8859-1 bytes (0-255) — `fetch`
+    // enforces this by throwing synchronously, before any request is sent, the
+    // moment a header value contains a character outside that range. Found
+    // 2026-09-03: a real filename containing an en dash ("NON – DISCLOSURE")
+    // threw here, so the upload never reached the network at all — no request
+    // ever logged server-side, and the caller saw only the generic fallback
+    // error from `describeError`'s catch-all, because the thrown TypeError
+    // isn't an ApiError. Any non-ASCII filename (not just this one character)
+    // carries the same risk. `encodeURIComponent` keeps the value pure ASCII
+    // (so it can never fail this way) while staying reversible; the server
+    // decodes it back to the real filename (see `upload_document_version`).
+    headers["X-Filename"] = encodeURIComponent(options.raw.filename);
   } else if (options.body !== undefined) {
     body = JSON.stringify(options.body);
     headers["Content-Type"] = "application/json";
@@ -244,10 +255,19 @@ export const api = {
       method: "POST",
       body: { contract_id: contractId },
     }),
-  ask: (conversationId: string, question: string) =>
+  /** Ask about ONE document version — the one the reader has open.
+   *
+   *  `documentVersionId` is not a convenience: an answer's citations carry
+   *  `evidence_id`s belonging to exactly one version's reading order, so asking
+   *  without naming the open version is how an answer ends up pointing at a
+   *  passage that is not on the page. The server still defaults to the newest
+   *  version when it is omitted. */
+  ask: (conversationId: string, question: string, documentVersionId?: string) =>
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
-      body: { question },
+      body: documentVersionId
+        ? { question, document_version_id: documentVersionId }
+        : { question },
     }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
@@ -337,6 +357,24 @@ export const api = {
       query: { page, page_size: pageSize },
     }),
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
+  /**
+   * The preserved original bytes (34.5), as a Blob for in-app rendering. The
+   * endpoint serves `Content-Disposition: attachment`, which is right for a
+   * navigation but irrelevant to a fetch — the caller turns the Blob into an
+   * object URL and hands it to the browser's own PDF renderer. Requires
+   * `document.download` server-side, exactly like the download it is.
+   */
+  documentContentBlob: async (id: string): Promise<Blob> => {
+    const response = await fetch(`${API_BASE}/document-versions/${id}/content`, {
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, "download_failed",
+        "The original document could not be loaded.",
+        response.headers.get("X-Request-Id") ?? "-");
+    }
+    return response.blob();
+  },
 
   // ---- reviews ----------------------------------------------------------
   reviews: (query: { page?: number; page_size?: number; status?: string; contract_id?: string } = {}) =>

@@ -35,7 +35,15 @@ from legalmind.ingestion import parsing
 from legalmind.ingestion.storage import StorageBackend, fingerprint
 from legalmind.ingestion.validation import validate_upload
 
-PROCESSOR_VERSION = "legalmind-ingest-v1"
+# v2 (2026-09-02): DOCX page numbers from the document's own pagination record
+# (rendered/explicit break markers — parsing._docx_paragraph_pages). Runs are
+# attributable to the processor that made them (42.5), so behavior changes bump
+# this; v1 runs left every DOCX page_number null.
+# v3 (2026-09-03): OCR became its own deferrable processing run (42.5's
+# ProcessingRunType.OCR) and pages OCR in parallel. Output for a given document
+# is unchanged (measured byte-identical on the real corpus document); the run
+# structure is what changed, and the processor version records that honestly.
+PROCESSOR_VERSION = "legalmind-ingest-v3"
 
 
 @dataclass(frozen=True)
@@ -88,8 +96,17 @@ def ingest_document(
     data: bytes,
     filename: str,
     declared_mime: str,
+    defer_ocr: bool = False,
 ) -> IngestResult:
-    """Ingest one uploaded document. Raises only on validation rejection."""
+    """Ingest one uploaded document. Raises only on validation rejection.
+
+    With ``defer_ocr`` (the upload endpoint's mode since 2026-09-03), a document
+    that needs OCR comes back with ``processing_status=PROCESSING``, no evidence,
+    and no extraction verdict — the caller is expected to dispatch the OCR pass
+    (``worker.dispatch.dispatch_ocr``), which finishes the job as its own
+    ProcessingRun. Everything else — a legible native-text document, a failed
+    parse, OCR toolchain absent — concludes inline exactly as before.
+    """
     validated = validate_upload(data, filename, declared_mime)   # 34.16
     digest = fingerprint(validated.data)                         # 34.4
     duplicate = find_duplicate(db, contract_id, digest)          # 34.5
@@ -113,7 +130,7 @@ def ingest_document(
     db.add(version)
     db.flush()
 
-    run = process_document_version(db, storage, version)
+    run = process_document_version(db, storage, version, defer_ocr=defer_ocr)
 
     return IngestResult(
         document_version=version,
@@ -133,28 +150,38 @@ def process_document_version(
     version: M.DocumentVersion,
     *,
     run_type: E.ProcessingRunType = E.ProcessingRunType.PARSE,
+    defer_ocr: bool = False,
+    run: M.DocumentProcessingRun | None = None,
 ) -> M.DocumentProcessingRun:
     """Parse a stored document version into evidence.
 
     Locked 42.5 preserves attempt history: a retry creates a NEW run rather than
     overwriting the previous one, so ``Attempt 1 -> FAILED, Attempt 2 ->
     COMPLETED`` remains visible.
+
+    ``run`` (the background-OCR claim pattern, 2026-09-03): the caller may hand
+    in a STARTED run it already created — and, crucially, already COMMITTED — so
+    that an attempt which dies with its process still left a visible record
+    (42.5's history includes crashed attempts, which is what makes them
+    countable). When omitted, the run is created here exactly as before.
     """
-    run = M.DocumentProcessingRun(
-        document_version_id=version.id,
-        run_type=run_type,
-        status=E.ProcessingRunStatus.STARTED,
-        processor_version=PROCESSOR_VERSION,
-        started_at=_now(),
-    )
-    db.add(run)
-    db.flush()
+    if run is None:
+        run = M.DocumentProcessingRun(
+            document_version_id=version.id,
+            run_type=run_type,
+            status=E.ProcessingRunStatus.STARTED,
+            processor_version=PROCESSOR_VERSION,
+            started_at=_now(),
+        )
+        db.add(run)
+        db.flush()
 
     version.processing_status = E.ProcessingStatus.PROCESSING
     db.flush()
 
     try:
-        result = parsing.parse(storage.get(version.storage_key), version.mime_type)
+        result = parsing.parse(storage.get(version.storage_key), version.mime_type,
+                               defer_ocr=defer_ocr)
     except parsing.ParseError as exc:
         # 34.9 / 34.4 — a document we cannot read yields no text, not invented
         # text. The affected Finding may later become UNABLE_TO_EVALUATE (34.17).
@@ -165,6 +192,24 @@ def process_document_version(
         run.run_metadata = {"diagnostics": [str(exc)]}
         version.processing_status = E.ProcessingStatus.FAILED
         version.extraction_status = E.ExtractionStatus.FAILED
+        db.flush()
+        return run
+
+    if result.needs_ocr:
+        # The parse ran and concluded that OCR is required. That conclusion is
+        # this run's honest, complete outcome; the extraction verdict itself
+        # belongs to the OCR run the caller will dispatch (42.5 — a new attempt
+        # is a NEW run). The version stays PROCESSING — true, and the state the
+        # UI already renders as "still being processed" — and extraction_status
+        # stays NULL, because no verdict exists yet. No evidence rows are
+        # written: the illegible/absent native text must never look like content.
+        run.status = E.ProcessingRunStatus.COMPLETED
+        run.completed_at = _now()
+        run.run_metadata = {
+            "diagnostics": result.diagnostics,
+            "pages_total": result.pages_total,
+            "ocr_required": True,
+        }
         db.flush()
         return run
 
@@ -194,6 +239,9 @@ def process_document_version(
         "pages_total": result.pages_total,
         "pages_extracted": result.pages_extracted,
         "pages_failed": result.pages_failed,
+        # Where page numbers came from (None = no page model in the document):
+        # physical PDF pages, or the DOCX file's own pagination record.
+        "pagination_source": result.pagination_source,
     }
     if result.status is E.ExtractionStatus.FAILED:
         run.error_code = "EXTRACTION_FAILED"
@@ -209,3 +257,24 @@ def process_document_version(
     )
     db.flush()
     return run
+
+
+def run_ocr_pass(
+    db: DBSession,
+    storage: StorageBackend,
+    version: M.DocumentVersion,
+    *,
+    run: M.DocumentProcessingRun | None = None,
+) -> M.DocumentProcessingRun:
+    """The deferred OCR pass — the second half of an upload whose parse said
+    ``ocr_required``.
+
+    A thin, named wrapper: it is ``process_document_version`` with
+    ``run_type=OCR`` (locked 42.5 gives OCR its own run type precisely so the
+    attempt history reads ``PARSE -> ocr_required, OCR -> COMPLETED/FAILED``)
+    and OCR running inline — this IS the OCR run, there is nothing further to
+    defer to. It sets the version's final processing and extraction statuses
+    exactly as the single-run path always has.
+    """
+    return process_document_version(db, storage, version,
+                                    run_type=E.ProcessingRunType.OCR, run=run)

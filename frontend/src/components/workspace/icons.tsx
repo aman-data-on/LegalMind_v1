@@ -262,3 +262,11 @@ export function IconExternal({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+export function IconX({ size = 16 }: { size?: number }) {
+  return (
+    <svg {...S} width={size} height={size}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
