@@ -738,7 +738,7 @@ on every workspace screen.
 
 ## DD-16 — The Original document view, and OCR off the upload's critical path (owner directive, 2026-09-03)
 
-**Status:** `DECIDED AND IMPLEMENTED (local — awaiting owner approval to deploy)`.
+**Status:** `DECIDED, IMPLEMENTED AND DEPLOYED` (owner-approved, 2026-09-03 17:37 IST, commit `e03bef9`).
 **Complements DD-14 §1**, which stands unchanged for the text view: extraction
 cannot *reproduce* formatting, only recognise structural shapes. What DD-14
 could not do, this does by not extracting at all: the preserved original bytes

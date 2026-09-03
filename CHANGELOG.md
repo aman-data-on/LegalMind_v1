@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### Added — LOCAL ONLY, not yet deployed (owner approval pending, 2026-09-03)
+### Added — deployed to production 2026-09-03 17:37 IST (owner-approved; commit e03bef9)
 
 * **The Original document view (DD-16).** The workspace's document card gains an
   Original | Text toggle for PDFs: Original renders the preserved original bytes
