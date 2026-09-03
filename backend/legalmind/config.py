@@ -109,8 +109,9 @@ def analysis_time_limit_seconds() -> int:
 
 def max_upload_bytes() -> int:
     """Upload size ceiling — locked 34.16 (untrusted input) and Step 39's
-    upload-validation checklist item. A deployment limit, not a specified one."""
-    return int(os.environ.get("LEGALMIND_MAX_UPLOAD_BYTES", 50 * 1024 * 1024))
+    upload-validation checklist item. A deployment limit, not a specified one.
+    Default lowered 50 → 25 MB on owner instruction, 2026-09-02."""
+    return int(os.environ.get("LEGALMIND_MAX_UPLOAD_BYTES", 25 * 1024 * 1024))
 
 
 # ──────────────────────────────────────────────────────────────────────────

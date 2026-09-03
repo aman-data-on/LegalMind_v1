@@ -91,7 +91,7 @@ export async function apiPost(
   });
 }
 
-async function postOk(page: Page, path: string, body?: unknown): Promise<any> {
+export async function postOk(page: Page, path: string, body?: unknown): Promise<any> {
   const response = await apiPost(page, path, body);
   expect(
     response.ok(),
@@ -217,4 +217,32 @@ export async function openFindingsTab(page: Page): Promise<void> {
   if ((await tab.getAttribute("aria-selected")) !== "true") {
     await tab.click();
   }
+}
+
+/**
+ * Open the workspace's Ask dock and return its input.
+ *
+ * Ask stopped being an always-mounted bar on 2026-09-02 (DD-15): it is a
+ * launcher plus a non-modal panel, so a spec that wants the input must disclose
+ * it first. Idempotent — safe to call when the panel is already open.
+ */
+export async function openAsk(page: Page) {
+  const input = page.getByLabel("Your question about this document");
+  // Wait for the dock to EXIST before deciding whether to click. An
+  // `isVisible()` on a not-yet-rendered launcher answers false immediately, so
+  // the click was skipped and the wait then timed out on the still-hidden input
+  // — which is how the first version of this helper failed on a slow load.
+  const launcher = page.getByRole("button", { name: /Ask about this document/i });
+  await page.locator(".ws-dock").waitFor({ state: "attached", timeout: 20_000 });
+  if (!(await input.isVisible())) {
+    await launcher.waitFor({ state: "visible", timeout: 20_000 });
+    await launcher.click();
+  }
+  await expect(input).toBeVisible();
+  return input;
+}
+
+/** The dock's send button, whatever its in-flight label. */
+export function askSend(page: Page) {
+  return page.getByRole("button", { name: /Send question|Searching/ });
 }

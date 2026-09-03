@@ -1,4 +1,7 @@
+import { execSync } from "node:child_process";
+
 import type { NextConfig } from "next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
 /**
  * The dev-time API proxy exists for one reason: the session cookie is
@@ -40,6 +43,74 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/v1/:path*", destination: `${apiOrigin}/api/v1/:path*` }];
   },
+  /**
+   * Deploys must be visible on an ORDINARY reload (2026-09-02). Next's static
+   * prerender ships page HTML with `s-maxage=31536000` and no private-cache
+   * directive, so a browser was free to keep yesterday's HTML — which
+   * references yesterday's hashed chunk URLs, deleted by the deploy swap. The
+   * owner loaded the workspace right after a deploy and saw none of it.
+   *
+   * `no-cache` (NOT `no-store`) is deliberate: the browser may keep a copy but
+   * must revalidate before using it — a cheap 304 on the unchanged case, the
+   * fresh page the moment a deploy lands. Hashed assets under `/_next/static/`
+   * keep their immutable year-long caching; this header applies to page HTML
+   * only (everything except Next's own asset paths).
+   */
+  async headers() {
+    return [
+      {
+        source: "/((?!_next/static|_next/image).*)",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
+    ];
+  },
 };
 
-export default nextConfig;
+/**
+ * The build guard, at the one layer no entry point can walk around (2026-09-02).
+ *
+ * `scripts/guard-build-target.mjs` refuses an in-place build — but it is an npm
+ * `prebuild` hook, so it fires only on `npm run build`. `npx next build` walks
+ * straight past it, and on 2026-09-02 exactly that happened: the Playwright
+ * web-server command rebuilt `.next` in place, the running `legalmind-frontend`
+ * service kept serving HTML that named the OLD chunk hashes, and every live page
+ * lost its stylesheet while nginx answered 200 throughout.
+ *
+ * Exporting a phase function puts the same refusal inside config resolution,
+ * which EVERY invocation of `next build` performs — npm script, npx, a test
+ * runner's web server, CI. The ordering guarantee is causal, not incidental:
+ * `distDir` is a value of this config, so Next cannot clean or write the build
+ * directory before this function has returned. A throw here therefore always
+ * precedes the first byte written.
+ *
+ * The npm prebuild hook stays as a second layer with a friendlier message.
+ */
+function refuseInPlaceBuildWhileServing(): void {
+  const dist = process.env.LEGALMIND_NEXT_DIST ?? ".next";
+  // A staging or harness directory can never disturb what is being served.
+  if (dist !== ".next") return;
+  if (process.env.LEGALMIND_ALLOW_INPLACE === "1") return;
+  let serving = false;
+  try {
+    serving =
+      execSync("systemctl is-active legalmind-frontend 2>/dev/null || true", {
+        encoding: "utf8",
+      }).trim() === "active";
+  } catch {
+    return; // no systemd or no permission to ask — not a deployment host
+  }
+  if (!serving) return;
+  throw new Error(
+    "Refusing to build into .next: the legalmind-frontend service is ACTIVE and " +
+      "serves that directory from this working tree, and `next build` rewrites it " +
+      "in place. Deploy with `bash scripts/deploy-frontend.sh` (staging build, " +
+      "atomic swap, rollback), or build elsewhere with " +
+      "LEGALMIND_NEXT_DIST=<dir>, or — only if you truly mean to overwrite the " +
+      "live output — set LEGALMIND_ALLOW_INPLACE=1.",
+  );
+}
+
+export default function config(phase: string): NextConfig {
+  if (phase === PHASE_PRODUCTION_BUILD) refuseInPlaceBuildWhileServing();
+  return nextConfig;
+}

@@ -106,9 +106,6 @@
   --ws-accent-strong: #1d4ed8;
   --ws-shell-h: 52px;
   --ws-context-h: 64px;
-  /* Unreferenced since the 2026-09-02 scroll-ownership fix (the Ask bar sizes to
-     its content inside .ws-workmain); kept only so a stale reference fails soft. */
-  --ws-askbar-h: 128px;
   /* Workspace column widths (2026-09-02 owner reference pass). FIXED, not minmax,
      and shared as tokens on purpose: the clauses card, the document grid and the
      Ask bar's alignment grid all read the SAME two numbers, so the Ask card can
@@ -189,12 +186,12 @@
   transition: color var(--ws-t), background-color var(--ws-t);
 }
 .ws-shell__nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
-/* Active section — the reference's blue tab: tinted text over a soft fill,
-   with an underline hugging the shell's bottom edge. */
+/* Active section — tinted text over a soft fill, fully rounded like every
+ * other nav pill (2026-09-02 redesign: the bottom-edge underline this used
+ * to carry is dropped — the fill alone already states "current section",
+ * and matching it to the pill shape it hovers as reads calmer). */
 .ws-shell__nav a[aria-current="page"] {
   color: #9db9f7; background: rgba(37, 99, 235, 0.16);
-  box-shadow: inset 0 -2px 0 var(--ws-accent);
-  border-radius: var(--ws-radius) var(--ws-radius) 0 0;
 }
 .ws-shell__spacer { flex: 1; }
 .ws-shell__avatar {
@@ -270,6 +267,9 @@
   height: calc(100vh - var(--ws-shell-h));
   height: calc(100dvh - var(--ws-shell-h));
   display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  /* The Ask dock's containing block (see `.ws-dock`): it floats over the
+     workspace and is bounded by it, rather than being a row inside it. */
+  position: relative;
 }
 .ws-workmain .ws-context, .ws-workmain .ws-reupload, .ws-workmain .ws-tabs { flex: none; }
 .ws-workspace {
@@ -381,6 +381,12 @@
   margin: 0; padding: var(--ws-s2) var(--ws-s4); border-top: 1px solid var(--ws-ink-100);
   font-size: var(--ws-text-xs); color: var(--ws-ink-500); flex: none;
 }
+.ws-outline__pagenav { display: inline-flex; align-items: center; gap: 6px; }
+.ws-outline__pagenav select {
+  font: inherit; font-size: var(--ws-text-xs); padding: 2px 4px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-700);
+}
 /* Status markers — the DD-9 traffic light, as icons (never color alone: each
    carries a title and an accessible name). */
 .ws-status { display: inline-flex; align-items: center; flex: none; }
@@ -392,13 +398,36 @@
 .ws-legend p:last-child { margin-bottom: 0; }
 
 /* The document card: toolbar on top, text scrolling under it. */
-.ws-doccard { display: flex; flex-direction: column; min-height: 0; }
+.ws-doccard { display: flex; flex-direction: column; min-height: 0; position: relative; }
 .ws-doccard__bar {
   display: flex; align-items: center; gap: var(--ws-s1);
   padding: var(--ws-s2) var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100); flex: none;
   flex-wrap: wrap;
 }
 .ws-doccard__gap { flex: 1; }
+
+/* Original | Text view toggle (DD-16). A quiet segmented pair in the toolbar's
+   own idiom — text labels, not icons, because "Original" vs "Text" is the one
+   distinction on this screen that must never be guessed from a pictogram. */
+.ws-viewtoggle {
+  display: inline-flex; border: 1px solid var(--ws-ink-300);
+  border-radius: var(--ws-radius-sm); overflow: hidden; flex: none;
+}
+.ws-viewtoggle__btn {
+  font: inherit; font-size: var(--ws-text-xs); letter-spacing: 0.02em;
+  padding: 4px 12px; border: 0; background: transparent; color: var(--ws-ink-500);
+  cursor: pointer; transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-viewtoggle__btn + .ws-viewtoggle__btn { border-left: 1px solid var(--ws-ink-300); }
+.ws-viewtoggle__btn:hover { color: var(--ws-ink-900); }
+.ws-viewtoggle__btn[aria-pressed="true"] {
+  background: var(--ws-ink-900); color: var(--ws-surface); cursor: default;
+}
+
+/* The Original view: the browser's own PDF renderer over the preserved bytes,
+   filling the same well the text view scrolls in. */
+.ws-original { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--ws-viewer); }
+.ws-original--wait { display: flex; flex-direction: column; gap: var(--ws-s2); padding: var(--ws-s5); }
 .ws-toolbtn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border: 0; border-radius: var(--ws-radius-sm);
@@ -454,6 +483,7 @@
 }
 .ws-row__loc { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin: 0 0 2px; display: flex; gap: var(--ws-s2); }
 .ws-row__ocr { color: var(--ws-outcome); }
+.ws-page__ocr { color: var(--ws-outcome); margin-left: var(--ws-s2); text-transform: none; letter-spacing: 0.02em; }
 /* Upright serif ON THE SHEET (2026-09-02) — a deliberate departure from the
    italic verbatim voice, and only here. The italic exists to mark verbatim
    document text apart from application prose; inside the paper sheet the WHOLE
@@ -462,6 +492,52 @@
    application chrome (.ws-quote, .ws-evidence__quote, ask citations) the italic
    voice is unchanged. */
 .ws-row__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-md); line-height: 1.62; color: var(--ws-ink-900); white-space: pre-wrap; }
+
+/* Structural presentation (DD-14) — shapes RECOGNISED in the extracted text
+   (rowPresentation in model.ts), set the way the source sets them. The string
+   itself is never altered; a row matching no shape stays a paragraph. */
+.ws-row[data-kind="para"] .ws-row__text,
+.ws-row[data-kind="item"] .ws-row__text { text-align: justify; }
+.ws-row[data-kind="title"] { margin-top: var(--ws-s3); }
+.ws-row[data-kind="title"] .ws-row__text {
+  text-align: center; font-weight: 700; font-size: 1.28em;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.ws-row[data-kind="heading"] { margin-top: var(--ws-s4); }
+.ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; font-size: 1.05em; }
+.ws-row[data-kind="subheading"] { margin-top: var(--ws-s2); }
+.ws-row[data-kind="subheading"] .ws-row__text { font-weight: 700; }
+/* Enumerated items — the source's hanging indent: "(a)" in the margin, the
+   wrapped lines aligned under the text. */
+.ws-row[data-kind="item"] .ws-row__text { padding-left: 2.2em; text-indent: -2.2em; }
+
+/* --- Reader annotations (DD-14) — this-device marks, never a Finding -------- */
+.ws-anno {
+  background: #fdf0c2; color: inherit; border-bottom: 2px solid #e5c355;
+  border-radius: 2px; padding: 0 1px; cursor: pointer;
+}
+.ws-anno:hover { background: #fbe89e; }
+.ws-anno:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.ws-markbtn { position: absolute; z-index: 5; transform: translate(-50%, -115%); }
+.ws-markbtn button {
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 600;
+  background: var(--ws-ink-900); color: #fff; border: 0; border-radius: var(--ws-radius-sm);
+  padding: 5px 10px; cursor: pointer; box-shadow: 0 4px 14px rgba(14, 20, 32, 0.28);
+}
+.ws-markbtn button:hover { background: var(--ws-ink-700); }
+.ws-annopop {
+  position: absolute; z-index: 6; transform: translate(-50%, -100%) translateY(-6px);
+  width: min(300px, 80%);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300);
+  border-radius: var(--ws-radius); box-shadow: 0 10px 30px rgba(14, 20, 32, 0.22);
+  padding: var(--ws-s2); display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-annopop textarea {
+  font: inherit; font-size: var(--ws-text-sm); resize: vertical;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); padding: 6px 8px;
+}
+.ws-annopop__acts { display: flex; gap: var(--ws-s2); }
+.ws-annopop__note { margin: 0; font-size: 10.5px; color: var(--ws-ink-500); }
 .ws-row--lit { background: var(--ws-accent-soft); border-left-color: var(--ws-accent); }
 .ws-row--lit .ws-row__text { color: var(--ws-ink-900); }
 
@@ -494,6 +570,24 @@
 .ws-btn--primary { background: var(--ws-accent); border-color: var(--ws-accent); color: #fff; }
 .ws-btn--primary:hover:not(:disabled) { background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); color: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); }
 .ws-btn--primary:active:not(:disabled) { transform: scale(0.97); }
+
+/* Text-link weight for a REPEATED per-row action (2026-09-02) — a solid
+ * `.btn--primary` stays the page's one true call to action (the header's
+ * Upload Contract button); twenty-five solid blue buttons stacked in a table
+ * column is a different kind of noise than the one-primary-action rule was
+ * ever about. Still a real `.ws-btn` underneath — same focus ring, same
+ * disabled handling — only flattened to a coloured link with its icon. */
+.ws-btn--link {
+  background: transparent; border-color: transparent; color: var(--ws-accent);
+  padding: 8px 2px; min-height: 0; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.ws-btn--link svg { transition: transform var(--ws-t); }
+.ws-btn--link:hover:not(:disabled) {
+  background: transparent; border-color: transparent; color: var(--ws-accent-strong);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.ws-btn--link:hover:not(:disabled) svg { transform: translateX(2px); }
 
 /* ==========================================================================
  * Findings pane (Phase 2 slice 2, 2026-08-30) — the Authority register.
@@ -613,82 +707,172 @@
 }
 
 /* ==========================================================================
- * Sticky Ask bar (DD-9 reference match) — a floating card pinned to the
- * bottom, mounted at EVERY breakpoint, never behind a tab. The turn history
- * is a slide-up sheet anchored above it.
- * ========================================================================== */
-/* (2026-09-02) No longer sticky and no longer a fixed 128px: inside
-   `.ws-workmain` the bar is the layout's own bottom row, so it cannot cover
-   anything and sizes to its content (the chips row comes and goes). */
-.ws-askbar {
-  flex: none;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 0 var(--ws-s4) var(--ws-s3);
+ * Ask — a floating dock, not a layout row (DD-15, owner directive 2026-09-02)
+ * ==========================================================================
+ * WHAT THIS REPLACED. `.ws-askbar` was the bottom flex row of `.ws-workmain`:
+ * an input, a chip row and an honesty note, roughly 128px of workspace height
+ * reserved on every screen whether or not anyone was asking anything. The owner
+ * objected to the hierarchy, not the styling — the document, the clauses and the
+ * findings are the work. So Ask reserves NOTHING now. `.ws-dock` is absolutely
+ * positioned inside `.ws-workmain` (which is `position: relative` and
+ * `overflow: hidden`, so it is the containing block and the dock can never
+ * escape the workspace), and the three panels take the whole remaining height.
+ *
+ * FOCUS MUST NOT BE OBSCURED (WCAG 2.2 AA 2.4.11, which names chat widgets in
+ * as many words). Two defences, both needed: the launcher `hidden`s itself while
+ * the panel is open, and the scrolling panels reserve its footprint as bottom
+ * padding, so no row can come to rest underneath it.
+ * ========================================================================= */
+.ws-dock {
+  position: absolute; right: var(--ws-s4); bottom: var(--ws-s4);
+  z-index: var(--ws-z-dialog);
+  display: flex; flex-direction: column; align-items: flex-end;
+  /* The wrapper is a positioning frame only — clicks pass through the empty
+     space around the launcher to the document underneath. */
+  pointer-events: none;
 }
-.ws-askbar__card {
-  pointer-events: auto;
-  position: relative; /* the slide-up panel anchors to the card, never over it */
-  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
-  border-radius: 14px; box-shadow: 0 8px 28px rgba(14, 20, 32, 0.12);
-  padding: var(--ws-s2) var(--ws-s3) var(--ws-s3);
-  max-width: 66rem; width: 100%; margin: 0 auto;
+.ws-dock > * { pointer-events: auto; }
+
+/* ---- closed: a compact launcher ---------------------------------------- */
+.ws-dock__launcher {
+  display: inline-flex; align-items: center; gap: 7px;
+  /* 44px tall — the touch-target minimum, not a coincidence. */
+  height: 44px; padding: 0 16px;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 600;
+  color: #fff; background: var(--ws-accent);
+  border: 1px solid var(--ws-accent-strong); border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.28);
+  cursor: pointer;
+  transition: background-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
-.ws-askbar__row { display: flex; align-items: center; gap: var(--ws-s2); }
-.ws-askbar__spark { color: var(--ws-accent); display: inline-flex; flex: none; }
-.ws-askbar__row input {
-  flex: 1; font: inherit; font-size: var(--ws-text-base); padding: 9px 4px;
+/* Hover is AFFORDANCE ONLY. Nothing opens on hover: it cannot be performed on a
+   touch screen, and a corner panel that opens on pointer transit opens by
+   accident constantly while someone is reading. */
+.ws-dock__launcher:hover {
+  background: var(--ws-accent-strong);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.36);
+  transform: translateY(-1px);
+}
+.ws-dock__launcher:active { transform: translateY(0); }
+/* `display: inline-flex` above out-specifies the UA stylesheet's `[hidden]` rule,
+   so without this the launcher stayed VISIBLE while open — overlapping the panel
+   and able to obscure focus inside it, the exact 2.4.11 failure the hiding is
+   there to prevent. Caught by the browser suite; no static test would see it. */
+.ws-dock__launcher[hidden] { display: none; }
+/* The catch-all `.ws :focus-visible` ring is the accent blue, and the launcher
+   IS accent blue — a blue ring on a blue button is the exact contrast failure
+   DD-12 recorded on the dark shell, and WCAG 2.2's focus-appearance criterion
+   wants 3:1 against what it sits on. Same remedy as the shell: white inside,
+   with an outer dark halo so the ring also reads against the pale canvas. */
+.ws-dock__launcher:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -4px;
+  box-shadow: 0 0 0 2px var(--ws-ink-900), 0 6px 20px rgba(37, 99, 235, 0.28);
+}
+.ws-dock__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 19px; height: 19px; padding: 0 5px;
+  font-size: 10.5px; font-weight: 600; line-height: 1;
+  color: var(--ws-accent); background: #fff; border-radius: 999px;
+}
+
+/* ---- open: a non-modal panel over the canvas --------------------------- */
+.ws-dock__scrim { display: none; }
+.ws-dock__panel {
+  display: flex; flex-direction: column; min-height: 0;
+  width: min(29rem, calc(100vw - 2 * var(--ws-s4)));
+  max-height: min(32rem, calc(100dvh - var(--ws-shell-h) - var(--ws-context-h) - 2 * var(--ws-s4)));
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(14, 20, 32, 0.20);
+  overflow: hidden;
+}
+/* Closed: kept MOUNTED (draft, history and scroll position all survive a close
+   and reopen) but taken out of layout entirely, so it reserves nothing either.
+   `inert` on the element keeps it out of the tab order and the a11y tree. */
+.ws-dock:not([data-open="true"]) .ws-dock__panel { display: none; }
+
+.ws-dock__head {
+  flex: none; display: flex; align-items: center; gap: var(--ws-s2);
+  padding: var(--ws-s3) var(--ws-s3) var(--ws-s3) var(--ws-s4);
+  border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-dock__title {
+  flex: 1; min-width: 0; margin: 0;
+  display: flex; align-items: center; gap: 7px;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
+}
+.ws-dock__title svg { color: var(--ws-accent); flex: none; }
+.ws-dock__close {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; border-radius: var(--ws-radius);
+  border: 1px solid transparent; background: transparent;
+  color: var(--ws-ink-500); cursor: pointer;
+  transition: background-color var(--ws-t), color var(--ws-t), border-color var(--ws-t);
+}
+.ws-dock__close:hover {
+  background: var(--ws-paper); border-color: var(--ws-ink-100); color: var(--ws-ink-900);
+}
+/* Which version answers — stated on every open, so the reader never assumes. */
+.ws-dock__scope {
+  flex: none; margin: 0; padding: 7px var(--ws-s4);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+  background: var(--ws-paper); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-dock__scope strong { color: var(--ws-ink-900); font-weight: 600; }
+.ws-dock__log {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--ws-s4);
+  display: flex; flex-direction: column; gap: var(--ws-s3);
+}
+.ws-dock__log:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-dock__empty { display: flex; flex-direction: column; gap: var(--ws-s3); }
+/* A turn answered from a different version than the one on screen says so —
+   never silently, because its citations cannot highlight on this page. */
+.ws-dock__turn-version {
+  margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+}
+.ws-dock__chips { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-dock__chips button {
+  font: inherit; font-size: var(--ws-text-xs); padding: 5px 11px; min-height: 28px;
+  border: 1px solid var(--ws-ink-100); border-radius: 999px;
+  background: var(--ws-paper); color: var(--ws-ink-700); cursor: pointer;
+  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
+}
+.ws-dock__chips button:hover:not(:disabled) {
+  background: var(--ws-accent-soft); border-color: var(--ws-accent); color: var(--ws-accent);
+}
+.ws-dock__form {
+  flex: none; display: flex; align-items: center; gap: var(--ws-s2);
+  padding: var(--ws-s3) var(--ws-s3) var(--ws-s3) var(--ws-s4);
+  border-top: 1px solid var(--ws-ink-100);
+}
+.ws-dock__form input {
+  flex: 1; font: inherit; font-size: var(--ws-text-base); padding: 9px 0;
   border: 0; min-width: 0; outline: none; background: transparent;
+  color: var(--ws-ink-900);
 }
-.ws-askbar__row input::placeholder { color: var(--ws-ink-500); }
-.ws-askbar__row input:disabled { color: var(--ws-ink-500); }
-.ws-askbar__send {
+.ws-dock__form input::placeholder { color: var(--ws-ink-500); }
+.ws-dock__send {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 38px; height: 38px; border-radius: var(--ws-radius);
   border: 0; background: var(--ws-accent); color: #fff; cursor: pointer;
   transition: background-color var(--ws-t);
 }
-.ws-askbar__send:hover:not(:disabled) { background: var(--ws-accent-strong); }
-.ws-askbar__send:disabled { opacity: 0.5; cursor: not-allowed; }
-.ws-askbar__toggle {
-  display: inline-flex; align-items: center; gap: 5px; flex: none;
-  height: 38px; padding: 0 10px; font: inherit; font-size: var(--ws-text-xs);
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
-  background: var(--ws-surface); color: var(--ws-ink-500); cursor: pointer;
-  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
-}
-.ws-askbar__toggle:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
-.ws-askbar__toggle[aria-expanded="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
-.ws-askbar__chips { display: flex; gap: var(--ws-s2); flex-wrap: wrap; padding: 2px 2px 0 30px; }
-.ws-askbar__chips button {
-  font: inherit; font-size: var(--ws-text-xs); padding: 4px 11px; min-height: 26px;
-  border: 1px solid var(--ws-ink-100); border-radius: 999px;
-  background: var(--ws-paper); color: var(--ws-ink-700); cursor: pointer;
-  transition: background-color var(--ws-t), border-color var(--ws-t);
-}
-.ws-askbar__chips button:hover:not(:disabled) { background: var(--ws-accent-soft); border-color: var(--ws-accent); color: var(--ws-accent); }
-.ws-askbar__note {
-  pointer-events: auto;
-  margin: 0; padding: 5px 0 7px; text-align: center;
+.ws-dock__send:hover:not(:disabled) { background: var(--ws-accent-strong); }
+.ws-dock__send:disabled { opacity: 0.5; cursor: not-allowed; }
+.ws-dock__note {
+  flex: none; margin: 0; padding: 0 var(--ws-s4) var(--ws-s3);
   font-size: 10.5px; color: var(--ws-ink-500);
 }
-.ws-askbar__panel {
-  pointer-events: auto;
-  /* Anchored to the card's top edge with a gap — it can never cover the card's
-     own controls, whatever the panel's height. */
-  position: absolute; bottom: calc(100% + var(--ws-s2)); left: 0; right: 0;
-  max-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  background: var(--ws-surface);
-  border: 0 solid var(--ws-ink-100); border-radius: 14px;
-  box-shadow: 0 -8px 28px rgba(14, 20, 32, 0.14);
-  padding: 0 var(--ws-s4);
-  transition: max-height 0.2s ease;
-  display: flex; flex-direction: column; gap: var(--ws-s3);
+
+/* The launcher's footprint, reserved by the panels that scroll UNDER it so
+   nothing — and no focused control — can come to rest hidden behind it.
+   (WCAG 2.2 AA 2.4.11. The launcher is 44px + a 16px inset + breathing room.) */
+.ws-workmain .ws-side__panel, .ws-workmain .ws-text, .ws-workmain .ws-outline__list {
+  scroll-padding-bottom: 76px;
 }
-.ws-askbar__panel[data-open="true"] {
-  max-height: min(60vh, 480px);
-  padding: var(--ws-s4);
-  border-width: 1px;
-}
+.ws-workmain .ws-side__panel { padding-bottom: 76px; }
 
 /* ==========================================================================
  * Analysis panel (DD-9 reference match) — counts and facts, no scores.
@@ -720,7 +904,13 @@
   position: relative; display: flex; flex-direction: column; gap: 2px;
   padding: var(--ws-s3); border-radius: var(--ws-radius); border: 1px solid transparent;
   min-width: 0;
+  /* Tiles are BUTTONS since DD-14 (each opens its classification's findings). */
+  font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
+.ws-tile:hover { box-shadow: 0 2px 8px rgba(14, 20, 32, 0.10); }
+.ws-tile:active { transform: scale(0.98); }
+.ws-tile:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-tile__n { font-family: var(--ws-mono); font-size: 1.35rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ws-tile__label {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
@@ -751,7 +941,16 @@
 .ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 650; fill: var(--ws-ink-900); }
 .ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
 .ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
-.ws-ring__legend li { display: flex; align-items: center; gap: 7px; }
+.ws-ring__legend li { display: flex; align-items: center; }
+/* Legend rows are the same control as their tile (DD-14). */
+.ws-ring__go {
+  font: inherit; color: inherit; background: transparent; border: 0;
+  display: flex; align-items: center; gap: 7px; padding: 2px 4px; margin: -2px -4px;
+  border-radius: var(--ws-radius-sm); cursor: pointer;
+  transition: background-color var(--ws-t);
+}
+.ws-ring__go:hover { background: var(--ws-paper); }
+.ws-ring__go:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 .ws-ring__pct { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
 .ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-warn); }
 .ws-ring__legend li[data-bucket="match"] .ws-ring__swatch { background: var(--ws-ok); }
@@ -773,6 +972,14 @@
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s2);
 }
 .ws-risk__desc { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.5; }
+/* The finding's name is a real link into its full card on the Findings tab. */
+.ws-risk__open {
+  font: inherit; font-weight: 600; color: var(--ws-ink-900); text-align: left;
+  background: transparent; border: 0; padding: 0; cursor: pointer; min-width: 0;
+  transition: color var(--ws-t);
+}
+.ws-risk__open:hover { color: var(--ws-accent); text-decoration: underline; }
+.ws-risk__open:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-risk__meta { margin: 0; display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
 .ws-chip--bucket-match { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); font-weight: 600; }
 .ws-chip--bucket-review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); font-weight: 600; }
@@ -1089,8 +1296,10 @@
 .ws-context__icon { color: var(--ws-accent); display: inline-flex; }
 .ws-docs--index { gap: var(--ws-s5); }
 
-/* Stat tiles — four real counts, never a score. */
-.ws-doctiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+/* Stat tiles — four real counts, never a score. Gap widened to --ws-s5 (24px,
+ * 2026-09-02 redesign) so four elevated cards read as distinct objects on the
+ * grey canvas rather than a tightly packed strip. */
+.ws-doctiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--ws-s5); }
 .ws-doctile {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
   border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
@@ -1179,8 +1388,12 @@
   background: var(--ws-surface); color: var(--ws-ink-700); min-height: 38px;
 }
 
-/* Pager — page numbers + prev/next, real counts stated in words first. */
-.ws-docs--index .ws-pager { flex-wrap: wrap; }
+/* Pager — page numbers + prev/next, real counts stated in words first.
+ * Margin-top (2026-09-02) separates it from the card as its own bottom-right
+ * block rather than sitting flush under it; buttons a step taller than the
+ * base --ws-btn--sm so they read as a deliberate control row, not stray UI. */
+.ws-docs--index .ws-pager { flex-wrap: wrap; margin-top: var(--ws-s3); }
+.ws-docs--index .ws-pager .ws-btn--sm { padding: 6px 11px; min-height: 32px; }
 .ws-pager__spacer { flex: 1; }
 .ws-docs--index .ws-pager button[aria-current="page"] {
   background: var(--ws-accent); border-color: var(--ws-accent); color: #fff;
@@ -1196,6 +1409,42 @@
 .ws-docs--index .ws-docs__table th { font-family: inherit; font-weight: 650; background: var(--ws-paper); }
 .ws-docs--index .ws-docs__table tbody tr { transition: background-color var(--ws-t); }
 .ws-docs--index .ws-docs__table tbody tr:hover td { background: var(--ws-accent-soft); }
+/* Row padding deepened to --ws-s4 (16px) vertical (2026-09-02): --ws-s3 (12px)
+ * read as cramped once the table sat inside a shadowed card instead of a bare
+ * border — the extra breathing room is what makes the card read as spacious
+ * rather than dense. */
+.ws-docs--index .ws-docs__table td { padding-block: var(--ws-s4); }
+
+/* A contract needing attention is now flagged on its OWN row — no separate
+ * banner section above the table (2026-09-02 redesign; supersedes the
+ * 2026-09-01 `.ws-doctend`/`.ws-queue` priority-list section, removed from
+ * the page). The soft tint reuses `--ws-warn-soft` (not a new hardcoded
+ * amber) so it stays the same hue as the "Needs Attention" stat tile and the
+ * status pill. What this does NOT remove: the stat tile above still counts
+ * every attention contract account-wide and is a real filter link
+ * (`onSelect`), and the Status filter still offers "Needs Attention" — so a
+ * contract needing attention that is not on the CURRENT page/filter is still
+ * discoverable in one click, which was the actual defect the old banner was
+ * built to fix. Losing that guarantee to a page-only row tint would have
+ * reintroduced it. */
+.ws-docs--index .ws-docs__table tr.ws-tr--attention td {
+  background: var(--ws-warn-soft);
+}
+.ws-docs--index .ws-docs__table tr.ws-tr--attention:hover td {
+  background: color-mix(in srgb, var(--ws-warn-soft) 70%, var(--ws-accent-soft));
+}
+
+/* Findings badges destyled to plain numbers (2026-09-02): the filled pill
+ * background read as noisy sitting three-wide in a table cell that also has
+ * a status pill and a type chip already competing for attention. Colour and
+ * left-to-right order (match, review, missing) still carry the meaning — the
+ * SAME three DD-12-audited hues, which already clear 4.5:1 on white as plain
+ * text, not only on their own soft tint. */
+.ws-docs--index .ws-findings-badge {
+  min-width: 0; background: transparent; padding: 0 3px;
+  font-size: 12.5px; font-weight: 700;
+}
+.ws-docs--index .ws-findings-cell { gap: 9px; }
 
 /* Upload checklist + drop-zone icon (2026-09-01 redesign, scoped by class name
  * — `UploadContract` renders only on this page, see the file banner above). */
@@ -1385,7 +1634,9 @@
 }
 
 .ws-docs--index .ws-doctile__icon { grid-row: 1 / span 2; align-self: center; }
-.ws-docs--index .ws-doctile__n { font-size: 1.5rem; }
+/* 2026-09-02: bolder and a step larger than the base rule — the count is the
+ * one thing on this tile that must win the eye first; the label is context. */
+.ws-docs--index .ws-doctile__n { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
 
 /* Status tiles tint their own icon plate, so the row still reads as four
    distinct states without colour being the only signal (each keeps its icon). */
@@ -1403,14 +1654,21 @@
 .ws-doctable {
   background: var(--ws-surface);
   border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius);
+  border-radius: var(--ws-radius-card);
+  /* 2026-09-02: the same elevated language every other card on this page
+   * already carries (.ws-doctile, .ws-dash__upload) — this was the one
+   * surface still sitting flat against the grey canvas with a border alone. */
+  box-shadow: var(--ws-card-shadow);
   overflow: hidden;
 }
 
 /* The toolbar and table sit inside the card now, so they shed their own frames
-   and keep only the dividing rules. */
+   and keep only the dividing rules. Padded on all sides (2026-09-02): it
+   previously inherited none, so the search field and selects sat flush
+   against the card edge — cramped against a border with no breathing room. */
 .ws-doctable .ws-doctoolbar {
   margin: 0;
+  padding: var(--ws-s3) var(--ws-s4);
   border: 0;
   border-bottom: 1px solid var(--ws-ink-100);
   border-radius: 0;
@@ -1543,9 +1801,21 @@
 @media (max-width: 760px) {
   .ws-shell { flex-wrap: nowrap; gap: var(--ws-s3); min-width: 0; }
 
-  /* The nav is the flexible part; it may scroll rather than push the bar wide. */
-  .ws-shell__nav { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  /* The nav is the flexible part; it may scroll rather than push the bar wide.
+     Without a cue, a mid-word clip ("Re…views") reads as broken text rather
+     than "more to scroll to" — the fade + snap below are the cue, not a new
+     nav pattern: the strip still scrolls, still holds one row, still drops
+     nothing that was reachable before. */
+  .ws-shell__nav {
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  }
   .ws-shell__nav::-webkit-scrollbar { display: none; }
+  .ws-shell__nav a { scroll-snap-align: start; }
 
   .ws-shell__user { min-width: 0; flex: none; }
 
@@ -1660,35 +1930,43 @@
 
 
 /* ===========================================================================
- * The Ask bar must not cover the analysis panel — 2026-09-01
+ * Ask dock — narrow viewports (2026-09-02)
  * ===========================================================================
- * `.ws-askbar__card` was `max-width: 66rem; margin: 0 auto`, centred across the
- * WHOLE workspace. At 1600px that put its right edge inside the analysis column,
- * so the card sat on top of a Key Risks entry — a finding awaiting a Legal
- * Decision, hidden behind a search box. Screenshot caught it; no test would have.
+ * The 2026-09-01 grid-alignment block that kept `.ws-askbar__card` inside the
+ * document column is gone with the bar itself: an absolutely-positioned corner
+ * dock cannot drift into the analysis column, which is what that block existed
+ * to prevent.
  *
- * The fix mirrors the workspace's own grid rather than guessing a width, so the
- * card tracks the document column exactly and cannot drift out of it when the
- * side panel resizes between its 330px and 400px bounds.
+ * Below 620px the panel becomes a bottom sheet: full width, taller, with a
+ * dismiss scrim — the expected touch gesture — while Escape and the close
+ * button remain the accessible paths. The launcher keeps its 44px target and
+ * drops its label to the icon alone only if it would otherwise crowd the edge.
  * ========================================================================= */
-@media (min-width: 1101px) {
-  /* Mirror the workspace's real geometry — clauses | document | side — with the
-     SAME width tokens, and put the card in the document column only. It sits
-     exactly under the document sheet: never over the clause list (the 2026-09-02
-     complaint) and never under the analysis panel (the 2026-09-01 one). */
-  .ws-askbar {
-    display: grid;
-    grid-template-columns: var(--ws-clauses-w) minmax(0, 1fr) var(--ws-side-w);
-    gap: var(--ws-s4);
-    align-items: end;
+@media (max-width: 620px) {
+  .ws-dock { right: var(--ws-s3); bottom: var(--ws-s3); left: var(--ws-s3); }
+  .ws-dock__scrim {
+    display: block; position: fixed; inset: 0;
+    background: rgba(14, 20, 32, 0.44);
+    z-index: -1;
   }
-  .ws-askbar__card { grid-column: 2; max-width: none; margin: 0; }
+  .ws-dock__panel {
+    width: 100%;
+    max-height: min(85dvh, calc(100dvh - var(--ws-shell-h) - var(--ws-s5)));
+  }
+  /* A sheet's own scroller is enough while it is OPEN (the launcher hides), but
+     the launcher still floats over whichever single region is showing when it is
+     closed — and in narrow mode that region is the page's scroller. Reserve its
+     footprint there too, so the last row of a findings list or a document can
+     always be scrolled clear of it. */
+  .ws-workmain .ws-side__panel { padding-bottom: 68px; }
+  .ws-workmain .ws-workspace--one .ws-pane { padding-bottom: 68px; }
+  .ws-workmain .ws-workspace--one .ws-pane,
+  .ws-workmain .ws-workspace--one .ws-text { scroll-padding-bottom: 68px; }
 }
 
-/* (2026-09-02) The under-the-bar padding compensation is gone WITH its cause:
- * under `.ws-workmain` the Ask bar is a flex row BELOW the workspace, sized by
- * its own content — nothing can scroll under it any more, so the document keeps
- * its ordinary bottom padding and citations land normally. */
+/* Reduced motion: the dock's transitions are colour and shadow only, plus a 1px
+   lift — the global reduced-motion rule already zeroes every one of them. No
+   entrance animation was added, so there is nothing here to suppress. */
 
 /* ==========================================================================
  * Dashboard — priority queue, upload disclosure, row actions, modals
@@ -1761,10 +2039,14 @@
 .ws-menu { position: relative; }
 .ws-menu__toggle { line-height: 1; padding: 3px 8px; }
 
-/* Opens toward the row's start edge: the Action column is the last one, so a
-   menu opening the other way would leave the viewport. */
+/* Renders through a portal into `document.body` (dashboard/page.tsx), so its
+   `.ws-menu` wrapper is not its DOM parent — `position`, `top`/`bottom` and
+   `right` are all set inline per-instance, in viewport coordinates computed
+   from the toggle button's own position. That is what lets it escape
+   `.ws-docs__table`'s `overflow` (the horizontal scroller; `overflow: hidden`
+   on the index card variant) instead of being clipped at the table's edge. */
 .ws-menu__list {
-  position: absolute; right: 0; top: calc(100% + 4px); z-index: var(--ws-z-dialog);
+  z-index: var(--ws-z-dialog);
   min-width: 168px; display: grid;
   background: var(--ws-surface);
   border: 1px solid var(--ws-ink-100);

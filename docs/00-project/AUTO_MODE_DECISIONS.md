@@ -1092,3 +1092,452 @@ question I actually put to them.
 **Nothing was changed in response to either item.** Narrowing r2 would amend a
 locked owner grant on a premise that turned out to be false.
 
+
+## 2026-09-02 — DOCX pagination: the document's own record, not a renderer
+
+**Owner instruction:** keep DOCX support, 25 MB ceiling for both formats, and give DOCX
+real "Page X of Y" / page navigation / finding→page — *"Do NOT fake page numbers on the
+frontend. The page/location metadata must come from the actual document processing
+pipeline."*
+
+**Decision (auto, within the approved stack):** read pagination from the DOCX file's own
+record — Word's `w:lastRenderedPageBreak` markers (where the authoring application
+recorded page boundaries at last save) plus author-inserted `w:br type="page"` breaks,
+with a hard break immediately followed by its rendered marker counted as ONE boundary.
+Implemented in `legalmind/ingestion/parsing.py` (`_docx_paragraph_pages`), processor
+bumped to `legalmind-ingest-v2`, provenance recorded on the processing run
+(`pagination_source`: `PDF_PHYSICAL_PAGES` / `DOCX_RENDERED_PAGE_BREAKS` /
+`DOCX_EXPLICIT_PAGE_BREAKS` / null).
+
+**The alternative considered and NOT taken:** converting DOCX→PDF at ingestion with
+LibreOffice headless to obtain rendered pages. Rejected for now because (a) it adds a
+system dependency, which is a rule-19 owner decision, not an auto-mode one; (b) its page
+boundaries would be LibreOffice's rendering, not the author's — the in-file record IS what
+Word showed the author; (c) validated on the live MSA, the in-file record produces 27
+monotonic pages whose boundaries match the owner's own Word screenshot (§1 DEFINITIONS
+starts page 2). Limits stated honestly: a DOCX whose producer strips pagination metadata
+(Google Docs exports) still yields `page_number = null` and the viewer still says "Not
+paginated" — the alternative for those files is the LibreOffice route, offered to the
+owner as a future decision, never silently taken.
+
+**Backfill for pre-v2 rows** (`tools/backfill_docx_pages.py`, dry-run by default): fills
+ONLY null `page_number` on rows that match a re-parse 1:1 by content and offset, refusing
+the whole version on any discrepancy. Rule-17 safety argument: no legal output reads
+`page_number` except as a monotonic secondary sort key under `nulls_last`
+(`analysis/unmatched.py`, assist ordering — checked), and the fill is monotonic over the
+same offset order, so no ordering, no content and no id changes anywhere. Executed for
+contract `dea89208…` (356 rows matched, 351 filled, pages 1–27, 5 table rows honestly
+unpaged).
+
+**Also:** upload ceiling default 50 → 25 MB (`LEGALMIND_MAX_UPLOAD_BYTES` still overrides;
+the value is deployment configuration per 34.16, not locked text — verified absent from
+`all_lock.md`), and the intake copy now says "PDF preferred (it carries its own page
+layout)" while DOCX stays fully supported.
+
+---
+
+## 2026-09-02 — Ask's version context, and Ask as a secondary surface (278–283)
+
+Owner report: uploading a revised version made Ask tell them to *"go to the
+update"* instead of answering about the document on screen, and the chat bar
+"takes too much permanent space". The audit found the first was not a copy
+problem — see [DD-15](../design/DESIGN_DECISIONS.md#dd-15--ask-is-a-floating-secondary-tool-and-it-asks-about-the-version-on-screen-owner-directive-2026-09-02)
+for the full trace and the evidence from the owner's own data.
+
+**No locked decision is touched, and none needed to be.** `AM-25` and `AM-27`
+fix nothing about conversation-to-version scope; `conversations` carries
+`contract_id` only and the per-turn version was already recoverable through
+`retrieval_runs`. The existing model was made explicit, not replaced: no new
+table, no new column, no amendment.
+
+| # | Decision | Why | What it does NOT decide |
+|---|---|---|---|
+| 278 | **The ask endpoint takes an OPTIONAL `document_version_id`; omitted, it still means the newest version** | The endpoint previously resolved `MAX(version_number)` with no way to say otherwise, so a reader on version 1 was answered from version 2 — citations included, and an `evidence_id` belongs to exactly one version's reading order, so the highlight pointed at a row not on the page. Making the field optional keeps the change additive: every existing caller behaves exactly as before | Whether a conversation may be *pinned* to one version. It is not, and nothing here pins it |
+| 279 | **The named version is authorized twice: the full `guard.document_version` chain, then equality with the conversation's own `contract_id`** | The field must only ever be able to NARROW scope. Without the second check, a version the caller can legitimately read but which belongs to another contract would be answered — letting one conversation mix two documents' evidence, which is what `AM-25` r6's single-scope retrieval exists to prevent. A version outside scope stays a byte-identical 404 (`API-10`); one inside scope but off-contract is a business refusal, because its existence is not a secret from this caller | — |
+| 280 | **A malformed `document_version_id` is refused, never silently treated as "the newest"** | Falling back would answer about a different document than the caller asked for, silently — the whole class of bug being removed here | — |
+| 281 | **The document scope is recorded in `retrieval_runs.filters`** | `AM-27` describes that table as "the retrieval record behind an answer: query, **filters**, chunk ids, scores", and the document scope is the only filter this retrieval applies — so this is the column's stated purpose, not a new one. It makes an answer's version a fact on the row instead of something reconstructed from a chunk id. r6 stands: identifiers only, no text. Rows written earlier fall back to the version of the run's first chunk — recovered, never guessed | Any schema change. There is none |
+| 282 | **A conversation may span versions, and each turn STATES its own** | Forcing one version per conversation would mean silently starting a new one on every re-upload, and the durable-history behaviour the owner already has would break. Stating it per turn is honest and needs no rule: a turn from another version is labelled, and its citations offer to open that version rather than a highlight that cannot land | Whether the owner would prefer version-pinned conversations. If they say so, that is a product decision and this is the place it would change |
+| 283 | **Ask reserves no workspace height: an absolutely-positioned launcher, and a NON-modal panel — click/keyboard, never hover-to-open** | The hierarchy objection is the owner's, and it was right: the bar held ~128px of every screen unconditionally. Hover-to-open was considered and rejected on two grounds — it cannot be performed on a touch screen at all, and a corner panel that opens on pointer transit opens by accident constantly while someone is reading. Non-modal (no focus trap) is what keeps "open chat" from meaning "leave the document". WCAG 2.2 AA 2.4.11 names chat widgets, so the launcher hides while open AND the panels reserve its footprint | Any DD-9 decision other than its §4 |
+
+### Verification notes for 278–283 (2026-09-02)
+
+**Tested as an ordinary user, not as an administrator.** A `test@leapswitch.com`
+account was created through the sanctioned bootstrap path
+(`tools/dev_account.py --roles USER`, the locked 47.1.3 r3 outside-the-API act,
+which refuses to run against production) holding **`USER` and nothing else** — 13
+permissions, no `legal.decision`, no `legal_position.view`, no `user.manage`, no
+`audit.view`. Nothing was hardcoded for it and no permission rule was changed to
+make anything pass. The e2e suite's new `ask-dock.spec.ts` likewise runs as
+`owner`, the fixture account that also holds `USER` alone.
+
+**Visual baselines.** `workspace.png` legitimately differs — Ask changed shape on
+that screen — and is adopted from CI per the standing rule (owner, 2026-08-30);
+it is never regenerated locally. Five other baselines (`reviews-empty`,
+`review-detail`, `admin`, `contract`, `ws-documents`) were already diffing before
+this session's work, from the concurrent uncommitted DocumentPane / AnalysisPanel
+/ FindingsPane / dashboard changes; none of them renders the Ask dock, and
+nothing in this change touches a rule outside `.ws-workmain`.
+
+**One harness collision, fixed at the source.** `ask-dock.spec.ts` initially
+reused another spec's unanswerable question, so `reviews.spec.ts`'s ask-history
+row lookup — which matched on question TEXT — resolved to two links in the shared
+e2e database. Both sides were corrected: the dock spec uses its own vocabulary,
+and the history spec now targets the conversation id it created, which is what it
+meant all along.
+
+### 2026-09-02 — the browser suite was rewriting the live build (decision 284)
+
+Found by consequence, not by reading: a live real-user run against
+`legalmind.lsnw.io` rendered the workspace completely **unstyled**, and the
+workspace stylesheet was returning **500**.
+
+**Cause.** `playwright.config.ts`'s web server ran `npx next build && npx next
+start`, with the **default `distDir`**. `next build` deletes and rewrites its
+output directory in place, and that directory is `.next` — the very directory
+the live `legalmind-frontend` service serves **from this same working tree**. The
+long-running `next start` keeps serving HTML that names the OLD chunk hashes, so
+the instant a suite run finishes its rebuild, every hashed asset the live pages
+reference is gone. nginx answers 200 throughout; only a real browser shows it.
+
+This is precisely the 2026-09-01 incident that `scripts/guard-build-target.mjs`
+was written to prevent — and the guard never fired, because it runs as
+`prebuild` on `npm run build` and `npx next build` walks straight past it.
+Every local browser-suite run since the guard was written has silently taken the
+live workspace down until the next deploy.
+
+| # | Decision | Why | What it does NOT decide |
+|---|---|---|---|
+| 284 | **The browser suite builds into `.next-e2e`**, via the `LEGALMIND_NEXT_DIST` escape hatch `next.config.ts` already reads and the deploy script already uses; `.next-e2e/` is gitignored | A directory the live service does not serve cannot be clobbered, whoever invokes the build and by whatever command. Verified by running the suite and confirming `.next/BUILD_ID` is byte-identical and unmodified afterwards, with `.next-e2e/` created instead — the guard's *intent* now holds structurally rather than depending on the entry point used | Whether the guard should also cover `npx next build` directly. It arguably should; that is a hook change, not this task, and the dist-dir separation makes it moot for this harness |
+
+**The live site was redeployed** with `scripts/deploy-frontend.sh` and verified
+the way the standing rule requires — chunk names re-fetched from the live URL,
+both stylesheets 200, and the workspace sheet confirmed to carry the dock's 36
+rules — not by a status code alone.
+
+### 2026-09-02 — one more citation path carried no version (fixed with the above)
+
+`TranscriptTurn` — the Ask-history screen's replayed citation — linked to
+`/dashboard?id=<contract>&evidence=<row>` with no version. The workspace then
+opened on the NEWEST version, and an `evidence_id` belongs to exactly one
+version's reading order, so a citation replayed from an earlier version landed on
+a page that does not contain the row and nothing highlighted. The same fault as
+the reported one, on a different surface, and only findable once each turn
+carried its version. The link now names it. Pinned by the existing
+`TranscriptTurn` render test, updated to assert the version segment.
+
+### 2026-09-02 — a frontend-only deploy breaks Ask outright (observed, no decision taken)
+
+While driving the live site as the `test` user, every question came back **"The
+request could not be validated."** The cause was not the change: the frontend had
+been redeployed and the **API had not**. `schemas.Body` sets
+`model_config = ConfigDict(extra="forbid")`, so the still-running API rejected the
+new `document_version_id` field with a 422 rather than ignoring it.
+
+Worth stating plainly because it generalizes: with `extra="forbid"`, **any**
+additive request field makes the two deploys ORDER-DEPENDENT — API first, or Ask
+is dead in the window between them. `extra="forbid"` is the right posture and is
+not being changed here (it is what stops an unrecognised field from being
+silently accepted); the deploy sequence is what has to respect it.
+`scripts/deploy-frontend.sh` restarts only `legalmind-frontend`, and nothing in
+the repository restarts `legalmind-api`. **Not fixed in this task** — a deploy
+script that restarts the API is a deployment change, not an Ask change, and Step
+55's deployment story is the owner's to sequence. Flagged in HANDOFF terms
+instead: after this change lands, `systemctl restart legalmind-api` must run
+before or with the frontend deploy.
+
+---
+
+## 2026-09-02 (session 2) — permission reconciliation, deploy safety, and the follow-up audit (285–288)
+
+| # | Decision | Why | What it does NOT decide |
+|---|---|---|---|
+| 285 | **`tools/reconcile_role_grants.py`: additive-only reconciliation of role grants to `DEFAULT_ROLE_GRANTS`, refusing to run while any `admin.permission_changed` audit event exists** | The full audit (all six roles, both directions) found exactly 4 missing rows and 0 extras, all four being grants ADDED to the code after those roles were first seeded: `export.generate` → USER/LEGAL_REVIEWER/LEGAL_ADMIN (decision #232, owner 2026-08-31) and `contract.delete` → USER (**locked AB-10 r6**). The live audit trail holds ZERO `admin.*` events, proving no administrator ever trimmed anything — so "never restore what an admin removed" is vacuously satisfied and the reconciliation is unambiguous. The tool is a caller for `seed_default_grants(only_if_role_empty=False)`, which only ever INSERTs; the refusal keeps it that way forever: once an admin HAS changed role permissions (audited via PATCH /roles, S-10), reconciliation belongs to that audited path, not to seeding. 6 tests, incl. the drifted-database repair observed through `effective_permissions` and the never-removes property | When to run it against the live database — **held for owner approval** (LOCAL FIRST rule). Nothing about any role's grant SET, which stays exactly `DEFAULT_ROLE_GRANTS` |
+| 286 | **The in-place-build refusal moved INSIDE `next.config.ts` as a phase function** (`PHASE_PRODUCTION_BUILD` → throw when `distDir === ".next"` ∧ `legalmind-frontend` active ∧ no `LEGALMIND_ALLOW_INPLACE=1`) | The npm `prebuild` hook guards only `npm run build`; `npx next build` — the Playwright web server's exact invocation — walked past it and clobbered the live `.next` on 2026-09-02. Config resolution is the one layer every `next build` entry point must pass, and the ordering is causal, not incidental: `distDir` is a VALUE of this config, so Next cannot touch the build directory before the config function returns. Proven empirically: a bare `npx next build` refuses with `.next/BUILD_ID` byte-identical and a planted marker intact; a `LEGALMIND_NEXT_DIST` build succeeds. Docker/CI hosts have no `legalmind-frontend` unit and pass untouched | The npm hook, kept as a second, friendlier layer. Nothing about the deploy script's staging/swap design |
+| 287 | **`deploy-frontend.sh` refuses to ship a frontend AHEAD of the API** — it compares the running `legalmind-api` start time against the newest `backend/legalmind`/`backend/alembic` source mtime and exits with instructions when the API is stale (`LEGALMIND_ALLOW_STALE_API=1` overrides) | `schemas.Body` sets `extra="forbid"` (correct, unchanged), so a frontend-only deploy that sends a newly-added field kills Ask outright until the API restarts — observed live on 2026-09-02. The check is local, cheap and side-effect-free; `tools/` and `tests/` are deliberately excluded because they never run inside the API process. Five-case table test: newer-source refused, newer-API passed, override honoured, `n/a` and empty timestamps passed | The reverse ordering concern (API ahead of frontend), which an optional additive field makes safe by definition |
+| 288 | **`ops/deploy.sh`: the full-stack deploy in dependency order** — backend import sanity check → `alembic upgrade head` (ops/README §DB) → restart `legalmind-api` → `/health` probe with bounded retries → then `deploy-frontend.sh` | "Restart the API manually" is not an operational answer the repository can leave in place. Everything in it is the existing architecture (systemd + the staged frontend deploy); nothing new is introduced. The stale-API preflight in the frontend script passes by construction on this path | Any change to how the backend is served (still uvicorn from the working tree, Step 55.1). Running it against live — a deploy, held for approval |
+
+### The revision-upload hang: not reproduced, now instrumented
+
+The 2026-09-02 live run's workspace "Upload a revised version" step stalled with
+no POST reaching the API. The exact interaction sequence (dock opened → Escape →
+disclosure → file → Upload) now passes locally in
+`e2e/revision-upload.spec.ts`, which watches the wire and fails unless the POST
+leaves within 15s — so the sequence itself is exonerated and any recurrence
+fails a named test instead of hanging silently. Environmental theories checked
+and eliminated: nginx `client_max_body_size` is 50M against a 313KB file; the
+client upload is a plain fetch with no preprocessing; duplicates are per-contract
+and reported, not refused. Honest status: observed once on live, cause not
+established, regression net in place. One manual live retry after the next
+approved deploy is the remaining verification.
+
+### The "In Progress for ~10 minutes" report: measured, and the backend is exonerated
+
+Read-only journal decomposition of the owner's own 27-page DOCX upload
+(2026-09-01 18:16 IST): upload+parse+index completed in **6.8s** inside the
+upload request; analysis ran **0.6s**. Today's 21-page PDF: **4.2s** and
+**0.4s**, obligations (the one egress call) 4.2s. No broker is configured, so
+processing is inline — a version cannot sit PENDING behind a queue, and by the
+time any screen renders, `processing_status` is terminal. The findings poll is
+bounded (2.5s × 120) and correct. Two latent presentation gaps found and
+REPORTED, not fixed — both live in the concurrent agent's in-flight files
+(`model.ts`, `dashboard/page.tsx`): `documentStatusBucket` renders a FAILED
+processing status as "Draft" (mislabeled failure; no FAILED row exists on live
+today), and nothing re-fetches a version stuck PROCESSING (unreachable through
+the app's own inline flows, but real if processing ever becomes async).
+
+### 2026-09-02 — owner rejected the live deploy this session prepared (289)
+
+| # | Decision | Why | What it does NOT decide |
+|---|---|---|---|
+| 289 | **Owner rejected shipping the permission reconciliation (#285) and the deploy scripts (#286-288) to the live instance.** Nothing was applied — no grant added to the live database, no service restarted, no code deployed | The owner's local review of the sandbox found the analysis report looked sparse/unstructured on first load. Cause identified as a sandbox seeding gap (only 1 fixture requirement was published, not the real 32 ratified Company Standards) — fixed in the sandbox, not yet re-reviewed by the owner | Whether the underlying work (reconciliation tool, build guard, deploy ordering) is itself wrong. Not re-litigated — the local artifacts stand, unapplied, pending a fresh owner review |
+
+
+---
+
+## 2026-09-03 — Two defects from the owner's own uploads (285–288)
+
+### 285 — extracted text was checked for presence, never for legibility
+
+A real upload (a 30-page MSA) rendered in the document viewer as
+`"MaVWeU SeUYLceV AgUeePeQW"` for "Master Services Agreement". Diagnosed, not
+guessed: the PDF's fonts are `Type0`/`Identity-H` subsets whose `/ToUnicode`
+CMap is **present, syntactically valid and semantically wrong** — every code
+point at or above `0x6D` shifted down by 29. Page 1 yielded ~1,960 characters,
+so `MIN_USABLE_CHARS_PER_PAGE` was satisfied, OCR was never attempted, and the
+glyph stream reached the viewer, the clause list, the chunk index, the embeddings
+and a Review that reported **3 MATCH, 7 MISSING and 4 UNABLE_TO_EVALUATE against
+text nobody could read.** The MATCH findings are the serious part: a MATCH
+asserts the document agrees with a ratified Company Standard.
+
+Locked **34.3** already says "detect when normal extraction is **insufficient**
+and use OCR where supported". Only the *absent* case was implemented. This is a
+gap against the lock, not a new feature.
+
+| # | Decision | Why | What it does NOT decide |
+|---|---|---|---|
+| 285 | **Legibility is measured, and a document that fails it is re-extracted or refused** — never returned as content | A wrong-but-valid CMap is indistinguishable from a correct one by inspecting the PDF, so the signal has to come from the extracted text. The measure is the share of alphabetic tokens that are common English function words: a fixed 24-word list, deterministic and offline, not a dictionary and not a model | The mechanism for non-English documents, which are reported unjudgeable and left exactly as extracted |
+| 286 | **Judged per DOCUMENT, never per page**, and only above 200 words | Measured on the real corpus: a cover page, a signature page and a website footer legitimately score 0.055–0.086 because they are noun lists with almost no prose. A per-page rule would send correctly-extracted pages to OCR and make good documents worse — the more expensive mistake. The accepted cost is that a very short garbled document still slips through; pinned as a visible bound in `test_a_document_too_short_to_judge_is_left_alone` | A better short-text signal, which would need different evidence, not a lower threshold |
+| 287 | **Threshold 0.15, chosen from measurement** | Across the 21 supplied contract and statute PDFs, document-level shares ran **0.210 to 0.422**. The garbled upload measured **0.080**, and **0.345** once the shift was undone — inside the healthy band, confirming both signal and gap. 0.15 sits between the populations: 29% below the lowest legitimate document, 88% above the garbled one. Re-validated against all 21: **1 flagged, 20 kept native, 0 false positives** | Nothing about retrieval or generation. `COSINE_FLOOR`, the AM-28 gate and every guardrail are untouched; the AM-28 gate was re-run byte-identical |
+| 288 | **No character-level "repair", and OCR output is adopted only when measurably better** | Inverting the observed shift was tried as a diagnostic: it recovers the body text **and corrupts every capital** ("Strad" → "ptrad"), because the shifted range collides with the upper-case block. A remap that damages some characters to fix others is the invented text 34.9 forbids. OCR reads the RENDERED glyphs, which are correct. And OCR is only kept if its own legibility passes — so the change cannot trade working text for worse text, by construction | Whether to install the OCR toolchain. It is **absent on this server**, so today the outcome is an honest refusal rather than a repair — see OWNER DECISION REQUIRED |
+
+**What the refusal costs and why it is still right.** With no OCR toolchain, an
+illegible document now extracts to nothing: `ExtractionStatus.FAILED`, which
+45B.7 already routes to `UNABLE_TO_EVALUATE`, and `run_analysis` already refuses
+outright (`no_extracted_clauses`, 34.9 / Step 30 r13) so **no Finding is
+produced at all** — not MATCH, and not MISSING either, which would wrongly
+assert the provision is absent when the truth is the document could not be read.
+Verified end to end against a readable control that does reach a verdict, so
+"no findings" is a genuine refusal and not an unconfigured no-op.
+
+### The processing time was measured, and there is nothing to optimize
+
+The owner reported a document sitting "In Progress" for ~10 minutes, and a real
+DOCX upload showed a ~6-minute gap between upload and Review while two PDFs took
+13 and 17 seconds. Measured locally on those same documents rather than inferred:
+
+```text
+DOCX extraction (322 segments, 23 pages)   199 ms
+PDF  extraction (30 pages)                 260 ms
+embedding model load + first embed         410 ms
+325 chunk embeddings                     1,600 ms   (5 ms each)
+                                        ---------
+total machine time                       ~2.2 s
+```
+
+Extraction runs are recorded at **0.0–0.2 s** in the live database for every
+document. So the wait is not extraction, not chunking and not embedding. The
+intake deliberately requires a human to confirm the Document Type before
+analysis starts (locked owner Q9 — declared, never inferred), and that gap is
+where the minutes are. **Nothing was changed**: adding caching, batching,
+parallelism or a queue here would be optimizing a stage that costs two seconds.
+Recorded so the next session does not re-derive it.
+
+
+### 2026-09-03, later — the OCR toolchain was installed, and the path is now live
+
+The owner installed `tesseract 5.3.4` and `ocrmypdf 15.2.0` on the host, closing
+the OWNER DECISION that decision 288 left open. Verified on the document that
+prompted the whole fix (30-page MSA, real toolchain, no stubs):
+
+```text
+before (native)   status FAILED    0 segments    function-word share 0.080
+after  (OCR)      status COMPLETE  413 segments  function-word share 0.359
+                  30 of 30 pages · 109 segments carry a clause number · 63.5 s
+```
+
+0.359 sits inside the 0.210–0.422 legible band measured across the real corpus.
+Clause 13.1 came through verbatim, including the phrase that matters most for
+this document — *"the **average** price or fee paid for Services over a three (3)
+month period"*. CLAUDE.md's source-material note is explicit that an **average**
+is not a total and therefore not comparable to the ratified `FEES_PAID` basis, so
+this cap must fail closed to a human rather than produce a MATCH or a clean
+DEVIATION. The extraction now makes that judgement reachable; it does not make it.
+
+**Two environment-dependent tests had to be repaired, and the repair is a real
+improvement.** `test_no_text_layer_and_no_ocr_fails_closed` asserted
+`parsing.ocr_available() is False  # documents this environment` — it passed only
+because no OCR was installed, so it broke the moment one was, while the property
+it names ("no native text AND no OCR fails closed") remained perfectly true. Both
+it and `test_retry_creates_a_new_run_and_preserves_history` now FORCE the absent
+toolchain with a monkeypatch instead of inheriting it from the machine.
+
+**A new test exercises the real toolchain**, and getting its fixture right
+exposed a subtlety worth recording: rendering `mangle(text)` puts the mangled
+characters on the page as glyphs, so OCR reads back mangled text and correctly
+reports it as still illegible — a faithful result for a fixture that does not
+resemble the defect. The real PDF is the reverse: correct printed SHAPES, wrong
+character CODES. The fixture now renders clean prose and makes native extraction
+alone lie, which is exactly what a broken `/ToUnicode` CMap does.
+
+**One operational note, not a defect.** OCR costs ~2.1 s per page (63.5 s for 30
+pages) against ~0.2 s for the whole document natively, and it runs inside the
+upload request. nginx allows `proxy_read_timeout 300s`, so anything up to roughly
+140 pages is safe; a longer scanned document would exceed it and is the point at
+which extraction should move to the existing queue rather than the request. Not
+built — no such document has appeared, and building for one would be the
+premature optimization the measurements above already argued against.
+
+
+### 2026-09-03 — the browser suite cannot be trusted while two agents share its database
+
+Verifying the OCR path produced 7 browser-suite failures that had nothing to do
+with the change. The failures were `401 UNAUTHENTICATED` on `POST /contracts`,
+one test was named `DEBUG geometry with two rows`, and the second attempt logged
+the cause outright:
+
+```text
+FATAL:  database "legalmind_v1_e2e" does not exist
+```
+
+`e2e/global-setup.ts` runs `tools.e2e_bootstrap --recreate`, which DROPS and
+rebuilds that database. Two agents running the suite against the same
+`legalmind_v1_e2e` on the same ports 8099/3099 therefore delete each other's
+sessions mid-run, and `reuseExistingServer` can even attach one run's browser to
+the other run's API. Nothing about the failures indicated a real defect — the
+suite's own fixture document is a DOCX, which the PDF change cannot touch.
+
+Re-run with private values for the three variables the config already reads:
+
+```bash
+LEGALMIND_E2E_DATABASE_URL=postgresql+psycopg2://legalmind:legalmind@127.0.0.1/legalmind_ocr_verify \
+LEGALMIND_E2E_API_PORT=8097 LEGALMIND_E2E_WEB_PORT=3097 \
+npx playwright test --grep-invert visual        # 71 passed, 0 failed
+```
+
+The temporary database was dropped afterwards. **Recorded rather than fixed:**
+defaulting those three values per-checkout or per-process would remove the
+collision permanently, but the harness is shared with the other in-flight task
+and changing its defaults mid-flight would be the more disruptive act. A session
+that sees scattered browser failures should suspect this first, and re-run
+isolated before believing any of them.
+
+## 2026-09-03 — The Original view and deferred OCR (289–294) — LOCAL ONLY, deployment awaiting owner approval
+
+### 289 — the ~62s upload was measured, not assumed, before anything changed
+
+Stage-by-stage on the real 30-page document, idle box (load 0.08): validate
+0.0ms · fingerprint 1.2ms · pymupdf open 0.5ms · native extraction 171ms ·
+legibility check 6ms · **full OCR 63.4s** (tesseract ~1.7s/page, sequential,
+inside the upload POST). Everything except OCR, combined: under 0.5s. The
+owner's brief demanded "do not assume OCR is the bottleneck — profile first";
+profiled, it is the bottleneck, and it is 99% of it.
+
+### 290 — OCR became its own background ProcessingRun rather than a faster inline pass
+
+Locked 42.5 already reserves `ProcessingRunType.OCR`; the deferral uses it as
+designed: upload runs the native parse + legibility verdict, returns
+`PROCESSING`/`NULL`/zero evidence when OCR is required AND the toolchain
+exists (no toolchain → fail closed at upload, unchanged), and
+`worker.dispatch.dispatch_ocr` runs the pass in a daemon thread with its own
+session. **A thread, not the queue**: this deployment runs no broker, and the
+queue's inline fallback would put the 60s right back in the request. The
+thread marks FAILED (recoverable, 42.5) rather than leaving an eternal
+PROCESSING if it dies. `ExtractionStatus` gained no value (45B.7);
+`ProcessingStatus.PROCESSING` is the honest in-between state.
+
+### 291 — page-parallel OCR at unchanged 300dpi; 150dpi measured and rejected
+
+4 workers × 1 tesseract thread (`OMP_THREAD_LIMIT=1`), reassembled in page
+order: **byte-identical output** to the sequential pass (66292 chars,
+legibility 0.359), 65.6s → 16.2s. 150dpi would give 9.8s but its output
+differs slightly (66295 chars) — rejected: once OCR is off the critical path
+the extra speed buys nothing worth any output change. `PROCESSOR_VERSION` →
+`legalmind-ingest-v3` (run structure changed; output per document did not).
+
+### 292 — analysis is refused while a document is processing, in `assert_analysable`
+
+Zero evidence must not mint MISSING findings against text still being
+recovered. The check lives in the one function both dispatch paths already
+share. Client-side, `chainAnalysis` steps aside for PENDING/PROCESSING only —
+a FAILED extraction still gets its Review and the honest ANALYSIS_FAILED
+surface exactly as before — and the workspace polls the version (3s × 100,
+bounded) and completes the same in-flow chain when extraction lands.
+**Known edge, path exists:** a user who leaves the workspace during OCR gets
+no auto-chain when it finishes; the Findings pane's existing AnalyzeControl
+("no-review is an action") is the manual path.
+
+### 293 — the Original view renders the preserved bytes; no PDF.js, no rasterizer
+
+Browser-native rendering of the stored original (34.5) via fetch + blob URL in
+an iframe: zero new dependencies (rule 19 reserves PDF.js-class additions to
+the owner), zero new endpoints, gated on `document.download` because rendering
+the bytes IS handing them over — every canonical role holds it. The `content`
+endpoint's `attachment` disposition is untouched (direct navigation still
+downloads; a fetch ignores the disposition). DOCX gets no Original tab —
+no browser renders one. DD-16 records the full decision.
+
+### 294 — 34.8 identification moved to the page level where the page-level claim is true
+
+The per-paragraph `OCR` chip is now one "· recovered by OCR" on a wholly-OCR
+page's marker; a mixed page keeps per-row chips. Identification is placed, not
+weakened.
+
+**Verification (all local):** backend 1135 passed (8 new in
+`test_deferred_ocr.py`) · frontend 191 passed (3 new) · browser suite 74
+passed on an isolated DB (3 new in `original-view.spec.ts`) · ruff/mypy clean
+on changed files · real-user journey as a USER-only account with the real
+30-page document: upload 0.4s, workspace 0.4s, **Original viewable 0.7s**
+(was ~64s), honest "text being recovered" note, text at ~20s, findings at
+~30s in the background, page nav, pointing gestures, ask, deep-link and bare
+reloads, revision to v2 with v1 intact — all green; fidelity screenshot in
+new-headless Chromium shows the actual document (logo, typography, layout).
+**Nothing deployed; live untouched and verified healthy read-only.**
+
+### 295 — the background OCR job is durable because the DATABASE is the ledger, not the thread (2026-09-03, production-readiness review)
+
+The owner's pre-deployment review asked the right question: a daemon thread
+dies with its process, so what happens to a version mid-OCR across a restart,
+a deploy, a crash? As first built: **stuck PROCESSING forever** — the poll is
+bounded, and the analysis gate refuses the manual button. A real blocker,
+fixed before deployment with three pieces, all inside the existing
+processing-run architecture (no queue, no schema change, no new vocabulary):
+
+1. **Claim before work.** Each attempt commits its STARTED OCR run BEFORE
+   parsing (`process_document_version` accepts a pre-created run), so a
+   crashed attempt is a visible, countable record — 42.5's attempt history
+   used as the crash ledger. The work itself (run outcome + evidence + version
+   statuses + assist indexing) is ONE transaction: a death anywhere rolls back
+   cleanly to "claimed but unfinished". Indexing moved INTO that transaction
+   (matching the inline path, which indexes inside the upload's transaction),
+   so COMPLETED-but-unindexed cannot happen either.
+2. **One job per version, database-wide.** A session-level Postgres advisory
+   lock (`pg_try_advisory_lock` on the version id, held on a dedicated
+   connection for the job's duration) makes a second trigger step aside;
+   process death releases it automatically.
+3. **Startup reconciliation + attempt cap.** `reconcile_interrupted_ocr` (an
+   API startup hook, in a thread so a slow DB cannot block binding)
+   re-dispatches every PROCESSING version — at startup that set is exactly the
+   orphans, since a committed PROCESSING only ever comes from the deferred
+   path and threads die with their process. `OCR_MAX_ATTEMPTS = 3`: a document
+   that repeatedly kills its process (an OOM-ing page) converges to a
+   deterministic FAILED with a committed run explaining why, instead of
+   turning `Restart=always` into a crash loop.
+
+**Proved live, twice, on a scratch DB with the real 30-page document:**
+`kill -9` mid-OCR → state PROCESSING/NULL, runs PARSE+OCR(STARTED), 0 evidence
+(clean rollback) → restart → `ingest.ocr.reconciled` → COMPLETED/COMPLETE,
+run history PARSE → OCR(crashed) → OCR(COMPLETED), exactly 413 evidence rows
+and 421 chunks in one commit. And two jobs raced on one version → exactly one
+OCR run, exactly 413 rows — the loser never claimed. 4 new tests pin the
+decision logic (claim reuse, attempt-state ledger, deterministic abandonment,
+reconciliation set).

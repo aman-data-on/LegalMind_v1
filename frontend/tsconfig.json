@@ -40,7 +40,13 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next-staging/types/**/*.ts",
-    ".next-staging/dev/types/**/*.ts"
+    ".next-staging/dev/types/**/*.ts",
+    ".next-e2e/types/**/*.ts",
+    ".next-e2e/dev/types/**/*.ts",
+    ".next-guardproof/types/**/*.ts",
+    ".next-guardproof/dev/types/**/*.ts",
+    ".next-usertest/types/**/*.ts",
+    ".next-usertest/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -3,8 +3,20 @@
   "schemas": {
    "AskRequest": {
     "additionalProperties": false,
-    "description": "One question. Length-bounded at the boundary; content rules live server-side.",
+    "description": "One question, about ONE document version.\n\nLength-bounded at the boundary; content rules live server-side.\n\n``document_version_id`` names the version the question is about \u2014 the one the\nreader has open. It is OPTIONAL and defaults to the contract's newest version,\nwhich is what every caller got before this field existed. Authorization is not\nweakened by naming it: the version is resolved through `guard.document_version`\nand additionally required to belong to the conversation's own contract, so this\nfield can only ever narrow the scope, never widen it.",
     "properties": {
+     "document_version_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Document Version Id"
+     },
      "question": {
       "maxLength": 2000,
       "minLength": 1,

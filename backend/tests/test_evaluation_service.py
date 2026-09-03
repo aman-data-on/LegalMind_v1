@@ -110,6 +110,54 @@ def test_non_missing_without_evidence_is_refused(db, scenario):
                            output=out)
 
 
+def test_a_refused_finding_leaves_nothing_behind_in_the_session(db, scenario):
+    """Regression — reproduces the ordering bug that stuck a live Review in
+    DRAFT forever on 2026-09-02 (production incident, contract
+    d9ee54a1-f980-4b57-bd35-560f85f7e674): ``persist_evaluation`` used to
+    flush the Finding row BEFORE validating its Evaluations' evidence
+    cardinality, so a refused (empty-evidence, non-MISSING) result left an
+    orphaned, evaluation-less Finding sitting in the session. EV-MIN is a
+    DEFERRED constraint trigger, so nothing in Python ever saw the problem —
+    it surfaced only at COMMIT (in production: the request-scoped session
+    teardown, after the client had already been told 201), and rolled back
+    every OTHER Requirement's Finding in the same Review along with it, not
+    just the one that failed. This proves a refused Requirement no longer
+    leaves anything for a later Requirement's Finding to get rolled back by.
+    """
+    user, review, rv = scenario
+    ev = _evidence(db, review)
+
+    bad = evaluate(numeric_input([cap(10, evidence=())]))
+    with pytest.raises(EvidenceCardinalityViolation):
+        persist_evaluation(db, review=review, requirement_version_id=rv.id,
+                           output=bad)
+
+    # A second, valid Requirement analysed afterward in the SAME Review —
+    # standing in for the rest of a real analysis run continuing past one
+    # refused Requirement.
+    req2 = M.Requirement(code=f"STRUCT-{uuid.uuid4().hex[:6]}",
+                         status=E.ConfigStatus.ACTIVE)
+    db.add(req2); db.flush()
+    rv2 = M.RequirementVersion(
+        requirement_id=req2.id, version_number=1, name="Structural 2",
+        evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON, created_by=user.id)
+    db.add(rv2); db.flush()
+    good = evaluate(numeric_input([cap(10, evidence=(ev.id,))]))
+    persist_evaluation(db, review=review, requirement_version_id=rv2.id,
+                       output=good)
+
+    # EV-MIN is DEFERRED precisely so it only fires here — exactly where the
+    # production incident's rollback actually happened.
+    db.flush()
+    db.execute(__import__("sqlalchemy").text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    findings = db.execute(
+        select(M.Finding).where(M.Finding.review_id == review.id)
+    ).scalars().all()
+    assert len(findings) == 1
+    assert findings[0].requirement_version_id == rv2.id
+
+
 # ============================================== scoped evaluations + roll-up
 def test_scoped_evaluations_persist_with_derived_roll_up(db, scenario):
     user, review, rv = scenario

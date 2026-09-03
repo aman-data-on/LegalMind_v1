@@ -39,6 +39,7 @@ import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import { useHighlight } from "./highlight";
 import { findingsSummary } from "./model";
+import { useSideTabs } from "./WorkspaceLayout";
 
 type View = "attention" | "all" | { classification: string };
 
@@ -76,6 +77,38 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     card.scrollIntoView({ block: "center" });
     card.focus({ preventScroll: true });
   }, [state, view]);
+
+  // Analysis-panel pointing (DD-14): a click on a status tile, a donut legend
+  // row or a finding card over there lands HERE — on the matching filter, or
+  // scrolled to the named finding. Same gesture as `?finding=`, in-app rather
+  // than via the URL; `seq` dedupes so each click points exactly once.
+  const sideTabs = useSideTabs();
+  const pointSeqDone = useRef(0);
+  const point = sideTabs?.findingsPoint ?? null;
+  useEffect(() => {
+    if (!point || point.seq === pointSeqDone.current) return;
+    if (point.classification) {
+      pointSeqDone.current = point.seq;
+      setView({ classification: point.classification });
+      return;
+    }
+    if (point.findingId) {
+      if (state.kind !== "ready") return; // retry when findings arrive
+      const card = document.querySelector<HTMLElement>(
+        `article[data-finding-id="${point.findingId}"]`,
+      );
+      if (!card) {
+        // Hidden by the current view — widen first; this effect re-runs.
+        if (view !== "all") setView("all");
+        return;
+      }
+      pointSeqDone.current = point.seq;
+      card.scrollIntoView({ block: "center" });
+      card.focus({ preventScroll: true });
+      return;
+    }
+    pointSeqDone.current = point.seq;
+  }, [point, state, view]);
 
   if (!can(P.FINDING_VIEW)) {
     return (
