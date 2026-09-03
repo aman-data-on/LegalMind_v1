@@ -113,7 +113,11 @@ def test_a_non_ascii_filename_round_trips_through_the_percent_encoded_header(
     contract_id = api.post(f"{V1}/contracts",
                            json={"name": "ACME MSA"}).json()["data"]["id"]
 
-    real_name = "MUTUAL NON – DISCLOSURE AGREEMENT.docx"  # en dash, U+2013
+    # The en dash (U+2013) is the POINT of this test — a real uploaded filename
+    # contained one and threw in `fetch` before reaching the network. RUF001
+    # flags ambiguous characters in strings; here the ambiguity is the subject,
+    # so the character must not be "corrected".
+    real_name = "MUTUAL NON – DISCLOSURE AGREEMENT.docx"  # noqa: RUF001 - en dash, U+2013
     from urllib.parse import quote
     response = api.post(
         f"{V1}/contracts/{contract_id}/document-versions",

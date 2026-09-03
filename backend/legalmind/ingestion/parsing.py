@@ -699,10 +699,12 @@ def parse_docx(data: bytes) -> ParseResult:
     diagnostics = [] if segments else ["DOCX contained no extractable text"]
     if segments and pagination_source:
         diagnostics = [*diagnostics,
-                       f"pages from the document's own pagination record ({pagination_source})"]
+                       "pages from the document's own pagination record "
+                       f"({pagination_source})"]
+    pages_extracted = (total_pages if pagination_source else 1) if segments else 0
     return ParseResult(segments=segments, status=status,
                        pages_total=total_pages if pagination_source else 0,
-                       pages_extracted=(total_pages if pagination_source else 1) if segments else 0,
+                       pages_extracted=pages_extracted,
                        diagnostics=diagnostics,
                        pagination_source=pagination_source if segments else None)
 

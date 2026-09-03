@@ -74,7 +74,7 @@ def backfill(contract_id: UUID, *, execute: bool) -> int:
 
             mismatches = [
                 (row.id, seg.start_offset)
-                for row, seg in zip(rows, result.segments)
+                for row, seg in zip(rows, result.segments, strict=True)
                 if row.content != seg.content or row.start_offset != seg.start_offset
             ]
             if mismatches:
@@ -82,9 +82,9 @@ def backfill(contract_id: UUID, *, execute: bool) -> int:
                       "row(s) differ from the re-parse; not touching anything.")
                 continue
 
-            fills = sum(1 for row, seg in zip(rows, result.segments)
+            fills = sum(1 for row, seg in zip(rows, result.segments, strict=True)
                         if row.page_number is None and seg.page_number is not None)
-            conflicts = [row.id for row, seg in zip(rows, result.segments)
+            conflicts = [row.id for row, seg in zip(rows, result.segments, strict=True)
                          if row.page_number is not None
                          and row.page_number != seg.page_number]
             if conflicts:
@@ -96,7 +96,7 @@ def backfill(contract_id: UUID, *, execute: bool) -> int:
                   f"{result.pages_total} pages; {fills} of {len(rows)} rows to fill"
                   f"{' — DRY RUN, nothing written' if not execute else ''}.")
             if execute:
-                for row, seg in zip(rows, result.segments):
+                for row, seg in zip(rows, result.segments, strict=True):
                     if row.page_number is None and seg.page_number is not None:
                         row.page_number = seg.page_number
                 db.flush()
