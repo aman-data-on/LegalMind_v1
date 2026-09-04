@@ -416,9 +416,25 @@ function EvaluationCard({
               <li key={index}>{line}</li>
             ))}
           </ol>
-          <p className="ws-pane__note ws-mono">{evaluation.evaluator_version}</p>
         </details>
       ) : null}
+
+      {/*
+        * WHICH evaluator produced this, always — 2026-09-04, found by porting
+        * the LEGAL-02 browser test off the legacy screen.
+        *
+        * This line used to live INSIDE the explanation block above, and
+        * `explanation` is one of the fields LEGAL-02 omits for a caller without
+        * `legal_position.view`. So an owner saw a verdict with no record of what
+        * produced it, while the legacy screen showed provenance to everyone.
+        * 45B.10 / AM-19 are explicit that omission removes the legal POSITION and
+        * not the audit trail, and an evaluator version is provenance, not a
+        * position — so it is rendered unconditionally, beside the scope it
+        * belongs to.
+        */}
+      <p className="ws-evaluation__provenance ws-pane__note ws-mono">
+        {evaluation.evaluator_version}
+      </p>
 
       {evaluation.evidence_refs.length > 0 ? (
         <div className="ws-evidence">
