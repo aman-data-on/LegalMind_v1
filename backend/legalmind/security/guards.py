@@ -120,6 +120,36 @@ def assert_legal_authority_preserved(db: DBSession, previous_count: int) -> None
         )
 
 
+def count_administrative_authorities(db: DBSession) -> int:
+    """How many ACTIVE users can currently manage users and roles."""
+    return db.execute(
+        select(func.count(func.distinct(M.UserRole.user_id)))
+        .select_from(M.UserRole)
+        .join(M.RolePermission, M.RolePermission.role_id == M.UserRole.role_id)
+        .join(M.Permission, M.Permission.id == M.RolePermission.permission_id)
+        .join(M.User, M.User.id == M.UserRole.user_id)
+        .where(M.Permission.name == P.USER_MANAGE,
+               M.User.status == E.UserStatus.ACTIVE)
+    ).scalar_one()
+
+
+def assert_administrative_authority_preserved(db: DBSession,
+                                              previous_count: int) -> None:
+    """SEC-05's would-leave-zero pattern, generalized to ``user.manage``.
+
+    ``require_can_administer_user`` deliberately exempts self-administration
+    (S-9 guards escalation against *other* accounts). Without this check, the
+    last administrator could revoke their own admin role, or disable their own
+    account, and leave no ACTIVE user able to grant roles or re-enable anyone
+    — a permanent lockout with no recovery path through the app.
+    """
+    if previous_count and count_administrative_authorities(db) == 0:
+        raise Forbidden(
+            "refused: this change would leave no user able to manage users "
+            "or roles"
+        )
+
+
 def _role_permissions(db: DBSession, role_id: UUID) -> frozenset[str]:
     rows = db.execute(
         select(M.Permission.name)

@@ -43,7 +43,9 @@ from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 from legalmind.security.guards import (
+    assert_administrative_authority_preserved,
     assert_legal_authority_preserved,
+    count_administrative_authorities,
     count_legal_authorities,
     require_can_administer_user,
     require_can_grant_role,
@@ -119,6 +121,7 @@ def update_user(user_id: UUID, body: UserUpdate,
 
     before = {"name": user.name, "status": user.status.value}
     authorities_before = count_legal_authorities(guard.db)
+    admins_before = count_administrative_authorities(guard.db)
     if body.name is not None:
         user.name = body.name
     if body.status is not None:
@@ -130,6 +133,7 @@ def update_user(user_id: UUID, body: UserUpdate,
         # SEC-05 counts only ACTIVE holders, so disabling the last one is refused
         # here rather than discovered later by a Review that cannot be resolved.
         assert_legal_authority_preserved(guard.db, authorities_before)
+        assert_administrative_authority_preserved(guard.db, admins_before)
         # S-2 — revocation is immediate. A disabled account must not keep working
         # for the remainder of a live session.
         revoked = revoke_all_for_user(guard.db, user_id, reason="account disabled")
@@ -147,10 +151,16 @@ def update_user(user_id: UUID, body: UserUpdate,
 @router.delete("/users/{user_id}")
 def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     """Delete a user. Only DISABLED users can be deleted."""
+    # S-9 covers deleting, not only editing: without the guard an administrator
+    # who cannot *grant* `legal.decision` could delete the account holding it and
+    # destroy that authority by another route. No authority-preservation check is
+    # needed — only a DISABLED account is deletable, and neither count includes
+    # non-ACTIVE users, so neither count can change here.
     guard.permission(P.USER_MANAGE)
     user = guard.db.get(M.User, user_id)
     if user is None:
         raise NotVisible("user not found")
+    require_can_administer_user(guard.db, guard.user_id, user_id)   # S-9
 
     # Only allow deleting DISABLED users (soft delete protection)
     if user.status is not E.UserStatus.DISABLED:
@@ -221,9 +231,11 @@ def revoke_role(user_id: UUID, role_code: str,
     ).scalars().first()
     if link is not None:
         authorities_before = count_legal_authorities(guard.db)
+        admins_before = count_administrative_authorities(guard.db)
         guard.db.delete(link)
         guard.db.flush()
         assert_legal_authority_preserved(guard.db, authorities_before)   # SEC-05
+        assert_administrative_authority_preserved(guard.db, admins_before)
         _audit_role_change(guard, user_id, role, granted=False)
     return data(serialize_user(guard.db, user))
 
@@ -274,6 +286,7 @@ def update_role(role_id: UUID, body: RoleUpdate,
 
     before = serialize_role(guard.db, role)["permissions"]
     authorities_before = count_legal_authorities(guard.db)
+    admins_before = count_administrative_authorities(guard.db)
     if body.name is not None:
         role.name = body.name
 
@@ -308,6 +321,7 @@ def update_role(role_id: UUID, body: RoleUpdate,
                                           permission_id=catalogue[name]))
         guard.db.flush()
         assert_legal_authority_preserved(guard.db, authorities_before)   # SEC-05
+        assert_administrative_authority_preserved(guard.db, admins_before)
 
     after = serialize_role(guard.db, role)["permissions"]
     A.record(guard.db, action=A.ADMIN_PERMISSION_CHANGED, entity_type="role",

@@ -10,6 +10,35 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed
+
+* **Administrative lockout is now refused (guards.py).** A lone holder of
+  `user.manage` could revoke their own admin role or disable their own account
+  and leave the deployment with zero ACTIVE administrators — no route left to
+  grant a role or re-enable anyone, unrecoverable through the app.
+  `require_can_administer_user` exempts self-administration by design (S-9
+  guards escalation against *other* accounts) and SEC-05's would-leave-zero
+  check covers only `legal.decision`, so nothing caught this. Adds
+  `assert_administrative_authority_preserved`, SEC-05's exact change-rule shape
+  applied to `user.manage`, called from the same three sites that already assert
+  SEC-05: account status change, role revoke, and role permission replacement.
+  Amends no locked decision: S-9's self-exemption and SEC-05's scope are both
+  unchanged. Owner-approved 2026-09-04 after the gap was named.
+
+* **S-9 now actually covers deletion (admin.py).** `DELETE /users/{id}` checked
+  `user.manage` but never called `require_can_administer_user`, so an
+  administrator who cannot *grant* `legal.decision` could delete a disabled
+  account that holds it and destroy the authority by another route — the exact
+  bypass S-9 exists to close, and which this module's own docstring already
+  claimed was closed. No authority-preservation check is needed there: only a
+  DISABLED account is deletable and neither count includes non-ACTIVE users.
+
+* **A deleted account leaves the table (Admin > Users).** The row's delete
+  handler carried a `// For now` note and never refreshed on success, so a
+  deleted account stayed on screen — and the header count stayed wrong — until
+  a manual reload. It now calls the page's existing loader, keeping pagination
+  and the total honest.
+
 ### Added — deployed to production 2026-09-03 17:37 IST (owner-approved; commit e03bef9)
 
 * **The Original document view (DD-16).** The workspace's document card gains an

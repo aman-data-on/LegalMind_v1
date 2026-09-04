@@ -25,6 +25,7 @@ from legalmind.security.authorization import (
 )
 from legalmind.security.errors import Forbidden, NotVisible
 from legalmind.security.guards import (
+    assert_administrative_authority_preserved,
     assert_legal_authority_remains,
     require_can_administer_user,
     require_can_grant_role,
@@ -41,6 +42,7 @@ from tests.conftest import (
     make_finding,
     make_review_for,
     make_user,
+    sign_in,
 )
 
 
@@ -336,6 +338,61 @@ def test_self_administration_is_permitted(db, seeded):
     u = make_user(db)
     grant_role(db, u, P.ROLE_USER)
     require_can_administer_user(db, u.id, u.id)     # no raise
+
+
+def test_guard_covers_deleting_a_more_privileged_account(db, seeded):
+    """S-9 names deleting alongside editing. Deleting the account that holds
+    `legal.decision` destroys that authority just as surely as editing it."""
+    weaker = make_user(db)
+    grant_role(db, weaker, P.ROLE_SUPER_ADMIN)      # user.manage, no legal.*
+
+    stronger = make_user(db)
+    grant_role(db, stronger, P.ROLE_LEGAL_DECISION_AUTHORITY)
+
+    with pytest.raises(Forbidden, match="escalation refused"):
+        require_can_administer_user(db, weaker.id, stronger.id)
+
+
+def test_last_administrator_cannot_be_left_with_zero_admins(db, seeded):
+    """Self-administration bypasses S-9's escalation check, but it must not be
+    able to zero out ``user.manage`` — the last admin revoking their own admin
+    role, or disabling their own account, would lock the org out permanently."""
+    with pytest.raises(Forbidden, match="no user able to manage users or roles"):
+        assert_administrative_authority_preserved(db, previous_count=1)
+
+    holder = make_user(db)
+    grant_role(db, holder, P.ROLE_SUPER_ADMIN)
+    assert_administrative_authority_preserved(db, previous_count=1)   # no raise
+
+
+def test_sole_admin_cannot_lock_the_org_out_over_http(api, db, seeded):
+    """The whole journey, through the real routes: the last administrator
+    cannot strip their own admin role or disable their own account.
+
+    Guard-level tests prove the rule; this proves it is actually *reached* by
+    the endpoints the Admin screen calls."""
+    sole_admin = make_user(db)
+    grant_role(db, sole_admin, P.ROLE_SUPER_ADMIN)
+    sign_in(api, db, sole_admin)
+
+    revoked = api.delete(
+        f"/api/v1/users/{sole_admin.id}/roles/{P.ROLE_SUPER_ADMIN}")
+    assert revoked.status_code == 403, revoked.text
+    assert "manage users" in revoked.text
+
+    disabled = api.patch(f"/api/v1/users/{sole_admin.id}",
+                         json={"status": "DISABLED"})
+    assert disabled.status_code == 403, disabled.text
+
+    # ...and still holds the role, so the refusal did not half-apply.
+    assert P.USER_MANAGE in effective_permissions(db, sole_admin.id)
+
+    # With a second administrator present, both operations are permitted again.
+    second = make_user(db)
+    grant_role(db, second, P.ROLE_SUPER_ADMIN)
+    assert api.delete(
+        f"/api/v1/users/{sole_admin.id}/roles/{P.ROLE_SUPER_ADMIN}"
+    ).status_code == 200
 
 
 # =====================================================================
