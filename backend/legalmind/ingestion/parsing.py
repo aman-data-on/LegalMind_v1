@@ -544,9 +544,9 @@ def _ocr_pages_parallel(
         except Exception as exc:
             return exc
 
+    # A pool of 1 worker already runs `map` sequentially in submission order,
+    # so there is no separate single-threaded path to maintain.
     workers = max(1, min(OCR_MAX_WORKERS, os.cpu_count() or 1))
-    if workers == 1 or page_count == 1:
-        return [(i, one(i)) for i in range(1, page_count + 1)]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return list(zip(range(1, page_count + 1),
                         pool.map(one, range(1, page_count + 1)), strict=True))
