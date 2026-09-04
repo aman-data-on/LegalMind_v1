@@ -57,6 +57,34 @@ if [[ "${LEGALMIND_ALLOW_STALE_API:-0}" != "1" ]]; then
   fi
 fi
 
+# ---------------------------------------------------------------------------
+# The tree must not carry someone else's work in progress (2026-09-04).
+#
+# WHY. The systemd units serve straight from this ONE working tree, which more
+# than one session edits at a time. So a deploy ships whatever is in the tree at
+# that instant — including changes that are mid-review and not approved. That
+# happened today: a frontend deploy at 13:34 shipped another session's
+# uncommitted Reviews/Report work, and the owner met it live before approving
+# it. (The same shared tree also cost a session its unstaged files earlier the
+# same day, from the opposite direction.)
+#
+# A deploy should ship a COMMIT, not a desk. Committed work is reviewable,
+# attributable and revertable; a dirty tree is none of those. Scoped to the
+# source that actually reaches a build or the API process, so untracked scratch
+# and staging dirs never trip it.
+# ---------------------------------------------------------------------------
+if [[ "${LEGALMIND_ALLOW_DIRTY_TREE:-0}" != "1" ]]; then
+  dirty="$(git status --porcelain -- src public package.json next.config.ts ../backend/legalmind 2>/dev/null || true)"
+  if [[ -n "$dirty" ]]; then
+    echo "REFUSING: the working tree has uncommitted changes that this deploy would ship." >&2
+    echo "$dirty" >&2
+    echo "Another session may be mid-task in this same tree — a deploy ships a commit, not a desk." >&2
+    echo "Commit your own files by explicit path, then re-run this script." >&2
+    echo "Deliberately shipping the tree as-is: LEGALMIND_ALLOW_DIRTY_TREE=1" >&2
+    exit 1
+  fi
+fi
+
 say "Type-checking before building — a build is not the place to find a type error"
 npx tsc --noEmit
 
