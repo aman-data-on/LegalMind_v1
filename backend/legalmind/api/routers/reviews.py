@@ -30,7 +30,10 @@ from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import permissions as P
-from legalmind.security.authorization import require_contract_visible
+from legalmind.security.authorization import (
+    can_read_contract,
+    require_contract_visible,
+)
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 
 router = APIRouter(tags=["reviews"])
@@ -109,12 +112,14 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
         item = serialize_review(review)
         item["document_name"] = contract.name if contract is not None else None
         item["document_type"] = contract.contract_type if contract is not None else None
-        # Exactly `require_contract_visible`'s rule, which is what the workspace
-        # this links to will apply: owned, and not soft-deleted.
+        # Exactly the rule the workspace this links to will apply — which since
+        # the owner's 2026-09-04 ruling is `can_read_contract`: ownership OR
+        # `REC-09` Legal scope. The field answers "will this open for YOU", so it
+        # has to move with that rule; otherwise the UI would withhold a link that
+        # now works, which is what it did for Legal until this changed.
         item["document_accessible"] = bool(
             contract is not None
-            and contract.owner_id == guard.user_id
-            and contract.deleted_at is None
+            and can_read_contract(guard.db, guard.user_id, contract)
         )
         payload.append(item)
     return payload

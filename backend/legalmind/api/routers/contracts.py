@@ -250,7 +250,8 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     `serialize_document_version` shape, so nothing new is disclosed. Recorded in
     Step 49's implementation-additions section.
     """
-    contract = guard.contract(contract_id, P.CONTRACT_VIEW)
+    # Read: ownership OR `REC-09` Legal scope (owner ruling 2026-09-04).
+    contract = guard.contract_readable(contract_id, P.CONTRACT_VIEW)
     versions = guard.db.execute(
         select(M.DocumentVersion)
         .where(M.DocumentVersion.contract_id == contract.id)

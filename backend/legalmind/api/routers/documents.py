@@ -30,7 +30,7 @@ router = APIRouter(tags=["documents"])
 @router.get("/document-versions/{document_version_id}")
 def get_document_version(document_version_id: UUID,
                          guard: Guard = Depends(get_guard)) -> dict:
-    version = guard.document_version(document_version_id, P.DOCUMENT_VIEW)
+    version = guard.document_version_readable(document_version_id, P.DOCUMENT_VIEW)
     payload = serialize_document_version(version)
     # Whether the assist lane can search this version yet — plain counts, so the
     # client derives "ready", "lexical only" or "not indexed" itself. Deliberately
@@ -59,7 +59,7 @@ def list_document_evidence(document_version_id: UUID,
     Ordering is reading order with a stable tiebreaker (49.6): page, then offset,
     then id, with pages the parser could not number (OCR fragments) last.
     """
-    version = guard.document_version(document_version_id, P.DOCUMENT_VIEW)
+    version = guard.document_version_readable(document_version_id, P.DOCUMENT_VIEW)
     stmt = select(M.DocumentEvidence).where(
         M.DocumentEvidence.document_version_id == version.id)
     rows, total = run(guard.db, stmt, page,
@@ -82,7 +82,7 @@ def download_document_version(
     that a version exists and taking a copy of the counterparty's contract are
     different acts, and Step 47's catalogue separates them.
     """
-    version = guard.document_version(document_version_id, P.DOCUMENT_DOWNLOAD)
+    version = guard.document_version_readable(document_version_id, P.DOCUMENT_DOWNLOAD)
     if not storage.exists(version.storage_key):
         # The row exists but the object does not. Rendering this as the standard
         # 404 keeps storage state from being probeable and keeps the body

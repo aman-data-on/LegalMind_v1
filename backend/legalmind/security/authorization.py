@@ -133,6 +133,66 @@ def require_review_visible(db: DBSession, user_id: UUID,
 # --------------------------------------------------------------------------
 # Traversal: Legal Decision -> Evaluation -> Finding -> Review -> Contract
 # --------------------------------------------------------------------------
+def can_read_contract(db: DBSession, user_id: UUID, contract: M.Contract) -> bool:
+    """Whether this caller may READ a Contract — ownership, or Legal scope.
+
+    Owner ruling 2026-09-04, closing the gap HANDOFF §4 recorded as undecided:
+    *"Legal reviewers with the appropriate legal-review permission should be able
+    to open documents required for their authorized review work, even when they
+    are not the document owner."*
+
+    Before it, `REC-09` gave Legal sight of a Review, its Findings and its
+    Evaluations while the Contract stayed ownership-scoped — so a reviewer could
+    read that a clause deviates and never read the clause. Every UI path to the
+    evidence went through a 404.
+
+    The widening is bounded by the SAME scope rule Legal already has, and nothing
+    else:
+
+    ```text
+    owner                                            -> read
+    legal.review AND some Review of this Contract
+                  is in Legal scope (`REC-09`)       -> read
+    anything else                                    -> not visible (404)
+    ```
+
+    So Legal reads the documents it has work on, and not the rest of the estate:
+    a contract whose Reviews are all DRAFT or RESOLVED-without-escalation stays
+    invisible to Legal exactly as before. Permission is tested before scope, in
+    locked Step 24 r12's own order.
+
+    READ ONLY. This is deliberately not the check that guards upload, update or
+    delete — those keep `require_contract_visible`'s ownership rule, so the
+    widening cannot become a way to alter someone else's contract (r16/r17: Legal
+    access is not ownership). Nor does it confer decision authority, which stays
+    an explicit `legal.decision` grant checked per Evaluation (SEC-02, SEC-05).
+    """
+    if contract.deleted_at is not None:
+        # A soft-deleted contract is gone for every caller, Legal included (47.7).
+        return False
+    if contract.owner_id == user_id:
+        return True
+    if not has_permission(db, user_id, LEGAL_REVIEW):
+        return False
+    reviews = db.execute(
+        select(M.Review).where(M.Review.contract_id == contract.id)
+    ).scalars().all()
+    return any(review_in_legal_scope(db, review) for review in reviews)
+
+
+def require_contract_readable(db: DBSession, user_id: UUID,
+                              contract_id: UUID) -> M.Contract:
+    """Resolve a Contract for READING, or raise NotVisible.
+
+    Same 404-for-everything posture as `require_contract_visible` (SEC-07): a
+    contract out of scope and one that never existed are indistinguishable.
+    """
+    contract = db.get(M.Contract, contract_id)
+    if contract is None or not can_read_contract(db, user_id, contract):
+        raise NotVisible("contract not found")
+    return contract
+
+
 def require_finding_visible(db: DBSession, user_id: UUID,
                             finding_id: UUID) -> M.Finding:
     finding = db.get(M.Finding, finding_id)

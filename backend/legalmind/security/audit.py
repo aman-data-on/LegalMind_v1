@@ -26,6 +26,13 @@ AUTH_SESSION_REVOKED = "auth.session_revoked"
 # Authorization
 AUTHZ_PERMISSION_DENIED = "authz.permission_denied"
 AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"
+#: A Legal reviewer read a Contract they do not own, through `REC-09` Legal scope
+#: (owner ruling 2026-09-04). Recorded because it is a disclosure of one user's
+#: document to another: the access is authorized, and it is also exactly the kind
+#: of access an auditor should be able to enumerate afterwards. Ownership reads
+#: are NOT recorded — an owner reading their own contract is not a disclosure and
+#: logging every such GET would bury the ones that matter.
+CONTRACT_READ_VIA_LEGAL_SCOPE = "contract.read_via_legal_scope"
 # Analysis
 ANALYSIS_RUN_RECORDED = "analysis.run_recorded"
 ANALYSIS_RUN_FAILED = "analysis.run_failed"

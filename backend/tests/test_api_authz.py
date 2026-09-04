@@ -13,10 +13,11 @@ from __future__ import annotations
 import json
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.passwords import hash_password
 from tests.conftest import (
@@ -557,7 +558,7 @@ def test_the_review_list_does_not_widen_for_ordinary_users(
     assert str(other.id) not in listed
 
 
-def test_a_legal_scope_review_names_its_document_and_admits_it_is_not_openable(
+def test_a_legal_scope_review_names_its_document_and_says_it_opens(
         api, db, owner, owned_review, requirement_version):
     """The live defect of 2026-09-04, at its root.
 
@@ -573,11 +574,13 @@ def test_a_legal_scope_review_names_its_document_and_admits_it_is_not_openable(
 
     * the Review carries `document_name`, so no caller needs the Contract
       endpoint to label a row it is already allowed to see;
-    * it carries `document_accessible: False`, because this caller genuinely
-      cannot open that Contract — so the UI can stop offering the link instead
-      of discovering the 404 on click. Whether Legal *should* reach the document
-      is an open owner decision (HANDOFF §4) and is deliberately NOT decided
-      here: this states the current truth, it does not widen access.
+    * it carries `document_accessible`, which answers "will this open for YOU".
+
+    That second field flipped to True for Legal on 2026-09-04, when the owner
+    ruled that a reviewer must be able to open the document their review work is
+    about (the question HANDOFF §4 had left open, and which this test previously
+    pinned as False). The field is not a constant — it tracks
+    `can_read_contract`, so it moved with the rule instead of contradicting it.
     """
     finding = make_finding(db, owned_review, requirement_version)
     make_evaluation(db, finding)
@@ -591,15 +594,15 @@ def test_a_legal_scope_review_names_its_document_and_admits_it_is_not_openable(
 
     row = api.get(f"{V1}/reviews/{owned_review.id}").json()["data"]
     assert row["document_name"] == contract_name
-    assert row["document_accessible"] is False
-    # The claim is true: the Contract itself really is out of reach.
-    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 404
+    assert row["document_accessible"] is True
+    # The claim is true, which is the point of the field: the link works.
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 200
 
     # And the list agrees with the single resource, as 49.6 requires.
     listed = api.get(f"{V1}/reviews", params={"status": "LEGAL_REVIEW"}).json()["data"]
     mine = [r for r in listed if r["id"] == str(owned_review.id)]
     assert mine and mine[0]["document_name"] == contract_name
-    assert mine[0]["document_accessible"] is False
+    assert mine[0]["document_accessible"] is True
 
 
 def test_the_owner_of_a_document_is_told_the_workspace_is_openable(
@@ -612,3 +615,158 @@ def test_the_owner_of_a_document_is_told_the_workspace_is_openable(
     assert row["document_accessible"] is True
     assert row["document_name"]
     assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 200
+
+
+# =====================================================================
+# Legal document access — owner ruling 2026-09-04 (closes HANDOFF §4)
+# =====================================================================
+def test_legal_can_open_the_document_its_review_work_is_about(
+        api, db, owner, owned_review, requirement_version):
+    """The gap this closes: `REC-09` gave Legal the Finding and withheld the clause.
+
+    A reviewer could read that a provision deviates from the standard and never
+    read the provision. Every UI route to the evidence — the workspace, the
+    original PDF, the report's "Open the workspace" — went through a 404, so
+    Legal could triage and not work.
+
+    Now: ownership OR Legal scope, for READS. Asserted through the whole
+    traversal a reviewer actually walks: finding → evidence → the document.
+    """
+    finding = make_finding(db, owned_review, requirement_version)
+    make_evaluation(db, finding)
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    version_id = owned_review.document_version_id
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    # The Finding was always reachable...
+    assert api.get(f"{V1}/findings/{finding.id}").status_code == 200
+    # ...and now so is the document it is about.
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 200
+    assert api.get(f"{V1}/document-versions/{version_id}").status_code == 200
+    assert api.get(f"{V1}/document-versions/{version_id}/evidence").status_code == 200
+    assert api.get(f"{V1}/document-versions/{version_id}/content").status_code in (200, 404)
+    # Ownership did not move (Step 24 r16/r17).
+    assert db.get(M.Contract, owned_review.contract_id).owner_id == owner.id
+
+
+def test_legal_read_access_is_bounded_by_legal_scope_not_by_role(
+        api, db, owner, owned_review):
+    """The widening is not "Legal sees everything".
+
+    This Review is DRAFT with no escalation, so it is in no Legal scope — and the
+    contract stays invisible, byte-identically to one that never existed. Without
+    this the ruling would have become a global read of every user's paper.
+    """
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 404
+    assert api.get(
+        f"{V1}/document-versions/{owned_review.document_version_id}").status_code == 404
+
+
+def test_an_ordinary_user_still_cannot_read_another_users_document(
+        api, db, owner, owned_review, requirement_version):
+    """Ownership isolation for plain USERs is untouched — the property 41.24 names.
+
+    Same Review, same LEGAL_REVIEW status that opens the door for Legal: a user
+    without `legal.review` gets the same 404 as before, so the ruling cannot be
+    reached by holding an ordinary account.
+    """
+    finding = make_finding(db, owned_review, requirement_version)
+    make_evaluation(db, finding)
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    stranger = make_user(db)
+    grant_role(db, stranger, "USER")
+    sign_in(api, db, stranger)
+
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 404
+    assert api.get(
+        f"{V1}/document-versions/{owned_review.document_version_id}").status_code == 404
+    assert api.get(
+        f"{V1}/document-versions/{owned_review.document_version_id}/evidence"
+    ).status_code == 404
+
+
+def test_legal_read_access_confers_no_write_and_no_decision_authority(
+        api, db, owner, owned_review, requirement_version):
+    """READ ONLY, and the two escalations that must remain impossible.
+
+    Legal reading a document must not become (a) a way to alter someone else's
+    contract — upload/update/delete keep the ownership rule — or (b) decision
+    authority, which stays an explicit `legal.decision` grant per Evaluation
+    (SEC-02, SEC-05, ROLE-05). A LEGAL_REVIEWER holds neither.
+    """
+    finding = make_finding(db, owned_review, requirement_version)
+    evaluation = make_evaluation(db, finding)
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    # Reads: allowed.
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 200
+    # Writes to someone else's contract: refused, on the ownership rule.
+    assert api.patch(f"{V1}/contracts/{owned_review.contract_id}",
+                     json={"name": "renamed by legal"}).status_code == 404
+    assert api.delete(f"{V1}/contracts/{owned_review.contract_id}").status_code == 404
+    assert api.post(f"{V1}/contracts/{owned_review.contract_id}/document-versions",
+                    content=b"%PDF-1.4 fake",
+                    headers={"content-type": "application/pdf",
+                             "x-filename": "x.pdf"}).status_code == 404
+    # And the object stayed exactly as its owner left it.
+    assert db.get(M.Contract, owned_review.contract_id).name != "renamed by legal"
+    # Deciding still needs `legal.decision`, and this role has none: 403, not 404
+    # — the Evaluation is visible, the operation is refused (47.7's distinction).
+    assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
+                    json={"decision_type": "ACCEPT_DEVIATION",
+                          "justification": "x" * 40}).status_code == 403
+
+
+def test_a_cross_owner_read_is_written_to_the_audit_trail(
+        api, db, owner, owned_review, requirement_version):
+    """One user's document shown to another is a disclosure, so it is recorded.
+
+    An owner reading their own contract is NOT recorded — that is not a
+    disclosure, and logging every such GET would bury these events in a trail
+    that is append-only by trigger (AUD-01), i.e. permanently.
+    """
+    from sqlalchemy import select as _select
+
+    make_evaluation(db, make_finding(db, owned_review, requirement_version))
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+
+    def reads_recorded() -> int:
+        return db.execute(
+            _select(func.count()).select_from(M.AuditEvent)
+            .where(M.AuditEvent.action == A.CONTRACT_READ_VIA_LEGAL_SCOPE,
+                   M.AuditEvent.entity_id == owned_review.contract_id)
+        ).scalar_one()
+
+    sign_in(api, db, owner)
+    api.get(f"{V1}/contracts/{owned_review.contract_id}")
+    assert reads_recorded() == 0, "the owner's own read is not a disclosure"
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+    api.get(f"{V1}/contracts/{owned_review.contract_id}")
+    assert reads_recorded() == 1
+
+    event = db.execute(
+        _select(M.AuditEvent)
+        .where(M.AuditEvent.action == A.CONTRACT_READ_VIA_LEGAL_SCOPE)
+        .order_by(M.AuditEvent.timestamp.desc()).limit(1)
+    ).scalars().one()
+    assert event.actor_id == counsel.id
+    assert event.after_state["owner_id"] == str(owner.id)

@@ -32,6 +32,7 @@ from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security import tokens
 from legalmind.security.authorization import (
+    require_contract_readable,
     require_contract_visible,
     require_evaluation_visible,
     require_finding_visible,
@@ -179,8 +180,26 @@ class Guard:
         return ev
 
     def contract(self, contract_id: UUID, permission: str) -> M.Contract:
+        """Ownership-scoped resolution — for anything that CHANGES a contract.
+
+        Upload, update and delete keep this rule: Legal read access is not
+        ownership (Step 24 r16/r17), so it must not become a way to alter
+        someone else's paper. Reads use `contract_readable`.
+        """
         contract = self._visible(require_contract_visible, contract_id, "contract")
         self._require(permission, "contract", contract_id)
+        return contract
+
+    def contract_readable(self, contract_id: UUID, permission: str) -> M.Contract:
+        """Read-scoped resolution — ownership OR `REC-09` Legal scope.
+
+        Owner ruling 2026-09-04: a Legal reviewer must be able to open the
+        document their review work is about. `can_read_contract` bounds that to
+        contracts which actually have a Review in Legal scope.
+        """
+        contract = self._visible(require_contract_readable, contract_id, "contract")
+        self._require(permission, "contract", contract_id)
+        self._audit_legal_scope_read(contract)
         return contract
 
     def document_version(self, document_version_id: UUID,
@@ -194,6 +213,40 @@ class Guard:
         self._visible(require_contract_visible, version.contract_id, "contract")
         self._require(permission, "document_version", document_version_id)
         return version
+
+    def document_version_readable(self, document_version_id: UUID,
+                                  permission: str) -> M.DocumentVersion:
+        """The same 47.6 traversal, resolving the Contract for READING.
+
+        This is what the document surfaces use — version metadata, evidence, and
+        the preserved original bytes — so a Legal reviewer can follow a Finding
+        to the clause it is about. Writes keep `document_version` above.
+        """
+        version = self.db.get(M.DocumentVersion, document_version_id)
+        if version is None:
+            self._audit_not_visible("document_version", document_version_id)
+            raise NotVisible("document version not found")
+        contract = self._visible(require_contract_readable, version.contract_id,
+                                 "contract")
+        self._require(permission, "document_version", document_version_id)
+        self._audit_legal_scope_read(contract)
+        return version
+
+    def _audit_legal_scope_read(self, contract: M.Contract) -> None:
+        """Record a cross-owner read — one user's document shown to another.
+
+        Only when the reader is NOT the owner: an owner reading their own
+        contract is not a disclosure, and recording every such GET would bury
+        the events an auditor actually wants (AUD-01's trail is append-only, so
+        noise is permanent).
+        """
+        if contract.owner_id == self.user_id:
+            return
+        A.record(self.db, action=A.CONTRACT_READ_VIA_LEGAL_SCOPE,
+                     entity_type="contract", entity_id=contract.id,
+                     actor_id=self.user_id, request_id=self.request_id,
+                     after={"owner_id": str(contract.owner_id),
+                            "basis": "REC-09 legal scope"})
 
     # ---------------------------------------------------------------- internals
     def _visible(self, resolver: Any, object_id: UUID, entity_type: str) -> Any:

@@ -143,7 +143,7 @@ def extract_obligations(document_version_id: UUID,
     can already read in full, not the organization's negotiating position, so
     LEGAL-02's stricter gate does not apply.
     """
-    guard.document_version(document_version_id, P.FINDING_VIEW)
+    guard.document_version_readable(document_version_id, P.FINDING_VIEW)
     _limiter.check(f"obligations:{guard.user_id}", ratelimit.SUGGEST_TYPE)
     result = obligations.extract_obligations(
         guard.db, document_version_id=document_version_id,
