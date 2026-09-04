@@ -11,6 +11,18 @@ Backend first is load-bearing: the API rejects unrecognised request fields
 gained a field. The frontend script refuses that ordering on its own
 (`LEGALMIND_ALLOW_STALE_API=1` overrides for a deliberate frontend-only deploy).
 
+**Deploy from `/root/Legalmind.v1` on a clean `main`, and from nowhere else.** The
+systemd units serve straight out of that one working tree, so a deploy ships whatever
+is in it at that instant. On 2026-09-04 a deploy run from a tree carrying another
+session's *uncommitted* Reviews/Report work put that unreviewed work in front of the
+owner in production. `deploy-frontend.sh` now refuses when `src`, `public`,
+`package.json`, `next.config.ts` or `backend/legalmind` carry uncommitted changes — a
+deploy ships a commit, not a desk. `LEGALMIND_ALLOW_DIRTY_TREE=1` overrides it, and
+wanting CI to go green is not a reason to use it.
+
+Do feature work in your own worktree (`git worktree add`, see CLAUDE.md § *Working
+alongside other sessions*) so the deploy tree stays clean and deployable.
+
 **Status: 📁 DERIVED — an operator runbook. It decides nothing.** Prepared 2026-08-27.
 The authoritative register of what a deployment owes is the code, not this page:
 
