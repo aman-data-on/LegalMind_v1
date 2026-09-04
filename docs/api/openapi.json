@@ -1454,6 +1454,76 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/version-comparison": {
+   "get": {
+    "description": "Clause-level comparison of two versions of one Contract \u2014 locked 33.15.\n\nLocked 33.15 asks for this and fixes the method: deterministic section\ncomparison, explicitly **not** LLM/RAG. Locked PROD-04 puts `compare` in an\nordinary User's hands, so the permission is `document.view` \u2014 the same\npermission that lets the caller read both versions, which is all a comparison\ndiscloses.\n\nStep 33 r19 and locked 33.16 are the boundary, and they are enforced by what\nthis endpoint CANNOT return: no Finding, no Classification, no Rule Outcome,\nno verdict field. Where the newer version already has Findings, the ones\nlanding in a changed clause are quoted beside it so the reader can see that\nthe engine has something to say there \u2014 but that Finding was produced by the\nevaluator against a pinned snapshot, and a comparison never becomes one.\n\nBoth versions resolve through the READ rule (ownership or `REC-09` Legal\nscope), so a Legal reviewer comparing the negotiation history of a document\nthey are reviewing gets the same answer its owner does \u2014 and anyone else\ngets the same 404 either version would give on its own.",
+    "operationId": "compare_document_versions_api_v1_contracts__contract_id__version_comparison_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "the earlier document version",
+      "in": "query",
+      "name": "before",
+      "required": true,
+      "schema": {
+       "description": "the earlier document version",
+       "format": "uuid",
+       "title": "Before",
+       "type": "string"
+      }
+     },
+     {
+      "description": "the later document version",
+      "in": "query",
+      "name": "after",
+      "required": true,
+      "schema": {
+       "description": "the later document version",
+       "format": "uuid",
+       "title": "After",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Compare Document Versions Api V1 Contracts  Contract Id  Version Comparison Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Compare Document Versions",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
   "/api/v1/conversations": {
    "get": {
     "description": "The caller's own conversations, newest first \u2014 49.6 r4 applied to the assist\nlane: the list carries exactly what `GET /conversations/{id}` would return and\nnothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`\nr7 forbids. `contract_id` is the one allow-listed filter (49.6 r3): the workspace\nfor a document shows that document's history and no other.",

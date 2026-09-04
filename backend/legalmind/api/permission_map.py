@@ -165,6 +165,14 @@ ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
 IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/evidence"):
         P.DOCUMENT_VIEW,
+    # Version comparison (2026-09-04). Locked 33.15 requires the capability and
+    # locked PROD-04 puts `compare` in an ordinary User's hands, so the permission
+    # is the one that already governs reading the two versions — a comparison
+    # discloses their text and nothing else. 33.16 keeps it non-evaluative: the
+    # response carries no Finding, Classification, Rule Outcome or verdict field,
+    # so no legal-position permission is implicated.
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/version-comparison"):
+        P.DOCUMENT_VIEW,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 
