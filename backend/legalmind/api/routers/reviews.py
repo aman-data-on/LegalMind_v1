@@ -73,6 +73,53 @@ def _visible_reviews(guard: Guard):
     return select(M.Review).where(or_(*scopes))
 
 
+def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
+    """Serialize Reviews with the document identity the caller is entitled to.
+
+    Why this lives here (2026-09-04). Every screen that lists Reviews needs the
+    document's NAME, and all three of them used to fetch it client-side with one
+    `GET /contracts/{id}` per row. That endpoint is **ownership-scoped**
+    (`require_contract_visible`), while THIS list is Review-scoped and includes
+    Legal scope (`REC-09`) — so for a `legal.review` holder looking at someone
+    else's Review, every one of those fetches 404s. The rows then rendered a
+    raw UUID prefix and linked to a workspace that answers "Not found.", while
+    the Report link beside them worked perfectly. Reported live: 14 of 20 rows.
+
+    The name is not a new disclosure class: a caller who can see the Review can
+    already read this document's verbatim clause text through
+    `GET /reviews/{id}/report` (unmatched-provision excerpts). Naming the
+    document it came from discloses strictly less than that.
+
+    `document_accessible` is a statement about the CALLER, not the document —
+    the same kind of fact `GET /auth/session` already returns as `permissions`,
+    and it exists so the UI can stop offering a link it knows will 404 (rule 18:
+    presentation only; the server still refuses on its own).
+
+    One query for the page's contracts, so this cannot become an N+1 again.
+    """
+    contract_ids = {r.contract_id for r in reviews}
+    contracts = {} if not contract_ids else {
+        c.id: c for c in guard.db.execute(
+            select(M.Contract).where(M.Contract.id.in_(contract_ids))
+        ).scalars().all()
+    }
+    payload = []
+    for review in reviews:
+        contract = contracts.get(review.contract_id)
+        item = serialize_review(review)
+        item["document_name"] = contract.name if contract is not None else None
+        item["document_type"] = contract.contract_type if contract is not None else None
+        # Exactly `require_contract_visible`'s rule, which is what the workspace
+        # this links to will apply: owned, and not soft-deleted.
+        item["document_accessible"] = bool(
+            contract is not None
+            and contract.owner_id == guard.user_id
+            and contract.deleted_at is None
+        )
+        payload.append(item)
+    return payload
+
+
 @router.get("/reviews")
 def list_reviews(
     guard: Guard = Depends(get_guard),
@@ -91,7 +138,7 @@ def list_reviews(
         stmt = stmt.where(M.Review.contract_id == contract_id)
     rows, total = run(guard.db, stmt, page,
                       M.Review.created_at.desc(), M.Review.id.desc())
-    return paginated([serialize_review(r) for r in rows],
+    return paginated(_with_document(guard, list(rows)),
                      page=page.page, page_size=page.page_size, total=total)
 
 
@@ -150,7 +197,8 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
 
 @router.get("/reviews/{review_id}")
 def get_review(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
-    return data(serialize_review(guard.review(review_id, P.REVIEW_VIEW)))
+    review = guard.review(review_id, P.REVIEW_VIEW)
+    return data(_with_document(guard, [review])[0])
 
 
 @router.post("/reviews/{review_id}/analyze", status_code=201)

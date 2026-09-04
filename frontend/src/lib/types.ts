@@ -187,6 +187,15 @@ export interface Review {
   created_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  /** The document's own name, served WITH the Review (2026-09-04). Every list
+   *  screen used to fetch this per row from `GET /contracts/{id}`, which is
+   *  ownership-scoped — so a Legal-scope viewer got a 404 and the row fell back
+   *  to a raw UUID. `null` only when the contract row is genuinely gone. */
+  document_name: string | null;
+  document_type: string | null;
+  /** Whether `/dashboard?id={contract_id}` will actually open for THIS caller
+   *  (owned, not soft-deleted). Presentation only — the server still refuses. */
+  document_accessible: boolean;
 }
 
 export interface Evidence {
