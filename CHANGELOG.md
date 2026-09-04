@@ -10,6 +10,25 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — shared-tree workflow (2026-09-04)
+
+* **A worktree per session.** `git worktree add` gives each session its own directory
+  and `HEAD` over one shared object store, which removes the cause of the day's three
+  incidents rather than mitigating them: one session's unstaged files destroyed by
+  another's reset, an unreviewed change reaching production because the deploy tree was
+  someone's desk, and `HEAD` moving mid-task. `/root/Legalmind.v1` is now documented as
+  the **deploy tree** — kept on a clean `main` — with feature work done elsewhere.
+  Recorded in CLAUDE.md § *Working alongside other sessions* and ops/README.md
+  § *Deploying*. No history rewritten, no existing branch workflow changed.
+
+* **Known benign churn: `frontend/next-env.d.ts`.** Next.js rewrites this generated file
+  to name whichever dist directory last built (`.next-staging` from a deploy,
+  `.next-e2e` from Playwright), so it flips in the shared tree without anyone editing
+  it. The deploy guard deliberately scopes to `src`, `public`, `package.json`,
+  `next.config.ts` and `backend/legalmind`, so this churn never blocks a deploy and
+  never reaches production. Left tracked: `npm run typecheck` runs `tsc --noEmit`
+  without a preceding build, so the file must exist.
+
 ### Coordination note — 2026-09-04, `c7edfba` deliberately not integrated
 
 Session B's `ponytail-review cleanup` (6 simplifications) lives on branch

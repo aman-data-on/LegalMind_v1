@@ -410,3 +410,53 @@ yours**, and **work that is not committed is not safe** in a tree someone else m
   deliberate decision *not* to integrate something and why. Agents resolve routine
   engineering conflicts between themselves; the owner is for product, legal and security
   decisions.
+
+### Work in your own worktree — the structural fix
+
+The rules above are mitigations. The root cause is that every session edits **one**
+checkout, so one session's `reset`, `checkout`, branch switch or build churns another's
+files. On 2026-09-04 that cost one session its unstaged work, put another session's
+unreviewed Reviews/Report changes into a **production deploy**, and moved `HEAD` out from
+under a third mid-task.
+
+`git worktree` removes the cause: each session gets its own directory and its own `HEAD`,
+sharing one object store and one set of branches. Nothing is duplicated and no history is
+rewritten.
+
+```bash
+# Start of a session that will edit files:
+git worktree add /root/legalmind-worktrees/<short-task-name> -b <branch> origin/main
+cd /root/legalmind-worktrees/<short-task-name>
+# ... work, commit, push, open the PR from here ...
+
+# When the PR is merged:
+cd /root/Legalmind.v1
+git worktree remove /root/legalmind-worktrees/<short-task-name>
+```
+
+**Point a worktree at the source material, or six tests skip silently.** `legal-docs/`
+is gitignored (locked 54.6) so it exists only in the deploy tree, and
+`test_source_material.py` resolves it relative to *its own* root — in a fresh worktree
+all six document checks skip and the run still says "passed":
+
+```bash
+export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs   # 6 skips -> 10 passed
+```
+
+A skip is not a pass. Check the skip count against the deploy tree's before believing a
+green run in a worktree.
+
+- **`/root/Legalmind.v1` is the deploy tree. Treat it as shared infrastructure, not a
+  desk.** The systemd units serve straight from it, so it should sit on `main`, clean.
+  Read there freely; do exploratory edits and feature work in your own worktree.
+- **`git worktree list` is part of the start-of-session inspection**, alongside
+  `git status` and `git branch --show-current`. It tells you who else is checked out
+  where — a second worktree on a feature branch means another session is live.
+- **A branch can only be checked out in one worktree at a time.** Git refuses the second
+  attempt; that refusal is the feature, not an obstacle to work around.
+- **Never `git worktree remove --force`** a worktree you did not create, and never one
+  with uncommitted changes — that is the same destructive act as `reset`, wearing a
+  different name.
+- Deploying still happens from `/root/Legalmind.v1` on a clean `main`, and
+  `frontend/scripts/deploy-frontend.sh` refuses a dirty tree so a deploy ships a commit
+  rather than whatever someone was mid-way through.
