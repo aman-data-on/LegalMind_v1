@@ -10,6 +10,72 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Coordination note — 2026-09-04, `c7edfba` deliberately not integrated
+
+Session B's `ponytail-review cleanup` (6 simplifications) lives on branch
+`ponytail-review-cleanup` and is **not** merged into `main` by this session. It
+was briefly believed to be a dangling commit; `git branch --contains` shows it
+is safely on its own branch, so it is that session's in-flight work and belongs
+in that session's own review, not cherry-picked here. It touches four files
+(`dispatch.py`, `parsing.py`, `api.ts`, `DocumentPane.tsx`) that are disjoint
+from this session's, so nothing here depends on it either way.
+
+Three of its changes are worth a second look before that branch lands, recorded
+here so the finding is not lost:
+
+* **`_ocr_lock_key` → `hash(UUID)`** — recommend rejecting. `hash(int)` is
+  CPython's `x mod (2**61-1)`, an implementation detail rather than a language
+  guarantee, whereas the advisory lock's whole safety property is that the same
+  document version yields the same key in every process, forever. A Python
+  upgrade or a second interpreter during a rolling restart would give old and
+  new workers different keys for one document and let both OCR it — the exact
+  duplicate-writer case the lock prevents. The two-job-race proof cited cannot
+  detect this: it runs one interpreter version. The existing
+  `int.from_bytes(...bytes[:8])` is explicit and version-proof.
+* **`with engine().connect() as lock_conn:`** — good simplification, but it is
+  not behaviour-neutral on the failure path: the lock is now released when the
+  `with` exits, i.e. *before* the outer `except` records the failure, where
+  previously `finally` held it until after. That opens a window for a concurrent
+  trigger to start a new attempt against a run not yet marked failed.
+* **Dropping the blob MIME re-slice in `OriginalView`** — `canOriginal` gates on
+  the *version's* `mime_type` metadata, which is not the same thing as the
+  `Content-Type` the content endpoint actually serves; the defensive re-slice
+  covered that gap. Removing it trades a cheap safety net for a broken PDF
+  render if storage ever serves `application/octet-stream`.
+
+The remaining three (the `parsing.py` single-worker special case, the `ask()`
+body ternary, and `documentContentBlob` reusing `toApiError`) are correct and
+uncontroversial.
+
+### Fixed
+
+* **Administrative lockout is now refused (guards.py).** A lone holder of
+  `user.manage` could revoke their own admin role or disable their own account
+  and leave the deployment with zero ACTIVE administrators — no route left to
+  grant a role or re-enable anyone, unrecoverable through the app.
+  `require_can_administer_user` exempts self-administration by design (S-9
+  guards escalation against *other* accounts) and SEC-05's would-leave-zero
+  check covers only `legal.decision`, so nothing caught this. Adds
+  `assert_administrative_authority_preserved`, SEC-05's exact change-rule shape
+  applied to `user.manage`, called from the same three sites that already assert
+  SEC-05: account status change, role revoke, and role permission replacement.
+  Amends no locked decision: S-9's self-exemption and SEC-05's scope are both
+  unchanged. Owner-approved 2026-09-04 after the gap was named.
+
+* **S-9 now actually covers deletion (admin.py).** `DELETE /users/{id}` checked
+  `user.manage` but never called `require_can_administer_user`, so an
+  administrator who cannot *grant* `legal.decision` could delete a disabled
+  account that holds it and destroy the authority by another route — the exact
+  bypass S-9 exists to close, and which this module's own docstring already
+  claimed was closed. No authority-preservation check is needed there: only a
+  DISABLED account is deletable and neither count includes non-ACTIVE users.
+
+* **A deleted account leaves the table (Admin > Users).** The row's delete
+  handler carried a `// For now` note and never refreshed on success, so a
+  deleted account stayed on screen — and the header count stayed wrong — until
+  a manual reload. It now calls the page's existing loader, keeping pagination
+  and the total honest.
+
 ### Added — deployed to production 2026-09-03 17:37 IST (owner-approved; commit e03bef9)
 
 * **The Original document view (DD-16).** The workspace's document card gains an

@@ -275,6 +275,7 @@ export default function AdminPage() {
                         roles={roles}
                         canGrant={canGrant}
                         onChanged={replaceUser}
+                        onDeleted={load}
                       />
                     ))}
                   </tbody>
@@ -379,11 +380,13 @@ function UserRow({
   roles,
   canGrant,
   onChanged,
+  onDeleted,
 }: {
   user: User;
   roles: Role[] | null;
   canGrant: boolean;
   onChanged: (user: User) => void;
+  onDeleted: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [rowError, setRowError] = useState<unknown>(null);
@@ -412,8 +415,9 @@ function UserRow({
     setRowError(null);
     try {
       await api.deleteUser(user.id);
-      // Note: in a real implementation, the parent would remove this row.
-      // For now, the error will show if the delete fails.
+      // The row is gone server-side, and the page count with it — reload rather
+      // than splicing locally, so pagination and the header total stay honest.
+      await onDeleted();
     } catch (cause) {
       setRowError(cause);
     } finally {
