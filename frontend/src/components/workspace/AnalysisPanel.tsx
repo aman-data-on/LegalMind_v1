@@ -68,6 +68,12 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
         </p>
       ) : state.kind === "no-review" ? (
         <p className="ws-pane__note">This version has not been analysed yet.</p>
+      ) : state.kind === "not-started" ? (
+        /* A Review exists and analysis was never submitted — the Findings tab
+           carries the control that starts it (2026-09-04 state split). */
+        <p className="ws-pane__note">
+          This version has not been analysed yet — start it from the Findings tab.
+        </p>
       ) : state.kind === "in-flight" ? (
         <p className="ws-pane__note" aria-busy="true" role="status">
           Analysis is running — this panel fills in when it completes.

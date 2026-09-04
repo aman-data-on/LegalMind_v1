@@ -4,8 +4,7 @@ import {
   createAnalysedReview,
   csrfToken,
   evaluationIds,
-  storageStatePath,
-} from "./support";
+  storageStatePath, openFindingsTab } from "./support";
 
 /**
  * UI gating is presentation only — locked 52.3, 47.6, SEC-02, ROLE-05, SEC-07.
@@ -42,9 +41,10 @@ test.describe("A user without legal.decision", () => {
   test("sees no decision form, and is refused when reaching past it", async ({
     page,
   }) => {
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    const evaluation = page.locator("li.evaluation").first();
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
     // Half one — the form is not rendered.
@@ -52,7 +52,7 @@ test.describe("A user without legal.decision", () => {
     await expect(page.getByRole("button", { name: "Record decision" })).toHaveCount(0);
     // But the Evaluation still shows that a decision is required: concealing *that*
     // would hide legitimate work rather than an unavailable control.
-    await expect(evaluation.locator(".evaluation__flag")).toContainText(
+    await expect(evaluation.locator(".ws-chip--flag")).toContainText(
       "Decision required",
     );
 
@@ -75,7 +75,7 @@ test.describe("A super-role holder without legal authority", () => {
     // `audit.view` — and deliberately neither `legal.decision` nor
     // `legal_position.view`. Locked SEC-02: no super-role bypass may ever reach legal
     // authority. Checked over real HTTP, because "by any route" is a claim about routes.
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
     const [evaluationId] = await evaluationIds(page, reviewId);
 
     const response = await attemptDecision(page, evaluationId);
@@ -96,7 +96,7 @@ test.describe("Out-of-scope objects", () => {
     // Review with an Evaluation awaiting a decision is in **Legal scope**. The rule
     // under test here is non-disclosure of an out-of-scope object, so the fixture has
     // to be genuinely out of scope: a DRAFT Review with no Findings and no escalation.
-    const { reviewId } = await createAnalysedReview(page, { analyse: false });
+    const { reviewId, contractId } = await createAnalysedReview(page, { analyse: false });
 
     // A second, genuinely separate session. `counsel` neither owns this Review, holds
     // an assignment, nor has Legal scope over it, so existence must not be disclosed.

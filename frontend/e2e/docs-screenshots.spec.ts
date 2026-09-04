@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, storageStatePath } from "./support";
+import { createAnalysedReview, storageStatePath, openFindingsTab } from "./support";
 
 /**
  * Captures the illustration screenshots for docs/design/UI_PATTERNS.md.
@@ -26,9 +26,10 @@ test.describe("documentation screenshots", () => {
     test("counsel sees the rule outcome", async ({ page }) => {
       test.skip(!process.env.DOCS_SHOTS, "run with DOCS_SHOTS=1 to regenerate docs images");
       mkdirSync(ASSETS, { recursive: true });
-      const { reviewId } = await createAnalysedReview(page);
-      await page.goto(`/reviews?id=${reviewId}`);
-      const evaluation = page.locator("li.evaluation").first();
+      const { reviewId, contractId } = await createAnalysedReview(page);
+      await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+      const evaluation = page.locator(".ws-evaluation").first();
       await expect(evaluation).toBeVisible();
       await evaluation.screenshot({
         path: join(ASSETS, "omission-legal-view.png"),
@@ -42,9 +43,10 @@ test.describe("documentation screenshots", () => {
     test("an ordinary user's evaluation row is simply shorter", async ({ page }) => {
       test.skip(!process.env.DOCS_SHOTS, "run with DOCS_SHOTS=1 to regenerate docs images");
       mkdirSync(ASSETS, { recursive: true });
-      const { reviewId } = await createAnalysedReview(page);
-      await page.goto(`/reviews?id=${reviewId}`);
-      const evaluation = page.locator("li.evaluation").first();
+      const { reviewId, contractId } = await createAnalysedReview(page);
+      await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+      const evaluation = page.locator(".ws-evaluation").first();
       await expect(evaluation).toBeVisible();
       // LEGAL-02 / 52.4: no lock icon, no placeholder — the field is absent.
       await expect(evaluation.locator(".outcome")).toHaveCount(0);
@@ -61,7 +63,7 @@ test.describe("documentation screenshots", () => {
       test.skip(!process.env.DOCS_SHOTS, "run with DOCS_SHOTS=1 to regenerate docs images");
       mkdirSync(ASSETS, { recursive: true });
       const { contractId } = await createAnalysedReview(page, { analyse: false });
-      await page.goto(`/contracts?id=${contractId}`);
+      await page.goto(`/dashboard?id=${contractId}`);
       const ask = page.getByPlaceholder("What does this document say about…");
       await ask.fill("What is the moon made of?");
       await page.getByRole("button", { name: "Ask" }).click();

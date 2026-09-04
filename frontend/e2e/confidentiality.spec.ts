@@ -82,7 +82,7 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     // Locked 52.4 renders these **presence-tested**: when the server omits a field
     // there is no element at all, not an empty span and not a placeholder. So the
     // assertion is on elements, not on substrings of the page text.
-    await expect(evaluation.locator(".ws-chip--outcome-fill")).toHaveCount(0);
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
     await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
     const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
     expect(labels).toContain("Found in contract");     // the contract's own value

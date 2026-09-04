@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { describeError } from "@/lib/api";
+import { reviewStatusLabel } from "@/lib/labels";
 import { sectionRef } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -153,6 +154,24 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     );
   }
 
+  if (state.kind === "not-started") {
+    // A Review exists but analysis was never submitted (DRAFT/UPLOADED). The
+    // honest rendering is the ACTION, not a progress line about work nobody
+    // started — and `AnalyzeControl` is the same control the no-review branch
+    // below offers, so there is one way to start an analysis, not two.
+    return (
+      <>
+        <div className="ws-pane__head">
+          <h2 className="ws-pane__title">Findings</h2>
+          <span className="ws-pane__note">{reviewStatusLabel(state.review.status)}</span>
+        </div>
+        <div className="ws-state">
+          <AnalyzeControl version={version} onAnalysed={reload} />
+        </div>
+      </>
+    );
+  }
+
   if (state.kind === "in-flight") {
     return (
       <>
@@ -220,6 +239,16 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
       <div className="ws-pane__head">
         <h2 className="ws-pane__title">Findings</h2>
         {/* Export moved to the page header (DD-9) — one Download, one place. */}
+        {/*
+          * The Review's lifecycle state, in a reviewer's words — 2026-09-04,
+          * found by porting the legacy analysis test. Locked 52.7 makes the
+          * lifecycle the single progress report, and the workspace showed it
+          * NOWHERE once analysis had finished: a reviewer could not tell an
+          * analysed Review still awaiting a decision from one already decided
+          * without opening the report. The status is the server's own value,
+          * rendered through `lib/labels` like everywhere else.
+          */}
+        <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
       </div>
       <div className="ws-pane__body" style={{ padding: "16px" }}>
@@ -377,8 +406,13 @@ function EvaluationCard({
           {evaluation.scope_label ? ` · ${evaluation.scope_label}` : ""}
         </span>
         {/* Presence-tested, not permission-tested (52.4) — an omitted field renders nothing. */}
+        {/* `ws-evaluation__outcome` is a STABLE hook, not styling: LEGAL-02 turns
+            on this element being absent for a caller without
+            `legal_position.view` and present for one with it, and the fill
+            classes below appear only for non-calm outcomes — so asserting on
+            them would pass for the wrong reason on an ACCEPTABLE result. */}
         {evaluation.rule_outcome !== undefined ? (
-          <span className={`ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
+          <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
             {evaluation.rule_outcome}
           </span>
         ) : null}
@@ -434,6 +468,9 @@ function EvaluationCard({
         */}
       <p className="ws-evaluation__provenance ws-pane__note ws-mono">
         {evaluation.evaluator_version}
+        {" · "}
+        {evaluation.evidence_refs.length}{" "}
+        {evaluation.evidence_refs.length === 1 ? "evidence reference" : "evidence references"}
       </p>
 
       {evaluation.evidence_refs.length > 0 ? (
