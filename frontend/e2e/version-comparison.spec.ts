@@ -20,7 +20,9 @@ test.use({ storageState: storageStatePath("owner") });
  */
 test("comparison reports clause-level changes and never a verdict", async ({ page }) => {
   const f = fixture();
-  const v1 = await createAnalysedReview(page);
+  // No analysis needed: identical bytes make every clause UNCHANGED, and an
+  // unchanged clause quotes no Finding by design.
+  const v1 = await createAnalysedReview(page, { analyse: false });
 
   await page.goto(`/dashboard?id=${v1.contractId}`);
   // With one version there is nothing to compare against, so no control.

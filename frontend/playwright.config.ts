@@ -60,6 +60,13 @@ const backendEnv = {
   // logins to three by reusing sessions (see `auth.setup.ts`); this only stops repeated
   // local runs within one 300-second window from failing on the previous run's attempts.
   LEGALMIND_RATELIMIT_LOGIN_MAX: "200",
+  // Same reasoning for the analysis limiter (2026-09-04). Its default is 30 per
+  // hour per user, and the suite now runs more than 30 analyses through the ONE
+  // owner account in a single pass — so the last spec to ask for an analysed
+  // review failed on the budget the earlier specs had spent, not on any defect.
+  // A per-user hourly cap is the right production control and stays enabled;
+  // 49.10 and `ratelimit.py` both make the threshold deployment configuration.
+  LEGALMIND_RATELIMIT_ANALYSIS_MAX: "500",
 };
 
 export default defineConfig({

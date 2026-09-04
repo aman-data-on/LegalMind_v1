@@ -58,8 +58,15 @@ smallest-that-passes per `AM-26` r2.
 **Reused by Domain C without modification:** all of it except the embedding model and the
 thresholds, both of which are domain-specific for the reasons in §2 and §5.
 
-**Not built at all:** any reranker (`grep -rn rerank backend/legalmind` → nothing), any
-statute table, any statute code (`grep -rn statute` finds one unrelated comment).
+**Already migrated, and empty.** `AM-32`'s six corpus tables exist — migration
+`d7e2a9c41b58`, applied — and the `statutes` registry makes r6's provenance record a schema
+fact: every provenance column is `NOT NULL`, so an unprovenanced statute cannot be inserted
+at all. The schema half of Domain C is therefore done; what is absent is rows, ingestion and
+query code.
+
+**Not built at all:** any reranker (`grep -rn rerank backend/legalmind` → nothing) and any
+statute *code* — `grep -rn statute backend/legalmind` finds one unrelated comment, so no
+ingestion, no chunker, no retrieval path and no endpoint.
 
 ---
 
