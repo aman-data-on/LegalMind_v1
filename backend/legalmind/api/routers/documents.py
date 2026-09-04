@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy import select
 
+from legalmind.analysis.version_comparison import (
+    ComparisonNotPossible,
+    compare_versions,
+)
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
+from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
@@ -106,3 +111,46 @@ def _safe_filename(name: str) -> str:
     break out of the header (34.16)."""
     cleaned = "".join(c for c in name if c.isalnum() or c in "._- ")
     return cleaned.strip() or "document"
+
+
+@router.get("/contracts/{contract_id}/version-comparison")
+def compare_document_versions(
+    contract_id: UUID,
+    before: UUID = Query(..., description="the earlier document version"),
+    after: UUID = Query(..., description="the later document version"),
+    guard: Guard = Depends(get_guard),
+) -> dict:
+    """Clause-level comparison of two versions of one Contract — locked 33.15.
+
+    Locked 33.15 asks for this and fixes the method: deterministic section
+    comparison, explicitly **not** LLM/RAG. Locked PROD-04 puts `compare` in an
+    ordinary User's hands, so the permission is `document.view` — the same
+    permission that lets the caller read both versions, which is all a comparison
+    discloses.
+
+    Step 33 r19 and locked 33.16 are the boundary, and they are enforced by what
+    this endpoint CANNOT return: no Finding, no Classification, no Rule Outcome,
+    no verdict field. Where the newer version already has Findings, the ones
+    landing in a changed clause are quoted beside it so the reader can see that
+    the engine has something to say there — but that Finding was produced by the
+    evaluator against a pinned snapshot, and a comparison never becomes one.
+
+    Both versions resolve through the READ rule (ownership or `REC-09` Legal
+    scope), so a Legal reviewer comparing the negotiation history of a document
+    they are reviewing gets the same answer its owner does — and anyone else
+    gets the same 404 either version would give on its own.
+    """
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    earlier = guard.db.get(M.DocumentVersion, before)
+    later = guard.db.get(M.DocumentVersion, after)
+    for version in (earlier, later):
+        # 47.6 one level down: a version is reachable only through a Contract the
+        # caller can see, and naming a version of someone else's contract must
+        # not be distinguishable from naming one that does not exist (SEC-07).
+        if version is None or version.contract_id != contract.id:
+            raise NotVisible("document version not found")
+    assert earlier is not None and later is not None
+    try:
+        return data(compare_versions(guard.db, earlier, later))
+    except ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
