@@ -45,7 +45,7 @@ interface QueueRow {
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ready"; rows: QueueRow[]; names: Record<string, string>; truncated: boolean }
+  | { kind: "ready"; rows: QueueRow[]; truncated: boolean }
   | { kind: "error"; error: unknown };
 
 export default function LegalQueuePage() {
@@ -72,15 +72,11 @@ export default function LegalQueuePage() {
         }
       });
 
-      const ids = [...new Set(rows.map((row) => row.review.contract_id))];
-      const settled = await Promise.allSettled(ids.map((id) => api.contract(id)));
-      const names: Record<string, string> = {};
-      ids.forEach((id, index) => {
-        const outcome = settled[index];
-        if (outcome?.status === "fulfilled") names[id] = outcome.value.name;
-      });
-
-      setState({ kind: "ready", rows, names, truncated });
+      // Document names come WITH each Review (2026-09-04) — the per-row
+      // `GET /contracts/{id}` batch that used to live here 404'd for every
+      // Review this queue exists to show, since Legal scope covers the Review
+      // and not the Contract.
+      setState({ kind: "ready", rows, truncated });
     } catch (error) {
       setState({ kind: "error", error });
     }
@@ -161,8 +157,19 @@ export default function LegalQueuePage() {
               <tbody>
                 {state.rows.map(({ finding, review }) => (
                   <tr key={finding.id} data-finding-id={finding.id}>
+                    {/* The finding opens in the document's workspace, beside its
+                        evidence — but ONLY when this caller can open that
+                        document. Legal scope (`REC-09`) covers the Finding and
+                        not the Contract, so for a reviewer looking at someone
+                        else's document that link answered "Not found."; the
+                        Review's own report is what they can actually reach.
+                        Whether Legal should be able to open the document itself
+                        is an OPEN owner decision (HANDOFF §4), not something
+                        this page may decide. */}
                     <td>
-                      <Link href={`/dashboard?id=${review.contract_id}&finding=${finding.id}`}>
+                      <Link href={review.document_accessible
+                        ? `/dashboard?id=${review.contract_id}&finding=${finding.id}`
+                        : `/dashboard/reviews?id=${review.id}`}>
                         {finding.requirement.code ?? "Requirement"}
                         {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
                       </Link>
@@ -174,9 +181,15 @@ export default function LegalQueuePage() {
                       </span>
                     </td>
                     <td>
-                      <Link href={`/dashboard?id=${review.contract_id}`}>
-                        {state.names[review.contract_id] ?? review.contract_id.slice(0, 8)}
-                      </Link>
+                      {review.document_accessible ? (
+                        <Link href={`/dashboard?id=${review.contract_id}`}>
+                          {review.document_name ?? review.contract_id.slice(0, 8)}
+                        </Link>
+                      ) : (
+                        <span className="ws-docs__name" title="The document itself is not open to your account — the finding and its Report are">
+                          {review.document_name ?? review.contract_id.slice(0, 8)}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>

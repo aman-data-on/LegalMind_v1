@@ -47,7 +47,6 @@ const ATTENTION_STATUSES = new Set(["LEGAL_REVIEW"]);
 function ReviewsQueueView() {
   const { can } = useSession();
   const [reviews, setReviews] = useState<Review[] | null>(null);
-  const [names, setNames] = useState<Record<string, string>>({});
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
@@ -56,20 +55,13 @@ function ReviewsQueueView() {
   const load = useCallback(async () => {
     setError(null);
     try {
+      // The document name and its reachability arrive WITH each Review
+      // (2026-09-04). This used to fetch `GET /contracts/{id}` per row, which is
+      // ownership-scoped while this list is Review-scoped — so every row from
+      // Legal scope 404'd and rendered a raw UUID.
       const result = await api.reviews({ page, page_size: PAGE_SIZE, ...(status ? { status } : {}) });
       setReviews(result.items);
       setPagination(result.pagination);
-      // Document names for this page's rows. A listed Review's Contract is in
-      // scope by construction, so failures are unexpected — but a row must
-      // still render if one occurs, so a miss falls back to the bare id.
-      const ids = [...new Set(result.items.map((review) => review.contract_id))];
-      const settled = await Promise.allSettled(ids.map((id) => api.contract(id)));
-      const found: Record<string, string> = {};
-      ids.forEach((id, index) => {
-        const outcome = settled[index];
-        if (outcome?.status === "fulfilled") found[id] = outcome.value.name;
-      });
-      setNames(found);
     } catch (cause) {
       setError(cause);
     }
@@ -168,10 +160,25 @@ function ReviewsQueueView() {
                   const attention = ATTENTION_STATUSES.has(review.status);
                   return (
                     <tr key={review.id} data-review-id={review.id} className={attention ? "ws-tr--attention" : undefined}>
+                      {/* The document's name, always — and a link to its
+                          workspace only when this caller can actually open it.
+                          A Review reachable through Legal scope (`REC-09`)
+                          belongs to a Contract that stays ownership-scoped, so
+                          linking there unconditionally sent the reader to
+                          "Not found." while the Report beside it worked. */}
                       <td>
-                        <Link href={`/dashboard?id=${review.contract_id}`}>
-                          {names[review.contract_id] ?? review.contract_id.slice(0, 8)}
-                        </Link>
+                        {review.document_accessible ? (
+                          <Link href={`/dashboard?id=${review.contract_id}`}>
+                            {review.document_name ?? review.contract_id.slice(0, 8)}
+                          </Link>
+                        ) : (
+                          <span className="ws-docs__name" title="The document itself is not open to your account — the Report is">
+                            {review.document_name ?? review.contract_id.slice(0, 8)}
+                          </span>
+                        )}
+                        {review.document_type ? (
+                          <span className="ws-chip ws-chip--type ws-docs__type">{review.document_type}</span>
+                        ) : null}
                       </td>
                       <td>
                         <span className={`ws-chip${attention ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>

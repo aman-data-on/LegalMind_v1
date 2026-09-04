@@ -2136,3 +2136,16 @@
   display: block; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* Reviews queue: a document name that is NOT a link (the caller cannot open
+   that document — see the queue's own note). Same weight as the link beside
+   it, without the affordance, so absence of a link reads as a fact rather
+   than as a broken control. */
+.ws-docs__name { color: var(--ws-ink-900); font-weight: 500; }
+.ws-docs__type { margin-left: var(--ws-s2); }
+
+/* Report lead (2026-09-04): the one number a reviewer must act on, given its
+   own row above the rest — not a fifth equal tile. */
+.ws-report__lead { display: grid; }
+.ws-report__lead-stat { display: grid; gap: 4px; }
+.ws-report__lead-act { font-size: var(--ws-text-sm); font-weight: 500; justify-self: start; }

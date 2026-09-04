@@ -722,7 +722,22 @@ jobs:
           pip install pip-audit
       - name: pip-audit (backend dependencies)
         working-directory: backend
-        run: pip-audit --desc
+        # Blocking on any FINDING is deliberate (see this job's header). A
+        # transient advisory-DB/network error is not a finding, though, and
+        # failing on it reports a vulnerability that was never measured. Retry
+        # transport errors only; a real finding still fails on the first try.
+        run: |
+          for attempt in 1 2 3; do
+            if out=$(pip-audit --desc 2>&1); then echo "$out"; exit 0; fi
+            echo "$out"
+            if grep -qiE 'connection|timed out|temporary failure|ECONNRESET|503|502|429' <<<"$out"; then
+              echo "::warning::pip-audit transport error (attempt $attempt/3) — retrying"
+              sleep $((attempt * 10)); continue
+            fi
+            exit 1   # a real finding
+          done
+          echo "::error::pip-audit could not reach its advisory source after 3 attempts"
+          exit 1
 
       - uses: actions/setup-node@v4
         with:
@@ -734,10 +749,27 @@ jobs:
         run: npm ci
       - name: npm audit (frontend dependencies)
         working-directory: frontend
-        run: npm audit
+        # "npm error audit endpoint returned an error" is a registry outage, not
+        # a vulnerability — on 2026-09-04 it failed the job, which SKIPPED the
+        # image builds below and left the report-only Trivy steps scanning an
+        # image that was never built. Same commit passed on the push-triggered
+        # run. Retry transport errors; a real finding still blocks immediately.
+        run: |
+          for attempt in 1 2 3; do
+            if out=$(npm audit 2>&1); then echo "$out"; exit 0; fi
+            echo "$out"
+            if grep -qiE 'audit endpoint returned an error|ENETUNREACH|ETIMEDOUT|ECONNRESET|EAI_AGAIN|network|registry error' <<<"$out"; then
+              echo "::warning::npm audit registry error (attempt $attempt/3) — retrying"
+              sleep $((attempt * 10)); continue
+            fi
+            exit 1   # a real finding
+          done
+          echo "::error::npm audit could not reach the registry after 3 attempts"
+          exit 1
 
       - uses: docker/setup-buildx-action@v3
       - name: Build backend image
+        id: build_backend
         uses: docker/build-push-action@v6
         with:
           context: backend
@@ -745,6 +777,7 @@ jobs:
           load: true
           tags: legalmind-backend:ci
       - name: Build frontend image
+        id: build_frontend
         uses: docker/build-push-action@v6
         with:
           context: frontend
@@ -761,7 +794,11 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Trivy — backend image (MEDIUM/LOW, report only)
-        if: always()
+        # `always()` also ran this when the build was skipped, turning one
+        # upstream failure into a second, misleading "image not found" failure.
+        # The intent is only to still report MEDIUM/LOW when the CRITICAL/HIGH
+        # gate above FAILED — which needs the image to exist, nothing more.
+        if: steps.build_backend.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: legalmind-backend:ci
@@ -779,7 +816,11 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Trivy — frontend image (MEDIUM/LOW, report only)
-        if: always()
+        # `always()` also ran this when the build was skipped, turning one
+        # upstream failure into a second, misleading "image not found" failure.
+        # The intent is only to still report MEDIUM/LOW when the CRITICAL/HIGH
+        # gate above FAILED — which needs the image to exist, nothing more.
+        if: steps.build_frontend.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: legalmind-frontend:ci

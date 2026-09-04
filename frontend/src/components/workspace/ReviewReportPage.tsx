@@ -26,10 +26,11 @@ import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
 import { ExportControl } from "./ExportControl";
+import { IconArrowLeft } from "./icons";
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ready"; review: Review; report: ReviewReport | null; reportDenied: boolean; contractName: string | null }
+  | { kind: "ready"; review: Review; report: ReviewReport | null; reportDenied: boolean }
   | { kind: "error"; error: unknown };
 
 /** Visual weight only — filled chips mark states a human still owes work to.
@@ -54,13 +55,11 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
         if (cause instanceof ApiError && cause.status === 403) reportDenied = true;
         else throw cause;
       }
-      let contractName: string | null = null;
-      try {
-        contractName = (await api.contract(review.contract_id)).name;
-      } catch {
-        contractName = null; // the row still renders; the id link below suffices
-      }
-      setState({ kind: "ready", review, report, reportDenied, contractName });
+      // The document's name arrives with the Review (2026-09-04) — the extra
+      // `GET /contracts/{id}` this used to make is ownership-scoped, so for a
+      // Review reached through Legal scope it 404'd and the heading fell back
+      // to the generic "Review report".
+      setState({ kind: "ready", review, report, reportDenied });
     } catch (error) {
       setState({ kind: "error", error });
     }
@@ -107,21 +106,32 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
     );
   }
 
-  const { review, report, reportDenied, contractName } = state;
+  const { review, report, reportDenied } = state;
 
   return (
     <>
       <div className="ws-context">
-        <h1>{contractName ?? "Review report"}</h1>
+        <Link className="ws-context__back" href="/dashboard/reviews" aria-label="Back to reviews">
+          <IconArrowLeft size={18} />
+        </Link>
+        <h1>{review.document_name ?? "Review report"}</h1>
         <div className="ws-context__meta">
+          {review.document_type ? (
+            <span className="ws-chip ws-chip--type">{review.document_type}</span>
+          ) : null}
           <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
             {review.status}
           </span>
+          <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
           <span className="ws-mono" title="Configuration snapshot — what makes this Review reproducible (AUD-04)">
             snapshot {review.configuration_snapshot_id.slice(0, 8)}
           </span>
-          <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
-          <Link href={`/dashboard?id=${review.contract_id}`}>Open the workspace</Link>
+          <span className="ws-context__spacer" />
+          {/* Offered only when the workspace will actually open for this
+              caller — see the queue's own note. */}
+          {review.document_accessible ? (
+            <Link href={`/dashboard?id=${review.contract_id}`}>Open the workspace</Link>
+          ) : null}
           <ExportControl reviewId={review.id} />
         </div>
       </div>
@@ -136,22 +146,50 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
 
       {report ? (
         <div className="ws-report">
+          {/* ARRANGEMENT (2026-09-04, owner report: "hard to understand and not
+              well arranged"). Before, four equal tiles sat side by side, so the
+              one number a reviewer must ACT on — findings awaiting a decision —
+              read with exactly the same weight as a coverage ratio that F-9
+              says means nothing legally. The page now answers, in order:
+              what do I owe? · what did it find? · what could it not judge? ·
+              how much was covered? Every number is still the server's own. */}
+          <section className="ws-report__lead" aria-label="What this Review needs">
+            {report.findings_requiring_decision > 0 ? (
+              <div className="ws-stat ws-stat--attention ws-report__lead-stat">
+                <span className="ws-stat__n ws-mono">{report.findings_requiring_decision}</span>
+                <span className="ws-stat__label">
+                  {report.findings_requiring_decision === 1 ? "Finding awaits" : "Findings await"} a
+                  Legal Decision
+                </span>
+                {review.document_accessible ? (
+                  <Link className="ws-report__lead-act"
+                        href={`/dashboard?id=${review.contract_id}&status=DECISION_REQUIRED`}>
+                    Open them in the document →
+                  </Link>
+                ) : null}
+              </div>
+            ) : (
+              <div className="ws-stat ws-report__lead-stat">
+                <span className="ws-stat__n ws-mono">0</span>
+                <span className="ws-stat__label">
+                  Findings await a Legal Decision — nothing here needs a ruling
+                </span>
+              </div>
+            )}
+          </section>
+
           <section className="ws-stats" aria-label="Report totals">
+            <div className={`ws-stat${report.unmatched_provisions > 0 ? " ws-stat--attention" : ""}`}>
+              <span className="ws-stat__n ws-mono">{report.unmatched_provisions}</span>
+              <span className="ws-stat__label">
+                clauses with no matching requirement — read by a person, never judged
+              </span>
+            </div>
             <div className="ws-stat">
               <span className="ws-stat__n ws-mono">
                 {report.coverage.requirements_with_findings} of {report.coverage.requirements_in_snapshot}
               </span>
               <span className="ws-stat__label">requirements in the snapshot produced Findings</span>
-            </div>
-            <div className={`ws-stat${report.findings_requiring_decision > 0 ? " ws-stat--attention" : ""}`}>
-              <span className="ws-stat__n ws-mono">{report.findings_requiring_decision}</span>
-              <span className="ws-stat__label">
-                {report.findings_requiring_decision === 1 ? "Finding awaits" : "Findings await"} a Legal Decision
-              </span>
-            </div>
-            <div className={`ws-stat${report.unmatched_provisions > 0 ? " ws-stat--attention" : ""}`}>
-              <span className="ws-stat__n ws-mono">{report.unmatched_provisions}</span>
-              <span className="ws-stat__label">unmatched provisions — document-level observations, never Findings</span>
             </div>
             <div className="ws-stat">
               <span className="ws-stat__n ws-mono">

@@ -555,3 +555,60 @@ def test_the_review_list_does_not_widen_for_ordinary_users(
     listed = {item["id"] for item in
               api.get(f"{V1}/reviews", params={"page_size": 100}).json()["data"]}
     assert str(other.id) not in listed
+
+
+def test_a_legal_scope_review_names_its_document_and_admits_it_is_not_openable(
+        api, db, owner, owned_review, requirement_version):
+    """The live defect of 2026-09-04, at its root.
+
+    Every screen that lists Reviews needs the document's NAME, and all three of
+    them used to fetch it per row from `GET /contracts/{id}` — an
+    **ownership-scoped** endpoint, while this list is Review-scoped and includes
+    Legal scope (`REC-09`). So for a `legal.review` holder reading someone
+    else's Review, every one of those fetches 404'd: the row rendered a raw UUID
+    prefix and linked to a workspace that answered "Not found.", while the
+    Report link beside it worked perfectly. Reported live at 14 of 20 rows.
+
+    Two properties, and the second is the one that keeps the UI honest:
+
+    * the Review carries `document_name`, so no caller needs the Contract
+      endpoint to label a row it is already allowed to see;
+    * it carries `document_accessible: False`, because this caller genuinely
+      cannot open that Contract — so the UI can stop offering the link instead
+      of discovering the 404 on click. Whether Legal *should* reach the document
+      is an open owner decision (HANDOFF §4) and is deliberately NOT decided
+      here: this states the current truth, it does not widen access.
+    """
+    finding = make_finding(db, owned_review, requirement_version)
+    make_evaluation(db, finding)
+    owned_review.status = E.ReviewStatus.LEGAL_REVIEW
+    db.flush()
+    contract_name = db.get(M.Contract, owned_review.contract_id).name
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, counsel)
+
+    row = api.get(f"{V1}/reviews/{owned_review.id}").json()["data"]
+    assert row["document_name"] == contract_name
+    assert row["document_accessible"] is False
+    # The claim is true: the Contract itself really is out of reach.
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 404
+
+    # And the list agrees with the single resource, as 49.6 requires.
+    listed = api.get(f"{V1}/reviews", params={"status": "LEGAL_REVIEW"}).json()["data"]
+    mine = [r for r in listed if r["id"] == str(owned_review.id)]
+    assert mine and mine[0]["document_name"] == contract_name
+    assert mine[0]["document_accessible"] is False
+
+
+def test_the_owner_of_a_document_is_told_the_workspace_is_openable(
+        api, db, owner, owned_review):
+    """The other half: for the caller who DOES own the contract, the same field
+    says so, so the queue keeps its link. Without this the fix above would read
+    as "nobody can ever open anything"."""
+    sign_in(api, db, owner)
+    row = api.get(f"{V1}/reviews/{owned_review.id}").json()["data"]
+    assert row["document_accessible"] is True
+    assert row["document_name"]
+    assert api.get(f"{V1}/contracts/{owned_review.contract_id}").status_code == 200
