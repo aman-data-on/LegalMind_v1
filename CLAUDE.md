@@ -351,3 +351,62 @@ Once implementation is authorized, the constraints in [IMPLEMENTATION_READINESS_
 - **Never leave a manual merge attempt on a branch.** If a merge needs redoing, redo it on the same branch or via the open PR; do not create a second (`-work`, `-work2`, …) branch to retry in. Two such branches, each an abandoned single-commit merge attempt, sat for days.
 - **Before starting new work, check for stale branches** (`git branch -a -vv`, and `git log origin/main..<branch> --oneline` for anything that looks orphaned) and clear out what a merge or `git cherry` shows is already fully in `main`.
 - **2026-09-02 incident this rule responds to:** six stale branches had accumulated — two abandoned local merge attempts 55 commits behind `main`, three branches fully merged already, one whose two commits were content-equivalent to what `main` already had. None were an active git conflict (`main` merged the one real open PR with zero conflicts) — they were just clutter nobody had deleted. All six removed; verified redundant first via `git cherry` / diff against `main` before deletion, per the Git Safety Protocol's rule that `branch -D` needs explicit confirmation. One old branch (`feat/worker-playwright-rec09`, pre-dating the current architecture) was left for the owner to decide rather than deleted on assumption.
+
+---
+
+## Working alongside other sessions — the shared working tree
+
+**Owner instruction, 2026-09-04**, after the incident below: *"Multiple development
+sessions/agents may be working on this repository simultaneously… Act like a senior
+engineer working on a team, not an isolated coding agent."*
+
+Rule 23 already says completed work stays completed whoever did it. This section covers
+the sharper case: another session is editing **right now**, in the same working tree.
+
+### The 2026-09-04 incident this section responds to
+
+Two sessions worked concurrently. Session B finished a set of simplifications, committed
+**only its own four files**, then ran a `git reset` to `origin/main` — which discarded
+session A's five *uncommitted* files from the working tree. Nothing warned either
+session. Session A's work was unstaged, so it was **not recoverable from git**; it
+survived only because a scratchpad copy of one file and the diff itself happened to still
+be in that session's transcript. Session B's own commit was fine — it was on a branch.
+
+Two lessons, both now rules: **a reset destroys everyone's uncommitted work, not just
+yours**, and **work that is not committed is not safe** in a tree someone else may reset.
+
+### The rules
+
+- **Never `reset`, `checkout --`, `stash`, `clean` or revert files you did not modify.**
+  The working tree is shared. `git reset --hard` and `git checkout -- .` are effectively
+  destructive to every other session at once, and what they destroy is unrecoverable
+  because it was never in the object store. If you need a clean baseline, commit your own
+  work first, then reset only your own paths.
+- **Commit your work as soon as it is verified.** Do not leave a finished, green change
+  sitting unstaged while you move on — that is the state the incident destroyed. This
+  overrides the usual "wait to be asked before committing" habit *for protection of
+  finished work*; it does not authorize pushing, deploying, or committing someone else's
+  files.
+- **Stage by explicit path, never `git add -A` or `git add .`.** Another session's files
+  are almost certainly in the tree beside yours. Name your files; check `git status` and
+  the staged diff before committing; if the boundary is genuinely ambiguous, stop and
+  report rather than guessing.
+- **Inspect before you touch anything.** `git status`, `git branch --show-current`,
+  `git log --oneline -5`, and the diff of any file you are about to edit. Unexpected
+  edits in a file are a *signal*, not noise — identify their purpose and integrate with
+  them.
+- **A commit you did not write is not yours to land.** Before concluding a commit is
+  orphaned, run `git branch --contains <sha>` — in this incident a commit was assumed
+  dangling and was in fact safe on its own branch. Work sitting on another session's
+  branch is that session's in-flight work heading for its own review: leave it there,
+  and coordinate rather than cherry-picking it into `main`. Resurrect only work that is
+  genuinely lost *and* wanted.
+- **Prefer KEEP → MERGE → ADAPT → REMOVE.** "Mine is newer" is not a reason to drop
+  someone else's change. If two sessions built the same thing, keep the better
+  implementation — one correct implementation beats two competing ones — and never
+  destroy the loser's *unrelated* work in the process.
+- **Leave a coordination note** in [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` or the
+  relevant PR when you make a call that affects another session's work, including a
+  deliberate decision *not* to integrate something and why. Agents resolve routine
+  engineering conflicts between themselves; the owner is for product, legal and security
+  decisions.
