@@ -263,11 +263,11 @@ export const api = {
    *  passage that is not on the page. The server still defaults to the newest
    *  version when it is omitted. */
   ask: (conversationId: string, question: string, documentVersionId?: string) =>
+    // JSON.stringify drops undefined-valued keys, so an omitted version id
+    // never reaches the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
-      body: documentVersionId
-        ? { question, document_version_id: documentVersionId }
-        : { question },
+      body: { question, document_version_id: documentVersionId },
     }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
@@ -369,9 +369,7 @@ export const api = {
       credentials: "same-origin",
     });
     if (!response.ok) {
-      throw new ApiError(response.status, "download_failed",
-        "The original document could not be loaded.",
-        response.headers.get("X-Request-Id") ?? "-");
+      throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
     }
     return response.blob();
   },

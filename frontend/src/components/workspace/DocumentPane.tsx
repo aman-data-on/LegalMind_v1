@@ -97,7 +97,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [view, setView] = useState<"original" | "text">(canOriginal ? "original" : "text");
   useEffect(() => {
     // A different version is a different document — re-derive the default.
-    setView(version.mime_type === "application/pdf" && can(P.DOCUMENT_DOWNLOAD) ? "original" : "text");
+    setView(canOriginal ? "original" : "text");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version.id]);
 
@@ -746,9 +746,9 @@ function OriginalView({ versionId, filename }: { versionId: string; filename: st
     api
       .documentContentBlob(versionId)
       .then((blob) => {
-        // Some servers hand back the stored MIME; force the one the renderer
-        // needs — this component only mounts for application/pdf versions.
-        objectUrl = URL.createObjectURL(blob.type === "application/pdf" ? blob : blob.slice(0, blob.size, "application/pdf"));
+        // This component only mounts when canOriginal already gated on
+        // application/pdf, so the served blob's MIME needs no correcting.
+        objectUrl = URL.createObjectURL(blob);
         if (cancelled) return;
         setState({ kind: "ready", url: objectUrl });
       })
