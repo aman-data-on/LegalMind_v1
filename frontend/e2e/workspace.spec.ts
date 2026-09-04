@@ -368,27 +368,30 @@ test.describe("the Ask pane, slice 3", () => {
 });
 
 test.describe("the 3-column redesign (2026-08-31)", () => {
-  test("the Analysis panel shows real counts, findings awaiting a decision, and honest obligations degradation", async ({
+  test("the Summary panel shows real counts, one way into the decisions, and honest obligations degradation", async ({
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/dashboard?id=${contractId}`);
 
-    // "Analysis" is the side card's DEFAULT tab (DD-9). Renamed from "AI
-    // Analysis" on 2026-09-01: everything in it except Key Obligations is the
-    // DETERMINISTIC evaluator's output, and AI-01 keeps every model out of that
-    // path — the old label credited a model for the one part of the product
-    // whose value is that no model touched it. `exact` because "Analysis" is a
-    // substring of nothing else here, but a future tab could make it one.
-    await expect(page.getByRole("tab", { name: "Analysis", exact: true })).toHaveAttribute("aria-selected", "true");
+    // The side card's DEFAULT tab (DD-9), labelled "Summary" since the
+    // 2026-09-04 audit. It was "AI Analysis" until 2026-09-01 — the old label
+    // credited a model for the one part of the product whose value is that no
+    // model touched it (AI-01) — and plain "Analysis" until the audit, which
+    // read as a second analysis beside "Findings" rather than as its summary.
+    await expect(page.getByRole("tab", { name: "Summary", exact: true })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
     await expect(panel.locator(".ws-tiles")).toBeVisible();
 
-    // Every stat tile is labeled with a REAL Step 19 classification — never an
-    // invented catch-all like "Needs review" (owner correction, 2026-09-01).
+    // Every stat tile names ONE real Step 19 classification — never an invented
+    // catch-all like "Needs review" that would merge distinct outcomes (owner
+    // correction, 2026-09-01, and the property still holds). Since 2026-09-04
+    // the tiles render through `lib/labels`, so `UNABLE_TO_EVALUATE` reads
+    // "NEEDS A PERSON" here and on the report — the same state, the same words
+    // in both places. The locked trio is unchanged.
     const REAL_CLASSIFICATIONS = ["MATCH", "DEVIATION", "MISSING", "CONFLICT",
-      "UNABLE_TO_EVALUATE", "AMBIGUOUS", "UNRESOLVED"];
+      "NEEDS A PERSON", "AMBIGUOUS", "UNRESOLVED"];
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);
     for (const label of tileLabels) expect(REAL_CLASSIFICATIONS).toContain(label);
@@ -401,13 +404,28 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
-    // The awaiting-a-decision list mirrors the findings pane's needs-a-decision
-    // set (renamed from "Key risks" — rule 12 has no risk score to rank), and the
-    // card's "View clause" lights the passage in the document pane.
-    const risk = panel.locator(".ws-risk").first();
-    await expect(risk).toContainText("DEVIATION");
-    await risk.getByRole("button", { name: /View clause/ }).click();
+    /*
+     * Summary states HOW MANY findings need a decision and offers ONE way into
+     * them — it no longer renders a card per finding beside a Findings tab that
+     * opens on the very same set (2026-09-04 audit: the same question answered
+     * twice in one panel). What must survive is the PATH, so it is asserted end
+     * to end here: summary → the list → the passage lit in the document.
+     */
+    await expect(panel.getByText(/needs? a legal decision/)).toBeVisible();
+    await expect(panel.locator(".ws-risk")).toHaveCount(0);
+    await panel.getByRole("button", { name: /Open the list/ }).click();
+    await expect(page.getByRole("tab", { name: "Findings", exact: true }))
+      .toHaveAttribute("aria-selected", "true");
+    // The list is the work surface: a finding's cited evidence is a button
+    // labelled with the location itself (§ / title / page), and pressing it
+    // lights that passage in the document pane.
+    const cited = page.locator('[data-region="findings"] .ws-evidence__loc').first();
+    await expect(cited).toBeVisible();
+    await cited.click();
     await expect(page.locator(".ws-row--lit")).toBeVisible();
+
+    // Back to Summary for the obligations assertion below.
+    await page.getByRole("tab", { name: "Summary", exact: true }).click();
 
     // No generation credential in e2e: obligations degrade to the honest quiet
     // sentence — never an error banner, never fabricated content.
@@ -462,7 +480,7 @@ test.describe("collapse behavior", () => {
     await expect(tabs).toHaveCount(3);
     await expect(page.getByRole("tab", { name: "Document" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Analysis", exact: true }).click();
+    await page.getByRole("tab", { name: "Summary", exact: true }).click();
     await expect(page.locator('[data-region="analysis"]')).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
@@ -478,7 +496,7 @@ test.describe("collapse behavior", () => {
     await page.keyboard.press("Escape");
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
-    await page.getByRole("tab", { name: "Analysis", exact: true }).focus();
+    await page.getByRole("tab", { name: "Summary", exact: true }).focus();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "Findings" })).toBeFocused();
     await expect(page.locator('[data-region="findings"]')).toBeVisible();

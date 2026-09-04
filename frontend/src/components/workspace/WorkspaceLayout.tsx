@@ -24,7 +24,11 @@ type Mode = "wide" | "one";
 type SideTab = "analysis" | "findings";
 
 /*
- * ⚠️ "Analysis", NOT "AI Analysis" — renamed 2026-09-01.
+ * ⚠️ Never "AI Analysis" (renamed 2026-09-01). The default tab is labelled
+ * **Summary** since the 2026-09-04 audit: "Analysis | Findings" read as two
+ * different analyses, and the word is overloaded — it is also the pipeline and
+ * the Review's own state. Summary and Findings are a whole and its parts, which
+ * is the relationship a reader actually needs to grasp.
  *
  * The owner's reference labelled this tab "AI ANALYSIS". Everything in it except
  * Key Obligations is the output of the DETERMINISTIC evaluator: the status
@@ -43,7 +47,7 @@ type SideTab = "analysis" | "findings";
 const LABEL: Record<Region, string> = {
   document: "Document",
   findings: "Findings",
-  analysis: "Analysis",
+  analysis: "Summary",
 };
 
 /**

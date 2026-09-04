@@ -27,6 +27,8 @@ import { describeError } from "@/lib/api";
 import type { Finding } from "@/lib/types";
 
 import { useFindingsState } from "./findingsState";
+import { classificationLabel } from "@/lib/labels";
+
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconRefresh, IconXCircle } from "./icons";
 import {
@@ -134,11 +136,11 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
                 key={classification}
                 type="button"
                 className={`ws-tile ws-tile--${bucket}`}
-                aria-label={`Show the ${n} ${classification} finding${n === 1 ? "" : "s"}`}
+                aria-label={`Show the ${n} ${classificationLabel(classification)} finding${n === 1 ? "" : "s"}`}
                 onClick={() => sideTabs?.openFindings({ classification })}
               >
                 <span className="ws-tile__n">{n}</span>
-                <span className="ws-tile__label ws-mono">{classification}</span>
+                <span className="ws-tile__label ws-mono">{classificationLabel(classification)}</span>
                 <span className={`ws-status ws-status--${bucket}`}>
                   {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
                 </span>
@@ -149,7 +151,7 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
         <div
           className="ws-bar"
           role="img"
-          aria-label={summary.counts.map(({ classification, n }) => `${n} ${classification}`).join(", ")}
+          aria-label={summary.counts.map(({ classification, n }) => `${n} ${classificationLabel(classification)}`).join(", ")}
         >
           {summary.counts.map(({ classification, n }) =>
             n > 0 ? (
@@ -177,13 +179,13 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
                 <button
                   type="button"
                   className="ws-ring__go"
-                  aria-label={`Show the ${n} ${classification} finding${n === 1 ? "" : "s"}`}
+                  aria-label={`Show the ${n} ${classificationLabel(classification)} finding${n === 1 ? "" : "s"}`}
                   onClick={() => sideTabs?.openFindings({ classification })}
                 >
                   <span className="ws-ring__swatch" aria-hidden="true" />
                   <span className="ws-mono">{n}</span>
                   <span className="ws-ring__pct">({Math.round((n / total) * 100)}%)</span>
-                  {classification}
+                  {classificationLabel(classification)}
                 </button>
               </li>
             ))}
@@ -200,19 +202,33 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
         defaults to). Naming it that tells the reader what to DO with it, which
         "risk" never did.
       */}
-      <section className="ws-analysis__section" aria-label="Findings awaiting a decision">
+      {/*
+        * ONE call to action, not a second copy of the list (2026-09-04 audit).
+        *
+        * This section used to render a card per awaiting-decision finding — name,
+        * description, "View clause", "Open finding" — while the Findings tab beside
+        * it opens on exactly that same set by default. Two surfaces answering "what
+        * needs a decision?" in one panel is the duplication a reader notices as
+        * "why am I seeing this twice?", and every card's own buttons only led to
+        * the other tab anyway. The count and the way through remain; the second
+        * rendering is gone.
+        */}
+      <section className="ws-analysis__section" aria-label="What needs a decision">
         <div className="ws-analysis__head">
-          <h3 className="ws-analysis__title">Awaiting a decision</h3>
-          {risks.length > 0 && sideTabs ? (
-            <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
-              View all
-            </button>
-          ) : null}
+          <h3 className="ws-analysis__title">What needs a decision</h3>
         </div>
         {risks.length === 0 ? (
           <p className="ws-pane__note">Nothing awaits a decision on this version.</p>
         ) : (
-          risks.map((finding) => <RiskCard key={finding.id} finding={finding} />)
+          <p className="ws-analysis__act">
+            <b className="ws-mono">{risks.length}</b>{" "}
+            {risks.length === 1 ? "finding needs" : "findings need"} a legal decision.{" "}
+            {sideTabs ? (
+              <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
+                Open the list →
+              </button>
+            ) : null}
+          </p>
         )}
       </section>
     </>
@@ -263,65 +279,3 @@ function Donut({ match, review, missing, total }: {
   );
 }
 
-function riskDescription(finding: Finding): string {
-  if (finding.classification === "MISSING") {
-    return "Expected for this document type and not found in the document.";
-  }
-  const line = finding.evaluations[0]?.explanation?.[0];
-  return line ?? "Awaits a Legal Decision — open the finding for the full evaluation.";
-}
-
-function RiskCard({ finding }: { finding: Finding }) {
-  const { point, target } = useHighlight();
-  const sideTabs = useSideTabs();
-  const bucket = classificationBucket(finding.classification);
-  const firstEvidence = finding.evidence[0];
-  return (
-    <article className={`ws-risk ws-risk--${bucket}`}>
-      <p className="ws-risk__name">
-        {/* The name opens THIS finding's full card — evaluations, evidence,
-            decision controls — on the Findings tab (DD-14). */}
-        {sideTabs ? (
-          <button
-            type="button"
-            className="ws-risk__open"
-            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
-          >
-            {finding.requirement.code ?? "Requirement"}
-            {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
-            {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
-          </button>
-        ) : (
-          <span>
-            {finding.requirement.code ?? "Requirement"}
-            {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
-            {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
-          </span>
-        )}
-        <span className={`ws-chip ws-chip--bucket-${bucket}`}>{finding.classification}</span>
-      </p>
-      <p className="ws-risk__desc">{riskDescription(finding)}</p>
-      <p className="ws-risk__meta">
-        {firstEvidence ? (
-          <button
-            type="button"
-            className="ws-evidence__loc"
-            aria-current={target === firstEvidence.id ? "true" : undefined}
-            onClick={() => point(firstEvidence.id, "the cited")}
-          >
-            View clause →
-          </button>
-        ) : null}
-        {sideTabs ? (
-          <button
-            type="button"
-            className="ws-evidence__loc"
-            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
-          >
-            Open finding →
-          </button>
-        ) : null}
-      </p>
-    </article>
-  );
-}

@@ -2149,3 +2149,22 @@
 .ws-report__lead { display: grid; }
 .ws-report__lead-stat { display: grid; gap: 4px; }
 .ws-report__lead-act { font-size: var(--ws-text-sm); font-weight: 500; justify-self: start; }
+
+/* Outcome glossary (2026-09-04) — a native <details>, collapsed by default, so
+   a working reviewer pays nothing for it and a first-time reader still gets an
+   answer without leaving the findings. */
+.ws-glossary { margin: 0 0 var(--ws-s4); font-size: var(--ws-text-sm); }
+.ws-glossary > summary {
+  cursor: pointer; color: var(--ws-ink-500); padding: 4px 0;
+  font-size: var(--ws-text-xs); letter-spacing: 0.02em;
+}
+.ws-glossary > summary:hover { color: var(--ws-ink-900); }
+.ws-glossary__list { margin: var(--ws-s2) 0 0; display: grid; gap: var(--ws-s2); }
+.ws-glossary__row { display: grid; grid-template-columns: 9.5rem 1fr; gap: var(--ws-s3); align-items: start; }
+.ws-glossary__row dd { margin: 0; color: var(--ws-ink-700); line-height: 1.5; }
+@media (max-width: 720px) { .ws-glossary__row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Summary's call to action — the count and the way through, in place of a
+   second rendering of the findings list (2026-09-04). */
+.ws-analysis__act { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.6; }
+.ws-analysis__act .ws-viewall { margin-left: 2px; }
