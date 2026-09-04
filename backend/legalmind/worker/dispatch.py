@@ -234,8 +234,13 @@ OCR_MAX_ATTEMPTS = 3
 
 
 def _ocr_lock_key(document_version_id: UUID) -> int:
-    """A stable 64-bit advisory-lock key for one document version."""
-    return int.from_bytes(document_version_id.bytes[:8], "big", signed=True)
+    """A stable 64-bit advisory-lock key for one document version.
+
+    ``hash(UUID)`` delegates to ``hash(self.int)`` — unlike str/bytes hashing,
+    int hashing is not affected by ``PYTHONHASHSEED``, so this is stable across
+    processes and already fits Postgres's signed-bigint range.
+    """
+    return hash(document_version_id)
 
 
 def _ocr_attempt_state(db: DBSession, document_version_id: UUID) -> str:
@@ -326,7 +331,6 @@ def _run_ocr_in_background(document_version_id: UUID,
     from legalmind.db.session import engine, session_factory
     from legalmind.ingestion.service import PROCESSOR_VERSION, _now, run_ocr_pass
 
-    lock_conn = None
     try:
         factory = session_factory()
 
@@ -344,62 +348,65 @@ def _run_ocr_in_background(document_version_id: UUID,
 
         # One job per version, database-wide. pg_try_advisory_lock never
         # blocks: a second trigger (a concurrent reconciler, a future second
-        # worker) simply steps aside and lets the holder finish.
-        lock_conn = engine().connect()
-        got = lock_conn.execute(
-            text("SELECT pg_try_advisory_lock(:key)"),
-            {"key": _ocr_lock_key(document_version_id)},
-        ).scalar()
-        if not got:
-            log_event("ingest.ocr.already_running", request_id=request_id,
-                      document_version_id=str(document_version_id))
-            return
-
-        with factory() as db:
-            state = _ocr_attempt_state(db, document_version_id)
-            if state == "concluded":
+        # worker) simply steps aside and lets the holder finish. The `with`
+        # closes the connection on every exit path — including an exception —
+        # which releases its session-level advisory lock; process death does
+        # the same, which is what makes the lock safe.
+        with engine().connect() as lock_conn:
+            got = lock_conn.execute(
+                text("SELECT pg_try_advisory_lock(:key)"),
+                {"key": _ocr_lock_key(document_version_id)},
+            ).scalar()
+            if not got:
+                log_event("ingest.ocr.already_running", request_id=request_id,
+                          document_version_id=str(document_version_id))
                 return
-            if state == "abandon":
-                _abandon_ocr(db, document_version_id)
+
+            with factory() as db:
+                state = _ocr_attempt_state(db, document_version_id)
+                if state == "concluded":
+                    return
+                if state == "abandon":
+                    _abandon_ocr(db, document_version_id)
+                    db.commit()
+                    log_event("ingest.ocr.abandoned", level=logging.ERROR,
+                              request_id=request_id,
+                              document_version_id=str(document_version_id),
+                              operational_failure=True)
+                    return
+                # Claim: committed BEFORE the risky work, so this attempt exists
+                # even if the process dies mid-parse.
+                claim = M.DocumentProcessingRun(
+                    document_version_id=document_version_id,
+                    run_type=E.ProcessingRunType.OCR,
+                    status=E.ProcessingRunStatus.STARTED,
+                    processor_version=PROCESSOR_VERSION,
+                    started_at=_now(),
+                )
+                db.add(claim)
                 db.commit()
-                log_event("ingest.ocr.abandoned", level=logging.ERROR,
-                          request_id=request_id,
-                          document_version_id=str(document_version_id),
-                          operational_failure=True)
-                return
-            # Claim: committed BEFORE the risky work, so this attempt exists
-            # even if the process dies mid-parse.
-            claim = M.DocumentProcessingRun(
-                document_version_id=document_version_id,
-                run_type=E.ProcessingRunType.OCR,
-                status=E.ProcessingRunStatus.STARTED,
-                processor_version=PROCESSOR_VERSION,
-                started_at=_now(),
-            )
-            db.add(claim)
-            db.commit()
-            claim_id = claim.id
+                claim_id = claim.id
 
-        with factory() as db:
-            row = db.get(M.DocumentVersion, document_version_id)
-            claim = db.get(M.DocumentProcessingRun, claim_id)
-            assert row is not None and claim is not None   # just committed
-            run = run_ocr_pass(db, get_storage(), row, run=claim)
-            # The derived search index, in the SAME transaction — exactly as
-            # the inline path indexes inside the upload's own transaction. One
-            # commit means one outcome: a version is never COMPLETED without
-            # its index having had its chance, and a death anywhere here rolls
-            # back to "claimed but unfinished", which reconciliation retries.
-            # index_safely swallows its own faults, so an indexing failure can
-            # degrade search ("Not yet searchable") without failing the OCR.
-            if run.status is E.ProcessingRunStatus.COMPLETED:
-                index_safely(db, document_version_id)
-            db.commit()
-            log_event("ingest.ocr.completed", request_id=request_id,
-                      document_version_id=str(document_version_id),
-                      run_status=run.status.value,
-                      extraction_status=(row.extraction_status.value
-                                         if row.extraction_status else None))
+            with factory() as db:
+                row = db.get(M.DocumentVersion, document_version_id)
+                claim = db.get(M.DocumentProcessingRun, claim_id)
+                assert row is not None and claim is not None   # just committed
+                run = run_ocr_pass(db, get_storage(), row, run=claim)
+                # The derived search index, in the SAME transaction — exactly as
+                # the inline path indexes inside the upload's own transaction. One
+                # commit means one outcome: a version is never COMPLETED without
+                # its index having had its chance, and a death anywhere here rolls
+                # back to "claimed but unfinished", which reconciliation retries.
+                # index_safely swallows its own faults, so an indexing failure can
+                # degrade search ("Not yet searchable") without failing the OCR.
+                if run.status is E.ProcessingRunStatus.COMPLETED:
+                    index_safely(db, document_version_id)
+                db.commit()
+                log_event("ingest.ocr.completed", request_id=request_id,
+                          document_version_id=str(document_version_id),
+                          run_status=run.status.value,
+                          extraction_status=(row.extraction_status.value
+                                             if row.extraction_status else None))
     except Exception as exc:
         log_event("ingest.ocr.failed", level=logging.ERROR,
                   request_id=request_id,
@@ -419,14 +426,6 @@ def _run_ocr_in_background(document_version_id: UUID,
                     db.commit()
         except Exception:                        # pragma: no cover - double fault
             pass
-    finally:
-        if lock_conn is not None:
-            # Closing the connection releases its session-level advisory lock;
-            # process death does the same, which is what makes the lock safe.
-            try:
-                lock_conn.close()
-            except Exception:                    # pragma: no cover
-                pass
 
 
 def interrupted_ocr_versions(db: DBSession) -> list[UUID]:
