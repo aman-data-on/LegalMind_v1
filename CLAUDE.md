@@ -434,6 +434,18 @@ cd /root/Legalmind.v1
 git worktree remove /root/legalmind-worktrees/<short-task-name>
 ```
 
+**Point a worktree at the source material, or six tests skip silently.** `legal-docs/`
+is gitignored (locked 54.6) so it exists only in the deploy tree, and
+`test_source_material.py` resolves it relative to *its own* root — in a fresh worktree
+all six document checks skip and the run still says "passed":
+
+```bash
+export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs   # 6 skips -> 10 passed
+```
+
+A skip is not a pass. Check the skip count against the deploy tree's before believing a
+green run in a worktree.
+
 - **`/root/Legalmind.v1` is the deploy tree. Treat it as shared infrastructure, not a
   desk.** The systemd units serve straight from it, so it should sit on `main`, clean.
   Read there freely; do exploratory edits and feature work in your own worktree.
