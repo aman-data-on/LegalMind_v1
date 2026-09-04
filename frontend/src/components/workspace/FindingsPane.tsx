@@ -24,11 +24,13 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { describeError } from "@/lib/api";
 import { reviewStatusLabel } from "@/lib/labels";
+import { shortcutKey } from "@/lib/shortcuts";
 import { sectionRef } from "@/lib/documentTypes";
+import { DECISION_TYPES } from "@/lib/permissions";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, Evaluation, Evidence, Finding } from "@/lib/types";
@@ -60,6 +62,71 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   // The one findings state machine, shared with the outline and the AI
   // Analysis panel (findingsState.tsx) — fetch and poll live there.
   const { state, reload } = useFindingsState();
+
+  /*
+   * The decision shortcuts (`d`, `a`, `r`) act on the CURRENT finding, and
+   * "current" is a cursor the pane keeps — not merely whatever happens to hold
+   * focus. That is the model every mail and issue tool uses, and it is the one
+   * the legacy screen had: a reader can press `a`, type a justification, click
+   * away to re-read a clause, and press `r` without hunting for the card again.
+   * Focus still MOVES the cursor (`j`/`k` and clicking a card both set it), so
+   * the two never disagree.
+   *
+   * `a`/`r` only ever preselect a type and focus the justification. Recording
+   * stays an explicit submit (Step 31 r11; 52.7 applied to input).
+   */
+  const [prepared, setPrepared] = useState<
+    { findingId: string; decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null
+  >(null);
+  const cursorRef = useRef<string | null>(null);
+  /** The button and the `?` key must open the SAME sheet, so the button simply
+   *  raises the same key event the global handler already listens for. */
+  const openShortcutHelp = useCallback(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
+  }, []);
+
+  useEffect(() => {
+    function remember(event: FocusEvent) {
+      const card = (event.target as HTMLElement | null)?.closest?.("article[data-finding-id]");
+      const id = card?.getAttribute("data-finding-id");
+      if (id) cursorRef.current = id;
+    }
+    function onKey(event: KeyboardEvent) {
+      const key = shortcutKey(event);
+      if (key !== "d" && key !== "a" && key !== "r") return;
+      // Default the cursor to the first finding on screen, so the keys work
+      // before the reader has moved at all.
+      const cards = Array.from(
+        document.querySelectorAll<HTMLElement>("article[data-finding-id]"));
+      const current =
+        cards.find((c) => c.getAttribute("data-finding-id") === cursorRef.current)
+        ?? cards[0];
+      const findingId = current?.getAttribute("data-finding-id");
+      if (!current || !findingId) return;
+      cursorRef.current = findingId;
+
+      if (key === "d") {
+        const form = current.querySelector<HTMLElement>(".ws-decision__form");
+        (form?.querySelector<HTMLSelectElement>("select")
+          ?? form?.querySelector<HTMLTextAreaElement>("textarea"))?.focus();
+        event.preventDefault();
+        return;
+      }
+      setPrepared((prev) => ({
+        findingId,
+        decisionType: key === "a" ? "ACCEPT_DEVIATION" : "REJECT",
+        seq: (prev?.seq ?? 0) + 1,
+      }));
+      event.preventDefault();
+    }
+    window.addEventListener("focusin", remember);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("focusin", remember);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
   const [view, setView] = useState<View>(initialView);
 
   // `?finding=` — the Legal queue's deep link. One-shot per target: scroll to
@@ -224,6 +291,9 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   }
 
   const { review, findings } = state;
+
+
+
   const summary = findingsSummary(findings);
   const effectiveView: View =
     view === "attention" && summary.needsDecision === 0 ? "all" : view;
@@ -250,6 +320,13 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
           */}
         <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
+        {/* Shortcuts nobody can find are shortcuts nobody uses — every tool that
+            ships them ships a visible way in. Inline in the header where the
+            keys apply, so it overlays nothing. */}
+        <button type="button" className="ws-shortcut-hint" onClick={openShortcutHelp}
+                aria-label="Keyboard shortcuts" title="Keyboard shortcuts (press ?)">
+          ?
+        </button>
       </div>
       <div className="ws-pane__body" style={{ padding: "16px" }}>
         {/* What the outcomes mean — collapsed, so it costs a working reviewer
@@ -313,7 +390,14 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               <p role="status">No findings in this view.</p>
             ) : (
               shown.map((finding) => (
-                <FindingCard key={finding.id} finding={finding} onChanged={reload} />
+                <FindingCard
+                  key={finding.id}
+                  finding={finding}
+                  onChanged={reload}
+                  prepared={prepared?.findingId === finding.id
+                    ? { decisionType: prepared.decisionType, seq: prepared.seq }
+                    : null}
+                />
               ))
             )}
           </>
@@ -331,12 +415,21 @@ function askQuestionFor(finding: Finding): string {
     : `What does this document say about ${name}${where ? ` (§${where})` : ""}?`;
 }
 
-function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () => void }) {
+function FindingCard({ finding, onChanged, prepared }: {
+  finding: Finding;
+  onChanged: () => void;
+  /** A keyboard PREPARE request the pane routed to THIS finding (`a` / `r`). */
+  prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
+}) {
   const askIntent = useAskIntent();
   const calm = CALM_CLASSIFICATIONS.has(finding.classification);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   return (
-    <article className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`} data-finding-id={finding.id} tabIndex={-1}>
+    <article
+      className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}
+      data-finding-id={finding.id}
+      tabIndex={-1}
+    >
       <header className="ws-finding__head">
         <h3 className="ws-finding__title">
           {finding.requirement.code ?? "Requirement"}
@@ -363,6 +456,7 @@ function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () =
           evaluation={evaluation}
           evidenceById={evidenceById}
           onChanged={onChanged}
+          prepared={prepared}
         />
       ))}
       <div className="ws-finding__acts">
@@ -382,6 +476,7 @@ function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () =
 }
 
 function EvaluationCard({
+  prepared,
   evaluation,
   evidenceById,
   onChanged,
@@ -389,6 +484,8 @@ function EvaluationCard({
   evaluation: Evaluation;
   evidenceById: Map<string, Evidence>;
   onChanged: () => void;
+  /** A keyboard prepare request from the owning card — see `FindingCard`. */
+  prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
 }) {
   const { point, target } = useHighlight();
   const attention =
@@ -506,7 +603,9 @@ function EvaluationCard({
         <p className="ws-pane__note">No supporting text was found in the document for this Requirement.</p>
       )}
 
-      {showDecision ? <DecisionControl evaluation={evaluation} onRecorded={onChanged} /> : null}
+      {showDecision ? (
+        <DecisionControl evaluation={evaluation} onRecorded={onChanged} prepared={prepared} />
+      ) : null}
     </div>
   );
 }

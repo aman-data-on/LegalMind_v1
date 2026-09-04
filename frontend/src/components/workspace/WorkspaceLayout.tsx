@@ -18,6 +18,9 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
+
+import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 
 export type Region = "document" | "findings" | "analysis";
 type Mode = "wide" | "one";
@@ -97,6 +100,10 @@ export function WorkspaceLayout({
   analysis,
 }: Record<Region, React.ReactNode>) {
   const mode = useMode();
+  /* Above the narrow-mode early return below: a hook after a conditional return
+     runs on some renders and not others, which is React error #310 — and it
+     showed up as the collapsed layout rendering no tabs at all. */
+  const shortcuts = useWorkspaceShortcuts();
   const [tab, setTab] = useState<Region>("document");
   const [sideTab, setSideTab] = useState<SideTab>(initialSideTab);
   const [findingsPoint, setFindingsPoint] = useState<FindingsPoint | null>(null);
@@ -124,6 +131,9 @@ export function WorkspaceLayout({
   if (mode === "one") {
     return (
       <SideTabCtx.Provider value={sideCtx}>
+        {/* The sheet is mounted in BOTH layouts: a keyboard user on a narrow
+            screen needs it at least as much as one on a wide screen. */}
+        <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
         <div className="ws-tabs" role="tablist" aria-label="Workspace regions" ref={tabsRef}>
           {tabbed.map((region, index) => (
             <button
@@ -169,6 +179,14 @@ export function WorkspaceLayout({
 
   return (
     <SideTabCtx.Provider value={sideCtx}>
+      {/*
+        * The shortcut layer, mounted once for the whole workspace (2026-09-04).
+        * `?` opens the sheet from anywhere; `j`/`k` (`n`/`p`) walk the findings;
+        * `/` reaches the document's find field. It lived only in the legacy
+        * Review screen before this, so retiring those routes would have removed
+        * a keyboard affordance rather than dead code.
+        */}
+      <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
       <div className="ws-workspace ws-workspace--wide" data-mode="wide">
         <section className="ws-pane ws-pane--document" aria-label="Document" data-region="document">
           {document}

@@ -2168,3 +2168,17 @@
    second rendering of the findings list (2026-09-04). */
 .ws-analysis__act { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.6; }
 .ws-analysis__act .ws-viewall { margin-left: 2px; }
+
+/* The shortcut affordance (2026-09-04) — bottom-left, opposite the Ask dock so
+   the two never collide, and quiet enough that a mouse user never notices it. */
+.ws-shortcut-hint {
+  position: absolute; left: var(--ws-s4); bottom: var(--ws-s4); z-index: 5;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
+  color: var(--ws-ink-500); font: inherit; font-size: var(--ws-text-sm);
+  cursor: pointer; opacity: 0.55; transition: opacity var(--ws-t), color var(--ws-t);
+}
+.ws-shortcut-hint:hover, .ws-shortcut-hint:focus-visible {
+  opacity: 1; color: var(--ws-ink-900);
+}
+@media (max-width: 620px) { .ws-shortcut-hint { display: none; } }
