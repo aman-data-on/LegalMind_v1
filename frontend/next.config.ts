@@ -17,6 +17,31 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
 const apiOrigin = process.env.LEGALMIND_API_ORIGIN ?? "http://127.0.0.1:8000";
 
 const nextConfig: NextConfig = {
+  /*
+   * The retired application's URLs, kept alive — 2026-09-04.
+   *
+   * `/contracts`, `/reviews`, `/audit`, `/configuration` and `/admin` were a
+   * complete second UI, reachable by URL long after the new one replaced it and
+   * contradicting it on nav, terminology and raw ids (the 2026-09-04 audit's
+   * first finding). The pages are gone; the ADDRESSES are not, because someone
+   * has them bookmarked and a 404 is a worse answer than the screen that
+   * replaced them. Query strings are carried across, so `/reviews?id=X` lands
+   * on that Review's report and `/contracts?id=X` on that document's workspace.
+   *
+   * Permanent, deliberately: these paths are never coming back, and a 308 lets
+   * browsers and search engines stop asking.
+   */
+  async redirects() {
+    return [
+      { source: "/contracts", destination: "/dashboard", permanent: true },
+      { source: "/reviews", destination: "/dashboard/reviews", permanent: true },
+      { source: "/reviews/report", destination: "/dashboard/reviews", permanent: true },
+      { source: "/audit", destination: "/dashboard/admin/audit", permanent: true },
+      { source: "/configuration", destination: "/dashboard/configuration", permanent: true },
+      { source: "/admin", destination: "/dashboard/admin", permanent: true },
+    ];
+  },
+
   reactStrictMode: true,
   /**
    * Build output directory. Defaults to `.next` so nothing changes for a local

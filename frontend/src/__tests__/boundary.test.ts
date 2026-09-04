@@ -137,8 +137,11 @@ describe("52.5 / AB-1 — no Finding-level decision or resolve control", () => {
 });
 
 describe("52.7 — no optimistic UI for Legal Decisions", () => {
-  it("the decision panel re-fetches rather than patching local state", () => {
-    const source = read(join(SRC, "components", "DecisionPanel.tsx"));
+  it("the decision control re-fetches rather than patching local state", () => {
+    /* Repointed 2026-09-04: the legacy `DecisionPanel` was deleted with the
+     * legacy Review screen, and `DecisionControl` is the component that
+     * implements this invariant now. The invariant itself is unchanged. */
+    const source = read(join(SRC, "components", "workspace", "DecisionControl.tsx"));
     // A 409 is a real outcome, so the recorded decision must come from the server.
     expect(source).toContain("isConflict");
     expect(source).toContain("onRecorded");
@@ -147,7 +150,7 @@ describe("52.7 — no optimistic UI for Legal Decisions", () => {
   });
 
   it("sends expected_version so a collision is detectable", () => {
-    const source = read(join(SRC, "components", "DecisionPanel.tsx"));
+    const source = read(join(SRC, "components", "workspace", "DecisionControl.tsx"));
     expect(source).toContain("expected_version");
   });
 });
