@@ -41,6 +41,7 @@ import type {
   TypeSuggestion,
   UploadResult,
   User,
+  VersionComparison,
 } from "./types";
 
 import type { EvidenceRow } from "./types";
@@ -355,6 +356,13 @@ export const api = {
   documentEvidence: (id: string, page = 1, pageSize = 100) =>
     requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
       query: { page, page_size: pageSize },
+    }),
+  /** Clause-level comparison of two versions of one contract (locked 33.15).
+   *  Deterministic and server-side: the client renders the answer and derives
+   *  nothing from the two texts itself (rule 18). */
+  versionComparison: (contractId: string, before: string, after: string) =>
+    request<VersionComparison>(`/contracts/${contractId}/version-comparison`, {
+      query: { before, after },
     }),
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
   /**

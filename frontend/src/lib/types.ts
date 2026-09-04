@@ -520,3 +520,29 @@ export interface ConversationDetail {
   contract_id: string | null;
   messages: ConversationTurn[];
 }
+
+/** One clause as `GET /contracts/{id}/version-comparison` reports it.
+ *
+ *  33.16 is visible in the SHAPE: there is no verdict, acceptability or
+ *  approval field, and `status` describes what happened to the TEXT, never what
+ *  Legal should do about it. `findings` quotes Findings the evaluator already
+ *  produced against a pinned snapshot; a comparison never creates one. */
+export interface ClauseChange {
+  status: "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
+  section_number: string | null;
+  section_title: string | null;
+  before: { evidence_id: string; page_number: number | null; excerpt: string } | null;
+  after: { evidence_id: string; page_number: number | null; excerpt: string } | null;
+  findings: { finding_id: string; classification: string; requirement_code: string | null }[];
+}
+
+export interface VersionComparison {
+  before: { document_version_id: string; version_number: number };
+  after: { document_version_id: string; version_number: number };
+  summary: { ADDED: number; REMOVED: number; CHANGED: number; UNCHANGED: number };
+  /** Text with no clause number of its own — counted, never paired by guesswork. */
+  unnumbered: { unchanged: number; added: number; removed: number };
+  /** Stated by the server so the reader knows how the two sides were aligned. */
+  matched_on: string;
+  clauses: ClauseChange[];
+}

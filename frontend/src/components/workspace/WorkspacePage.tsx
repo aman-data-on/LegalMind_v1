@@ -44,6 +44,7 @@ import { HighlightProvider } from "./highlight";
 import { IconArrowLeft, IconLink } from "./icons";
 import { pickVersion } from "./model";
 import { UploadDocument } from "./UploadDocument";
+import { VersionComparison } from "./VersionComparison";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
 type Load =
@@ -66,6 +67,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const { can } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [reuploadOpen, setReuploadOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -227,6 +229,19 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               {reuploadOpen ? "Cancel upload" : "Upload a revised version"}
             </button>
           ) : null}
+          {/* Only with something to compare against. Locked PROD-04 puts
+              `compare` in an ordinary User's hands, and the endpoint needs no
+              permission beyond the one that reads the two versions. */}
+          {versions.length > 1 ? (
+            <button
+              type="button"
+              className="ws-escalate__link"
+              aria-expanded={compareOpen}
+              onClick={() => setCompareOpen((open) => !open)}
+            >
+              {compareOpen ? "Hide comparison" : "Compare versions"}
+            </button>
+          ) : null}
         </div>
         <span className="ws-context__spacer" />
         <div className="ws-context__acts">
@@ -234,6 +249,10 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           <ShareControl />
         </div>
       </div>
+
+      {compareOpen ? (
+        <VersionComparison contractId={contract.id} versions={versions} />
+      ) : null}
 
       {reuploadOpen && version ? (
         <div className="ws-reupload">

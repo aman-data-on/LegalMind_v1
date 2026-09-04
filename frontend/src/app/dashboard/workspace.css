@@ -2182,3 +2182,66 @@
   opacity: 1; color: var(--ws-ink-900);
 }
 @media (max-width: 620px) { .ws-shortcut-hint { display: none; } }
+
+/* ---- version comparison (2026-09-04, locked 33.15) ----------------------
+   Two excerpts side by side, deliberately NOT a redline: the owner's own
+   boundary on this feature, and 33.16's boundary on this SCREEN — the status
+   words describe the text, so nothing here may read as a verdict. That is why
+   no rule below assigns a status colour: a red "changed" or a green
+   "unchanged" would state a legal position the engine never took. Neutral
+   surface, one accent, all of the meaning in the words.
+
+   Sits between the context bar and the panes, and scrolls itself: `.ws-workmain`
+   owns page scrolling, so an un-capped block here would push the panes off. */
+.ws-compare {
+  max-width: 72rem; width: 100%; margin: 0 auto; flex: none;
+  padding: var(--ws-s3) var(--ws-s4) var(--ws-s4);
+  display: grid; gap: var(--ws-s3);
+  max-height: 42vh; overflow-y: auto;
+  border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-compare__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); }
+.ws-compare__pick { display: inline-flex; align-items: center; gap: var(--ws-s2); }
+.ws-compare__picklabel { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-compare__pick select {
+  font: inherit; font-size: var(--ws-text-sm); padding: 4px 8px;
+  border: 1px solid var(--ws-ink-300); border-radius: 6px;
+  background: var(--ws-surface); color: var(--ws-ink-900);
+}
+.ws-compare__counts {
+  margin: 0 0 0 auto; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  font-variant-numeric: tabular-nums;
+}
+.ws-compare__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s3); }
+.ws-compare__row {
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-surface); padding: var(--ws-s3); display: grid; gap: var(--ws-s2);
+}
+.ws-compare__clause {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+}
+.ws-compare__status {
+  margin-left: auto; font-family: var(--ws-mono);
+  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ws-ink-500); font-weight: 500;
+}
+.ws-compare__sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s3); }
+.ws-compare__side { display: grid; gap: 2px; align-content: start; }
+.ws-compare__sidehead {
+  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ws-ink-500);
+}
+.ws-compare__excerpt {
+  margin: 0; font-size: var(--ws-text-sm); line-height: 1.55; color: var(--ws-ink-700);
+}
+.ws-compare__excerpt--absent { color: var(--ws-ink-500); font-style: italic; }
+.ws-compare__page { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-compare__findings {
+  margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2);
+}
+.ws-compare__findlabel { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+@media (max-width: 720px) {
+  .ws-compare__sides { grid-template-columns: 1fr; }
+  .ws-compare__counts { margin-left: 0; }
+}
