@@ -47,6 +47,30 @@ The remaining three (the `parsing.py` single-worker special case, the `ask()`
 body ternary, and `documentContentBlob` reusing `toApiError`) are correct and
 uncontroversial.
 
+### Added — version comparison, and R&D for Research (2026-09-04)
+
+* **Clause-level version comparison** (locked 33.15; owner decision 2026-09-04).
+  `GET /contracts/{id}/version-comparison` and a panel beside the workspace's
+  version picker report ADDED / REMOVED / CHANGED / UNCHANGED per clause, matched
+  on the document's own section numbering (34.12). Deterministic and server-side —
+  33.15 names the method and forbids LLM/RAG for it. 33.16 is enforced in both the
+  payload and the presentation: no verdict field exists, and no status carries a
+  colour, because a red "changed" would state a legal position the engine never
+  took. Findings the evaluator already produced on a changed clause are quoted
+  beside it; the comparison creates none. Unnumbered text is counted, never paired
+  by guesswork. 9 backend tests, 1 browser spec.
+* **[RESEARCH_DOMAIN_C_RD_2026-09-04.md](docs/00-project/RESEARCH_DOMAIN_C_RD_2026-09-04.md)**
+  — R&D only, no code. Measures the provisioned embedder cross-lingually (Hindi
+  question against the English text that answers it: **0.037** cosine, below the
+  0.100 unrelated-text baseline and far below the 0.50 gate), so multilingual
+  Research is an embedding-model question and lowering the floor is explicitly not
+  proposed. Also: the vision's headline "Section 138" query is a deterministic
+  Act+section lookup, not a search; Domain C needs its own calibrated thresholds
+  rather than Domain B's; a reranker has no measured justification yet; and
+  multi-turn follow-ups should carry their own context rather than be rewritten by
+  a model. Six owner inputs still block the domain (C-16 unchanged).
+  **Nothing in the retrieval system was changed.**
+
 ### Fixed
 
 * **Administrative lockout is now refused (guards.py).** A lone holder of

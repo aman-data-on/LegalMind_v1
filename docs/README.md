@@ -15,6 +15,7 @@
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 - [00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md) — 📁 the owner-ordered product-intent audit behind AB-6/AM-33 and the version-lifecycle UI
 - [00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md](00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md) — 📁 the E1 retrieval audit: assist recall@10 is 0.438 against a 0.938 basis, attributed to COSINE_FLOOR's two applications and **not** to fusion; awaits an owner calibration decision
+- [00-project/RESEARCH_DOMAIN_C_RD_2026-09-04.md](00-project/RESEARCH_DOMAIN_C_RD_2026-09-04.md) — 📁 R&D for Research (Domain C, statute questions): what the existing assist lane already covers, the measured finding that Hindi/Hinglish retrieval fails on the English embedding model (0.037 cosine, below the unrelated-text baseline), why the headline "Section 138" query is a deterministic lookup rather than a search, and the six owner inputs that block the domain
 - [design/UX_CORRECTION_2026-08-31.md](design/UX_CORRECTION_2026-08-31.md) — 📁 the owner-ordered UX/product-model audit behind the upload-first intake and in-flow analysis
 | **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
 | **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
