@@ -3,6 +3,20 @@
 /**
  * Legal configuration admin — locked 52.6 (Steps 21, 29), 49.3, rule 16, rule 21.
  *
+ * MOVED HERE 2026-09-04, from `/configuration`. The 2026-09-04 live audit called
+ * that route "legacy"; implementing the cleanup proved otherwise. This is the ONLY
+ * screen in the product that creates a Requirement, appends a Requirement version,
+ * updates a Company Standard, or PUBLISHES the configuration snapshot every analysis
+ * pins (AUD-04) — and it had no entry in the new shell's navigation, so the one
+ * screen that makes analysis possible was reachable only by typing a URL. It is not
+ * legacy; it was orphaned. Adopted into the shell unchanged.
+ *
+ * Its markup still uses the older `.card` / `.btn` / `.field` vocabulary from
+ * `globals.css` (which the root layout loads for every route, so it renders
+ * correctly here). Restyling 488 lines to the `ws-*` tokens is a separate, purely
+ * cosmetic change and is deliberately not bundled with making the capability
+ * reachable.
+ *
  * **This screen must never author legal content.** Rule 21: real Company Standards,
  * Legal Rules, thresholds, aliases and keyword groups must be supplied by the
  * organization and never manufactured. So the configuration payloads are entered as

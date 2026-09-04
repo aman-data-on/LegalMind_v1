@@ -205,12 +205,32 @@ def list_conversations(guard: Guard = Depends(get_guard),
          ORDER BY c.created_at DESC, c.id DESC
          LIMIT :lim OFFSET :off
     """), {**params, "lim": page.page_size, "off": page.offset}).all()
+    # The document's NAME, served with the conversation (2026-09-04). Ask History
+    # used to fetch `GET /contracts/{id}` once per row to label it, and that
+    # endpoint is ownership-scoped and refuses a soft-deleted contract — so a row
+    # about a document since deleted rendered a raw UUID prefix ("b91052d6"),
+    # which is what the live audit found. The same one-query fix already applied
+    # to `GET /reviews`; a conversation is the caller's own by construction
+    # (`AM-25` r7), so naming the document it belongs to discloses nothing new.
+    contract_ids = {r[1] for r in rows if r[1]}
+    names = {} if not contract_ids else {
+        c.id: c for c in guard.db.execute(
+            select(M.Contract).where(M.Contract.id.in_(contract_ids))
+        ).scalars().all()
+    }
     return paginated([{
         "id": str(r[0]),
         "contract_id": str(r[1]) if r[1] else None,
         "created_at": r[2].isoformat() if r[2] else None,
         "message_count": r[3],
         "first_question": r[4],
+        "document_name": (names[r[1]].name if r[1] and r[1] in names else None),
+        # Whether the workspace this row links to will open for THIS caller —
+        # the same rule `require_contract_visible` applies (owned, not deleted).
+        "document_accessible": bool(
+            r[1] and r[1] in names
+            and names[r[1]].owner_id == guard.user_id
+            and names[r[1]].deleted_at is None),
     } for r in rows], page=page.page, page_size=page.page_size, total=total)
 
 

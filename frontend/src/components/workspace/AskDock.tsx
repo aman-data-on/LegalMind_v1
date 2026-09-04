@@ -513,9 +513,6 @@ export function WsAnswerView({
                 </button>
               )}
               <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>
-              {citation.retrieval_score != null ? (
-                <span className="ws-ask__score ws-mono">retrieval score {citation.retrieval_score.toFixed(3)}</span>
-              ) : null}
             </li>
           ))}
         </ol>

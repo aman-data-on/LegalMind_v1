@@ -39,7 +39,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: "/contracts", label: "Contracts", permission: P.CONTRACT_VIEW, icon: <FileText size={18} /> },
   { href: "/reviews", label: "Reviews", permission: P.REVIEW_VIEW, icon: <CheckCircle size={18} /> },
-  { href: "/configuration", label: "Legal configuration", permission: P.CONFIGURATION_VIEW, icon: <Settings size={18} /> },
+  { href: "/dashboard/configuration", label: "Legal configuration", permission: P.CONFIGURATION_VIEW, icon: <Settings size={18} /> },
   { href: "/audit", label: "Audit", permission: P.AUDIT_VIEW, icon: <BarChart3 size={18} /> },
   { href: "/admin", label: "Users & roles", permission: P.USER_MANAGE, icon: <Users size={18} /> },
 ];

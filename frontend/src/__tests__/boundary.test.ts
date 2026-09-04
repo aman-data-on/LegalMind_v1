@@ -152,6 +152,38 @@ describe("52.7 — no optimistic UI for Legal Decisions", () => {
   });
 });
 
+describe("2026-09-04 audit — engine internals stay out of the user's way", () => {
+  it("renders no retrieval score anywhere a legal reader can see one", () => {
+    /*
+     * A retrieval score is a vector-similarity number. Rule 12 already forbids
+     * presenting it as legal confidence, and it was correctly LABELLED rather
+     * than dressed up — but a labelled implementation metric is still an
+     * implementation metric in front of a lawyer, and the live audit found it on
+     * every citation. It is gone from the surfaces users read; the API still
+     * returns it (`AM-29` keeps the assist lane's own record) and nothing about
+     * retrieval behaviour changed.
+     */
+    for (const file of [
+      join(SRC, "components", "workspace", "AskDock.tsx"),
+      join(SRC, "components", "workspace", "TranscriptTurn.tsx"),
+    ]) {
+      expect(read(file)).not.toMatch(/retrieval_score\.toFixed/);
+    }
+  });
+
+  it("never renders a raw lifecycle enum where a label exists", () => {
+    /* The screens a reviewer works in must go through `@/lib/labels`. The enums
+     * stay canonical on the wire; only the rendering changed. */
+    for (const file of [
+      join(SRC, "app", "dashboard", "reviews", "page.tsx"),
+      join(SRC, "components", "workspace", "ReviewReportPage.tsx"),
+      join(SRC, "app", "dashboard", "legal", "page.tsx"),
+    ]) {
+      expect(read(file)).toMatch(/from "@\/lib\/labels"/);
+    }
+  });
+});
+
 describe("rule 21 — no legal content is authored in the UI", () => {
   it("ships no threshold, tolerance or example Company Standard as a default", () => {
     // Locked rule 21: real Company Standards and Legal Rules must be supplied by
@@ -165,7 +197,7 @@ describe("rule 21 — no legal content is authored in the UI", () => {
   });
 
   it("offers exactly the two locked evaluator types", () => {
-    const source = read(join(SRC, "app", "configuration", "page.tsx"));
+    const source = read(join(SRC, "app", "dashboard", "configuration", "page.tsx"));
     // Scoped to the evaluator_type control. `PRESENCE` is deliberately also a
     // locked RuleType value (THRESHOLD / ALLOWED_VALUES / PRESENCE), so an
     // unscoped scan sees it twice and proves nothing about either vocabulary.

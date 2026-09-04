@@ -25,6 +25,9 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
+import { classificationLabel, findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
+
+import { ClassificationGlossary } from "./ClassificationGlossary";
 import { ExportControl } from "./ExportControl";
 import { IconArrowLeft } from "./icons";
 
@@ -119,8 +122,9 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           {review.document_type ? (
             <span className="ws-chip ws-chip--type">{review.document_type}</span>
           ) : null}
-          <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
-            {review.status}
+          <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                title={review.status}>
+            {reviewStatusLabel(review.status)}
           </span>
           <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
           <span className="ws-mono" title="Configuration snapshot — what makes this Review reproducible (AUD-04)">
@@ -211,6 +215,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           {Object.keys(report.classification_counts).length > 0 ? (
             <section aria-label="Findings by classification">
               <h2 className="ws-report__h">Findings by classification</h2>
+              <ClassificationGlossary />
               <div className="ws-chips">
                 {/* Each count opens the workspace's findings, pre-filtered to
                     exactly the findings it counts — a summary never substitutes
@@ -221,7 +226,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                     href={`/dashboard?id=${review.contract_id}&classification=${value}`}
                     className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
                   >
-                    {value} <b className="ws-mono">{count}</b>
+                    {classificationLabel(value)} <b className="ws-mono">{count}</b>
                   </Link>
                 ))}
               </div>
@@ -265,7 +270,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                     key={value}
                     className={`ws-chip${CALM_STATUSES.has(value) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}
                   >
-                    {value} <b className="ws-mono">{count}</b>
+                    {findingStatusLabel(value)} <b className="ws-mono">{count}</b>
                   </span>
                 ))}
               </div>

@@ -86,12 +86,48 @@ export interface NavItem {
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
   if (can(P.CONTRACT_VIEW)) items.push({ href: "/dashboard", label: "Dashboard" });
-  if (can(P.REVIEW_VIEW)) items.push({ href: "/dashboard/reviews", label: "Reviews" });
+  /*
+   * Reviews is a QUEUE, and a queue is only a destination for someone who works
+   * one (2026-09-04 audit). For a contract owner it listed one row per analysis
+   * run of documents the Dashboard already lists, with the same states — the
+   * same information twice, one click apart. It stays a full screen (a Report is
+   * reached from it, and from the workspace) but leaves the top-level nav unless
+   * the caller actually holds Legal work: `legal.review` widens `GET /reviews`
+   * to other people's Reviews (`REC-09`), which is the point at which a queue
+   * says something the Dashboard cannot.
+   */
+  if (can(P.REVIEW_VIEW) && can(P.LEGAL_REVIEW)) {
+    items.push({ href: "/dashboard/reviews", label: "Reviews" });
+  }
   if (can(P.LEGAL_REVIEW)) items.push({ href: "/dashboard/legal", label: "Legal" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask History" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/research", label: "Research" });
+  /*
+   * "Ask" — not "Ask History". Asking happens in a document (the workspace
+   * dock); this screen is where the record of it lives. Naming the nav item
+   * after the archive advertised the filing cabinet and hid the feature: the
+   * audit found Ask had no nav presence at all while its history had a
+   * top-level slot. One label for one capability; the page itself explains
+   * where asking happens.
+   */
+  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask" });
+  /*
+   * Legal configuration — Requirements, Company Standards and the published
+   * snapshot every analysis pins (AUD-04). It has lived at the legacy
+   * `/configuration` route with NO entry in this shell, so a Legal Admin could
+   * only reach the one screen that makes analysis possible by typing a URL.
+   * Adopted here 2026-09-04; the capability is unchanged.
+   */
+  if (can(P.CONFIGURATION_VIEW)) {
+    items.push({ href: "/dashboard/configuration", label: "Legal configuration" });
+  }
   // The control plane sits last — it is not part of the legal workflow (§H).
   if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Admin" });
+  /*
+   * Research is deliberately ABSENT. Its screen exists and says so honestly
+   * ("Statute research isn't available yet"), but statute intake is an open
+   * owner decision (C-16), so the capability does not exist — and a nav slot is
+   * a promise. Restore this line in the same change that ships the capability:
+   *   if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/research", label: "Research" });
+   */
   return items;
 }
 

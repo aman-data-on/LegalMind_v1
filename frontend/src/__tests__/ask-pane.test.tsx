@@ -24,7 +24,7 @@ const render = (r: AskResult) =>
   renderToStaticMarkup(<HighlightProvider><WsAnswerView result={r} /></HighlightProvider>);
 
 describe("WsAnswerView", () => {
-  it("an answer's citation is a button that points at its EVIDENCE row, with a labelled retrieval score", () => {
+  it("an answer's citation is a button that points at its EVIDENCE row, and shows no retrieval score", () => {
     const html = render(result({
       text: "Ninety days written notice is required [1].",
       citations: [{ chunk_id: "ch-1", evidence_id: "ev-9", page_number: 7, section_ref: "22",
@@ -33,7 +33,7 @@ describe("WsAnswerView", () => {
     expect(html).toContain('data-evidence-id="ev-9"');
     expect(html).toContain("§22");
     expect(html).toContain("p.7");
-    expect(html).toContain("retrieval score 0.621");
+    expect(html).not.toContain("retrieval score");
     expect(html.toLowerCase()).not.toContain("confidence");
   });
 

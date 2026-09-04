@@ -77,14 +77,28 @@ describe("reading order", () => {
 });
 
 describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)", () => {
-  it("an ordinary user sees the three built destinations, all in the new UI — never /contracts", () => {
+  it("an ordinary user is offered only destinations that do something for them", () => {
+    /*
+     * 2026-09-04 audit. Three things changed and each removes a promise the
+     * product could not keep for THIS caller:
+     *
+     * - Reviews left the nav: for a contract owner it listed one row per
+     *   analysis run of documents the Dashboard already lists, in the same
+     *   states. It is a queue, and a queue is a destination only for someone
+     *   who works one — see the `legal.review` case below. The screen itself
+     *   still exists and a Report is still reached from it.
+     * - "Ask History" became "Ask": asking happens in a document, and naming
+     *   the nav after the archive advertised the filing cabinet while the
+     *   feature itself had no nav entry at all.
+     * - Research left the nav entirely: statute intake is an open owner
+     *   decision (C-16), so the capability does not exist, and a nav slot is a
+     *   promise. Its screen stays and says so honestly.
+     */
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/dashboard/reviews", label: "Reviews" },
-      { href: "/dashboard/ask", label: "Ask History" },
-      { href: "/dashboard/research", label: "Research" },
+      { href: "/dashboard/ask", label: "Ask" },
     ]);
   });
 
@@ -98,7 +112,9 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
-  it("legal.review adds the Legal queue — and only that permission does", () => {
+  it("legal.review is what turns Reviews into a destination, and adds the Legal queue", () => {
+    /* The queue says something the Dashboard cannot only once `legal.review`
+     * widens `GET /reviews` past the caller's own contracts (`REC-09`). */
     const counsel = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => counsel.has(p));
     expect(items.map((i) => i.href)).toEqual([
@@ -106,9 +122,17 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
       "/dashboard/reviews",
       "/dashboard/legal",
       "/dashboard/ask",
-      "/dashboard/research",
     ]);
     expect(activeNavHref("/dashboard/legal", items)).toBe("/dashboard/legal");
+  });
+
+  it("configuration.view offers the screen that publishes the snapshot analysis pins", () => {
+    /* It existed only at the legacy `/configuration` URL with no nav entry, so
+     * the one screen that makes analysis possible was reachable only by typing
+     * an address (2026-09-04 audit; the route is adopted, not deleted). */
+    const legalAdmin = new Set([P.CONTRACT_VIEW, P.CONFIGURATION_VIEW]);
+    const items = navItemsFor((p) => legalAdmin.has(p));
+    expect(items.map((i) => i.href)).toContain("/dashboard/configuration");
   });
 
   it("a super admin sees Admin — the new-UI control plane — and nothing legacy", () => {
@@ -222,7 +246,7 @@ describe("TranscriptTurn (ask history replay)", () => {
     expect(html.toLowerCase()).not.toContain("confidence");
   });
 
-  it("an ANSWERED turn's citation is a real link into the workspace highlight, and a null score renders nothing", () => {
+  it("an ANSWERED turn's citation is a real link into the workspace highlight, and no score is ever rendered", () => {
     const citation = {
       chunk_id: "ch1", evidence_id: "ev1", page_number: 4, section_ref: "17.2",
       excerpt: "Liability shall not exceed…", retrieval_score: null,
@@ -248,7 +272,7 @@ describe("TranscriptTurn (ask history replay)", () => {
         turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [{ ...citation, retrieval_score: 0.8123 }] }}
       />,
     );
-    expect(scored).toContain("retrieval score 0.812");
+    expect(scored).not.toContain("retrieval score");
   });
 
   it("a user turn is the question, plainly attributed", () => {

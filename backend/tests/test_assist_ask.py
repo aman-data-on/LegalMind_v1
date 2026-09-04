@@ -487,6 +487,47 @@ def test_conversations_list_is_own_only_and_filters_by_contract(api, db, seeded,
     assert only["first_question"] == '"ninety days" termination notice'
 
 
+def test_a_conversation_names_its_document_and_says_whether_it_still_opens(
+        api, db, seeded, user, storage, monkeypatch):
+    """The Ask screen's row identity — the 2026-09-04 live audit's raw UUID.
+
+    Ask History labelled each row by fetching `GET /contracts/{id}` per row.
+    That endpoint is ownership-scoped AND refuses a soft-deleted contract, so a
+    conversation about a document since deleted rendered `b91052d6` — a raw id —
+    and linked to a workspace answering "Not found." Observed live.
+
+    The name now travels with the conversation, which discloses nothing new: a
+    conversation is the caller's own by construction (`AM-25` r7). The second
+    field is about the CALLER — whether that workspace will open — so the UI can
+    stop offering a link it knows is dead, exactly as the Reviews payload does.
+    """
+    from legalmind.db import models as M
+
+    contract_id, _, conversation_id, _ = _ask_over_uploaded_contract(
+        api, db, user, monkeypatch, name="Named MSA")
+
+    row = next(c for c in api.get("/api/v1/conversations").json()["data"]
+               if c["id"] == conversation_id)
+    assert row["document_name"] == "Named MSA"
+    assert row["document_accessible"] is True
+
+    # Soft-delete the contract: the conversation is history and stays listed
+    # (rule 17), but its document is gone as far as every caller is concerned.
+    db.get(M.Contract, __import__("uuid").UUID(contract_id)).deleted_at = _now_utc()
+    db.flush()
+
+    after = next(c for c in api.get("/api/v1/conversations").json()["data"]
+                 if c["id"] == conversation_id)
+    assert after["document_name"] == "Named MSA", "the record keeps its subject"
+    assert after["document_accessible"] is False, "and admits the door is shut"
+    assert api.get(f"/api/v1/contracts/{contract_id}").status_code == 404
+
+
+def _now_utc():
+    from datetime import UTC, datetime
+    return datetime.now(UTC)
+
+
 def test_document_evidence_reads_in_order_and_is_404_for_others(api, db, seeded, user,
                                                                storage, monkeypatch):
     """The document pane's contract: every Evidence row (42.6) in reading order under

@@ -27,6 +27,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { reviewStatusLabel } from "@/lib/labels";
 import type { Pagination, Review } from "@/lib/types";
 
 import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
@@ -151,7 +152,7 @@ function ReviewsQueueView() {
                 <tr>
                   <th scope="col">Document</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Created</th>
+                  <th scope="col">Analysed</th>
                   <th scope="col">Report</th>
                 </tr>
               </thead>
@@ -181,8 +182,9 @@ function ReviewsQueueView() {
                         ) : null}
                       </td>
                       <td>
-                        <span className={`ws-chip${attention ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
-                          {review.status}
+                        <span className={`ws-chip${attention ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                              title={review.status}>
+                          {reviewStatusLabel(review.status)}
                         </span>
                       </td>
                       <td className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>

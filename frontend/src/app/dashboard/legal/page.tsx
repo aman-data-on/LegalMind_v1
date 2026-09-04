@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
+import { classificationLabel, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Finding, Review } from "@/lib/types";
@@ -176,8 +177,9 @@ export default function LegalQueuePage() {
                       {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
                     </td>
                     <td>
-                      <span className="ws-chip ws-chip--fill ws-chip--classify-fill">
-                        {finding.classification}
+                      <span className="ws-chip ws-chip--fill ws-chip--classify-fill"
+                            title={finding.classification}>
+                        {classificationLabel(finding.classification)}
                       </span>
                     </td>
                     <td>
@@ -192,8 +194,9 @@ export default function LegalQueuePage() {
                       )}
                     </td>
                     <td>
-                      <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
-                        {review.status}
+                      <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                            title={review.status}>
+                        {reviewStatusLabel(review.status)}
                       </span>{" "}
                       <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
                     </td>

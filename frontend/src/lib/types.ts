@@ -491,6 +491,11 @@ export interface ConversationSummary {
   created_at: string | null;
   message_count: number;
   first_question: string | null;
+  /** Served with the conversation since 2026-09-04 — see the Reviews payload's
+   *  note; the per-row `GET /contracts/{id}` this replaces 404'd for any
+   *  soft-deleted document and rendered a raw UUID. */
+  document_name?: string | null;
+  document_accessible?: boolean;
 }
 
 /** One turn of a replayed conversation (`GET /conversations/{id}`). */

@@ -33,6 +33,7 @@ import { useSession } from "@/lib/session";
 import type { DocumentVersion, Evaluation, Evidence, Finding } from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
+import { ClassificationGlossary } from "./ClassificationGlossary";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
@@ -222,6 +223,10 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
       </div>
       <div className="ws-pane__body" style={{ padding: "16px" }}>
+        {/* What the outcomes mean — collapsed, so it costs a working reviewer
+            nothing and answers a first-time reader without asking a colleague
+            (2026-09-04 audit). */}
+        {findings.length > 0 ? <ClassificationGlossary /> : null}
         {findings.length === 0 ? (
           <div className="ws-state" role="note">
             <h3>Analysis completed — no findings.</h3>
