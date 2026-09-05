@@ -247,3 +247,37 @@ def test_the_endpoint_is_available_to_an_ordinary_user_and_scoped(
     assert api.get(f"{V1}/contracts/{mine.id}/version-comparison",
                    params={"before": str(v1.id), "after": str(tv2.id)}
                    ).status_code == 404
+
+
+def test_a_late_change_is_shown_rather_than_truncated_away(db, contract):
+    """The excerpt is centred on the divergence, not taken from the top.
+
+    The defect this pins: a clause whose wording differs 900 characters in used
+    to render as two identical-looking excerpts under a heading that says
+    "wording changed". That is worse than showing nothing — it invites the
+    reader to conclude the difference is cosmetic. The window must contain the
+    change, and must admit that it cut text off the front.
+    """
+    lead = "The parties acknowledge and agree that " * 25   # ~975 characters
+    v1 = _version(db, contract, 1, [("17.2", "Liability", lead + "six (6) months of fees.")])
+    v2 = _version(db, contract, 2, [("17.2", "Liability", lead + "twelve (12) months of fees.")])
+
+    clause = compare_versions(db, v1, v2)["clauses"][0]
+    assert clause["status"] == "CHANGED"
+    assert "six (6) months" in clause["before"]["excerpt"]
+    assert "twelve (12) months" in clause["after"]["excerpt"]
+    # And it says so, rather than presenting a mid-clause window as the clause.
+    assert clause["before"]["truncated_start"] is True
+    assert clause["after"]["truncated_start"] is True
+
+
+def test_a_short_clause_still_reads_from_its_beginning(db, contract):
+    """The window only moves when it has to. A clause that fits is shown whole,
+    from its first word, and claims no truncation at either end."""
+    v1 = _version(db, contract, 1, [("3", "Term", "Twelve months from the Effective Date.")])
+    v2 = _version(db, contract, 2, [("3", "Term", "Twenty-four months from the Effective Date.")])
+
+    clause = compare_versions(db, v1, v2)["clauses"][0]
+    assert clause["after"]["excerpt"].startswith("Twenty-four months")
+    assert clause["after"]["truncated_start"] is False
+    assert clause["after"]["truncated_end"] is False

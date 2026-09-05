@@ -39,7 +39,7 @@ test("comparison reports clause-level changes and never a verdict", async ({ pag
   await expect(panel.getByText("Comparing…")).toHaveCount(0, { timeout: 20_000 });
 
   // Same bytes twice: nothing changed, and the panel says that in words.
-  await expect(panel.locator(".ws-compare__counts")).toContainText("0 changed");
+  await expect(panel.locator(".ws-compare__counts")).toContainText("Nothing changed");
   await expect(panel.getByText("No numbered clause differs")).toBeVisible();
 
   // The unchanged clauses are one click away, not dropped.
@@ -49,8 +49,9 @@ test("comparison reports clause-level changes and never a verdict", async ({ pag
   const row = panel.locator(".ws-compare__row").first();
   await expect(row).toBeVisible();
   await expect(row.locator(".ws-compare__status")).toHaveText("unchanged");
-  // Both sides of the clause are shown — the comparison, not a redline.
-  await expect(row.locator(".ws-compare__side")).toHaveCount(2);
+  // An unchanged clause shows its wording ONCE: there is no superseded reading
+  // to put beneath it, and printing the same text twice would invent a change.
+  await expect(row.locator(".ws-compare__side")).toHaveCount(1);
   await expect(panel.getByText("matched on the document")).toBeVisible();
 
   // 33.16 — the comparison is not a legal position.

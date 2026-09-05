@@ -521,6 +521,22 @@ export interface ConversationDetail {
   messages: ConversationTurn[];
 }
 
+/** One version's text for a clause, as the comparison reports it.
+ *
+ *  The excerpt is a WINDOW, centred by the server on the point the two versions
+ *  diverge rather than taken from the top of the clause — a prefix would hide a
+ *  change that sits 900 characters in and present two identical-looking
+ *  excerpts under a heading saying the wording changed. The truncation flags
+ *  say when text was cut, because an excerpt that hides its own truncation
+ *  makes a claim about completeness it cannot support. */
+export interface ClauseSide {
+  evidence_id: string;
+  page_number: number | null;
+  excerpt: string;
+  truncated_start: boolean;
+  truncated_end: boolean;
+}
+
 /** One clause as `GET /contracts/{id}/version-comparison` reports it.
  *
  *  33.16 is visible in the SHAPE: there is no verdict, acceptability or
@@ -531,8 +547,8 @@ export interface ClauseChange {
   status: "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
   section_number: string | null;
   section_title: string | null;
-  before: { evidence_id: string; page_number: number | null; excerpt: string } | null;
-  after: { evidence_id: string; page_number: number | null; excerpt: string } | null;
+  before: ClauseSide | null;
+  after: ClauseSide | null;
   findings: { finding_id: string; classification: string; requirement_code: string | null }[];
 }
 

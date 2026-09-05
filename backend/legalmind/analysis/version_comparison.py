@@ -49,6 +49,11 @@ from legalmind.db import models as M
 #: the report's own unmatched-provision convention (240).
 EXCERPT_CHARS = 240
 
+#: How much of the window sits BEFORE the point the two versions diverge, when
+#: the excerpt has to be centred on a difference rather than started at the top
+#: of the clause. Enough lead-in to read the sentence the change sits in.
+EXCERPT_LEAD = 80
+
 
 class ComparisonNotPossible(Exception):
     """Raised when the two versions cannot be compared as asked."""
@@ -75,11 +80,41 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def _side(row: M.DocumentEvidence) -> dict[str, Any]:
+def _first_difference(before: str, after: str) -> int:
+    """Index of the first character at which two clause texts diverge.
+
+    Plain prefix scan, on the NORMALIZED texts' shared prefix length mapped back
+    to nothing clever — the caller only needs somewhere honest to centre a
+    window, not an alignment. Returns 0 when one text is a prefix of the other,
+    which is the case where the start is already the right place to look.
+    """
+    limit = min(len(before), len(after))
+    for i in range(limit):
+        if before[i] != after[i]:
+            return i
+    return 0
+
+
+def _side(row: M.DocumentEvidence, focus: int = 0) -> dict[str, Any]:
+    """One version's text, windowed around `focus`.
+
+    WHY A WINDOW AND NOT A PREFIX. A prefix hides the change: a clause whose
+    wording differs at character 900 renders as two identical-looking excerpts
+    under a heading that says "wording changed", which is worse than showing
+    nothing — it invites the reader to conclude the difference is cosmetic. So
+    the excerpt is centred on where the two versions actually diverge, and it
+    says when it has cut text off either end, because an excerpt that hides its
+    own truncation is making a claim about completeness it cannot support.
+    """
+    content = row.content or ""
+    start = 0 if focus <= EXCERPT_CHARS - EXCERPT_LEAD else focus - EXCERPT_LEAD
+    excerpt = content[start:start + EXCERPT_CHARS]
     return {
         "evidence_id": str(row.id),
         "page_number": row.page_number,
-        "excerpt": (row.content or "")[:EXCERPT_CHARS],
+        "excerpt": excerpt,
+        "truncated_start": start > 0,
+        "truncated_end": start + EXCERPT_CHARS < len(content),
     }
 
 
@@ -178,11 +213,15 @@ def compare_versions(db: DBSession, before: M.DocumentVersion,
         new_row = new_by_section.get(section)
         if old_row is not None and new_row is not None:
             same = _normalize(old_row.content) == _normalize(new_row.content)
+            # Both sides are windowed on the SAME divergence point, so the two
+            # excerpts stay readable against each other rather than drifting.
+            focus = 0 if same else _first_difference(old_row.content or "",
+                                                     new_row.content or "")
             changes.append(ClauseChange(
                 status="UNCHANGED" if same else "CHANGED",
                 section_number=section,
                 section_title=new_row.section_title or old_row.section_title,
-                before=_side(old_row), after=_side(new_row),
+                before=_side(old_row, focus), after=_side(new_row, focus),
                 findings=[] if same else findings.get(section, []),
             ))
         elif new_row is not None:

@@ -2183,65 +2183,98 @@
 }
 @media (max-width: 620px) { .ws-shortcut-hint { display: none; } }
 
-/* ---- version comparison (2026-09-04, locked 33.15) ----------------------
-   Two excerpts side by side, deliberately NOT a redline: the owner's own
-   boundary on this feature, and 33.16's boundary on this SCREEN — the status
-   words describe the text, so nothing here may read as a verdict. That is why
-   no rule below assigns a status colour: a red "changed" or a green
-   "unchanged" would state a legal position the engine never took. Neutral
-   surface, one accent, all of the meaning in the words.
+/* ---- version comparison (33.15; design pass 2026-09-05) -----------------
+   A revision reads in one direction: what it says now, then what it used to
+   say. So the clause is a single column — current wording leading in the house
+   serif quote role, superseded wording beneath it, quieter and marked by a
+   rule. Two equal columns asked the reader to diff by eye, and gave the
+   superseded text a weight it has not earned.
 
-   Sits between the context bar and the panes, and scrolls itself: `.ws-workmain`
-   owns page scrolling, so an un-capped block here would push the panes off. */
+   NO STATUS COLOUR ANYWHERE BELOW, deliberately. 33.16 forbids the comparison
+   implying acceptability, and a red "changed" or a green "unchanged" would say
+   exactly that. The hierarchy is built from ink weight and one hairline rule;
+   the only colour in the panel is the quoted Finding chip, which is the
+   engine's own classification and is coloured identically everywhere else.
+
+   Scrolls itself: `.ws-workmain` owns page scrolling, so an un-capped block
+   here would push the panes off the viewport. */
 .ws-compare {
   max-width: 72rem; width: 100%; margin: 0 auto; flex: none;
-  padding: var(--ws-s3) var(--ws-s4) var(--ws-s4);
-  display: grid; gap: var(--ws-s3);
-  max-height: 42vh; overflow-y: auto;
+  padding: var(--ws-s4) var(--ws-s4) var(--ws-s5);
+  display: grid; gap: var(--ws-s4);
+  max-height: 46vh; overflow-y: auto;
   border-bottom: 1px solid var(--ws-ink-100);
 }
-.ws-compare__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); }
-.ws-compare__pick { display: inline-flex; align-items: center; gap: var(--ws-s2); }
-.ws-compare__picklabel { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* Header: a statement of what is on screen — "Version 1 → Version 2" — with the
+   summary as a sentence beneath it rather than a row of statistic tiles. */
+.ws-compare__head { display: grid; gap: var(--ws-s2); }
+.ws-compare__pair { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-compare__arrow { color: var(--ws-ink-500); font-size: var(--ws-text-md); }
 .ws-compare__pick select {
-  font: inherit; font-size: var(--ws-text-sm); padding: 4px 8px;
-  border: 1px solid var(--ws-ink-300); border-radius: 6px;
-  background: var(--ws-surface); color: var(--ws-ink-900);
+  font: inherit; font-size: var(--ws-text-md); font-weight: 600;
+  color: var(--ws-ink-900); background: transparent;
+  border: 1px solid transparent; border-radius: var(--ws-radius-sm);
+  padding: 2px 4px; cursor: pointer;
+  transition: border-color var(--ws-t), background var(--ws-t);
 }
+.ws-compare__pick select:hover { border-color: var(--ws-ink-300); background: var(--ws-surface); }
 .ws-compare__counts {
-  margin: 0 0 0 auto; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
   font-variant-numeric: tabular-nums;
 }
-.ws-compare__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s3); }
+
+/* The clause list. No card chrome: each clause is separated by the rule it
+   already needs, which is one less box than a card would draw. */
+.ws-compare__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
 .ws-compare__row {
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
-  background: var(--ws-surface); padding: var(--ws-s3); display: grid; gap: var(--ws-s2);
+  display: grid; gap: var(--ws-s2);
+  padding: var(--ws-s4) 0;
+  border-top: 1px solid var(--ws-ink-100);
 }
+.ws-compare__row:first-child { border-top: 0; padding-top: 0; }
+
 .ws-compare__clause {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s2);
-  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  margin: 0; display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: var(--ws-s2); font-size: var(--ws-text-sm);
 }
-.ws-compare__status {
-  margin-left: auto; font-family: var(--ws-mono);
-  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ws-ink-500); font-weight: 500;
-}
-.ws-compare__sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s3); }
-.ws-compare__side { display: grid; gap: 2px; align-content: start; }
-.ws-compare__sidehead {
-  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--ws-ink-500);
-}
+.ws-compare__clause .ws-mono { color: var(--ws-ink-900); font-weight: 600; }
+.ws-compare__title { color: var(--ws-ink-900); font-weight: 550; }
+/* Sentence case, in the flow beside the clause it describes — the status is the
+   ANSWER for this row, not metadata, so it is not tracked-out chrome. */
+.ws-compare__status { color: var(--ws-ink-500); }
+
+.ws-compare__side { display: grid; gap: 2px; }
+/* Contract wording in the house quote role (`.ws-quote` supplies the serif and
+   the italic), at a line length that stays readable and with the extra leading
+   serif body text needs. */
 .ws-compare__excerpt {
-  margin: 0; font-size: var(--ws-text-sm); line-height: 1.55; color: var(--ws-ink-700);
+  margin: 0; max-width: 62ch;
+  font-size: var(--ws-text-base); line-height: 1.65; color: var(--ws-ink-900);
 }
-.ws-compare__excerpt--absent { color: var(--ws-ink-500); font-style: italic; }
+/* The superseded wording: same text, less voice. The rule carries the "this is
+   the older reading" relationship that the indent alone would not. */
+.ws-compare__side--was {
+  margin-top: var(--ws-s1);
+  padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100);
+}
+.ws-compare__side--was .ws-compare__excerpt {
+  font-size: var(--ws-text-sm); line-height: 1.6; color: var(--ws-ink-500);
+}
+.ws-compare__was { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* The ellipsis a windowed excerpt starts or ends with — quieter than the text
+   it bounds, so it reads as a cut rather than as the document's own wording. */
+.ws-compare__cut { color: var(--ws-ink-300); }
+.ws-compare__gone { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
 .ws-compare__page { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
 .ws-compare__findings {
-  margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2);
+  margin: var(--ws-s1) 0 0; display: flex; flex-wrap: wrap;
+  align-items: center; gap: var(--ws-s2);
 }
 .ws-compare__findlabel { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
 @media (max-width: 720px) {
-  .ws-compare__sides { grid-template-columns: 1fr; }
-  .ws-compare__counts { margin-left: 0; }
+  .ws-compare { max-height: none; }
 }
