@@ -356,3 +356,88 @@ def test_normalization_never_alters_numbers_or_words(db):
     this layer cannot establish that, so it only touches whitespace."""
     raw = "Liability shall not exceed 6 m0nths of fees"
     assert parsing.normalize_text(raw) == raw     # '6 m0nths' left untouched
+
+
+# --------------------------------------------------------------------------
+# Structural segmentation — 2026-09-05.
+#
+# The defect these pin, measured on the owner's own file: the SAME MSA gave 356
+# segments as .docx and 32 as .docx.pdf. The PDF converter emits one newline per
+# visual line and never a blank line, so a 28-page contract arrived as 28 blocks
+# of 3,000+ characters — and since only a block's first line was read for a
+# clause number, §10.2 appeared in the outline while §10 and §10.1, plainly
+# present in the text, did not.
+# --------------------------------------------------------------------------
+_NO_BLANK_LINES = (
+    "13. LIMITATION ON DAMAGES\n"
+    "13.1 The total liability of Leapswitch shall not exceed the fees paid.\n"
+    "13.2 In no event shall Leapswitch be liable for indirect damages.\n"
+    "14. CONFIDENTIALITY\n"
+    "14.1 Each Party shall keep the other's information confidential.\n"
+)
+
+
+def test_a_page_without_blank_lines_is_still_split_into_clauses():
+    """The GRP case. One block in, one segment per clause out."""
+    segments = parsing.segment_paragraphs(
+        _NO_BLANK_LINES, page_number=1,
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)
+
+    assert [s.section_number for s in segments] == ["13", "13.1", "13.2", "14", "14.1"]
+    # And the clause that used to vanish is now its own row with its own text.
+    body = next(s for s in segments if s.section_number == "13.1")
+    assert "shall not exceed the fees paid" in body.content
+
+
+def test_blank_line_documents_segment_exactly_as_before():
+    """The other half of the guard: no regression on files that already worked."""
+    text = "1. TERM\n\nThe term is twelve months.\n\n2. FEES\n\nFees are payable monthly."
+    numbers = [s.section_number for s in parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)]
+    assert numbers == ["1", None, "2", None]
+
+
+def test_a_number_inside_a_sentence_is_not_a_clause_boundary():
+    """`detect_clause_number` anchors at the start of a line, so prose that
+    merely CONTAINS a decimal is one segment, not three."""
+    text = ("5.1 The cap is limited to 13.2 million rupees in aggregate\n"
+            "and no more than 4.5 million per claim under this Agreement.\n")
+    segments = parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    assert len(segments) == 1
+    assert segments[0].section_number == "5.1"
+
+
+def test_offsets_still_resolve_back_to_the_source_text():
+    """34.13 — every segment must be locatable in the document it came from.
+    Splitting inside a block is where that would quietly break."""
+    for segment in parsing.segment_paragraphs(
+            _NO_BLANK_LINES, page_number=1,
+            source_type=E.EvidenceSourceType.NATIVE_TEXT):
+        assert segment.start_offset is not None and segment.end_offset is not None
+        window = _NO_BLANK_LINES[segment.start_offset:segment.end_offset]
+        assert parsing.normalize_text(window) == segment.content
+
+
+def test_segmentation_is_deterministic():
+    """ENG-11. Same text twice, byte-identical segments."""
+    kwargs = {"page_number": 1, "source_type": E.EvidenceSourceType.NATIVE_TEXT}
+    first = parsing.segment_paragraphs(_NO_BLANK_LINES, **kwargs)
+    second = parsing.segment_paragraphs(_NO_BLANK_LINES, **kwargs)
+    assert [(s.content, s.start_offset, s.end_offset) for s in first] == \
+           [(s.content, s.start_offset, s.end_offset) for s in second]
+
+
+def test_a_heading_is_marked_and_a_clause_body_is_not():
+    """The marker rides in the metadata dict the Segment already had, which
+    `ingest` already merges into `evidence_metadata` — no column, no plumbing."""
+    segments = {s.section_number: s for s in parsing.segment_paragraphs(
+        _NO_BLANK_LINES, page_number=1,
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)}
+
+    assert segments["13"].metadata.get("heading") is True
+    assert segments["14"].metadata.get("heading") is True
+    # Body text that happens to carry a number is NOT a heading — putting it in
+    # an outline is exactly what made the Clauses panel unreadable.
+    assert "heading" not in segments["13.1"].metadata
+    assert "heading" not in segments["13.2"].metadata

@@ -990,3 +990,62 @@ def test_scoping_preserves_requirement_code_order(build, db):
     run = run_analysis(db, review)
     codes = [o.requirement_code for o in run.outcomes]
     assert codes == sorted(codes)
+
+
+# --------------------------------------------------------------------------
+# Structural extraction gate — owner decision, 2026-09-05.
+# --------------------------------------------------------------------------
+def test_an_unsegmented_document_is_refused_rather_than_analysed(build, db):
+    """Text extracted, structure not — analysis BLOCKS (owner, 2026-09-05).
+
+    The sibling of the 2026-09-03 incident, where a document whose characters
+    were not language still produced three MATCH findings. Here the characters
+    ARE language, but nothing was cut into provisions: a "clause" is a whole
+    page, so a Finding's evidence would be a page and its citation could not
+    point at a provision. That is a legal conclusion drawn from a unit nobody
+    can check, and it fails closed.
+    """
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    # One block, page-sized — the shape the GRP MSA actually arrived in.
+    review = build.review([
+        "Liability shall not exceed 6 months of fees paid. " * 120,
+    ])
+
+    run = run_analysis(db, review)
+
+    assert run.findings_created == 0
+    assert run.review_status == E.ReviewStatus.ANALYSIS_FAILED.value
+    assert db.get(M.Review, review.id).status is E.ReviewStatus.ANALYSIS_FAILED
+    # Nothing was concluded — no Finding exists to be mistaken for a result.
+    assert db.execute(
+        select(M.Finding).where(M.Finding.review_id == review.id)
+    ).scalars().all() == []
+
+
+def test_a_properly_segmented_document_is_not_caught_by_the_gate(build, db):
+    """The other half of the guard. A long, well-segmented contract analyses
+    normally — the gate measures the SHAPE of the extraction, not its size."""
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review(
+        ["1. Limitation of Liability",
+         "Liability shall not exceed 6 months of fees paid."]
+        + [f"{n}. Clause {n} of this Agreement states an obligation."
+           for n in range(2, 60)])
+
+    run = run_analysis(db, review)
+
+    assert run.review_status != E.ReviewStatus.ANALYSIS_FAILED.value
+    assert run.findings_created == 1
+
+
+def test_a_short_document_is_never_judged_unsegmented(build, db):
+    """A one-page letter is legitimately one block. Below the size floor the
+    ratio says nothing, so the gate does not run — refusing here would block
+    real short documents for a defect they do not have."""
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review(["Liability shall not exceed 6 months of fees paid."])
+
+    assert run_analysis(db, review).review_status != E.ReviewStatus.ANALYSIS_FAILED.value

@@ -2288,9 +2288,16 @@
    wrap: a long unbroken code like EARLY-TERM-RESTRICTION-MSA-001 has no break
    opportunity of its own, so it used to set the minimum width of a 380px
    column and push the pane into a horizontal scroll. */
-.ws-finding__title { overflow-wrap: anywhere; }
+/* `break-word`, NOT `anywhere` — and the difference is the whole bug. Both let a
+   long unbreakable code wrap, but `anywhere` also shrinks the element's
+   MIN-CONTENT size to a single character. In a flex row an item's automatic
+   minimum size IS its min-content size, so the browser correctly laid the title
+   out one letter per line (2026-09-05, reported from the live site). `min-width:
+   0` lets the item shrink below its content without that. */
+.ws-finding__title { overflow-wrap: break-word; min-width: 0; }
 .ws-finding__code {
-  font-size: var(--ws-text-xs); color: var(--ws-ink-500); overflow-wrap: anywhere;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  overflow-wrap: break-word; min-width: 0;
 }
 /* The finding's workflow position: present, but not a second filled chip
    competing with the evaluation's actionable flag. */

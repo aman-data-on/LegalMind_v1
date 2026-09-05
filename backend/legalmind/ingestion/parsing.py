@@ -94,6 +94,11 @@ MIN_WORDS_TO_JUDGE_LEGIBILITY = 200
 #: quality, so it is reported as unjudgeable and left exactly as extracted.
 MIN_ASCII_SHARE_TO_JUDGE = 0.85
 
+#: Longest single line still read as a HEADING rather than a clause with a body.
+#: A heading is a label; past this it is prose that happens to start with a
+#: number, and calling it a heading would put body text in a table of contents.
+HEADING_MAX_CHARS = 120
+
 
 @dataclass
 class Segment:
@@ -191,6 +196,70 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _split_at_clause_lines(block: str) -> list[tuple[int, str]]:
+    """Cut one blank-line block at the lines that state a clause number.
+
+    WHY THIS EXISTS. Blank lines are a property of whoever produced the PDF, not
+    of the document. A DOCX exported through one converter separates paragraphs
+    with a blank line and segments perfectly; the same contract exported through
+    another emits one newline per visual line and no blank line at all, so an
+    entire page arrives as a single block. Measured on the real corpus: the same
+    MSA gave 356 segments as .docx and 32 as .docx.pdf — 28 pages, one segment
+    per page, 3,000+ characters each. Clause numbering was still there in the
+    text; it simply never began a block, and only a block's FIRST line was read.
+
+    So the document's own numbering is used as a second boundary. This invents
+    nothing (34.12): a line is a boundary only when `detect_clause_number` — the
+    same detector that already labels segments — recognises it. Deterministic,
+    text in / offsets out, so ENG-11 holds.
+
+    Returns (offset within the block, text) so the caller can keep every
+    segment's absolute offsets exact (34.13 traceability).
+    """
+    lines = block.split("\n")
+    cuts: list[tuple[int, str]] = []
+    current: list[str] = []
+    start = 0
+    offset = 0
+    for line in lines:
+        number, _ = detect_clause_number(line)
+        if number and current:
+            cuts.append((start, "\n".join(current)))
+            start = offset
+            current = [line]
+        else:
+            current.append(line)
+        offset += len(line) + 1          # +1 for the newline that split removed
+    if current:
+        cuts.append((start, "\n".join(current)))
+    return cuts
+
+
+def _is_heading(normalized: str, number: str | None, title: str | None) -> bool:
+    """Whether this segment is a HEADING rather than a clause with a body.
+
+    A heading is a label: numbered, titled, one short line, and — the signal
+    that actually separates the two — not a sentence. "13. LIMITATION ON
+    DAMAGES" labels the clause beneath it; "13.1 The total liability shall not
+    exceed the fees paid." IS the clause, and `detect_clause_number` reports a
+    "title" for both because it reads the whole first line.
+
+    Deliberately conservative: a heading that ends in a full stop is missed
+    rather than a clause body being promoted. That direction matters — an
+    outline short one entry is a smaller failure than an outline full of body
+    text, which is the defect being fixed here.
+
+    ponytail: punctuation + length heuristic, no case analysis. Upgrade to the
+    document's own style information (DOCX heading styles) if the outline
+    measurably misses headings on real files.
+    """
+    if not number or not title:
+        return False
+    if "\n" in normalized or len(normalized) > HEADING_MAX_CHARS:
+        return False
+    return not normalized.rstrip().endswith((".", ";", ":"))
+
+
 def segment_paragraphs(text: str, *, page_number: int | None,
                        source_type: EvidenceSourceType,
                        base_offset: int = 0) -> list[Segment]:
@@ -198,26 +267,38 @@ def segment_paragraphs(text: str, *, page_number: int | None,
     segments: list[Segment] = []
     cursor = 0
     for block in re.split(r"\n\s*\n", text):
-        raw = block
-        start = text.find(raw, cursor)
-        if start < 0:                          # pragma: no cover - defensive
-            start = cursor
-        cursor = start + len(raw)
-        normalized = normalize_text(raw)
-        if not normalized:
+        raw_block = block
+        block_start = text.find(raw_block, cursor)
+        if block_start < 0:                    # pragma: no cover - defensive
+            block_start = cursor
+        cursor = block_start + len(raw_block)
+        if not normalize_text(raw_block):
             continue
-        first_line = normalized.split("\n", 1)[0]
-        number, title = detect_clause_number(first_line)
-        segments.append(Segment(
-            content=normalized,
-            original_content=raw,
-            source_type=source_type,
-            page_number=page_number,
-            section_number=number,
-            section_title=title,
-            start_offset=base_offset + start,
-            end_offset=base_offset + cursor,
-        ))
+        for inner_offset, raw in _split_at_clause_lines(raw_block):
+            normalized = normalize_text(raw)
+            if not normalized:
+                continue
+            start = block_start + inner_offset
+            first_line = normalized.split("\n", 1)[0]
+            number, title = detect_clause_number(first_line)
+            segments.append(Segment(
+                content=normalized,
+                original_content=raw,
+                source_type=source_type,
+                page_number=page_number,
+                section_number=number,
+                section_title=title,
+                start_offset=base_offset + start,
+                end_offset=base_offset + start + len(raw),
+                # A heading is a numbered line that carries a title and no body
+                # of its own — "13. LIMITATION ON DAMAGES" as against "13.1 The
+                # total liability...". Recorded at segmentation because evidence
+                # rows are effectively immutable: a row cited by an Evaluation
+                # can never be rewritten (rule 17), so a marker not written here
+                # can never be added to it later.
+                metadata=({"heading": True}
+                          if _is_heading(normalized, number, title) else {}),
+            ))
     return segments
 
 

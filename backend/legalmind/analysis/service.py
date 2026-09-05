@@ -194,6 +194,19 @@ def run_analysis(db: DBSession, review: M.Review, *,
         # Finding is invented.
         return _refuse("no extracted clauses available", "no_extracted_clauses")
 
+    if _structure_not_extracted(clauses):
+        # Owner decision 2026-09-05: structurally-failed extraction BLOCKS
+        # analysis rather than warning. The sibling of the 34.9 refusal above,
+        # and of the 2026-09-03 incident where a document whose text was
+        # unreadable still produced three MATCH findings: there, characters
+        # arrived but were not language; here, text arrives but is not
+        # SEGMENTED, so a "clause" is a whole page. Evaluating that yields
+        # findings whose evidence is a page and whose citations cannot point at
+        # a provision — a legal conclusion drawn from a unit nobody can check.
+        return _refuse("document text was extracted but not segmented into "
+                       "clauses; re-upload in a format that preserves structure",
+                       "structure_not_extracted")
+
     # ---- Document Type scoping — locked Step 6 + Step 28 ---------------------
     # A Requirement applies only to the kind of paper its standard declares.
     # Undeclared type on the Contract: REFUSE (owner decision Q9 — the type is
@@ -504,6 +517,35 @@ def _to_processing(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     if review.status is not ReviewStatus.PROCESSING:
         raise AnalysisNotPermitted(
             f"a Review in {review.status.value} cannot enter PROCESSING")
+
+
+#: Mean characters per clause above which a document is treated as unsegmented.
+#: MEASURED, not chosen (rule 7's discipline applied to a product parameter): on
+#: 2026-09-05 the proposed segmentation was simulated over every real document in
+#: the system. Well-extracted documents landed between 158 and 889 mean
+#: characters per clause; the single unsegmented survivor — a 4-page terms of
+#: service arriving as 4 blocks — sat at 1,828. The gap 889 → 1,828 is where this
+#: number lives, and it is deliberately at the permissive end of it.
+UNSEGMENTED_MEAN_CHARS = 1200
+
+#: Below this total, one block is a plausible WHOLE document (a one-page letter,
+#: a short order form), so the ratio says nothing and the check does not run.
+UNSEGMENTED_MIN_DOCUMENT_CHARS = 4000
+
+
+def _structure_not_extracted(clauses: list[Clause]) -> bool:
+    """Whether this document's text arrived unsegmented.
+
+    Deliberately measures the SHAPE of the extraction, not its content: a
+    document whose mean clause runs to thousands of characters has not been cut
+    into provisions, whatever its `extraction_status` says. That status counts
+    characters and reported COMPLETE for a 28-page contract that produced 32
+    blocks — honest about text, silent about structure.
+    """
+    total = sum(len(clause.content) for clause in clauses)
+    if total < UNSEGMENTED_MIN_DOCUMENT_CHARS:
+        return False
+    return total / len(clauses) > UNSEGMENTED_MEAN_CHARS
 
 
 def _review_document_type(db: DBSession, review: M.Review) -> str | None:
