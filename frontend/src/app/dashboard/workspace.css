@@ -596,7 +596,10 @@
  * renders filled at the SAME weight — no severity ranking within an axis. Attention
  * is its own channel (a left-border stripe), never merged into a chip's color.
  * ========================================================================== */
-.ws-filter { display: flex; gap: var(--ws-s1); margin-bottom: var(--ws-s4); }
+ /* Wraps. Without this the chip row forced the whole pane wider than its
+    column: a horizontal scrollbar under the findings and the last filter
+    clipped mid-word (2026-09-05, from the owner's screenshot). */
+.ws-filter { display: flex; flex-wrap: wrap; gap: var(--ws-s1); margin-bottom: var(--ws-s4); }
 .ws-filter button {
   font: inherit; font-size: var(--ws-text-xs); padding: 5px 11px; min-height: 30px;
   border-radius: 999px; border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
@@ -2278,3 +2281,17 @@
 @media (max-width: 720px) {
   .ws-compare { max-height: none; }
 }
+
+/* ---- finding card heading (design pass 2026-09-05) ----------------------
+   The requirement's name is the heading; its code is a reference beside it, in
+   the mono role every other identifier in this product uses. `anywhere` on the
+   wrap: a long unbroken code like EARLY-TERM-RESTRICTION-MSA-001 has no break
+   opportunity of its own, so it used to set the minimum width of a 380px
+   column and push the pane into a horizontal scroll. */
+.ws-finding__title { overflow-wrap: anywhere; }
+.ws-finding__code {
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); overflow-wrap: anywhere;
+}
+/* The finding's workflow position: present, but not a second filled chip
+   competing with the evaluation's actionable flag. */
+.ws-finding__status { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }

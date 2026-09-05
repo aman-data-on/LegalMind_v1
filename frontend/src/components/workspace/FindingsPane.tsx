@@ -27,7 +27,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { describeError } from "@/lib/api";
-import { reviewStatusLabel } from "@/lib/labels";
+import {
+  classificationLabel,
+  findingStatusLabel,
+  reviewStatusLabel,
+  ruleOutcomeLabel,
+  scopeLabel,
+} from "@/lib/labels";
 import { shortcutKey } from "@/lib/shortcuts";
 import { sectionRef } from "@/lib/documentTypes";
 import { DECISION_TYPES } from "@/lib/permissions";
@@ -332,7 +338,19 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
         {/* What the outcomes mean — collapsed, so it costs a working reviewer
             nothing and answers a first-time reader without asking a colleague
             (2026-09-04 audit). */}
-        {findings.length > 0 ? <ClassificationGlossary /> : null}
+        {findings.length > 0 ? (
+          <>
+            <ClassificationGlossary />
+            {/* 49.7 r1 / D-1.4 — the derived summary is never presented as the
+                authoritative result. Stated ONCE for the pane: it used to
+                repeat on every card, which on a 14-finding review meant the
+                same sentence fourteen times above the findings themselves. */}
+            <p className="ws-pane__note">
+              Each outcome below is a summary of the evaluations inside it, which are
+              the authoritative results.
+            </p>
+          </>
+        ) : null}
         {findings.length === 0 ? (
           <div className="ws-state" role="note">
             <h3>Analysis completed — no findings.</h3>
@@ -407,8 +425,27 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   );
 }
 
+/** The requirement in a reader's words.
+ *
+ *  Prefers the ratified name, falls back to a humanized code, and never returns
+ *  the code and the name as a pair — the ratified configuration gives several
+ *  requirements the same string for both, and printing it twice with an em dash
+ *  between was pure noise at the loudest weight on the card.
+ */
+function requirementHeading(requirement: Finding["requirement"]): string {
+  const name = requirement.name?.trim();
+  const code = requirement.code?.trim();
+  if (name && name !== code) return name;
+  if (code) return scopeLabel(code);
+  return "Requirement";
+}
+
 function askQuestionFor(finding: Finding): string {
-  const name = finding.requirement.name ?? finding.requirement.code ?? "this provision";
+  // The same reader-facing phrase the card heading uses — the question is shown
+  // to the user and sent to the assistant, and "say anything about
+  // EARLY-TERM-RESTRICTION-MSA-001?" is neither a question a person would ask
+  // nor one worth retrieving against.
+  const name = requirementHeading(finding.requirement);
   const where = finding.evidence.find((e) => e.section_number)?.section_number;
   return finding.classification === "MISSING"
     ? `Does this document say anything about ${name}?`
@@ -431,19 +468,29 @@ function FindingCard({ finding, onChanged, prepared }: {
       tabIndex={-1}
     >
       <header className="ws-finding__head">
+        {/* The requirement in a lawyer's words, with the code as a quiet
+            reference beside it. Two fixes at once (2026-09-05): the code was
+            the loudest text on the card when it is support-desk material, and
+            where the ratified config gives a requirement the same value for
+            `name` and `code` — which it does — this printed the identifier
+            TWICE, joined by an em dash. */}
         <h3 className="ws-finding__title">
-          {finding.requirement.code ?? "Requirement"}
-          {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
+          {requirementHeading(finding.requirement)}
         </h3>
+        {finding.requirement.code && finding.requirement.code !== requirementHeading(finding.requirement) ? (
+          <span className="ws-finding__code ws-mono">{finding.requirement.code}</span>
+        ) : null}
         <span className={`ws-chip${calm ? "" : " ws-chip--fill ws-chip--classify-fill"}`} title="Derived summary of the Evaluations below">
-          {finding.classification}
+          {classificationLabel(finding.classification)}
         </span>
-        <span className="ws-chip">{finding.status}</span>
+        {/* The finding's workflow position — a DIFFERENT axis from the
+            evaluation's "Decision required" flag below, and kept as its own
+            value. Quiet text rather than a second filled chip: the actionable
+            one is the flag next to the decision control, and two shouts saying
+            the same thing at the same volume is what made this card noisy. */}
+        <span className="ws-finding__status">{findingStatusLabel(finding.status)}</span>
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
-      <p className="ws-finding__note">
-        Classification is a derived summary — the Evaluations below are the authoritative results.
-      </p>
       {finding.classification === "MISSING" ? (
         <p className="ws-finding__missing">
           This requirement is expected for this document type and was not found
@@ -499,8 +546,7 @@ function EvaluationCard({
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>
       <div className="ws-evaluation__head">
         <span className="ws-evaluation__scope">
-          {evaluation.scope_key}
-          {evaluation.scope_label ? ` · ${evaluation.scope_label}` : ""}
+          {evaluation.scope_label ?? scopeLabel(evaluation.scope_key)}
         </span>
         {/* Presence-tested, not permission-tested (52.4) — an omitted field renders nothing. */}
         {/* `ws-evaluation__outcome` is a STABLE hook, not styling: LEGAL-02 turns
@@ -510,7 +556,7 @@ function EvaluationCard({
             them would pass for the wrong reason on an ACCEPTABLE result. */}
         {evaluation.rule_outcome !== undefined ? (
           <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
-            {evaluation.rule_outcome}
+            {ruleOutcomeLabel(evaluation.rule_outcome)}
           </span>
         ) : null}
         {evaluation.current_decision ? (
@@ -622,6 +668,15 @@ function scalar(value: unknown): string {
 function renderValue(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return "Not recorded";
   if (typeof value === "object" && !Array.isArray(value)) {
+    const entries = Object.entries(value as Record<string, unknown>);
+    // A single-key fact prints its value alone: the row's own label already
+    // says what it is, so "Found in contract: presence ABSENT" was saying
+    // "presence" three times down the column for no added meaning. Multi-key
+    // facts keep their keys — there the key is the distinction (amount vs unit
+    // vs basis), not noise.
+    if (entries.length === 1 && entries[0]) {
+      return <span className="ws-mono">{scalar(entries[0][1])}</span>;
+    }
     return (
       <span className="ws-facts__pairs">
         {Object.entries(value as Record<string, unknown>).map(([key, entry]) => (

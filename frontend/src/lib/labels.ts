@@ -57,6 +57,28 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   UNABLE_TO_EVALUATE: "NEEDS A PERSON",
 };
 
+/**
+ * Rule Outcome — what Legal should DO, a separate axis from classification and
+ * never merged with it (DECISION_STATE_MODEL). `NOT_APPLICABLE` is the one that
+ * misleads on sight: it reads as "this does not apply to you", when locked Step
+ * 20 r4 makes it the FAIL-CLOSED state — the engine has no ruling here, so the
+ * deviation stands and a person decides. The label says that.
+ */
+const RULE_OUTCOME_LABELS: Record<string, string> = {
+  ACCEPTABLE: "Acceptable",
+  UNACCEPTABLE: "Not acceptable",
+  APPROVAL_REQUIRED: "Needs approval",
+  NOT_APPLICABLE: "No rule covers this",
+};
+
+/** A scope key with no label of its own — `EARLY_TERMINATION_RESTRICTION` is an
+ *  identifier, not a phrase anyone reads. The raw value stays in `data-scope`,
+ *  so tests and exports are unaffected. */
+export function scopeLabel(scopeKey: string): string {
+  const words = scopeKey.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** Document processing (34.15) — a document concern, separate from the Review. */
 const PROCESSING_LABELS: Record<string, string> = {
   PENDING: "Queued",
@@ -85,6 +107,7 @@ export const findingStatusLabel = (v?: string | null) => look(FINDING_STATUS_LAB
 export const classificationLabel = (v?: string | null) => look(CLASSIFICATION_LABELS, v);
 export const processingLabel = (v?: string | null) => look(PROCESSING_LABELS, v);
 export const extractionLabel = (v?: string | null) => look(EXTRACTION_LABELS, v);
+export const ruleOutcomeLabel = (v?: string | null) => look(RULE_OUTCOME_LABELS, v);
 
 /**
  * What the comparison outcomes mean — the glossary text, in one place so the
