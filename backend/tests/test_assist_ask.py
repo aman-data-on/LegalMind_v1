@@ -545,9 +545,18 @@ def test_document_evidence_reads_in_order_and_is_404_for_others(api, db, seeded,
     for row in rows:
         assert row["document_version_id"] == version_id
         assert row["content"] and row["source_type"]
+        # `is_heading` joined this set on 2026-09-05 and is the ONE metadata key
+        # exposed: the document outline is otherwise unbuildable client-side,
+        # and the alternative — the UI re-deriving structure from the text — is
+        # exactly the re-derivation rule 18 keeps out of the interface. It is
+        # presentation only and decides no legal outcome. Everything else in the
+        # metadata JSONB, and the processing-run lineage, stay server-side.
         assert set(row) == {"id", "document_version_id", "page_number", "section_number",
                             "section_title", "content", "source_type", "start_offset",
-                            "end_offset"}, "no internal lineage or metadata leaks"
+                            "end_offset", "is_heading"}, \
+            "no internal lineage or metadata leaks beyond the outline marker"
+        assert isinstance(row["is_heading"], bool)
+        assert "processing_run_id" not in row and "metadata" not in row
     # Reading order: (page, offset) never decreases across the page.
     keys = [(r["page_number"] or 0, r["start_offset"] or 0) for r in rows]
     assert keys == sorted(keys)

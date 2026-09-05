@@ -53,9 +53,50 @@ export function groupByPage(rows: EvidenceRow[]): PageGroup[] {
   return groups;
 }
 
-/** Rows that carry a clause reference — the document's own outline. */
+/**
+ * The document's own outline — HEADINGS, not every row that starts with a
+ * number.
+ *
+ * The panel used to list every row carrying a number or a title, which put
+ * mid-clause body text ("10.2 Customer acknowledges and understands that the…")
+ * beside real headings at the same weight and made the list unreadable. The
+ * parser now records which rows begin a section, so the outline is what the
+ * document says it is rather than what the text happens to start with.
+ *
+ * FALLBACK, deliberately: documents extracted before 2026-09-05 carry no
+ * marker, and re-extracting them would rewrite evidence that Findings already
+ * cite (rule 17). For those the old rule still applies — an imperfect outline
+ * beats an empty one, and it improves the moment a document is re-uploaded.
+ */
 export function outlineOf(rows: EvidenceRow[]): EvidenceRow[] {
+  const headings = rows.filter((row) => row.is_heading);
+  if (headings.length > 0) return headings;
   return rows.filter((row) => row.section_number || row.section_title);
+}
+
+/**
+ * Where the document's numbering restarts — a real MSA carries more than one
+ * sequence: the body §1–§24, then an annexed AUP that begins again at §1, then
+ * a schedule that begins again at §1. Flattening them into one list is why the
+ * outline appeared to jump from §24.9 back to §12 and §4.
+ *
+ * A restart is a top-level number that DECREASES. Equal is not a restart: §1
+ * followed by §1.2 is a sub-heading of the same section, and treating it as one
+ * put a divider inside every section that had one.
+ * That is a fact about the numbers the document states, not an interpretation
+ * of what the annexure IS — naming it would be inventing a document structure
+ * the file does not declare, so the divider says only that numbering restarts.
+ */
+export function sequenceBreaks(rows: EvidenceRow[]): Set<string> {
+  const breaks = new Set<string>();
+  let previous: number | null = null;
+  for (const row of rows) {
+    const top = Number.parseInt(row.section_number?.split(".")[0] ?? "", 10);
+    if (Number.isNaN(top)) continue;
+    if (previous !== null && top < previous) breaks.add(row.id);
+    previous = top;
+  }
+  return breaks;
 }
 
 export function locationLabel(row: EvidenceRow): string {

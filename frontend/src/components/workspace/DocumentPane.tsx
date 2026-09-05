@@ -16,7 +16,7 @@
  * error — all honest, none invented.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
 import { ApiError, api, describeError } from "@/lib/api";
@@ -43,6 +43,7 @@ import {
   groupByPage,
   locationLabel,
   outlineOf,
+  sequenceBreaks,
   outlineStatus,
   readiness,
   rowPresentation,
@@ -278,6 +279,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
 
   const ready = readiness(version.assist_index);
   const outline = rows ? outlineOf(rows) : [];
+  const breaks = sequenceBreaks(outline);
   const shownOutline = clauseQuery.trim()
     ? outline.filter((row) =>
         `${row.section_number ?? ""} ${row.section_title ?? ""}`
@@ -392,14 +394,18 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
         {/* ------------------------------------------------ clauses column */}
         <div className="ws-doc__clauses">
           <nav className="ws-card ws-outline" aria-label="Document outline">
-            <p className="ws-outline__title">Clauses</p>
+            {/* "Contents", not "Clauses" (2026-09-05). This is the document's
+                own outline — its headings — and a clause is the unit a finding
+                attaches to, not a navigation target. The two were the same list
+                until the parser could tell a heading from body text. */}
+            <p className="ws-outline__title">Contents</p>
             <label className="ws-outline__search">
               <IconSearch size={14} />
-              <span className="ws-visually-hidden">Search clauses</span>
+              <span className="ws-visually-hidden">Search contents</span>
               <input
                 value={clauseQuery}
                 onChange={(event) => setClauseQuery(event.target.value)}
-                placeholder="Search clauses"
+                placeholder="Search contents"
               />
             </label>
             <div className="ws-outline__list">
@@ -409,8 +415,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 // number's own dot count (capped; deeper than 3 reads as 3).
                 const depth = Math.min(3, row.section_number?.match(/\./g)?.length ?? 0);
                 return (
+                  <Fragment key={row.id}>
+                  {/* The document's numbering starts over — an annexed policy
+                      or a schedule keeps its own §1. Saying so is a fact about
+                      the numbers; naming what the annexure IS would be
+                      inventing structure the file does not declare. */}
+                  {breaks.has(row.id) ? (
+                    <p className="ws-outline__break">Numbering restarts</p>
+                  ) : null}
                   <button
-                    key={row.id}
                     type="button"
                     data-depth={depth > 0 ? depth : undefined}
                     aria-current={target === row.id ? "true" : undefined}
@@ -422,17 +435,18 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     </span>
                     {status ? <StatusIcon bucket={status.bucket} /> : null}
                   </button>
+                  </Fragment>
                 );
               })}
               {outline.length === 0 ? (
                 <p className="ws-pane__note" style={{ padding: "0 12px" }}>
                   {rows.length === 0 && documentTextState(version) === "processing"
                     ? "The outline appears when text extraction completes."
-                    : "No clause numbering was detected."}
+                    : "No headings or clause numbering were detected."}
                 </p>
               ) : shownOutline.length === 0 ? (
                 <p className="ws-pane__note" style={{ padding: "0 12px" }} role="status">
-                  No clause matches that search.
+                  Nothing in the contents matches that search.
                 </p>
               ) : null}
             </div>

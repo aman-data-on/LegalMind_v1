@@ -441,3 +441,77 @@ def test_a_heading_is_marked_and_a_clause_body_is_not():
     # an outline is exactly what made the Clauses panel unreadable.
     assert "heading" not in segments["13.1"].metadata
     assert "heading" not in segments["13.2"].metadata
+
+
+# --------------------------------------------------------------------------
+# Unnumbered headings and bare clause numbers — 2026-09-05.
+#
+# Measured on the supplied corpus: the CloudPe terms of service and privacy
+# policy carry NO clause numbering at all, but they are not unstructured — they
+# are organised by prose headings. Recognising only numbered headings meant the
+# whole document arrived as one block per page and the structural gate refused
+# it. The structure was there; we could not see it.
+# --------------------------------------------------------------------------
+def test_an_unnumbered_heading_starts_a_section_and_names_it():
+    text = ("Cancellations\n"
+            "Cancellation requests need to be submitted via our Client Area and "
+            "cannot be accepted by support ticket.\n"
+            "Late Fees\n"
+            "Invoices overdue for over 5 days will be charged a late fee of up to "
+            "5% per month on the outstanding amount.\n")
+    segments = parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+
+    assert [s.section_title for s in segments] == ["Cancellations", "Late Fees"]
+    assert all(s.metadata.get("heading") for s in segments)
+    assert all(s.section_number is None for s in segments)   # nothing invented
+    # The heading keeps the prose it introduces, so the outline entry points at
+    # the text it labels rather than at an empty label above it.
+    assert "Client Area" in segments[0].content
+
+
+def test_a_navigation_list_is_not_a_run_of_headings():
+    """The page footer of a printed web page: every line is short and
+    title-like. A heading is followed by the prose it introduces; a menu item is
+    followed by another menu item."""
+    text = "VPS\nKubernetes\nStorage\nNetworking\nGPU Cloud\nCareers\nBlog\n"
+    segments = parsing.segment_paragraphs(
+        text, page_number=4, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+
+    assert len(segments) == 1
+    assert not segments[0].metadata.get("heading")
+
+
+def test_a_bare_clause_number_on_its_own_line_is_a_boundary():
+    """PDF layouts routinely put the number on one line and its text on the
+    next. Four clauses of the owner's own MSA were lost to this."""
+    text = ("17. DATA PRIVACY\n"
+            "17.1\n"
+            "The Customer acknowledges that Leapswitch may disclose information.\n"
+            "17.2\n"
+            "Leapswitch shall protect the confidentiality of Personal Data.\n")
+    numbers = [s.section_number for s in parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)]
+    assert numbers == ["17", "17.1", "17.2"]
+
+
+def test_a_bare_year_or_page_number_is_still_not_a_clause():
+    """The other half. `1999.` and `12` carry no interior dot, which is exactly
+    what the bare-number pattern requires — so neither is ever a clause."""
+    assert parsing.detect_clause_number("1999.") == (None, None)
+    assert parsing.detect_clause_number("12") == (None, None)
+    assert parsing.detect_clause_number("17.") == (None, None)
+    assert parsing.detect_clause_number("17.1") == ("17.1", None)
+
+
+def test_a_broken_sentence_is_not_promoted_to_a_heading():
+    """The false positive found in validation: a PDF broke this line mid-
+    sentence, so the truncated title lost its full stop and read as a label.
+    Word count and the interior full stop both catch it now."""
+    text = ("3.1 Customers shall raise purchase orders on Leapswitch for the "
+            "provision of Services. Subject to Clause\n")
+    segment = parsing.segment_paragraphs(
+        text, page_number=3, source_type=E.EvidenceSourceType.NATIVE_TEXT)[0]
+
+    assert segment.section_number == "3.1"
+    assert not segment.metadata.get("heading")

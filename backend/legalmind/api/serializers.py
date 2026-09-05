@@ -258,6 +258,13 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
         "source_type": e.source_type.value,
         "start_offset": e.start_offset,
         "end_offset": e.end_offset,
+        # Whether this row BEGINS a section, as recorded at segmentation. The
+        # rest of the metadata JSONB stays server-side as the note above says;
+        # this one field is exposed because the document outline is otherwise
+        # unbuildable client-side — the alternative is the UI re-deriving
+        # structure from text, which is exactly the re-derivation rule 18 keeps
+        # out of the interface. Presentation only: it decides no legal outcome.
+        "is_heading": bool((e.evidence_metadata or {}).get("heading")),
     }
 
 

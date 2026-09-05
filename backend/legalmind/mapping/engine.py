@@ -89,6 +89,10 @@ class Clause:
     section_number: str | None = None
     section_title: str | None = None
     page_number: int | None = None
+    #: Whether this row is a section HEADING, as recorded at segmentation. Read
+    #: only to answer "did extraction find any structure at all?" — never by the
+    #: mapper or an evaluator, for which a heading is ordinary candidate text.
+    is_heading: bool = False
 
 
 @dataclass(frozen=True)

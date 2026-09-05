@@ -995,6 +995,25 @@ def test_scoping_preserves_requirement_code_order(build, db):
 # --------------------------------------------------------------------------
 # Structural extraction gate — owner decision, 2026-09-05.
 # --------------------------------------------------------------------------
+def test_a_document_with_headings_but_no_numbering_is_analysed(build, db):
+    """Owner instruction 2026-09-05 — "genuinely has no structure" and "our
+    extraction failed" must never be the same condition.
+
+    The case that forced the rewrite: a terms of service organised by prose
+    headings and carrying no clause number anywhere. Real structure, no
+    numbering — it analyses.
+    """
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    body = ("Liability shall not exceed 6 months of fees paid under this "
+            "Agreement for the affected Services. " * 12)
+    review = build.review(["Limitation of Liability", body,
+                           "Cancellations", body, "Late Fees", body])
+
+    run = run_analysis(db, review)
+    assert run.review_status != E.ReviewStatus.ANALYSIS_FAILED.value
+
+
 def test_an_unsegmented_document_is_refused_rather_than_analysed(build, db):
     """Text extracted, structure not — analysis BLOCKS (owner, 2026-09-05).
 

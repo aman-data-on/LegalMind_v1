@@ -62,6 +62,10 @@ export interface EvidenceRow {
   page_number: number | null;
   section_number: string | null;
   section_title: string | null;
+  /** Whether this row BEGINS a section — recorded by the parser at extraction,
+   *  never derived here. Rows written before 2026-09-05 carry `false`, so the
+   *  outline falls back to numbered rows for them rather than rendering empty. */
+  is_heading?: boolean;
   content: string;
   source_type: string;
   start_offset: number | null;

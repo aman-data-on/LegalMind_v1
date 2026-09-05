@@ -36,7 +36,9 @@ test.describe("the document pane", () => {
     const doc = page.locator('[data-region="document"]');
     // DD-9: the document area is two cards — the clauses card and the document
     // card under its toolbar.
-    await expect(doc.locator(".ws-outline__title")).toHaveText("Clauses");
+    // "Contents" since 2026-09-05: this is the document's own outline, and a
+    // clause is what a finding attaches to rather than a navigation target.
+    await expect(doc.locator(".ws-outline__title")).toHaveText("Contents");
     await expect(doc.locator(".ws-doccard__bar")).toBeVisible();
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     // A lone "Unnumbered pages" banner is noise when the WHOLE document has no

@@ -74,6 +74,7 @@ def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
             section_number=e.section_number,
             section_title=e.section_title,
             page_number=e.page_number,
+            is_heading=bool((e.evidence_metadata or {}).get("heading")),
         )
         for e in rows
     ]

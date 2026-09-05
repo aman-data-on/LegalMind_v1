@@ -10,8 +10,15 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { EvidenceRow } from "@/lib/types";
+
 import { segmentContent, type Annotation } from "@/components/workspace/annotations";
-import { documentTextState, rowPresentation } from "@/components/workspace/model";
+import {
+  documentTextState,
+  outlineOf,
+  rowPresentation,
+  sequenceBreaks,
+} from "@/components/workspace/model";
 
 const row = (content: string, section_number: string | null = null, section_title: string | null = null) =>
   ({ content, section_number, section_title });
@@ -119,5 +126,51 @@ describe("documentTextState (the empty-state branch, 2026-09-03)", () => {
   it("distinguishes a successfully-read document that simply has no text", () => {
     expect(documentTextState({ processing_status: "COMPLETED", extraction_status: "COMPLETE" }))
       .toBe("empty");
+  });
+});
+
+describe("the document outline (2026-09-05)", () => {
+  const row = (id: string, extra: Partial<EvidenceRow> = {}): EvidenceRow => ({
+    id,
+    document_version_id: "v1",
+    page_number: 1,
+    section_number: null,
+    section_title: null,
+    content: "text",
+    source_type: "NATIVE_TEXT",
+    start_offset: 0,
+    end_offset: 4,
+    ...extra,
+  });
+
+  it("lists headings, not every row that starts with a number", () => {
+    const rows = [
+      row("a", { section_number: "13", section_title: "LIMITATION", is_heading: true }),
+      row("b", { section_number: "13.1", section_title: "The total liability" }),
+      row("c", { section_number: "14", section_title: "CONFIDENTIALITY", is_heading: true }),
+    ];
+    expect(outlineOf(rows).map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  it("falls back to numbered rows for documents extracted before the marker existed", () => {
+    // Re-extracting them would rewrite evidence a Finding already cites, so an
+    // imperfect outline is the honest option — never an empty one.
+    const rows = [
+      row("a", { section_number: "13", section_title: "LIMITATION" }),
+      row("b", { content: "unnumbered prose" }),
+    ];
+    expect(outlineOf(rows).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("marks where numbering restarts, and not where it merely nests", () => {
+    const rows = [
+      row("a", { section_number: "1", is_heading: true }),
+      row("b", { section_number: "1.2", is_heading: true }),   // sub-heading
+      row("c", { section_number: "24", is_heading: true }),
+      row("d", { section_number: "1", is_heading: true }),     // the annexure
+    ];
+    const breaks = sequenceBreaks(rows);
+    expect(breaks.has("b")).toBe(false);
+    expect(breaks.has("d")).toBe(true);
   });
 });

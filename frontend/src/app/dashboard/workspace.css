@@ -2302,3 +2302,14 @@
 /* The finding's workflow position: present, but not a second filled chip
    competing with the evaluation's actionable flag. */
 .ws-finding__status { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* Where the document's numbering starts over — an annexed policy or a schedule
+   with its own §1. A quiet rule with a label, not a section header: it marks a
+   fact about the numbering, and the outline must not imply it knows what the
+   annexure is. */
+.ws-outline__break {
+  margin: var(--ws-s3) 0 var(--ws-s1); padding: 0 12px;
+  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ws-ink-500); border-top: 1px solid var(--ws-ink-100);
+  padding-top: var(--ws-s2);
+}
