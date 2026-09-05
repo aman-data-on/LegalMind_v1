@@ -38,7 +38,7 @@ import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import { useHighlight } from "./highlight";
-import { classificationMeaning, findingsSummary } from "./model";
+import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
 type View = "attention" | "all" | { classification: string };
@@ -265,7 +265,6 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                 <button
                   key={classification}
                   type="button"
-                  title={classificationMeaning(classification)}
                   aria-pressed={
                     typeof effectiveView === "object" &&
                     effectiveView.classification === classification
@@ -315,14 +314,6 @@ function FindingCard({ finding, onChanged }: { finding: Finding; onChanged: () =
         <span className="ws-chip">{finding.status}</span>
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
-      <p className="ws-finding__meaning">
-        {classificationMeaning(finding.classification)}{" "}
-        {finding.requires_decision ? (
-          <strong className="ws-finding__action">Needs your decision.</strong>
-        ) : (
-          "No action needed."
-        )}
-      </p>
       <p className="ws-finding__note">
         Classification is a derived summary — the Evaluations below are the authoritative results.
       </p>

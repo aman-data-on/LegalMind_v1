@@ -349,7 +349,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             <p>
               Processing status is <span className="ws-mono">{version.processing_status}</span>.
               {canOriginal
-                ? " The original document is already viewable in the Original tab; the extracted text, document structure and analysis appear here when recovery completes."
+                ? " The original document is already viewable in the Original tab; the extracted text, clause outline and analysis appear here when recovery completes."
                 : " The text appears here once extraction completes."}
             </p>
           </div>
@@ -391,24 +391,17 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
       <div className="ws-doc">
         {/* ------------------------------------------------ clauses column */}
         <div className="ws-doc__clauses">
-          <nav className="ws-card ws-outline" aria-label="Document structure">
-            <p className="ws-outline__title">Document structure</p>
+          <nav className="ws-card ws-outline" aria-label="Document outline">
+            <p className="ws-outline__title">Clauses</p>
             <label className="ws-outline__search">
               <IconSearch size={14} />
-              <span className="ws-visually-hidden">Search document structure</span>
+              <span className="ws-visually-hidden">Search clauses</span>
               <input
                 value={clauseQuery}
                 onChange={(event) => setClauseQuery(event.target.value)}
-                placeholder="Search"
+                placeholder="Search clauses"
               />
             </label>
-            {outline.length > 0 ? (
-              <p className="ws-outline__caveat">
-                Only sections the document itself numbers appear here — a gap
-                means this document didn't number that passage, not that
-                content is missing.
-              </p>
-            ) : null}
             <div className="ws-outline__list">
               {shownOutline.map((row) => {
                 const status = clauseStatus.get(row.id);
@@ -425,7 +418,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   >
                     <span className="ws-outline__label">
                       {sectionRef(row.section_number) ? <span className="ws-mono">{sectionRef(row.section_number)}</span> : null}
-                      {row.section_title ?? (row.section_number ? "" : "Untitled section")}
+                      {row.section_title ?? (row.section_number ? "" : "Untitled clause")}
                     </span>
                     {status ? <StatusIcon bucket={status.bucket} /> : null}
                   </button>
@@ -435,11 +428,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 <p className="ws-pane__note" style={{ padding: "0 12px" }}>
                   {rows.length === 0 && documentTextState(version) === "processing"
                     ? "The outline appears when text extraction completes."
-                    : "No numbered sections were detected in this document."}
+                    : "No clause numbering was detected."}
                 </p>
               ) : shownOutline.length === 0 ? (
                 <p className="ws-pane__note" style={{ padding: "0 12px" }} role="status">
-                  Nothing matches that search.
+                  No clause matches that search.
                 </p>
               ) : null}
             </div>

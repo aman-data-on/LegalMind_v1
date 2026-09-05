@@ -349,10 +349,6 @@
 }
 .ws-outline__search:focus-within { border-color: var(--ws-accent); background: var(--ws-surface); }
 .ws-outline__search input { border: 0; background: transparent; font: inherit; font-size: var(--ws-text-sm); min-width: 0; flex: 1; outline: none; }
-.ws-outline__caveat {
-  font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4;
-  margin: 0 var(--ws-s3) var(--ws-s2); padding: 0 var(--ws-s1);
-}
 .ws-outline__list { overflow-y: auto; min-height: 0; flex: 1; padding-bottom: var(--ws-s2); }
 .ws-outline__list button {
   display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ws-s2);
@@ -619,8 +615,6 @@
 .ws-finding__head { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; margin-bottom: var(--ws-s2); }
 .ws-finding__title { font-size: var(--ws-text-sm); font-weight: 600; margin: 0; flex: 1; min-width: 0; }
 .ws-finding__note { font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin: 0 0 var(--ws-s3); }
-.ws-finding__meaning { font-size: var(--ws-text-sm); color: var(--ws-ink-700); margin: 0 0 var(--ws-s2); }
-.ws-finding__action { color: var(--ws-outcome); }
 
 .ws-chip--fill { border: 1px solid transparent; font-weight: 600; }
 .ws-chip--classify-fill { background: var(--ws-classify-soft); color: var(--ws-classify); border-color: color-mix(in srgb, var(--ws-classify) 28%, transparent); }

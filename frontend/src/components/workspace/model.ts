@@ -148,28 +148,6 @@ export const CLASSIFICATION_ORDER = [
 
 const COUNT_ORDER = CLASSIFICATION_ORDER;
 
-/**
- * Plain-language meaning of each classification, verbatim from the locked
- * Step 36 vocabulary (docs/02-legal-domain/FINDING_CLASSIFICATION.md) —
- * condensed for a one-line read, not reworded into a different claim. Never
- * add a "next action" here: whether a finding needs a decision is
- * `requires_decision`, a separate server-derived field (Rule Outcome axis),
- * and must never be inferred from classification alone (45B.14).
- */
-const CLASSIFICATION_MEANING: Record<string, string> = {
-  MATCH: "Matches the company standard.",
-  DEVIATION: "Differs from the company standard.",
-  MISSING: "Expected for this document type, but not found.",
-  CONFLICT: "Two provisions in this document contradict each other.",
-  AMBIGUOUS: "A provision exists, but its position can't be determined automatically.",
-  UNRESOLVED: "Evaluation can't complete — information or an action is missing.",
-  UNABLE_TO_EVALUATE: "The evidence isn't reliable enough to compare.",
-};
-
-export function classificationMeaning(classification: string): string {
-  return CLASSIFICATION_MEANING[classification] ?? "";
-}
-
 export type AnalysisCell =
   | { kind: "none" }        // no document uploaded yet
   | { kind: "processing" }
