@@ -17,7 +17,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import permissions as P
 from legalmind.security.errors import Forbidden
-from legalmind.security.resolver import effective_permissions
+from legalmind.security.resolver import effective_permissions, role_permissions
 
 # Locked S-8 names the permissions the escalation guard applies to, verbatim:
 # "applied to `legal.decision`, `legal.approve_customization`, `role.manage` and
@@ -40,7 +40,7 @@ ESCALATION_GUARDED_PERMISSIONS: frozenset[str] = frozenset({
 def require_can_grant_role(db: DBSession, actor_id: UUID, role_id: UUID) -> None:
     """S-8 — a user may not grant an authority they do not themselves hold."""
     actor = effective_permissions(db, actor_id)
-    target = _role_permissions(db, role_id) & ESCALATION_GUARDED_PERMISSIONS
+    target = role_permissions(db, role_id) & ESCALATION_GUARDED_PERMISSIONS
     escalation = target - actor
     if escalation:
         raise Forbidden(
@@ -149,11 +149,3 @@ def assert_administrative_authority_preserved(db: DBSession,
             "or roles"
         )
 
-
-def _role_permissions(db: DBSession, role_id: UUID) -> frozenset[str]:
-    rows = db.execute(
-        select(M.Permission.name)
-        .join(M.RolePermission, M.RolePermission.permission_id == M.Permission.id)
-        .where(M.RolePermission.role_id == role_id)
-    ).scalars().all()
-    return frozenset(rows)

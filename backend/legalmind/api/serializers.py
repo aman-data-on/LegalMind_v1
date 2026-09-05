@@ -212,6 +212,9 @@ def serialize_contract(c: M.Contract) -> dict[str, Any]:
         "name": c.name,
         "contract_type": c.contract_type,
         "status": c.status.value,
+        # AB-12 r6 — set means read-only and out of the working lists; never a
+        # sixth ContractStatus value.
+        "archived_at": _iso(c.archived_at),
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
     }
@@ -377,6 +380,16 @@ def serialize_audit_event(e: M.AuditEvent, *,
 # ==========================================================================
 # Identity & access
 # ==========================================================================
+def serialize_department(d: M.Department | None) -> dict[str, Any] | None:
+    if d is None:
+        return None
+    return {"id": str(d.id), "code": d.code, "name": d.name}
+
+
+def _department_of(db: DBSession, u: M.User) -> M.Department | None:
+    return db.get(M.Department, u.department_id) if u.department_id else None
+
+
 def serialize_user(db: DBSession, u: M.User) -> dict[str, Any]:
     """S-4 — no endpoint returns credential material. ``user_identities`` is not
     joined here at all, so ``credential_hash`` is not merely filtered out of the
@@ -393,6 +406,8 @@ def serialize_user(db: DBSession, u: M.User) -> dict[str, Any]:
         "name": u.name,
         "status": u.status.value,
         "roles": list(roles),
+        # AB-12 r3 — the boundary a Department Lead's scope is bounded by.
+        "department": serialize_department(_department_of(db, u)),
         "created_at": _iso(u.created_at),
     }
 
@@ -409,6 +424,11 @@ def serialize_role(db: DBSession, r: M.Role) -> dict[str, Any]:
         "id": str(r.id),
         "code": r.code,
         "name": r.name,
+        # AB-12 r10 — what KIND of role this is, so a screen can say "Department
+        # Lead" and keep the retained legal roles out of the everyday picker
+        # without anyone decoding a code. Roles created through the API are
+        # "custom".
+        "tier": P.ROLE_TIERS.get(r.code, "custom"),
         "permissions": list(perms),
         # Makes the SEC-02/ROLE-05 boundary visible to an administrator without
         # them having to know which names are special.
@@ -431,4 +451,8 @@ def serialize_session_identity(db: DBSession, u: M.User) -> dict[str, Any]:
         "name": u.name,
         "status": u.status.value,
         "permissions": sorted(effective_permissions(db, u.id)),
+        # AB-12 r3 — presentation only, like `permissions`: lets the UI say
+        # "Department deals" for the right department, or explain that the
+        # account is in none yet. The server scopes every query on its own.
+        "department": serialize_department(_department_of(db, u)),
     }

@@ -26,12 +26,17 @@ AUTH_SESSION_REVOKED = "auth.session_revoked"
 # Authorization
 AUTHZ_PERMISSION_DENIED = "authz.permission_denied"
 AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"
-#: A Legal reviewer read a Contract they do not own, through `REC-09` Legal scope
-#: (owner ruling 2026-09-04). Recorded because it is a disclosure of one user's
-#: document to another: the access is authorized, and it is also exactly the kind
-#: of access an auditor should be able to enumerate afterwards. Ownership reads
-#: are NOT recorded — an owner reading their own contract is not a disclosure and
-#: logging every such GET would bury the ones that matter.
+#: Somebody read a Contract they do not own. Recorded because it is a disclosure
+#: of one user's document to another: the access is authorized, and it is also
+#: exactly the kind of access an auditor should be able to enumerate afterwards.
+#: Ownership reads are NOT recorded — an owner reading their own contract is not
+#: a disclosure and logging every such GET would bury the ones that matter.
+#: One action per basis, so "which rule let them in" is a query, not a guess:
+#:   department scope  — a Department Lead reading a deal in their department
+#:                       (AB-12 r3; also how any break-glass read shows up)
+#:   legal scope       — `REC-09` (owner ruling 2026-09-04), retained for the
+#:                       future legal workflow
+CONTRACT_READ_VIA_DEPARTMENT_SCOPE = "contract.read_via_department_scope"
 CONTRACT_READ_VIA_LEGAL_SCOPE = "contract.read_via_legal_scope"
 # Analysis
 ANALYSIS_RUN_RECORDED = "analysis.run_recorded"
@@ -61,15 +66,18 @@ ASSIST_GENERATION_CALLED = "assist.generation_called"
 # what it proposed — the human confirmation that later records a type is a
 # separate, ordinary contract update. Hash only, never the payload (AM-30 t5).
 ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
-# Contract deletion (owner approval 2026-09-01, closing the gap AM-31 left
-# open). Two actions, not one, because the two modes are genuinely different
-# events: a soft delete hides a contract whose findings and history remain
-# queryable, a hard delete destroys a contract that was never analyzed. The
-# audit entry outlives the row in both cases — it is append-only (AUD-01), so
-# even a hard delete leaves a record that it happened and who did it.
-CONTRACT_SOFT_DELETED = "contract.soft_deleted"
-CONTRACT_HARD_DELETED = "contract.hard_deleted"
+# Contract lifecycle beyond the locked ContractStatus axis — AB-12 (2026-09-05).
+# Archive replaces AM-37's two-mode delete: nothing is destroyed any more, so
+# there is one action and its mirror. Rows written under the withdrawn actions
+# (`contract.soft_deleted`, `contract.hard_deleted`) stay in the trail as they
+# are — AUD-01, append-only.
+CONTRACT_ARCHIVED = "contract.archived"
+CONTRACT_RESTORED = "contract.restored"
+# Ownership transfer (AB-12 r5). before_state/after_state carry the previous and
+# the new owner; the reason travels in after_state. The actor is the Lead.
+CONTRACT_OWNERSHIP_TRANSFERRED = "contract.ownership_transferred"
 # Administration
+ADMIN_DEPARTMENT_CREATED = "admin.department_created"
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"
 ADMIN_LEGAL_AUTHORITY_GRANTED = "admin.legal_authority_granted"

@@ -43,8 +43,11 @@ not complete, and it is blocked on you** rather than on engineering:
 12 Deployment (Step 55)         IMPLEMENTED · TESTED   as far as the specification allows
 ```
 
-Measured surface: **29 tables · 39 mapped endpoints · 27 permissions** — each unchanged
-from what the locked specification fixes, with no addition.
+Measured surface: **30 tables · 61 operations in the frozen OpenAPI contract · 30
+permissions** as of 2026-09-05 (AB-12 — the RBAC redesign: `departments`,
+`department.view`, `contract.transfer`, `contract.archive`; see
+[docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md)). *Earlier:* 29 tables ·
+39 mapped endpoints · 27 permissions.
 
 **Nothing is `VERIFIED` and nothing is production-ready.** `TESTED` means automated tests
 exist and pass; §3 says exactly what that does and does not establish.
@@ -128,13 +131,15 @@ Stated as limitations, not as work in progress.
 | | |
 |---|---|
 | **No normative conformance** | 0 `NORMATIVE` fixtures. 15 of the 64 specified cases are authored and 4 partly, but every case needing an **acceptance policy** is blocked; 54.7's release gate cannot be met until they exist. Per-case status: `backend/tests/corpus_coverage.json` |
-| **Every deviation needs a Legal Decision** | A consequence of there being no Legal Rule, not a defect. `UNRULED_DEVIATION_REQUIRES_DECISION` routes `DEVIATION` + `NOT_APPLICABLE` to `DECISION_REQUIRED`, so a Review holding any deviation cannot complete until Legal rules. Expect real review workload before a Legal Rule exists |
+| **Every deviation is FLAGGED, and nobody inside LegalMind decides it (AB-12 r9, 2026-09-05)** | The owner's initial workflow: a Review holding a deviation reaches `LEGAL_REVIEW` and stays there; `legal.decision` is held by nobody. Granting `LEGAL_DECISION_AUTHORITY` to the Lead later needs no amendment. `decision.outstanding_age` will report the open Reviews — expected, not a fault |
+| **AB-12 is LOCAL ONLY — the live database is not migrated and the API not restarted** | The live `legalmind-api.service` imports from this working tree; a restart before `alembic upgrade head` on `legalmind_v1_dev` loads `archived_at` against a schema without it. **Order: migrate → restart API → deploy frontend.** After it, an administrator must create a department and place the Lead and the users in it, or the Lead sees only their own deals |
+| **Every deviation needs a Legal Decision** *(pre-AB-12 wording)* | A consequence of there being no Legal Rule, not a defect. `UNRULED_DEVIATION_REQUIRES_DECISION` routes `DEVIATION` + `NOT_APPLICABLE` to `DECISION_REQUIRED`, so a Review holding any deviation cannot complete until Legal rules. Expect real review workload before a Legal Rule exists |
 | **No calibration** | Mapping weights and `confirm_threshold` are uncalibrated; locked 35.10 requires validation against a representative contract set. Every threshold in the tree today is `STRUCTURAL` |
 | **`MappingState.AMBIGUOUS` is never produced** | A consequence of your `M-2` decision, recorded rather than hidden. Cross-Requirement ambiguity detection is unimplemented and no producer was invented |
 | **OIDC is not implemented** | Locked 47.1.3 makes it primary; only the password fallback exists. Needs an approved JWT/JWKS dependency and provider configuration |
 | **Export is not implemented** | Locked 49.12 records export formats as NOT YET SPECIFIED, so the route is absent rather than dishonest |
 | **Legal loses sight of a Review at resolution** | Under `REC-09`, a resolved Review with no active escalation leaves Legal scope — so the reviewer who just decided can no longer see it. Faithful to Step 24 r18, pinned by two tests, and a candidate for a further narrow decision (§6) |
-| **Legal cannot reach Contracts or Documents** | `REC-09` governs Reviews, Findings and Evaluations. Whether Legal scope extends to the underlying Contract or to downloading the original document is explicitly not decided |
+| **Legal cannot reach Contracts or Documents** *(superseded 2026-09-04 by the owner ruling and 2026-09-05 by AB-12: a Department Lead reads every deal in their department; Legal scope is retained for a future workflow)* | `REC-09` governs Reviews, Findings and Evaluations. Whether Legal scope extends to the underlying Contract or to downloading the original document is explicitly not decided |
 | **Per-user Legal assignment does not exist** | `G1`, deferred to V2 by `REC-09`. `review_assignments` stays ratified and unpopulated |
 | **Analysis is inline unless a broker is configured** | Correct behaviour, and the preflight fails a production deployment configured that way rather than letting it pass |
 | **Rate limiting is in-process** | Correct for one worker. A multi-worker deployment needs the shared Redis, and 55.2 also requires limiting at the edge |

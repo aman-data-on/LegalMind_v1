@@ -33,11 +33,11 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { api, describeError } from "@/lib/api";
+import { api, describeError, type ContractScope } from "@/lib/api";
 import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Contract, ContractsSummary, Pagination } from "@/lib/types";
+import type { Contract, ContractsSummary, DepartmentMembers, Pagination } from "@/lib/types";
 
 import {
   documentStatusBucket,
@@ -137,7 +137,7 @@ function StatTile({
 }
 
 function DocumentsListView() {
-  const { can } = useSession();
+  const { can, identity } = useSession();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [summary, setSummary] = useState<ContractsSummary | null>(null);
@@ -147,6 +147,12 @@ function DocumentsListView() {
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "">("");
   const [sort, setSort] = useState("created_desc");
+  /** AB-12 r3 — "My deals" is every account's default; "Department deals" exists
+   *  only for a holder of `department.view`, and the server scopes the query on
+   *  its own either way. */
+  const [scope, setScope] = useState<ContractScope>("own");
+  /** AB-12 r6 — the shelf, kept apart from the working list. */
+  const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   /** The row whose action menu is open, and the row being edited or deleted.
@@ -165,7 +171,8 @@ function DocumentsListView() {
     top?: number; bottom?: number; right: number; minWidth: number;
   } | null>(null);
   const [editing, setEditing] = useState<Contract | null>(null);
-  const [deleting, setDeleting] = useState<Contract | null>(null);
+  const [archiving, setArchiving] = useState<Contract | null>(null);
+  const [transferring, setTransferring] = useState<Contract | null>(null);
 
   function closeMenu() {
     setMenuFor(null);
@@ -208,7 +215,7 @@ function DocumentsListView() {
   function openMenu(id: string, toggle: HTMLElement) {
     const rect = toggle.getBoundingClientRect();
     const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
-    const estimatedHeight = 96; // up to two items (Edit, Delete) plus padding
+    const estimatedHeight = 132; // up to three items (Edit, Transfer, Archive) plus padding
     const opensAbove = window.innerHeight - rect.bottom < estimatedHeight + 8;
     setMenuPos({
       right: window.innerWidth - rect.right,
@@ -228,13 +235,15 @@ function DocumentsListView() {
         contract_type: typeFilter || undefined,
         status: statusFilter || undefined,
         sort,
+        scope,
+        archived: showArchived || undefined,
       });
       setContracts(result.items);
       setPagination(result.pagination);
     } catch (cause) {
       setError(cause);
     }
-  }, [page, q, typeFilter, statusFilter, sort]);
+  }, [page, q, typeFilter, statusFilter, sort, scope, showArchived]);
 
   useEffect(() => {
     void load();
@@ -245,7 +254,7 @@ function DocumentsListView() {
   // the list itself reloads (e.g. right after an upload lands).
   useEffect(() => {
     let cancelled = false;
-    api.contractsSummary().then((s) => {
+    api.contractsSummary(scope).then((s) => {
       if (!cancelled) setSummary(s);
     }).catch(() => {
       // The stat row is a convenience; the table still works without it.
@@ -253,7 +262,7 @@ function DocumentsListView() {
     return () => {
       cancelled = true;
     };
-  }, [contracts]);
+  }, [contracts, scope]);
 
   // Debounce the search box so every keystroke doesn't fire a request.
   useEffect(() => {
@@ -311,7 +320,12 @@ function DocumentsListView() {
 
   const canUpload = can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD);
   const canEdit = can(P.CONTRACT_UPDATE);
-  const canDelete = can(P.CONTRACT_DELETE);
+  const canArchive = can(P.CONTRACT_ARCHIVE);
+  const canTransfer = can(P.CONTRACT_TRANSFER);
+  const canSeeDepartment = can(P.DEPARTMENT_VIEW);
+  /** Writes are owner-only server-side (AB-12): a Lead reading a colleague's
+   *  deal is not offered Edit/Archive on it — Transfer is how they take it on. */
+  const isMine = (contract: Contract) => contract.owner_id === identity?.user_id;
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
     && !q && !typeFilter && !statusFilter;
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
@@ -323,9 +337,9 @@ function DocumentsListView() {
     setPage(1);
   }
 
-  /** Both mutations refetch rather than editing local state: the server owns
-   *  the row, and a soft delete in particular changes what the summary counts
-   *  say. A spliced array would drift from both. */
+  /** Every mutation refetches rather than editing local state: the server owns
+   *  the row, and an archive or a transfer in particular changes what the
+   *  summary counts say. A spliced array would drift from both. */
   async function refresh() {
     closeMenu();
     await load();
@@ -383,6 +397,26 @@ function DocumentsListView() {
           <section id="ws-upload-panel" className="ws-dash__upload">
             <UploadContract firstRun={!!firstRun} />
           </section>
+        ) : null}
+
+        {canSeeDepartment ? (
+          <div className="ws-tabs" role="tablist" aria-label="Which deals">
+            <button type="button" role="tab" aria-selected={scope === "own"}
+                    className={`ws-tab ${scope === "own" ? "ws-tab--active" : ""}`}
+                    onClick={() => { setScope("own"); setPage(1); }}>
+              My deals
+            </button>
+            <button type="button" role="tab" aria-selected={scope === "department"}
+                    className={`ws-tab ${scope === "department" ? "ws-tab--active" : ""}`}
+                    onClick={() => { setScope("department"); setPage(1); }}>
+              Department deals{identity?.department ? ` · ${identity.department.name}` : ""}
+            </button>
+          </div>
+        ) : null}
+        {canSeeDepartment && scope === "department" && !identity?.department ? (
+          <p className="ws-pane__note" role="note">
+            Your account is not in a department yet, so this view is empty until an administrator places you in one.
+          </p>
         ) : null}
 
         {summary ? (
@@ -467,6 +501,14 @@ function DocumentsListView() {
             </select>
           </label>
           <label className="ws-doctoolbar__select">
+            <span className="ws-visually-hidden">Active or archived</span>
+            <select value={showArchived ? "archived" : "active"}
+                    onChange={(event) => { setShowArchived(event.target.value === "archived"); setPage(1); }}>
+              <option value="active">Show: Active</option>
+              <option value="archived">Show: Archived</option>
+            </select>
+          </label>
+          <label className="ws-doctoolbar__select">
             <span className="ws-visually-hidden">Sort</span>
             <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
               <option value="created_desc">Sort: Recently Added</option>
@@ -524,6 +566,12 @@ function DocumentsListView() {
                           <IconFile size={15} />
                           <span className="ws-doc-name__text">{contract.name}</span>
                         </Link>
+                        {scope === "department" && contract.owner_name ? (
+                          <div className="ws-pane__note">{contract.owner_name}</div>
+                        ) : null}
+                        {contract.archived_at ? (
+                          <div className="ws-pane__note">Archived {contract.archived_at.slice(0, 10)}</div>
+                        ) : null}
                       </td>
                       <td>
                         {contract.contract_type ? (
@@ -557,7 +605,7 @@ function DocumentsListView() {
                               the account does not carry; hiding it says the
                               truth. The server re-checks regardless — this
                               gating is presentation only (47.6). */}
-                          {canEdit || canDelete ? (
+                          {(canEdit && isMine(contract)) || (canArchive && isMine(contract)) || canTransfer ? (
                             <div className="ws-menu">
                               <button
                                 type="button"
@@ -584,7 +632,7 @@ function DocumentsListView() {
                                       minWidth: menuPos.minWidth,
                                     }}
                                   >
-                                    {canEdit ? (
+                                    {canEdit && isMine(contract) && !contract.archived_at ? (
                                       <button type="button" role="menuitem"
                                               className="ws-menu__item"
                                               onClick={() => {
@@ -594,14 +642,34 @@ function DocumentsListView() {
                                         Edit details
                                       </button>
                                     ) : null}
-                                    {canDelete ? (
+                                    {canTransfer && !contract.archived_at ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item"
+                                              onClick={() => {
+                                                closeMenu();
+                                                setTransferring(contract);
+                                              }}>
+                                        Transfer ownership
+                                      </button>
+                                    ) : null}
+                                    {canArchive && isMine(contract) && !contract.archived_at ? (
                                       <button type="button" role="menuitem"
                                               className="ws-menu__item ws-menu__item--bad"
                                               onClick={() => {
                                                 closeMenu();
-                                                setDeleting(contract);
+                                                setArchiving(contract);
                                               }}>
-                                        Delete
+                                        Archive
+                                      </button>
+                                    ) : null}
+                                    {canArchive && isMine(contract) && contract.archived_at ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item"
+                                              onClick={() => {
+                                                closeMenu();
+                                                void api.restoreContract(contract.id).then(refresh).catch(setError);
+                                              }}>
+                                        Restore
                                       </button>
                                     ) : null}
                                   </div>,
@@ -743,11 +811,18 @@ function DocumentsListView() {
         />
       ) : null}
 
-      {deleting ? (
-        <DeleteContractDialog
-          contract={deleting}
-          onClose={() => setDeleting(null)}
-          onDeleted={() => { setDeleting(null); void refresh(); }}
+      {archiving ? (
+        <ArchiveContractDialog
+          contract={archiving}
+          onClose={() => setArchiving(null)}
+          onArchived={() => { setArchiving(null); void refresh(); }}
+        />
+      ) : null}
+      {transferring ? (
+        <TransferContractDialog
+          contract={transferring}
+          onClose={() => setTransferring(null)}
+          onTransferred={() => { setTransferring(null); void refresh(); }}
         />
       ) : null}
     </>
@@ -843,18 +918,17 @@ function EditContractDialog({
 }
 
 /**
- * Delete confirmation — the one modal shape DESIGN.md names outright, because a
- * destructive act is a genuine interruption.
+ * Archive confirmation — the one modal shape DESIGN.md names outright, because
+ * taking a deal off the working list is a genuine interruption.
  *
- * The copy differs by whether the contract has been analyzed, because the
- * server's behaviour differs: an unanalyzed contract is destroyed, an analyzed
- * one is withdrawn from view while its findings and audit trail are kept
- * (rule 17). Saying "permanently deleted" in both cases would be a lie in one
- * of them, and it is the case involving legal records.
+ * One message, always true (AB-12 r6): nothing is destroyed. The document, its
+ * versions, findings and audit trail stay; the contract becomes read-only and
+ * leaves the active list, and can be restored. There is no branch on whether
+ * the contract was analysed, because the server no longer has one either.
  */
-function DeleteContractDialog({
-  contract, onClose, onDeleted,
-}: { contract: Contract; onClose: () => void; onDeleted: () => void }) {
+function ArchiveContractDialog({
+  contract, onClose, onArchived,
+}: { contract: Contract; onClose: () => void; onArchived: () => void }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -867,17 +941,12 @@ function DeleteContractDialog({
     return () => restoreRef.current?.focus();
   }, []);
 
-  // Analyzed exactly as the row's own status reports it — not a second opinion
-  // computed here (52.7). Whether the server hard- or soft-deletes follows the
-  // same fact, so the warning and the outcome cannot disagree.
-  const analyzed = contract.latest_analysis != null;
-
   async function confirm() {
     setBusy(true);
     setError(null);
     try {
-      await api.deleteContract(contract.id);
-      onDeleted();
+      await api.archiveContract(contract.id);
+      onArchived();
     } catch (cause) {
       setError(cause);
       setBusy(false);
@@ -889,19 +958,18 @@ function DeleteContractDialog({
       if (e.target === e.currentTarget) onClose();
     }}>
       <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
-           aria-labelledby="ws-del-title" tabIndex={-1}
+           aria-labelledby="ws-arc-title" tabIndex={-1}
            onKeyDown={(e) => {
              if (e.key === "Escape") onClose();
              e.stopPropagation();
            }}>
-        <h2 id="ws-del-title">Delete this contract?</h2>
+        <h2 id="ws-arc-title">Archive this contract?</h2>
         <p className="ws-modal__body">
           <strong>{contract.name}</strong>
         </p>
         <p className="ws-modal__body">
-          {analyzed
-            ? "It has an analysis on record, so it will be removed from your workspace while its findings, decisions and audit history are retained."
-            : "It has not been analyzed, so the contract and the file you uploaded will be permanently removed."}
+          It leaves your active deals and becomes read-only. The document, every version, the findings and
+          the history are kept, and you can restore it from the archived view at any time.
         </p>
         {error ? (
           <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -910,7 +978,103 @@ function DeleteContractDialog({
           <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
           <button type="button" className="ws-btn ws-btn--bad"
                   disabled={busy} onClick={() => void confirm()}>
-            {busy ? "Deleting…" : "Delete"}
+            {busy ? "Archiving…" : "Archive"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ownership transfer — AB-12 r5. The Department Lead's coverage tool: a deal
+ * moves to a colleague in the same department, with a reason the audit trail
+ * keeps. The server decides who is eligible (`/departments/mine/members`) and
+ * enforces the boundary again on submit; this dialog only collects the choice.
+ */
+function TransferContractDialog({
+  contract, onClose, onTransferred,
+}: { contract: Contract; onClose: () => void; onTransferred: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const [members, setMembers] = useState<DepartmentMembers | null>(null);
+  const [newOwnerId, setNewOwnerId] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    api.departmentMembers().then(setMembers).catch(setError);
+  }, []);
+
+  const eligible = (members?.members ?? []).filter((m) => m.id !== contract.owner_id);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.transferContract(contract.id, newOwnerId, reason.trim());
+      onTransferred();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-xfer-title" tabIndex={-1}
+           onKeyDown={(e) => {
+             if (e.key === "Escape") onClose();
+             e.stopPropagation();
+           }}>
+        <h2 id="ws-xfer-title">Transfer this contract?</h2>
+        <p className="ws-modal__body">
+          <strong>{contract.name}</strong>
+          {contract.owner_name ? <> — currently with {contract.owner_name}</> : null}
+        </p>
+        <p className="ws-modal__body">
+          The new owner takes over the document, its versions, findings and history. Private questions the
+          previous owner asked stay theirs.
+        </p>
+        {members && members.department === null ? (
+          <p className="ws-field__error" role="alert">
+            Your account is not in a department, so there is nobody to transfer to.
+          </p>
+        ) : null}
+        <label className="ws-field">
+          <span className="ws-field__label">New owner</span>
+          <select value={newOwnerId} onChange={(e) => setNewOwnerId(e.target.value)}
+                  disabled={busy || !members}>
+            <option value="">Choose a colleague…</option>
+            {eligible.map((m) => (
+              <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+            ))}
+          </select>
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Reason <span className="ws-field__req">(required)</span></span>
+          <input value={reason} onChange={(e) => setReason(e.target.value)}
+                 placeholder="e.g. Aman is on leave for two weeks" disabled={busy} />
+        </label>
+        {error ? (
+          <p className="ws-field__error" role="alert">{describeError(error)}</p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="ws-btn ws-btn--primary"
+                  disabled={busy || !newOwnerId || !reason.trim()} onClick={() => void confirm()}>
+            {busy ? "Transferring…" : "Transfer"}
           </button>
         </div>
       </div>

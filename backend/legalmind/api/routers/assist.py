@@ -28,6 +28,7 @@ from legalmind.assist import obligations, service, type_suggestion
 from legalmind.assist.chunking import leading_section_ref
 from legalmind.db import models as M
 from legalmind.security import permissions as P
+from legalmind.security.authorization import can_read_contract
 from legalmind.security.errors import NotVisible
 
 router = APIRouter(tags=["assist"])
@@ -77,7 +78,7 @@ def _asked_document_version(guard: Guard, contract_id: UUID,
     except ValueError as exc:
         raise BusinessRuleRejected(
             "document_version_id is not a valid identifier") from exc
-    version = guard.document_version(version_id, P.ASSIST_ASK)
+    version = guard.document_version_readable(version_id, P.ASSIST_ASK)
     if version.contract_id != contract_id:
         # Not a 404: the caller can see this version, it simply is not part of the
         # conversation they are asking in. Answering across contracts would let one
@@ -166,8 +167,9 @@ def create_conversation(body: ConversationCreate,
     contract_id = None
     if body.contract_id is not None:
         # Visibility before anything else: asking about a contract requires being
-        # able to see it, resolved by the existing Guard chain.
-        contract = guard.contract(UUID(body.contract_id), P.ASSIST_ASK)
+        # able to READ it — owner or department scope (AB-12 r3). The
+        # conversation itself belongs to the asker alone (r8).
+        contract = guard.contract_readable(UUID(body.contract_id), P.ASSIST_ASK)
         contract_id = contract.id
     conversation_id = service.create_conversation(
         guard.db, user_id=guard.user_id, contract_id=contract_id)
@@ -226,11 +228,10 @@ def list_conversations(guard: Guard = Depends(get_guard),
         "first_question": r[4],
         "document_name": (names[r[1]].name if r[1] and r[1] in names else None),
         # Whether the workspace this row links to will open for THIS caller —
-        # the same rule `require_contract_visible` applies (owned, not deleted).
+        # the same READ rule the workspace itself applies (`can_read_contract`).
         "document_accessible": bool(
             r[1] and r[1] in names
-            and names[r[1]].owner_id == guard.user_id
-            and names[r[1]].deleted_at is None),
+            and can_read_contract(guard.db, guard.user_id, names[r[1]])),
     } for r in rows], page=page.page, page_size=page.page_size, total=total)
 
 
@@ -338,9 +339,10 @@ def ask(conversation_id: UUID, body: AskRequest,
             "is not available yet")
 
     # The full existing authorization chain for the underlying document — the same
-    # resolver every other document read goes through (AM-25 r6: server-side, before
-    # retrieval).
-    guard.contract(conversation["contract_id"], P.ASSIST_ASK)
+    # READ resolver every other document read goes through (AM-25 r6: server-side,
+    # before retrieval). A previous owner who kept the conversation can still read
+    # it; they can no longer ask new questions about a contract they lost scope on.
+    guard.contract_readable(conversation["contract_id"], P.ASSIST_ASK)
     version = _asked_document_version(guard, conversation["contract_id"],
                                       body.document_version_id)
 

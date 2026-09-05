@@ -135,10 +135,10 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(items.map((i) => i.href)).toContain("/dashboard/configuration");
   });
 
-  it("a super admin sees Admin — the new-UI control plane — and nothing legacy", () => {
+  it("a platform admin sees Administration — the new-UI control plane — and nothing legacy", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
     expect(navItemsFor((p) => admin.has(p))).toEqual([
-      { href: "/dashboard/admin", label: "Admin" },
+      { href: "/dashboard/admin", label: "Administration" },
     ]);
   });
 

@@ -11,8 +11,8 @@ import { SNAPSHOT_PATH, fixture, signIn, storageStatePath } from "./support";
  * Both halves exist because the locked design pushed back on the first draft of this
  * suite, and the harness was wrong rather than the product:
  *
- * 1. **Authoring configuration is a `LEGAL_ADMIN` act.** `configuration.draft` and
- *    `configuration.publish` belong to `LEGAL_ADMIN` under Step 23; `USER` and
+ * 1. **Authoring configuration is a `DEPARTMENT_LEAD` act.** `configuration.draft` and
+ *    `configuration.publish` belong to `DEPARTMENT_LEAD` under Step 23; `USER` and
  *    `LEGAL_REVIEWER` hold neither. Every spec initially tried to publish as itself
  *    and was correctly refused with 403. Publishing is also **global** (Step 29
  *    activates Requirements and pins the latest version of every ACTIVE one), so doing

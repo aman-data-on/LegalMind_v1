@@ -817,9 +817,10 @@ def test_analyze_requires_the_permission(api, db, storage, seeded):
     _, review = _api_case(api, db, storage)
     narrow = make_user(db)
     grant(db, narrow, bespoke_role(db, "VIEW_ONLY_REVIEWS", ["review.view"]))
-    # Visible via ownership transfer of the Review to this user, so the refusal is a
-    # 403 about the operation rather than a 404 about the object (47.7).
-    review.created_by = narrow.id
+    # Visible via ownership of the CONTRACT (AB-12: a Review follows its contract),
+    # so the refusal is a 403 about the operation rather than a 404 about the
+    # object (47.7).
+    db.get(M.Contract, review.contract_id).owner_id = narrow.id
     db.flush()
     sign_in(api, db, narrow)
 

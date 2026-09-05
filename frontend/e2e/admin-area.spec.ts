@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { storageStatePath } from "./support";
 
-// The control plane's own account: SUPER_ADMIN + LEGAL_ADMIN + USER — and,
+// The control plane's own account: PLATFORM_ADMIN + DEPARTMENT_LEAD + USER — and,
 // deliberately, no legal authority (Step 23; SEC-02).
 test.use({ storageState: storageStatePath("admin") });
 
@@ -39,7 +39,7 @@ test.describe("users & roles", () => {
     // Grant USER: the chip appears and the empty-roles note goes.
     await row.getByLabel(`Role to grant to ${email}`).selectOption("USER");
     await row.getByRole("button", { name: "Grant" }).click();
-    await expect(row.locator(".ws-rolechip")).toContainText("USER");
+    await expect(row.locator(".ws-rolechip")).toContainText("Department User");
     await expect(row).not.toContainText("no roles — cannot act yet");
 
     // Revoke it again — the accessible name carries exactly what the × does.

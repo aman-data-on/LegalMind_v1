@@ -158,10 +158,11 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
    * Adopted here 2026-09-04; the capability is unchanged.
    */
   if (can(P.CONFIGURATION_VIEW)) {
-    items.push({ href: "/dashboard/configuration", label: "Legal configuration" });
+    // "Standards" — AB-12 §18: the Department Lead's word for it, not ours.
+    items.push({ href: "/dashboard/configuration", label: "Standards" });
   }
   // The control plane sits last — it is not part of the legal workflow (§H).
-  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Admin" });
+  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Administration" });
   /*
    * Research is deliberately ABSENT. Its screen exists and says so honestly
    * ("Statute research isn't available yet"), but statute intake is an open

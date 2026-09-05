@@ -46,7 +46,7 @@ from legalmind.db.base import Base
 # --------------------------------------------------------------------------
 # The snapshot. 29 application tables, 196 columns.
 #
-# 196, not the originally locked 195: `contracts.deleted_at` was added on
+# 196, not the originally locked 195: `contracts.archived_at` was added on
 # 2026-09-01 under the owner-approved contract-deletion amendment, recorded in
 # the same change as its migration and its lock record — the one procedure the
 # docstring above permits for moving this snapshot.
@@ -61,12 +61,13 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "company_standard_versions": ('configuration', 'created_at', 'created_by', 'id', 'requirement_version_id', 'version_number'),
     "configuration_snapshot_items": ('company_standard_version_id', 'evaluation_rule_version_id', 'legal_rule_version_id', 'mapping_rule_version_id', 'requirement_version_id', 'snapshot_id'),
     "configuration_snapshots": ('created_at', 'created_by', 'id', 'snapshot_hash'),
-    # `deleted_at` added 2026-09-01 under the owner-approved contract-deletion
-    # amendment (see the lock record appended to `all_lock.md` that day, closing
-    # the gap `AM-31` left open). Recorded here in the same change as the
-    # migration and the lock record, which is the only way this snapshot may
-    # ever move.
-    "contracts": ('contract_type', 'created_at', 'deleted_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
+    # `archived_at` — added as `deleted_at` on 2026-09-01 (AM-37), renamed by
+    # AB-12 on 2026-09-05 when archive replaced deletion. Recorded here in the
+    # same change as the migration and the lock record, which is the only way
+    # this snapshot may ever move.
+    "contracts": ('archived_at', 'contract_type', 'created_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
+    # AB-12 r3 — the department boundary a Department Lead's scope is bounded by.
+    "departments": ('code', 'created_at', 'id', 'name'),
     "document_evidence": ('content', 'created_at', 'document_version_id', 'end_offset', 'id', 'metadata', 'page_number', 'processing_run_id', 'section_number', 'section_title', 'source_type', 'start_offset'),
     "document_processing_runs": ('completed_at', 'created_at', 'document_version_id', 'error_code', 'error_message', 'id', 'metadata', 'processor_version', 'run_type', 'started_at', 'status'),
     "document_versions": ('contract_id', 'created_at', 'extraction_status', 'file_hash', 'file_size_bytes', 'id', 'metadata', 'mime_type', 'original_filename', 'processing_status', 'storage_key', 'uploaded_by', 'version_number'),
@@ -90,7 +91,8 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "unmatched_provisions": ('created_at', 'evidence_id', 'id', 'review_id'),
     "user_identities": ('created_at', 'credential_hash', 'id', 'last_used_at', 'provider', 'provider_subject', 'user_id'),
     "user_roles": ('role_id', 'user_id'),
-    "users": ('created_at', 'email', 'id', 'name', 'status', 'updated_at'),
+    # `department_id` added by AB-12 (2026-09-05), nullable.
+    "users": ('created_at', 'department_id', 'email', 'id', 'name', 'status', 'updated_at'),
 }
 
 # Alembic's bookkeeping table, present in the database and absent from the domain model.
@@ -128,13 +130,14 @@ def test_the_locked_table_set_is_exactly_as_recorded(db):
     assert expected - live == set(), f"locked table(s) missing: {sorted(expected - live)}"
 
 
-def test_the_locked_table_count_is_twenty_nine(db):
+def test_the_locked_table_count_is_thirty(db):
     """Pinned as a number as well as a set, because the number is what documents quote.
 
-    29 application tables. `AM-27` r2 says 30; `alembic_version` is the reconciliation, and the
-    discrepancy is registered as a conflict rather than resolved here.
+    30 application tables since AB-12 added `departments` (2026-09-05). Before it, 29 — and
+    `AM-27` r2's "30" was reconciled by `alembic_version` (C-14). The coincidence is noted
+    and NOT taken as resolving C-14: the table AM-27 counted was not this one.
     """
-    assert len(_live_columns(db)) == 29
+    assert len(_live_columns(db)) == 30
 
 
 # --------------------------------------------------------------------------
@@ -154,11 +157,13 @@ def test_locked_table_columns_are_exactly_as_recorded(db, table):
 def test_the_total_locked_column_count_is_unchanged(db):
     """A single number a reviewer can eyeball against a migration diff.
 
-    196 since 2026-09-01: `contracts.deleted_at`, added under the owner-approved
-    contract-deletion amendment alongside its migration and lock record.
+    196 after 2026-09-01 (`contracts.deleted_at`, AM-37). 201 after 2026-09-05
+    (AB-12): that column renamed `archived_at`, `users.department_id` added, and
+    the four-column `departments` table added — alongside migration `b7c3d9e1f2a4`
+    and the AB-12 lock record.
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 196
+    assert sum(len(c) for c in live.values()) == 201
 
 
 # --------------------------------------------------------------------------

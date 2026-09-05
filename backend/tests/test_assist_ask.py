@@ -492,9 +492,9 @@ def test_a_conversation_names_its_document_and_says_whether_it_still_opens(
     """The Ask screen's row identity — the 2026-09-04 live audit's raw UUID.
 
     Ask History labelled each row by fetching `GET /contracts/{id}` per row.
-    That endpoint is ownership-scoped AND refuses a soft-deleted contract, so a
-    conversation about a document since deleted rendered `b91052d6` — a raw id —
-    and linked to a workspace answering "Not found." Observed live.
+    That endpoint is ownership-scoped, so a conversation about a document the
+    caller could no longer open rendered `b91052d6` — a raw id — and linked to a
+    workspace answering "Not found." Observed live.
 
     The name now travels with the conversation, which discloses nothing new: a
     conversation is the caller's own by construction (`AM-25` r7). The second
@@ -511,15 +511,26 @@ def test_a_conversation_names_its_document_and_says_whether_it_still_opens(
     assert row["document_name"] == "Named MSA"
     assert row["document_accessible"] is True
 
-    # Soft-delete the contract: the conversation is history and stays listed
-    # (rule 17), but its document is gone as far as every caller is concerned.
-    db.get(M.Contract, __import__("uuid").UUID(contract_id)).deleted_at = _now_utc()
+    # Archive the contract (AB-12 r6): the conversation is history and stays
+    # listed (rule 17), and — because archive is not deletion — the document
+    # itself stays readable by its owner, so the link it offers still opens.
+    db.get(M.Contract, __import__("uuid").UUID(contract_id)).archived_at = _now_utc()
     db.flush()
 
     after = next(c for c in api.get("/api/v1/conversations").json()["data"]
                  if c["id"] == conversation_id)
     assert after["document_name"] == "Named MSA", "the record keeps its subject"
-    assert after["document_accessible"] is False, "and admits the door is shut"
+    assert after["document_accessible"] is True, "archive hides, it does not erase"
+    opened = api.get(f"/api/v1/contracts/{contract_id}")
+    assert opened.status_code == 200
+    assert opened.json()["data"]["archived_at"] is not None
+
+    # A stranger, on the other hand, gets the same 404 an unarchived contract
+    # would give them: archive changes nothing about WHO may read.
+    from tests.conftest import grant_role, make_user, sign_in
+    stranger = make_user(db)
+    grant_role(db, stranger, "USER")
+    sign_in(api, db, stranger)
     assert api.get(f"/api/v1/contracts/{contract_id}").status_code == 404
 
 

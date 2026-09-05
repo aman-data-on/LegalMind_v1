@@ -166,6 +166,7 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | File | Purpose |
 |---|---|
 | [STEP_47_SECURITY_SPECIFICATION.md](06-security/STEP_47_SECURITY_SPECIFICATION.md) | 🔒 **Authoritative** — OIDC, sessions, permission catalogue, SEC-01–SEC-09 |
+| [RBAC_MODEL.md](06-security/RBAC_MODEL.md) | 🔒 **AB-12 (2026-09-05)** — the four personas, OWN / DEPARTMENT / PLATFORM scope, transfer, archive, Ask privacy, what is audited — plain language |
 | [SECURITY_MODEL.md](06-security/SECURITY_MODEL.md) | 🔒 The server-side boundary; no UI→DB; no UI legal logic |
 | [AUTHORIZATION.md](06-security/AUTHORIZATION.md) | 🔒 Object-level authorization rules |
 | [OWNERSHIP.md](06-security/OWNERSHIP.md) | 🔒 Review visibility and ownership (Step 24, 18 rules) |

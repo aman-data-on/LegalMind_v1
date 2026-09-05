@@ -213,7 +213,7 @@ def test_super_admin_cannot_see_a_review(api, db, owner, owned_review):
     """Locked Step 24 r8. Platform administration is not contract access, so the
     answer is 404 — a Super Admin does not even learn the Review exists."""
     admin = make_user(db)
-    grant_role(db, admin, P.ROLE_SUPER_ADMIN)
+    grant_role(db, admin, P.ROLE_PLATFORM_ADMIN)
     sign_in(api, db, admin)
     assert api.get(f"{V1}/reviews/{owned_review.id}").status_code == 404
 
@@ -224,7 +224,7 @@ def test_super_admin_cannot_record_a_decision(api, db, owner,
     approve the customization merely because they are a Super Admin."""
     _, evaluation = finding_with_evaluation
     admin = make_user(db)
-    grant_role(db, admin, P.ROLE_SUPER_ADMIN)
+    grant_role(db, admin, P.ROLE_PLATFORM_ADMIN)
     _assign(db, db.get(M.Review, db.get(M.Finding, evaluation.finding_id).review_id),
             admin, owner)
 
@@ -319,7 +319,7 @@ def test_password_login_establishes_a_session(api, db, seeded):
 def test_no_endpoint_returns_credential_material(api, db, seeded):
     """S-4 — excluded at the repository layer, not by response filtering."""
     user = _password_user(db, "fallback2@example.test", "a very long password")
-    grant_role(db, user, P.ROLE_SUPER_ADMIN)
+    grant_role(db, user, P.ROLE_PLATFORM_ADMIN)
     sign_in(api, db, user)
 
     for path in (f"{V1}/auth/session", f"{V1}/users", f"{V1}/users/{user.id}"):
@@ -433,7 +433,7 @@ def test_session_endpoint_reports_permissions_for_presentation_only(
 
 def test_signed_out_client_gets_401_not_403(api, db, seeded):
     user = make_user(db)
-    grant_role(db, user, P.ROLE_SUPER_ADMIN)
+    grant_role(db, user, P.ROLE_PLATFORM_ADMIN)
     sign_in(api, db, user)
     assert api.get(f"{V1}/audit-events").status_code == 200
     sign_out(api)
@@ -700,7 +700,7 @@ def test_legal_read_access_confers_no_write_and_no_decision_authority(
     """READ ONLY, and the two escalations that must remain impossible.
 
     Legal reading a document must not become (a) a way to alter someone else's
-    contract — upload/update/delete keep the ownership rule — or (b) decision
+    contract — upload/update/archive keep the ownership rule — or (b) decision
     authority, which stays an explicit `legal.decision` grant per Evaluation
     (SEC-02, SEC-05, ROLE-05). A LEGAL_REVIEWER holds neither.
     """
@@ -718,7 +718,7 @@ def test_legal_read_access_confers_no_write_and_no_decision_authority(
     # Writes to someone else's contract: refused, on the ownership rule.
     assert api.patch(f"{V1}/contracts/{owned_review.contract_id}",
                      json={"name": "renamed by legal"}).status_code == 404
-    assert api.delete(f"{V1}/contracts/{owned_review.contract_id}").status_code == 404
+    assert api.post(f"{V1}/contracts/{owned_review.contract_id}/archive").status_code == 404
     assert api.post(f"{V1}/contracts/{owned_review.contract_id}/document-versions",
                     content=b"%PDF-1.4 fake",
                     headers={"content-type": "application/pdf",

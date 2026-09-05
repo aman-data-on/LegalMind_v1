@@ -60,8 +60,31 @@ def _text(nullable: bool = True):
 # ==========================================================================
 # Identity & Access — 42.2, 42.3, Step 47
 # ==========================================================================
+class Department(Base):
+    """The organisational boundary a Department Lead's oversight is scoped to —
+    AB-12 r3 (2026-09-05). NEW TABLE, authorised by that record.
+
+    Why a table and not a string on the user: the Lead's scope is a security
+    boundary, and a boundary defined by matching free text is one typo away from
+    either leaking or silently shrinking. A row with a unique code is something an
+    administrator creates once and assigns deliberately.
+    """
+
+    __tablename__ = "departments"
+
+    id = pk_uuid()
+    code = mapped_column(String, nullable=False, unique=True)
+    name = _str()
+    created_at = ts_created()
+
+
 class User(Base):
-    """42.2. No credential or provider columns — see UserIdentity (Step 47)."""
+    """42.2. No credential or provider columns — see UserIdentity (Step 47).
+
+    `department_id` (AB-12 r3) is nullable: an account outside any department has
+    exactly its own contracts in scope, and `department.view` widens nothing for
+    it. There is no "everyone" department and no global scope.
+    """
 
     __tablename__ = "users"
 
@@ -69,8 +92,13 @@ class User(Base):
     email = mapped_column(String, nullable=False, unique=True)
     name = _str()
     status = mapped_column(_enum(E.UserStatus, "user_status"), nullable=False)
+    department_id = fk_uuid("departments.id", nullable=True, ondelete="RESTRICT")
     created_at = ts_created()
     updated_at = ts_updated()
+
+    __table_args__ = (
+        Index("ix_users_department_id", "department_id"),
+    )
 
 
 class Role(Base):
@@ -181,17 +209,19 @@ class Contract(Base):
     status = mapped_column(_enum(E.ContractStatus, "contract_status"), nullable=False)
     created_at = ts_created()
     updated_at = ts_updated()
-    # Soft-delete marker. NOT a sixth value on ContractStatus: that enum is the
-    # locked 42.3 / Step 2 vocabulary and a delete is not a contract lifecycle
-    # state. Set only when the contract already carries a Review, so rule 17's
-    # append-only audit and reproducible history survive the deletion.
-    deleted_at = ts_nullable()
+    # Archive marker — AB-12 r6 (the column AM-37 added as `deleted_at`). NOT a
+    # sixth value on ContractStatus: that enum is the locked 42.3 / Step 2
+    # vocabulary and archiving is a visibility state orthogonal to lifecycle.
+    # Nothing is ever destroyed: an archived contract keeps its document,
+    # versions, reviews, findings and audit trail, leaves every default list,
+    # refuses every write, and stays readable by its owner and department lead.
+    archived_at = ts_nullable()
 
     __table_args__ = (
         Index("ix_contracts_owner_id", "owner_id"),
         Index("ix_contracts_status", "status"),
         Index("ix_contracts_created_at", "created_at"),
-        Index("ix_contracts_deleted_at", "deleted_at"),
+        Index("ix_contracts_archived_at", "archived_at"),
     )
 
 

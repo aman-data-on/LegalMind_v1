@@ -389,6 +389,11 @@ requires reconciling 42.7; nothing in V1 waits on it.
 
 ## C-14 — The locked table count: 30 or 29
 
+> **Note, 2026-09-05 (AB-12 r14).** The repository now has **30** application tables — `departments`
+> was added by AB-12. The number happens to match `AM-27` r2's "30", but for a different reason: the
+> table AM-27 counted was not this one. **C-14 stays open**; the coincidence resolves nothing.
+
+
 **Registered 2026-08-25. Open (LOW). Blocks nothing.**
 
 | Source | Status | Says |

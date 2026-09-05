@@ -71,7 +71,7 @@ test.describe("A super-role holder without legal authority", () => {
   test.use({ storageState: storageStatePath("admin") });
 
   test("cannot decide by any route (SEC-02, ROLE-05)", async ({ page }) => {
-    // `admin` holds SUPER_ADMIN — `user.manage`, `role.manage`, `platform.manage`,
+    // `admin` holds PLATFORM_ADMIN — `user.manage`, `role.manage`, `platform.manage`,
     // `audit.view` — and deliberately neither `legal.decision` nor
     // `legal_position.view`. Locked SEC-02: no super-role bypass may ever reach legal
     // authority. Checked over real HTTP, because "by any route" is a claim about routes.

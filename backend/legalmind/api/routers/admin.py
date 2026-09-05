@@ -13,8 +13,11 @@ This is the module where authority is created and destroyed, so all three of Ste
   Step 30 r7).
 
 Note what is *not* here: no route can confer legal authority implicitly. Granting
-``SUPER_ADMIN`` grants no ``legal.*`` permission, because Step 23's locked role
-summary gives Super Admin none and the resolver has no bypass at all.
+``PLATFORM_ADMIN`` grants no ``legal.*`` permission, because Step 23's locked role
+summary gives the platform administrator none and the resolver has no bypass at
+all. Nor does it grant any contract content: departments (AB-12 r3) are managed
+here because they are ACCOUNT administration — which department a person is in —
+and the administrator still cannot open a single deal in any of them (Step 24 r9).
 """
 
 from __future__ import annotations
@@ -30,13 +33,18 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import (
+    DepartmentCreate,
     RoleCreate,
     RoleGrant,
     RoleUpdate,
     UserCreate,
     UserUpdate,
 )
-from legalmind.api.serializers import serialize_role, serialize_user
+from legalmind.api.serializers import (
+    serialize_department,
+    serialize_role,
+    serialize_user,
+)
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import audit as A
@@ -119,13 +127,22 @@ def update_user(user_id: UUID, body: UserUpdate,
         raise NotVisible("user not found")
     require_can_administer_user(guard.db, guard.user_id, user_id)
 
-    before = {"name": user.name, "status": user.status.value}
+    before = {"name": user.name, "status": user.status.value,
+              "department_id": str(user.department_id) if user.department_id else None}
     authorities_before = count_legal_authorities(guard.db)
     admins_before = count_administrative_authorities(guard.db)
     if body.name is not None:
         user.name = body.name
     if body.status is not None:
         user.status = body.status
+    if "department_id" in body.model_fields_set:
+        # AB-12 r3 — placing someone in a department is what makes a Lead's
+        # scope reach their deals, so it is an explicit, audited act. Null
+        # removes them from every department.
+        if (body.department_id is not None
+                and guard.db.get(M.Department, body.department_id) is None):
+            raise BusinessRuleRejected("unknown department")
+        user.department_id = body.department_id
     user.updated_at = datetime.now(UTC)
     guard.db.flush()
 
@@ -144,7 +161,9 @@ def update_user(user_id: UUID, body: UserUpdate,
     A.record(guard.db, action="admin.user_updated", entity_type="user",
              entity_id=user_id, actor_id=guard.user_id,
              request_id=guard.request_id, before=before,
-             after={"name": user.name, "status": user.status.value})
+             after={"name": user.name, "status": user.status.value,
+                    "department_id": (str(user.department_id)
+                                      if user.department_id else None)})
     return data(serialize_user(guard.db, user))
 
 
@@ -348,3 +367,60 @@ def _audit_role_change(guard: Guard, user_id: UUID, role: M.Role, *,
                          else A.ADMIN_LEGAL_AUTHORITY_REVOKED),
                  entity_type="user", entity_id=user_id, actor_id=guard.user_id,
                  request_id=guard.request_id, after={"role": role.code})
+
+
+# ==========================================================================
+# Departments — AB-12 r3
+# ==========================================================================
+@router.get("/departments")
+def list_departments(guard: Guard = Depends(get_guard),
+                     page: Page = Depends(page_params)) -> dict:
+    guard.permission(P.USER_MANAGE)
+    rows, total = run(guard.db, select(M.Department), page,
+                      M.Department.code, M.Department.id)
+    return paginated([serialize_department(d) for d in rows],
+                     page=page.page, page_size=page.page_size, total=total)
+
+
+@router.post("/departments", status_code=201)
+def create_department(body: DepartmentCreate,
+                      guard: Guard = Depends(get_guard)) -> dict:
+    """A department is created empty. Membership is set per user through
+    ``PATCH /users/{id}`` — one audited act per person, never a bulk move."""
+    guard.permission(P.USER_MANAGE)
+    code = body.code.strip().upper()
+    if guard.db.execute(select(M.Department.id).where(M.Department.code == code)).first():
+        raise Conflict("a department with that code already exists")
+    department = M.Department(code=code, name=body.name.strip())
+    guard.db.add(department)
+    guard.db.flush()
+    A.record(guard.db, action=A.ADMIN_DEPARTMENT_CREATED, entity_type="department",
+             entity_id=department.id, actor_id=guard.user_id,
+             request_id=guard.request_id, after={"code": code, "name": department.name})
+    return data(serialize_department(department))
+
+
+@router.get("/departments/mine/members")
+def my_department_members(guard: Guard = Depends(get_guard)) -> dict:
+    """Who a Department Lead may transfer a deal to: the ACTIVE accounts in the
+    caller's OWN department, by id, name and email — nothing else about them.
+
+    Gated on `department.view` rather than `user.manage`, because this is the
+    Lead's screen, not the administrator's: a Lead is not an account
+    administrator and must not need to become one to cover a colleague's leave.
+    A caller in no department gets an empty list — never everyone (AB-12 r3).
+    """
+    guard.permission(P.DEPARTMENT_VIEW)
+    if guard.department_id is None:
+        return data({"department": None, "members": []})
+    members = guard.db.execute(
+        select(M.User)
+        .where(M.User.department_id == guard.department_id,
+               M.User.status == E.UserStatus.ACTIVE)
+        .order_by(M.User.name, M.User.id)
+    ).scalars().all()
+    return data({
+        "department": serialize_department(
+            guard.db.get(M.Department, guard.department_id)),
+        "members": [{"id": str(u.id), "name": u.name, "email": u.email} for u in members],
+    })

@@ -1,5 +1,13 @@
 # User Roles, Permissions & Review Lifecycle
 
+> ⚠️ **Superseded in part by AB-12 (2026-09-05).** The role set below (`LEGAL_ADMIN`,
+> `SUPER_ADMIN`) is renamed `DEPARTMENT_LEAD` / `PLATFORM_ADMIN`; the department read
+> scope, owner-only writes, ownership transfer and archive semantics are added; and
+> the legal roles are retained for a future workflow. This text stays as the record
+> of what was locked earlier (rule 22). Read
+> [RBAC_MODEL.md](../06-security/RBAC_MODEL.md) and the AB-12 record first.
+
+
 Source: all_lock.md Steps 23, 24, 30. Canonical source: all_lock.md (Steps 23-24, 30).
 
 Related: [../06-security/AUTHORIZATION.md](../06-security/AUTHORIZATION.md) · [../06-security/OWNERSHIP.md](../06-security/OWNERSHIP.md) · [../02-legal-domain/FINDING_CLASSIFICATION.md](../02-legal-domain/FINDING_CLASSIFICATION.md) · [../02-legal-domain/LEGAL_DECISIONS.md](../02-legal-domain/LEGAL_DECISIONS.md)

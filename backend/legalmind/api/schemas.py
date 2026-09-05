@@ -200,8 +200,27 @@ class UserCreate(Body):
 
 
 class UserUpdate(Body):
+    """`department_id` (AB-12 r3): present-and-null clears the department,
+    absent leaves it alone — the router reads `model_fields_set` to tell the
+    two apart, because both arrive here as ``None``."""
+
     name: str | None = Field(default=None, min_length=1, max_length=200)
     status: UserStatus | None = None
+    department_id: UUID | None = None
+
+
+class DepartmentCreate(Body):
+    code: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+
+
+class ContractTransfer(Body):
+    """AB-12 r5 — move a contract to a colleague in the same department. The
+    reason is mandatory: a transfer is a custody change and the audit row
+    should say why without anyone having to ask."""
+
+    new_owner_id: UUID
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class RoleGrant(Body):

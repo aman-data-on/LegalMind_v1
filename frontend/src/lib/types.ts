@@ -49,6 +49,9 @@ export interface SessionIdentity {
    * stale array can only over-hide, never over-permit (52.3).
    */
   permissions: string[];
+  /** AB-12 r3 — presentation only, like `permissions`: names the department the
+   *  "Department deals" view is about, or `null` if the account is in none. */
+  department: Department | null;
   session_id?: string;
   authenticated_at?: string;
 }
@@ -96,9 +99,15 @@ export interface Contract {
   latest_analysis?: LatestAnalysis | null;
   id: string;
   owner_id: string;
+  /** Whose deal this is — present on list rows and the detail (AB-12): the
+   *  Department deals view holds more than the caller's own. */
+  owner_name?: string | null;
   name: string;
   contract_type: string | null;
   status: string;
+  /** AB-12 r6 — set means read-only and off the working list. Never a sixth
+   *  `status` value. */
+  archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -381,19 +390,38 @@ export interface AuditEvent {
 }
 
 // ---------------------------------------------------------- administration
+/** AB-12 r3 — the boundary a Department Lead's oversight is scoped to. */
+export interface Department {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface DepartmentMembers {
+  department: Department | null;
+  members: { id: string; name: string; email: string }[];
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   status: string;
   roles: string[];
+  department: Department | null;
   created_at: string | null;
 }
+
+/** What KIND of role a row is (AB-12 r10) — the screen speaks in these, never
+ *  in codes. `future_legal` roles exist for a workflow nobody runs yet and stay
+ *  out of the everyday picker. */
+export type RoleTier = "department" | "platform" | "break_glass" | "future_legal" | "custom";
 
 export interface Role {
   id: string;
   code: string;
   name: string;
+  tier: RoleTier;
   permissions: string[];
   /** SEC-02 / ROLE-05 made visible without knowing which names are special. */
   confers_legal_authority: string[];

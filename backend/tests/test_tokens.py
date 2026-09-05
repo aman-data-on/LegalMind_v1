@@ -112,7 +112,7 @@ def test_a_tampered_payload_is_refused_before_any_claim_is_read(signing):
     or role logic at all."""
     token = tokens.issue(user_id=uuid4(), email="a@leapswitch.com", roles=["USER"])
     header, claims, signature = _segments(token)
-    claims["roles"] = ["SUPER_ADMIN", "LEGAL_DECISION_AUTHORITY"]
+    claims["roles"] = ["PLATFORM_ADMIN", "LEGAL_DECISION_AUTHORITY"]
     with pytest.raises(tokens.TokenRefused):
         tokens.verify(_reassemble(header, claims, signature))
 
@@ -200,7 +200,7 @@ def test_a_signed_token_claiming_super_roles_grants_nothing(
     The permission array must be empty.
     """
     token = tokens.issue(user_id=user.id, email=user.email,
-                         roles=["SUPER_ADMIN", "LEGAL_ADMIN", "LEGAL_REVIEWER",
+                         roles=["PLATFORM_ADMIN", "DEPARTMENT_LEAD", "LEGAL_REVIEWER",
                                 "LEGAL_DECISION_AUTHORITY", "USER"])
     _token_only(api, token)
 
@@ -274,7 +274,7 @@ def test_a_disabled_account_is_refused_despite_a_live_token(
 
 def test_a_token_for_a_deleted_user_is_refused(api, db, signing, seeded):
     token = tokens.issue(user_id=uuid4(), email="ghost@leapswitch.com",
-                         roles=["SUPER_ADMIN"])
+                         roles=["PLATFORM_ADMIN"])
     _token_only(api, token)
     assert api.get("/api/v1/auth/session").status_code == 401
 

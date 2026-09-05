@@ -1,8 +1,18 @@
-"""Contracts and document upload — locked 49.3, 41.24, Step 34.
+"""Contracts and document upload — locked 49.3, 41.24, Step 34; scoped by AB-12.
 
-Ownership is the scope for a Contract (locked 42.3 ``owner_id``, 41.23): a list
-returns only what a ``GET /{id}`` would return, and a ``GET /{id}`` for someone
-else's contract is a 404, never a 403 — existence is itself a disclosure (47.7).
+Two read scopes and one write scope (AB-12):
+
+```text
+scope=own          my contracts                          every Department User
+scope=department   every contract owned by someone in    `department.view` — the
+                   my department, mine included          Department Lead
+writes             my contracts only                     everyone, always
+```
+
+A list returns only what a ``GET /{id}`` would return, and a ``GET /{id}`` for a
+contract outside the caller's scope is a 404, never a 403 — existence is itself
+a disclosure (47.7). Archived contracts (AB-12 r6) leave the default lists,
+stay readable by id, and refuse every write with 409.
 """
 
 from __future__ import annotations
@@ -12,17 +22,15 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import delete, func, select
+from sqlalchemy import Select, false, func, select
 
 from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
-from legalmind.api.errors import BusinessRuleRejected
+from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
-from legalmind.api.schemas import ContractCreate, ContractUpdate
+from legalmind.api.schemas import ContractCreate, ContractTransfer, ContractUpdate
 from legalmind.api.serializers import serialize_contract, serialize_document_version
 from legalmind.api.storage import get_storage
-from legalmind.assist.obligations import delete_obligation_extractions
-from legalmind.assist.store import delete_chunks
 from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
 from legalmind.domain import enums as E
@@ -30,6 +38,12 @@ from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
 from legalmind.security import permissions as P
+from legalmind.security.authorization import (
+    DEPARTMENT,
+    OWNER,
+    contract_read_basis,
+)
+from legalmind.security.errors import Forbidden
 from legalmind.worker.dispatch import dispatch_indexing, dispatch_ocr
 
 router = APIRouter(tags=["contracts"])
@@ -63,6 +77,48 @@ def _status_bucket(item: dict) -> str:
     return "analyzed"
 
 
+SCOPES = ("own", "department")
+
+
+def _scoped_contracts(guard: Guard, scope: str, *, archived: bool) -> Select:
+    """The list-side statement of the same rule `contract_read_basis` applies by
+    id (49.6: a list never leaks a row a GET would 404 on).
+
+    ``own`` is ownership. ``department`` (AB-12 r3) is every contract whose owner
+    is in the caller's department — it needs `department.view` (403 without) AND
+    a department to be scoped to: a Lead nobody has placed yet matches nothing,
+    never everything. Legal scope has no list here; it is Review-shaped and
+    lives in `GET /reviews`.
+    """
+    if scope not in SCOPES:
+        raise BusinessRuleRejected(f"unknown scope {scope!r}; expected one of {SCOPES}")
+    if scope == "department":
+        guard.permission(P.DEPARTMENT_VIEW)
+        if guard.department_id is None:
+            stmt = select(M.Contract).where(false())
+        else:
+            stmt = (select(M.Contract)
+                    .join(M.User, M.User.id == M.Contract.owner_id)
+                    .where(M.User.department_id == guard.department_id))
+    else:
+        stmt = select(M.Contract).where(M.Contract.owner_id == guard.user_id)
+    return stmt.where(M.Contract.archived_at.is_not(None) if archived
+                      else M.Contract.archived_at.is_(None))
+
+
+def _owner_names(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, str]:
+    """Whose deal each row is — needed the moment a list can hold more than
+    the caller's own. One query for the page; a colleague's display name is
+    already visible through the department members list, so nothing new is
+    disclosed."""
+    owner_ids = {c.owner_id for c in contracts}
+    if not owner_ids:
+        return {}
+    rows = guard.db.execute(
+        select(M.User.id, M.User.name).where(M.User.id.in_(owner_ids))).all()
+    return {row[0]: row[1] for row in rows}
+
+
 @router.get("/contracts")
 def list_contracts(
     guard: Guard = Depends(get_guard),
@@ -71,21 +127,23 @@ def list_contracts(
     contract_type: str | None = Query(default=None, max_length=200),
     status: str | None = Query(default=None),
     sort: str = Query(default="created_desc"),
+    scope: str = Query(default="own"),
+    archived: bool = Query(default=False),
 ) -> dict:
     """49.6 — the same object-level scope as ``GET /contracts/{id}``.
 
     ``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a
     DERIVED bucket (`_status_bucket`) that does not exist as a contracts-table
-    column, so it cannot be pushed into the same ``WHERE`` — this owner-scoped
-    set is bounded (one account's own contracts, never a global scan), so it is
+    column, so it cannot be pushed into the same ``WHERE`` — the scoped set is
+    bounded (one account's, or one department's, never a global scan), so it is
     computed once over every matching id and paginated in Python, exactly the
     precedent `_list_summaries` already set for the per-row projection.
+
+    ``archived=true`` lists ONLY archived contracts (AB-12 r6) — the shelf, kept
+    apart from the working list rather than mixed into it.
     """
     guard.permission(P.CONTRACT_VIEW)
-    stmt = select(M.Contract).where(
-        M.Contract.owner_id == guard.user_id,
-        M.Contract.deleted_at.is_(None),
-    )
+    stmt = _scoped_contracts(guard, scope, archived=archived)
     if q:
         stmt = stmt.where(M.Contract.name.ilike(f"%{q.strip()}%"))
     if contract_type:
@@ -116,9 +174,11 @@ def list_contracts(
         start = (page.page - 1) * page.page_size
         rows = matched[start:start + page.page_size]
 
+    owner_names = _owner_names(guard, list(rows))
     payload = []
     for c in rows:
         item = serialize_contract(c)
+        item["owner_name"] = owner_names.get(c.owner_id)
         item.update(summaries.get(c.id, {"latest_version": None,
                                          "latest_analysis": None}))
         payload.append(item)
@@ -127,18 +187,16 @@ def list_contracts(
 
 
 @router.get("/contracts/summary")
-def contracts_summary(guard: Guard = Depends(get_guard)) -> dict:
-    """The Documents list's stat tiles — real counts across EVERY one of the
-    caller's contracts, not just the current page (49.6 scope; additive, no
+def contracts_summary(guard: Guard = Depends(get_guard),
+                      scope: str = Query(default="own")) -> dict:
+    """The Dashboard's stat tiles — real counts across EVERY contract in the
+    caller's chosen scope, not just the current page (49.6 scope; additive, no
     locked row). One aggregation, computed the same way each row's own status
     is (`_status_bucket`), so a tile and a row can never disagree.
     """
     guard.permission(P.CONTRACT_VIEW)
     ids = guard.db.execute(
-        select(M.Contract.id).where(
-            M.Contract.owner_id == guard.user_id,
-            M.Contract.deleted_at.is_(None),
-        )
+        _scoped_contracts(guard, scope, archived=False).with_only_columns(M.Contract.id)
     ).scalars().all()
     summaries = _list_summaries(guard, list(ids))
     tally = dict.fromkeys(STATUS_BUCKETS, 0)
@@ -250,7 +308,7 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     `serialize_document_version` shape, so nothing new is disclosed. Recorded in
     Step 49's implementation-additions section.
     """
-    # Read: ownership OR `REC-09` Legal scope (owner ruling 2026-09-04).
+    # Read scope: owner, department (AB-12 r3), or `REC-09` Legal scope.
     contract = guard.contract_readable(contract_id, P.CONTRACT_VIEW)
     versions = guard.db.execute(
         select(M.DocumentVersion)
@@ -258,6 +316,7 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
         .order_by(M.DocumentVersion.version_number.desc(), M.DocumentVersion.id.desc())
     ).scalars().all()
     payload = serialize_contract(contract)
+    payload["owner_name"] = _owner_names(guard, [contract]).get(contract.owner_id)
     payload["document_versions"] = [serialize_document_version(v) for v in versions]
     return data(payload)
 
@@ -277,97 +336,109 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
     return data(serialize_contract(contract))
 
 
-@router.delete("/contracts/{contract_id}")
-def delete_contract(contract_id: UUID,
-                    guard: Guard = Depends(get_guard),
-                    storage: StorageBackend = Depends(get_storage)) -> dict:
-    """Delete one contract — owner approval 2026-09-01.
+@router.post("/contracts/{contract_id}/archive")
+def archive_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Put a contract on the shelf — AB-12 r6, replacing AM-37's two-mode delete.
 
-    Closes the gap `AM-31` left explicitly open (*"No hard-delete path for a
-    Contract exists today, and this record does not create one or assume its
-    shape"*). The shape is two modes behind one verb, chosen by whether the
-    contract has ever been analyzed:
+    Nothing is destroyed. The document, every version, the evidence, the
+    reviews, findings, decisions, Ask citations and the audit trail all stay
+    exactly where they are, so "what did LegalMind know about this contract at
+    that point in time?" stays answerable for as long as the database exists.
+    What changes: the contract leaves the working lists, every write to it is
+    refused with 409, and it stays readable by its owner and department lead.
 
-    * **No Review** — hard delete. The contract was uploaded and never
-      evaluated, so nothing downstream cites it and nothing is lost: the row,
-      its document versions, their processing runs and extracted evidence, the
-      stored bytes, and the assist-lane chunks and obligation extractions all
-      go. `AM-27 r5` requires the chunks to go with the document.
-    * **A Review exists** — soft delete. `deleted_at` is stamped and the
-      contract leaves every list, summary and by-id response, but its findings,
-      evaluations, decisions and audit entries are untouched.
-
-    That split is the whole point. **Rule 17** — append-only audit trail,
-    historical Reviews stay reproducible — was not authorised for override, and
-    hard-deleting an analyzed contract would break it. The response names which
-    mode ran so the caller can tell the user what actually happened rather than
-    implying a permanence it did not deliver.
-
-    Ownership is the scope, as everywhere else here: `guard.contract` resolves
-    `owner_id` per request, so a contract belonging to someone else is a 404 —
-    and so is one that is already soft-deleted.
+    Owner-scoped like every write; `guard.contract` also refuses a contract
+    that is already archived, so archiving twice is a 409 rather than a silent
+    no-op that would hide the second actor from the trail.
     """
-    contract = guard.contract(contract_id, P.CONTRACT_DELETE)
-
-    analyzed = guard.db.execute(
-        select(func.count()).select_from(M.Review)
-        .where(M.Review.contract_id == contract_id)
-    ).scalar_one() > 0
-
+    contract = guard.contract(contract_id, P.CONTRACT_ARCHIVE)
     before = serialize_contract(contract)
-
-    if analyzed:
-        contract.deleted_at = datetime.now(UTC)
-        contract.updated_at = contract.deleted_at
-        guard.db.flush()
-        audit.record(
-            guard.db, action=audit.CONTRACT_SOFT_DELETED,
-            entity_type="contract", entity_id=contract_id,
-            actor_id=guard.user_id, before=before,
-            after={"deleted_at": contract.deleted_at.isoformat()},
-        )
-        return data({"deleted": True, "mode": "soft"})
-
-    versions = guard.db.execute(
-        select(M.DocumentVersion)
-        .where(M.DocumentVersion.contract_id == contract_id)
-    ).scalars().all()
-
-    for version in versions:
-        # Assist-lane derived data first: chunks (which cascade to
-        # answer_citations) and obligation extractions both key off the version
-        # and would otherwise outlive the document they describe.
-        delete_chunks(guard.db, version.id)
-        delete_obligation_extractions(guard.db, version.id)
-
-    version_ids = [v.id for v in versions]
-    if version_ids:
-        # Evidence before runs: evidence carries a processing_run_id FK.
-        guard.db.execute(
-            delete(M.DocumentEvidence)
-            .where(M.DocumentEvidence.document_version_id.in_(version_ids)))
-        guard.db.execute(
-            delete(M.DocumentProcessingRun)
-            .where(M.DocumentProcessingRun.document_version_id.in_(version_ids)))
-        guard.db.execute(
-            delete(M.DocumentVersion)
-            .where(M.DocumentVersion.id.in_(version_ids)))
-
-    guard.db.delete(contract)
+    contract.archived_at = datetime.now(UTC)
+    contract.updated_at = contract.archived_at
     guard.db.flush()
-
-    # Bytes last: the database transaction can still roll back, and an orphaned
-    # object is recoverable where a row pointing at deleted bytes is not.
-    for version in versions:
-        storage.discard(version.storage_key)
-
     audit.record(
-        guard.db, action=audit.CONTRACT_HARD_DELETED,
+        guard.db, action=audit.CONTRACT_ARCHIVED,
         entity_type="contract", entity_id=contract_id,
-        actor_id=guard.user_id, before=before,
-        after={"document_versions_removed": len(versions)},
+        actor_id=guard.user_id, request_id=guard.request_id, before=before,
+        after={"archived_at": contract.archived_at.isoformat()},
     )
-    return data({"deleted": True, "mode": "hard"})
+    return data(serialize_contract(contract))
+
+
+@router.post("/contracts/{contract_id}/restore")
+def restore_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The mirror of archive — same permission, same owner scope, audited."""
+    contract = guard.contract(contract_id, P.CONTRACT_ARCHIVE, allow_archived=True)
+    if contract.archived_at is None:
+        raise Conflict("this contract is not archived")
+    before = serialize_contract(contract)
+    contract.archived_at = None
+    contract.updated_at = datetime.now(UTC)
+    guard.db.flush()
+    audit.record(
+        guard.db, action=audit.CONTRACT_RESTORED,
+        entity_type="contract", entity_id=contract_id,
+        actor_id=guard.user_id, request_id=guard.request_id, before=before,
+        after={"archived_at": None},
+    )
+    return data(serialize_contract(contract))
+
+
+@router.post("/contracts/{contract_id}/transfer")
+def transfer_contract(contract_id: UUID, body: ContractTransfer,
+                      guard: Guard = Depends(get_guard)) -> dict:
+    """Move a deal to a colleague — AB-12 r5. The Department Lead's coverage tool.
+
+    Three checks, in the locked 43.23 order, and all of them server-side:
+
+    1. **Visibility** — the contract is in the caller's read scope (404 if not).
+    2. **Permission** — `contract.transfer` (403 without it).
+    3. **Boundary** — the caller holds the contract as owner or through
+       DEPARTMENT scope (Legal scope is read-only and never custody), and the
+       new owner is an ACTIVE account in the caller's own department. A target
+       outside it is refused with the same message as one that does not exist,
+       so this endpoint is not a probe for other departments' accounts.
+
+    What moves: the contract, and with it — because visibility is rooted in the
+    contract (`can_see_review`) — every version, review, finding, report and
+    annotation. What does not: `reviews.created_by` (history), and any Ask
+    conversation, which stays with the person who asked (AB-12 r8).
+    """
+    contract = guard.contract_readable(contract_id, P.CONTRACT_TRANSFER)
+    basis = contract_read_basis(guard.db, guard.user_id, contract)
+    if basis not in (OWNER, DEPARTMENT):
+        # A `legal.review` holder who was also granted `contract.transfer` can
+        # SEE the contract through Legal scope; custody still is not theirs.
+        raise Forbidden(
+            "transfer requires ownership or department scope over the contract")
+    if contract.archived_at is not None:
+        raise Conflict("this contract is archived; restore it before transferring it")
+    if guard.department_id is None:
+        raise BusinessRuleRejected(
+            "you are not in a department, so there is nobody to transfer to")
+    new_owner = guard.db.get(M.User, body.new_owner_id)
+    if (new_owner is None
+            or new_owner.status is not E.UserStatus.ACTIVE
+            or new_owner.department_id != guard.department_id):
+        raise BusinessRuleRejected(
+            "the new owner must be an active member of your department")
+    if new_owner.id == contract.owner_id:
+        raise BusinessRuleRejected("that user already owns this contract")
+
+    previous_owner_id = contract.owner_id
+    contract.owner_id = new_owner.id
+    contract.updated_at = datetime.now(UTC)
+    guard.db.flush()
+    audit.record(
+        guard.db, action=audit.CONTRACT_OWNERSHIP_TRANSFERRED,
+        entity_type="contract", entity_id=contract_id,
+        actor_id=guard.user_id, request_id=guard.request_id,
+        before={"owner_id": str(previous_owner_id)},
+        after={"owner_id": str(new_owner.id), "reason": body.reason},
+    )
+    payload = serialize_contract(contract)
+    payload["owner_name"] = new_owner.name
+    return data(payload)
 
 
 _PERCENT_ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")

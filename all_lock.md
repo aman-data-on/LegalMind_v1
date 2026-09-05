@@ -16927,3 +16927,170 @@ r2  This is a presentation change only. The fixed-pathname convention is
 r3  Nothing in the domain vocabulary is renamed. Contract, Document Version,
     Review, Finding, Evaluation and the five state axes are untouched — this
     record names a screen, not a concept.
+
+---
+
+## AB-12 — RBAC Redesign Around the Real Workflow (Owner Instruction — 2026-09-05)
+
+**Owner instruction, 2026-09-05.** After a six-question interview about who actually
+uses LegalMind, the owner issued a written brief — *"LEGALMIND — RBAC RE-DESIGN,
+ARCHITECTURE AUDIT & IMPLEMENTATION"* — with explicit implementation authority:
+*"You have senior engineering autonomy… If a locked decision is genuinely obsolete
+because the confirmed business process has changed, do not blindly preserve it. But
+document the conflict and make the smallest principled amendment."* This record is
+that documentation. The interview answers it rests on, verbatim in substance:
+
+```text
+Q1  3–5 users in one department run a negotiation round-trip: profile the client,
+    upload our draft, read the report, send it, receive an Annexure, see what
+    changed, ask the AI about it.
+Q2  Who accepts a deviation?            "Nobody — just flag it."
+Q3  Who sees whose deals?               "Only my own deals."
+Q4  Who changes the standards?          "One senior person, via a screen."
+Q5  Coverage when someone is away?      "A dept lead sees all deals."
+Q6  Lead = standards owner?             "Lead wears both hats; I create logins."
+```
+
+### The four personas (amends ROLE-06 and AB-9)
+
+```text
+Department User   USER               own deals: create, upload, analyse, read
+                                     findings AND why (r7), ask, archive own
+Department Lead   DEPARTMENT_LEAD    a Department User, plus every deal in THEIR
+                                     department (read), transfer, standards
+Platform Admin    PLATFORM_ADMIN     accounts, roles, departments, audit —
+                                     never contract content (Step 24 r8/r9)
+Developer         DEVELOPER          break-glass; never legal authority (r12)
+```
+
+**Terms:**
+
+r1  **Roles.** The canonical role set is amended in place. `LEGAL_ADMIN` is renamed
+    `DEPARTMENT_LEAD` and `SUPER_ADMIN` is renamed `PLATFORM_ADMIN` — the SAME database
+    rows, so every existing assignment survives; only `roles.code`/`roles.name`
+    change. `USER` is displayed as "Department User". `LEGAL_REVIEWER` and
+    `LEGAL_DECISION_AUTHORITY` are **retained for a future legal workflow**: seeded,
+    hidden from the everyday grant picker (r10), granted to nobody by the initial
+    workflow. No role is deleted.
+
+r2  **Tiers (presentation).** Every role carries a tier — `department`, `platform`,
+    `break_glass`, `future_legal`, `custom` — served on `GET /roles`, so a screen
+    speaks business language and never asks an administrator to decode a code.
+
+r3  **The department boundary.** NEW TABLE `departments` (`id`, `code` unique,
+    `name`, `created_at`) and NEW COLUMN `users.department_id` (nullable, FK, RESTRICT).
+    NEW PERMISSION `department.view` widens READ scope from "my contracts" to "every
+    contract owned by someone in my department" — contract, versions, evidence,
+    reviews, findings, evaluations, reports, comparisons. Two rules bound it: the
+    permission AND a department are both required (an account with
+    `department_id IS NULL` is widened to nothing — there is no "everyone"
+    department and no global scope); and it never widens a write (r4) or a
+    conversation (r8). Departments are account administration (`user.manage`),
+    created empty; membership is set per user, one audited act each.
+
+r4  **Writes are OWNER-only.** Upload, update, archive, review creation and analysis
+    resolve through `require_contract_owned`. Department scope and Legal scope are
+    read scopes and never a way to alter someone else's paper (Step 24 r16/r17
+    reaffirmed). A Lead who needs to act on a colleague's deal takes ownership first.
+
+r5  **Ownership transfer.** NEW PERMISSION `contract.transfer`, held by the Lead.
+    `POST /contracts/{id}/transfer {new_owner_id, reason}` moves a contract to an
+    ACTIVE account in the caller's OWN department; the caller must hold the contract
+    as owner or through DEPARTMENT scope (Legal scope is never custody); an
+    out-of-department or nonexistent target is refused with one message; an archived
+    contract is refused. Audited as `contract.ownership_transferred` with previous
+    owner, new owner, actor, reason, contract and time. **Visibility is rooted in the
+    Contract:** Reviews, Findings and Evaluations follow the contract to its new
+    owner (Step 24 r2 "unless explicitly transferred" — realized), and the previous
+    owner loses them; `reviews.created_by` stays as history and is no longer a basis
+    for visibility. Amends ROLE-07's ownership model to that extent.
+
+r6  **Archive replaces deletion — supersedes AM-37.** `contract.delete` is renamed
+    `contract.archive` (same permission row); `contracts.deleted_at` is renamed
+    `archived_at` (same column; AM-37's 4 soft-deleted rows on the development
+    instance are simply archived contracts now). `DELETE /contracts/{id}` is REMOVED —
+    the application has no verb that destroys a contract, and AM-37 r2's hard-delete
+    branch is withdrawn. `POST /contracts/{id}/archive` and `.../restore` exist,
+    owner-scoped, audited as `contract.archived` / `contract.restored`. An archived
+    contract leaves every default list and summary, refuses every write with 409,
+    and stays READABLE by its owner and department lead (`?archived=true` lists the
+    shelf). Nothing — document, versions, evidence, reviews, findings, decisions,
+    Ask citations, audit trail — is removed; assist-lane chunks stay because archive
+    is not deletion (`AM-27` r5 is about deletion, which no longer exists for a
+    Contract). AM-37 r9 ("no restore surface") is superseded.
+
+r7  **LEGAL-02's audience is named.** `legal_position.view` is granted to every
+    Department User for their own deals: a user must be able to understand WHY a
+    finding is MATCH, DEVIATION or MISSING — the standard, the comparison, the
+    explanation. "Ordinary users" in LEGAL-02 means counterparties and accounts
+    without the grant; the omission gate itself is unchanged and still bites for a
+    Platform Admin or any custom role. Users do NOT receive `configuration.view`:
+    historical standard versions stay with the Lead.
+
+r8  **Ask history is the asker's.** A conversation is visible to its creator only,
+    unchanged. Asking about a contract requires READ scope (so a Lead may ask about
+    a department deal); department scope never reaches another person's
+    conversation; a transfer never moves one. No sharing feature exists or is
+    implied.
+
+r9  **No approval workflow is imposed.** Nobody in the initial workflow decides a
+    deviation inside LegalMind. `legal.decision` / `legal.approve_customization`
+    stay in the catalogue and on `LEGAL_DECISION_AUTHORITY`, which nobody holds;
+    the decision endpoints, SEC-02, SEC-05 (as the change-rule the code already
+    implements) and the S-8/S-9 guards are untouched. **Accepted consequence,
+    recorded:** a Review holding a deviation reaches `LEGAL_REVIEW` (Step 30 — "one
+    or more Findings require an authorized decision") and stays there; that is the
+    flag the owner asked for, and `decision.outstanding_age` (53.5) will report it.
+    The engineering recommendation to give the Lead decision authority so Reviews
+    can close was put to the owner and not taken; granting `LEGAL_DECISION_AUTHORITY`
+    later needs no further amendment.
+
+r10 **Retained roles** are hidden from the everyday grant picker by tier and remain
+    grantable through the audited API under S-8.
+
+r11 **The identity provider whitelist is enforced.** A JIT-provisioned role that
+    carries legal authority or `user.manage` / `role.manage` / `platform.manage`
+    (`NEVER_PROVISIONED_BY_IDP`) is refused at provisioning, whatever
+    `LEGALMIND_OIDC_JIT_ROLES` says — SEC-01 made enforceable, closing a hole in
+    which the configuration alone stood between an IdP and an administrator.
+
+r12 **DEVELOPER holds no legal authority — amends AB-9 r2.** The role grants every
+    catalogue permission EXCEPT `legal.decision` and `legal.approve_customization`.
+    Break-glass reads of another person's deal go through the same scope rules and
+    land in the same audited cross-owner read events as anyone else's.
+
+r13 **Audit vocabulary.** Added: `contract.archived`, `contract.restored`,
+    `contract.ownership_transferred`, `contract.read_via_department_scope`,
+    `admin.department_created`. Withdrawn: `contract.soft_deleted`,
+    `contract.hard_deleted` (rows already written keep their strings — AUD-01).
+
+r14 **Schema.** Migration `b7c3d9e1f2a4`: the table, the column, the rename, the
+    role/permission renames, the grant reconciliation (adds every default; removes
+    exactly three grants — `legal.review` from the Lead, the two legal-authority
+    permissions from DEVELOPER). **30 application tables, 201 columns.** The count
+    now coincides with `AM-27` r2's "30" for a different reason; **C-14 is not
+    resolved by that coincidence.** `ContractStatus` is NOT amended.
+
+### What AB-12 does NOT amend
+
+SEC-01, SEC-02, SEC-03 (legal authority still travels as an additional role),
+SEC-05 (as implemented: a change may not leave zero holders), SEC-06, SEC-07 (404 for
+out-of-scope), SEC-08's S-1–S-10, SEC-09, `REC-09` (retained for the future legal
+workflow), `AM-25`–`AM-29` (conversation privacy unchanged), `AM-36`, `AM-38`, rule
+17, the five-axis state model, the deterministic engine, any evaluator, any Company
+Standard, the zero-tolerance Legal Rule, the golden corpus, and the decision
+endpoints. Step 30's lifecycle is unchanged (r9 records its consequence, not a
+change).
+
+### Engineering notes recorded with this batch
+
+* The live `legalmind-api.service` runs from the shared working tree
+  (`WorkingDirectory=/root/Legalmind.v1/backend`) against `legalmind_v1_dev`, which is
+  the live database. This batch was implemented and verified LOCALLY only — the
+  migration was exercised on a `pg_dump` clone (`legalmind_v1_rbac_scratch`), never
+  on the live database. **Deployment order is fixed by the column rename:** migrate
+  the live database, THEN restart the API, THEN deploy the frontend. A restart before
+  the migration loads `archived_at` against a schema that lacks it.
+* No department exists after the migration. Until an administrator creates one and
+  places the Lead and the users in it, every account — the Lead included — sees
+  exactly its own deals. That is the safe direction, and it is deliberate.

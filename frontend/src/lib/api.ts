@@ -25,6 +25,8 @@ import type {
   ContractsSummary,
   DataEnvelope,
   Decision,
+  Department,
+  DepartmentMembers,
   DocumentVersion,
   Escalation,
   Evaluation,
@@ -43,6 +45,9 @@ import type {
   User,
   VersionComparison,
 } from "./types";
+
+/** AB-12 r3 — which deals a list is about. */
+export type ContractScope = "own" | "department";
 
 import type { EvidenceRow } from "./types";
 
@@ -285,15 +290,23 @@ export const api = {
       contract_type?: string | undefined;
       status?: string | undefined;
       sort?: string | undefined;
+      /** `own` (default) or `department` — AB-12 r3. The server refuses
+       *  `department` without `department.view`; this is a view choice. */
+      scope?: ContractScope | undefined;
+      /** `true` lists ONLY archived contracts (AB-12 r6). */
+      archived?: boolean | undefined;
     } = {},
   ) =>
     requestPage<Contract>("/contracts", {
-      query: { page, page_size: pageSize, ...filters },
+      // The query string is text; a boolean only exists on this side of it.
+      query: { page, page_size: pageSize, ...filters,
+               archived: filters.archived ? "true" : undefined },
     }),
-  /** Real counts across EVERY contract the caller owns, not just the current
+  /** Real counts across EVERY contract in the chosen scope, not just the current
    *  page — the same bucket the list's own `?status=` filters on (server:
    *  `_status_bucket`), so a tile and a row can never disagree. */
-  contractsSummary: () => request<ContractsSummary>("/contracts/summary"),
+  contractsSummary: (scope: ContractScope = "own") =>
+    request<ContractsSummary>("/contracts/summary", { query: { scope } }),
   contract: (id: string) => request<Contract>(`/contracts/${id}`),
   createContract: (name: string, contractType?: string) =>
     request<Contract>("/contracts", {
@@ -304,19 +317,26 @@ export const api = {
     request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
 
   /**
-   * Delete one contract — owner approval 2026-09-01, closing the gap `AM-31`
-   * left open.
-   *
-   * `mode` reports what the server actually did, and the caller must say so
-   * rather than assuming: a contract that was never analyzed is destroyed
-   * (`"hard"`), while one carrying a Review is withdrawn from every view with
-   * its findings and audit trail preserved (`"soft"`) — rule 17 keeps history
-   * reproducible. Telling a user "permanently deleted" when the server soft-
-   * deleted would be a lie about legal records.
+   * Archive a contract — AB-12 r6, replacing the two-mode delete. Nothing is
+   * destroyed: the document, versions, findings and audit trail stay; the
+   * contract leaves the working list and refuses writes. Owner-scoped.
    */
-  deleteContract: (id: string) =>
-    request<{ deleted: boolean; mode: "hard" | "soft" }>(
-      `/contracts/${id}`, { method: "DELETE" }),
+  archiveContract: (id: string) =>
+    request<Contract>(`/contracts/${id}/archive`, { method: "POST" }),
+  restoreContract: (id: string) =>
+    request<Contract>(`/contracts/${id}/restore`, { method: "POST" }),
+  /**
+   * Move a deal to a colleague in the same department — AB-12 r5. The server
+   * checks the boundary and records previous owner, new owner, actor and reason.
+   */
+  transferContract: (id: string, newOwnerId: string, reason: string) =>
+    request<Contract>(`/contracts/${id}/transfer`, {
+      method: "POST",
+      body: { new_owner_id: newOwnerId, reason },
+    }),
+  /** Who a Department Lead may transfer to: ACTIVE colleagues in their own
+   *  department. Empty when the account is in no department. */
+  departmentMembers: () => request<DepartmentMembers>("/departments/mine/members"),
 
   /**
    * The body **is** the file. Locked 34.16 treats the declared content type as a
@@ -527,6 +547,10 @@ export const api = {
   // ---- administration --------------------------------------------------
   users: (query: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
     requestPage<User>("/users", { query }),
+  departments: (query: { page?: number; page_size?: number } = {}) =>
+    requestPage<Department>("/departments", { query }),
+  createDepartment: (code: string, name: string) =>
+    request<Department>("/departments", { method: "POST", body: { code, name } }),
   createUser: (email: string, name: string) =>
     request<User>("/users", { method: "POST", body: { email, name } }),
   updateUser: (id: string, patch: Record<string, unknown>) =>

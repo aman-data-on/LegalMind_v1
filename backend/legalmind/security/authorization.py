@@ -1,28 +1,47 @@
-"""Object-level authorization — Step 47 §47.6 / SEC-06.
+"""Object-level authorization — Step 47 §47.6 / SEC-06, scoped by AB-12.
 
 Locked 41.24: "A user must never be able to access another user's Contract,
 Document Version, Review, Finding, or Legal Decision merely by changing an ID
 in an API request."
 
 Locked 43.23 fixes the ordering: authentication -> role/permission -> object
-ownership -> operation -> domain operation. Authorization happens BEFORE the
+scope -> operation -> domain operation. Authorization happens BEFORE the
 domain operation, never after fetching.
 
-Visibility follows locked Step 24:
-  r3  a User can access their own Reviews
+**The Contract is the root of every scope decision** (AB-12). A Review, a
+Finding, an Evaluation, a Document Version and its evidence are all reached
+through the Contract they belong to, and the caller's relationship to that
+Contract is one of:
+
+```text
+OWNER        contract.owner_id == caller                        read + write
+DEPARTMENT   caller holds `department.view` AND the owner is in  read only
+             the caller's department (users.department_id)
+LEGAL_SCOPE  caller holds `legal.review` AND a Review of the     read only
+             contract is in `REC-09` Legal scope — retained for
+             a future legal workflow, no holder in the initial one
+(none)       404 — existence is itself a disclosure (SEC-07)
+```
+
+Writes are OWNER only. A Department Lead who needs to act on a colleague's deal
+takes ownership first (an explicit, audited transfer) — so "who may change this
+contract" always has a one-word answer.
+
+Visibility follows locked Step 24, as amended:
+  r2  the creator is the initial owner unless explicitly transferred — the
+      Contract's `owner_id` is that owner, and a transfer moves the Reviews
+      with it (AB-12 r5); `reviews.created_by` stays as history
   r4  a User cannot access another User's Reviews by default
-  r5  escalation makes the Review available to the authorized Legal workflow
   r6  Legal Reviewer access is by assignment and/or explicit Legal scope
-      — "explicit Legal scope" defined by locked REC-09; see
-      `review_in_legal_scope`. Assignment has no writer in V1 (G1,
-      deferred to V2), so Legal scope is the operative branch.
-  r8  Super Admin does NOT automatically have access to Legal content
+      (`REC-09`; `review_assignments` has no writer in V1)
+  r8  a platform administrator has no automatic access to content
   r12 access is permission + resource scope, not role name
   r16 Legal access does not transfer ownership
 """
 
 from __future__ import annotations
 
+from typing import Final
 from uuid import UUID
 
 from sqlalchemy import select
@@ -31,25 +50,102 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.db import models as M
 from legalmind.domain.enums import ReviewStatus
 from legalmind.security.errors import Forbidden, NotVisible
-from legalmind.security.permissions import LEGAL_REVIEW
+from legalmind.security.permissions import DEPARTMENT_VIEW, LEGAL_REVIEW
 from legalmind.security.resolver import effective_permissions, has_permission
 
+# The three bases on which a caller may read a Contract. Strings rather than an
+# enum: they are recorded into `audit_events.after_state` and read back by humans.
+OWNER: Final = "owner"
+DEPARTMENT: Final = "department"
+LEGAL_SCOPE: Final = "legal_scope"
+
 
 # --------------------------------------------------------------------------
-# Review visibility
+# Department boundary — AB-12 r3
 # --------------------------------------------------------------------------
-def _is_review_owner(review: M.Review, user_id: UUID) -> bool:
-    """Step 24 r2 — the creator is the initial owner.
+def department_of(db: DBSession, user_id: UUID) -> UUID | None:
+    return db.execute(
+        select(M.User.department_id).where(M.User.id == user_id)
+    ).scalar_one_or_none()
 
-    Review ownership TRANSFER is not implemented in V1: locked 42.13 carries
-    `created_by` and no `owner_id`, so transfer is not representable without
-    amending a locked table. Step 24 r2 permits transfer ("unless ... explicitly
-    transferred") but no locked rule requires the capability. Recorded as a V1+
-    item rather than amended in.
+
+def same_department(db: DBSession, user_a: UUID, user_b: UUID) -> bool:
+    """Both accounts in the SAME, NON-NULL department.
+
+    `NULL == NULL` is deliberately false: two accounts outside any department
+    share nothing. There is no "everyone" department, and a Lead with no
+    department set sees exactly their own deals until an administrator places
+    them — never the whole platform (AB-12 r3: "never globally").
     """
-    return review.created_by == user_id
+    a = department_of(db, user_a)
+    return a is not None and a == department_of(db, user_b)
 
 
+# --------------------------------------------------------------------------
+# Contract — the root
+# --------------------------------------------------------------------------
+def contract_read_basis(db: DBSession, user_id: UUID,
+                        contract: M.Contract) -> str | None:
+    """Why this caller may READ this Contract, or ``None`` if they may not.
+
+    Archived contracts are readable on the same bases (AB-12 r6: archive is not
+    deletion — "what did LegalMind know about this contract?" must stay
+    answerable). Writes are refused separately, by the Guard.
+    """
+    if contract.owner_id == user_id:
+        return OWNER
+    permissions = effective_permissions(db, user_id)
+    if DEPARTMENT_VIEW in permissions and same_department(db, user_id, contract.owner_id):
+        return DEPARTMENT
+    if LEGAL_REVIEW in permissions:
+        reviews = db.execute(
+            select(M.Review).where(M.Review.contract_id == contract.id)
+        ).scalars().all()
+        if any(review_in_legal_scope(db, review) for review in reviews):
+            return LEGAL_SCOPE
+    return None
+
+
+def can_read_contract(db: DBSession, user_id: UUID, contract: M.Contract) -> bool:
+    return contract_read_basis(db, user_id, contract) is not None
+
+
+def require_contract_readable(db: DBSession, user_id: UUID,
+                              contract_id: UUID) -> M.Contract:
+    """Resolve a Contract for READING, or raise NotVisible.
+
+    404 for "does not exist" and "not in your scope" alike (SEC-07): a contract
+    out of scope and one that never existed are indistinguishable.
+    """
+    contract = db.get(M.Contract, contract_id)
+    if contract is None or not can_read_contract(db, user_id, contract):
+        raise NotVisible("contract not found")
+    return contract
+
+
+def require_contract_owned(db: DBSession, user_id: UUID,
+                           contract_id: UUID) -> M.Contract:
+    """Resolve a Contract for WRITING — ownership only, or raise NotVisible.
+
+    Upload, update, archive, review creation and analysis all come through
+    here. Department scope and Legal scope are read scopes and never become a
+    way to alter someone else's paper (Step 24 r16/r17). This is the single
+    choke point for by-id write access, so every write path inherits the rule
+    rather than each remembering it.
+
+    Note what this does NOT check: whether the contract is archived. An owner
+    naming their own archived contract gets a 409 from the Guard, not a 404 —
+    they are allowed to know it exists; they are not allowed to change it.
+    """
+    contract = db.get(M.Contract, contract_id)
+    if contract is None or contract.owner_id != user_id:
+        raise NotVisible("contract not found")
+    return contract
+
+
+# --------------------------------------------------------------------------
+# Review visibility — rooted in the Contract
+# --------------------------------------------------------------------------
 def _has_legal_assignment(db: DBSession, review_id: UUID, user_id: UUID) -> bool:
     """Step 24 r6 — Legal Reviewer access is controlled by assignment."""
     return db.execute(
@@ -96,19 +192,20 @@ def review_in_legal_scope(db: DBSession, review: M.Review) -> bool:
 
 
 def can_see_review(db: DBSession, user_id: UUID, review: M.Review) -> bool:
-    """Ownership, legal assignment, or Legal scope. Nothing else — not role name (r12).
+    """Contract scope (owner or department), legal assignment, or Legal scope.
+    Nothing else — not role name (r12).
 
-    The third branch is locked `REC-09`, which resolved finding `F-6`: before it, both
-    branches of Step 24 r6 were unimplementable — nothing populates
-    `review_assignments`, and "explicit Legal scope" was undefined — so a Legal
-    Reviewer could reach no Review at all.
+    The first branch is what makes ownership transfer coherent (AB-12 r5): a
+    Review follows its Contract, so the new owner sees the analysis history and
+    the previous owner stops seeing it, without touching `reviews.created_by`.
 
-    Permission is tested before scope, in the order locked r12 states it. Legal scope
-    confers **view access only**: it is not ownership (r16, r17) and not decision
-    authority, which stays an explicit `legal.decision` grant checked per Evaluation
-    (SEC-02, SEC-05, ROLE-05).
+    Legal scope confers **view access only**: it is not ownership (r16, r17) and
+    not decision authority, which stays an explicit `legal.decision` grant
+    checked per Evaluation (SEC-02, SEC-05, ROLE-05).
     """
-    if _is_review_owner(review, user_id):
+    contract = db.get(M.Contract, review.contract_id)
+    if (contract is not None
+            and contract_read_basis(db, user_id, contract) in (OWNER, DEPARTMENT)):
         return True
     if _has_legal_assignment(db, review.id, user_id):
         return True
@@ -119,11 +216,8 @@ def can_see_review(db: DBSession, user_id: UUID, review: M.Review) -> bool:
 
 def require_review_visible(db: DBSession, user_id: UUID,
                            review_id: UUID) -> M.Review:
-    """Resolve a Review or raise NotVisible.
-
-    Returns 404-equivalent for both "does not exist" and "not yours" so the two
-    are indistinguishable to the caller (SEC-07).
-    """
+    """Resolve a Review or raise NotVisible — 404 for both "does not exist" and
+    "not yours" (SEC-07)."""
     review = db.get(M.Review, review_id)
     if review is None or not can_see_review(db, user_id, review):
         raise NotVisible("review not found")
@@ -133,66 +227,6 @@ def require_review_visible(db: DBSession, user_id: UUID,
 # --------------------------------------------------------------------------
 # Traversal: Legal Decision -> Evaluation -> Finding -> Review -> Contract
 # --------------------------------------------------------------------------
-def can_read_contract(db: DBSession, user_id: UUID, contract: M.Contract) -> bool:
-    """Whether this caller may READ a Contract — ownership, or Legal scope.
-
-    Owner ruling 2026-09-04, closing the gap HANDOFF §4 recorded as undecided:
-    *"Legal reviewers with the appropriate legal-review permission should be able
-    to open documents required for their authorized review work, even when they
-    are not the document owner."*
-
-    Before it, `REC-09` gave Legal sight of a Review, its Findings and its
-    Evaluations while the Contract stayed ownership-scoped — so a reviewer could
-    read that a clause deviates and never read the clause. Every UI path to the
-    evidence went through a 404.
-
-    The widening is bounded by the SAME scope rule Legal already has, and nothing
-    else:
-
-    ```text
-    owner                                            -> read
-    legal.review AND some Review of this Contract
-                  is in Legal scope (`REC-09`)       -> read
-    anything else                                    -> not visible (404)
-    ```
-
-    So Legal reads the documents it has work on, and not the rest of the estate:
-    a contract whose Reviews are all DRAFT or RESOLVED-without-escalation stays
-    invisible to Legal exactly as before. Permission is tested before scope, in
-    locked Step 24 r12's own order.
-
-    READ ONLY. This is deliberately not the check that guards upload, update or
-    delete — those keep `require_contract_visible`'s ownership rule, so the
-    widening cannot become a way to alter someone else's contract (r16/r17: Legal
-    access is not ownership). Nor does it confer decision authority, which stays
-    an explicit `legal.decision` grant checked per Evaluation (SEC-02, SEC-05).
-    """
-    if contract.deleted_at is not None:
-        # A soft-deleted contract is gone for every caller, Legal included (47.7).
-        return False
-    if contract.owner_id == user_id:
-        return True
-    if not has_permission(db, user_id, LEGAL_REVIEW):
-        return False
-    reviews = db.execute(
-        select(M.Review).where(M.Review.contract_id == contract.id)
-    ).scalars().all()
-    return any(review_in_legal_scope(db, review) for review in reviews)
-
-
-def require_contract_readable(db: DBSession, user_id: UUID,
-                              contract_id: UUID) -> M.Contract:
-    """Resolve a Contract for READING, or raise NotVisible.
-
-    Same 404-for-everything posture as `require_contract_visible` (SEC-07): a
-    contract out of scope and one that never existed are indistinguishable.
-    """
-    contract = db.get(M.Contract, contract_id)
-    if contract is None or not can_read_contract(db, user_id, contract):
-        raise NotVisible("contract not found")
-    return contract
-
-
 def require_finding_visible(db: DBSession, user_id: UUID,
                             finding_id: UUID) -> M.Finding:
     finding = db.get(M.Finding, finding_id)
@@ -209,22 +243,6 @@ def require_evaluation_visible(db: DBSession, user_id: UUID,
         raise NotVisible("evaluation not found")
     require_finding_visible(db, user_id, ev.finding_id)
     return ev
-
-
-def require_contract_visible(db: DBSession, user_id: UUID,
-                             contract_id: UUID) -> M.Contract:
-    c = db.get(M.Contract, contract_id)
-    if c is None or c.owner_id != user_id:
-        raise NotVisible("contract not found")
-    # A soft-deleted contract is gone as far as every caller is concerned —
-    # 404, exactly as if it had never existed, because existence is itself a
-    # disclosure (47.7). This is the single choke point for by-id contract
-    # access, so detail, update, upload and document-version traversal all
-    # inherit the rule here rather than each remembering it. The row itself
-    # stays put: rule 17 keeps its findings and audit trail reproducible.
-    if c.deleted_at is not None:
-        raise NotVisible("contract not found")
-    return c
 
 
 # --------------------------------------------------------------------------
@@ -278,6 +296,12 @@ def authorize_evaluation_operation(db: DBSession, user_id: UUID,
 # evidence and requires_decision. Those describe the COUNTERPARTY'S OWN CONTRACT
 # and the fact that authorized review is needed — neither is an internal legal
 # position, and 49.7's own worked example returns all of them ungated.
+#
+# Who holds `legal_position.view` changed under AB-12 r7: every Department User
+# holds it, because the department IS the audience for the organisation's
+# position on its own deals. The gate itself is unchanged and still bites for
+# any account without the grant — a platform administrator, or a future
+# counterparty-facing role.
 LEGAL_POSITION_FIELDS = (
     "rule_outcome",
     "expected_value",

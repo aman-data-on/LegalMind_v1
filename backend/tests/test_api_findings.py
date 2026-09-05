@@ -23,6 +23,7 @@ from tests.conftest import (
     make_review_for,
     make_user,
     sign_in,
+    without_legal_position,
 )
 
 V1 = "/api/v1"
@@ -168,11 +169,14 @@ def test_evidence_refs_is_an_empty_array_never_null(api, db, owner,
 # =====================================================================
 def test_legal_position_is_omitted_for_a_caller_without_the_permission(
         api, db, owner, scoped):
-    """A null would still signal that a value exists (Step 52.4). The normal-user
-    and authorized-legal views are structurally different views, not the same
-    view with fields masked."""
+    """A null would still signal that a value exists (Step 52.4). The two views
+    are structurally different views, not the same view with fields masked.
+
+    Since AB-12 r7 a Department User holds `legal_position.view` for their own
+    deals, so the gate is exercised here on an owner with that one grant removed.
+    """
     review, finding, _, _ = scoped
-    sign_in(api, db, owner)
+    sign_in(api, db, without_legal_position(db, owner))
     assert P.LEGAL_POSITION_VIEW not in \
         api.get(f"{V1}/auth/session").json()["data"]["permissions"]
 
@@ -191,7 +195,7 @@ def test_no_threshold_leaks_in_the_serialized_payload(api, db, owner, scoped):
     """49.5 r2 / LEGAL-02 — no thresholds anywhere in the response, including
     inside the explanation text, which reconstructs the Standard and the Rule."""
     review, finding, _, _ = scoped
-    sign_in(api, db, owner)
+    sign_in(api, db, without_legal_position(db, owner))
     raw = api.get(f"{V1}/findings/{finding.id}").text
     assert "expected >= 6" not in raw
     assert "3 < 6" not in raw
@@ -218,7 +222,7 @@ def test_evaluations_endpoint_applies_the_same_gate(api, db, owner, scoped):
     """A second route to the same data must not be a second disclosure
     posture."""
     review, finding, _, _ = scoped
-    sign_in(api, db, owner)
+    sign_in(api, db, without_legal_position(db, owner))
     for evaluation in api.get(
             f"{V1}/findings/{finding.id}/evaluations").json()["data"]:
         assert "rule_outcome" not in evaluation
@@ -262,7 +266,7 @@ def test_audit_state_payloads_are_gated(api, db, owner, scoped):
              after={"decision_type": "ACCEPT_DEVIATION"})
 
     admin = make_user(db)
-    grant_role(db, admin, P.ROLE_SUPER_ADMIN)
+    grant_role(db, admin, P.ROLE_PLATFORM_ADMIN)
     sign_in(api, db, admin)
     body = api.get(f"{V1}/audit-events").json()
     assert body["data"]

@@ -58,11 +58,14 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/contracts/summary"): P.CONTRACT_VIEW,
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_UPDATE,
-    # Owner approval 2026-09-01 (closes the gap AM-31 left open). Two modes
-    # behind one verb — hard delete when the contract was never analyzed, soft
-    # delete once a Review exists, so rule 17's audit trail and reproducible
-    # history survive. Ownership, not role reach, is the real scope.
-    ("DELETE", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_DELETE,
+    # AB-12 r6 — archive replaces AM-37's DELETE. There is deliberately NO
+    # DELETE verb on a contract any more: nothing in the application destroys
+    # one. Owner-scoped, like every other write.
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/archive"): P.CONTRACT_ARCHIVE,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/restore"): P.CONTRACT_ARCHIVE,
+    # AB-12 r5 — a Department Lead moves a deal to another owner in the same
+    # department. Visibility is department scope; the permission is the act.
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/transfer"): P.CONTRACT_TRANSFER,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/document-versions"):
         P.DOCUMENT_UPLOAD,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}"):
@@ -124,6 +127,14 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/roles"): P.ROLE_MANAGE,
     ("POST", f"{API_PREFIX}/roles"): P.ROLE_MANAGE,
     ("PATCH", f"{API_PREFIX}/roles/{{role_id}}"): P.ROLE_MANAGE,
+    # AB-12 r3 — departments are account administration (Step 24 r9: separate
+    # from contract content), so they sit behind `user.manage`.
+    ("GET", f"{API_PREFIX}/departments"): P.USER_MANAGE,
+    ("POST", f"{API_PREFIX}/departments"): P.USER_MANAGE,
+    # The Lead's transfer targets: ACTIVE colleagues in the caller's OWN
+    # department, names and emails only. Department scope is the gate; a caller
+    # outside any department gets an empty list, never everyone.
+    ("GET", f"{API_PREFIX}/departments/mine/members"): P.DEPARTMENT_VIEW,
 }
 
 

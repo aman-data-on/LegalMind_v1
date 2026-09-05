@@ -2,9 +2,9 @@
 
 /**
  * Admin — Users & roles (slice 7; PRODUCT_UX_ROADMAP §E screen 11, §H). The
- * control plane, deliberately separate from the legal workflow: SUPER_ADMIN
- * provisions accounts and composes authority here, and holds no legal
- * authority of its own (Step 23; SEC-02).
+ * control plane, deliberately separate from the legal workflow: the Platform
+ * Admin provisions accounts, departments and roles here, and holds no legal
+ * authority and no contract content of its own (Step 23; SEC-02; AB-12).
  *
  * Three server rules this screen surfaces rather than re-implements:
  *
@@ -30,18 +30,32 @@ import Link from "next/link";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Pagination, Role, User } from "@/lib/types";
+import type { Department, Pagination, Role, RoleTier, User } from "@/lib/types";
 
 const PAGE_SIZE = 25;
 type Tab = "users" | "roles";
 type SortBy = "email" | "created_at";
 type StatusFilter = "all" | "ACTIVE" | "SUSPENDED" | "DISABLED";
 
+/** Business language for what kind of role a row is (AB-12 r10). */
+const TIER_LABEL: Record<RoleTier, string> = {
+  department: "Department",
+  platform: "Platform administration",
+  break_glass: "Break-glass (developers)",
+  future_legal: "Future legal workflow",
+  custom: "Custom",
+};
+const TIER_ORDER: RoleTier[] = ["department", "platform", "break_glass", "custom", "future_legal"];
+
 export default function AdminPage() {
   const { can } = useSession();
   const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState<User[] | null>(null);
   const [roles, setRoles] = useState<Role[] | null>(null);
+  const [departments, setDepartments] = useState<Department[] | null>(null);
+  const [deptCode, setDeptCode] = useState("");
+  const [deptName, setDeptName] = useState("");
+  const [deptError, setDeptError] = useState<unknown>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<unknown>(null);
@@ -67,9 +81,12 @@ export default function AdminPage() {
         });
         setUsers(result.items);
         setPagination(result.pagination);
+        // AB-12 r3 — the boundary a Department Lead is scoped to. One page is
+        // the whole list for an organisation this size.
+        setDepartments((await api.departments({ page_size: 100 })).items);
       }
       if (canGrant && (tab === "roles" || tab === "users")) {
-        // Five canonical roles; one page is the whole vocabulary.
+        // Six canonical roles; one page is the whole vocabulary.
         setRoles((await api.roles({ page_size: 100 })).items);
       }
     } catch (cause) {
@@ -107,6 +124,19 @@ export default function AdminPage() {
       setCreateError(cause);
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function createDepartment(event: React.FormEvent) {
+    event.preventDefault();
+    setDeptError(null);
+    try {
+      await api.createDepartment(deptCode.trim(), deptName.trim());
+      setDeptCode("");
+      setDeptName("");
+      await load();
+    } catch (cause) {
+      setDeptError(cause);
     }
   }
 
@@ -203,6 +233,38 @@ export default function AdminPage() {
               ) : null}
             </form>
 
+            {/* Departments — AB-12 r3. Created empty; people are placed one at a
+                time from their own row, so every placement is its own audited act. */}
+            <form className="ws-intake" onSubmit={createDepartment} aria-labelledby="ws-admin-dept">
+              <h2 id="ws-admin-dept" className="ws-intake__title">Departments</h2>
+              <p className="ws-pane__note">
+                A Department Lead sees every deal owned by someone in their department, and nothing outside it.
+                {departments && departments.length > 0
+                  ? ` Existing: ${departments.map((d) => d.name).join(", ")}.`
+                  : " None yet — until one exists, every account sees only its own deals."}
+              </p>
+              <div className="ws-intake__fields">
+                <label className="ws-field">
+                  <span className="ws-field__label">Code <span className="ws-field__req">(required)</span></span>
+                  <input required value={deptCode} onChange={(event) => setDeptCode(event.target.value)}
+                         placeholder="SALES" />
+                </label>
+                <label className="ws-field ws-field--type">
+                  <span className="ws-field__label">Name <span className="ws-field__req">(required)</span></span>
+                  <input required value={deptName} onChange={(event) => setDeptName(event.target.value)}
+                         placeholder="Sales" />
+                </label>
+                <button type="submit" className="ws-btn ws-btn--icon"
+                        disabled={!deptCode.trim() || !deptName.trim()}>
+                  <Plus size={18} />
+                  Add department
+                </button>
+              </div>
+              {deptError ? (
+                <p className="ws-field__error" role="alert">{describeError(deptError)}</p>
+              ) : null}
+            </form>
+
             {/* Search & Filter */}
             <div className="ws-filter-bar">
               <label className="ws-field">
@@ -263,6 +325,7 @@ export default function AdminPage() {
                   <thead>
                     <tr>
                       <th scope="col">Account</th>
+                      <th scope="col">Department</th>
                       <th scope="col">Status</th>
                       <th scope="col">Roles</th>
                     </tr>
@@ -273,6 +336,7 @@ export default function AdminPage() {
                         key={user.id}
                         user={user}
                         roles={roles}
+                        departments={departments}
                         canGrant={canGrant}
                         onChanged={replaceUser}
                         onDeleted={load}
@@ -330,8 +394,14 @@ export default function AdminPage() {
         {tab === "roles" && canGrant ? (
           <>
             <div className="ws-state">
-              <h2>Role Management</h2>
-              <p>Manage roles and their permissions. Five canonical roles cannot be deleted (User, Legal Reviewer, Legal Admin, Super Admin, Legal Decision Authority).</p>
+              <h2>Roles</h2>
+              <p>
+                Two roles run the product: <strong>Department User</strong> (their own deals) and{" "}
+                <strong>Department Lead</strong> (every deal in their department, plus the standards).{" "}
+                <strong>Platform Admin</strong> manages accounts and departments and never opens a deal;{" "}
+                <strong>Developer</strong> is break-glass for debugging. The legal-workflow roles are kept for a
+                future workflow and are granted to nobody today.
+              </p>
             </div>
 
             {roles !== null && roles.length > 0 ? (
@@ -340,7 +410,7 @@ export default function AdminPage() {
                   <thead>
                     <tr>
                       <th scope="col">Role</th>
-                      <th scope="col">Code</th>
+                      <th scope="col">Kind</th>
                       <th scope="col">Permissions</th>
                     </tr>
                   </thead>
@@ -378,12 +448,14 @@ export default function AdminPage() {
 function UserRow({
   user,
   roles,
+  departments,
   canGrant,
   onChanged,
   onDeleted,
 }: {
   user: User;
   roles: Role[] | null;
+  departments: Department[] | null;
   canGrant: boolean;
   onChanged: (user: User) => void;
   onDeleted: () => Promise<void>;
@@ -426,7 +498,10 @@ function UserRow({
   }
 
   const active = user.status === "ACTIVE";
-  const grantable = (roles ?? []).filter((role) => !user.roles.includes(role.code));
+  const grantable = (roles ?? [])
+    .filter((role) => !user.roles.includes(role.code))
+    .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || a.name.localeCompare(b.name));
+  const roleName = (code: string) => roles?.find((r) => r.code === code)?.name ?? code;
 
   return (
     <tr data-user-email={user.email}>
@@ -438,6 +513,21 @@ function UserRow({
             {describeError(rowError)}
           </p>
         ) : null}
+      </td>
+      <td>
+        <label className="ws-visually-hidden" htmlFor={`dept-${user.id}`}>Department for {user.email}</label>
+        <select
+          id={`dept-${user.id}`}
+          value={user.department?.id ?? ""}
+          disabled={busy || departments === null}
+          onChange={(event) =>
+            void act(() => api.updateUser(user.id, { department_id: event.target.value || null }))}
+        >
+          <option value="">No department</option>
+          {(departments ?? []).map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
       </td>
       <td>
         <span className={`ws-chip${active ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>{user.status}</span>{" "}
@@ -465,7 +555,7 @@ function UserRow({
         {user.roles.length === 0 ? <span className="ws-pane__note">no roles — cannot act yet</span> : null}
         {user.roles.map((code) => (
           <span key={code} className="ws-rolechip">
-            <span className="ws-chip">{code}</span>
+            <span className="ws-chip" title={code}>{roleName(code)}</span>
             <button
               type="button"
               className="ws-rolechip__revoke ws-rolechip__revoke--icon"
@@ -494,10 +584,12 @@ function UserRow({
               onChange={(event) => setGrantCode(event.target.value)}
             >
               <option value="">Grant a role…</option>
-              {grantable.map((role) => (
-                <option key={role.code} value={role.code}>
-                  {role.name} ({role.code})
-                </option>
+              {TIER_ORDER.filter((tier) => grantable.some((r) => r.tier === tier)).map((tier) => (
+                <optgroup key={tier} label={TIER_LABEL[tier]}>
+                  {grantable.filter((r) => r.tier === tier).map((role) => (
+                    <option key={role.code} value={role.code}>{role.name}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <button
@@ -532,7 +624,7 @@ function RoleRow({ role, onChanged }: { role: Role; onChanged: (role: Role) => v
         <div className="ws-role-name">{role.name}</div>
       </td>
       <td>
-        <code>{role.code}</code>
+        <span className="ws-chip" title={role.code}>{TIER_LABEL[role.tier] ?? role.tier}</span>
       </td>
       <td>
         <button

@@ -275,7 +275,7 @@ def test_report_carries_no_risk_score_or_verdict(api, db, owner,
 # =====================================================================
 def _legal_admin(db):
     user = make_user(db)
-    grant_role(db, user, P.ROLE_LEGAL_ADMIN)
+    grant_role(db, user, P.ROLE_DEPARTMENT_LEAD)
     return user
 
 
@@ -416,7 +416,7 @@ def test_legal_admin_cannot_publish_without_the_permission(api, db, seeded):
 # =====================================================================
 def _super_admin(db):
     user = make_user(db)
-    grant_role(db, user, P.ROLE_SUPER_ADMIN)
+    grant_role(db, user, P.ROLE_PLATFORM_ADMIN)
     return user
 
 
@@ -586,7 +586,7 @@ def test_role_listing_marks_which_roles_confer_legal_authority(api, db, seeded):
     assert roles[P.ROLE_LEGAL_DECISION_AUTHORITY]["confers_legal_authority"] == [
         P.LEGAL_APPROVE_CUSTOMIZATION, P.LEGAL_DECISION]
     # Locked Step 23 — Super Admin confers none of it.
-    assert roles[P.ROLE_SUPER_ADMIN]["confers_legal_authority"] == []
+    assert roles[P.ROLE_PLATFORM_ADMIN]["confers_legal_authority"] == []
 
 
 # =====================================================================

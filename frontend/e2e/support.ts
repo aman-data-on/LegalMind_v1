@@ -15,7 +15,7 @@ import { expect } from "@playwright/test";
  *    on purpose — see `backend/tools/e2e_bootstrap.py`.
  * 2. **No locked control is weakened to make the harness work.** Where the locked
  *    design refused an earlier draft of this suite, the suite changed: configuration is
- *    published by `LEGAL_ADMIN` (Step 23) and sessions are reused rather than
+ *    published by `DEPARTMENT_LEAD` (Step 23) and sessions are reused rather than
  *    re-established (S-5). See `auth.setup.ts`.
  *
  * Every configured value in the fixture is `STRUCTURAL` and carries no legal meaning

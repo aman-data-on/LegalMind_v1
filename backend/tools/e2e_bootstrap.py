@@ -23,7 +23,7 @@ and one definition cannot disagree with itself.
 The three accounts exist because the properties under test are about *authority*:
 
 ```text
-admin     SUPER_ADMIN + LEGAL_ADMIN + USER   builds the fixture through the API
+admin     PLATFORM_ADMIN + DEPARTMENT_LEAD + USER   builds the fixture through the API
 owner     USER                               NO legal_position.view — the
                                              confidentiality subject (LEGAL-02)
 counsel   LEGAL_REVIEWER + LEGAL_DECISION_AUTHORITY + USER
@@ -139,8 +139,10 @@ STRUCTURAL_CONFIGURATION: dict[str, object] = {
     },
 }
 
+E2E_DEPARTMENT_CODE = "E2E"
+
 ACCOUNTS: dict[str, tuple[str, tuple[str, ...]]] = {
-    "admin": ("admin@e2e.test", ("SUPER_ADMIN", "LEGAL_ADMIN", "USER")),
+    "admin": ("admin@e2e.test", ("PLATFORM_ADMIN", "DEPARTMENT_LEAD", "USER")),
     "owner": ("owner@e2e.test", ("USER",)),
     # `USER` is present only because of `F-6` — see the module docstring.
     "counsel": ("counsel@e2e.test",
@@ -200,6 +202,17 @@ def provision(db: DBSession, password: str) -> dict[str, dict[str, str]]:
     if missing:
         raise SystemExit(f"canonical roles absent after bootstrap: {sorted(missing)}")
 
+    # AB-12 r3 — every e2e account sits in one department, so the Lead's
+    # department scope is exercisable in the browser suite. A department is
+    # created empty and assigned per account, exactly as the admin API does it.
+    department = db.execute(
+        select(M.Department).where(M.Department.code == E2E_DEPARTMENT_CODE)
+    ).scalars().first()
+    if department is None:
+        department = M.Department(code=E2E_DEPARTMENT_CODE, name="E2E Department")
+        db.add(department)
+        db.flush()
+
     encoded = hash_password(password)
     out: dict[str, dict[str, str]] = {}
     for label, (email, role_codes) in ACCOUNTS.items():
@@ -210,6 +223,7 @@ def provision(db: DBSession, password: str) -> dict[str, dict[str, str]]:
                           status=E.UserStatus.ACTIVE)
             db.add(user)
             db.flush()
+        user.department_id = department.id
 
         identity = db.execute(
             select(M.UserIdentity).where(

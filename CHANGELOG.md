@@ -10,6 +10,63 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — RBAC redesigned around the real workflow (AB-12, 2026-09-05) — LOCAL ONLY, NOT DEPLOYED
+
+Owner brief of 2026-09-05 after a six-question interview; lock record **AB-12** in
+`all_lock.md`, registry rows `AM-39`–`AM-41`. Plain-language model:
+[docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md).
+
+* **Roles.** `LEGAL_ADMIN` → `DEPARTMENT_LEAD`, `SUPER_ADMIN` → `PLATFORM_ADMIN`
+  (data migration on the same rows; assignments kept). `USER` displays as
+  "Department User". `LEGAL_REVIEWER`/`LEGAL_DECISION_AUTHORITY` retained for a
+  future legal workflow, hidden from the everyday picker via a new `tier` field on
+  `GET /roles`. `DEVELOPER` loses `legal.decision`/`legal.approve_customization`.
+* **Department scope.** New `departments` table, `users.department_id`, permission
+  `department.view`. A Department Lead reads every deal owned by someone in their
+  department — never globally; writes stay owner-only. Review/Finding/Evaluation
+  visibility is now rooted in the **contract** (`authorization.contract_read_basis`),
+  not `reviews.created_by`. `GET /contracts?scope=department`, `/contracts/summary?scope=`,
+  `GET /departments/mine/members`; admin `GET/POST /departments`,
+  `PATCH /users/{id}` gains `department_id`.
+* **Ownership transfer.** `contract.transfer`; `POST /contracts/{id}/transfer`
+  (same-department, ACTIVE target, mandatory reason); audited as
+  `contract.ownership_transferred`.
+* **Archive replaces delete.** `contract.delete` → `contract.archive`;
+  `contracts.deleted_at` → `archived_at`; **`DELETE /contracts/{id}` removed (405)**;
+  `POST …/archive` / `…/restore`; archived contracts are read-only (409), off the
+  default lists, listable with `?archived=true`, readable by owner and lead. The
+  hard-delete branch that destroyed unanalysed contracts and their bytes is gone.
+* **Legal position visible to users.** `USER` gains `legal_position.view` so a
+  Department User sees the expected value, comparison and explanation on their own
+  findings (LEGAL-02 audience named; gate unchanged).
+* **OIDC JIT whitelist enforced** (`permissions.NEVER_PROVISIONED_BY_IDP`).
+* **Cross-owner reads audited by basis** — `contract.read_via_department_scope`
+  beside the existing `…_legal_scope`.
+* Migration `b7c3d9e1f2a4` — exercised on a `pg_dump` clone of the development
+  database (6 users, all roles held, 4 soft-deleted contracts), **not** on the live
+  database. **Deployment order is forced by the column rename: migrate → restart
+  API → deploy frontend.**
+* Frontend: Dashboard "My deals / Department deals" tabs, "Show: Archived" filter,
+  Archive/Restore/Transfer row actions (Archive replaces Delete), owner names in the
+  department view; Admin page gains departments and a department select per user,
+  role names and tiers instead of codes; nav labels "Standards" and "Administration".
+* Tests: `test_rbac_personas.py` (28) and `test_contract_archive.py` (17, replacing
+  `test_contract_deletion.py`); JIT-whitelist test; schema snapshot moved to 30
+  tables / 201 columns in the same change as the migration and lock record;
+  OpenAPI snapshot regenerated (**61 operations**).
+
+### Coordination note — 2026-09-05, shared tree
+
+Session `legalmind-v1-80` had uncommitted workspace-pane work (DocumentPane,
+FindingsPane, workspace.css, e2e specs) throughout; none of it was touched, and my
+only edit to a file it also holds (`model.ts`, two nav labels) is a disjoint hunk
+staged on its own. Its `--reload` API on :8010 picked up this refactor mid-flight
+against an unmigrated DB — diagnosed jointly, it killed that process. That session
+owns the next Playwright run (the bootstrap recreates and migrates the e2e DB).
+**The live `legalmind-api.service` imports from this working tree**; it keeps
+serving pre-AB-12 code from memory until restarted — see the deployment order above.
+
+
 ### Coordination note — 2026-09-04, `c7edfba` deliberately not integrated
 
 Session B's `ponytail-review cleanup` (6 simplifications) lives on branch
