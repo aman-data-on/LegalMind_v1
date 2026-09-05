@@ -379,12 +379,22 @@ export interface ConfigurationSnapshot {
 export interface AuditEvent {
   id: string;
   actor_id: string | null;
+  /** Resolved account. `null` for a pre-authentication event (42.18 makes
+   *  `actor_id` nullable so a failed login can be recorded) — not "unknown". */
+  actor: { id: string; name: string; email: string } | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
+  /** Resolved only for user/department/role/session. A contract is deliberately
+   *  never labelled here — naming it would hand a Platform Admin the one thing
+   *  the scope model withholds. */
+  entity_label: string | null;
+  /** Identity-and-access event: its payload is legible to an `audit.view` holder. */
+  administrative: boolean;
   timestamp: string | null;
   request_id: string | null;
-  /** Gated behind `legal_position.view` — omitted, not nulled (Step 24 r8). */
+  /** Present for administrative events, and otherwise gated behind
+   *  `legal_position.view` — omitted, never nulled (Step 24 r8). */
   before_state?: unknown;
   after_state?: unknown;
 }
@@ -395,6 +405,15 @@ export interface Department {
   id: string;
   code: string;
   name: string;
+  created_at?: string | null;
+  /** Rollup, present on the administration list and detail. `leads` is DERIVED
+   *  from who holds `DEPARTMENT_LEAD` in the department — there is no
+   *  `lead_id` column, because the role assignment is what grants the scope. */
+  members?: number;
+  active_members?: number;
+  leads?: { name: string; email: string }[];
+  /** Detail only. */
+  member_accounts?: User[];
 }
 
 export interface DepartmentMembers {
@@ -409,7 +428,30 @@ export interface User {
   status: string;
   roles: string[];
   department: Department | null;
+  /** How this account can sign in — names only, never a subject or a hash (S-4).
+   *  Empty means no credential is provisioned: the account exists and cannot yet
+   *  authenticate by any route. */
+  auth_providers: string[];
+  /** Last successful authentication. `null` means never — not "unknown". */
+  last_login_at: string | null;
+  /** From the `admin.user_created` audit row (AUD-01). `null` for an account the
+   *  seed made or an SSO identity linked to (47.1.3 r2) — not a gap to fill in. */
+  provisioned_by: { id: string; name: string; email: string } | null;
   created_at: string | null;
+  updated_at: string | null;
+}
+
+/** The SEC-04 catalogue, grouped as an administrator reads it. */
+export interface PermissionCatalogue {
+  groups: {
+    group: string;
+    permissions: {
+      name: string;
+      description: string | null;
+      /** SEC-02/ROLE-05 — no bypass may ever reach these two. */
+      confers_legal_authority: boolean;
+    }[];
+  }[];
 }
 
 /** What KIND of role a row is (AB-12 r10) — the screen speaks in these, never

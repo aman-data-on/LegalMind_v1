@@ -78,6 +78,7 @@ CONTRACT_RESTORED = "contract.restored"
 CONTRACT_OWNERSHIP_TRANSFERRED = "contract.ownership_transferred"
 # Administration
 ADMIN_DEPARTMENT_CREATED = "admin.department_created"
+ADMIN_DEPARTMENT_UPDATED = "admin.department_updated"
 ADMIN_ROLE_GRANTED = "admin.role_granted"
 ADMIN_ROLE_REVOKED = "admin.role_revoked"
 ADMIN_LEGAL_AUTHORITY_GRANTED = "admin.legal_authority_granted"

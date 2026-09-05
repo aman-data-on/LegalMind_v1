@@ -350,65 +350,249 @@ def serialize_requirement(db: DBSession, req: M.Requirement,
 # ==========================================================================
 # Audit
 # ==========================================================================
-def serialize_audit_event(e: M.AuditEvent, *,
-                          legal_position: bool) -> dict[str, Any]:
-    """``before_state``/``after_state`` are gated behind ``legal_position.view``.
+#: Actions whose payloads are IDENTITY AND ACCESS administration and nothing else.
+#:
+#: `before_state`/`after_state` are gated behind `legal_position.view` because
+#: this one table also carries legal-workflow events, and locked Step 24 r8 says a
+#: platform administrator "does not automatically have access to confidential
+#: contract or Legal content" — returning `after_state: {"decision_type": ...}`
+#: to them would defeat it.
+#:
+#: But that gate, applied to EVERY action, also hides `{"role": "USER"}` from the
+#: administrator who just granted it, which makes the trail useless for the one
+#: job it is theirs to do. These prefixes are the exception, and they are chosen
+#: by what the payloads actually contain:
+#:
+#:   admin.*   {"email"}, {"role"}, {"name","status","department_id"},
+#:             {"code","name"}, {"permissions"}          — accounts and access
+#:   auth.*    {"sessions_revoked"}, session ids          — sign-in lifecycle
+#:
+#: Everything else stays gated, and two in particular MUST: `contract.archived`
+#: carries the contract's NAME in `before`, and `contract.ownership_transferred`
+#: carries the free-text reason a Department Lead wrote about a deal. Neither is
+#: identity administration, and a Platform Admin has no business reading either.
+#: Prefix-matched deliberately: a future `admin.*` event inherits the rule, and a
+#: future `contract.*` or `legal.*` one inherits the gate.
+ADMINISTRATIVE_ACTION_PREFIXES = ("admin.", "auth.")
 
-    Locked 47.9 puts legal-workflow events in this table and 49.3 gates the
-    endpoint on ``audit.view`` — which by Step 47's own default grants belongs to
-    Super Admin, who has **no** ``legal_position.view``. Locked Step 24 r8 says a
-    Super Admin "does not automatically have access to confidential contract or
-    Legal content", so returning ``after_state: {"decision_type": ...}`` to them
-    would defeat it. The envelope — who did what to which entity, when — is
-    always returned; the payload is omitted, not nulled.
+#: Entity kinds whose display label may be resolved for the audit view. Contracts,
+#: reviews, findings and evaluations are deliberately ABSENT: naming them would
+#: hand a Platform Admin the one thing the whole scope model withholds, through a
+#: screen they are entitled to open. An entity outside this set is shown by type
+#: and id, which is what an auditor needs to correlate it anyway.
+AUDIT_LABELLED_ENTITIES = frozenset({"user", "department", "role", "session"})
+
+
+def is_administrative_action(action: str) -> bool:
+    return action.startswith(ADMINISTRATIVE_ACTION_PREFIXES)
+
+
+def serialize_audit_event(e: M.AuditEvent, *, legal_position: bool,
+                          actors: dict[UUID, M.User] | None = None,
+                          labels: dict[UUID, str] | None = None) -> dict[str, Any]:
+    """Who did what, to what, when — and, where it is theirs to see, with what.
+
+    The envelope is always returned. The payload follows
+    `ADMINISTRATIVE_ACTION_PREFIXES`: omitted, never nulled, so an absent field
+    conveys nothing.
+
+    ``actors``/``labels`` are the batched lookups from the list endpoint. Without
+    them the event still serializes — the ids are the fact, the names are the
+    courtesy.
     """
+    actor = (actors or {}).get(e.actor_id) if e.actor_id else None
     payload: dict[str, Any] = {
         "id": str(e.id),
         "actor_id": str(e.actor_id) if e.actor_id else None,
+        # Null actor is not "unknown": 42.18 makes it nullable so a
+        # pre-authentication event (a failed login for an account that may not
+        # exist) can be recorded without inventing a principal for it.
+        "actor": ({"id": str(actor.id), "name": actor.name, "email": actor.email}
+                  if actor is not None else None),
         "action": e.action,
         "entity_type": e.entity_type,
         "entity_id": str(e.entity_id) if e.entity_id else None,
+        "entity_label": ((labels or {}).get(e.entity_id)
+                         if e.entity_id and e.entity_type in AUDIT_LABELLED_ENTITIES
+                         else None),
+        "administrative": is_administrative_action(e.action),
         "timestamp": _iso(e.timestamp),
         "request_id": (e.event_metadata or {}).get("request_id"),
     }
-    if legal_position:
+    if legal_position or is_administrative_action(e.action):
         payload["before_state"] = e.before_state
         payload["after_state"] = e.after_state
     return payload
 
 
+def audit_lookups(db: DBSession,
+                  events: list[M.AuditEvent]) -> tuple[dict, dict]:
+    """Actor accounts and entity labels for a page of events, in three queries.
+
+    Only `AUDIT_LABELLED_ENTITIES` are resolved — see that constant for why a
+    contract's name is not among them.
+    """
+    actor_ids = {e.actor_id for e in events if e.actor_id}
+    actors = {} if not actor_ids else {
+        u.id: u for u in db.execute(
+            select(M.User).where(M.User.id.in_(actor_ids))).scalars()
+    }
+    labels: dict[UUID, str] = {}
+    by_type: dict[str, set] = {}
+    for e in events:
+        if e.entity_id and e.entity_type in AUDIT_LABELLED_ENTITIES:
+            by_type.setdefault(e.entity_type, set()).add(e.entity_id)
+    if by_type.get("user"):
+        for uid, email in db.execute(
+            select(M.User.id, M.User.email)
+            .where(M.User.id.in_(by_type["user"]))
+        ):
+            labels[uid] = email
+    if by_type.get("department"):
+        for did, name in db.execute(
+            select(M.Department.id, M.Department.name)
+            .where(M.Department.id.in_(by_type["department"]))
+        ):
+            labels[did] = name
+    if by_type.get("role"):
+        for rid, name in db.execute(
+            select(M.Role.id, M.Role.name).where(M.Role.id.in_(by_type["role"]))
+        ):
+            labels[rid] = name
+    return actors, labels
+
+
 # ==========================================================================
 # Identity & access
 # ==========================================================================
-def serialize_department(d: M.Department | None) -> dict[str, Any] | None:
-    if d is None:
-        return None
-    return {"id": str(d.id), "code": d.code, "name": d.name}
+def serialize_department(d: M.Department) -> dict[str, Any]:
+    """Non-optional on purpose: a caller that may have no department says so at
+    the call site, so `None` never travels through here as a valid value."""
+    return {"id": str(d.id), "code": d.code, "name": d.name,
+            "created_at": _iso(d.created_at)}
 
 
 def _department_of(db: DBSession, u: M.User) -> M.Department | None:
     return db.get(M.Department, u.department_id) if u.department_id else None
 
 
-def serialize_user(db: DBSession, u: M.User) -> dict[str, Any]:
-    """S-4 — no endpoint returns credential material. ``user_identities`` is not
-    joined here at all, so ``credential_hash`` is not merely filtered out of the
-    response: it is never selected."""
-    roles = db.execute(
-        select(M.Role.code)
-        .join(M.UserRole, M.UserRole.role_id == M.Role.id)
-        .where(M.UserRole.user_id == u.id)
-        .order_by(M.Role.code)
-    ).scalars().all()
+class UserContext:
+    """Everything an administration screen shows about a page of accounts,
+    fetched in four grouped queries instead of four per row.
+
+    Why it exists: ``serialize_user`` ran one roles query per user, and the
+    administration list needs three more facts per user on top of that. At 25
+    rows that is 100 round trips for one screen. Every field here comes from a
+    table LegalMind already keeps — nothing is invented and no column is added:
+
+    ```text
+    roles          user_roles  ⋈  roles
+    department     users.department_id  →  departments
+    identities     user_identities.provider / .last_used_at   (never the hash)
+    provisioned_by the `admin.user_created` audit row's actor  (AUD-01)
+    ```
+
+    ``credential_hash`` is not merely filtered out of the response — S-4 means it
+    is never selected, so the identity query names its columns explicitly.
+    """
+
+    __slots__ = ("actors", "departments", "identities", "provisioned_by", "roles")
+
+    def __init__(self, db: DBSession, users: list[M.User]) -> None:
+        ids = [u.id for u in users]
+        self.roles: dict[UUID, list[str]] = {}
+        self.departments: dict[UUID, M.Department] = {}
+        self.identities: dict[UUID, list[tuple[str, Any]]] = {}
+        self.provisioned_by: dict[UUID, UUID] = {}
+        self.actors: dict[UUID, M.User] = {}
+        if not ids:
+            return
+
+        for user_id, code in db.execute(
+            select(M.UserRole.user_id, M.Role.code)
+            .join(M.Role, M.Role.id == M.UserRole.role_id)
+            .where(M.UserRole.user_id.in_(ids))
+            .order_by(M.Role.code)
+        ):
+            self.roles.setdefault(user_id, []).append(code)
+
+        department_ids = {u.department_id for u in users if u.department_id}
+        if department_ids:
+            self.departments = {
+                d.id: d for d in db.execute(
+                    select(M.Department).where(M.Department.id.in_(department_ids))
+                ).scalars()
+            }
+
+        # S-4: the columns are named, so the hash is never in the result set.
+        for user_id, provider, last_used in db.execute(
+            select(M.UserIdentity.user_id, M.UserIdentity.provider,
+                   M.UserIdentity.last_used_at)
+            .where(M.UserIdentity.user_id.in_(ids))
+        ):
+            self.identities.setdefault(user_id, []).append(
+                (provider.value, last_used))
+
+        # Who provisioned each account. The audit trail is append-only (AUD-01),
+        # so the earliest `admin.user_created` row for an account is the record
+        # of its creation — there is no `created_by` column and none is added.
+        # An account with no such row was not created through the admin API: the
+        # seed made it, or (47.1.3 r2) an SSO identity was linked to it.
+        for entity_id, actor_id in db.execute(
+            select(M.AuditEvent.entity_id, M.AuditEvent.actor_id)
+            .where(M.AuditEvent.action == "admin.user_created",
+                   M.AuditEvent.entity_type == "user",
+                   M.AuditEvent.entity_id.in_(ids))
+            .order_by(M.AuditEvent.timestamp)
+        ):
+            if entity_id is not None and actor_id is not None:
+                self.provisioned_by.setdefault(entity_id, actor_id)
+
+        if self.provisioned_by:
+            self.actors = {
+                a.id: a for a in db.execute(
+                    select(M.User).where(
+                        M.User.id.in_(set(self.provisioned_by.values())))
+                ).scalars()
+            }
+
+
+def serialize_user(db: DBSession, u: M.User, *,
+                   context: UserContext | None = None) -> dict[str, Any]:
+    """S-4 — no endpoint returns credential material.
+
+    ``context`` is the batched form used by the list endpoints; omit it and the
+    same facts are gathered for this one account. Both paths produce the same
+    shape, so a single user and a row in a list can never disagree.
+    """
+    ctx = context if context is not None else UserContext(db, [u])
+    identities = ctx.identities.get(u.id, [])
+    last_used = [t for _, t in identities if t is not None]
+    provisioner = ctx.actors.get(ctx.provisioned_by.get(u.id))  # type: ignore[arg-type]
+    department = (ctx.departments.get(u.department_id)
+                  if u.department_id else None)
     return {
         "id": str(u.id),
         "email": u.email,
         "name": u.name,
         "status": u.status.value,
-        "roles": list(roles),
+        "roles": ctx.roles.get(u.id, []),
         # AB-12 r3 — the boundary a Department Lead's scope is bounded by.
-        "department": serialize_department(_department_of(db, u)),
+        "department": serialize_department(department) if department else None,
+        # How this account can sign in. Names only — never a subject, never a
+        # hash (S-4). Empty means no credential has been provisioned yet, which
+        # is a real and useful administrative state: the account exists and
+        # cannot yet authenticate by any route.
+        "auth_providers": sorted({p for p, _ in identities}),
+        # Last successful authentication, from `user_identities.last_used_at`,
+        # which both the password and OIDC paths stamp on sign-in. Null means
+        # never signed in — not "unknown".
+        "last_login_at": _iso(max(last_used)) if last_used else None,
+        "provisioned_by": ({"id": str(provisioner.id), "name": provisioner.name,
+                            "email": provisioner.email}
+                           if provisioner is not None else None),
         "created_at": _iso(u.created_at),
+        "updated_at": _iso(u.updated_at),
     }
 
 
@@ -454,5 +638,6 @@ def serialize_session_identity(db: DBSession, u: M.User) -> dict[str, Any]:
         # AB-12 r3 — presentation only, like `permissions`: lets the UI say
         # "Department deals" for the right department, or explain that the
         # account is in none yet. The server scopes every query on its own.
-        "department": serialize_department(_department_of(db, u)),
+        "department": (serialize_department(department)
+                       if (department := _department_of(db, u)) else None),
     }

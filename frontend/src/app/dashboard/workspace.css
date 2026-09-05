@@ -2313,3 +2313,101 @@
   color: var(--ws-ink-500); border-top: 1px solid var(--ws-ink-100);
   padding-top: var(--ws-s2);
 }
+
+/* ==========================================================================
+   Administration — Users · Departments · Roles & permissions · Audit log
+   (2026-09-05). Built on the existing tokens and primitives: no new colour, no
+   new type scale, no component library. The only new shapes are the two the
+   area actually needs — a list-plus-detail split, and a role card.
+   ========================================================================== */
+.ws-admin { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s4); }
+.ws-admin__head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--ws-s4); flex-wrap: wrap;
+}
+.ws-admin__head h1 { margin: 0 0 2px; font-size: var(--ws-text-lg); font-weight: 600; }
+.ws-adminnav { margin: 0 calc(-1 * var(--ws-s4)); }
+.ws-adminnav .ws-tab { text-decoration: none; }
+
+/* List and detail sit side by side on a wide screen and stack on a narrow one;
+   the detail never becomes a modal, because an administrator compares it with
+   the row it came from. */
+.ws-admin__body { display: flex; gap: var(--ws-s4); align-items: flex-start; }
+.ws-admin__main { flex: 1 1 auto; min-width: 0; display: flex;
+                  flex-direction: column; gap: var(--ws-s3); }
+.ws-admin__name {
+  font: inherit; font-weight: 500; background: none; border: 0; padding: 0;
+  color: var(--ws-ink-900); cursor: pointer; text-align: left;
+}
+.ws-admin__name:hover { text-decoration: underline; }
+.ws-admin__footnote { max-width: 68ch; }
+.ws-tr--selected { background: var(--ws-paper); }
+
+.ws-detail {
+  flex: 0 0 360px; align-self: stretch; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s4);
+  max-height: calc(100vh - 180px); overflow-y: auto;
+}
+.ws-detail__head { display: flex; align-items: flex-start;
+                   justify-content: space-between; gap: var(--ws-s3); }
+.ws-detail__title { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.ws-detail__sub { margin: 2px 0 0; font-size: var(--ws-text-xs);
+                  color: var(--ws-ink-500); word-break: break-all; }
+.ws-detail__section { display: flex; flex-direction: column; gap: var(--ws-s2);
+                      padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
+.ws-detail__section h3 { margin: 0; font-size: var(--ws-text-xs); font-weight: 600;
+                         text-transform: uppercase; letter-spacing: 0.04em;
+                         color: var(--ws-ink-500); }
+.ws-detail__acts { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-detail__roles { display: flex; flex-wrap: wrap; gap: var(--ws-s1); }
+
+.ws-deflist { margin: 0; display: grid; gap: var(--ws-s2); }
+.ws-deflist > div { display: grid; grid-template-columns: 42% 1fr;
+                    gap: var(--ws-s2); align-items: baseline; }
+.ws-deflist dt { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-deflist dd { margin: 0; font-size: var(--ws-text-sm); word-break: break-word; }
+
+.ws-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-timeline li { display: grid; gap: 2px; font-size: var(--ws-text-xs);
+                  padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100); }
+.ws-timeline__when { color: var(--ws-ink-500); }
+.ws-timeline__what { font-weight: 500; }
+
+.ws-memberlist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-memberlist li { display: flex; align-items: baseline; gap: var(--ws-s2);
+                    flex-wrap: wrap; font-size: var(--ws-text-sm); }
+
+.ws-rolecards { display: grid; gap: var(--ws-s3);
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.ws-rolecard {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); padding: var(--ws-s4);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-rolecard__head { display: flex; align-items: flex-start;
+                     justify-content: space-between; gap: var(--ws-s2); }
+.ws-rolecard__name { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.ws-rolecard__tags { display: flex; gap: var(--ws-s1); flex-wrap: wrap;
+                     justify-content: flex-end; }
+.ws-rolecard__perms { display: grid; gap: var(--ws-s3); margin-top: var(--ws-s2); }
+.ws-rolecard__perms h3 { margin: 0; font-size: var(--ws-text-xs); font-weight: 600;
+                         color: var(--ws-ink-500); }
+.ws-rolecard__perms ul { list-style: none; margin: var(--ws-s1) 0 0; padding: 0;
+                         display: grid; gap: var(--ws-s1); }
+.ws-rolecard__perms li { display: flex; align-items: baseline; gap: var(--ws-s2);
+                         flex-wrap: wrap; font-size: var(--ws-text-xs); }
+
+.ws-field--check { flex-direction: row; align-items: center; gap: var(--ws-s2); }
+.ws-field--check input { width: auto; }
+.ws-auditpayload {
+  margin: var(--ws-s2) 0 0; padding: var(--ws-s2); max-width: 46ch;
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm);
+  font-family: var(--ws-mono); font-size: var(--ws-text-xs);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .ws-admin__body { flex-direction: column; }
+  .ws-detail { flex: 1 1 auto; width: 100%; max-height: none; }
+}

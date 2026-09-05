@@ -281,6 +281,23 @@
     "title": "DepartmentCreate",
     "type": "object"
    },
+   "DepartmentUpdate": {
+    "additionalProperties": false,
+    "description": "The name only \u2014 the code identifies the boundary in an append-only audit\ntrail and does not change.",
+    "properties": {
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "DepartmentUpdate",
+    "type": "object"
+   },
    "EscalationCreate": {
     "additionalProperties": false,
     "description": "Locked Step 4: an escalation means \"this requires authorized review\", NOT\n\"I approve this deviation\" \u2014 which is why it carries a reason and no\ndisposition.",
@@ -604,8 +621,20 @@
    },
    "UserCreate": {
     "additionalProperties": false,
-    "description": "47.1.3 account resolution r3 \u2014 LegalMind does not self-provision. An\naccount exists only because an authorized administrator created it, so its\nroles are always assigned deliberately and never inferred from a login.",
+    "description": "47.1.3 account resolution r3 \u2014 LegalMind does not self-provision. An\naccount exists only because an authorized administrator created it, so its\nroles are always assigned deliberately and never inferred from a login.\n\n``department_id`` and ``role_code`` are optional and change nothing about\nthat: naming a role here still runs S-8, so an administrator can only start\nan account with authority they already hold themselves.",
     "properties": {
+     "department_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Department Id"
+     },
      "email": {
       "maxLength": 320,
       "minLength": 3,
@@ -617,6 +646,18 @@
       "minLength": 1,
       "title": "Name",
       "type": "string"
+     },
+     "role_code": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Role Code"
      }
     },
     "required": [
@@ -729,6 +770,7 @@
  "paths": {
   "/api/v1/audit-events": {
    "get": {
+    "description": "``administrative=true`` narrows to identity-and-access events \u2014 the\naccount lifecycle a platform administrator is answerable for, without the\nlegal-workflow traffic they cannot read the payloads of anyway. Matched by\nthe same prefixes the payload gate uses, so the filter and the gate can never\ndisagree about what \"administrative\" means.\n\n``since``/``until`` are a half-open range on the recorded timestamp. Still an\nallow-list (49.6): the caller chooses among these parameters and no other.",
     "operationId": "list_audit_events_api_v1_audit_events_get",
     "parameters": [
      {
@@ -797,6 +839,50 @@
         }
        ],
        "title": "Actor Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "since",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "in": "query",
+      "name": "until",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     },
+     {
+      "in": "query",
+      "name": "administrative",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Administrative",
+       "type": "boolean"
       }
      },
      {
@@ -1948,6 +2034,7 @@
   },
   "/api/v1/departments": {
    "get": {
+    "description": "Departments with their lead and member counts.\n\nCounts only \u2014 never the deals. A department is a boundary around contract\nvisibility, and listing it tells an administrator how many people it contains\nand who oversees them, which is account administration (Step 24 r9). It\ndiscloses nothing about what those people are working on.",
     "operationId": "list_departments_api_v1_departments_get",
     "parameters": [
      {
@@ -2064,6 +2151,106 @@
      }
     },
     "summary": "My Department Members",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/departments/{department_id}": {
+   "get": {
+    "description": "One department, its rollup, and its members as accounts.\n\nThe member list is the same account projection the user list serves \u2014 one\nplace decides what an account looks like \u2014 and it is bounded by the\ndepartment, so this is not a second unfiltered roster.",
+    "operationId": "get_department_api_v1_departments__department_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "department_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Department Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Department Api V1 Departments  Department Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Department",
+    "tags": [
+     "administration"
+    ]
+   },
+   "patch": {
+    "description": "Rename a department. The CODE is deliberately immutable.\n\nThe name is a label; the code is the identifier an administrator recognises\na boundary by, and it appears in audit rows that are append-only. Letting it\nchange would make yesterday's trail read as if it referred to somewhere else.\nMembership is not edited here either \u2014 it is a property of each account and\nchanges one audited act at a time through `PATCH /users/{id}`.",
+    "operationId": "update_department_api_v1_departments__department_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "department_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Department Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DepartmentUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Department Api V1 Departments  Department Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Department",
     "tags": [
      "administration"
     ]
@@ -2649,6 +2836,30 @@
     "summary": "List Evaluations",
     "tags": [
      "findings"
+    ]
+   }
+  },
+  "/api/v1/permissions": {
+   "get": {
+    "description": "The permission catalogue, grouped \u2014 SEC-04's eleven groups as the\nadministrator sees them.\n\n`permissions.permission_group` has been stored since the catalogue was seeded\nand served nowhere, so the Roles screen had to render bare dotted strings and\nan administrator had to know that `legal.decision` is not like `report.view`.\nThis is a read projection of data that already exists: no new permission, no\nnew grant, and nothing that changes what any role may do.\n\n`confers_legal_authority` marks the two SEC-02/ROLE-05 permissions no bypass\nmay ever reach, so a screen can separate them without hardcoding their names.\nUnpaginated by design: the catalogue is a fixed 30 rows, not a collection.",
+    "operationId": "list_permissions_api_v1_permissions_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Permissions Api V1 Permissions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Permissions",
+    "tags": [
+     "administration"
     ]
    }
   },
@@ -3518,7 +3729,7 @@
   },
   "/api/v1/users": {
    "get": {
-    "description": "List users with optional filtering by status and search by email/name.",
+    "description": "The administration roster \u2014 49.6's allow-listed filters and sorting.\n\n``role`` and ``department_id`` are the two questions an administrator\nactually asks of this list (\"who leads Sales?\", \"who is in no department?\"),\nand both are answered in SQL rather than by filtering a page client-side \u2014\notherwise a filter would only ever see the 25 rows already on screen, which\nis the same class of defect the Dashboard's status filter had.\n\n``unassigned`` is separate from ``department_id`` because \"no department\" is\nnot a department id, and it matters: an account nobody has placed is invisible\nto every Department Lead, so finding those accounts is an administrative task\nin its own right.",
     "operationId": "list_users_api_v1_users_get",
     "parameters": [
      {
@@ -3544,6 +3755,7 @@
       "schema": {
        "anyOf": [
         {
+         "maxLength": 200,
          "type": "string"
         },
         {
@@ -3551,6 +3763,60 @@
         }
        ],
        "title": "Search"
+      }
+     },
+     {
+      "in": "query",
+      "name": "role",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 100,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Role"
+      }
+     },
+     {
+      "in": "query",
+      "name": "department_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "uuid",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Department Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "unassigned",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Unassigned",
+       "type": "boolean"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sort",
+      "required": false,
+      "schema": {
+       "default": "name_asc",
+       "title": "Sort",
+       "type": "string"
       }
      },
      {
@@ -3606,7 +3872,7 @@
     ]
    },
    "post": {
-    "description": "47.1.3 r3 \u2014 LegalMind never self-provisions an account.\n\nThe new account holds **no roles**. Authority is always a later, deliberate\ngrant, never a side effect of creation.",
+    "description": "47.1.3 r3 \u2014 LegalMind never self-provisions an account.\n\nAn account still holds **no roles unless one is named here**, and naming one\nis not a shortcut around anything: the grant runs the same `require_can_grant_role`\n(S-8) the standalone endpoint runs, and records the same audit events. What\nit removes is the three-step provisioning dance \u2014 create, then place, then\ngrant \u2014 during which the account exists in a state nobody chose.\n\nA refusal at any step aborts the whole request: 43.26 puts the transaction\naround the request, so a half-provisioned account is not representable.",
     "operationId": "create_user_api_v1_users_post",
     "requestBody": {
      "content": {

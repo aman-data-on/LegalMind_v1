@@ -17,12 +17,12 @@ import type {
   AnalysisSubmission,
   AskResult,
   AuditEvent,
-  Conversation,
-  ConversationDetail,
-  ConversationSummary,
   ConfigurationSnapshot,
   Contract,
   ContractsSummary,
+  Conversation,
+  ConversationDetail,
+  ConversationSummary,
   DataEnvelope,
   Decision,
   Department,
@@ -31,14 +31,15 @@ import type {
   Escalation,
   Evaluation,
   Finding,
-  Pagination,
+  ObligationsResult,
   PaginatedEnvelope,
+  Pagination,
+  PermissionCatalogue,
   Requirement,
   Review,
   ReviewReport,
   Role,
   SessionIdentity,
-  ObligationsResult,
   SnapshotSummary,
   TypeSuggestion,
   UploadResult,
@@ -540,19 +541,50 @@ export const api = {
       page_size?: number;
       action?: string;
       entity_type?: string;
+      entity_id?: string;
+      since?: string;
+      until?: string;
+      administrative?: string;
       actor_id?: string;
     } = {},
   ) => requestPage<AuditEvent>("/audit-events", { query }),
 
   // ---- administration --------------------------------------------------
-  users: (query: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
-    requestPage<User>("/users", { query }),
+  /** The roster. Every filter and the sort are applied server-side over the
+   *  WHOLE collection — never over the page already fetched, which is the defect
+   *  class that made the old screen's sort control decorative. */
+  users: (
+    query: {
+      page?: number;
+      page_size?: number;
+      status?: string;
+      search?: string;
+      role?: string;
+      department_id?: string;
+      unassigned?: string;
+      sort?: string;
+    } = {},
+  ) => requestPage<User>("/users", { query }),
+  user: (id: string) => request<User>(`/users/${id}`),
   departments: (query: { page?: number; page_size?: number } = {}) =>
     requestPage<Department>("/departments", { query }),
+  department: (id: string) => request<Department>(`/departments/${id}`),
   createDepartment: (code: string, name: string) =>
     request<Department>("/departments", { method: "POST", body: { code, name } }),
-  createUser: (email: string, name: string) =>
-    request<User>("/users", { method: "POST", body: { email, name } }),
+  /** The name only — the code identifies the boundary in an append-only audit
+   *  trail, so the server does not accept a new one. */
+  renameDepartment: (id: string, name: string) =>
+    request<Department>(`/departments/${id}`, { method: "PATCH", body: { name } }),
+  /** The SEC-04 catalogue, grouped, so the Roles screen can explain a grant
+   *  rather than printing a dotted string. */
+  permissionCatalogue: () => request<PermissionCatalogue>("/permissions"),
+  /** Department and role are optional; naming a role still runs S-8 server-side,
+   *  and a refusal leaves no account behind (one transaction, 43.26). */
+  createUser: (
+    email: string,
+    name: string,
+    extra: { department_id?: string; role_code?: string } = {},
+  ) => request<User>("/users", { method: "POST", body: { email, name, ...extra } }),
   updateUser: (id: string, patch: Record<string, unknown>) =>
     request<User>(`/users/${id}`, { method: "PATCH", body: patch }),
   deleteUser: (id: string) =>

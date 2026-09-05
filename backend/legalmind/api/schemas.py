@@ -193,10 +193,17 @@ class ConfigurationPublish(Body):
 class UserCreate(Body):
     """47.1.3 account resolution r3 — LegalMind does not self-provision. An
     account exists only because an authorized administrator created it, so its
-    roles are always assigned deliberately and never inferred from a login."""
+    roles are always assigned deliberately and never inferred from a login.
+
+    ``department_id`` and ``role_code`` are optional and change nothing about
+    that: naming a role here still runs S-8, so an administrator can only start
+    an account with authority they already hold themselves.
+    """
 
     email: str = Field(min_length=3, max_length=320)
     name: str = Field(min_length=1, max_length=200)
+    department_id: UUID | None = None
+    role_code: str | None = Field(default=None, max_length=100)
 
 
 class UserUpdate(Body):
@@ -211,6 +218,13 @@ class UserUpdate(Body):
 
 class DepartmentCreate(Body):
     code: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+
+
+class DepartmentUpdate(Body):
+    """The name only — the code identifies the boundary in an append-only audit
+    trail and does not change."""
+
     name: str = Field(min_length=1, max_length=200)
 
 

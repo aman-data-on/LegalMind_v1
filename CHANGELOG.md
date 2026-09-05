@@ -10,6 +10,66 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — the Platform Administration area (2026-09-05) — LOCAL ONLY, NOT DEPLOYED
+
+Owner brief of 2026-09-05, built on the frozen AB-12 model. **No locked decision
+is amended and RBAC is unchanged** — no role, permission, grant or scope rule
+moved. Plain-language model: [docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md).
+
+* **Four sections** at `/dashboard/admin`: Users, Departments, Roles &
+  permissions, Audit log, behind a shared sub-navigation.
+* **Users.** Server-side filtering by role, department, "no department", status
+  and search, plus six allow-listed sort orders — `GET /users` gained them, and
+  the screen's old "Sort by" control (which set state that was never sent) is
+  now real. Each row carries name, email, role names, department, status, last
+  sign-in and created date; a detail panel adds sign-in method, who provisioned
+  the account, and its audit history (the existing endpoint filtered by
+  `entity_id`). Every derived field comes from a table already kept —
+  `user_identities.last_used_at` for last sign-in, the `admin.user_created`
+  audit row for the provisioner. **No schema change.**
+* **Create in one act.** `POST /users` accepts an optional `department_id` and
+  `role_code`; the role still runs S-8 *before* the account exists, so a refusal
+  leaves nothing behind.
+* **Departments.** `GET /departments` gained lead and member rollups (lead is
+  derived from who holds `DEPARTMENT_LEAD` — no `lead_id` column); new
+  `GET /departments/{id}` (members as accounts) and `PATCH /departments/{id}`
+  (rename only — the code identifies the boundary in an append-only trail).
+* **Roles & permissions.** New `GET /permissions` serves the SEC-04 catalogue
+  grouped, with `permission_group`/`description` that were stored and never
+  served. Legal authority is marked from the server, not a hardcoded list.
+* 🔴 **Fixed: the retained legal roles were offered in the grant picker.** The
+  server refused under S-8, but the UI offered an action the backend rejects.
+  They are now absent from every assignment control and appear only on the
+  catalogue screen, labelled "Not in use yet".
+* **Audit log.** Actors and targets resolve to names; date range and an
+  "account & access only" filter added. `before`/`after` payloads are served for
+  `admin.*`/`auth.*` actions and stay gated behind `legal_position.view` for
+  everything else — so a Platform Admin can read the role change they made and
+  still cannot read a contract's name from `contract.archived` or a Lead's
+  transfer reason. Entity labels resolve for users/departments/roles/sessions
+  only, never for a contract.
+* **Fixed: opening a row reloaded the table.** Selection is React state read
+  once from `?user=`; both `router.replace` and `history.replaceState` cause
+  Next to re-sync the route and remount the screen.
+* **Fixed (a11y): duplicate accessible names.** The filter bar and the create
+  form both exposed controls named "Role" and "Department"; the filters now
+  carry distinct `aria-label`s that contain their visible text (WCAG 2.5.3).
+* Tests: `backend/tests/test_admin_platform.py` (35) and
+  `frontend/src/__tests__/admin-platform.test.tsx` (11); `admin-area.spec.ts`
+  rewritten (7 browser tests). OpenAPI regenerated (**64 operations**).
+
+### Coordination note — 2026-09-05, shared tree (administration work)
+
+`workspace.css` now carries two adjacent append blocks with no unchanged context
+between them, so `git diff` shows them as one hunk: session `legalmind-v1-80`'s
+22 lines first, then this session's 119. Only the second block is staged, via a
+crafted patch rather than hunk-level staging — `git add -p` cannot split an
+adjacent-append hunk and would sweep the other session's work into this commit.
+Verified before committing that no `ws-doccard__cited` / `ws-row__findings` /
+`ws-row__findlabel` line appears in the staged diff. No selector collides
+between the two blocks.
+
+
 ### Changed — RBAC redesigned around the real workflow (AB-12, 2026-09-05) — LOCAL ONLY, NOT DEPLOYED
 
 Owner brief of 2026-09-05 after a six-question interview; lock record **AB-12** in

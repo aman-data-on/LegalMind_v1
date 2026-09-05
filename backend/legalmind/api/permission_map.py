@@ -131,6 +131,13 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     # from contract content), so they sit behind `user.manage`.
     ("GET", f"{API_PREFIX}/departments"): P.USER_MANAGE,
     ("POST", f"{API_PREFIX}/departments"): P.USER_MANAGE,
+    ("GET", f"{API_PREFIX}/departments/{{department_id}}"): P.USER_MANAGE,
+    ("PATCH", f"{API_PREFIX}/departments/{{department_id}}"): P.USER_MANAGE,
+    # The permission catalogue itself — a read projection of `permissions`,
+    # grouped, so the Roles screen can explain what a grant means instead of
+    # rendering dotted strings. Role administration, so `role.manage` (49.3's
+    # own row for `/roles`); it grants nothing and changes nothing.
+    ("GET", f"{API_PREFIX}/permissions"): P.ROLE_MANAGE,
     # The Lead's transfer targets: ACTIVE colleagues in the caller's OWN
     # department, names and emails only. Department scope is the gate; a caller
     # outside any department gets an empty list, never everyone.

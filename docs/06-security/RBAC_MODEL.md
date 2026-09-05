@@ -110,6 +110,42 @@ Review holding a deviation therefore reaches `LEGAL_REVIEW` and stays there — 
 Lead later (`LEGAL_DECISION_AUTHORITY`) without any further amendment if the
 organisation wants Reviews to close inside the product.
 
+## The administration surface (2026-09-05)
+
+Everything a Platform Admin can do lives under **Administration**, in four
+sections, and the whole area is gated on `user.manage` / `role.manage` /
+`audit.view` — never on a role name.
+
+| Section | What it answers | Permission |
+|---|---|---|
+| **Users** | who exists, how they sign in, when they last did, who provisioned them, what they can do, where they belong | `user.manage` |
+| **Departments** | which boundaries exist, who leads each, how many members and how many active | `user.manage` |
+| **Roles & permissions** | what a role actually grants, grouped by the SEC-04 catalogue, with legal authority marked | `role.manage` |
+| **Audit log** | who did what, to what, when — and the payload where it is theirs to read | `audit.view` |
+
+Four properties of that surface are deliberate:
+
+* **An account is created, placed and empowered in one act.** `POST /users`
+  takes an optional department and role, and the role still runs S-8 before the
+  account exists — so a refusal leaves nothing behind, and no account ever sits
+  in a state nobody chose.
+* **Nothing is offered that the server would refuse.** The two retained legal
+  roles are absent from every assignment picker (they appear on Roles &
+  permissions, labelled *Not in use yet*), and the server refuses them anyway.
+* **Every filter and the sort run in SQL over the whole roster** — role,
+  department, "no department", status, search, and six sort orders. A filter
+  that only saw the current page would hide the colleague it was asked about.
+* **A lead is derived, never stored.** A department has no `lead_id`: whoever
+  holds `DEPARTMENT_LEAD` in it is its lead, because the role assignment is what
+  grants the scope, and a second record of the same fact would eventually
+  disagree with the first.
+
+What the administration surface does **not** do is reach content. The tests
+`test_admin_platform.py::test_the_platform_admin_cannot_reach_one_piece_of_business_content`
+and `…_cannot_read_a_private_conversation` assert this over HTTP: every contract,
+review, finding, report, document and conversation route answers 403 or 404 for
+a Platform Admin, including for the departments they administer.
+
 ## What is audited
 
 | Event | Action |
@@ -118,7 +154,18 @@ organisation wants Reviews to close inside the product.
 | Ownership transfer | `contract.ownership_transferred` |
 | Archive / restore | `contract.archived` / `contract.restored` |
 | A department is created; a user is placed | `admin.department_created` / `admin.user_updated` (department in before/after) |
+| A department is renamed | `admin.department_updated` |
 | A denial, or a probe of an invisible object | `authz.permission_denied` / `authz.object_not_visible` |
+
+**Who may read an audit payload.** The envelope — actor, action, entity, time —
+is returned to every `audit.view` holder. The `before`/`after` payload is
+returned for `admin.*` and `auth.*` actions, whose contents are identity and
+access metadata (`{"role": "USER"}`, `{"status", "department_id"}`), and is
+otherwise **omitted** unless the caller holds `legal_position.view`. That keeps
+Step 24 r8 intact where it matters: `contract.archived` carries the contract's
+name and `contract.ownership_transferred` carries the Lead's free-text reason,
+and a Platform Admin reads neither. The entity is named only for users,
+departments, roles and sessions — never for a contract.
 
 Owner reads of their own deals are **not** audited: that is not a disclosure, and
 recording it would bury the events that are.
