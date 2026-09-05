@@ -21,7 +21,7 @@ import { SNAPSHOT_PATH, fixture, signIn, storageStatePath } from "./support";
  * 2. **Signing in repeatedly hits S-5.** The login limiter allows 10 attempts per
  *    300s per client address, and seventeen specs signing in from one address exhausted
  *    it — the control working exactly as locked. Sessions are therefore established
- *    once here and reused via `storageState`, so the suite performs three logins
+ *    once here and reused via `storageState`, so the suite performs four logins
  *    instead of seventeen. (`session.spec.ts` still drives the form itself, because the
  *    login and logout flow is what it tests.)
  *
@@ -31,7 +31,7 @@ import { SNAPSHOT_PATH, fixture, signIn, storageStatePath } from "./support";
  * cookie attribute.
  */
 
-const ACCOUNTS = ["admin", "owner", "counsel"] as const;
+const ACCOUNTS = ["admin", "owner", "counsel", "reader"] as const;
 
 for (const label of ACCOUNTS) {
   setup(`sign in as ${label}`, async ({ page }) => {

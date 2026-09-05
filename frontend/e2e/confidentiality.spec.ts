@@ -15,8 +15,13 @@ import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from
  * discloses that an internal position exists for this object, which is the disclosure
  * LEGAL-02 prevents; the key must simply not be there.
  *
- * `owner` holds `USER` and therefore not `legal_position.view`; `counsel` holds
- * `LEGAL_REVIEWER` and does. Same object, two callers, one difference.
+ * Who lacks the grant changed under AB-12 r7 (2026-09-05): every Department User
+ * now holds `legal_position.view` for their OWN deals, because the department is
+ * the audience for the organisation's position. So the caller here is `reader`,
+ * an account on a custom role carrying every USER grant EXCEPT the position —
+ * the shape an administrator could create for a read-only outsider — and the gate
+ * is asserted on it end to end. `counsel` (LEGAL_REVIEWER) holds the grant. Same
+ * object, two callers, one difference.
  */
 
 const CONFIDENTIAL_KEYS = [
@@ -29,10 +34,11 @@ const CONFIDENTIAL_KEYS = [
 ];
 
 test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
-  // `owner` holds USER, and therefore not `legal_position.view`. Sessions come from
-  // `auth.setup.ts`: S-5 caps logins at 10 per 300s and re-authenticating per test
-  // exhausted it — the control working as locked.
-  test.use({ storageState: storageStatePath("owner") });
+  // `reader` holds everything a USER holds except `legal_position.view` (AB-12
+  // r7 gave USER itself the grant). Sessions come from `auth.setup.ts`: S-5 caps
+  // logins at 10 per 300s and re-authenticating per test exhausted it — the
+  // control working as locked.
+  test.use({ storageState: storageStatePath("reader") });
 
   test("a user without legal_position.view receives no such key", async ({ page }) => {
     const f = fixture();

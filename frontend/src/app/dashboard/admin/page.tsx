@@ -245,12 +245,12 @@ export default function AdminPage() {
               </p>
               <div className="ws-intake__fields">
                 <label className="ws-field">
-                  <span className="ws-field__label">Code <span className="ws-field__req">(required)</span></span>
+                  <span className="ws-field__label">Department code <span className="ws-field__req">(required)</span></span>
                   <input required value={deptCode} onChange={(event) => setDeptCode(event.target.value)}
                          placeholder="SALES" />
                 </label>
                 <label className="ws-field ws-field--type">
-                  <span className="ws-field__label">Name <span className="ws-field__req">(required)</span></span>
+                  <span className="ws-field__label">Department name <span className="ws-field__req">(required)</span></span>
                   <input required value={deptName} onChange={(event) => setDeptName(event.target.value)}
                          placeholder="Sales" />
                 </label>

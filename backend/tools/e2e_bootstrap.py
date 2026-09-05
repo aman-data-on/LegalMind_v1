@@ -141,12 +141,21 @@ STRUCTURAL_CONFIGURATION: dict[str, object] = {
 
 E2E_DEPARTMENT_CODE = "E2E"
 
+#: A custom role for the LEGAL-02 browser specs (AB-12 r7 made every Department
+#: User a holder of `legal_position.view` for their own deals, so no canonical role
+#: lacks it any more). Every USER grant except the position — the shape an
+#: administrator could create through `POST /roles` for a read-only outsider — so
+#: the omission gate is still exercised end to end by an account that genuinely
+#: lacks the grant.
+POSITION_BLIND_ROLE = "E2E_POSITION_BLIND"
+
 ACCOUNTS: dict[str, tuple[str, tuple[str, ...]]] = {
     "admin": ("admin@e2e.test", ("PLATFORM_ADMIN", "DEPARTMENT_LEAD", "USER")),
     "owner": ("owner@e2e.test", ("USER",)),
     # `USER` is present only because of `F-6` — see the module docstring.
     "counsel": ("counsel@e2e.test",
                 ("LEGAL_REVIEWER", "LEGAL_DECISION_AUTHORITY", "USER")),
+    "reader": ("reader@e2e.test", (POSITION_BLIND_ROLE,)),
 }
 
 
@@ -194,8 +203,28 @@ def migrate(url: str) -> None:
     command.upgrade(cfg, "head")
 
 
+def _ensure_position_blind_role(db: DBSession) -> None:
+    from legalmind.security import permissions as P
+    role = db.execute(select(M.Role).where(M.Role.code == POSITION_BLIND_ROLE)).scalars().first()
+    if role is None:
+        role = M.Role(code=POSITION_BLIND_ROLE, name="Position-blind user (e2e)")
+        db.add(role)
+        db.flush()
+    wanted = [p for p in P.DEFAULT_ROLE_GRANTS[P.ROLE_USER] if p != P.LEGAL_POSITION_VIEW]
+    held = set(db.execute(
+        select(M.Permission.name)
+        .join(M.RolePermission, M.RolePermission.permission_id == M.Permission.id)
+        .where(M.RolePermission.role_id == role.id)).scalars().all())
+    perms = {p.name: p.id for p in db.execute(select(M.Permission)).scalars()}
+    for name in wanted:
+        if name not in held:
+            db.add(M.RolePermission(role_id=role.id, permission_id=perms[name]))
+    db.flush()
+
+
 def provision(db: DBSession, password: str) -> dict[str, dict[str, str]]:
     bootstrap(db)
+    _ensure_position_blind_role(db)
 
     roles = {r.code: r for r in db.execute(select(M.Role)).scalars()}
     missing = {code for _, codes in ACCOUNTS.values() for code in codes} - set(roles)

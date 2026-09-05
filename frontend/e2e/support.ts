@@ -27,7 +27,7 @@ export const SNAPSHOT_PATH = ".fixture-snapshot.json";
 export const CSRF_COOKIE = "legalmind_csrf";
 export const SESSION_COOKIE = "legalmind_session";
 
-export type AccountLabel = "admin" | "owner" | "counsel";
+export type AccountLabel = "admin" | "owner" | "counsel" | "reader";
 
 export interface Fixture {
   database_url: string;

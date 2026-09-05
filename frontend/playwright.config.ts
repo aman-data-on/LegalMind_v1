@@ -67,6 +67,11 @@ const backendEnv = {
   // A per-user hourly cap is the right production control and stays enabled;
   // 49.10 and `ratelimit.py` both make the threshold deployment configuration.
   LEGALMIND_RATELIMIT_ANALYSIS_MAX: "500",
+  // Key Obligations and type suggestion share this bucket (30/hour per user by
+  // default). Two consecutive full runs exhaust it and trip a 429 on
+  // extract-obligations (found 2026-09-05) — the same class of thing the two
+  // limits above were raised for.
+  LEGALMIND_RATELIMIT_SUGGEST_TYPE_MAX: "500",
 };
 
 export default defineConfig({

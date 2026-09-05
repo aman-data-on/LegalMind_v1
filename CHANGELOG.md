@@ -50,6 +50,7 @@ Owner brief of 2026-09-05 after a six-question interview; lock record **AB-12** 
   Archive/Restore/Transfer row actions (Archive replaces Delete), owner names in the
   department view; Admin page gains departments and a department select per user,
   role names and tiers instead of codes; nav labels "Standards" and "Administration".
+* Browser suite: a fourth e2e account `reader` on a bootstrap-created custom role (every USER grant except `legal_position.view`) drives the LEGAL-02 confidentiality specs, since `USER` itself now holds the grant; the assertions are unchanged. `LEGALMIND_RATELIMIT_SUGGEST_TYPE_MAX` raised for the suite (two consecutive full runs exhausted the obligations bucket).
 * Tests: `test_rbac_personas.py` (28) and `test_contract_archive.py` (17, replacing
   `test_contract_deletion.py`); JIT-whitelist test; schema snapshot moved to 30
   tables / 201 columns in the same change as the migration and lock record;
