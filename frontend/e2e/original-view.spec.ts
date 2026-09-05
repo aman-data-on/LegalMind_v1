@@ -101,15 +101,35 @@ test.describe("the Original document view", () => {
     await expect(page.locator(".ws-original")).toHaveAttribute("src", /^blob:/);
   });
 
-  test("a pointing gesture lands the reader in the text view", async ({ page }) => {
+  test("a pointing gesture keeps the reader in the original, on the cited page", async ({
+    page,
+  }) => {
     const contractId = await uploadPdfContract(page);
     await page.goto(`/dashboard?id=${contractId}`);
     await expect(page.locator(".ws-original")).toHaveAttribute("src", /^blob:/);
 
-    // Click a clause in the outline while the Original view is showing: the
-    // gesture addresses an Evidence row, so the pane switches itself to Text
-    // and lights the row.
+    /*
+     * INVERTED DELIBERATELY, 2026-09-05. This test previously required the
+     * pane to switch itself to Text on any pointing gesture, and it passed —
+     * it pinned the defect. Following a citation threw the reader out of the
+     * signed PDF they were reading, with its layout, tables and signatures,
+     * into the extracted-text rendering, and offered no way back to where they
+     * had been.
+     *
+     * The gesture must still REACH the evidence; it must not cost the reader
+     * the document. Where the cited row carries a page, the original turns to
+     * that page and stays on screen — the smallest transition that arrives.
+     */
     await page.locator(".ws-outline__list button").first().click();
+    await expect(page.getByRole("button", { name: "Original", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".ws-original")).toHaveAttribute("src", /#page=\d+$/);
+
+    // And the exact passage is one explicit click away — the reader chooses to
+    // leave the original, rather than being moved out of it.
+    const exact = page.getByRole("button", { name: "Show the exact passage" });
+    await expect(exact).toBeVisible();
+    await exact.click();
     await expect(page.getByRole("button", { name: "Text", exact: true }))
       .toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".ws-row--lit")).toBeVisible();

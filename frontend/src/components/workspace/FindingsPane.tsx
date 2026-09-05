@@ -47,6 +47,7 @@ import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
+import { requirementHeading } from "./model";
 import { useHighlight } from "./highlight";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -423,21 +424,6 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
       </div>
     </>
   );
-}
-
-/** The requirement in a reader's words.
- *
- *  Prefers the ratified name, falls back to a humanized code, and never returns
- *  the code and the name as a pair — the ratified configuration gives several
- *  requirements the same string for both, and printing it twice with an em dash
- *  between was pure noise at the loudest weight on the card.
- */
-function requirementHeading(requirement: Finding["requirement"]): string {
-  const name = requirement.name?.trim();
-  const code = requirement.code?.trim();
-  if (name && name !== code) return name;
-  if (code) return scopeLabel(code);
-  return "Requirement";
 }
 
 function askQuestionFor(finding: Finding): string {

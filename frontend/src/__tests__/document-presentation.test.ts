@@ -15,7 +15,9 @@ import type { EvidenceRow } from "@/lib/types";
 import { segmentContent, type Annotation } from "@/components/workspace/annotations";
 import {
   documentTextState,
+  findingsByEvidenceId,
   outlineOf,
+  requirementHeading,
   rowPresentation,
   sequenceBreaks,
 } from "@/components/workspace/model";
@@ -172,5 +174,49 @@ describe("the document outline (2026-09-05)", () => {
     const breaks = sequenceBreaks(rows);
     expect(breaks.has("b")).toBe(false);
     expect(breaks.has("d")).toBe(true);
+  });
+});
+
+describe("the review loop, both directions (2026-09-05)", () => {
+  const ev = (id: string) => ({ id });
+  const finding = (id: string, evidence: string[], extra: object = {}) => ({
+    id, classification: "DEVIATION", requires_decision: true,
+    requirement: { code: "LIABILITY-MSA-001", name: "Limitation of liability" },
+    evidence: evidence.map(ev), ...extra,
+  });
+
+  it("indexes the findings that cite each evidence row", () => {
+    const map = findingsByEvidenceId([finding("f1", ["e1", "e2"]), finding("f2", ["e2"])]);
+    expect(map.get("e1")?.map((f) => f.id)).toEqual(["f1"]);
+    // Two findings on one clause: both are returned, in the order given — the
+    // reverse link invents no priority between them.
+    expect(map.get("e2")?.map((f) => f.id)).toEqual(["f1", "f2"]);
+  });
+
+  it("returns nothing for evidence no finding cites", () => {
+    // The honest empty state: the row renders no affordance at all rather than
+    // a control that leads nowhere.
+    expect(findingsByEvidenceId([finding("f1", ["e1"])]).get("e9")).toBeUndefined();
+  });
+
+  it("cites one finding once even when it names the same row twice", () => {
+    const map = findingsByEvidenceId([finding("f1", ["e1", "e1"])]);
+    expect(map.get("e1")).toHaveLength(1);
+  });
+
+  it("discloses nothing when the reader has no findings to see", () => {
+    // A reader without finding.view is given an empty list by the server, so
+    // the reverse link cannot leak the existence of a finding they may not see.
+    expect(findingsByEvidenceId([]).size).toBe(0);
+  });
+
+  it("names a requirement the same way the findings pane does", () => {
+    expect(requirementHeading({ code: "X", name: "Limitation of liability" }))
+      .toBe("Limitation of liability");
+    // The ratified config gives some requirements the same string for both;
+    // the heading must not read as a code when a name adds nothing.
+    expect(requirementHeading({ code: "EARLY-TERM-RESTRICTION", name: "EARLY-TERM-RESTRICTION" }))
+      .toBe("Early term restriction");
+    expect(requirementHeading({ code: null, name: null })).toBe("Requirement");
   });
 });

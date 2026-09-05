@@ -18,6 +18,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
+import { classificationLabel } from "@/lib/labels";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -27,6 +28,7 @@ import type { DocumentVersion, EvidenceRow } from "@/lib/types";
 import { segmentContent, selectionInRow, useAnnotations, type Annotation } from "./annotations";
 import { useFindingsStateOptional } from "./findingsState";
 import { useHighlight } from "./highlight";
+import { useSideTabs } from "./WorkspaceLayout";
 import {
   IconAlertCircle,
   IconCheckCircle,
@@ -42,7 +44,9 @@ import {
   documentTextState,
   groupByPage,
   locationLabel,
+  findingsByEvidenceId,
   outlineOf,
+  requirementHeading,
   sequenceBreaks,
   outlineStatus,
   readiness,
@@ -54,6 +58,7 @@ import {
 const PAGE_SIZE = 100;
 const ZOOM_STEPS = [85, 100, 115, 130, 150];
 
+const EMPTY_FINDINGS = new Map<string, never[]>();
 const EMPTY_STATUS = new Map<string, ClauseStatus>();
 
 const BUCKET_TITLE: Record<StatusBucket, string> = {
@@ -181,12 +186,47 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     };
   }, [version.id]);
 
-  // Answer a highlight: scroll, light, focus.
-  // A pointing gesture addresses an Evidence row, which lives in the text
-  // view — switch there first, then (next render) scroll the row into view.
+  /*
+   * Answer a highlight — WITHOUT ejecting the reader from the document they
+   * are reading (2026-09-05).
+   *
+   * This effect used to be `if (target) setView("text")`: every citation click
+   * threw a reviewer out of the ORIGINAL — the signed PDF, with its layout,
+   * tables and signatures — into the extracted-text rendering, with no way back
+   * to where they were. The authoritative-looking view and the citable view are
+   * different views, and only one of them has anchors.
+   *
+   * So the transition is now the smallest one that reaches the evidence:
+   *
+   *   already in Text            nothing to switch; the effect below scrolls
+   *   Original + the row has a   stay in the Original and turn the PDF to that
+   *     page number             page — the reader keeps the document they trust
+   *   Original + no page number  Text is the only place the row exists, so
+   *                             switch, and offer the way back
+   *
+   * The pointing MECHANISM is unchanged: `point(evidenceId)` still addresses an
+   * Evidence row and `target` still names it. Only the response differs.
+   */
+  const [originalPage, setOriginalPage] = useState<number | null>(null);
+  const [returnToOriginal, setReturnToOriginal] = useState(false);
   useEffect(() => {
-    if (target) setView("text");
-  }, [target]);
+    if (!target || !rows) return;
+    if (view !== "original") return;
+    const cited = rows.find((row) => row.id === target);
+    if (cited?.page_number != null) {
+      setOriginalPage(cited.page_number);
+      return;
+    }
+    // No page to turn to — the row exists only in the text view.
+    setReturnToOriginal(true);
+    setView("text");
+  }, [target, rows, view]);
+
+  // A view the READER chose is not a transition to return from.
+  function chooseView(next: "original" | "text") {
+    setReturnToOriginal(false);
+    setView(next);
+  }
   useEffect(() => {
     if (!target || !rows || view !== "text") return;
     const node = textRef.current?.querySelector<HTMLElement>(`[data-evidence-id="${target}"]`);
@@ -202,6 +242,17 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     findingsState?.state.kind === "ready" && rows
       ? outlineStatus(rows, clauseStatusByEvidenceId(findingsState.state.findings))
       : EMPTY_STATUS;
+  /* The reverse of the citation link (2026-09-05). The pane could already take
+     a reader from a Finding to its evidence; from a clause there was no way to
+     ask "did the analysis say anything about this?", so the review loop only
+     ran one way. Indexed from the findings ALREADY loaded for the status
+     markers above — no second request, no copy of the data, and nothing a
+     reader could not already see in the Findings tab. */
+  const findingsByEvidence =
+    findingsState?.state.kind === "ready"
+      ? findingsByEvidenceId(findingsState.state.findings)
+      : EMPTY_FINDINGS;
+  const sideTabs = useSideTabs();
 
   const pages = useMemo(() => {
     const seen: number[] = [];
@@ -485,7 +536,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   type="button"
                   className="ws-viewtoggle__btn"
                   aria-pressed={view === "original"}
-                  onClick={() => setView("original")}
+                  onClick={() => chooseView("original")}
                 >
                   Original
                 </button>
@@ -493,11 +544,32 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   type="button"
                   className="ws-viewtoggle__btn"
                   aria-pressed={view === "text"}
-                  onClick={() => setView("text")}
+                  onClick={() => chooseView("text")}
                 >
                   Text
                 </button>
               </div>
+            ) : null}
+            {/* Where the citation landed, and the way onward or back. Only ever
+                one of these shows, and only after a citation actually moved the
+                reader — a reader who switched views themselves sees neither. */}
+            {view === "original" && originalPage !== null ? (
+              <p className="ws-doccard__cited">
+                <span>Page {originalPage} in the original</span>
+                <button type="button" className="ws-escalate__link"
+                        onClick={() => chooseView("text")}>
+                  Show the exact passage
+                </button>
+              </p>
+            ) : null}
+            {view === "text" && returnToOriginal ? (
+              <p className="ws-doccard__cited">
+                <span>This passage has no page in the original</span>
+                <button type="button" className="ws-escalate__link"
+                        onClick={() => chooseView("original")}>
+                  Back to the original
+                </button>
+              </p>
             ) : null}
             {view === "text" ? (
             <button
@@ -593,7 +665,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             </button>
           </div>
           {view === "original" && canOriginal ? (
-            <OriginalView versionId={version.id} filename={version.original_filename} />
+            <OriginalView versionId={version.id} filename={version.original_filename}
+                          page={originalPage} />
           ) : rows.length === 0 ? (
             emptyTextState
           ) : (
@@ -640,6 +713,26 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     !group.rows.every((r) => r.source_type === "OCR") ? (
                       <p className="ws-row__loc">
                         <span className="ws-row__ocr" title="Text recovered by OCR">OCR</span>
+                      </p>
+                    ) : null}
+                    {sideTabs && (findingsByEvidence.get(row.id)?.length ?? 0) > 0 ? (
+                      /* Named, not counted: "2 findings" would make the reader
+                         click to discover what they are. A row with no finding
+                         renders nothing at all — an affordance that leads
+                         nowhere is worse than none. */
+                      <p className="ws-row__findings">
+                        <span className="ws-row__findlabel">The analysis of this clause:</span>
+                        {findingsByEvidence.get(row.id)!.map((finding) => (
+                          <button
+                            key={finding.id}
+                            type="button"
+                            className="ws-escalate__link"
+                            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
+                          >
+                            {classificationLabel(finding.classification)} ·{" "}
+                            {requirementHeading(finding.requirement)}
+                          </button>
+                        ))}
                       </p>
                     ) : null}
                     <p className="ws-row__text">
@@ -746,7 +839,12 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
  * derived, or "enhanced" — what renders is byte-for-byte what was uploaded.
  * Loaded lazily, only when this view is actually shown.
  */
-function OriginalView({ versionId, filename }: { versionId: string; filename: string }) {
+function OriginalView({ versionId, filename, page }: {
+  versionId: string; filename: string;
+  /** Page to open at — the PDF viewer's own `#page=` open parameter, which is
+   *  how a citation reaches the original without leaving it. */
+  page: number | null;
+}) {
   const [state, setState] = useState<
     | { kind: "loading" }
     | { kind: "ready"; url: string }
@@ -804,7 +902,7 @@ function OriginalView({ versionId, filename }: { versionId: string; filename: st
     <iframe
       className="ws-original"
       title={`Original document — ${filename}`}
-      src={state.url}
+      src={page ? `${state.url}#page=${page}` : state.url}
     />
   );
 }

@@ -3,6 +3,7 @@
  * derivation. Kept separate so the house static-render tests can pin them.
  */
 
+import { scopeLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 
@@ -72,6 +73,55 @@ export function outlineOf(rows: EvidenceRow[]): EvidenceRow[] {
   const headings = rows.filter((row) => row.is_heading);
   if (headings.length > 0) return headings;
   return rows.filter((row) => row.section_number || row.section_title);
+}
+
+/**
+ * Findings that cite a given evidence row — the reverse of the finding-to-
+ * evidence link the pane already draws.
+ *
+ * Built from the SAME findings list the Findings pane renders, which the server
+ * has already filtered by permission and redacted per LEGAL-02. So a reader who
+ * cannot see a Finding cannot learn of it here either: the list they are given
+ * simply does not contain it, and this function invents nothing. It also means
+ * no finding data is duplicated — this is an index over state that is already
+ * loaded, not a second copy of it.
+ *
+ * The map deliberately carries the whole Finding rather than a projection: the
+ * caller needs its id to navigate and its classification to label the link, and
+ * copying two fields out would be the start of the duplication this avoids.
+ */
+export function findingsByEvidenceId<T extends { evidence: Array<{ id: string }> }>(
+  findings: T[],
+): Map<string, T[]> {
+  const byEvidence = new Map<string, T[]>();
+  for (const finding of findings) {
+    for (const row of finding.evidence) {
+      const bucket = byEvidence.get(row.id);
+      if (bucket) {
+        if (!bucket.includes(finding)) bucket.push(finding);
+      } else {
+        byEvidence.set(row.id, [finding]);
+      }
+    }
+  }
+  return byEvidence;
+}
+
+/**
+ * The requirement in a reader's words — the heading the Findings pane shows.
+ *
+ * Lives here rather than in the pane because the document pane's reverse link
+ * must name a finding the SAME way the finding names itself; two spellings of
+ * one requirement is how a reader stops believing they are the same thing.
+ */
+export function requirementHeading(
+  requirement: { code?: string | null; name?: string | null },
+): string {
+  const name = requirement.name?.trim();
+  const code = requirement.code?.trim();
+  if (name && name !== code) return name;
+  if (code) return scopeLabel(code);
+  return "Requirement";
 }
 
 /**

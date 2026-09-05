@@ -2314,6 +2314,27 @@
   padding-top: var(--ws-s2);
 }
 
+/* ---- the review loop, both directions (2026-09-05) ---------------------
+   A citation used to eject the reader from the original document into the
+   extracted text. It now turns the original to the cited page instead, and
+   these two lines say where the reader landed and how to go on or back. Quiet
+   by construction: they appear only when a citation actually moved someone. */
+.ws-doccard__cited {
+  margin: 0; display: inline-flex; align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+}
+
+/* The reverse link: from a clause to what the analysis said about it. Sits
+   above the clause text in the metadata voice the row already uses for its
+   location and OCR marks, so it reads as a note ON the clause rather than as
+   part of it. */
+.ws-row__findings {
+  margin: 0 0 var(--ws-s1); display: flex; flex-wrap: wrap;
+  align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-xs);
+}
+.ws-row__findlabel { color: var(--ws-ink-500); }
+
 /* ==========================================================================
    Administration — Users · Departments · Roles & permissions · Audit log
    (2026-09-05). Built on the existing tokens and primitives: no new colour, no
