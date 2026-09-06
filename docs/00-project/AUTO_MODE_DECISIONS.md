@@ -1580,6 +1580,28 @@ Both were found by reading the code against the requirement rather than by a red
 test, which is the argument for doing an adversarial pass over a feature that
 already looks finished.
 
+### 304 — the deploy preflight is run from the command line, so it must be runnable from one (2026-09-06, found while deploying)
+
+`python -m legalmind.deploy.preflight` died with NameError: six check functions
+sat below a mid-file `if __name__ == "__main__"` guard, so main() ran before they
+existed. pytest imports the whole module first, so 32 preflight tests were green
+while the one tool locked 55.5 places between "migrate" and "deploy" had never
+once worked for a person deploying. Guard moved to end-of-file; a regression
+test runs the real CLI in a subprocess. No check changed.
+
+### 305 — DOCX paragraphs get the same structure markers as PDF text (2026-09-06, found by the live smoke test)
+
+`parse_docx` built its Segments directly and never passed through the marker
+logic in `segment_paragraphs`, so a Word upload carried NEITHER P1's heading
+marker NOR 44.4's annexure marker — it got the outline's numbered-row fallback
+while the same text as a PDF got the real outline. The corpus proof could not
+see it: all 13 corpus documents are PDFs, and the manager's GRP MSA is a PDF, so
+the measured result there was real and this was a second, unmeasured path. One
+shared `_structure_markers` now decides the markers for both; for DOCX, "the
+prose that follows" is the next non-empty paragraph. Boundaries and content are
+unchanged, historical evidence rows untouched, verified on the live site with a
+fresh Word upload after the API restart.
+
 ## 2026-09-03 — The Original view and deferred OCR (289–294) — LOCAL ONLY, deployment awaiting owner approval
 
 ### 289 — the ~62s upload was measured, not assumed, before anything changed

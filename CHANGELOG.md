@@ -10,7 +10,46 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### Added — declared metadata, one-run evidence, review order, annexures, re-read in place, declared status (2026-09-06) — LOCAL ONLY, NOT DEPLOYED, NOT COMMITTED
+### Deployed — 2026-09-06 (owner GO), AB-12 + AB-13 and the product-coherence work
+
+* **Live database migrated**, in the owner's exact order, after a verified
+  `pg_dump` backup (`/root/backups/legalmind_v1_dev-pre-ab12-ab13-20260906-134556.dump`,
+  10.8 MB, 92 objects): `a3d5f9c17b46 → b7c3d9e1f2a4` (AB-12: roles renamed on
+  the same rows, `deleted_at → archived_at` with the 4 soft-deleted rows kept,
+  `departments` created) → `c8e4a1b7d2f6` (AB-13: `counterparties` +
+  `contracts.counterparty_id`, nothing backfilled). 42 contracts and 6 users
+  intact; 31 application tables. Preflight: `migrations PASS at head c8e4a1b7d2f6`.
+* **API restarted** on the committed tree — clean start, health 200 in 1s, new
+  routes answer 401 (guarded), not 404. **Frontend deployed** by the atomic
+  staged swap — BUILD_ID `c8uah2QHMuXQ7oOAUZm2G`, served with `no-cache`, previous
+  build kept for rollback.
+* **Smoke tests on the live site**, as the designated `test@leapswitch.com`
+  USER with a throwaway password (rotated afterwards to an unknown value — no
+  known credential remains): login/session, dashboard, upload, declared
+  metadata, company create + link, related-documents grouping, review +
+  deterministic analysis, findings→evidence, both 409 freezes, RBAC 403s,
+  SEC-07 404, archive — 24/25 on the first pass, the one miss being the DOCX
+  marker gap fixed below and re-verified PASS on a fresh upload. **Browser smoke
+  on the live site: 10/10** (real Chromium against the deployed build — login,
+  linked-company header, related-documents dialog, clause→finding links, the
+  Findings tab and glossary, the DOCX outline with its `Annexure` divider, and an
+  ordinary user refused administration data). Two `SMOKE` contracts were
+  created and **archived** (AB-12 r6, nothing destroyed): `d6c562bc-59d4-447c-9aa9-506dc93ba4b2` and
+  `23564027-4303-46f2-affe-ef28cf256549`; the owner may leave or remove them.
+* **Two real defects found by deploying, fixed and redeployed the same hour:**
+  the deploy preflight CLI had never been runnable (`__main__` guard mid-file →
+  `NameError`), and **DOCX uploads carried no heading or annexure markers** —
+  `parse_docx` bypassed the shared segmenter, so P1's outline and 44.4's
+  annexures had only ever applied to PDFs. One shared `_structure_markers` now
+  serves both paths; verified on live with a fresh Word upload.
+* Standing items the preflight still reports (pre-existing, not introduced
+  here): `database_roles` (the app role can run DDL — 55.2 wants a separate
+  migration role), and the ATTEST set (retention, malware scanning, backup
+  verification…) — all NOT YET SPECIFIED, reported rather than assumed.
+  `LEGALMIND_ENVIRONMENT` is unset on the live unit (defaults to
+  `development`); flagged for the owner.
+
+### Added — declared metadata, one-run evidence, review order, annexures, re-read in place, declared status (2026-09-06) — DEPLOYED 2026-09-06 (`2dcfac5`)
 
 Owner decisions of 2026-09-06 on the Phase 3 R&D: declared metadata is
 correctable only while a version has no Review (locked 33.7 / 34.15 r3 read as
@@ -130,7 +169,7 @@ migration, no permission added, RBAC untouched, nothing deployed or committed.**
   +4 Playwright (`declared-metadata.spec.ts`, `lifecycle.spec.ts`).
 * Validation on the current tree (2026-09-06): backend **1282 passed, 1 skipped, 1 xfailed, 1 failed** — the one failure is `test_migrations_must_be_at_head` reading the deliberately unmigrated live database (environmental, unchanged since AB-12); frontend **214 Vitest**; typecheck, forbidden-terms, ruff and mypy clean; browser **94 passed / 14 skipped / 0 failed** from a clean `CI=1` stack; `tools/verify_reproducibility` **PASS** (digest identical across the AB-12 migration round-trip); `tools/verify_assist_quality` **SHIPPABLE**, metrics identical to the recorded baseline (1/13 wrongly answered, 43/64 retained, recall@10 0.469, hit@1 0.344) — the parser change is metadata-only, so no chunk moved.
 
-### Added — the counterparty becomes an entity (AB-13, 2026-09-06) — LOCAL ONLY, NOT DEPLOYED, NOT COMMITTED
+### Added — the counterparty becomes an entity (AB-13, 2026-09-06) — DEPLOYED 2026-09-06 (`2dcfac5`, migration applied)
 
 Management's last two open product-coherence points: a company **profile**, and
 the NDA → MSA → revisions of one company no longer sitting as isolated
