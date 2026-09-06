@@ -396,6 +396,32 @@ def annexure_title(line: str) -> str | None:
     return stripped if _ANNEXURE_TITLE.match(stripped) else None
 
 
+def _structure_markers(normalized: str, first_line: str, number: str | None,
+                       title: str | None,
+                       following: str | None) -> tuple[str | None, dict]:
+    """The ONE place a segment's structural markers are decided (2026-09-06).
+
+    Used by both the paragraph segmenter (PDF text) and `parse_docx`. Until
+    today the DOCX path built its Segments directly and so carried NEITHER the
+    heading marker P1 added (2026-09-05) nor the annexure marker of 44.4 — a
+    Word upload got only the outline's numbered-row fallback, while the same
+    text as a PDF got the real outline. Found by the post-deploy smoke test on
+    the live site, not by the corpus proof: all 13 corpus documents are PDFs.
+
+    Returns the (possibly promoted) section title and the marker metadata.
+    Boundaries and content are never touched here — markers only.
+    """
+    annexure = annexure_title(first_line) if number is None else None
+    if number is None and (annexure or _is_title_line(first_line)):
+        title = first_line.strip()
+    if annexure:
+        return title, {"heading": True, "annexure": annexure}
+    if _is_heading(normalized, number, title) or (
+            number is None and _is_unnumbered_heading(first_line, following)):
+        return title, {"heading": True}
+    return title, {}
+
+
 def segment_paragraphs(text: str, *, page_number: int | None,
                        source_type: EvidenceSourceType,
                        base_offset: int = 0) -> list[Segment]:
@@ -417,15 +443,14 @@ def segment_paragraphs(text: str, *, page_number: int | None,
             start = block_start + inner_offset
             first_line = normalized.split("\n", 1)[0]
             number, title = detect_clause_number(first_line)
-            annexure = annexure_title(first_line) if number is None else None
+            title, markers = _structure_markers(
+                normalized, first_line, number, title, _second_line(normalized))
             # An UNNUMBERED heading keeps the prose it introduces in the same
             # segment — unlike a numbered one, whose following sub-clause starts
             # its own boundary. So the heading line becomes this segment's
             # title rather than a row of its own. That is the better outcome
             # anyway: the outline entry then points AT the text it labels
             # instead of at an empty label above it.
-            if number is None and (annexure or _is_title_line(first_line)):
-                title = first_line.strip()
             segments.append(Segment(
                 content=normalized,
                 original_content=raw,
@@ -457,12 +482,7 @@ def segment_paragraphs(text: str, *, page_number: int | None,
                 # because its first line is short and capitalised.
                 # An annexure title is a heading the document declares outright
                 # (44.4); the boundary decision above is untouched by it.
-                metadata=({"heading": True, "annexure": annexure} if annexure
-                          else {"heading": True}
-                          if _is_heading(normalized, number, title)
-                          or (number is None and _is_unnumbered_heading(
-                              first_line, _second_line(normalized)))
-                          else {}),
+                metadata=markers,
             ))
     return segments
 
@@ -914,14 +934,22 @@ def parse_docx(data: bytes) -> ParseResult:
         if not normalized:
             offset += len(raw)
             continue
-        number, title = detect_clause_number(normalized.split("\n", 1)[0])
+        first_line = normalized.split("\n", 1)[0]
+        number, title = detect_clause_number(first_line)
+        # The same markers the PDF path gets (see _structure_markers). Word puts
+        # each paragraph in its own segment, so "the prose that follows" is the
+        # next non-empty paragraph rather than the segment's own second line.
+        following = next((normalize_text(q.text or "") for q in paragraphs[index + 1:]
+                          if normalize_text(q.text or "")), None)
+        title, markers = _structure_markers(
+            normalized, first_line, number, title, following)
         segments.append(Segment(
             content=normalized, original_content=raw,
             source_type=EvidenceSourceType.NATIVE_TEXT,
             page_number=paragraph_pages[index] if paragraph_pages else None,
             section_number=number, section_title=title,
             start_offset=offset, end_offset=offset + len(raw),
-            metadata={"style": para.style.name if para.style else None},
+            metadata={"style": para.style.name if para.style else None, **markers},
         ))
         offset += len(raw)
 

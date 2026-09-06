@@ -589,3 +589,43 @@ def test_annexure_titles_are_detected_where_the_document_declares_them():
     assert first.metadata == {"heading": True, "annexure": "Annexure-1"}
     assert first.section_title == "Annexure-1" and first.section_number is None
     assert all("annexure" not in s.metadata for s in segments[1:])
+
+
+def test_docx_paragraphs_carry_the_same_structure_markers_as_pdf_text():
+    """Found by the post-deploy smoke test (2026-09-06): `parse_docx` built its
+    Segments directly and skipped every marker `segment_paragraphs` applies, so a
+    Word upload had NO heading and NO annexure markers — only the outline's
+    fallback — while the same text as a PDF had both. One shared helper now
+    decides the markers for both paths. Boundaries and content are unchanged:
+    one paragraph is still one segment."""
+    import io
+
+    import docx
+
+    d = docx.Document()
+    for text in ("1. Definitions",
+                 "Capitalized terms have the meanings given below in this document.",
+                 "13. LIMITATION ON DAMAGES",
+                 "13.1 The total liability of either party shall not exceed the fees paid.",
+                 "Annexure-1",
+                 "Scope of Services",
+                 "The Provider shall deliver the services described in this annexure to the Customer."):
+        d.add_paragraph(text)
+    buf = io.BytesIO(); d.save(buf)
+    from legalmind.ingestion import parsing
+    segments = parsing.parse(
+        buf.getvalue(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document").segments
+    by_first = {s.content.splitlines()[0]: s for s in segments}
+
+    assert len(segments) == 7                                  # one paragraph, one segment
+    assert by_first["13. LIMITATION ON DAMAGES"].metadata.get("heading") is True
+    assert "heading" not in by_first["13.1 The total liability of either party shall not exceed the fees paid."].metadata
+    annex = by_first["Annexure-1"]
+    assert annex.metadata.get("heading") is True and annex.metadata.get("annexure") == "Annexure-1"
+    assert annex.section_title == "Annexure-1"
+    # An unnumbered prose heading followed by its prose — the same rule as PDF text,
+    # with "following" read from the next paragraph.
+    assert by_first["Scope of Services"].metadata.get("heading") is True
+    # The DOCX-specific style key is kept alongside the shared markers.
+    assert "style" in annex.metadata
