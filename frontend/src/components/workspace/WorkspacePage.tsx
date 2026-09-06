@@ -31,7 +31,9 @@ import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Contract, DocumentVersion } from "@/lib/types";
+import type { Contract, Counterparty, DocumentVersion } from "@/lib/types";
+import { contractStatusLabel } from "@/lib/labels";
+import { documentSourceChip } from "@/lib/documentTypes";
 
 import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDock } from "./AskDock";
@@ -67,6 +69,24 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const { can } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [reuploadOpen, setReuploadOpen] = useState(false);
+  /** AB-13 — the company this deal is with, and its other documents. */
+  const [company, setCompany] = useState<Counterparty | null>(null);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  // Read from `state`, not the destructured `contract`: that is unpacked after
+  // an early return, and a hook may not live below one.
+  const linkedCompanyId =
+    state.kind === "ready" ? (state.contract.counterparty_id ?? null) : null;
+  useEffect(() => {
+    const id = linkedCompanyId;
+    if (!id) { setCompany(null); return; }
+    let cancelled = false;
+    // Best-effort: a company that fails to load must not take the workspace
+    // down — the header falls back to the version's declared text (r7).
+    api.counterparty(id)
+      .then((c) => { if (!cancelled) setCompany(c); })
+      .catch(() => { if (!cancelled) setCompany(null); });
+    return () => { cancelled = true; };
+  }, [linkedCompanyId]);
   const [compareOpen, setCompareOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -204,7 +224,45 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           ) : (
             <span className="ws-chip">type not declared</span>
           )}
-          <span className="ws-chip">{contract.status}</span>
+          <span className="ws-chip">{contractStatusLabel(contract.status)}</span>
+          {/*
+            Whose paper this is, who it is with, and when it took effect — the
+            manager's "document LeapSwitch ne banaya hai ya counterparty ne
+            bheja hai" question, answered where the reviewer reads rather than
+            only in the dialog that records it (2026-09-06). Each chip appears
+            ONLY when that fact was declared: an absent declaration is a fact
+            ("nobody said"), and a placeholder would invent one. Source is a
+            property of the VERSION on screen, not of the contract — v1 ours,
+            v2 theirs is exactly the workflow this exists to make visible.
+          */}
+          {version && documentSourceChip(version.source) ? (
+            <span className={`ws-chip ws-chip--source-${version.source === "COUNTERPARTY" ? "their" : "our"}`}>
+              {documentSourceChip(version.source)}
+            </span>
+          ) : null}
+          {/*
+            AB-13 r7 — the LINKED company wins, the frozen per-version
+            declaration is the fallback. They answer different questions: the
+            link is the live identity, the text is what someone typed for THIS
+            version and can never change once reviewed. Linked, the chip is a
+            real control: it opens every document for that company, which is the
+            manager's "NDA → MSA → revisions should not sit isolated".
+          */}
+          {company ? (
+            <button type="button" className="ws-chip ws-chip--company"
+                    onClick={() => setCompanyOpen(true)}>
+              {company.name}
+            </button>
+          ) : version?.counterparty ? (
+            <span className="ws-chip" title="Counterparty, as declared for this version">
+              {version.counterparty}
+            </span>
+          ) : null}
+          {version?.effective_date ? (
+            <span className="ws-chip ws-mono" title="Effective date, as declared">
+              Effective {version.effective_date}
+            </span>
+          ) : null}
           {versions.length > 1 && version ? (
             <label className="ws-version">
               <span className="ws-visually-hidden">Document version</span>
@@ -212,6 +270,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
                     Version {v.version_number}
+                    {documentSourceChip(v.source) ? ` — ${documentSourceChip(v.source)}` : ""}
                     {v.id === latest?.id ? " (latest)" : ""}
                   </option>
                 ))}
@@ -252,6 +311,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
 
       {compareOpen ? (
         <VersionComparison contractId={contract.id} versions={versions} />
+      ) : null}
+
+      {companyOpen && company ? (
+        <CompanyDocuments company={company} currentId={contract.id}
+                          onClose={() => setCompanyOpen(false)} />
       ) : null}
 
       {reuploadOpen && version ? (
@@ -370,5 +434,58 @@ function ShareControl() {
     >
       <IconLink size={15} /> {copied ? "Link copied" : failed ? "Couldn't copy — copy from the address bar" : "Share"}
     </button>
+  );
+}
+
+/**
+ * Every document for one company — AB-13 r3, the manager's "related documents".
+ *
+ * The list is DERIVED from the counterparty link, not from any document-to-
+ * document relationship: the server returns the contracts this caller may
+ * already see, so nothing here widens disclosure. Archived deals are included
+ * and SAID to be archived, because a company's history is not a working list
+ * and AB-12 r6 destroys nothing.
+ */
+function CompanyDocuments({
+  company, currentId, onClose,
+}: { company: Counterparty; currentId: string; onClose: () => void }) {
+  const contracts = company.contracts ?? [];
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-company-title"
+           onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
+        <h2 id="ws-company-title">{company.name}</h2>
+        {company.industry ? <p className="ws-pane__note">{company.industry}</p> : null}
+        {company.relationship_notes ? (
+          <p className="ws-pane__note">{company.relationship_notes}</p>
+        ) : null}
+        {contracts.length === 0 ? (
+          <p className="ws-pane__note">
+            No other documents are linked to this company yet.
+          </p>
+        ) : (
+          <ul className="ws-companydocs">
+            {contracts.map((c) => (
+              <li key={c.id}>
+                <Link href={`/dashboard?id=${c.id}`} onClick={onClose}>{c.name}</Link>
+                {c.contract_type ? (
+                  <span className="ws-chip ws-chip--type">{c.contract_type}</span>
+                ) : null}
+                {c.archived_at ? <span className="ws-chip">Archived</span> : null}
+                {c.id === currentId ? (
+                  <span className="ws-pane__note">open now</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   );
 }

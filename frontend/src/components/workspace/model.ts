@@ -584,3 +584,80 @@ export function documentTextState(version: {
   if (version.processing_status !== "COMPLETED") return "processing";
   return "empty";
 }
+
+/**
+ * Counterparty names the reader can ALREADY see on the Dashboard list — the
+ * intake and edit datalists converge on these, and only these (2026-09-06).
+ * Deliberately no "every counterparty" endpoint: one would disclose names
+ * across owners and departments, and this list is already permission-scoped
+ * by the server. Trimmed, de-duplicated, sorted; a row with nothing declared
+ * contributes nothing.
+ */
+export function knownCounterparties(
+  contracts: ReadonlyArray<{ latest_version?: { counterparty?: string } | null }> | null,
+): string[] {
+  const seen = new Set<string>();
+  for (const contract of contracts ?? []) {
+    const name = contract.latest_version?.counterparty?.trim();
+    if (name) seen.add(name);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Review order for the Findings list (P-4, 2026-09-06). The API returns findings
+ * in engine order — the requirement catalogue's — which scatters the eight that
+ * need a decision among the fourteen that do not. Presentation only (rule 18):
+ * nothing here decides an outcome; it decides what the reader meets first.
+ *
+ *   1. findings that need a decision, then the rest — the reader's task first;
+ *   2. within each, DOCUMENT order: the earliest clause the finding cites
+ *      (page, then the section number as the document numbers it);
+ *   3. then the requirement's heading, then id — so two findings on one clause
+ *      sit in a stable order.
+ *
+ * Deterministic: the same findings always yield the same order. A finding
+ * citing nothing locatable sorts after those that do, never among them.
+ */
+export function reviewOrder<
+  T extends {
+    id: string;
+    requires_decision: boolean;
+    evidence: ReadonlyArray<{ page_number: number | null; section_number: string | null }>;
+    requirement: { code?: string | null; name?: string | null };
+  },
+>(findings: readonly T[]): T[] {
+  const position = (f: T): number[] => {
+    let best: number[] | null = null;
+    for (const e of f.evidence) {
+      const parts = (e.section_number ?? "").split(".").map((n) => Number.parseInt(n, 10));
+      const key = [e.page_number ?? Number.POSITIVE_INFINITY,
+                   ...(parts.some(Number.isNaN) || parts.length === 0 ? [Number.POSITIVE_INFINITY] : parts)];
+      if (best === null || compareKeys(key, best) < 0) best = key;
+    }
+    return best ?? [Number.POSITIVE_INFINITY];
+  };
+  return [...findings].sort((a, b) =>
+    Number(b.requires_decision) - Number(a.requires_decision)
+    || compareKeys(position(a), position(b))
+    || requirementHeading(a.requirement).localeCompare(requirementHeading(b.requirement))
+    || a.id.localeCompare(b.id));
+}
+
+function compareKeys(a: number[], b: number[]): number {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? -1, y = b[i] ?? -1;      // a shorter key ("3") precedes its children ("3.1")
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * The divider word above an annexed part — the KIND the document's own title
+ * uses ("Annexure", "Schedule", "Appendix", "Exhibit"), never an invented name.
+ * Undefined for a row that is not one (44.4's "where detectable").
+ */
+export function partLabel(row: { annexure?: string }): string | undefined {
+  const word = row.annexure?.match(/^[A-Za-z]+/)?.[0];
+  return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : undefined;
+}

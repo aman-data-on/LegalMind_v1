@@ -237,6 +237,30 @@
   color: var(--ws-ink-500); background: transparent; white-space: nowrap;
 }
 .ws-chip--type { color: var(--ws-ink-700); }
+/* Whose paper this version is (2026-09-06). Two chips, told apart by WEIGHT and
+   a border, never by colour alone: DD-9 keeps colour for the finding statuses,
+   and a green/red pair here would read as a verdict on the document — which
+   source is not. "Their document" is the one worth noticing, so it carries the
+   heavier border; both keep the neutral chip ink. */
+/* The linked company — a real control (it opens that company's documents), so
+   it reads as one: the chip's own border plus a pointer, no new colour. */
+.ws-chip--company {
+  color: var(--ws-ink-700); cursor: pointer; background: transparent;
+  font-family: var(--ws-mono);
+}
+.ws-chip--company:hover { border-color: var(--ws-ink-300); color: var(--ws-ink-900); }
+
+/* One company's documents. A plain list: the row IS the link, the chips say
+   what kind of paper it is and whether it is shelved. */
+.ws-companydocs { list-style: none; margin: var(--ws-s2) 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-companydocs li { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-companydocs a { color: var(--ws-ink-900); text-decoration: none; font-weight: 500; }
+.ws-companydocs a:hover { text-decoration: underline; }
+
+.ws-chip--source-our { color: var(--ws-ink-700); }
+.ws-chip--source-their {
+  color: var(--ws-ink-900); border-color: var(--ws-ink-300); font-weight: 600;
+}
 
 /* --------------------------------------------------------------------------
  * Workspace layout — cards on the grey canvas (DD-9): document area + side

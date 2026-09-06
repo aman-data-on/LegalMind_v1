@@ -32,7 +32,7 @@ import { useRouter } from "next/navigation";
 
 import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
-import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { TypeSuggestion } from "@/lib/types";
@@ -63,7 +63,11 @@ function preflightProblem(file: File): string | null {
   return null;
 }
 
-export function UploadContract({ firstRun }: { firstRun: boolean }) {
+export function UploadContract({ firstRun, counterparties = [] }: {
+  firstRun: boolean;
+  /** Names already on the reader's own list — the datalist's whole world. */
+  counterparties?: string[];
+}) {
   const { can } = useSession();
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -77,6 +81,11 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
   const [error, setError] = useState<unknown>(null);
   const [dragging, setDragging] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
+  const [versionId, setVersionId] = useState<string | null>(null);
+  // Declared facts about THIS version (2026-09-06) — all optional.
+  const [source, setSource] = useState("");
+  const [counterparty, setCounterparty] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState("");
   const [suggestion, setSuggestion] = useState<TypeSuggestion | null>(null);
 
   if (!can(P.CONTRACT_CREATE) || !can(P.DOCUMENT_UPLOAD)) {
@@ -109,6 +118,7 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
       setContractId(contract.id);
       const uploaded = await api.uploadDocument(contract.id, chosen);
       versionId = uploaded.document_version.id;
+      setVersionId(versionId);
     } catch (cause) {
       setFile(null);
       setContractId(null);
@@ -170,6 +180,16 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
         name: name.trim(),
         contract_type: contractType,
       });
+      // The declared facts about THIS version (2026-09-06), recorded by the same
+      // confirm — and only what was actually said. Nothing is read from the file.
+      const declared: Record<string, string | null> = {
+        ...(source ? { source } : {}),
+        ...(counterparty.trim() ? { counterparty: counterparty.trim() } : {}),
+        ...(effectiveDate ? { effective_date: effectiveDate } : {}),
+      };
+      if (versionId && Object.keys(declared).length > 0) {
+        await api.declareVersion(versionId, declared);
+      }
     } catch (cause) {
       setError(cause);
       setStage("confirm");
@@ -322,6 +342,50 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
               </span>
           </label>
 
+          {/*
+            Declared facts about this version (2026-09-06). Optional, every one:
+            Step 6 says a document CAN be classified by source, Step 2 stores the
+            effective date "if available", and nothing here is read out of the
+            document — declared, never inferred, the same line Q9 draws for Type.
+            Native controls only: a select, a text input with a datalist of names
+            already on this reader's list, and the browser's own date input.
+          */}
+          <label className="ws-field">
+            <span className="ws-field__label">Source</span>
+            <select value={source} onChange={(event) => setSource(event.target.value)}>
+              <option value="">Not declared</option>
+              {DOCUMENT_SOURCES.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <span className="ws-field__help">
+              Whose paper this version is — ours, or the other side&rsquo;s.
+            </span>
+          </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Counterparty</span>
+            <input
+              list="ws-counterparties-intake"
+              maxLength={500}
+              value={counterparty}
+              onChange={(event) => setCounterparty(event.target.value)}
+            />
+            <datalist id="ws-counterparties-intake">
+              {counterparties.map((known) => <option key={known} value={known} />)}
+            </datalist>
+          </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Effective date</span>
+            <input
+              type="date"
+              value={effectiveDate}
+              onChange={(event) => setEffectiveDate(event.target.value)}
+            />
+            <span className="ws-field__help">
+              As stated in the document, if you know it. Leave it empty otherwise.
+            </span>
+          </label>
+
           <button
             type="submit"
             className="ws-btn ws-btn--primary"
@@ -339,6 +403,10 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
           onClick={() => {
             setFile(null);
             setContractId(null);
+            setVersionId(null);
+            setSource("");
+            setCounterparty("");
+            setEffectiveDate("");
             setSuggestion(null);
             setContractType("");
                     setStage("idle");

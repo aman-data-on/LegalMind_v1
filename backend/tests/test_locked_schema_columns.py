@@ -65,8 +65,9 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # AB-12 on 2026-09-05 when archive replaced deletion. Recorded here in the
     # same change as the migration and the lock record, which is the only way
     # this snapshot may ever move.
-    "contracts": ('archived_at', 'contract_type', 'created_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
+    "contracts": ('archived_at', 'contract_type', 'counterparty_id', 'created_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
     # AB-12 r3 — the department boundary a Department Lead's scope is bounded by.
+    "counterparties": ('created_at', 'created_by', 'id', 'industry', 'name', 'relationship_notes', 'updated_at'),
     "departments": ('code', 'created_at', 'id', 'name'),
     "document_evidence": ('content', 'created_at', 'document_version_id', 'end_offset', 'id', 'metadata', 'page_number', 'processing_run_id', 'section_number', 'section_title', 'source_type', 'start_offset'),
     "document_processing_runs": ('completed_at', 'created_at', 'document_version_id', 'error_code', 'error_message', 'id', 'metadata', 'processor_version', 'run_type', 'started_at', 'status'),
@@ -130,14 +131,15 @@ def test_the_locked_table_set_is_exactly_as_recorded(db):
     assert expected - live == set(), f"locked table(s) missing: {sorted(expected - live)}"
 
 
-def test_the_locked_table_count_is_thirty(db):
+def test_the_locked_table_count_is_thirty_one(db):
     """Pinned as a number as well as a set, because the number is what documents quote.
 
-    30 application tables since AB-12 added `departments` (2026-09-05). Before it, 29 — and
-    `AM-27` r2's "30" was reconciled by `alembic_version` (C-14). The coincidence is noted
-    and NOT taken as resolving C-14: the table AM-27 counted was not this one.
+    31 application tables since AB-13 added `counterparties` (2026-09-06). 30 after
+    AB-12 added `departments`; before it, 29 — and `AM-27` r2's "30" was reconciled by
+    `alembic_version` (C-14). Neither coincidence resolves C-14 (AB-13 r10): the table
+    AM-27 counted was not any of these.
     """
-    assert len(_live_columns(db)) == 30
+    assert len(_live_columns(db)) == 31
 
 
 # --------------------------------------------------------------------------
@@ -160,10 +162,12 @@ def test_the_total_locked_column_count_is_unchanged(db):
     196 after 2026-09-01 (`contracts.deleted_at`, AM-37). 201 after 2026-09-05
     (AB-12): that column renamed `archived_at`, `users.department_id` added, and
     the four-column `departments` table added — alongside migration `b7c3d9e1f2a4`
-    and the AB-12 lock record.
+    and the AB-12 lock record. 209 after 2026-09-06 (AB-13): the seven-column
+    `counterparties` table and `contracts.counterparty_id`, alongside migration
+    `c8e4a1b7d2f6` and the AB-13 lock record.
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 201
+    assert sum(len(c) for c in live.values()) == 209
 
 
 # --------------------------------------------------------------------------

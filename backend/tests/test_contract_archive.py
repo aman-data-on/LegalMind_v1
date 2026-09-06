@@ -132,12 +132,29 @@ def test_no_route_destroys_a_contract(api, db, seeded):
 
 def test_no_route_mutates_a_document_version(api, db, seeded):
     """Original uploaded evidence is immutable (Step 26, AB-12 §5): the API has
-    no PUT, PATCH or DELETE on a document version at all."""
+    no PUT or DELETE on a document version, and no route that touches its file,
+    its evidence or its processing record.
+
+    The ONE write is `PATCH /document-versions/{id}` (2026-09-06): the
+    uploader's DECLARED source / counterparty / effective date, into locked
+    42.4's `metadata` JSONB — never the bytes, never the evidence. Owner ruling
+    2026-09-06 on locked 33.7 / 34.15 r3: correctable only while the version has
+    no Review, refused (409) afterwards — pinned in
+    `test_api_resources.test_declared_metadata_is_fixed_once_a_review_exists`.
+    It carries the permission that already creates the version."""
     for (method, path) in ENDPOINT_PERMISSIONS:
         if "/document-versions/" in path:
-            assert method in ("GET", "POST"), (method, path)
+            assert method in ("GET", "POST", "PATCH"), (method, path)
             if method == "POST":
-                assert path.endswith(("/suggest-type", "/extract-obligations")), path
+                # `/reprocess` (2026-09-06, Option C) is the one POST that writes:
+                # a NEW processing run over the preserved original — never the
+                # file, never existing evidence — and only while nothing relies
+                # on the current reading (pinned in test_api_resources).
+                assert path.endswith(("/suggest-type", "/extract-obligations",
+                                      "/reprocess")), path
+            if method == "PATCH":
+                assert path == f"{V1}/document-versions/{{document_version_id}}", path
+                assert ENDPOINT_PERMISSIONS[(method, path)] == P.DOCUMENT_UPLOAD
 
 
 # =====================================================================

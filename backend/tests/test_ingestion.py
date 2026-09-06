@@ -515,3 +515,77 @@ def test_a_broken_sentence_is_not_promoted_to_a_heading():
 
     assert segment.section_number == "3.1"
     assert not segment.metadata.get("heading")
+
+
+# =====================================================================
+# P-8 — one processing run IS the document (2026-09-06)
+# =====================================================================
+def test_latest_completed_run_is_the_one_every_reader_uses(db):
+    """FAILED and STARTED attempts are history (42.5), never content; of two
+    COMPLETED runs the later `started_at` wins; none yet → None, so a version
+    still processing shows nothing rather than a stale reading."""
+    from datetime import UTC, datetime, timedelta
+
+    from legalmind.db import models as M
+    from legalmind.db.lookup import latest_completed_run_id
+    from legalmind.domain import enums as E
+    from tests.conftest import make_user
+
+    owner = make_user(db)
+    contract = M.Contract(owner_id=owner.id, name="ACME MSA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract); db.flush()
+    version = M.DocumentVersion(
+        contract_id=contract.id, version_number=1, original_filename="a.pdf",
+        mime_type="application/pdf", file_size_bytes=1, file_hash="h",
+        storage_key="k", processing_status=E.ProcessingStatus.COMPLETED,
+        uploaded_by=owner.id)
+    db.add(version); db.flush()
+    assert latest_completed_run_id(db, version.id) is None
+
+    t0 = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+
+    def run(status, minutes, run_type=E.ProcessingRunType.PARSE):
+        r = M.DocumentProcessingRun(
+            document_version_id=version.id, run_type=run_type, status=status,
+            processor_version="t", started_at=t0 + timedelta(minutes=minutes))
+        db.add(r); db.flush()
+        return r
+
+    first = run(E.ProcessingRunStatus.COMPLETED, 0)
+    assert latest_completed_run_id(db, version.id) == first.id
+    run(E.ProcessingRunStatus.FAILED, 1)        # a failed retry changes nothing
+    run(E.ProcessingRunStatus.STARTED, 2)       # nor one still in flight
+    assert latest_completed_run_id(db, version.id) == first.id
+    second = run(E.ProcessingRunStatus.COMPLETED, 3, E.ProcessingRunType.REPROCESS)
+    assert latest_completed_run_id(db, version.id) == second.id
+
+
+# =====================================================================
+# 44.4 — annexures/schedules where detectable (2026-09-06)
+# =====================================================================
+def test_annexure_titles_are_detected_where_the_document_declares_them():
+    """Detectable means the document says so, in a title line of its own; the
+    label is the document's text verbatim (34.12). Prose that mentions a
+    schedule is not one, and a bare "Schedule" with no label is not claimed.
+    Segmentation itself is untouched: the title becomes a marked heading, the
+    boundaries and content are what they were."""
+    from legalmind.domain.enums import EvidenceSourceType
+    from legalmind.ingestion.parsing import annexure_title, segment_paragraphs
+
+    for line in ("Annexure-1", "Annexure-3A ", "Appendix-3B", "Schedule 2 – Fees",  # noqa: RUF001 - en dash is the point
+                 "Exhibit A", "ANNEX II"):
+        assert annexure_title(line) == line.strip(), line
+    for line in ("Schedule", "Annexure 1 forms part of this Agreement.",
+                 "The Schedule 2 fees apply.", "13. LIMITATION ON DAMAGES"):
+        assert annexure_title(line) is None, line
+
+    text = ("Annexure-1\n\nScope of Services\n\n"
+            "The Provider shall deliver the services described below to the Customer.")
+    segments = segment_paragraphs(text, page_number=18,
+                                  source_type=EvidenceSourceType.NATIVE_TEXT)
+    first = segments[0]
+    assert first.content == "Annexure-1"
+    assert first.metadata == {"heading": True, "annexure": "Annexure-1"}
+    assert first.section_title == "Annexure-1" and first.section_number is None
+    assert all("annexure" not in s.metadata for s in segments[1:])

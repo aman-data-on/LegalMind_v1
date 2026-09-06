@@ -69,6 +69,10 @@ export interface EvidenceRow {
    *  never derived here. Rows written before 2026-09-05 carry `false`, so the
    *  outline falls back to numbered rows for them rather than rendering empty. */
   is_heading?: boolean;
+  /** The document's OWN annexure/schedule/appendix title when this row is one
+   *  ("Annexure-1", "Schedule 2 – Fees") — locked 44.4's "where detectable",
+   *  recorded by the parser (2026-09-06). Present only on such rows. */
+  annexure?: string;
   content: string;
   source_type: string;
   start_offset: number | null;
@@ -85,10 +89,34 @@ export interface LatestAnalysis {
   classification_counts?: Record<string, number>;
 }
 
+/** Step 6's source axis — declared by the uploader, never inferred. */
+export type DocumentSource = "ORGANIZATION" | "COUNTERPARTY";
+
 export interface LatestVersionSummary {
   id: string;
   version_number: number;
   processing_status: string;
+  /** Declared (2026-09-06): present only when someone said so — never null. */
+  source?: DocumentSource;
+  counterparty?: string;
+  /** ISO date, as declared. Never read out of the document. */
+  effective_date?: string;
+}
+
+/** The company on the other side of a deal — AB-13 r1. `industry` and
+ *  `relationship_notes` are OMITTED when nobody typed them: an unknown industry
+ *  is a fact, and a null would invite the UI to render "Industry: —" as though
+ *  it had been checked. */
+export interface Counterparty {
+  id: string;
+  name: string;
+  industry?: string;
+  relationship_notes?: string;
+  created_at: string | null;
+  updated_at: string | null;
+  /** Present only on the detail endpoint: every contract for this company that
+   *  the caller may already see. AB-13 r3 — derived from the link, not a graph. */
+  contracts?: Contract[];
 }
 
 export interface Contract {
@@ -108,6 +136,9 @@ export interface Contract {
   /** AB-12 r6 — set means read-only and off the working list. Never a sixth
    *  `status` value. */
   archived_at: string | null;
+  /** AB-13 r2 — who this deal is with; null when unlinked, which is the honest
+   *  state for every contract predating the record. */
+  counterparty_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -138,6 +169,11 @@ export interface DocumentVersion {
   extraction_status: string | null;
   uploaded_by: string;
   created_at: string | null;
+  /** Declared (2026-09-06), from locked 42.4's `metadata` JSONB: present only
+   * when someone said so — never null. Fixed once the version has a Review. */
+  source?: DocumentSource;
+  counterparty?: string;
+  effective_date?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
    * ready / lexical-only / not-indexed. Present on the detail endpoint. */
   assist_index?: { chunks: number; embedded_chunks: number };

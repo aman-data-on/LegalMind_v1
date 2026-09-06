@@ -11,6 +11,7 @@ would have leaked.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -770,3 +771,106 @@ def test_a_cross_owner_read_is_written_to_the_audit_trail(
     ).scalars().one()
     assert event.actor_id == counsel.id
     assert event.after_state["owner_id"] == str(owner.id)
+
+
+# =====================================================================
+# Declared version metadata (2026-09-06) — the write guard, permission by permission
+# =====================================================================
+def _bare_version(db, owner):
+    contract = M.Contract(owner_id=owner.id, name="ACME MSA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract); db.flush()
+    version = M.DocumentVersion(
+        contract_id=contract.id, version_number=1, original_filename="msa.pdf",
+        mime_type="application/pdf", file_size_bytes=10, file_hash="h",
+        storage_key="k", processing_status=E.ProcessingStatus.COMPLETED,
+        uploaded_by=owner.id)
+    db.add(version); db.flush()
+    return contract, version
+
+
+def test_declaring_version_metadata_is_owner_only_and_needs_document_upload(
+        api, db, owner):
+    """The permission is `document.upload` — declaring what a version IS is part
+    of putting it there — resolved OWNER-only (Step 24 r16/r17: department and
+    Legal scope are read scopes). 47.7's three answers, in order: the owner
+    without the permission sees the version but gets 403; another user gets the
+    byte-identical 404; the owner with `USER` succeeds."""
+    contract, version = _bare_version(db, owner)
+
+    # Visible (document.view) but no document.upload → 403, not 404.
+    viewer = make_user(db)
+    grant(db, viewer, bespoke_role(db, "VIEW_ONLY", [P.CONTRACT_VIEW, P.DOCUMENT_VIEW]))
+    contract.owner_id = viewer.id
+    db.flush()
+    sign_in(api, db, viewer)
+    assert api.get(f"{V1}/document-versions/{version.id}").status_code == 200
+    assert api.patch(f"{V1}/document-versions/{version.id}",
+                     json={"source": "ORGANIZATION"}).status_code == 403
+    sign_out(api)
+
+    # Not the owner → 404, indistinguishable from a version that does not exist.
+    sign_in(api, db, owner)
+    assert api.patch(f"{V1}/document-versions/{version.id}",
+                     json={"source": "ORGANIZATION"}).status_code == 404
+    sign_out(api)
+
+    # The owner with USER (which carries document.upload) → 200.
+    contract.owner_id = owner.id
+    db.flush()
+    sign_in(api, db, owner)
+    ok = api.patch(f"{V1}/document-versions/{version.id}", json={"source": "ORGANIZATION"})
+    assert ok.status_code == 200, ok.text
+
+    # AB-12 r6 — an archived contract refuses every write, this one included.
+    contract.archived_at = datetime.now(UTC)
+    db.flush()
+    assert api.patch(f"{V1}/document-versions/{version.id}",
+                     json={"source": "COUNTERPARTY"}).status_code == 409
+
+
+def test_rereading_a_version_is_owner_only_and_needs_document_upload(api, db, owner):
+    """Phase 5 (2026-09-06): the same guard as the declaration — visible but no
+    `document.upload` → 403; not the owner → the byte-identical 404."""
+    contract, version = _bare_version(db, owner)
+    viewer = make_user(db)
+    grant(db, viewer, bespoke_role(db, "VIEW_ONLY_2", [P.CONTRACT_VIEW, P.DOCUMENT_VIEW]))
+    contract.owner_id = viewer.id
+    db.flush()
+    sign_in(api, db, viewer)
+    assert api.post(f"{V1}/document-versions/{version.id}/reprocess").status_code == 403
+    sign_out(api)
+    sign_in(api, db, owner)
+    assert api.post(f"{V1}/document-versions/{version.id}/reprocess").status_code == 404
+
+
+def test_counterparty_writes_need_contract_update_and_reads_need_contract_view(
+        api, db, owner):
+    """AB-13 r5 — no new permission. `contract.view` reads, `contract.update`
+    writes, and 47.7's three answers hold: a caller who can see the company but
+    holds no write gets 403; a caller outside its contract scope gets the
+    byte-identical 404 (r6), never a 403 that would confirm it exists."""
+    contract, _ = _bare_version(db, owner)
+    sign_in(api, db, owner)
+    cp = api.post(f"{V1}/counterparties", json={"name": "Acme"}).json()["data"]
+    api.patch(f"{V1}/contracts/{contract.id}", json={"counterparty_id": cp["id"]})
+    sign_out(api)
+
+    # Sees the contract (so the company is in scope) but holds no contract.update.
+    reader = make_user(db)
+    grant(db, reader, bespoke_role(db, "CP_READ", [P.CONTRACT_VIEW]))
+    contract.owner_id = reader.id
+    db.flush()
+    sign_in(api, db, reader)
+    assert api.get(f"{V1}/counterparties/{cp['id']}").status_code == 200
+    assert api.patch(f"{V1}/counterparties/{cp['id']}",
+                     json={"industry": "Cloud"}).status_code == 403
+    assert api.post(f"{V1}/counterparties", json={"name": "New"}).status_code == 403
+    sign_out(api)
+
+    # Holds contract.update but the company is in nobody's scope for them → 404.
+    outsider = make_user(db)
+    grant_role(db, outsider, P.ROLE_USER)
+    sign_in(api, db, outsider)
+    assert api.patch(f"{V1}/counterparties/{cp['id']}",
+                     json={"industry": "Cloud"}).status_code == 404

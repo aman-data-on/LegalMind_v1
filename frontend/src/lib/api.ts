@@ -21,6 +21,7 @@ import type {
   Contract,
   ContractsSummary,
   Conversation,
+  Counterparty,
   ConversationDetail,
   ConversationSummary,
   DataEnvelope,
@@ -316,6 +317,33 @@ export const api = {
     }),
   updateContract: (id: string, patch: Record<string, unknown>) =>
     request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
+  /**
+   * Declare ONE version's source, counterparty and effective date (2026-09-06)
+   * into locked 42.4's `metadata` JSONB. A key sent as null clears it; a key
+   * left out is untouched. The server refuses (409) once the version has a
+   * Review — this call only surfaces that rule, it never decides it.
+   */
+  /**
+   * The companies this caller actually deals with — AB-13 r6 scopes this to
+   * counterparties reachable from their own contracts. There is deliberately no
+   * "all counterparties" endpoint to call.
+   */
+  counterparties: () => request<Counterparty[]>("/counterparties"),
+  counterparty: (id: string) => request<Counterparty>(`/counterparties/${id}`),
+  createCounterparty: (body: { name: string; industry?: string; relationship_notes?: string }) =>
+    request<Counterparty>("/counterparties", { method: "POST", body }),
+  updateCounterparty: (id: string, patch: Record<string, string | null>) =>
+    request<Counterparty>(`/counterparties/${id}`, { method: "PATCH", body: patch }),
+  declareVersion: (id: string, patch: Record<string, string | null>) =>
+    request<DocumentVersion>(`/document-versions/${id}`, { method: "PATCH", body: patch }),
+  /**
+   * Re-read a version's preserved original with the current parser (Phase 5,
+   * Option C, 2026-09-06). A NEW processing run; nothing existing is touched.
+   * The server refuses (409, with the reason) while a Review, an Ask answer or
+   * Key Obligations rely on the current reading — this only surfaces that.
+   */
+  reprocessVersion: (id: string) =>
+    request<UploadResult>(`/document-versions/${id}/reprocess`, { method: "POST" }),
 
   /**
    * Archive a contract — AB-12 r6, replacing the two-mode delete. Nothing is

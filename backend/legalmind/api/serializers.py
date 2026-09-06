@@ -215,9 +215,47 @@ def serialize_contract(c: M.Contract) -> dict[str, Any]:
         # AB-12 r6 — set means read-only and out of the working lists; never a
         # sixth ContractStatus value.
         "archived_at": _iso(c.archived_at),
+        # AB-13 r2 — who this deal is with. `null` when unlinked, which is the
+        # honest state for every contract predating the record.
+        "counterparty_id": (str(c.counterparty_id) if c.counterparty_id else None),
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
     }
+
+
+#: The declared keys of `document_versions.metadata` (locked 42.4 JSONB) that
+#: are part of the resource. `duplicate_of` is not: it is reported once, on the
+#: upload response (34.5), not as a standing attribute.
+DECLARED_KEYS: tuple[str, ...] = ("source", "counterparty", "effective_date")
+
+
+def declared_metadata(dv: M.DocumentVersion) -> dict[str, Any]:
+    """Source / counterparty / effective date, present ONLY when declared.
+
+    Omitted, never nulled — the same discipline `SEC-07` applies to confidential
+    fields, applied here for a different reason: an absent declaration is a
+    fact ("nobody said"), and every version created before 2026-09-06 has none.
+    """
+    meta = dv.doc_metadata or {}
+    return {k: meta[k] for k in DECLARED_KEYS if meta.get(k) is not None}
+
+
+def serialize_counterparty(c: M.Counterparty) -> dict[str, Any]:
+    """AB-13 r1. `industry` and `relationship_notes` are OMITTED when nobody has
+    typed them — the same discipline `SEC-07` applies to confidential fields,
+    for a different reason: an unknown industry is a fact, and a null would
+    invite the UI to render "Industry: —" as though it had been checked."""
+    payload: dict[str, Any] = {
+        "id": str(c.id),
+        "name": c.name,
+        "created_at": _iso(c.created_at),
+        "updated_at": _iso(c.updated_at),
+    }
+    if c.industry:
+        payload["industry"] = c.industry
+    if c.relationship_notes:
+        payload["relationship_notes"] = c.relationship_notes
+    return payload
 
 
 def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
@@ -225,6 +263,7 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
     coordinate, and the download endpoint is the only sanctioned way to the
     bytes."""
     return {
+        **declared_metadata(dv),
         "id": str(dv.id),
         "contract_id": str(dv.contract_id),
         "version_number": dv.version_number,
@@ -251,6 +290,7 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
     processing-run id is an internal lineage coordinate and is not exposed; the
     metadata JSONB is parser-internal and likewise stays server-side.
     """
+    meta = e.evidence_metadata or {}
     return {
         "id": str(e.id),
         "document_version_id": str(e.document_version_id),
@@ -267,7 +307,11 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
         # unbuildable client-side — the alternative is the UI re-deriving
         # structure from text, which is exactly the re-derivation rule 18 keeps
         # out of the interface. Presentation only: it decides no legal outcome.
-        "is_heading": bool((e.evidence_metadata or {}).get("heading")),
+        "is_heading": bool(meta.get("heading")),
+        # The document's OWN annexure/schedule title when this row is one (44.4,
+        # 2026-09-06) — present only then, so the outline can divide the parts
+        # the file declares without the UI guessing at them.
+        **({"annexure": meta["annexure"]} if meta.get("annexure") else {}),
     }
 
 

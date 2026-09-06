@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import io
 import json
+import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
@@ -22,6 +23,7 @@ from tests.conftest import (
     make_review_for,
     make_user,
     sign_in,
+    sign_out,
 )
 
 V1 = "/api/v1"
@@ -1044,3 +1046,557 @@ def test_contracts_summary_requires_contract_view(api, db):
     bare = make_user(db)
     sign_in(api, db, bare)
     assert api.get(f"{V1}/contracts/summary").status_code == 403
+
+
+# =====================================================================
+# Declared version metadata — source · counterparty · effective date (2026-09-06)
+# Locked 42.4 `metadata` JSONB; Step 2 "should store"; Step 6 source axis.
+# =====================================================================
+def _upload(api, contract_id):
+    return api.post(
+        f"{V1}/contracts/{contract_id}/document-versions",
+        content=build_docx(["1. Limitation of Liability",
+                            "Liability is capped at fees paid."]),
+        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa.docx"},
+    ).json()["data"]["document_version"]["id"]
+
+
+def test_declared_metadata_is_omitted_until_declared_then_round_trips(api, db, owner):
+    """Absent, never null (the `SEC-07` discipline): a version nobody has
+    described carries none of the three keys. Declared, they come back on the
+    version AND on the Dashboard list's `latest_version`, so the counterparty
+    datalist can converge on names the caller already sees."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = _upload(api, contract_id)
+
+    before = api.get(f"{V1}/document-versions/{version_id}").json()["data"]
+    assert not {"source", "counterparty", "effective_date"} & before.keys()
+
+    declared = api.patch(f"{V1}/document-versions/{version_id}", json={
+        "source": "COUNTERPARTY",
+        "counterparty": "  Placeholder Counterparty Ltd ",   # trimmed, never a real name (54.6)
+        "effective_date": "2026-07-28",
+    })
+    assert declared.status_code == 200, declared.text
+    body = declared.json()["data"]
+    assert body["source"] == "COUNTERPARTY"
+    assert body["counterparty"] == "Placeholder Counterparty Ltd"
+    assert body["effective_date"] == "2026-07-28"
+
+    # Persisted as the locked JSONB, beside the key ingestion already writes.
+    stored = db.get(M.DocumentVersion, uuid.UUID(version_id)).doc_metadata
+    assert stored["source"] == "COUNTERPARTY" and stored["effective_date"] == "2026-07-28"
+
+    listed = api.get(f"{V1}/contracts").json()["data"]
+    row = next(c for c in listed if c["id"] == contract_id)
+    assert row["latest_version"]["counterparty"] == "Placeholder Counterparty Ltd"
+    assert row["latest_version"]["source"] == "COUNTERPARTY"
+
+    # A field left out is untouched; a field sent as null is cleared AND omitted.
+    cleared = api.patch(f"{V1}/document-versions/{version_id}",
+                        json={"counterparty": None}).json()["data"]
+    assert "counterparty" not in cleared
+    assert cleared["source"] == "COUNTERPARTY"          # untouched
+
+
+def test_declared_metadata_refuses_a_bad_source_and_a_bad_date(api, db, owner):
+    """Refused at the boundary, not coerced — the same rule as Document Type:
+    `counterparty` is not `COUNTERPARTY`, and the 40th of the 13th is not a date."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = _upload(api, contract_id)
+
+    assert api.patch(f"{V1}/document-versions/{version_id}",
+                     json={"source": "counterparty"}).status_code == 422
+    assert api.patch(f"{V1}/document-versions/{version_id}",
+                     json={"effective_date": "2026-13-40"}).status_code == 422
+    assert api.patch(f"{V1}/document-versions/{version_id}",
+                     json={"nonsense": 1}).status_code == 422       # extra="forbid"
+    # Whitespace-only is "nothing declared", not a counterparty called " ".
+    body = api.patch(f"{V1}/document-versions/{version_id}",
+                     json={"counterparty": "   "}).json()["data"]
+    assert "counterparty" not in body
+
+
+def test_declared_metadata_is_fixed_once_a_review_exists(api, db, owner):
+    """Owner ruling 2026-09-06 on locked 33.7 / 34.15 r3: declared metadata may
+    be corrected only while the version has NO Review. The existence of a
+    Review is the test — not its status, not its outcome — so a DRAFT Review
+    already freezes it. 409, because the caller is the owner and existence is
+    not the secret; the state is the reason."""
+    sign_in(api, db, owner)
+    review = make_review_for(db, owner)
+    refused = api.patch(f"{V1}/document-versions/{review.document_version_id}",
+                        json={"source": "ORGANIZATION"})
+    assert refused.status_code == 409, refused.text
+    assert db.get(M.DocumentVersion, review.document_version_id).doc_metadata is None
+
+
+def test_declared_metadata_never_reaches_the_assist_lane():
+    """`AM-30` t4 — no counterparty or organizational identifier may egress.
+    The declared keys live only in `document_versions.metadata`; the assist
+    package must not read that column, so a future prompt cannot pick a
+    counterparty name up by accident. A static check, because the property is
+    about what the code CAN do, not what one prompt happened to contain."""
+    import pathlib
+
+    assist = pathlib.Path(__file__).resolve().parents[1] / "legalmind" / "assist"
+    offenders = [p.name for p in assist.glob("*.py")
+                 if "doc_metadata" in p.read_text() or "declared_metadata" in p.read_text()]
+    assert offenders == [], f"assist lane reads declared version metadata: {offenders}"
+
+
+# =====================================================================
+# P-8 — the document pane reads ONE processing run (2026-09-06)
+# =====================================================================
+def test_the_document_pane_reads_only_the_latest_completed_run(api, db, owner):
+    """A retry or a REPROCESS writes a second segmentation of the same version;
+    the pane must show ONE of them, never both merged. The older rows stay
+    (42.5 history — a Finding may cite them); they are just not the document
+    any more. And if the newest attempt FAILED, the last COMPLETED reading is
+    still the document."""
+    from datetime import UTC, datetime, timedelta
+
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = uuid.UUID(_upload(api, contract_id))
+    before = api.get(f"{V1}/document-versions/{version_id}/evidence").json()
+    original_ids = {row["id"] for row in before["data"]}
+    assert original_ids
+
+    later = M.DocumentProcessingRun(
+        document_version_id=version_id, run_type=E.ProcessingRunType.REPROCESS,
+        status=E.ProcessingRunStatus.COMPLETED, processor_version="t",
+        started_at=datetime.now(UTC) + timedelta(minutes=5))
+    db.add(later); db.flush()
+    db.add(M.DocumentEvidence(
+        document_version_id=version_id, processing_run_id=later.id, page_number=1,
+        section_number="1", section_title="Re-read", content="Re-segmented clause.",
+        source_type=E.EvidenceSourceType.NATIVE_TEXT, start_offset=0, end_offset=20))
+    db.flush()
+
+    after = api.get(f"{V1}/document-versions/{version_id}/evidence").json()
+    assert after["pagination"]["total"] == 1
+    assert [row["content"] for row in after["data"]] == ["Re-segmented clause."]
+    assert db.execute(
+        select(func.count(M.DocumentEvidence.id))
+        .where(M.DocumentEvidence.document_version_id == version_id)
+    ).scalar_one() == len(original_ids) + 1          # history kept
+
+    later.status = E.ProcessingRunStatus.FAILED
+    db.flush()
+    again = api.get(f"{V1}/document-versions/{version_id}/evidence").json()
+    assert {row["id"] for row in again["data"]} == original_ids
+
+
+# =====================================================================
+# Phase 5 — re-read in place, Option C (owner, 2026-09-06)
+# =====================================================================
+def test_reprocess_rereads_with_the_current_parser_and_keeps_history(api, db, owner):
+    """A NEW REPROCESS run over the preserved original; the earlier run's rows
+    stay (42.5, rule 17) but the pane now shows the new reading (P-8); the
+    assist index is rebuilt over the new rows; the act is audited."""
+    from legalmind.assist import store as assist_store
+
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = uuid.UUID(_upload(api, contract_id))
+    before = api.get(f"{V1}/document-versions/{version_id}/evidence").json()["data"]
+    old_ids = {row["id"] for row in before}
+    chunks_before = assist_store.count_chunks(db, version_id)
+
+    response = api.post(f"{V1}/document-versions/{version_id}/reprocess")
+    assert response.status_code == 201, response.text
+    body = response.json()["data"]
+    assert body["processing_run"]["run_type"] == "REPROCESS"
+    assert body["processing_run"]["status"] == "COMPLETED"
+    assert body["evidence_count"] == len(old_ids)          # same file, same reading
+
+    after = api.get(f"{V1}/document-versions/{version_id}/evidence").json()["data"]
+    new_ids = {row["id"] for row in after}
+    assert new_ids and not new_ids & old_ids                # the NEW run's rows
+    runs = db.execute(select(M.DocumentProcessingRun)
+                      .where(M.DocumentProcessingRun.document_version_id == version_id)
+                      ).scalars().all()
+    assert {r.run_type.value for r in runs} == {"PARSE", "REPROCESS"}
+    assert db.execute(select(func.count(M.DocumentEvidence.id))
+                      .where(M.DocumentEvidence.document_version_id == version_id)
+                      ).scalar_one() == 2 * len(old_ids)  # history kept
+    rerun = next(r for r in runs if r.run_type is E.ProcessingRunType.REPROCESS)
+    assert rerun.run_metadata["reprocess_of"] == str(
+        next(r.id for r in runs if r.run_type is E.ProcessingRunType.PARSE))
+    assert assist_store.count_chunks(db, version_id) == chunks_before   # rebuilt, not doubled
+    assert db.execute(select(M.AuditEvent)
+                      .where(M.AuditEvent.action == "document.reprocessed")
+                      ).scalars().one().entity_id == version_id
+
+
+def test_reprocess_is_refused_while_anything_relies_on_the_current_reading(api, db, owner):
+    """Option C's whole point. A Review, Key Obligations anchored to evidence, or a
+    version still processing → 409 naming the reason and the way forward (a new
+    version by re-upload). Nothing is written when refused."""
+    from sqlalchemy import text
+
+    from legalmind import config
+
+    sign_in(api, db, owner)
+    review = make_review_for(db, owner)
+    refused = api.post(f"{V1}/document-versions/{review.document_version_id}/reprocess")
+    assert refused.status_code == 409 and "Review" in refused.text
+    assert "new version" in refused.text
+
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = uuid.UUID(_upload(api, contract_id))
+    evidence_id = db.execute(select(M.DocumentEvidence.id)
+                             .where(M.DocumentEvidence.document_version_id == version_id)
+                             .limit(1)).scalar_one()
+    schema = config.assist_schema()
+    run_id = uuid.uuid4()
+    db.execute(text(f'INSERT INTO "{schema}".obligation_extraction_runs '
+                    '(id, document_version_id, status, model_identity, prompt_version) '
+                    "VALUES (:i, :d, 'COMPLETED', 'test', 'v')"),
+               {"i": run_id, "d": version_id})
+    db.execute(text(f'INSERT INTO "{schema}".obligation_extractions '
+                    '(id, run_id, document_version_id, evidence_id, party_label, '
+                    'obligation_text, ordinal) VALUES (:i, :r, :d, :e, :p, :t, 1)'),
+               {"i": uuid.uuid4(), "r": run_id, "d": version_id, "e": evidence_id,
+                "p": "Customer", "t": "shall pay"})
+    db.flush()
+    refused = api.post(f"{V1}/document-versions/{version_id}/reprocess")
+    assert refused.status_code == 409 and "Key Obligations" in refused.text
+
+    version = db.get(M.DocumentVersion, version_id)
+    version.processing_status = E.ProcessingStatus.PROCESSING
+    db.flush()
+    assert api.post(f"{V1}/document-versions/{version_id}/reprocess").status_code == 409
+    assert db.execute(select(func.count(M.DocumentProcessingRun.id))
+                      .where(M.DocumentProcessingRun.document_version_id == version_id)
+                      ).scalar_one() == 1                    # nothing written
+
+
+# =====================================================================
+# P-1 — the contract's lifecycle state is declared, and trailed (2026-09-06)
+# =====================================================================
+def test_contract_status_is_declared_by_the_owner_and_audited(api, db, owner):
+    """Step 2's Draft / Active / Superseded through the PATCH that already
+    existed. Any transition is allowed — a wrong click must be correctable — and
+    each real change is one audit event; a no-op change writes none."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+
+    assert api.patch(f"{V1}/contracts/{contract_id}",
+                     json={"status": "ACTIVE"}).json()["data"]["status"] == "ACTIVE"
+    assert api.patch(f"{V1}/contracts/{contract_id}",
+                     json={"status": "ACTIVE"}).status_code == 200         # no-op
+    assert api.patch(f"{V1}/contracts/{contract_id}",
+                     json={"status": "SUPERSEDED"}).json()["data"]["status"] == "SUPERSEDED"
+    assert api.patch(f"{V1}/contracts/{contract_id}",
+                     json={"status": "DRAFT"}).json()["data"]["status"] == "DRAFT"
+    assert api.patch(f"{V1}/contracts/{contract_id}",
+                     json={"status": "EXECUTED"}).status_code == 422       # not a state
+
+    events = db.execute(select(M.AuditEvent)
+                        .where(M.AuditEvent.action == "contract.status_changed")
+                        .order_by(M.AuditEvent.timestamp, M.AuditEvent.id)
+                        ).scalars().all()
+    # `timestamp` is now() — transaction start — so all three share it inside one
+    # test transaction; the property is WHICH transitions were trailed, not order.
+    assert sorted((e.before_state["status"], e.after_state["status"]) for e in events) == sorted([
+        ("DRAFT", "ACTIVE"), ("ACTIVE", "SUPERSEDED"), ("SUPERSEDED", "DRAFT")])
+    assert all(e.actor_id == owner.id and e.entity_id == uuid.UUID(contract_id)
+               for e in events)
+
+
+def test_a_failed_reread_changes_nothing_for_readers(api, db, owner, monkeypatch):
+    """Adversarial: the current parser cannot read a file the old one could. The
+    REPROCESS run is recorded FAILED (42.5 history), but the standing reading is
+    still the document — same rows in the pane, same statuses on the version,
+    same chunks in the index. A re-read may add a reading; it never takes one."""
+    from legalmind.assist import store as assist_store
+    from legalmind.ingestion import parsing
+
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = uuid.UUID(_upload(api, contract_id))
+    rows_before = {r["id"] for r in
+                   api.get(f"{V1}/document-versions/{version_id}/evidence").json()["data"]}
+    version = db.get(M.DocumentVersion, version_id)
+    statuses_before = (version.processing_status, version.extraction_status)
+    chunks_before = assist_store.count_chunks(db, version_id)
+
+    def broken(*args, **kwargs):
+        raise parsing.ParseError("simulated: the current parser cannot read this file")
+    monkeypatch.setattr(parsing, "parse", broken)
+
+    response = api.post(f"{V1}/document-versions/{version_id}/reprocess")
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["processing_run"]["status"] == "FAILED"
+    assert response.json()["data"]["evidence_count"] == 0
+
+    db.expire_all()
+    version = db.get(M.DocumentVersion, version_id)
+    assert (version.processing_status, version.extraction_status) == statuses_before
+    assert {r["id"] for r in
+            api.get(f"{V1}/document-versions/{version_id}/evidence").json()["data"]} == rows_before
+    assert assist_store.count_chunks(db, version_id) == chunks_before
+
+
+def test_a_second_concurrent_reread_is_refused_rather_than_starting_a_second_run(
+        api, db, owner, engine):
+    """The check-then-act race, closed (2026-09-06).
+
+    `_reprocess_blockers` reading "nothing in flight" and the run being created
+    are two steps; without a lock two callers — a double-click, a client retry,
+    a script — could both pass the check and both create a REPROCESS run, and
+    the assist index would then be built from whichever finished last rather
+    than from the run every reader resolves to (`latest_completed_run_id`).
+
+    The lock is held here on a REAL second connection to the SAME database,
+    which is what a concurrent request — or the background OCR job, which takes
+    the same `version_lock_key` — actually is. The endpoint must refuse with 409
+    and write NOTHING. (Advisory locks are per-database, so this has to be the
+    test engine: a lock taken on any other database would not conflict and the
+    test would pass for the wrong reason.)
+    """
+    from sqlalchemy import text as sql_text
+
+    from legalmind.worker.dispatch import version_lock_key
+
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = uuid.UUID(_upload(api, contract_id))
+
+    def runs() -> int:
+        return db.execute(
+            select(func.count(M.DocumentProcessingRun.id))
+            .where(M.DocumentProcessingRun.document_version_id == version_id)
+        ).scalar_one()
+
+    before = runs()
+    key = version_lock_key(version_id)
+    with engine.connect() as holder:
+        assert holder.execute(sql_text("SELECT pg_try_advisory_lock(:k)"),
+                              {"k": key}).scalar() is True
+
+        refused = api.post(f"{V1}/document-versions/{version_id}/reprocess")
+        assert refused.status_code == 409, refused.text
+        assert "already being re-read" in refused.text
+        assert runs() == before, "a refused re-read must create no processing run"
+
+        # The holder releases; the very same request now succeeds — proving the
+        # 409 was the lock and not some other refusal.
+        holder.execute(sql_text("SELECT pg_advisory_unlock(:k)"), {"k": key})
+        holder.commit()
+
+    accepted = api.post(f"{V1}/document-versions/{version_id}/reprocess")
+    assert accepted.status_code == 201, accepted.text
+    assert runs() == before + 1
+
+
+# =====================================================================
+# AB-13 — the counterparty as an entity (2026-09-06)
+# =====================================================================
+def test_a_counterparty_groups_a_companys_documents_without_a_relationship_table(
+        api, db, owner):
+    """AB-13 r3 — the manager's "related documents" answer.
+
+    Two contracts (an NDA and an MSA) linked to ONE company come back together
+    from that company's own endpoint. The grouping is derived from the FK, not
+    from any document-to-document relationship row — there is no such table and
+    this proves none is needed."""
+    sign_in(api, db, owner)
+    created = api.post(f"{V1}/counterparties",
+                       json={"name": "Placeholder Counterparty Ltd",
+                             "industry": "Cloud hosting"})
+    assert created.status_code == 201, created.text
+    cp = created.json()["data"]
+    assert cp["industry"] == "Cloud hosting"
+
+    ids = []
+    for name, doc_type in (("ACME NDA", "NDA"), ("ACME MSA", "MSA")):
+        contract_id = api.post(f"{V1}/contracts",
+                               json={"name": name, "contract_type": doc_type}
+                               ).json()["data"]["id"]
+        linked = api.patch(f"{V1}/contracts/{contract_id}",
+                           json={"counterparty_id": cp["id"]})
+        assert linked.status_code == 200, linked.text
+        assert linked.json()["data"]["counterparty_id"] == cp["id"]
+        ids.append(contract_id)
+
+    profile = api.get(f"{V1}/counterparties/{cp['id']}").json()["data"]
+    assert {c["id"] for c in profile["contracts"]} == set(ids)
+    assert {c["contract_type"] for c in profile["contracts"]} == {"NDA", "MSA"}
+
+    # The link is audited (r8) — it is the fact the whole view derives from.
+    linked_events = db.execute(
+        select(M.AuditEvent)
+        .where(M.AuditEvent.action == "contract.counterparty_linked")).scalars().all()
+    assert len(linked_events) == 2
+    assert all(e.after_state["counterparty_id"] == cp["id"] for e in linked_events)
+
+
+def test_an_unknown_industry_stays_absent_rather_than_becoming_a_blank(api, db, owner):
+    """AB-13 r1 / rule 21 — a counterparty that is not fully known yet is the
+    NORMAL case (the manager's seventh point). Nothing is invented, and the key
+    is OMITTED rather than nulled so no UI can render "Industry: —" as though
+    it had been checked."""
+    sign_in(api, db, owner)
+    bare = api.post(f"{V1}/counterparties", json={"name": "Unknown Co"}).json()["data"]
+    assert bare["name"] == "Unknown Co"
+    assert "industry" not in bare and "relationship_notes" not in bare
+
+    # Whitespace is "nothing said", not an industry called " ".
+    blank = api.post(f"{V1}/counterparties",
+                     json={"name": "Blank Co", "industry": "   "}).json()["data"]
+    assert "industry" not in blank
+
+    # It can be filled in later, and cleared again.
+    filled = api.patch(f"{V1}/counterparties/{bare['id']}",
+                       json={"industry": "Logistics"}).json()["data"]
+    assert filled["industry"] == "Logistics"
+    cleared = api.patch(f"{V1}/counterparties/{bare['id']}",
+                        json={"industry": None}).json()["data"]
+    assert "industry" not in cleared
+    # A name cannot be erased — a company with no name is no identity (r1).
+    kept = api.patch(f"{V1}/counterparties/{bare['id']}", json={"name": None})
+    assert kept.json()["data"]["name"] == "Unknown Co"
+
+
+def test_a_counterparty_is_never_visible_outside_the_callers_contract_scope(
+        api, db, owner):
+    """AB-13 r6 — the disclosure boundary, and the reason there is no global list.
+
+    "We have a deal with X" is exactly the class of fact `SEC-07`/`LEGAL-02` keep
+    inside scope. Another user must not see this company at all: not in the list,
+    and not by id — where the answer is the byte-identical 404 an absent row
+    gets, never a 403 that would confirm it exists."""
+    sign_in(api, db, owner)
+    cp = api.post(f"{V1}/counterparties", json={"name": "Confidential Co"}).json()["data"]
+    contract_id = api.post(f"{V1}/contracts", json={"name": "ACME MSA"}).json()["data"]["id"]
+    api.patch(f"{V1}/contracts/{contract_id}", json={"counterparty_id": cp["id"]})
+    assert [c["id"] for c in api.get(f"{V1}/counterparties").json()["data"]] == [cp["id"]]
+    sign_out(api)
+
+    stranger = make_user(db)
+    grant_role(db, stranger, P.ROLE_USER)
+    sign_in(api, db, stranger)
+    assert api.get(f"{V1}/counterparties").json()["data"] == []
+    assert api.get(f"{V1}/counterparties/{cp['id']}").status_code == 404
+    missing = api.get(f"{V1}/counterparties/{uuid.uuid4()}")
+    assert missing.status_code == 404
+    # Indistinguishable: out-of-scope and nonexistent give the same code and the
+    # same message (49.5 r1). `request_id` differs by design — it is the 49.9
+    # correlation handle, and it carries no information about the object.
+    out_of_scope = api.get(f"{V1}/counterparties/{cp['id']}").json()["error"]
+    nonexistent = missing.json()["error"]
+    assert out_of_scope["code"] == nonexistent["code"] == "NOT_FOUND"
+    assert out_of_scope["message"] == nonexistent["message"]
+
+
+def test_linking_refuses_an_unknown_counterparty_rather_than_dangling(api, db, owner):
+    """A dangling link is worse than no link: the "everything for this company"
+    view would silently lose the contract."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts", json={"name": "ACME MSA"}).json()["data"]["id"]
+    refused = api.patch(f"{V1}/contracts/{contract_id}",
+                        json={"counterparty_id": str(uuid.uuid4())})
+    assert refused.status_code == 422
+    assert db.get(M.Contract, uuid.UUID(contract_id)).counterparty_id is None
+
+    # Unlinking is explicit and audited; left out entirely, the link is untouched.
+    cp = api.post(f"{V1}/counterparties", json={"name": "Acme"}).json()["data"]
+    api.patch(f"{V1}/contracts/{contract_id}", json={"counterparty_id": cp["id"]})
+    api.patch(f"{V1}/contracts/{contract_id}", json={"name": "Renamed only"})
+    assert str(db.get(M.Contract, uuid.UUID(contract_id)).counterparty_id) == cp["id"]
+    unlinked = api.patch(f"{V1}/contracts/{contract_id}", json={"counterparty_id": None})
+    assert unlinked.json()["data"]["counterparty_id"] is None
+
+
+def test_a_counterparty_with_contracts_cannot_be_deleted_out_from_under_them(
+        api, db, owner):
+    """AB-13 r2 — ON DELETE RESTRICT. Nothing in the API deletes a counterparty;
+    this pins the database's own refusal, so a future route cannot orphan a
+    contract by accident."""
+    import sqlalchemy
+
+    sign_in(api, db, owner)
+    cp = api.post(f"{V1}/counterparties", json={"name": "Acme"}).json()["data"]
+    contract_id = api.post(f"{V1}/contracts", json={"name": "ACME MSA"}).json()["data"]["id"]
+    api.patch(f"{V1}/contracts/{contract_id}", json={"counterparty_id": cp["id"]})
+    db.flush()
+
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        db.execute(sqlalchemy.text("DELETE FROM counterparties WHERE id = :i"),
+                   {"i": uuid.UUID(cp["id"])})
+        db.flush()
+    db.rollback()
+
+
+def test_no_endpoint_lists_every_counterparty(api, db, owner):
+    """AB-13 r6 states the global list is FORBIDDEN, not merely unbuilt. Pinned
+    structurally so a future convenience endpoint has to confront the record."""
+    from legalmind.api.permission_map import ENDPOINT_PERMISSIONS
+
+    counterparty_routes = {(m, p) for (m, p) in ENDPOINT_PERMISSIONS
+                           if "/counterparties" in p}
+    assert counterparty_routes == {
+        ("GET", f"{V1}/counterparties"),
+        ("POST", f"{V1}/counterparties"),
+        ("GET", f"{V1}/counterparties/{{counterparty_id}}"),
+        ("PATCH", f"{V1}/counterparties/{{counterparty_id}}"),
+    }
+    # And the two reads are contract-scoped permissions, not an admin one (r5).
+    assert ENDPOINT_PERMISSIONS[("GET", f"{V1}/counterparties")] == P.CONTRACT_VIEW
+    assert ENDPOINT_PERMISSIONS[("POST", f"{V1}/counterparties")] == P.CONTRACT_UPDATE
+
+
+def test_a_lead_sees_a_companys_documents_across_the_department_and_the_shelf(
+        api, db, owner):
+    """Regression, found in the pre-commit review (2026-09-06).
+
+    `_readable` grants sight of a company through a DEPARTMENT contract, but the
+    detail listed only `own` — so a Department Lead opened the company the
+    "everything for this company" view exists for and saw an EMPTY list. The
+    same mismatch hid ARCHIVED contracts, which AB-12 r6 keeps rather than
+    destroys. Both corrected: the list is now the caller's full read scope, in
+    both archive states, and each row still carries `archived_at` so they are
+    told apart."""
+    from legalmind.db import models as M2
+
+    dept = M2.Department(code=f"D{uuid.uuid4().hex[:6]}", name="Legal")
+    db.add(dept); db.flush()
+    owner.department_id = dept.id
+    db.flush()
+
+    sign_in(api, db, owner)
+    cp = api.post(f"{V1}/counterparties", json={"name": "Shared Co"}).json()["data"]
+    live = api.post(f"{V1}/contracts", json={"name": "Live deal"}).json()["data"]["id"]
+    shelved = api.post(f"{V1}/contracts", json={"name": "Old deal"}).json()["data"]["id"]
+    for cid in (live, shelved):
+        api.patch(f"{V1}/contracts/{cid}", json={"counterparty_id": cp["id"]})
+    api.post(f"{V1}/contracts/{shelved}/archive")
+    sign_out(api)
+
+    # A colleague in the SAME department, holding the Lead's read scope.
+    lead = make_user(db)
+    grant(db, lead, bespoke_role(db, f"LEAD{uuid.uuid4().hex[:4]}",
+                                 [P.CONTRACT_VIEW, P.DEPARTMENT_VIEW]))
+    lead.department_id = dept.id
+    db.flush()
+    sign_in(api, db, lead)
+
+    profile = api.get(f"{V1}/counterparties/{cp['id']}")
+    assert profile.status_code == 200, profile.text
+    listed = profile.json()["data"]["contracts"]
+    assert {c["id"] for c in listed} == {live, shelved}, (
+        "the Lead must see the department's deals for this company, archived included")
+    assert [c["archived_at"] is not None for c in listed].count(True) == 1

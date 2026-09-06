@@ -197,6 +197,35 @@ class UserIdentity(Base):
 # ==========================================================================
 # Contracts & Documents — 42.3 - 42.6
 # ==========================================================================
+class Counterparty(Base):
+    """The company on the other side of a deal — AB-13 r1 (2026-09-06). NEW TABLE,
+    authorised by that record.
+
+    Why a table and not the free text Phase 3 already stores: that text is a
+    DECLARATION about one version and carries no identity, so "Acme Ltd" and
+    "Acme Limited" are two unrelated strings — nothing can be grouped by them and
+    no attribute can hang off them. Identity is the whole point of this row.
+
+    `industry` and `relationship_notes` are nullable and stay empty unless a human
+    types them (r1): rule 21 forbids inventing company or industry information,
+    and "not known yet" is the normal state of a counterparty, not a gap to fill.
+    """
+
+    __tablename__ = "counterparties"
+
+    id = pk_uuid()
+    name = _str()
+    industry = _str(nullable=True)
+    relationship_notes = mapped_column(Text, nullable=True)
+    created_by = fk_uuid("users.id")
+    created_at = ts_created()
+    updated_at = ts_updated()
+
+    __table_args__ = (
+        Index("ix_counterparties_name", "name"),
+    )
+
+
 class Contract(Base):
     """42.3. owner_id makes ownership traversable (41.23) for 41.24 checks."""
 
@@ -216,9 +245,15 @@ class Contract(Base):
     # versions, reviews, findings and audit trail, leaves every default list,
     # refuses every write, and stays readable by its owner and department lead.
     archived_at = ts_nullable()
+    # Who this deal is WITH — AB-13 r2. Nullable: every contract predating this
+    # record has none, and inventing one would be inventing data. The link is the
+    # live identity; `document_versions.metadata.counterparty` stays the frozen
+    # per-version declaration (r7), and the two answer different questions.
+    counterparty_id = fk_uuid("counterparties.id", nullable=True, ondelete="RESTRICT")
 
     __table_args__ = (
         Index("ix_contracts_owner_id", "owner_id"),
+        Index("ix_contracts_counterparty_id", "counterparty_id"),
         Index("ix_contracts_status", "status"),
         Index("ix_contracts_created_at", "created_at"),
         Index("ix_contracts_archived_at", "archived_at"),

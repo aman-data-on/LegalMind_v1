@@ -162,6 +162,18 @@
       ],
       "title": "Contract Type"
      },
+     "counterparty_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Counterparty Id"
+     },
      "name": {
       "anyOf": [
        {
@@ -207,6 +219,92 @@
      }
     },
     "title": "ConversationCreate",
+    "type": "object"
+   },
+   "CounterpartyCreate": {
+    "additionalProperties": false,
+    "description": "AB-13 r1 \u2014 the profile, and nothing more.\n\n`industry` and `relationship_notes` are optional and stay empty unless a\nhuman types them: rule 21 forbids inventing company or industry\ninformation, and \"not known yet\" is the normal state of a counterparty.",
+    "properties": {
+     "industry": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Industry"
+     },
+     "name": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "relationship_notes": {
+      "anyOf": [
+       {
+        "maxLength": 5000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Relationship Notes"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "CounterpartyCreate",
+    "type": "object"
+   },
+   "CounterpartyUpdate": {
+    "additionalProperties": false,
+    "description": "Every field optional; a field left out is untouched, and one sent as\nnull is cleared. `name` cannot be cleared \u2014 a company with no name is not\nan identity anyone can use.",
+    "properties": {
+     "industry": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Industry"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "relationship_notes": {
+      "anyOf": [
+       {
+        "maxLength": 5000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Relationship Notes"
+     }
+    },
+    "title": "CounterpartyUpdate",
     "type": "object"
    },
    "DecisionCreate": {
@@ -296,6 +394,49 @@
      "name"
     ],
     "title": "DepartmentUpdate",
+    "type": "object"
+   },
+   "DocumentVersionDeclare": {
+    "additionalProperties": false,
+    "description": "Declared facts about one Document Version \u2014 Step 2's \"should store\"\nmetadata (Counterparty, Effective date) and Step 6's source axis, kept in\nlocked 42.4's `metadata` JSONB. All optional (owner, 2026-09-06). A field\nthat is SENT changes the value; sent as null it clears it; a field left out\nis untouched \u2014 `model_fields_set` tells the two apart. Declared, never\ninferred: no date is ever read out of the document text.",
+    "properties": {
+     "counterparty": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Counterparty"
+     },
+     "effective_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective Date"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source"
+     }
+    },
+    "title": "DocumentVersionDeclare",
     "type": "object"
    },
    "EscalationCreate": {
@@ -2032,6 +2173,194 @@
     ]
    }
   },
+  "/api/v1/counterparties": {
+   "get": {
+    "description": "The companies this caller actually deals with \u2014 never the whole book (r6).",
+    "operationId": "list_counterparties_api_v1_counterparties_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "scope",
+      "required": false,
+      "schema": {
+       "default": "own",
+       "title": "Scope",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Counterparties Api V1 Counterparties Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Counterparties",
+    "tags": [
+     "counterparties"
+    ]
+   },
+   "post": {
+    "description": "`contract.update` (r5) \u2014 you are naming a company you are about to link.\n\nDeliberately NOT unique on name: two genuinely different companies may share\none, and a unique constraint would make the second one unrecordable. The\nconvergence affordance is the picker, which shows what already exists.",
+    "operationId": "create_counterparty_api_v1_counterparties_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CounterpartyCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Counterparty Api V1 Counterparties Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
+  "/api/v1/counterparties/{counterparty_id}": {
+   "get": {
+    "description": "The profile AND its documents \u2014 this is the manager's \"related documents\"\nanswer (r3): every contract for this company, in one place, derived from the\nlink rather than from a relationship table. Scoped: the list holds only\ncontracts this caller could already open one by one (49.6).",
+    "operationId": "get_counterparty_api_v1_counterparties__counterparty_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Counterparty Api V1 Counterparties  Counterparty Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   },
+   "patch": {
+    "description": "`contract.update` (r5), and every change audited (r8) \u2014 a shared profile\nthat several people may edit is exactly what AUD-01 exists for.",
+    "operationId": "update_counterparty_api_v1_counterparties__counterparty_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CounterpartyUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Counterparty Api V1 Counterparties  Counterparty Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
   "/api/v1/departments": {
    "get": {
     "description": "Departments with their lead and member counts.\n\nCounts only \u2014 never the deals. A department is a boundary around contract\nvisibility, and listing it tells an administrator how many people it contains\nand who oversees them, which is account administration (Step 24 r9). It\ndiscloses nothing about what those people are working on.",
@@ -2299,6 +2628,60 @@
     "tags": [
      "documents"
     ]
+   },
+   "patch": {
+    "description": "Declare a version's source, counterparty and effective date (2026-09-06).\n\nWrites into locked 42.4's `metadata` JSONB \u2014 no column, no migration \u2014 the\nroute owner Q2 chose for Document Type (the `D-3` precedent). Owner-scoped\nlike every write (`guard.document_version`: department and Legal scope are\nREAD scopes; an archived contract refuses with 409, AB-12 r6).\n\n**Immutable once reviewed.** Locked 33.7 / 34.15 r3 make a version immutable\nonce a Review exists, and the owner ruled (2026-09-06) that declared metadata\nfollows the same line: it may be corrected only while no Review exists. So\nthe check is on Reviews, not on analysis outcome \u2014 a DRAFT Review freezes it.\n\nDeclared, never inferred: nothing here reads the document. The upload\nendpoint's body is the file itself (38.24), which is why the declaration is\na second call rather than a header \u2014 a counterparty name is exactly the kind\nof non-ASCII value that broke the `X-Filename` header path (2026-09-03).",
+    "operationId": "declare_document_version_api_v1_document_versions__document_version_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DocumentVersionDeclare"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Declare Document Version Api V1 Document Versions  Document Version Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Declare Document Version",
+    "tags": [
+     "documents"
+    ]
    }
   },
   "/api/v1/document-versions/{document_version_id}/content": {
@@ -2499,6 +2882,52 @@
     "summary": "Read Obligations",
     "tags": [
      "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/reprocess": {
+   "post": {
+    "description": "Re-read a version's preserved original with the CURRENT parser \u2014 Phase 5,\nOption C (owner, 2026-09-06).\n\nA NEW `REPROCESS` processing run (locked 42.5's run type, unused until now)\nover the bytes 34.5 preserved. The file is never touched and no existing\nevidence row is rewritten or deleted (rule 17): the earlier run stays as\nhistory, and \u2014 because every reader scopes to the latest COMPLETED run\n(P-8) \u2014 the new reading simply becomes the document. Refused with 409, and\nthe reason, while anything relies on the current reading; the way forward\nthen is a new version by re-upload, exactly as before this existed.\n\nOwner-only under `document.upload` (`guard.document_version`), 409 on an\narchived contract (AB-12 r6), audited (`document.reprocessed`). A FAILED\nre-read changes nothing for readers, so the version keeps the statuses its\nstanding reading earned rather than inheriting the failed attempt's.",
+    "operationId": "reprocess_document_version_api_v1_document_versions__document_version_id__reprocess_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reprocess Document Version Api V1 Document Versions  Document Version Id  Reprocess Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reprocess Document Version",
+    "tags": [
+     "documents"
     ]
    }
   },

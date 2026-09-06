@@ -29,7 +29,11 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import ContractCreate, ContractTransfer, ContractUpdate
-from legalmind.api.serializers import serialize_contract, serialize_document_version
+from legalmind.api.serializers import (
+    declared_metadata,
+    serialize_contract,
+    serialize_document_version,
+)
 from legalmind.api.storage import get_storage
 from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
@@ -240,6 +244,13 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
             "id": str(version.id),
             "version_number": version.version_number,
             "processing_status": version.processing_status.value,
+            # Declared source / counterparty / effective date (2026-09-06), so
+            # the edit dialog can show them and the intake's counterparty
+            # datalist can converge on names the caller ALREADY sees in this
+            # list — no separate "all counterparties" endpoint, which would
+            # disclose names across owners. Same `document.view` gate as the
+            # version itself; omitted when undeclared.
+            **declared_metadata(version),
         }, "latest_analysis": None}
 
     if P.REVIEW_VIEW not in guard.permissions or not latest_version:
@@ -329,8 +340,39 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
         contract.name = body.name
     if body.contract_type is not None:
         contract.contract_type = body.contract_type
-    if body.status is not None:
+    if body.status is not None and body.status != contract.status:
+        # P-1 (2026-09-06): the lifecycle state is DECLARED by the owner — Step 2's
+        # Draft / Active / Superseded — never inferred from a date or a version,
+        # and every change is on the audit trail (AUD-01). No transition is
+        # forbidden: a wrong click must be correctable, and the trail says who
+        # changed what and when. Same permission and owner scope as any edit.
+        before = {"status": contract.status.value}
         contract.status = body.status
+        audit.record(
+            guard.db, action=audit.CONTRACT_STATUS_CHANGED,
+            entity_type="contract", entity_id=contract_id,
+            actor_id=guard.user_id, request_id=guard.request_id,
+            before=before, after={"status": contract.status.value},
+        )
+    if "counterparty_id" in body.model_fields_set:
+        # AB-13 r2 — who this deal is with. A nonexistent id is refused rather
+        # than stored: a dangling link is worse than no link. Sent as null it
+        # unlinks. Audited either way (r8), because this is the fact the whole
+        # "show me everything for this company" view is derived from.
+        target = body.counterparty_id
+        if target is not None and guard.db.get(M.Counterparty, target) is None:
+            raise BusinessRuleRejected("unknown counterparty")
+        if target != contract.counterparty_id:
+            before_link = {"counterparty_id": (str(contract.counterparty_id)
+                                               if contract.counterparty_id else None)}
+            contract.counterparty_id = target
+            audit.record(
+                guard.db, action=audit.CONTRACT_COUNTERPARTY_LINKED,
+                entity_type="contract", entity_id=contract_id,
+                actor_id=guard.user_id, request_id=guard.request_id,
+                before=before_link,
+                after={"counterparty_id": str(target) if target else None},
+            )
     contract.updated_at = datetime.now(UTC)
     guard.db.flush()
     return data(serialize_contract(contract))

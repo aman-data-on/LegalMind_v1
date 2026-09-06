@@ -46,6 +46,7 @@ import {
   locationLabel,
   findingsByEvidenceId,
   outlineOf,
+  partLabel,
   requirementHeading,
   sequenceBreaks,
   outlineStatus,
@@ -79,6 +80,12 @@ function StatusIcon({ bucket }: { bucket: StatusBucket }) {
 
 export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [rows, setRows] = useState<EvidenceRow[] | null>(null);
+  // Phase 5 (2026-09-06): a re-read in place is offered only while no Review
+  // exists — the server refuses otherwise, and says why; `reloadNonce` re-reads
+  // the rows once a new reading is the document.
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [rereading, setRereading] = useState(false);
+  const [rereadNote, setRereadNote] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
   const { target, point, announcement } = useHighlight();
@@ -184,7 +191,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     return () => {
       cancelled = true;
     };
-  }, [version.id]);
+  }, [version.id, reloadNonce]);
 
   /*
    * Answer a highlight — WITHOUT ejecting the reader from the document they
@@ -253,6 +260,27 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
       ? findingsByEvidenceId(findingsState.state.findings)
       : EMPTY_FINDINGS;
   const sideTabs = useSideTabs();
+  const canReread = can(P.DOCUMENT_UPLOAD) && findingsState?.state.kind === "no-review";
+
+  async function reread() {
+    setRereading(true);
+    setRereadNote(null);
+    try {
+      const result = await api.reprocessVersion(version.id);
+      if (result.document_version.processing_status === "PROCESSING") {
+        setRereadNote("The text is being re-read in the background — reload the page in a moment.");
+      } else if (result.processing_run.status === "FAILED") {
+        setRereadNote("The current parser could not read this file either; the earlier reading stands.");
+      } else {
+        setReloadNonce((n) => n + 1);
+        setRereadNote(`Re-read: ${result.evidence_count} passages.`);
+      }
+    } catch (cause) {
+      setRereadNote(describeError(cause));
+    } finally {
+      setRereading(false);
+    }
+  }
 
   const pages = useMemo(() => {
     const seen: number[] = [];
@@ -467,11 +495,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 const depth = Math.min(3, row.section_number?.match(/\./g)?.length ?? 0);
                 return (
                   <Fragment key={row.id}>
-                  {/* The document's numbering starts over — an annexed policy
-                      or a schedule keeps its own §1. Saying so is a fact about
-                      the numbers; naming what the annexure IS would be
-                      inventing structure the file does not declare. */}
-                  {breaks.has(row.id) ? (
+                  {/* A new part of the document. When the file DECLARES it —
+                      "Annexure-1", "Schedule 2" — the divider says the kind
+                      the document's own title uses (44.4). When it only
+                      restarts its numbering, the divider says just that:
+                      naming what the part IS would be inventing structure. */}
+                  {partLabel(row) ? (
+                    <p className="ws-outline__break">{partLabel(row)}</p>
+                  ) : breaks.has(row.id) ? (
                     <p className="ws-outline__break">Numbering restarts</p>
                   ) : null}
                   <button
@@ -553,6 +584,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             {/* Where the citation landed, and the way onward or back. Only ever
                 one of these shows, and only after a citation actually moved the
                 reader — a reader who switched views themselves sees neither. */}
+            {canReread ? (
+              /* Phase 5, Option C: shown only while nothing relies on this
+                 reading; the server is the judge and names any reason. */
+              <button type="button" className="ws-escalate__link" disabled={rereading}
+                      onClick={() => void reread()}>
+                {rereading ? "Re-reading…" : "Re-read with the current parser"}
+              </button>
+            ) : null}
+            {rereadNote ? <p className="ws-doccard__cited" role="status">{rereadNote}</p> : null}
             {view === "original" && originalPage !== null ? (
               <p className="ws-doccard__cited">
                 <span>Page {originalPage} in the original</span>

@@ -1443,6 +1443,143 @@ and changing its defaults mid-flight would be the more disruptive act. A session
 that sees scattered browser failures should suspect this first, and re-run
 isolated before believing any of them.
 
+## 2026-09-06 — Declared metadata, one-run evidence, review order, annexures, re-read, declared status, the re-read lock (296–302) — LOCAL ONLY, not committed
+
+### 296 — the declaration is a second call after upload, not an upload header
+
+The upload endpoint's body is the file itself (38.24), so `source`,
+`counterparty` and `effective_date` travel as `PATCH /document-versions/{id}`
+after the upload — the same moment the intake already PATCHes `contract_type`.
+Headers were rejected on evidence, not taste: `X-Filename` needed
+percent-encoding after a real filename with an en dash broke `fetch`
+(2026-09-03), and a counterparty name is exactly that class of value. Storage is
+locked 42.4's `metadata` JSONB — the `D-3` route owner Q2 chose for Document
+Type — and `contracts` has no JSONB at all, so version-level is also the only
+migration-free home. Permission is `document.upload`: declaring what a version
+IS belongs to the act of putting it there. None added.
+
+### 297 — no "all counterparties" endpoint; the datalist reads the list the caller already has
+
+A distinct-values endpoint would disclose counterparty names across owners and
+departments (the `SEC-07` / `LEGAL-02` class of leak) for no gain. The Dashboard
+list's `latest_version` carries the declared keys under the same `document.view`
+gate as the version itself; `knownCounterparties()` derives the datalist from
+those rows and nothing else.
+
+### 298 — one processing run IS the document, chosen in one place (P-8)
+
+`load_clauses` already scoped to the latest COMPLETED run; the document pane,
+unmatched provisions and version comparison did not, so a second run would have
+rendered two segmentations merged — dormant today, live the day any retry or
+REPROCESS writes evidence. `latest_completed_run_id` (ENG-11 ordering:
+`started_at`, `created_at`, `id`) is now the single chooser. The assist lane's
+evidence reads are left as they are — the retrieval boundary is not this task's
+to move.
+
+### 299 — annexures are detected only where the document declares them (44.4)
+
+Measured before building: 1 of 12 native-text corpus documents has annexures
+(five titles), the heading heuristic missed all five, and no other document
+produced a candidate. Detection is a title line that IS the word plus the
+document's own label ("Annexure-3A", "Schedule 2 – Fees"); a bare "Schedule" is
+not claimed, and prose that mentions one is not one. Proven metadata-only over
+the whole corpus (0 boundary or content changes, 5 markers gained), so chunking
+and every Tier-2 gate input are unchanged. The outline names a part by the
+document's own word and nothing more — naming what a part IS would be inventing
+structure the file does not declare.
+
+### 300 — a re-read is a NEW run, refused while anything is anchored to the old one (Phase 5, Option C)
+
+The owner chose Option C. "Relied upon" was resolved from the schema, not
+assumed: Reviews (Findings and Evaluations hang off them and cite evidence),
+`answer_citations` (they reference this reading's CHUNKS, which the rebuild
+deletes), and `obligation_extractions` (anchored to evidence ids) — each named
+in the 409 so the reader knows why and what to do (re-upload). No evidence row
+is ever deleted or rewritten; the old run is history under 42.5 and the new
+reading becomes the document only because P-8 made every reader choose one
+run. A FAILED re-read restores the version's standing statuses — otherwise a
+COMPLETED document would read FAILED while its rows still rendered. Deferred
+OCR is reused unchanged; the OCR job now passes `reindex=True`, a no-op on a
+first upload (no chunks yet) and the correct behaviour after a re-read.
+
+### 301 — the contract's state is declared, audited, and never inferred (P-1)
+
+Three designs were weighed. Inference from a declared effective date or an
+"executed" version was rejected: it is the Q9 / DOC-06 error in another form
+(the system asserting a fact the owner did not state), and effective date is
+optional. Deriving state from the newest Review was rejected: Step 30 r13 keeps
+the document axis apart from the Review lifecycle, and the Dashboard already
+derives its analysis buckets — a second derivation would collide with it. The
+existing `PATCH /contracts/{id}` already accepted `status`; it gained an audit
+event and a UI. Transitions are unconstrained on purpose — nothing locks an
+order, a mistake must be correctable, and the audit trail carries who and when.
+
+### 302 — one advisory-lock key over BOTH the OCR job and `/reprocess`, and the leak that key had (2026-09-06, pre-commit review)
+
+The adversarial review found `/reprocess` doing a plain check-then-act:
+`_reprocess_blockers` read "nothing in flight", then the run was created, with
+nothing between them. Two callers (a double-click, a client retry, a script)
+could both pass and both create a REPROCESS run — no corruption, since 42.5
+keeps every run and rule 17 rewrites nothing, but the assist index would then be
+built from whichever call finished LAST, which is not necessarily the run every
+reader resolves to through `latest_completed_run_id`. That is an Ask citation
+pointing at chunks the document pane no longer shows.
+
+**The key is shared, deliberately.** `_ocr_lock_key` became public
+`version_lock_key` and now guards both paths. OCR and a re-read both write a
+processing run and evidence for the same version, so they must exclude each
+OTHER, not merely themselves.
+
+**The variants differ, and each is right where it is.** The OCR job holds a
+SESSION-level lock on a dedicated connection because it spans several
+independent `factory()` sessions and commits. The endpoint takes
+`pg_try_advisory_xact_lock` on the request session, because locked 43.26 makes
+the whole request one transaction: the lock is then held across every write and
+released at exactly the commit that makes the run visible, leaving no window in
+which the lock is gone but the run is not yet readable. A session-level lock
+taken in the request would have had precisely that window. Postgres keeps both
+variants in ONE lock space, so the two paths still conflict — verified, not
+assumed.
+
+**The leak the shared key exposed.** The OCR job's lock was never released. Its
+comment claimed the `with` released it; `engine()` is a `QueuePool` with no
+`pool_recycle`, so closing a connection returns it to the pool WITHOUT ending
+its PostgreSQL session, and a session-level advisory lock survives that (and
+survives the pool's rollback). Measured directly: the lock was still held in
+`pg_locks` after the `with` exited. Consequence, latent since the OCR job was
+written: the retry `OCR_MAX_ATTEMPTS = 3` exists for could never run in the same
+process — the first attempt's lock made every later one "step aside" forever.
+Sharing the key would additionally have made `/reprocess` refuse permanently for
+any version whose OCR had run. Fixed with an explicit `pg_advisory_unlock` in a
+`finally`, which is what makes the existing comment true. No processing
+semantics changed: this RESTORES the documented, intended behaviour.
+
+### 303 — two AB-13 defects the owner review found, and why each was a real one (2026-09-06)
+
+**A Department Lead saw the company and none of its documents.** `_readable`
+grants sight through a DEPARTMENT contract (r6), but the detail listed only
+`own`, and only unarchived. So the persona the "everything for this company"
+view exists for opened it and saw an EMPTY list — the manager's requirement
+failing silently for the one role that most needs it. Under-showing is the safe
+direction for disclosure, which is exactly why no security test caught it. The
+list is now the caller's full read scope in both archive states: a company's
+history is not a working list, AB-12 r6 destroys nothing, and each row carries
+`archived_at` so they are told apart. Pinned by a regression test proven to fail
+without the fix.
+
+**The related-documents view had no UI at all.** The endpoint existed, returned
+the right rows and was tested — and no screen called it, while the workspace
+header still showed only Phase 3's frozen per-version text, contradicting AB-13
+r7's own "the UI prefers the linked profile". That is the difference between
+technically present and genuinely done: the manager asked to SEE a company's NDA
+and MSA together, and nothing did. The header now names the LINKED company as a
+real control that opens every document for it, falling back to the declared text
+when there is no link.
+
+Both were found by reading the code against the requirement rather than by a red
+test, which is the argument for doing an adversarial pass over a feature that
+already looks finished.
+
 ## 2026-09-03 — The Original view and deferred OCR (289–294) — LOCAL ONLY, deployment awaiting owner approval
 
 ### 289 — the ~62s upload was measured, not assumed, before anything changed

@@ -73,6 +73,14 @@ ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
 # are — AUD-01, append-only.
 CONTRACT_ARCHIVED = "contract.archived"
 CONTRACT_RESTORED = "contract.restored"
+# P-1 (2026-09-06): the owner DECLARES Draft / Active / Superseded (Step 2); trailed.
+CONTRACT_STATUS_CHANGED = "contract.status_changed"
+# AB-13 r8 — a profile several people may edit is exactly what AUD-01 is for.
+COUNTERPARTY_CREATED = "counterparty.created"
+COUNTERPARTY_UPDATED = "counterparty.updated"
+CONTRACT_COUNTERPARTY_LINKED = "contract.counterparty_linked"
+# Phase 5 (2026-09-06): a version re-read in place with the current parser (Option C).
+DOCUMENT_REPROCESSED = "document.reprocessed"
 # Ownership transfer (AB-12 r5). before_state/after_state carry the previous and
 # the new owner; the reason travels in after_state. The actor is the Lead.
 CONTRACT_OWNERSHIP_TRANSFERRED = "contract.ownership_transferred"

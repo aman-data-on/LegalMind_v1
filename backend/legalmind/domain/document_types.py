@@ -63,3 +63,19 @@ def validate_document_type(value: object) -> str:
             f"unknown document type {value!r}; locked Step 6 defines exactly: "
             + ", ".join(DOCUMENT_TYPES))
     return value  # type: ignore[return-value]  # narrowed by is_document_type
+
+
+# Document SOURCE — the second axis locked Step 6 names beside Type: "A document
+# can be classified by source: Organization / Counterparty" (all_lock.md:535).
+# "Can", not "must": the axis is optional, and DOC-06 leaves it "untouched", so
+# this is the vocabulary only. Declared by the uploader, never inferred (the same
+# reasoning as Q9 for Type), and stored in `document_versions.metadata` — the
+# locked 42.4 JSONB — because a document's source can differ between versions:
+# v1 our template, v2 the counterparty's redline.
+DOCUMENT_SOURCES: tuple[str, ...] = ("ORGANIZATION", "COUNTERPARTY")
+
+_DOCUMENT_SOURCE_SET = frozenset(DOCUMENT_SOURCES)
+
+
+def is_document_source(value: object) -> bool:
+    return isinstance(value, str) and value in _DOCUMENT_SOURCE_SET

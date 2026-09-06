@@ -17094,3 +17094,145 @@ change).
 * No department exists after the migration. Until an administrator creates one and
   places the Lead and the users in it, every account — the Lead included — sees
   exactly its own deals. That is the safe direction, and it is deliberate.
+
+---
+
+# AB-13 — The Counterparty as an Entity (Owner Instruction — 2026-09-06)
+
+## Why this batch exists
+
+Management's product-coherence review (2026-09-05) asked, in its own words:
+
+```text
+Counterparty/company profile ka concept missing hai — company name, industry,
+relationship etc. ko properly maintain kaise karenge?
+
+Related documents ko connect karna hai — same counterparty ke NDA → MSA → PO →
+Annexure → revisions ko isolated documents ki tarah nahi rakhna chahiye.
+```
+
+Phase 3 (2026-09-06) recorded a counterparty as **declared free text** on
+`document_versions.metadata`. That satisfies the *declaration* — what the
+uploader said this version was with — and it cannot satisfy either sentence
+above, for one reason: **it carries no identity.** `"Acme Ltd"` on one version
+and `"Acme Limited"` on another are two unrelated strings. Nothing can be
+grouped by them, no attribute can hang off them, and no history can accumulate
+against them. A convergence datalist narrows the typo problem and does not
+remove it.
+
+The owner instructed (2026-09-06): *"Do not create a half-solution just to mark
+the manager requirement DONE"*, and, where a locked decision is insufficient,
+*"blindly preserve mat karo … decision ko update karo, but first document the
+conflict and rationale."* This record is that documentation.
+
+## The three things, kept apart
+
+```text
+Counterparty METADATA      a NAME declared on ONE version, frozen once
+(Phase 3, unchanged)       reviewed. A historical record of what was said.
+
+Counterparty PROFILE       an ENTITY: stable id + attributes. Identity is
+(this record, r1)          the thing that was missing.
+
+RELATED DOCUMENTS          a QUERY over contracts sharing a counterparty id.
+(this record, r3)          NOT a relationship graph.
+```
+
+## What is decided
+
+```text
+r1  NEW TABLE `counterparties` — `id` (UUID PK), `name` (NOT NULL),
+    `industry` (nullable), `relationship_notes` (nullable), `created_by`
+    (FK → users.id), `created_at`, `updated_at`. The profile the manager asked
+    for, and nothing more: no address book, no contacts, no CRM pipeline.
+    `industry` and `relationship_notes` are NULLABLE and stay empty unless a
+    human types them — rule 21 forbids inventing company or industry
+    information, and an unknown industry is a fact, not a gap to fill. This
+    directly answers the manager's seventh point ("metadata when the
+    counterparty is not fully known yet"): partial is the normal state.
+
+r2  NEW COLUMN `contracts.counterparty_id` — nullable FK → counterparties.id,
+    ON DELETE RESTRICT. Amends locked 42.3's column list. Nullable because
+    every existing contract has no counterparty and inventing one would be
+    inventing data; a contract without a counterparty stays exactly as legible
+    as it is today. Application tables become 31.
+
+r3  RELATEDNESS IS DERIVED, NOT STORED. "Every document for this company —
+    NDA, MSA, PO, annexures, revisions" is `WHERE counterparty_id = ?` over
+    contracts the caller may already see. NO document-to-document relationship
+    table is created, and none is needed: once identity exists, relatedness is
+    a query. A join table would add a second, divergeable source of truth for
+    something the FK already states.
+
+r4  NO deal/matter entity. The manager's chain reads "company → deal/matter →
+    documents → versions → annexures". `AM-25` puts purchase orders and the
+    commercial transaction lifecycle OUT of V1 scope and is NOT amended here,
+    so in V1 the chain is honestly "company → contracts → versions → evidence",
+    and the PO link the manager drew cannot be completed by any V1 structure.
+    Stating that is preferable to modelling a matter nothing populates.
+
+r5  NO NEW PERMISSION. `contract.view` governs reading a counterparty and
+    `contract.update` governs creating or editing one — naming who a contract
+    is with is part of maintaining that contract, and every holder of
+    `contract.update` already renames contracts and declares their type. The
+    existing model expresses this requirement, so `IMPL-01`'s bar for a new
+    permission is not met.
+
+r6  VISIBILITY IS ROOTED IN THE CONTRACT, exactly as AB-12 r5 roots Reviews.
+    A counterparty is visible when the caller can see at least one contract
+    linked to it, under the scope AB-12 already defines (own, or department for
+    a holder of `department.view`) — OR when the caller created it. The second
+    clause is not a widening: without it a company is invisible to its own
+    author until a contract points at it, so linking the FIRST deal to a new
+    company is impossible, and you already know about the row you just made.
+    **There is no global counterparty list.**
+    A company the organisation is negotiating with is disclosive — "we have a
+    deal with X" is exactly the class of fact `SEC-07`/`LEGAL-02` keep inside
+    its scope — so an endpoint listing every counterparty regardless of scope
+    is forbidden by this record, not merely unbuilt.
+
+r7  THE DECLARATION IS NOT REPLACED. `document_versions.metadata.counterparty`
+    stays what it is: the frozen, per-version record of what the uploader
+    declared, immutable once a Review exists (owner ruling, 2026-09-06). The
+    link in r2 is the live identity. They answer different questions and the
+    UI prefers the linked profile, falling back to the declared text where no
+    link exists. Nothing is migrated or rewritten: rule 17 forbids rewriting a
+    version's declared history, and a name typed in July is a fact about July.
+
+r8  AUDITED. `counterparty.created`, `counterparty.updated` and
+    `contract.counterparty_linked` (before/after, actor, request id) join the
+    existing append-only trail. A shared profile that several people may edit
+    is exactly the case AUD-01 exists for.
+
+r9  NOT AMENDED by this batch: `AM-25` (PO/commercial lifecycle stays out of
+    V1) · `AI-01` (no AI reaches any of this; a counterparty is declared, never
+    inferred from document text, the same line Q9/`DOC-06` draw for Document
+    Type) · `AM-30` t4 (a counterparty identifier still never egresses to the
+    generation provider) · `LEGAL-02`/`SEC-07` (r6 applies them, does not relax
+    them) · AB-12's persona and scope model (r6 reuses it unchanged) · Step 6's
+    Document Types · `AM-27` r2's assist-schema separation (this is a locked-
+    schema table, not an assist one) · the 42.4 declared metadata of Phase 3.
+
+r10 C-14 IS NOT RESOLVED by the count changing to 31. The locked-count
+    discrepancy AB-12 r14 recorded stays open and stays registered.
+```
+
+## Migration
+
+One forward migration adds the table and the column. It backfills NOTHING: no
+existing contract is linked to a counterparty, because the only honest source
+for that link is a human saying so. The free-text declarations already on
+`document_versions.metadata` are deliberately NOT converted into rows — they
+are per-version historical declarations, several of them are placeholders from
+tests, and promoting a string into an identity is precisely the invention rule
+21 forbids.
+
+## The conflict this record resolves
+
+Locked 42.3 fixes the `contracts` table's columns and `IMPL-01` reserves any
+new table or column to an approved amendment. `all_lock.md` carried no
+counterparty table and no counterparty column anywhere — the area was
+UNSPECIFIED, not decided against. Under rule 8 an unspecified area is a valid
+state to preserve; the owner has now decided it, and this record is that
+decision. The precedent for the mechanism is AB-12 r3, which added
+`departments` and `users.department_id` on 2026-09-05.

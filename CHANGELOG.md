@@ -10,6 +10,194 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — declared metadata, one-run evidence, review order, annexures, re-read in place, declared status (2026-09-06) — LOCAL ONLY, NOT DEPLOYED, NOT COMMITTED
+
+Owner decisions of 2026-09-06 on the Phase 3 R&D: declared metadata is
+correctable only while a version has no Review (locked 33.7 / 34.15 r3 read as
+scoped, not amended); source is OPTIONAL; counterparty and effective date are
+VERSION-level in locked 42.4's `metadata` JSONB — no table, no column; Dashboard
+filters/columns out of scope. Then, under the owner's autonomous-execution
+instruction, the two READY items of the same R&D (P-8, P-4) and the 44.4 annexure
+detection, measured on the real corpus first. **No locked decision amended, no
+migration, no permission added, RBAC untouched, nothing deployed or committed.**
+
+* **Phase 3 — source · counterparty · effective date.** `PATCH
+  /document-versions/{id}` (`document.upload`; owner-only via
+  `guard.document_version`; 409 once ANY Review exists; 409 on an archived
+  contract) writes `source` (`ORGANIZATION` | `COUNTERPARTY` — Step 6's own
+  words, validated in code like Document Type), `counterparty` (free text,
+  trimmed) and `effective_date` (a calendar date, declared — never read from the
+  text) into `document_versions.metadata`, beside the `duplicate_of` ingestion
+  already writes. Sent null clears; left out, untouched; absent keys are OMITTED
+  (`SEC-07` discipline). Exposed on the version and on the Dashboard list's
+  `latest_version` — the counterparty datalist's ONLY source, so no
+  "all counterparties" endpoint discloses names across owners. Intake confirm
+  gains Source / Counterparty (native `<datalist>`) / Effective date (native
+  date input); Edit details gains the same, disabled with a plain sentence once
+  the version is analysed (presentation only — the server refuses regardless,
+  rule 18). `docs/api/openapi.json` regenerated (+97 lines).
+* **Phase 4 — one processing run IS the document (P-8).** `latest_completed_run_id`
+  in `ingestion/service.py` is now the single chooser for the document pane's
+  evidence, mapping (`load_clauses`, which already did this), unmatched
+  provisions and version comparison. Failed and in-flight attempts stay history
+  (42.5) and contribute no rows; a second COMPLETED run (an OCR retry, a future
+  REPROCESS) replaces the reading rather than merging with it. Dormant today —
+  no live version carries evidence under two runs — and a precondition to any
+  reprocessing. The assist lane's own evidence reads are deliberately untouched
+  (the retrieval-boundary standing instruction).
+* **P-4 — review order in the Findings pane.** Client-side, presentation only:
+  what needs a decision first, then the document's own order (page, then the
+  section number as the document numbers it — `9 < 9.2 < 10`, never string
+  order), then requirement heading, then id. Deterministic. The API's order is
+  unchanged.
+* **44.4 — annexures/schedules where detectable.** Measured first on the twelve
+  native-text corpus documents: one (the executed GRP MSA) has annexures —
+  `Annexure-1/2/3A`, `Appendix-3B/3C` — all five missed by the heading
+  heuristic, zero false positives elsewhere. `annexure_title()` marks a title
+  line that IS the word plus the document's own label (a bare "Schedule" is not
+  claimed) as a heading carrying `metadata.annexure` verbatim (34.12). Proven
+  metadata-only: boundaries and content byte-identical across all 13 corpus
+  PDFs, exactly 5 rows gained the marker. The evidence serializer exposes
+  `annexure` only on such rows; the Contents outline divides parts by the
+  document's own word ("Annexure", "Appendix") and still says only "Numbering
+  restarts" where the file declares nothing.
+* **Phase 5 — re-read in place, Option C (owner decision).** `POST
+  /document-versions/{id}/reprocess` (`document.upload`, owner-only, archived
+  → 409) records a NEW `REPROCESS` run (locked 42.5's type, unused until now)
+  over the bytes 34.5 preserved. The file is never touched and no existing
+  evidence row is rewritten or deleted (rule 17); because every reader now scopes
+  to the latest COMPLETED run (P-8), the new reading simply becomes the document
+  and the old one stays as history. **Refused with 409 — naming the reason and
+  "upload the document again as a new version" — while anything relies on the
+  current reading:** a Review, an Ask answer's citations (they point at this
+  reading's chunks), or Key Obligations (anchored to evidence ids); also while
+  the version is still processing. Audited (`document.reprocessed`, before/after
+  run ids; `run_metadata.reprocess_of` links the runs). A FAILED re-read is
+  recorded and changes nothing for readers — the version keeps the statuses its
+  standing reading earned. The assist index is rebuilt over the new run's rows
+  (`indexing.py` now scopes its evidence query to the latest COMPLETED run, and
+  the OCR job re-indexes) — a defect the re-read itself would have made live,
+  fixed at its source; retrieval scoring, thresholds and the refusal gate are
+  untouched. The workspace offers "Re-read with the current parser" only while
+  no Review exists; the server is the judge either way.
+* **The declared facts are now VISIBLE where the reviewer reads.** The manager's
+  question — *"document LeapSwitch ne banaya hai ya counterparty ne bheja hai"* —
+  was answered in the database and the edit dialog but nowhere on the screen a
+  reviewer actually works. The workspace header now carries "Our document" /
+  "Their document" for the version on show, the counterparty as declared, and
+  the effective date; the version selector says whose each version is, so
+  *v1 ours → v2 theirs* — the redline round-trip the whole workflow is about — is
+  legible at a glance. Every chip appears ONLY when that fact was declared: an
+  absent declaration is a fact ("nobody said"), and a placeholder would invent
+  one. Source is read from the VERSION, not the contract, because that is where
+  it is declared and where it changes. Told apart by weight and border, never by
+  colour alone: DD-9 reserves colour for finding status, and a green/red pair
+  here would read as a verdict on the document, which source is not.
+* **The re-read is serialised, and the lock it reuses had been leaking.** Found
+  by the pre-commit adversarial review, not by a test failure. `/reprocess` took
+  no lock, so two concurrent callers could each create a REPROCESS run and the
+  assist index could end up built from a different run than the one every reader
+  resolves to. It now takes `pg_try_advisory_xact_lock` on the request
+  transaction (locked 43.26 — released at exactly the commit that makes the run
+  visible, so no gap), under the SAME `version_lock_key` the OCR job uses, so a
+  re-read and a background OCR pass exclude each other rather than only
+  themselves; the blocker checks moved under the lock. Sharing that key exposed
+  a latent defect in the OCR job: its session-level lock was never released,
+  because `engine()` is a `QueuePool` and closing a pooled connection does not
+  end its PostgreSQL session — so the `OCR_MAX_ATTEMPTS` retry could never
+  actually run in the same process. An explicit `pg_advisory_unlock` in a
+  `finally` now does what that code's comment always claimed. Two regression
+  tests: a real second connection holding the key gets the re-read refused with
+  409 and NO run written (proven to fail without the lock), and the lock is
+  proven released after its holder exits.
+* **P-1 — the contract's lifecycle state is declared.** Step 2's Draft / Active /
+  Superseded through the `PATCH /contracts/{id}` that already accepted `status`
+  (no new endpoint), now audited (`contract.status_changed`, before/after) on
+  every real change and silent on a no-op. Any transition is allowed — a wrong
+  click must be correctable, and the trail says who changed what. Never inferred
+  from an effective date or a version (the DOC-06 line). Edit details gains a
+  Status select; the workspace header shows the state in words ("Active"), not
+  the enum. The Dashboard's derived analysis buckets are a different axis and are
+  unchanged.
+* Tests: +4 backend resource (round-trip and omission; refusals; post-Review
+  freeze; the assist lane never reads declared metadata — `AM-30` t4), +1 authz
+  (403 / 404 / 200 / archived 409), +2 comparison (source varies harmlessly;
+  one run per side), +2 ingestion (run chooser; annexure detection), +1
+  vocabulary sync (sources), +1 pane read scoping, +4 re-read (history kept,
+  index rebuilt, audited; refusals for Review / Key Obligations / processing;
+  failed re-read changes nothing; owner-only + `document.upload`), +1 status
+  (declared and audited), +1 assist indexing (one run only); +8 Vitest;
+  +4 Playwright (`declared-metadata.spec.ts`, `lifecycle.spec.ts`).
+* Validation on the current tree (2026-09-06): backend **1282 passed, 1 skipped, 1 xfailed, 1 failed** — the one failure is `test_migrations_must_be_at_head` reading the deliberately unmigrated live database (environmental, unchanged since AB-12); frontend **214 Vitest**; typecheck, forbidden-terms, ruff and mypy clean; browser **94 passed / 14 skipped / 0 failed** from a clean `CI=1` stack; `tools/verify_reproducibility` **PASS** (digest identical across the AB-12 migration round-trip); `tools/verify_assist_quality` **SHIPPABLE**, metrics identical to the recorded baseline (1/13 wrongly answered, 43/64 retained, recall@10 0.469, hit@1 0.344) — the parser change is metadata-only, so no chunk moved.
+
+### Added — the counterparty becomes an entity (AB-13, 2026-09-06) — LOCAL ONLY, NOT DEPLOYED, NOT COMMITTED
+
+Management's last two open product-coherence points: a company **profile**, and
+the NDA → MSA → revisions of one company no longer sitting as isolated
+documents. Phase 3's declared free text could satisfy neither, for one reason —
+**it carries no identity**: `"Acme Ltd"` and `"Acme Limited"` are two unrelated
+strings. Lock record **AB-13** (`AM-42`) authorises the entity; migration
+`c8e4a1b7d2f6`; **31 application tables, 209 columns**.
+
+* **NEW TABLE `counterparties`** (r1) — `name`, nullable `industry`, nullable
+  `relationship_notes`, `created_by`, timestamps. The profile asked for and
+  nothing more: no address book, no contacts, no pipeline. `industry` and
+  `relationship_notes` stay empty unless a human types them, and are **omitted,
+  not nulled**, so no screen renders "Industry: —" as though it had been
+  checked — rule 21, and the manager's "counterparty not fully known yet" point.
+* **NEW COLUMN `contracts.counterparty_id`** (r2) — nullable FK, ON DELETE
+  RESTRICT. Nothing is backfilled: the only honest source for the link is a
+  human saying so.
+* **Relatedness is DERIVED, not stored** (r3). `GET /counterparties/{id}`
+  returns the profile **and every contract for that company** the caller may
+  already see. **No document-to-document relationship table exists, and the
+  record forbids one** — once identity exists, relatedness is a query, and a
+  join table would be a second divergeable source of truth for what the FK
+  already states.
+* **No deal/matter entity** (r4). `AM-25` keeps the PO/commercial lifecycle out
+  of V1 and is NOT amended, so the chain is honestly company → contracts →
+  versions. Modelling a matter nothing populates would have been the
+  half-solution the owner ruled out.
+* **No new permission** (r5): `contract.view` reads, `contract.update` writes.
+* **Disclosure boundary** (r6): a company is visible only through a contract the
+  caller can see — or one they created, without which a new company could never
+  be linked to its first deal. **A global counterparty list is forbidden, not
+  merely unbuilt**: "we have a deal with X" is `SEC-07`/`LEGAL-02` material.
+  A scoping bug that would have leaked every company (a `with_only_columns`
+  applied after `.subquery().select()`, which silently drops the WHERE) was
+  caught by its own adversarial test before it left the branch.
+* **The per-version declaration is NOT replaced or migrated** (r7). It stays the
+  frozen record of what was declared for that version (rule 17); the link is the
+  live identity. The UI prefers the link and falls back to the declared text.
+* Audited (r8): `counterparty.created`, `counterparty.updated`,
+  `contract.counterparty_linked`.
+* UI: a **Company (counterparty)** picker in Edit details, with "+ Add a new
+  company…" creating and linking in one gesture.
+* **Owner-review fixes (same day).** A Department Lead saw the company with an
+  EMPTY document list — `_readable` allows department reachability but the detail
+  listed only `own`, and only unarchived; the list is now the caller's full read
+  scope in both archive states. And the related-documents view had **no UI**: the
+  endpoint was tested but nothing called it, and the header still showed only the
+  frozen per-version text, contradicting r7. The header now names the linked
+  company as a control that opens every document for it.
+* Tests: +7 backend (grouping without a relationship table; unknown industry
+  stays absent; cross-account invisibility incl. the byte-identical 404;
+  dangling link refused; ON DELETE RESTRICT; the forbidden global list pinned
+  structurally), +1 authz (403/404 boundaries), +3 Playwright
+  (`counterparty.spec.ts`).
+
+### Coordination note — 2026-09-06, shared tree (AB-12's version-immutability test)
+
+`test_contract_archive.test_no_route_mutates_a_document_version` (the other
+session's, from `643d0fd`) asserted the API has no PATCH on a document version
+at all, citing "AB-12 §5". The AB-12 lock record says nothing about version
+routes — its r6 is archive-versus-deletion ("nothing is destroyed"). Version
+immutability rests on locked 33.7 / 34.15 r3, which are scoped to "once
+analyzed / once used by a Review", and the owner ruled 2026-09-06 on exactly
+that scope. The test was NARROWED, not deleted: it still forbids PUT/DELETE and
+any route touching the file, the evidence or the processing record, and now
+pins the one PATCH to `document.upload` and the declared-metadata path.
+
 ### Added — the Platform Administration area (2026-09-05) — LOCAL ONLY, NOT DEPLOYED
 
 Owner brief of 2026-09-05, built on the frozen AB-12 model. **No locked decision

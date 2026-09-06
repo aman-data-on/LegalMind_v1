@@ -34,13 +34,15 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { api, describeError, type ContractScope } from "@/lib/api";
-import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import { CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Contract, ContractsSummary, DepartmentMembers, Pagination } from "@/lib/types";
+import type { Contract, ContractsSummary, Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
 
 import {
   documentStatusBucket,
+  knownCounterparties,
   relativeTime,
   STATUS_BUCKET_LABEL,
   type DocumentStatusBucket,
@@ -171,6 +173,8 @@ function DocumentsListView() {
     top?: number; bottom?: number; right: number; minWidth: number;
   } | null>(null);
   const [editing, setEditing] = useState<Contract | null>(null);
+  /** AB-13 r6 — the companies THIS caller deals with; the server scopes it. */
+  const [companies, setCompanies] = useState<Counterparty[]>([]);
   const [archiving, setArchiving] = useState<Contract | null>(null);
   const [transferring, setTransferring] = useState<Contract | null>(null);
 
@@ -240,6 +244,14 @@ function DocumentsListView() {
       });
       setContracts(result.items);
       setPagination(result.pagination);
+      // The companies this caller deals with, for the edit dialog's picker.
+      // Best-effort: the list is a convenience, and failing to load it must not
+      // take the whole Dashboard down.
+      try {
+        setCompanies(await api.counterparties());
+      } catch {
+        setCompanies([]);
+      }
     } catch (cause) {
       setError(cause);
     }
@@ -395,7 +407,7 @@ function DocumentsListView() {
 
         {uploadOpen ? (
           <section id="ws-upload-panel" className="ws-dash__upload">
-            <UploadContract firstRun={!!firstRun} />
+            <UploadContract firstRun={!!firstRun} counterparties={knownCounterparties(contracts)} />
           </section>
         ) : null}
 
@@ -806,6 +818,8 @@ function DocumentsListView() {
       {editing ? (
         <EditContractDialog
           contract={editing}
+          counterparties={knownCounterparties(contracts)}
+          companies={companies}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void refresh(); }}
         />
@@ -840,12 +854,31 @@ function DocumentsListView() {
  * Company Standard the contract is measured against.
  */
 function EditContractDialog({
-  contract, onClose, onSaved,
-}: { contract: Contract; onClose: () => void; onSaved: () => void }) {
+  contract, counterparties, companies, onClose, onSaved,
+}: {
+  contract: Contract; counterparties: string[]; companies: Counterparty[];
+  onClose: () => void; onSaved: () => void;
+}) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const [name, setName] = useState(contract.name);
   const [type, setType] = useState(contract.contract_type ?? "");
+  // P-1 (2026-09-06): Step 2's Draft / Active / Superseded, declared here and
+  // nowhere else — never inferred from a date or a version.
+  const [status, setStatus] = useState(contract.status);
+  // AB-13 r2 — who this deal is WITH. "" is unlinked; NEW opens a name field.
+  // This is the identity; the per-version free text below stays the frozen
+  // declaration (r7) and the two answer different questions.
+  const [companyId, setCompanyId] = useState(contract.counterparty_id ?? "");
+  const [newCompany, setNewCompany] = useState("");
+  // The latest version's declared facts (2026-09-06). `frozen` is PRESENTATION
+  // only (rule 18): the server refuses the write once a Review exists whatever
+  // the client shows; disabling the fields just says so before the attempt.
+  const latest = contract.latest_version ?? null;
+  const frozen = !!contract.latest_analysis;
+  const [source, setSource] = useState(latest?.source ?? "");
+  const [counterparty, setCounterparty] = useState(latest?.counterparty ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(latest?.effective_date ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -861,10 +894,36 @@ function EditContractDialog({
     setSaving(true);
     setError(null);
     try {
+      // A brand-new company is created first, then linked in the same save —
+      // one gesture for the reader, two calls because identity must exist
+      // before anything can point at it.
+      let linkId: string | null | undefined;
+      if (companyId === "NEW" && newCompany.trim()) {
+        linkId = (await api.createCounterparty({ name: newCompany.trim() })).id;
+      } else if (companyId !== "NEW") {
+        linkId = companyId || null;
+      }
       await api.updateContract(contract.id, {
         name: name.trim(),
         contract_type: type || null,
+        ...(status !== contract.status ? { status } : {}),
+        ...(linkId !== undefined && linkId !== (contract.counterparty_id ?? null)
+          ? { counterparty_id: linkId }
+          : {}),
       });
+      // Only what changed, and only while the server will take it. A field
+      // emptied by the reader is sent as null so it is cleared, not kept.
+      if (latest && !frozen) {
+        const declared: Record<string, string | null> = {};
+        if ((latest.source ?? "") !== source) declared.source = source || null;
+        if ((latest.counterparty ?? "") !== counterparty.trim()) {
+          declared.counterparty = counterparty.trim() || null;
+        }
+        if ((latest.effective_date ?? "") !== effectiveDate) {
+          declared.effective_date = effectiveDate || null;
+        }
+        if (Object.keys(declared).length > 0) await api.declareVersion(latest.id, declared);
+      }
       onSaved();
     } catch (cause) {
       setError(cause);
@@ -901,6 +960,75 @@ function EditContractDialog({
               against. Changing it does not re-run an analysis already on record.
             </span>
           </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Status</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              {CONTRACT_STATUSES.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <span className="ws-field__help">
+              Where this contract stands — being negotiated, in force, or replaced.
+              Declared by you; recorded on the audit trail.
+            </span>
+          </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Company (counterparty)</span>
+            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <option value="">Not linked</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              <option value="NEW">+ Add a new company…</option>
+            </select>
+            {companyId === "NEW" ? (
+              <input
+                aria-label="New company name"
+                placeholder="Company name"
+                maxLength={500}
+                value={newCompany}
+                onChange={(e) => setNewCompany(e.target.value)}
+              />
+            ) : null}
+            <span className="ws-field__help">
+              Linking a deal to a company is what groups its documents together —
+              the NDA, the MSA and their revisions in one place.
+            </span>
+          </label>
+          {latest ? (
+            <>
+              <label className="ws-field">
+                <span className="ws-field__label">Source</span>
+                <select value={source} disabled={frozen}
+                        onChange={(e) => setSource(e.target.value)}>
+                  <option value="">Not declared</option>
+                  {DOCUMENT_SOURCES.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="ws-field">
+                <span className="ws-field__label">Counterparty</span>
+                <input list="ws-counterparties-edit" maxLength={500} value={counterparty}
+                       disabled={frozen} onChange={(e) => setCounterparty(e.target.value)} />
+                <datalist id="ws-counterparties-edit">
+                  {counterparties.map((known) => <option key={known} value={known} />)}
+                </datalist>
+              </label>
+              <label className="ws-field">
+                <span className="ws-field__label">Effective date</span>
+                <input type="date" value={effectiveDate} disabled={frozen}
+                       onChange={(e) => setEffectiveDate(e.target.value)} />
+                <span className="ws-field__help">
+                  {frozen
+                    ? <>These describe version {latest.version_number}, which has been
+                        analysed, so they are fixed. Upload a new version to change them.</>
+                    : <>These describe version {latest.version_number}. Declared by you,
+                        never read from the document.</>}
+                </span>
+              </label>
+            </>
+          ) : null}
           {error ? (
             <p className="ws-field__error" role="alert">{describeError(error)}</p>
           ) : null}

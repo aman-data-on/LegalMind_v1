@@ -479,3 +479,49 @@ def test_the_section_reference_is_derived_and_not_stored(db, storage, user):
     assert hits
     assert any(h.section_ref for h in hits), (
         "a hit on a numbered clause should resolve a section reference")
+
+
+def test_indexing_chunks_only_the_latest_completed_run(db):
+    """P-8 in the assist lane (2026-09-06): after a re-read, the superseded run's
+    rows must not be chunked beside the new ones — a retrieval hit that cites a
+    row the pane no longer shows is a citation nobody can follow."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text
+
+    from legalmind import config
+    from legalmind.assist.indexing import index_document_version
+    from legalmind.db import models as M
+    from legalmind.domain import enums as E
+    from tests.conftest import make_user
+
+    owner = make_user(db)
+    contract = M.Contract(owner_id=owner.id, name="ACME MSA", status=E.ContractStatus.ACTIVE)
+    db.add(contract); db.flush()
+    version = M.DocumentVersion(
+        contract_id=contract.id, version_number=1, original_filename="a.pdf",
+        mime_type="application/pdf", file_size_bytes=1, file_hash="h", storage_key="k",
+        processing_status=E.ProcessingStatus.COMPLETED,
+        extraction_status=E.ExtractionStatus.COMPLETE, uploaded_by=owner.id)
+    db.add(version); db.flush()
+    t0 = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+    rows_by_run = {}
+    for minutes, run_type, content in ((0, E.ProcessingRunType.PARSE, "Old reading of clause one."),
+                                       (5, E.ProcessingRunType.REPROCESS, "New reading of clause one.")):
+        run = M.DocumentProcessingRun(document_version_id=version.id, run_type=run_type,
+                                      status=E.ProcessingRunStatus.COMPLETED,
+                                      processor_version="t",
+                                      started_at=t0 + timedelta(minutes=minutes))
+        db.add(run); db.flush()
+        row = M.DocumentEvidence(document_version_id=version.id, processing_run_id=run.id,
+                                 page_number=1, section_number="1", content=content,
+                                 source_type=E.EvidenceSourceType.NATIVE_TEXT,
+                                 start_offset=0, end_offset=len(content))
+        db.add(row); db.flush()
+        rows_by_run[run_type] = row.id
+
+    result = index_document_version(db, version.id, reindex=True)
+    assert result.chunks_written == 1
+    cited = db.execute(text(f'SELECT evidence_id FROM "{config.assist_schema()}".chunks '
+                            'WHERE document_version_id = :dv'), {"dv": version.id}).scalars().all()
+    assert cited == [rows_by_run[E.ProcessingRunType.REPROCESS]]

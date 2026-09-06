@@ -191,6 +191,27 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # so no legal-position permission is implicated.
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/version-comparison"):
         P.DOCUMENT_VIEW,
+    # Declared version metadata (2026-09-06): source, counterparty, effective
+    # date, written into locked 42.4's `metadata` JSONB. The permission is the
+    # one that already creates the version — declaring what a version IS is
+    # part of putting it there — resolved owner-only through `guard.
+    # document_version`, and refused (409) once a Review exists (33.7, 34.15 r3).
+    ("PATCH", f"{API_PREFIX}/document-versions/{{document_version_id}}"):
+        P.DOCUMENT_UPLOAD,
+    # Re-read in place (Phase 5, Option C — owner, 2026-09-06): a new REPROCESS
+    # run (42.5) over the preserved original, refused (409) while anything —
+    # a Review, an Ask citation, Key Obligations — relies on the current
+    # reading. Same permission as the upload it re-does; owner-only.
+    ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/reprocess"):
+        P.DOCUMENT_UPLOAD,
+    # Counterparties — AB-13 r5: NO new permission. `contract.view` reads and
+    # `contract.update` writes, because naming who a contract is with is part of
+    # maintaining that contract. Visibility is rooted in the Contract (r6), so
+    # there is deliberately no endpoint that lists every counterparty.
+    ("GET", f"{API_PREFIX}/counterparties"): P.CONTRACT_VIEW,
+    ("POST", f"{API_PREFIX}/counterparties"): P.CONTRACT_UPDATE,
+    ("GET", f"{API_PREFIX}/counterparties/{{counterparty_id}}"): P.CONTRACT_VIEW,
+    ("PATCH", f"{API_PREFIX}/counterparties/{{counterparty_id}}"): P.CONTRACT_UPDATE,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 

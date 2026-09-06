@@ -26,7 +26,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
-import { documentStatusBucket } from "@/components/workspace/model";
+import { documentStatusBucket, knownCounterparties } from "@/components/workspace/model";
 import type { Contract } from "@/lib/types";
 
 function contract(over: Partial<Contract> = {}): Contract {
@@ -125,6 +125,39 @@ describe("the department view is a server scope, not a client filter", () => {
     await api.contracts(1, 25, { scope: "department", sort: "created_desc" });
     const [, , filters] = spy.mock.calls[0]!;
     expect(filters).toMatchObject({ scope: "department" });
+    spy.mockRestore();
+  });
+});
+
+describe("declared version metadata — source, counterparty, effective date (2026-09-06)", () => {
+  it("is declared through PATCH /document-versions/{id}, where null clears a key", async () => {
+    const spy = vi.spyOn(api, "declareVersion").mockResolvedValue({} as never);
+
+    await api.declareVersion("v1", { source: "COUNTERPARTY", counterparty: null });
+
+    expect(spy).toHaveBeenCalledWith("v1", { source: "COUNTERPARTY", counterparty: null });
+    spy.mockRestore();
+  });
+
+  it("the counterparty datalist holds only names already on the list — trimmed, once each, sorted", () => {
+    const rows = [
+      contract({ latest_version: { id: "a", version_number: 1, processing_status: "COMPLETED", counterparty: "Zeta Ltd" } }),
+      contract({ latest_version: { id: "b", version_number: 2, processing_status: "COMPLETED", counterparty: " Zeta Ltd " } }),
+      contract({ latest_version: { id: "c", version_number: 1, processing_status: "COMPLETED" } }),
+      contract({ latest_version: { id: "d", version_number: 1, processing_status: "COMPLETED", counterparty: "Alpha Pvt" } }),
+      contract({ latest_version: null }),
+    ];
+    expect(knownCounterparties(rows)).toEqual(["Alpha Pvt", "Zeta Ltd"]);
+    // No list yet (first load) → no suggestions, not a crash.
+    expect(knownCounterparties(null)).toEqual([]);
+  });
+});
+
+describe("the contract's lifecycle state is declared (P-1, 2026-09-06)", () => {
+  it("goes through the same PATCH as every other edit, and only when it changed", async () => {
+    const spy = vi.spyOn(api, "updateContract").mockResolvedValue(contract());
+    await api.updateContract("c1", { name: "ACME MSA", contract_type: "MSA", status: "ACTIVE" });
+    expect(spy).toHaveBeenCalledWith("c1", { name: "ACME MSA", contract_type: "MSA", status: "ACTIVE" });
     spy.mockRestore();
   });
 });

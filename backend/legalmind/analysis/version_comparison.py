@@ -43,6 +43,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.db.lookup import latest_completed_run_id
 
 #: How much of a clause the payload quotes. Long enough to read the change,
 #: short enough that a comparison is not a second copy of the document; matches
@@ -175,7 +176,10 @@ def compare_versions(db: DBSession, before: M.DocumentVersion,
     def evidence(version: M.DocumentVersion) -> list[M.DocumentEvidence]:
         return list(db.execute(
             select(M.DocumentEvidence)
-            .where(M.DocumentEvidence.document_version_id == version.id)
+            .where(M.DocumentEvidence.document_version_id == version.id,
+                   # Each side is ONE run's reading (P-8, 2026-09-06).
+                   M.DocumentEvidence.processing_run_id
+                   == latest_completed_run_id(db, version.id))
             .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
                       M.DocumentEvidence.start_offset.asc().nulls_last(),
                       M.DocumentEvidence.id.asc())

@@ -35,6 +35,15 @@ const REVIEW_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
+/** Contract lifecycle — Step 2's Draft / Active / Superseded, DECLARED by the
+ *  owner (P-1, 2026-09-06). A document axis: distinct from the Review lifecycle
+ *  above and from the Dashboard's derived analysis buckets. */
+const CONTRACT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  ACTIVE: "Active",
+  SUPERSEDED: "Superseded",
+};
+
 /** Finding workflow position (J-4) — not one of the five legal axes. */
 const FINDING_STATUS_LABELS: Record<string, string> = {
   OPEN: "Open",
@@ -145,3 +154,11 @@ export const CLASSIFICATION_HELP: { value: string; label: string; help: string }
     help: "The engine could not reach a comparable answer — for example the document states a basis the standard cannot be measured against. It never guesses; it hands the question to you.",
   },
 ];
+
+export function contractStatusLabel(status: string | null | undefined): string {
+  return (status && CONTRACT_STATUS_LABELS[status]) ?? status ?? "Status not recorded";
+}
+
+/** The three declarable states, in lifecycle order, for a select. */
+export const CONTRACT_STATUSES: ReadonlyArray<{ value: string; label: string }> =
+  Object.entries(CONTRACT_STATUS_LABELS).map(([value, label]) => ({ value, label }));

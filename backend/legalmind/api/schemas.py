@@ -12,12 +12,13 @@ admin believe they had configured something they had not.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from legalmind.domain.document_types import is_document_type
+from legalmind.domain.document_types import is_document_source, is_document_type
 from legalmind.domain.enums import (
     ContractStatus,
     DecisionType,
@@ -92,8 +93,72 @@ class ContractUpdate(Body):
     name: str | None = Field(default=None, min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
     status: ContractStatus | None = None
+    #: Who this deal is with — AB-13 r2. Sent as null to unlink; left out,
+    #: untouched. `model_fields_set` tells the two apart.
+    counterparty_id: UUID | None = None
 
     _contract_type = field_validator("contract_type")(_validate_contract_type)
+
+
+class CounterpartyCreate(Body):
+    """AB-13 r1 — the profile, and nothing more.
+
+    `industry` and `relationship_notes` are optional and stay empty unless a
+    human types them: rule 21 forbids inventing company or industry
+    information, and "not known yet" is the normal state of a counterparty.
+    """
+    name: str = Field(min_length=1, max_length=500)
+    industry: str | None = Field(default=None, max_length=200)
+    relationship_notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("name", "industry", "relationship_notes")
+    @classmethod
+    def _trim(cls, value: str | None) -> str | None:
+        stripped = value.strip() if value is not None else None
+        return stripped or None
+
+
+class CounterpartyUpdate(Body):
+    """Every field optional; a field left out is untouched, and one sent as
+    null is cleared. `name` cannot be cleared — a company with no name is not
+    an identity anyone can use."""
+    name: str | None = Field(default=None, min_length=1, max_length=500)
+    industry: str | None = Field(default=None, max_length=200)
+    relationship_notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("name", "industry", "relationship_notes")
+    @classmethod
+    def _trim(cls, value: str | None) -> str | None:
+        stripped = value.strip() if value is not None else None
+        return stripped or None
+
+
+class DocumentVersionDeclare(Body):
+    """Declared facts about one Document Version — Step 2's "should store"
+    metadata (Counterparty, Effective date) and Step 6's source axis, kept in
+    locked 42.4's `metadata` JSONB. All optional (owner, 2026-09-06). A field
+    that is SENT changes the value; sent as null it clears it; a field left out
+    is untouched — `model_fields_set` tells the two apart. Declared, never
+    inferred: no date is ever read out of the document text."""
+    source: str | None = None
+    counterparty: str | None = Field(default=None, max_length=500)
+    effective_date: date | None = None
+
+    @field_validator("source")
+    @classmethod
+    def _source(cls, value: str | None) -> str | None:
+        if value is not None and not is_document_source(value):
+            raise ValueError(
+                f"unknown document source {value!r}; locked Step 6 names "
+                "ORGANIZATION or COUNTERPARTY")
+        return value
+
+    @field_validator("counterparty")
+    @classmethod
+    def _counterparty(cls, value: str | None) -> str | None:
+        # Whitespace-only is "nothing declared", not a counterparty called " ".
+        stripped = value.strip() if value is not None else None
+        return stripped or None
 
 
 # --------------------------------------------------------------- reviews

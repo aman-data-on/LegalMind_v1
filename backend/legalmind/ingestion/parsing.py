@@ -373,6 +373,29 @@ def _is_heading(normalized: str, number: str | None, title: str | None) -> bool:
     return False
 
 
+# 44.4 — "annexures/schedules where detectable" (2026-09-06). Detectable means the
+# document SAYS so: a title line that is the word and the label the document gives
+# it ("Annexure-1", "Appendix-3B", "Schedule 2 – Fees", "Exhibit A"), optionally a
+# short title, never a sentence. The label is the document's own text, kept
+# verbatim (34.12 — numbering is preserved, never generated). A bare "Schedule"
+# is not claimed: without a label the word may be a heading about timetables.
+_ANNEXURE_TITLE = re.compile(
+    r"^(?:annexure|annex|schedule|exhibit|appendix|attachment)"
+    r"\s*[-\u2013:.]?\s*(?:no\.?\s*)?"
+    r"(?:[0-9]{1,3}[a-z]?|[a-z]|[ivxl]{1,5})"
+    r"(?:\s*[-\u2013:]\s*[^.\n]{1,60})?\s*$",
+    re.IGNORECASE,
+)
+
+
+def annexure_title(line: str) -> str | None:
+    """The line itself when it is an annexure/schedule/appendix title; else None."""
+    stripped = line.strip()
+    if not stripped or len(stripped) > HEADING_MAX_CHARS:
+        return None
+    return stripped if _ANNEXURE_TITLE.match(stripped) else None
+
+
 def segment_paragraphs(text: str, *, page_number: int | None,
                        source_type: EvidenceSourceType,
                        base_offset: int = 0) -> list[Segment]:
@@ -394,13 +417,14 @@ def segment_paragraphs(text: str, *, page_number: int | None,
             start = block_start + inner_offset
             first_line = normalized.split("\n", 1)[0]
             number, title = detect_clause_number(first_line)
+            annexure = annexure_title(first_line) if number is None else None
             # An UNNUMBERED heading keeps the prose it introduces in the same
             # segment — unlike a numbered one, whose following sub-clause starts
             # its own boundary. So the heading line becomes this segment's
             # title rather than a row of its own. That is the better outcome
             # anyway: the outline entry then points AT the text it labels
             # instead of at an empty label above it.
-            if number is None and _is_title_line(first_line):
+            if number is None and (annexure or _is_title_line(first_line)):
                 title = first_line.strip()
             segments.append(Segment(
                 content=normalized,
@@ -431,7 +455,10 @@ def segment_paragraphs(text: str, *, page_number: int | None,
                 # it introduces. Without that, a printed web page's navigation
                 # footer — "VPS", "Kubernetes", "Storage" — reads as a heading
                 # because its first line is short and capitalised.
-                metadata=({"heading": True}
+                # An annexure title is a heading the document declares outright
+                # (44.4); the boundary decision above is untouched by it.
+                metadata=({"heading": True, "annexure": annexure} if annexure
+                          else {"heading": True}
                           if _is_heading(normalized, number, title)
                           or (number is None and _is_unnumbered_heading(
                               first_line, _second_line(normalized)))

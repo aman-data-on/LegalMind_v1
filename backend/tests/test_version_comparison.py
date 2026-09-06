@@ -281,3 +281,51 @@ def test_a_short_clause_still_reads_from_its_beginning(db, contract):
     assert clause["after"]["excerpt"].startswith("Twenty-four months")
     assert clause["after"]["truncated_start"] is False
     assert clause["after"]["truncated_end"] is False
+
+
+def test_a_source_that_differs_between_versions_does_not_touch_the_comparison(db, contract):
+    """Declared source lives in `document_versions.metadata` (2026-09-06) and is
+    version-level precisely because it can change: v1 our template, v2 the
+    counterparty's redline. The comparison keys on `section_number` alone, so
+    that change must be invisible here — identical clauses stay UNCHANGED and
+    the response carries no source, counterparty or date."""
+    clauses = [("1", "Definitions", "Capitalized terms have the meanings given."),
+               ("17.2", "Limitation of Liability", "Liability shall be unlimited.")]
+    v1 = _version(db, contract, 1, clauses)
+    v2 = _version(db, contract, 2, clauses)
+    v1.doc_metadata = {"source": "ORGANIZATION"}
+    v2.doc_metadata = {"source": "COUNTERPARTY", "counterparty": "Placeholder Ltd",
+                       "effective_date": "2026-07-28"}
+    db.flush()
+
+    result = compare_versions(db, v1, v2)
+
+    assert result["summary"] == {"ADDED": 0, "REMOVED": 0, "CHANGED": 0, "UNCHANGED": 2}
+    assert not any(key in str(result) for key in ("ORGANIZATION", "COUNTERPARTY",
+                                                  "Placeholder", "effective_date"))
+
+
+def test_each_side_of_a_comparison_is_one_runs_reading(db, contract):
+    """P-8 (2026-09-06): a second COMPLETED run on a version replaces its reading
+    for the comparison — the old rows are history, not a second set of clauses."""
+    from datetime import UTC, datetime, timedelta
+
+    same = [("1", "Definitions", "Capitalized terms have the meanings given.")]
+    v1 = _version(db, contract, 1, same)
+    v2 = _version(db, contract, 2, same)
+    rerun = M.DocumentProcessingRun(
+        document_version_id=v2.id, run_type=E.ProcessingRunType.REPROCESS,
+        status=E.ProcessingRunStatus.COMPLETED, processor_version="test",
+        started_at=datetime.now(UTC) + timedelta(minutes=5))
+    db.add(rerun); db.flush()
+    db.add(M.DocumentEvidence(
+        document_version_id=v2.id, processing_run_id=rerun.id, page_number=1,
+        section_number="1", section_title="Definitions",
+        content="Capitalized terms have the meanings set out in Schedule 1.",
+        source_type=E.EvidenceSourceType.NATIVE_TEXT, start_offset=0, end_offset=60))
+    db.flush()
+
+    result = compare_versions(db, v1, v2)
+
+    assert result["summary"] == {"ADDED": 0, "REMOVED": 0, "CHANGED": 1, "UNCHANGED": 0}
+    assert "Schedule 1" in result["clauses"][0]["after"]["excerpt"]

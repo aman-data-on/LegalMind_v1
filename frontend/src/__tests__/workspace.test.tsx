@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
-import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { contractStatusLabel } from "@/lib/labels";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   activeNavHref,
@@ -18,6 +19,8 @@ import {
   locationLabel,
   navItemsFor,
   outlineOf,
+  partLabel,
+  reviewOrder,
   readiness,
 } from "@/components/workspace/model";
 import { TranscriptTurn } from "@/components/workspace/TranscriptTurn";
@@ -224,6 +227,20 @@ describe("Step 6 document types (presentation copy)", () => {
     expect(documentTypeLabel("SLA")).toBe("Service Level Agreement");
     expect(documentTypeLabel("ZZZ")).toBe("ZZZ");
     expect(documentTypeLabel(null)).toBe("Type not declared");
+    // Step 6's second axis (2026-09-06), same presentation rule.
+    expect(documentSourceLabel("COUNTERPARTY")).toBe("Counterparty — their document");
+    expect(documentSourceLabel("ZZZ")).toBe("ZZZ");
+    expect(documentSourceLabel(null)).toBe("Source not declared");
+    // P-1 (2026-09-06): Step 2's lifecycle, in the reader's words.
+    expect(contractStatusLabel("SUPERSEDED")).toBe("Superseded");
+    expect(contractStatusLabel("ODD")).toBe("ODD");
+    expect(contractStatusLabel(null)).toBe("Status not recorded");
+    // Whose paper it is, in a reviewer's words (2026-09-06). Undeclared stays
+    // undeclared — the chip is absent, never a "Source: unknown" placeholder.
+    expect(documentSourceChip("ORGANIZATION")).toBe("Our document");
+    expect(documentSourceChip("COUNTERPARTY")).toBe("Their document");
+    expect(documentSourceChip(null)).toBeNull();
+    expect(documentSourceChip(undefined)).toBeNull();
   });
 });
 
@@ -326,5 +343,57 @@ describe("upload-first intake helpers (2026-08-31 UX correction)", () => {
     // Attention-first, MATCH last — a fixed scan order, not object-key order.
     expect((analysed as { counts: { classification: string }[] }).counts.map((c) => c.classification))
       .toEqual(["DEVIATION", "MISSING", "MATCH"]);
+  });
+});
+
+describe("review order for the Findings list (P-4, 2026-09-06)", () => {
+  const f = (
+    id: string, requires_decision: boolean,
+    evidence: Array<[number | null, string | null]>, name = id,
+  ) => ({
+    id, requires_decision,
+    evidence: evidence.map(([page_number, section_number]) => ({ page_number, section_number })),
+    requirement: { code: id, name },
+  });
+
+  it("puts what needs a decision first, then follows the document", () => {
+    const ordered = reviewOrder([
+      f("late-ok", false, [[3, "12"]]),
+      f("early-ok", false, [[1, "2"]]),
+      f("late-decide", true, [[2, "9.1"]]),
+      f("early-decide", true, [[1, "3"]]),
+    ]).map((x) => x.id);
+    expect(ordered).toEqual(["early-decide", "late-decide", "early-ok", "late-ok"]);
+  });
+
+  it("orders by the document's own numbering, not by string", () => {
+    const ordered = reviewOrder([
+      f("b", false, [[1, "10"]]), f("a", false, [[1, "9.2"]]), f("c", false, [[1, "9"]]),
+    ]).map((x) => x.id);
+    expect(ordered).toEqual(["c", "a", "b"]);   // 9 < 9.2 < 10 — never "10" < "9"
+  });
+
+  it("uses the EARLIEST clause a finding cites, and sends unlocatable ones last", () => {
+    const ordered = reviewOrder([
+      f("nowhere", false, [[null, null]]),
+      f("spread", false, [[4, "20"], [1, "1"]]),
+      f("mid", false, [[2, "5"]]),
+    ]).map((x) => x.id);
+    expect(ordered).toEqual(["spread", "mid", "nowhere"]);
+  });
+
+  it("is deterministic — a stable tiebreak on the requirement's heading, then id", () => {
+    const a = f("a", false, [[1, "1"]], "Zeta");
+    const b = f("b", false, [[1, "1"]], "Alpha");
+    expect(reviewOrder([a, b]).map((x) => x.id)).toEqual(["b", "a"]);
+    expect(reviewOrder([b, a]).map((x) => x.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("annexed parts in the outline (44.4, 2026-09-06)", () => {
+  it("names the divider by the document's own word, never by a guess", () => {
+    expect(partLabel({ annexure: "Annexure-1" })).toBe("Annexure");
+    expect(partLabel({ annexure: "SCHEDULE 2 – Fees" })).toBe("Schedule");
+    expect(partLabel({})).toBeUndefined();
   });
 });

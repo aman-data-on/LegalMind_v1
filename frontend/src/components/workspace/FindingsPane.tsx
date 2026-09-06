@@ -47,7 +47,7 @@ import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
-import { requirementHeading } from "./model";
+import { requirementHeading, reviewOrder } from "./model";
 import { useHighlight } from "./highlight";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -304,12 +304,14 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const summary = findingsSummary(findings);
   const effectiveView: View =
     view === "attention" && summary.needsDecision === 0 ? "all" : view;
-  const shown =
+  // Review order, not engine order (P-4, 2026-09-06): what needs a decision
+  // first, then the document's own order. Presentation only — see `reviewOrder`.
+  const shown = reviewOrder(
     effectiveView === "all"
       ? findings
       : effectiveView === "attention"
         ? findings.filter((f) => f.requires_decision)
-        : findings.filter((f) => f.classification === effectiveView.classification);
+        : findings.filter((f) => f.classification === effectiveView.classification));
 
   return (
     <>
