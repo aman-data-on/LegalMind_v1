@@ -397,3 +397,33 @@ def test_the_placeholder_rule_never_rejects_a_plausible_key(monkeypatch):
     assert not is_placeholder_credential("sk-" + "a" * 40)          # another shape
     assert not is_placeholder_credential("x" * 21 + "1")            # long, mixed
     assert is_placeholder_credential("x" * 40)                      # all-mask, long
+
+
+def test_the_preflight_can_actually_be_run_from_the_command_line():
+    """Regression, 2026-09-06 — found on the way to a production deploy.
+
+    Every check function is module-level, and the `if __name__ == "__main__"`
+    guard sat MID-FILE. Under `python -m legalmind.deploy.preflight` that guard
+    called main() the instant the interpreter reached it — before the six checks
+    defined further down existed — and died with NameError on
+    `_assist_generation_gate`. pytest imports the whole module first, so this
+    suite never saw it: the one tool locked 55.5 puts between "migrate" and
+    "deploy" had never once been runnable by the person deploying.
+
+    Exit 0 (ready) or 1 (outstanding) are both a working preflight; a traceback
+    is not. Runs with an unreachable database so it needs no fixture and proves
+    the CLI path specifically.
+    """
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "legalmind.deploy.preflight"],
+        capture_output=True, text=True, timeout=120,
+        env={**__import__("os").environ,
+             "LEGALMIND_DATABASE_URL": "postgresql+psycopg2://x:x@127.0.0.1:1/none"},
+    )
+    assert proc.returncode in (0, 1), proc.stderr
+    assert "Traceback" not in proc.stderr, proc.stderr
+    assert "NameError" not in proc.stderr, proc.stderr
+    assert "checks" in proc.stdout        # the summary line of format_report
