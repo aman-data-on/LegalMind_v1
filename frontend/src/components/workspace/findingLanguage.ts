@@ -84,6 +84,29 @@ export function classificationSentence(classification: string): string | null {
 }
 
 /**
+ * The classification, reduced to one of four visual tones — owner request,
+ * 2026-09-08 (fourth pass): a leading status mark beside the title, so the
+ * card's overall state reads before a single word of it is read. Reuses the
+ * SAME three tones `Side`/the Dashboard's status pills already use (rule 12:
+ * one status vocabulary, not a second one invented for this mark), plus a
+ * fourth for "needs a person" — the classification's own separate meaning
+ * from "wrong" (DEVIATION) or "absent" (MISSING).
+ */
+export type ClassificationTone = "ok" | "warn" | "bad" | "unknown";
+
+const CLASSIFICATION_TONES: Record<string, ClassificationTone> = {
+  MATCH: "ok",
+  DEVIATION: "warn",
+  CONFLICT: "warn",
+  MISSING: "bad",
+  UNABLE_TO_EVALUATE: "unknown",
+};
+
+export function classificationTone(classification: string): ClassificationTone {
+  return CLASSIFICATION_TONES[classification] ?? "unknown";
+}
+
+/**
  * Whether a scope label just repeats the requirement's own title in different
  * words the caller already read — "Residuals" beside a card already titled
  * "Residuals". Case- and whitespace-insensitive: `scopeLabel("RESIDUALS")` and
