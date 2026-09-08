@@ -451,7 +451,10 @@ function askQuestionFor(finding: Finding): string {
     : `What does this document say about ${name}${where ? ` (§${where})` : ""}?`;
 }
 
-function FindingCard({ finding, onChanged, prepared }: {
+/** Exported for `finding-card.test.tsx`, which renders one card per
+ *  classification and per evidence shape — the §10 edge-case matrix — with
+ *  `renderToStaticMarkup`, the harness this project already uses. */
+export function FindingCard({ finding, onChanged, prepared }: {
   finding: Finding;
   onChanged: () => void;
   /** A keyboard PREPARE request the pane routed to THIS finding (`a` / `r`). */

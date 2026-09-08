@@ -2930,7 +2930,12 @@
 /* The requirement code: available at a glance for the reviewer who quotes it,
    the smallest thing on the card, pushed to the far end of the action row. */
 .ws-finding__ref {
-  margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-300);
+  /* `--ws-ink-500`, not `--ws-ink-300`: measured 5.39:1 against the card
+     ground where ink-300 was 2.00:1, less than half the AA minimum. It looked
+     appropriately quiet and was simply unreadable — and this is text a
+     reviewer quotes into an escalation, not decoration. Quiet now comes from
+     size and position instead. */
+  margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
   align-self: center; overflow-wrap: anywhere;
 }
 
@@ -3009,3 +3014,25 @@
 /* A long token still has to fit SOMETHING: allowed to break only when it alone
    is wider than the rail, which is the one case where clipping is worse. */
 .ws-side__detail { overflow-wrap: break-word; }
+
+/* The Summary's opening sentence — what the counts mean, above the counts. */
+.ws-analysis__headline {
+  margin: 0 0 var(--ws-s3);
+  font-size: var(--ws-text-md); line-height: 1.5; font-weight: 550;
+  color: var(--ws-ink-900); text-wrap: pretty;
+}
+
+/* --- The finding's own actions, as real targets -------------------------- */
+/* Measured 99×23 and 183×20 in the 2026-09-08 audit — under any reasonable
+   minimum, and on a phone they are the two controls a reader reaches for most.
+   Padding rather than a font change, so the row still reads as links. */
+.ws-finding__acts .ws-escalate__link {
+  padding: 4px 2px; min-height: 24px;
+}
+@media (max-width: 899px) {
+  .ws-finding__acts { gap: var(--ws-s3); }
+  .ws-finding__acts .ws-escalate__link { min-height: 44px; padding: 10px 2px; }
+  .ws-evidence__more, .ws-determined > summary { min-height: 44px; }
+  .ws-evidence__loc { min-height: 36px; }
+  .ws-side__doctoggle { min-height: 44px; }
+}

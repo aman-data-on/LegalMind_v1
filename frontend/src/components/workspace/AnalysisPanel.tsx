@@ -26,6 +26,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import { describeError } from "@/lib/api";
 import type { Finding } from "@/lib/types";
 
+import { reviewHeadline } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
 import { classificationLabel } from "@/lib/labels";
 
@@ -52,6 +53,12 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
 
   return (
     <div className="ws-analysis">
+      {/* The panel's own heading (2026-09-08 a11y audit). Its sections are all
+          `h3`, so the document went H1 → H3 with no H2 between — a level skip
+          a screen-reader user navigating by heading falls straight through.
+          Visually hidden because the tab above already says "Summary" on
+          screen; the outline needs the level, not a second label. */}
+      <h2 className="ws-visually-hidden">Summary</h2>
       <div className="ws-analysis__updated">
         <span className="ws-pane__note">
           {state.kind === "ready" && state.review.completed_at
@@ -120,6 +127,21 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
   return (
     <>
       <section className="ws-analysis__section" aria-label="Status summary">
+        {/* What the counts MEAN, before the counts (owner, 2026-09-08). A
+            non-lawyer opening a review needs one sentence about the state of
+            this contract, and the tiles below were the whole answer: five
+            numbers under five enum names. The sentence is built from the same
+            counts — no score, no grade, no severity ranking (rule 12), and it
+            leads with what needs a person because that is the only actionable
+            number on the panel. */}
+        <p className="ws-analysis__headline">
+          {reviewHeadline({
+            total,
+            needsDecision: summary.needsDecision,
+            missing: buckets.missing,
+            match: buckets.match,
+          })}
+        </p>
         <div className="ws-analysis__head">
           <h3 className="ws-analysis__title">Status summary</h3>
           {sideTabs ? (
