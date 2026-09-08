@@ -366,6 +366,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         "answer_state": outcome.answer_state.value,
         "text": outcome.text,
         "routed_to_evaluator": outcome.routed_to_evaluator,
+        "comparison": outcome.comparison,
         "citations": [{
             "chunk_id": str(c.chunk_id),
             "evidence_id": str(c.evidence_id),

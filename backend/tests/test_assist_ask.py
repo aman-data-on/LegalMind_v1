@@ -596,3 +596,22 @@ def test_document_version_reports_assist_index_counts(api, db, seeded, user, sto
     assert set(index) == {"chunks", "embedded_chunks"}
     assert index["chunks"] > 0
     assert 0 <= index["embedded_chunks"] <= index["chunks"]
+
+
+def test_the_managers_own_phrasings_route_to_the_evaluator(db, user, indexed_contract, monkeypatch):
+    """2026-09-08: every one of these reached generation and was refused as
+    'not found in the selected document'. They are the evaluator's question."""
+    from legalmind.assist import generation, service
+    called = []
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: called.append(1))
+    contract, version = indexed_contract
+    conv = service.create_conversation(db, user_id=user.id, contract_id=contract.id)
+    for q in ["Please compare this document with our approved legal position. "
+              "What is acceptable, unacceptable, or requires modification?",
+              "Does this document comply with our standard position?",
+              "What clauses are missing compared with our approved position?",
+              "Compare this against company standards."]:
+        out = service.ask(db, conversation_id=conv, document_version_id=version.id, question=q)
+        assert out.routed_to_evaluator, q
+        assert "not found in the selected document" not in out.text
+    assert called == []          # the model was never consulted on a comparison question

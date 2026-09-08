@@ -21,7 +21,6 @@ its cause, because a distinguishable refusal is an oracle (`AM-25` r6/r7).
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 from dataclasses import dataclass, field
 from uuid import UUID
@@ -31,21 +30,24 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.assist import embedding_runtime, generation, guardrails, store
+
+# `AM-25` r4 — routed to the evaluator, never answered generatively. The screen is
+# `intent.is_comparison_question` (2026-09-08): the regex it replaced passed every
+# natural phrasing of the manager's own question, and each was then refused as "not
+# found in the selected document" — see tests/test_assist_intent.py for the matrix.
+from legalmind.assist.intent import is_comparison_question
 from legalmind.assist.state import REFUSAL_TEXT, AssistAnswerState
 from legalmind.observability.logs import log_event
 
-# `AM-25` r4 — routed to the evaluator, never answered generatively. Deliberately a
-# conservative textual screen: false positives cost a pointer to the Review screen,
-# false negatives are caught again by the prompt's rule 4 and citation verification.
-_COMPLIANCE_SHAPE = re.compile(
-    r"\b(complian[ct]|meets? our|satisf(?:y|ies) (?:our|the) "
-    r"(?:standard|polic)|acceptable to us|match(?:es)? our (?:standard|position))\b",
-    re.IGNORECASE)
-
 EVALUATOR_ROUTE_TEXT = (
-    "This question asks whether a document meets an organizational standard. "
-    "That determination is made by the deterministic evaluator, not the assistant — "
-    "run or open a Review for this contract to see it.")
+    "This question asks how the document stands against the organization's approved "
+    "position. That comparison is made by the deterministic evaluator, not the "
+    "assistant — its Findings for this document are attached below.")
+EVALUATOR_NO_REVIEW_TEXT = (
+    "This question asks how the document stands against the organization's approved "
+    "position. That comparison is made by the deterministic evaluator, not the "
+    "assistant, and no analysis has been run for this document version yet — run a "
+    "Review to see its Findings.")
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,11 @@ class AskOutcome:
     text: str
     citations: list[CitationView] = field(default_factory=list)
     routed_to_evaluator: bool = False
+    # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
+    # of this document version and its Findings by classification. READ from the
+    # authoritative tables — the assist lane writes nothing there (AM-25 r2) and never
+    # produces a classification of its own; it only points at ones the engine made.
+    comparison: dict | None = None
 
 
 def _persist_turn(db: DBSession, conversation_id: UUID, ordinal: int,
@@ -209,6 +216,27 @@ def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
                       answer_state=state, text=REFUSAL_TEXT)
 
 
+def _latest_review_summary(db: DBSession, document_version_id: UUID) -> dict | None:
+    """The newest Review of this version with its Finding counts by classification.
+
+    Counts only — no Finding text, no evidence — because the caller has already been
+    authorized for the CONTRACT (assist.ask), and reading a Finding needs finding.view,
+    which the Review screen enforces on open. Pointing at a Review the caller can then
+    open is the same disclosure the Documents list already makes.
+    """
+    row = db.execute(text("""
+        SELECT r.id, r.status::text FROM reviews r
+         WHERE r.document_version_id = :d
+         ORDER BY r.created_at DESC LIMIT 1"""), {"d": document_version_id}).first()
+    if row is None:
+        return None
+    counts = dict(db.execute(text("""
+        SELECT classification::text, count(*) FROM findings
+         WHERE review_id = :r GROUP BY classification"""), {"r": row[0]}).all())
+    return {"review_id": str(row[0]), "review_status": row[1],
+            "findings_by_classification": {k: int(v) for k, v in counts.items()}}
+
+
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID,
         question: str, request_id: str | None = None) -> AskOutcome:
     """Answer a question about ONE authorized document version, or refuse honestly.
@@ -223,16 +251,19 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID,
     user_message_id = _persist_turn(db, conversation_id, ordinal, "USER", question)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.
-    if _COMPLIANCE_SHAPE.search(question):
+    if is_comparison_question(question):
+        comparison = _latest_review_summary(db, document_version_id)
+        route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT
         reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                 EVALUATOR_ROUTE_TEXT)
+                                 route_text)
         _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
                         model=None, prompt_version_id=None, latency_ms=None)
         log_event("assist.ask.routed_to_evaluator", request_id=request_id,
                   conversation_id=str(conversation_id))
         return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                           answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT,
-                          text=EVALUATOR_ROUTE_TEXT, routed_to_evaluator=True)
+                          text=route_text, routed_to_evaluator=True,
+                          comparison=comparison)
 
     retrieval = store.search_hybrid(
         db, document_version_id=document_version_id, query=question,

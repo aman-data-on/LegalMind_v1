@@ -525,3 +525,43 @@ def test_indexing_chunks_only_the_latest_completed_run(db):
     cited = db.execute(text(f'SELECT evidence_id FROM "{config.assist_schema()}".chunks '
                             'WHERE document_version_id = :dv'), {"dv": version.id}).scalars().all()
     assert cited == [rows_by_run[E.ProcessingRunType.REPROCESS]]
+
+
+# --------------------------------------------------------------------------
+# clause-aware-3 (2026-09-08): headings travel with their clause; U+200B numbering
+# --------------------------------------------------------------------------
+def _row(content):
+    from types import SimpleNamespace
+    return SimpleNamespace(id="ev", content=content, start_offset=0, end_offset=len(content))
+
+
+def test_a_heading_never_becomes_a_chunk_of_its_own():
+    from legalmind.assist.chunking import chunk_evidence
+    body = "7.1. Term: This Agreement shall commence on the Service Commencement Date and remain in force for the Term."
+    chunks = chunk_evidence([_row(f"7. TERM AND TERMINATION\n{body}\n7.6. Effect of Termination:\n"
+                                  "7.6.1. Upon termination the Customer shall pay all outstanding fees due under this Agreement.")])
+    assert len(chunks) == 2, [c.content for c in chunks]
+    assert chunks[0].content.startswith("7. TERM AND TERMINATION\n7.1. Term")
+    assert chunks[1].content.startswith("7.6. Effect of Termination:\n7.6.1.")
+
+
+def test_folding_headings_loses_no_text():
+    from legalmind.assist.chunking import chunk_evidence
+    text = "7. TERM AND TERMINATION\n7.1. " + "Term words. " * 20 + "\n7.6. Effect of Termination:\n7.6.1. " + "Effect words. " * 20
+    joined = "\n".join(c.content for c in chunk_evidence([_row(text)]))
+    assert joined.split() == text.split()
+
+
+def test_a_trailing_heading_folds_back_into_its_predecessor():
+    from legalmind.assist.chunking import chunk_evidence
+    chunks = chunk_evidence([_row("7.1. " + "Term words. " * 20 + "\n8. PAYMENT")])
+    assert len(chunks) == 1 and chunks[0].content.endswith("8. PAYMENT")
+
+
+def test_a_zero_width_space_after_the_clause_number_still_splits():
+    from legalmind.assist.chunking import chunk_evidence, leading_section_ref
+    text = ("17.\u200b LIMITATION OF LIABILITY\n17.1.\u200b Exclusion of Certain Damages: " + "Leapswitch shall not be liable. " * 6
+            + "\n17.2.\u200b Monetary Cap on Liability: " + "The total aggregate liability shall not exceed six months of fees. " * 3)
+    chunks = chunk_evidence([_row(text)])
+    assert len(chunks) == 2, [c.content[:40] for c in chunks]
+    assert leading_section_ref(chunks[1].content) == "17.2"
