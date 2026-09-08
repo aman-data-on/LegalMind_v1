@@ -7,8 +7,8 @@
  * Evaluation, never a single collapsed verdict (49.7 r1, locked 52.5); decision
  * controls attach to the Evaluation, never the Finding (AB-1).
  *
- * The summary strip renders the loaded findings' classification counts as
- * pressable filters — presentational grouping of server values, never a
+ * The summary strip renders the loaded findings' three-word status counts
+ * (Accepted / Needs review / Not accepted) as pressable filters — presentational grouping of server values, never a
  * client-side re-derivation (52.7). "Needs decision" stays the default view
  * when anything needs one. When every finding is a MATCH, that is a designed
  * success state, not an empty table (§29) — built from real fields only, no
@@ -418,6 +418,14 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               >
                 All ({findings.length})
               </button>
+              {/* A `?classification=` deep link (Summary tile, report) lands on
+                  the engine's own subset; show that filter pressed so the
+                  reader can see it and clear it with "All". */}
+              {typeof effectiveView === "object" && "classification" in effectiveView ? (
+                <button type="button" aria-pressed onClick={() => setView("all")}>
+                  {classificationLabel(effectiveView.classification)} ({shown.length})
+                </button>
+              ) : null}
               {statusCounts.map(({ status, n }) => (
                 <button
                   key={status}

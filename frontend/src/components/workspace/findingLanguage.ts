@@ -115,7 +115,10 @@ export function userStatus(finding: Pick<Finding, "classification" | "evaluation
   return finding.classification === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW";
 }
 
-/** The Constitution citation behind a NOT ACCEPTED, or null. */
+/** The Constitution citation behind a NOT ACCEPTED, or null.
+ *  ponytail: finding-level — the first cited evaluation colours the whole card
+ *  and the citation renders under the lede. Findings carry one evaluation
+ *  today; attach it per evaluation if multi-scope findings start citing. */
 export function constitutionProhibition(
   finding: Pick<Finding, "evaluations">,
 ): { section: string; quote: string } | null {

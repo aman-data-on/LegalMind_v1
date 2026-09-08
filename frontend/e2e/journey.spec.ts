@@ -60,13 +60,15 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await openFindingsTab(page);
   const finding = page.locator("article[data-finding-id]").first();
   await expect(finding).toBeVisible();
-  await expect(finding).toContainText("DEVIATION");
+  // The face says the reader's word; the engine's word is one click away.
+  await expect(finding.locator("[data-status]")).toHaveText("Needs review");
+  await expect(finding.locator(".ws-determined__tech")).toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^DEVIATION \(\d+\)$/ })).toBeVisible();
-  await filters.getByRole("button", { name: /^DEVIATION/ }).click();
+  await expect(filters.getByRole("button", { name: /^Needs review \(\d+\)$/ })).toBeVisible();
+  await filters.getByRole("button", { name: /^Needs review/ }).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits beside the
   // finding, and its location button lights the passage in the document.
