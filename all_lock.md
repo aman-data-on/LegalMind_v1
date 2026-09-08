@@ -17236,3 +17236,324 @@ UNSPECIFIED, not decided against. Under rule 8 an unspecified area is a valid
 state to preserve; the owner has now decided it, and this record is that
 decision. The precedent for the mechanism is AB-12 r3, which added
 `departments` and `users.department_id` on 2026-09-05.
+
+--------------------------------------------------------------------------------
+
+# AB-14 — The Legal Constitution Becomes the Governing Source; the Question Picks the Sources (Owner Instruction — 2026-09-08)
+
+**Records: `AM-43` – `AM-46`.** Append-only, per rule 22. Nothing above this line is
+altered. Where a term below supersedes an earlier term, the earlier text stays where it
+is and is annotated as superseded in `docs/00-project/LOCKED_DECISIONS.md`.
+
+## Why this batch exists
+
+The owner instructed on 2026-09-08, in writing and twice:
+
+```text
+The following document is the CANONICAL LEGAL SOURCE OF TRUTH for LegalMind:
+/root/Legalmind.v1/LegalMind_Legal_Constitution_Lawyer_Review_fv.docx
+... If the Constitution says X but existing LegalMind code/config/lock/documentation
+says Y: DO NOT assume Y is still correct. Treat X as the effective legal position.
+... Constitution wins. Update the lock/decision record with an append-only amendment.
+```
+
+and, of the product:
+
+```text
+A user should be able to upload ANY legal document and ask a normal natural-language
+legal question. The user should NOT have to tell LegalMind ... "use Constitution",
+"use Company Standards", "use Statute", "compare against company position", "select
+legal knowledge". The system should determine the relevant authorized knowledge
+automatically.
+```
+
+An adversarial audit against the RUNNING system the same day (as a Department User, over
+the real HTTP API, on a real MSA) found the assist lane refusing the manager's own
+comparison question as "Information not found in the selected document", refusing three
+descriptive questions the document answered (a chunker that emitted headings as
+retrieval units — 29% of the live index under 60 characters), a `AM-25` r4 screen that
+passed every natural phrasing of the compliance question, Domain A built and wired to
+nothing, Domain C absent, and a permission basis (`AM-32` r5) under which the manager's
+"normal user" could never reach a Company Standard by asking. This batch records the
+decisions those findings required; the code and tests landing with it realize them.
+
+## What the Constitution is, and is not, after this batch
+
+The document's own cover reads *Company/Stakeholder Position APPROVED — Legal Status
+PENDING LEGAL VALIDATION AND APPROVAL — Effective Date NOT YET EFFECTIVE*. The owner has
+ruled that its **company/stakeholder positions govern engineering now**, ahead of
+Counsel's sign-off, and that Counsel's later changes propagate by the same mechanism.
+Nothing in this batch asserts that any position is legally validated; the Constitution's
+own §1.3, §6.3 and §29.1.1 distinction 5 — *enforceability is Counsel's determination,
+never asserted by Legal Mind* — is preserved verbatim and now surfaces in product copy.
+
+The canonical engineering representation is `docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md`,
+a verbatim heading-and-table conversion of the DOCX (2026-09-08); the DOCX stays the
+document of record and is gitignored like every other legal document (54.6).
+
+--------------------------------------------------------------------------------
+
+# `AM-43` — The Legal Constitution L1.5 is admitted as source material and governs company positions
+
+**Amends:** the source-material ruling of 2026-08-18 ("the six documents below are the
+ONLY source material for this project") — by adding a seventh: the Legal Constitution,
+Lawyer Review Version L1.5. **Amends** the Company Standard configuration files named in
+r4 (configuration, not specification — no earlier lock record fixed their values).
+**Does not amend:** `AI-01`, `AM-25` r1–r3, r5–r9, the zero-tolerance Legal Rule
+(manager 2026-08-19, owner 2026-08-20), `AM-33`, 36.10, rule 12, or the Step 6 vocabulary.
+
+```text
+r1   SOURCE PRIORITY. Where sources disagree on a company legal position, in order:
+     (1) the current lawyer-review Constitution; (2) amendments the Constitution itself
+     incorporates or confirms; (3) ratified Company Standards consistent with it;
+     (4) locked decisions and implementation records; (5) code, configuration, tests.
+     A lower source never overrides a higher one. Applicable LAW (Constitution §7
+     Level 2) constrains every company position and is not a company position.
+
+r2   THE CONSTITUTION IS CONFIGURATION SOURCE, NOT RUNTIME CORPUS. It is not chunked,
+     indexed or retrieved. Its positions enter the system the way every position does:
+     as a ratified Company Standard file citing the Constitution section as its source,
+     published as a company_standard_version, chunked into Domain A by `AM-32` r3.
+     Rule 21 is satisfied — the material is supplied, never manufactured — and rule 7
+     is satisfied because no value is authored here that the Constitution does not
+     state.
+
+r3   WHAT THE CONSTITUTION DOES NOT RESOLVE STAYS UNRESOLVED. Its §24.1 Risk Level
+     names a scale and defines no assignment rule; under its own §23.4 an undefined
+     boundary is never inferred. Locked 36.10 / rule 12 (no risk score) therefore
+     stands, and this is recorded as a Constitution-side gap for Counsel, not a
+     conflict resolved in code. Its §24 Negotiability attribute ("Negotiable —
+     Approval Required") describes a HUMAN approval path (§25); the zero-tolerance
+     Legal Rule already routes every DEVIATION to a human Legal Decision and
+     auto-approves nothing. The two agree on outcome and differ on label; the label
+     is presentational and no `RuleOutcome` value changes (45B.26). No approval
+     workflow is introduced (AB-12).
+
+r4   SIX POSITIONS RECONCILED — the Constitution's stated value replaces the value the
+     live LeapSwitch paper states. Each standard file keeps its history and cites the
+     Constitution section as its source from this date:
+
+       LIABILITY-MSA-001        6 months, FEES_PAID_FOR_AFFECTED_SERVICES (MSA §17.2)
+                             -> 12 months, FEES_PAID                     (Const. §9:
+                                "the standard 12-month liability cap applies ...
+                                entity-wide ... identically to Leapswitch- and
+                                CloudPe-branded agreements"; MSA is "reference/
+                                template — not yet formally adopted", §8)
+       LATE-FEE-TOS-001         5 % per month (TOS §7)  -> 2 % per month   (Const. §16)
+       CLAIM-WINDOW-SLA-001     60 days (SLA)           -> 30 days         (Const. §11)
+       DATA-RETRIEVAL-TOS-001   7 days (TOS §16)        -> 30 days         (Const. §13)
+       DATA-PURGE-MSA-001       15 days (MSA §7.6.6)    -> 30 days         (Const. §13:
+                                deletion only after the 30-day retrieval window)
+       CONF-SURVIVAL-NDA-001    2 years (NDA §9)        -> 3 years         (Const. §15)
+
+     Consequence, accepted deliberately: LeapSwitch's OWN live TOS, SLA, NDA and MSA
+     template now DEVIATE from the organization's stated position on these six points
+     and, under the zero-tolerance rule, evaluate UNACCEPTABLE → Legal Decision. That
+     is the truthful state — the Constitution itself says drafting corrections to the
+     live documents are "in progress" — and the golden corpus records it as such.
+     The engine was RIGHT to follow the live paper until the owner ruled otherwise;
+     this record is that ruling.
+
+r5   NOT RECONCILED — no explicit Constitution basis, left as-is and flagged:
+     LIAB-CARVEOUTS-MSA-001 (the Constitution's "no multiplier or super-cap" concerns
+     caps on LeapSwitch's exposure, not the MSA §17.3 exclusions for the Customer's
+     obligations — different subject); the six standards with no Constitution
+     counterpart (AUTORENEW-*, FORCE-MAJEURE-*, WARRANTY-DISCLAIMER-MSA-001,
+     COMPELLED-DISCLOSURE-NDA-001, RETURN-DESTRUCTION-*, TERM-NOTICE-NDA-001) — each
+     traces to a real LeapSwitch clause and is reported to Counsel as a Constitution
+     gap, not removed.
+
+r6   NOT AUTHORED — Constitution positions with no standard yet (payment due 21 days,
+     dispute window 15 days, price-change notice 30 days, convenience-termination
+     notice 30 days, uptime tiers, the 10/25/50 credit schedule, CERT-In/retention/
+     residency, AUP takedowns, mutuality of the cap, the two-part confidentiality
+     test) require calibrated mapping rules (locked 35.10) before a standard is
+     trusted. They are authorized by r1–r2 and remain to be built; none is invented.
+
+r7   ENTITY / BRAND. Constitution §4–§5.2 make Entity → Brand → Product/Service →
+     Document Type the applicability chain and forbid substituting a Leapswitch rule
+     for a CloudPe one. The data model carries Document Type only. This is the most
+     serious remaining gap and is NOT resolved here: adding an axis is a schema change
+     with owner-visible consequences for every standard's scope, and it needs its own
+     record. Registered as C-18.
+
+r8   COUNSEL. Whatever Counsel changes on sign-off propagates by a further record of
+     this shape; nothing here pre-empts Counsel.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-44` — Domain A retrieval is permitted with `legal_position.view`
+
+**Amends:** `AM-32` r5, whose text read *"Domain A retrieval requires assist.ask AND
+configuration.view"*. **Does not amend:** `AM-32` r1–r4, r6–r10; `AM-25` r6/r7; `LEGAL-02`;
+`SEC-07`; AB-12 r7.
+
+```text
+r1   Domain A retrieval requires assist.ask AND (configuration.view OR
+     legal_position.view), applied inside the query before retrieval (AM-25 r6).
+     To a caller with neither, Domain A results are indistinguishable from an empty
+     corpus and the route's refusal wording is rendered (AM-25 r7, AM-46).
+
+r2   WHY. AB-12 r7 grants every Department User legal_position.view so they can see
+     WHY their Finding is a MATCH, DEVIATION or MISSING — the standard, the comparison,
+     the explanation. Constitution §3.2B lets users ask about "the company's legal
+     position"; §25.1 lets a normal user compare and view. Retrieving a PUBLISHED
+     standard by asking for it is the same disclosure by another door; refusing it
+     while showing it on the Findings pane was an inconsistency, not a boundary.
+
+r3   Only PUBLISHED standard versions are ever chunked (AM-32 r3 unchanged), so
+     configuration.draft confers nothing here and drafts stay invisible to Ask.
+
+r4   AM-32 r4 stands in full: Domain A output is extractive — quoted verbatim with
+     standard code, source clause and document type — and never enters a generation
+     payload. The service passes document chunks only to the model; the test suite
+     asserts no position text reaches the payload.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-45` — The assist lane routes by question shape; `AM-25` r4 is enforced by a tested classifier and a structured handoff
+
+**Amends:** `AM-25` r4's ENFORCEMENT (the rule itself is reaffirmed word for word).
+**Adds** the routing layer `AM-32` anticipated. **Does not amend:** `AM-25` r1–r3, r5–r9;
+`AM-32` r1; Step 38 rule 21.
+
+```text
+r1   NO SOURCE SELECTOR. The user never chooses a domain, mode, corpus or document
+     type to ask a question. `assist.routing.plan` derives the candidate domains from
+     (a) the caller's resolved permission set — first, so a domain the caller may not
+     read is never a candidate — and (b) the question's shape. The plan is
+     deterministic in its inputs and is recorded on retrieval_runs.filters.domains.
+
+r2   DOMAINS STAY SEPARATE (AM-32 r1). A document answer is generated and cited by
+     page/section; a position is quoted verbatim and cited by standard code/clause;
+     a statute (when Domain C exists) is cited by Act/section. Each arrives in its own
+     response field. Nothing merges them into one body of text, and disagreement
+     between them is shown, never adjudicated (rule 5, AM-25 r1).
+
+r3   THE COMPARISON QUESTION. AM-25 r4 stands: it is never answered generatively.
+     Detection is `assist.intent.is_comparison_question` — a deterministic two-signal
+     stem classifier (an organization reference AND a distinct comparison verb or
+     outcome noun), pinned by a phrase matrix that includes every phrasing the
+     2026-09-08 audit found leaking. It replaces a regex that matched "compliant" but
+     not "comply" and was defeated by any adjective between "our" and "position".
+
+r4   THE HANDOFF IS STRUCTURED. A routed question returns the latest Review of the
+     asked version and its Finding counts by classification — READ from the
+     authoritative tables (AM-25 r2: the assist lane writes nothing there and produces
+     no classification) — plus the relevant ratified position quoted under AM-44, and
+     the UI renders a control to open the Findings. Where no Review exists the
+     response says so and offers to open the document. Prose that named no action is
+     retired.
+
+r5   DOCUMENT TYPE IS NOT AN ASK PREREQUISITE. Owner Q9 / AM-34 stand for ANALYSIS:
+     the deterministic evaluator still refuses an undeclared type, because the
+     declared type is the control that keeps a statute or non-contract out of the
+     evaluator. The intake no longer blocks on it; a document opens for questions
+     without one and the workspace says analysis needs it.
+
+r6   RETRIEVAL UNIT. clause-aware-3: a one-line, non-sentence heading is folded into
+     the clause it introduces; U+200B/NBSP after a clause number are blanks. Chunk
+     boundaries are an implementation detail (no lock governs them); the algorithm
+     version on every chunk row changes so earlier citations are not reinterpreted.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-46` — Refusal wording names the route, never the object
+
+**Amends:** `AM-29` r4 ("every refusal a user sees carries the identical wording,
+whatever its cause"). **Does not amend:** `AM-25` r5–r7; `AM-29` r1–r3.
+
+```text
+r1   ONE WORDING PER CANDIDATE SET. The refusal sentence depends only on which
+     authorized domains were candidates for the question and on whether the
+     conversation has a document — facts the caller already holds (their own /me,
+     their own conversation). Within a candidate set every cause (gate closed,
+     evidence insufficient, generation unavailable, claim unsupported) renders the
+     identical sentence.
+
+r2   NEVER THE OBJECT. No wording depends on whether a particular chunk, standard,
+     statute or document exists, so an authorization exclusion and a genuine miss
+     remain byte-identical (AM-25 r6/r7) and no refusal is an existence oracle.
+
+r3   THE LAW IS A GLOBAL FACT. When the question is about the law itself and no
+     approved statute corpus is ratified, the refusal says so — "Statutory text is
+     not yet part of this installation's approved sources" — identically for every
+     caller. Whether the installation has a statute corpus discloses nothing about
+     any user's documents.
+
+r4   The internal answer states (NO_EVIDENCE_RETRIEVED, EVIDENCE_INSUFFICIENT,
+     CLAIM_UNSUPPORTED) are unchanged and stay reconstructable from retrieval_runs.
+```
+
+--------------------------------------------------------------------------------
+
+## Conflicts this batch registers, resolves, or leaves
+
+```text
+RESOLVED   the six value divergences in AM-43 r4        (were: unregistered; now C-17, closed)
+RESOLVED   AM-32 r5 vs AB-12 r7 permission inconsistency (AM-44)
+RESOLVED   AM-25 r4 enforcement gap                     (AM-45 r3)
+OPEN       C-16  statute corpus never ratified — NI Act and Evidence Act/BSA not supplied.
+                 Domain C cannot be built from material that is not on disk (AM-32 r6,
+                 rule 21). "What does Section 138 say?" refuses under AM-46 r3 until the
+                 owner supplies the statutes with provenance.
+OPEN       C-18  Entity/Brand axis absent (AM-43 r7).
+OPEN       Constitution §24.1 Risk Level has no assignment rule (AM-43 r3) — for Counsel.
+OPEN       Constitution §9/§10/§15 mutuality — no party-symmetry evaluator exists.
+```
+
+**Approved by the owner on 2026-09-08** ("You have my explicit GO for the FULL task ...
+If a locked decision conflicts with the Constitution: Constitution wins. Update the
+lock/decision record with an append-only amendment.").
+
+--------------------------------------------------------------------------------
+
+# AB-14 — Correction and one further record (appended 2026-09-08, same session)
+
+**Correction, append-only (rule 22).** The AB-14 preface above registers the six value
+divergences as "C-17" and the Entity/Brand gap as "C-18". `C-17` was already taken
+(2026-09-01, the OIDC egress tension). The identifiers are **C-18** (the six values,
+resolved) and **C-19** (Entity/Brand, open), as `docs/00-project/CONFLICTS.md` records.
+The text above is left exactly as written.
+
+# `AM-47` — Domain C is built over the seven supplied statutes, with their provenance stated as it is
+
+**Amends:** the "Until decided: Domain C is not built" posture recorded under C-16 in
+`docs/00-project/CONFLICTS.md` (2026-08-25) — a working posture, not a lock record.
+**Does not amend:** `AM-32` r6–r8 (provenance record required; section-based chunking;
+statutes never enter the evaluator; Domain C may egress under the `AM-31` gate); rule 21.
+
+```text
+r1   The seven statutes the owner supplied on 2026-08-18 (Contract Act 1872 · IT Act
+     2000 · SPDI Rules 2011 · Companies Act 2013 (supplied excerpt) · CERT-In Directions
+     2022 · DPDP Act 2023 · IT Rules 2021 as updated 10.02.2026) may be ingested as
+     Domain C. Constitution §6.1 names every one of them as applicable law.
+
+r2   Each registry row states its provenance AS IT IS: official title and act number/
+     year as the supplied file itself states them; jurisdiction IN; `source` =
+     "owner-supplied 2026-08-18 (Drive tranche); India Code re-verification PENDING
+     (C-16 item 2)"; `source_ref` = the notification/act reference the file itself
+     carries; the file's SHA-256; supplier and date. A field the file does not state is
+     recorded as "NOT STATED IN SUPPLIED FILE", never guessed. AM-32 r6's requirement
+     that a statute without a provenance record cannot be ingested is met; the quality
+     caveat is IN the record, not hidden by it.
+
+r3   NOT ingested, because not supplied: the Negotiable Instruments Act 1881 and the
+     Evidence Act 1872 / Bharatiya Sakshya Adhiniyam 2023. "What does Section 138 say?"
+     therefore refuses with the corpus's actual holdings named. Rule 21: the
+     application fetches nothing; the owner supplies.
+
+r4   Statute output enters generation (AM-32 r8) as its own evidence set, cited Act +
+     section (r7), in its own response field — never merged with document or position
+     text (AM-45 r2). No Requirement, Standard, Rule, threshold or acceptance position
+     is derived from it (AM-32 r7; source-material ruling 2026-08-18).
+
+r5   AM-32 r9: the ratified 77-question evaluation set already holds 23 statute
+     questions over these seven files; they are the Domain C evaluation material.
+```
+
+**Approved by the owner on 2026-09-08** ("If the Constitution provides a way to add the
+source and the required source material exists locally, implement it.").

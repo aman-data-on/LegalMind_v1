@@ -58,13 +58,13 @@
  ],
  "L-01": {
   "status": "AUTHORED",
-  "fixture": "DOC-LIAB-01, STD-LIAB-02, CP-LIAB-01",
-  "note": "CLOSED 2026-08-19 by owner decision Q3=B (per-type standards). 45E.2 expects a six-month aggregate cap -> MATCH / NOT_APPLICABLE, and STD-LIAB-02 now asserts exactly that: MSA 17.2's six months against the MSA standard ratified from that clause. Blocked since authoring began, because under the global 12-month standard no six-month total-fees specimen existed; under the per-type model none is needed."
+  "fixture": "DOC-LIAB-01, STD-LIAB-02, CST-LIAB-MSA-01, CP-LIAB-01",
+  "note": "RE-EXPECTED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company positions, so LIABILITY-MSA-001 is now 12 months of total fees (Constitution §9, entity-wide). STD-LIAB-02 (MSA 17.2's six months of AFFECTED-service fees) fails closed as UNABLE_TO_EVALUATE — its basis is incomparable to FEES_PAID (owner ruling 2026-08-18, 45B.4) — and CST-LIAB-MSA-01 asserts the MATCH side from the Constitution's own value. 45E.2's six-month MATCH expectation was written against the illustrative standard and is superseded twice over. History: CLOSED 2026-08-19 by owner decision Q3=B (per-type standards), when STD-LIAB-02 asserted MATCH against the MSA standard ratified from that clause."
  },
  "L-02": {
   "status": "AUTHORED_RATIFIED",
   "fixture": "DOC-LIAB-02, STD-LIAB-01",
-  "note": "The twelve-month cap MATCHES the ratified ToS standard (LIABILITY-TOS-001), asserted from the organization's own ToS (STD-LIAB-01). 45E's illustrative DEVIATION/ACCEPTABLE assumed a six-month standard and is superseded by ratification. CP-LIAB-04 (Linode MSA) no longer covers this case: under per-type standards it is measured against the MSA standard and fails closed on basis (see L-11)."
+  "note": "The twelve-month cap MATCHES the ratified ToS standard (LIABILITY-TOS-001), asserted from the organization's own ToS (STD-LIAB-01). 45E's illustrative DEVIATION/ACCEPTABLE assumed a six-month standard and is superseded by ratification. CP-LIAB-04 (Linode MSA) no longer covers this case: under per-type standards it is measured against the MSA standard and fails closed on basis (see L-11). UPDATE 2026-09-08 (AB-14 / AM-43 r4): the MSA standard is now 12 months of total fees too, so CP-LIAB-04 MATCHES it — see L-11."
  },
  "L-03": {
   "status": "BLOCKED",
@@ -115,7 +115,7 @@
  "L-11": {
   "status": "AUTHORED",
   "fixture": "DOC-LIAB-06, STD-LIAB-02, CP-LIAB-04",
-  "note": "Basis incomparability asserted twice on real material: DOC-LIAB-06 (two bases inside one agreement, no standard) and CP-LIAB-04 (a third party's total-fees cap against the affected-services MSA standard \u2014 same number, different quantity, fails closed). STD-LIAB-02 formerly demonstrated this and now demonstrates the MATCH side; it is listed for traceability because its clause is the comparison's other half."
+  "note": "RE-EXPECTED 2026-09-08 under AB-14 / AM-43 r4. Basis incomparability is asserted on real material by DOC-LIAB-06 (two bases inside one agreement, no standard) and by STD-LIAB-02 (MSA 17.2's affected-services cap against the MSA standard, which now measures TOTAL fees per Constitution \u00a79 \u2014 same shape as the old CP-LIAB-04 case, mirrored). CP-LIAB-04 (a third party's twelve months of total fees) now MATCHES the MSA standard on the same basis and is listed for traceability as the comparison's other half. Before 2026-09-08 the roles were reversed: STD-LIAB-02 matched and CP-LIAB-04 failed closed."
  },
  "L-12": {
   "status": "AUTHORED",

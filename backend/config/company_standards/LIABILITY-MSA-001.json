@@ -25,16 +25,37 @@
     "  routed to a human -- see UNRULED_DEVIATION_REQUIRES_DECISION in",
     "  legalmind/evaluation/workflow.py."
   ],
+  "_reconciliation": [
+    "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
+    "positions (owner ruling 2026-09-08). Constitution \u00a79: 'the standard 12-month liability cap",
+    "applies unless a specific agreement approved by the company expressly provides otherwise';",
+    "Applicability 'Entity-wide ... applies identically to Leapswitch- and CloudPe-branded",
+    "agreements'; \u00a78: the MSA is 'Reference/template document \u2014 not yet formally adopted as",
+    "Source of Truth'. The template's six months of affected-service fees therefore states the",
+    "TEMPLATE, not the position. Previous source and configuration preserved in `_history`.",
+    "Consequence: MSA \u00a717.2 now fails closed against this standard (basis incomparable, 45B.4;",
+    "fixture STD-LIAB-02) \u2014 the organization's own template no longer matches its stated",
+    "position, which the Constitution records as 'drafting corrections in progress'."
+  ],
+  "_history": [
+    {
+      "reconciled": "2026-09-08",
+      "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+      "source_clause": "17.2 Monetary Cap on Liability",
+      "source_quote": "Notwithstanding anything to the contrary contained in this Agreement, the total aggregate liability of Leapswitch and its affiliates, whether in contract, tort (including negligence), strict liability, or otherwise, shall not exceed the total amount actually paid by the Customer to Leapswitch for the specific Services giving rise to the claim during the six (6) month period immediately preceding the event giving rise to such liability.",
+      "configuration_before": {"document_type": "MSA", "preferred": 6, "unit": "MONTHS", "basis": "FEES_PAID_FOR_AFFECTED_SERVICES", "scope_key": "AGGREGATE"}
+    }
+  ],
   "requirement_code": "LIABILITY-MSA-001",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
-  "source_clause": "17.2 Monetary Cap on Liability",
-  "source_quote": "Notwithstanding anything to the contrary contained in this Agreement, the total aggregate liability of Leapswitch and its affiliates, whether in contract, tort (including negligence), strict liability, or otherwise, shall not exceed the total amount actually paid by the Customer to Leapswitch for the specific Services giving rise to the claim during the six (6) month period immediately preceding the event giving rise to such liability.",
+  "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+  "source_clause": "\u00a79 Liability \u2014 Company Position (final, closed)",
+  "source_quote": "the standard 12-month liability cap applies unless a specific agreement approved by the company expressly provides otherwise. ... The cap applies mutually to both parties; there is no one-sided or party-specific cap. Indirect, incidental, and consequential damages are excluded for both parties. [Illustrative clause:] the aggregate liability of either Party ... shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
   "configuration": {
     "document_type": "MSA",
-    "preferred": 6,
+    "preferred": 12,
     "unit": "MONTHS",
-    "basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+    "basis": "FEES_PAID",
     "scope_key": "AGGREGATE",
     "extraction": {
       "cap_phrases": [
@@ -54,6 +75,13 @@
         ]
       },
       "bases": {
+        "FEES_PAID": [
+          "total fees paid",
+          "total fees paid or payable",
+          "total amount paid",
+          "amounts you have paid",
+          "fees paid by you"
+        ],
         "FEES_PAID_FOR_AFFECTED_SERVICES": [
           "for the specific services giving rise to the claim",
           "for the services that gave rise to the liability",

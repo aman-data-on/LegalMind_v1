@@ -6,7 +6,7 @@
     "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 (counterparty deliberately not named in this repository)",
     "source_clause": "9 Term and Survival",
     "covers": [],
-    "description": "NDA baseline (owner designation 2026-08-19: the executed NDA IS the LeapSwitch NDA \u2014 the receiving-party positions it accepts). The confidentiality survival the document states (confidentiality survives two (2) years; trade secrets for as long as they remain trade secrets), measured against the standard ratified FROM that clause: MATCH, NOT_APPLICABLE. A counterparty NDA demanding more (e.g. 5-year survival) is a DEVIATION and goes to Legal.",
+    "description": "OUTCOME CHANGED 2026-09-08 under AB-14 / AM-43 r4: the NDA's two (2) years is now a DEVIATION from the organization's stated position (3 years, Constitution §15; the NDA 'is not itself a lawyer-approved standing mutual template', §15.5). NDA baseline (owner designation 2026-08-19: the executed NDA IS the LeapSwitch NDA — the receiving-party positions it accepts). The confidentiality survival the document states (confidentiality survives two (2) years; trade secrets for as long as they remain trade secrets), measured against the standard ratified FROM that clause: MATCH, NOT_APPLICABLE. A counterparty NDA demanding more (e.g. 5-year survival) is a DEVIATION and goes to Legal.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "requirement_code": "CONF-SURVIVAL-NDA-001",
     "legal_rule": null,
@@ -15,6 +15,37 @@
         "scope": "GENERAL",
         "cap_status": "FINITE",
         "cap_value": 2,
+        "cap_unit": "YEARS",
+        "cap_basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END",
+        "evidence_count": 1
+      }
+    ],
+    "expect_finding_classification": "DEVIATION",
+    "expect_evaluations": [
+      {
+        "scope_key": "GENERAL",
+        "classification": "DEVIATION",
+        "rule_outcome": "NOT_APPLICABLE",
+        "evidence_ref_count": 1
+      }
+    ]
+  },
+  {
+    "id": "CST-CONF-SURVIVAL-NDA-001",
+    "provenance": "STANDARD_DERIVED",
+    "company_standard_ref": "CONF-SURVIVAL-NDA-001",
+    "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5",
+    "source_clause": "§15",
+    "covers": [],
+    "description": "AB-14 / AM-43 r4 (2026-09-08): the Constitution's stated confidentiality survival (3 years, §15), measured against the standard now ratified FROM the Constitution: MATCH.",
+    "evaluator_type": "NUMERIC_COMPARISON",
+    "requirement_code": "CONF-SURVIVAL-NDA-001",
+    "legal_rule": null,
+    "caps": [
+      {
+        "scope": "GENERAL",
+        "cap_status": "FINITE",
+        "cap_value": 3,
         "cap_unit": "YEARS",
         "cap_basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END",
         "evidence_count": 1
@@ -37,7 +68,7 @@
     "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 (counterparty deliberately not named in this repository)",
     "source_clause": "10 Non-Solicitation",
     "covers": [],
-    "description": "NDA baseline (owner designation 2026-08-19: the executed NDA IS the LeapSwitch NDA \u2014 the receiving-party positions it accepts). The non solicitation period the document states (non-solicitation for two (2) years following termination or expiry), measured against the standard ratified FROM that clause: MATCH, NOT_APPLICABLE. A counterparty NDA demanding more (e.g. 5-year survival) is a DEVIATION and goes to Legal.",
+    "description": "NDA baseline (owner designation 2026-08-19: the executed NDA IS the LeapSwitch NDA — the receiving-party positions it accepts). The non solicitation period the document states (non-solicitation for two (2) years following termination or expiry), measured against the standard ratified FROM that clause: MATCH, NOT_APPLICABLE. A counterparty NDA demanding more (e.g. 5-year survival) is a DEVIATION and goes to Legal.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "requirement_code": "NON-SOLICIT-NDA-001",
     "legal_rule": null,
@@ -68,7 +99,7 @@
     "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 (counterparty deliberately not named in this repository)",
     "source_clause": "9 Term and Survival",
     "covers": [],
-    "description": "NDA baseline (owner designation 2026-08-19: the executed NDA IS the LeapSwitch NDA \u2014 the receiving-party positions it accepts). The termination notice period the document states (either Party may terminate in writing with thirty (30) days' notice), measured against the standard ratified FROM that clause: MATCH, NOT_APPLICABLE. A counterparty NDA demanding more (e.g. 5-year survival) is a DEVIATION and goes to Legal.",
+    "description": "NDA baseline (owner designation 2026-08-19: the executed NDA IS the LeapSwitch NDA — the receiving-party positions it accepts). The termination notice period the document states (either Party may terminate in writing with thirty (30) days' notice), measured against the standard ratified FROM that clause: MATCH, NOT_APPLICABLE. A counterparty NDA demanding more (e.g. 5-year survival) is a DEVIATION and goes to Legal.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "requirement_code": "TERM-NOTICE-NDA-001",
     "legal_rule": null,

@@ -8,6 +8,8 @@ Project rule: when two authoritative statements conflict, the conflict is report
 
 **Update 2026-09-01 — C-17 registered.** Implementing locked 47.1.3's OIDC sign-in opened a second network egress path, which `AM-30` t10 reads against. Per rule 5 the tension is registered, not resolved; the implementation follows 47.1.3 and says so in the allow-list. See [C-17](#c-17--am-30-t10s-only-external-call-vs-47113s-mandatory-oidc-flow) below. **Five open in total: C-12, C-13, C-14, C-17 (all LOW) and C-16 (MEDIUM).**
 
+**Update 2026-09-08 — C-18 registered and resolved, C-19 registered (AB-14).** **C-18**: six ratified Company Standards stated the value LeapSwitch's *live paper* states while the Legal Constitution L1.5 states a different *company position* — resolved by the owner's ruling that the Constitution governs (`AM-43` r4; the six files reconciled, history preserved). **C-19**: the Constitution's Entity → Brand → Product/Service → Document Type applicability chain (§4, §5.2) against a data model that carries Document Type only — **open (MEDIUM)**, needs a schema decision. **Open now: C-12, C-13, C-14, C-17 (LOW), C-16 and C-19 (MEDIUM).**
+
 **Update 2026-08-27 — six resolved by owner ruling in one session** (recorded alongside AB-5 in `all_lock.md`): **C-15** by `AM-32`; **C-10** and **C-08** by "code is authoritative" rulings; **C-05/C-06/C-07** by annotation (rule 22 — the superseded lines stay byte-identical in `all_lock.md`; the annotations are the entries below). **Three remain open: C-12, C-13, C-14 (all LOW, blocking nothing) — plus C-16 (MEDIUM, awaiting owner-supplied statute material).** Four, counting C-16.
 
 **All N-series and J-series items are closed as of 2026-08-17** — resolved through Reconciliation Passes 2–6 and Amendment Batch AB-1. See [DECISION_FINALIZATION.md](DECISION_FINALIZATION.md) for the classification of every item. The remaining open decisions are the security/authorization track (OD-1 – OD-15) and the Requirement configuration catalogue (N-24b), neither of which blocks the evaluator track.
@@ -31,6 +33,8 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-15 | The owner's 2026-08-25 instruction requires Domains A/B/C to share a retrieval abstraction while each keeps its own source type, authority, version semantics, citation semantics, ownership, ingestion rules, provenance and access control — but `AM-27` authorizes nine tables and "no other table", and its r4 defines a chunk as derived from a Document Version referencing a Document Evidence row | ✅ **RESOLVED 2026-08-27** — `AM-32` (AB-5) authorizes the Domain A/C tables |
 | C-16 | The product vision's headline statute example is "what does Section 138 of the NI Act say" and names the Evidence Act in the v1 set, but neither statute was ever supplied; and vision §9.2 makes India Code the canonical source as "a hard rule" while the seven statutes on disk did not come from there | ⏳ Open (MEDIUM) — **blocks Domain C**; requires owner-supplied material ([STATUTE_INTAKE.md](STATUTE_INTAKE.md)), plus one owner answer: Evidence Act 1872 vs the Bharatiya Sakshya Adhiniyam 2023 that repealed it |
 | C-17 | `AM-30` t10 says *"The provider call is the only external call in the stack"*, but locked 47.1.3 (OD-9) makes corporate SSO via OIDC the **primary** authentication mechanism — and no OIDC flow can exist without a server-to-server call to the identity provider | ⏳ Open (LOW) — **blocks nothing**; the code implements 47.1.3 and the egress is registered in the allow-list naming this conflict. One owner reading required: is t10 scoped to the document path (its own first sentence) or to the whole process? |
+| C-18 | Six ratified Company Standards (`LIABILITY-MSA-001`, `LATE-FEE-TOS-001`, `CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`, `DATA-PURGE-MSA-001`, `CONF-SURVIVAL-NDA-001`) state what LeapSwitch's live paper says; the Legal Constitution L1.5 (§9, §11, §13, §15, §16) states a different company position on each | ✅ **RESOLVED 2026-09-08** — owner: the Constitution governs (`AM-43` r4). Files reconciled with `_history`; the live clauses now evaluate as DEVIATION |
+| C-19 | Constitution §4/§5.2 require Entity → Brand → Product/Service → Document Type resolution and forbid substituting a Leapswitch rule for a CloudPe one; the data model resolves Document Type only, so a CloudPe contract is measured against a Leapswitch-scoped standard silently | ⏳ Open (MEDIUM) — `AM-43` r7 registers it; needs a schema decision (a brand/entity axis on contracts and standards), not resolvable in code alone |
 
 ---
 
@@ -526,3 +530,36 @@ Documented at: [IMPLEMENTATION_READINESS_GATE.md](../09-implementation/IMPLEMENT
 **Until decided:** the two egress paths are exactly the generation adapter and the OIDC provider flow, each named in `EGRESS_ALLOWED` with the record that mandates it. No third may be added. `AM-31`'s real-contract gate is unaffected — no contract text travels on the authentication path.
 
 Documented at: [test_import_boundaries.py](../../backend/tests/test_import_boundaries.py) `EGRESS_ALLOWED`, [oidc.py](../../backend/legalmind/security/oidc.py) module docstring.
+
+---
+
+## C-18 — The ratified standards state the live paper; the Constitution states the position
+
+**Registered and RESOLVED 2026-09-08 (AB-14, `AM-43` r4). Owner ruling: the Legal Constitution L1.5 governs company positions.**
+
+| Source | Says |
+|---|---|
+| **Legal Constitution L1.5** §9, §11, §13, §15, §16 | 12-month total-fees cap, entity-wide · 30-day credit claim window · 30-day free data-retrieval window before deletion · 3-year confidentiality survival · 2 %/month late interest |
+| **The six standard files** (2026-08-19 → 2026-09-08) | 6 months affected-service fees (MSA §17.2) · 60 days (SLA) · 7 days retrieval (TOS §16) / 15 days purge (MSA §7.6.6) · 2 years (NDA §9) · 5 %/month (TOS §7) — each **extracted verbatim from the live LeapSwitch document** under the manager's "whatever is stated in our approved documents" rule |
+
+**Why both were right.** The engine measured counterparty paper against what LeapSwitch's signed documents *actually say*. The Constitution states what the company *intends*, and itself records that the live documents are behind ("drafting corrections … in progress"). Until the owner ruled, following the live paper was correct.
+
+**Resolution.** `AM-43` r1 sets the source priority (Constitution first); r4 reconciles the six values, each file keeping its previous source, clause, quote and configuration in `_history`. The golden corpus now asserts the live clauses as **DEVIATION** (or, for MSA §17.2, **UNABLE_TO_EVALUATE** on an incomparable basis) and the Constitution's own values as **MATCH** (`CST-*` fixtures). Nothing in `all_lock.md` was edited; the standard files are configuration.
+
+**Not reconciled, deliberately:** `LIAB-CARVEOUTS-MSA-001` (a different subject from §9's "no super-cap"), and the six standards with no Constitution counterpart — reported to Counsel as Constitution gaps.
+
+## C-19 — The Constitution's applicability chain has one of four axes
+
+**Registered 2026-09-08 (AB-14, `AM-43` r7). Open (MEDIUM). Needs a schema decision.**
+
+| Source | Says |
+|---|---|
+| **Legal Constitution L1.5** §4 | Leapswitch and CloudPe share one legal entity and may have different products, SLAs, AUPs, TOS and commercial terms; *"This distinction is critical and must not be collapsed"*; Legal Mind *"must never silently substitute a Leapswitch document or rule for a CloudPe one, or vice versa"* |
+| **Legal Constitution L1.5** §5.2, §23.2 | Applicability resolves Entity → Brand → Product/Service → Document Type; if the context cannot be resolved the output is REVIEW REQUIRED, not a borrowed rule |
+| **The data model** (`contracts`, `company_standard_versions.configuration`) | Document Type only (owner Q2/Q9, 2026-08-19). No entity, brand or product field anywhere |
+
+**Consequence today:** a CloudPe-branded contract declared `MSA` is evaluated against the Leapswitch-sourced MSA standards with no warning — the exact substitution §4 forbids. **This is the most serious legal-integrity gap the 2026-09-08 audit found and it is not a routing problem.**
+
+**Why not resolved here:** an axis is a column on `contracts` and a scope on every standard — a schema change with consequences for all 32 standards' applicability, outside `IMPL-01` without its own record. It needs the owner to decide the shape (brand on the contract? on the standard? both? a product list?).
+
+**Until decided:** nothing infers a brand. The workspace shows the declared type only. No standard is silently narrowed or widened.

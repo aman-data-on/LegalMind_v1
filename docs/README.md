@@ -112,6 +112,8 @@ Declared at the top of every specification document. Never mix states without la
 | [LEGAL_RULES.md](02-legal-domain/LEGAL_RULES.md) | How far the organization tolerates departing from a Standard |
 | [FINDING_CLASSIFICATION.md](02-legal-domain/FINDING_CLASSIFICATION.md) | The seven Finding classifications; RESOLVED ≠ MATCH |
 | [LEGAL_DECISIONS.md](02-legal-domain/LEGAL_DECISIONS.md) | Authorized human rulings; the engine never produces one |
+| [LEGAL_CONSTITUTION_L1.5.md](02-legal-domain/LEGAL_CONSTITUTION_L1.5.md) | **The governing source for company positions** (owner ruling 2026-09-08, `AM-43`) — verbatim Markdown of the lawyer-review DOCX; configuration source, never runtime corpus |
+| [CONSTITUTION_RECONCILIATION_2026-09-08.md](02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-08.md) | The engineering/legal handoff: Constitution rules inspected, conflicts found and resolved, effective values, what remains for Counsel |
 
 ### [03-document-model/](03-document-model/) — documents and evidence
 

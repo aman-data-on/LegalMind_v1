@@ -10,6 +10,45 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — The Constitution governs; Ask routes by question shape (AB-14, 2026-09-08)
+
+Owner instruction, 2026-09-08 (full GO): the Legal Constitution L1.5 is the
+single source of truth for company positions, and a user asks any question of
+any uploaded document without choosing a source. Lock records `AM-43`–`AM-47`
+appended to `all_lock.md` (17,238 → current line count in the file); registry,
+CONFLICTS (C-18 resolved, C-19 registered), IMPLEMENTATION_STATUS and this file
+updated in the same change. Canonical Markdown of the DOCX:
+`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md`; handoff report:
+`docs/02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-08.md`.
+
+* **Retrieval (P0, measured live):** 29 % of the assist index was sub-60-char
+  headings that outranked their clauses; `clause-aware-3` folds a one-line
+  heading into the clause it introduces and reads U+200B/NBSP after a clause
+  number as blanks (§17 of a real MSA had been one 1,366-char chunk). Test
+  account reindexed only. 4 regression tests.
+* **Comparison questions (P0):** the `AM-25` r4 regex passed every natural
+  phrasing ("comply", "our approved position"); replaced by
+  `assist.intent.is_comparison_question`, pinned by a 30-phrase matrix. The
+  handoff carries the latest Review's Finding counts + a link, not prose.
+* **Routing (P1):** new `assist.routing` — candidate domains from the caller's
+  permissions first, question shape second; recorded on
+  `retrieval_runs.filters.domains`; never merged.
+* **Domain A wired (P1):** `search_positions` had zero callers. Positions are
+  now quoted verbatim (standard code · clause · type) in their own section,
+  never in a generation payload (asserted). OR-lexeme search with a two-lexeme
+  floor. Permission: `assist.ask` AND (`configuration.view` OR
+  `legal_position.view`) — `AM-44`.
+* **Refusals (P2):** one wording per candidate set (`AM-46`); document-less
+  conversations refuse instead of erroring; statute-shaped questions say
+  statutory text is not an approved source.
+* **Intake:** document type no longer gates the submit — "Confirm & Open" without
+  one, "Confirm & Analyze" with one. Analysis still refuses an undeclared type.
+* **Standards reconciled to the Constitution (`AM-43` r4):** six files, history
+  kept in `_history`; corpus re-expected (73 fixtures: 21/9/43), six `CST-*`
+  MATCH twins added, `corpus_coverage.json` L-01/L-02/L-11 notes updated.
+* **Frontend:** `PositionsSection`, `ComparisonHandoff`; replay carries position
+  citations; e2e intake expectation updated.
+
 ### Fixed — Dashboard UI/UX audit pass: responsive, reachable, keyboard-operable (2026-09-08)
 
 Owner request, 2026-09-08: an explicit UX review of the Dashboard — the
