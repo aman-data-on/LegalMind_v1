@@ -10,6 +10,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Key Obligations is a single-open accordion in plain language (owner, 2026-09-08)
+
+The permanent side-by-side party columns made the section as tall as the longest
+party's list — 13 obligations on one real MSA — and left the rest of the row empty.
+Categories are now collapsible rows carrying their real count, one open at a time,
+first open by default; the section is 206px with a category open where the columns
+ran several times that. Mutual role labels merge into **"Both sides must"** and
+"Neither Party" reads **"Neither side can"**.
+
+**A named role keeps the document's own words** ("Receiving Party must", "Leapswitch
+must"). The owner's requested "Our company must" / "The other party must" split is
+deliberately NOT synthesised, and that is the one part of the request not delivered:
+nothing in the extraction attributes a role to a side — a mutual NDA makes both
+parties the Receiving Party, and the live table holds "Customer", "Supplier",
+"Service Provider", "Partner" and counterparty company names side by side — so the
+mapping would be a guess that could tell a Sales reader an obligation is ours when
+it is the counterparty's. Closing it needs a party-side declaration in the data or
+an owner ruling, not a heuristic.
+
+Labels were fitted to the **live** extraction table rather than the screenshot: the
+same role arrives in every casing and with or without its article, so a role's
+identity is its bare lower-case name and the variants merge. Behavior verified in a
+real browser against a real MSA (real extraction, one-open-at-a-time, keyboard,
+`aria-expanded`/`aria-controls`, mobile full width); the accordion's pure layer is
+pinned by `src/__tests__/obligation-categories.test.ts`. The e2e suite has no
+generation credential, so it still sees only the honest degradation sentence.
+
+Coordination note: deployed with `LEGALMIND_ALLOW_STALE_API=1` — the backend source
+in this shared tree is newer than the running API and restarting it is that
+session's call, and this change is frontend-only and touches no API contract.
+
 ### Added — The §6.1 statute corpus is complete except the Income-tax Act 2025 (AM-48, 2026-09-08)
 
 Owner instruction: verify the corpus, then obtain genuinely missing statutes from
