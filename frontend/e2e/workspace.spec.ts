@@ -190,7 +190,14 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // `AM-38` (AB-11, 2026-09-01) renamed this screen: the heading is "Dashboard".
     await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
-    const row = page.getByRole("link", { name: contract.name });
+    // `exact` (2026-09-08): the row's action link is now named "Analyze <the
+    // contract>" rather than a bare "Analyze" — twenty-five links all
+    // announcing the same word gave a screen reader no way to tell one row's
+    // action from another's. Its name therefore CONTAINS the contract name,
+    // and `getByRole` matches names by substring, so the un-anchored locator
+    // began resolving to two links. Both point at the same href; this asserts
+    // exactly what it always did, against the document-name link alone.
+    const row = page.getByRole("link", { name: contract.name, exact: true });
     await expect(row).toHaveAttribute("href", `/dashboard?id=${contract.id}`);
     await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
 

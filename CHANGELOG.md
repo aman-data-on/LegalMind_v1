@@ -10,6 +10,100 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Dashboard UI/UX audit pass: responsive, reachable, keyboard-operable (2026-09-08)
+
+Owner request, 2026-09-08: an explicit UX review of the Dashboard — the
+2026-08-31 freeze's own stated exception. Presentation only: `DESIGN.md`
+governs it and **no entry in LOCKED_DECISIONS.md is amended**. No backend,
+schema, migration, RBAC, permission or API-contract change; no new dependency
+and no new component — three files (`dashboard/page.tsx`,
+`dashboard/workspace.css`, one e2e locator).
+
+Every fix below answers something **measured** in Chromium across twelve
+viewports (320×568 → 2560×1440) with forty seeded contracts, 200-character
+names and undeclared types — not something inferred from reading the markup.
+Desktop at 1200px and above was already sound; the failures were concentrated
+below 900px, in every dialog on a short viewport, and in the keyboard path.
+
+* **A dialog that could not be submitted.** At 320×568 the Edit dialog
+  rendered from y=−38 to y=606 in a 568px viewport with nothing scrollable:
+  its title clipped off the top and "Save changes" 38px below the fold, at any
+  scroll position. At 1280×600 it measured 587 of 600px — one field short of
+  the same failure, and it grows by three fields whenever the contract has a
+  version to declare. The overlay now centres a box capped at `100dvh` that
+  owns its own scroll, with the confirm/cancel row `sticky` to its bottom. The
+  fix lands on the shared `.ws-modal` primitive deliberately: the workspace's
+  Company-documents dialog had the identical bug, and repairing one copy would
+  have left the other broken.
+* **A row whose actions were off screen.** The seven-column table's
+  min-content width is 777px, so below ~900px it overflowed its card and put
+  the row's "Review"/"Analyze" link and its ⋯ menu at x=657–778 of a 320px
+  viewport — behind a nested horizontal scroller with no scrollbar and no cue.
+  At 768px, a tablet in portrait, the ⋯ was still clipped. Horizontal
+  scrolling was never a decision here; it is what `overflow-x: auto` does when
+  nobody chose anything. Below 900px each contract is now a card carrying the
+  same cells with their own labels (`data-label`) — nothing hidden, nothing
+  summarised away, every control inside the viewport.
+* **An empty shelf read as an empty account.** Switching Show: to Archived
+  with nothing archived rendered "No contracts yet · Upload your first
+  contract" *and* the five-step explainer to an account holding forty
+  contracts; the same for a department view. `firstRun` now tests the archive
+  and scope it always should have, and a third empty state states the real
+  condition.
+* **A menu no keyboard could reach.** Opening the row menu left focus on the
+  toggle, and the menu renders through a portal at the end of `.ws`, so the
+  next Tab went to the *following row's* document link. Focus now enters the
+  menu, Arrow/Home/End traverse it, and Tab or Escape closes it and hands
+  focus back — the WAI-ARIA menu-button behaviour.
+* **A stale table under a wrong headline.** "Documents could not be loaded"
+  rendered directly above twenty-five perfectly good rows. A failed *refresh*
+  now says so, with a Try again, and keeps the original message for the case
+  where there is genuinely nothing to show.
+* **A table that could disagree with its own toolbar.** Every filter, sort,
+  page and scope change fires a request and none cancelled the last, so a
+  slower earlier response could repaint the rows of the *previous* filter
+  while every control read the new one. A request-sequence guard means only
+  the newest response may write.
+* Twenty-five links all announced "Review"; archived rows offered "Analyze",
+  an operation the server refuses. Touch targets of 26–38px, and 13px inputs
+  that make iOS Safari zoom the page on focus. Four stat tiles with a hover
+  lift where one is clickable. Tiles collapsing to a single column at 375px
+  but two at 390px, spending 390px of the fold on counts. Filters staircasing
+  into four ragged rows. A loading skeleton without its header row, shifting
+  the layout on every first paint. `role="tablist"` on a scope filter that
+  owns no panel. A one-person department offering a silent, permanently
+  disabled Transfer. A scrim click discarding a half-typed form. `100vh` on a
+  phone. All fixed; the primary action moved into the page header, which buys
+  back the ~60px that took a 1366×768 laptop from five visible rows to six.
+* **Two cross-page leaks caught before they shipped**, and one regression
+  caught by the suite: `.ws-tabs .ws-tab` would have restyled the Admin nav
+  (now keyed off `[aria-pressed]`), the full-width action rule would have
+  stretched the workspace's Export/Share buttons (now scoped to
+  `.ws-context--dash`), and a 34px ⋯ toggle overflowed the fixed 11% Action
+  column by 2px — which made a click auto-scroll the table those 2px and the
+  menu's own close-on-scroll dismiss the menu that same click had opened.
+  `dashboard-list.spec.ts` failed on it; the column width was the real defect
+  (11% → 14%). A 2px overflow is not a cosmetic problem.
+* Tests: typecheck 0, forbidden-terms clean, **214 frontend unit passed**,
+  **95 browser passed / 0 failed** — identical to the pre-change baseline. One
+  e2e locator in `workspace.spec.ts` gained `exact: true`: the row action's
+  accessible name now contains the contract name and `getByRole` matches by
+  substring, so the un-anchored locator resolved to two links. Its assertion
+  is unchanged.
+* ⚠️ **`ws-documents-chromium-linux.png` will fail job 15** — the header now
+  carries the Upload button, pills and tiles changed size, and the Action
+  column widened. Per the owner's standing rule the baseline was **not**
+  regenerated locally; adopt CI's `*-actual.png` and review it as a diff.
+* Deliberately **not** changed, and why: filters are still not in the URL, so
+  refresh and Back do not preserve them. Mirroring state into the URL
+  measurably breaks Back — the component stays mounted, so the sync effect
+  rewrites the URL forward again — and doing it correctly means making the URL
+  the single source of truth across roughly a dozen call sites. That is a
+  state-ownership refactor, not a UI fix, and it is recommended as its own
+  change. Also left alone: the app shell's own small targets (shared chrome on
+  every page, and `--ws-shell-h` feeds the workspace's height maths) and
+  `.ws-chip`'s 10.5px (shared with Reviews/Legal/Admin).
+
 ### Deployed — 2026-09-06 (owner GO), AB-12 + AB-13 and the product-coherence work
 
 * **Live database migrated**, in the owner's exact order, after a verified

@@ -118,6 +118,9 @@ function StatTile({
   icon: React.ReactNode; n: number; label: string;
   bucket?: DocumentStatusBucket; onSelect?: () => void;
 }) {
+  /* `--act` is what carries the hover lift and the pointer: a tile without an
+     `onSelect` is a plain count, and giving all four the same hover response
+     advertised three controls that do nothing (2026-09-08 audit). */
   const className = `ws-doctile${bucket ? ` ws-doctile--${bucket}` : ""}`
     + (onSelect ? " ws-doctile--act" : "");
   const body = (
@@ -177,10 +180,43 @@ function DocumentsListView() {
   const [companies, setCompanies] = useState<Counterparty[]>([]);
   const [archiving, setArchiving] = useState<Contract | null>(null);
   const [transferring, setTransferring] = useState<Contract | null>(null);
+  /** The open menu's own node, and the toggle that opened it — a menu is not
+   *  part of the page's tab ring, so it has to move focus in itself and hand
+   *  focus back when it closes. Before this, opening the menu with the keyboard
+   *  left focus on the toggle and the next Tab went to the FOLLOWING ROW's
+   *  document link (measured 2026-09-08): every item in it was unreachable
+   *  without a pointer. */
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuToggleRef = useRef<HTMLElement | null>(null);
+  /** Which list request is the current one — see `load` below. */
+  const loadSeq = useRef(0);
 
-  function closeMenu() {
+  function closeMenu(restoreFocus = false) {
     setMenuFor(null);
     setMenuPos(null);
+    if (restoreFocus) menuToggleRef.current?.focus();
+  }
+
+  /** Arrow/Home/End move within the menu; Tab and Escape close it and return
+   *  focus to the toggle, which is the WAI-ARIA menu-button behaviour. */
+  function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [],
+    );
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "Tab" || event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    const to = event.key === "ArrowDown" ? (at + 1) % items.length
+      : event.key === "ArrowUp" ? (at - 1 + items.length) % items.length
+      : event.key === "Home" ? 0
+      : event.key === "End" ? items.length - 1
+      : -1;
+    if (to < 0) return;
+    event.preventDefault();
+    items[to]?.focus();
   }
 
   /** Where the portal renders (2026-09-03 fix, owner-reported against the
@@ -217,6 +253,7 @@ function DocumentsListView() {
    *  THIS row's cell width and right edge guarantees full coverage of
    *  whichever row's Action cell the menu ends up floating over. */
   function openMenu(id: string, toggle: HTMLElement) {
+    menuToggleRef.current = toggle;
     const rect = toggle.getBoundingClientRect();
     const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
     const estimatedHeight = 132; // up to three items (Edit, Transfer, Archive) plus padding
@@ -232,6 +269,17 @@ function DocumentsListView() {
   }
 
   const load = useCallback(async () => {
+    // Only the NEWEST request may write to the table (2026-09-08). Every filter,
+    // sort, page and scope change fires a request and none of them cancels the
+    // last, so two were routinely in flight while someone worked the toolbar —
+    // and nothing said they had to come back in order. A slower earlier response
+    // landing second repainted the table with the PREVIOUS filter's rows while
+    // every control still read the new one: a table that quietly disagrees with
+    // the toolbar above it, which on this page means disagreeing about which
+    // contracts need attention.
+    const seq = loadSeq.current + 1;
+    loadSeq.current = seq;
+    const current = () => seq === loadSeq.current;
     setError(null);
     try {
       const result = await api.contracts(page, PAGE_SIZE, {
@@ -242,18 +290,22 @@ function DocumentsListView() {
         scope,
         archived: showArchived || undefined,
       });
+      if (!current()) return;
       setContracts(result.items);
       setPagination(result.pagination);
       // The companies this caller deals with, for the edit dialog's picker.
       // Best-effort: the list is a convenience, and failing to load it must not
       // take the whole Dashboard down.
       try {
-        setCompanies(await api.counterparties());
+        const companyList = await api.counterparties();
+        if (current()) setCompanies(companyList);
       } catch {
-        setCompanies([]);
+        if (current()) setCompanies([]);
       }
     } catch (cause) {
-      setError(cause);
+      // A superseded request's failure is not this view's failure either: it
+      // would otherwise raise a banner over rows that loaded perfectly well.
+      if (current()) setError(cause);
     }
   }, [page, q, typeFilter, statusFilter, sort, scope, showArchived]);
 
@@ -298,6 +350,20 @@ function DocumentsListView() {
   // so a scroll closes it instead of rendering it stale.
   useEffect(() => {
     if (!menuFor) return;
+    // Focus lands on the first item, so the menu is operable by the keyboard
+    // that opened it. Pointer users never notice: the ring is `:focus-visible`.
+    //
+    // `preventScroll` is load-bearing, not tidiness. A plain `focus()` asks the
+    // browser to bring the element into view, and the scroll EVENT that request
+    // produces is dispatched a frame later — by which time the `scroll` listener
+    // below is attached, so the menu closed itself the instant it opened
+    // (caught by `dashboard-list.spec.ts`, whose second case does not
+    // pre-scroll the row). `openMenu` has already placed the menu inside the
+    // viewport, flipping it above the toggle when it would not fit, so there is
+    // nothing to scroll to in the first place.
+    menuRef.current
+      ?.querySelector<HTMLElement>("[role='menuitem']")
+      ?.focus({ preventScroll: true });
     function onPointerDown(event: MouseEvent) {
       if (!(event.target instanceof Element)
           || !event.target.closest(".ws-menu, .ws-menu__list")) {
@@ -305,7 +371,7 @@ function DocumentsListView() {
       }
     }
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") closeMenu();
+      if (event.key === "Escape") closeMenu(true);
     }
     function onScroll(event: Event) {
       if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
@@ -338,8 +404,17 @@ function DocumentsListView() {
   /** Writes are owner-only server-side (AB-12): a Lead reading a colleague's
    *  deal is not offered Edit/Archive on it — Transfer is how they take it on. */
   const isMine = (contract: Contract) => contract.owner_id === identity?.user_id;
+  /** A genuinely empty ACCOUNT — the only state that may invite a first upload.
+   *
+   *  `showArchived` and `scope` belong in this test and were missing until the
+   *  2026-09-08 audit measured the consequence: switching "Show:" to Archived
+   *  with nothing archived rendered "No contracts yet · Upload your first
+   *  contract" plus the whole five-step explainer to an account holding forty
+   *  contracts. An empty shelf is not an empty account, and neither is a
+   *  department view for someone with no department. */
+  const noFilters = !q && !typeFilter && !statusFilter;
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
-    && !q && !typeFilter && !statusFilter;
+    && noFilters && !showArchived && scope === "own";
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
 
   /** Send the table to one bucket. Every entry point resets the page — landing
@@ -359,11 +434,33 @@ function DocumentsListView() {
 
   return (
     <>
-      <div className="ws-context">
+      <div className="ws-context ws-context--dash">
         <span className="ws-context__icon" aria-hidden="true"><IconFile size={18} /></span>
         <h1>Dashboard</h1>
         {pagination ? (
           <span className="ws-context__meta ws-mono">{pagination.total} total contracts</span>
+        ) : null}
+        {/* The page's primary action, in the page header where the workspace
+            already puts its own (`.ws-context__acts`) — 2026-09-08. It used to
+            hold a row of its own below the header, which spent ~60px of every
+            viewport on one right-aligned button and pushed the table further
+            below the fold on exactly the short laptop (1366×768) where only
+            five rows were visible to begin with. */}
+        {canUpload ? (
+          <>
+            <span className="ws-context__spacer" />
+            <div className="ws-context__acts">
+              <button
+                type="button"
+                className="ws-btn ws-btn--primary"
+                aria-expanded={uploadOpen}
+                aria-controls="ws-upload-panel"
+                onClick={() => setUploadOpen((open) => !open)}
+              >
+                {uploadOpen ? "Close" : "+ Upload Contract"}
+              </button>
+            </div>
+          </>
         ) : null}
       </div>
       <div className="ws-docs ws-docs--index">
@@ -391,34 +488,27 @@ function DocumentsListView() {
           same human-declared type on confirm (owner Q9). Only where it lives
           changed.
         */}
-        {canUpload ? (
-          <div className="ws-dash__act">
-            <button
-              type="button"
-              className="ws-btn ws-btn--primary"
-              aria-expanded={uploadOpen}
-              aria-controls="ws-upload-panel"
-              onClick={() => setUploadOpen((open) => !open)}
-            >
-              {uploadOpen ? "Close" : "+ Upload Contract"}
-            </button>
-          </div>
-        ) : null}
-
         {uploadOpen ? (
           <section id="ws-upload-panel" className="ws-dash__upload">
             <UploadContract firstRun={!!firstRun} counterparties={knownCounterparties(contracts)} />
           </section>
         ) : null}
 
+        {/* A scope FILTER, not a tablist (2026-09-08). `role="tablist"` promises
+            a `tabpanel` for each tab and arrow-key traversal between them — the
+            workspace's real tabs (Document/Summary/Findings) provide both, and
+            these two never did: they re-query the server and re-render the same
+            one region. Two pressed-state buttons in a labelled group say what
+            this actually is, and stop assistive technology announcing a tab
+            whose panel does not exist. */}
         {canSeeDepartment ? (
-          <div className="ws-tabs" role="tablist" aria-label="Which deals">
-            <button type="button" role="tab" aria-selected={scope === "own"}
+          <div className="ws-tabs" role="group" aria-label="Which deals">
+            <button type="button" aria-pressed={scope === "own"}
                     className={`ws-tab ${scope === "own" ? "ws-tab--active" : ""}`}
                     onClick={() => { setScope("own"); setPage(1); }}>
               My deals
             </button>
-            <button type="button" role="tab" aria-selected={scope === "department"}
+            <button type="button" aria-pressed={scope === "department"}
                     className={`ws-tab ${scope === "department" ? "ws-tab--active" : ""}`}
                     onClick={() => { setScope("department"); setPage(1); }}>
               Department deals{identity?.department ? ` · ${identity.department.name}` : ""}
@@ -467,11 +557,34 @@ function DocumentsListView() {
           filter. Nothing that was reachable before is unreachable now.
         */}
 
+        {/* Two different failures, and they were telling the same story
+            (2026-09-08 audit measured "Documents could not be loaded" sitting
+            above twenty-five perfectly good rows). If rows are already on
+            screen, the request that failed was a REFRESH: the table is real,
+            just not current, and saying otherwise teaches the reader to
+            distrust a correct table. With no rows to show, the original
+            message is the right one. */}
         {error ? (
-          <div className="ws-state ws-state--error" role="alert">
-            <h2>Documents could not be loaded.</h2>
-            <p>{describeError(error)}</p>
-          </div>
+          contracts && contracts.length > 0 ? (
+            <div className="ws-state ws-state--warn" role="alert">
+              <h2>These results could not be refreshed.</h2>
+              <p>
+                {describeError(error)} The rows below are the last ones loaded
+                successfully.
+              </p>
+              <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
+                Try again
+              </button>
+            </div>
+          ) : (
+            <div className="ws-state ws-state--error" role="alert">
+              <h2>Documents could not be loaded.</h2>
+              <p>{describeError(error)}</p>
+              <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
+                Try again
+              </button>
+            </div>
+          )
         ) : null}
 
         {/*
@@ -536,7 +649,26 @@ function DocumentsListView() {
             <p className="ws-visually-hidden" role="status" aria-live="polite">
               Loading documents…
             </p>
-            {[0, 1, 2].map((row) => (
+            {/* The column header is part of the loading state, not something
+                that appears afterwards (2026-09-08): rendering the skeleton
+                without it moved every row down by the header's height the
+                instant data landed — a layout shift on the page's first paint,
+                every visit. Six skeleton rows also hold roughly the height a
+                full page of results occupies, so the card does not jump size. */}
+            <table aria-hidden="true">
+              <thead>
+                <tr>
+                  <th scope="col">Document</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Findings</th>
+                  <th scope="col">Last Analyzed</th>
+                  <th scope="col">Added</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
+            </table>
+            {[0, 1, 2, 3, 4, 5].map((row) => (
               <div key={row} className="ws-docs__skel" aria-hidden="true">
                 <span className="ws-skel ws-skel--line" style={{ width: "40%" }} />
                 <span className="ws-skel ws-skel--line" style={{ width: "12%" }} />
@@ -585,7 +717,16 @@ function DocumentsListView() {
                           <div className="ws-pane__note">Archived {contract.archived_at.slice(0, 10)}</div>
                         ) : null}
                       </td>
-                      <td>
+                      {/* `data-label` is what the narrow-viewport card layout
+                          renders as each value's own label (see `ws-docs--index`
+                          under 900px in workspace.css). Below that width the
+                          seven-column row cannot hold its columns — measured
+                          777px of table inside a 320px viewport, which put the
+                          row's own "Review" link and ⋯ menu at x=657–778, off
+                          screen behind a nested scroller nobody discovers. The
+                          same cells, labelled, stack into a card instead: every
+                          value still present, every control reachable. */}
+                      <td data-label="Type">
                         {contract.contract_type ? (
                           <span className="ws-chip ws-chip--type" title={documentTypeLabel(contract.contract_type)}>
                             {contract.contract_type}
@@ -594,21 +735,40 @@ function DocumentsListView() {
                           <span className="ws-chip">not declared</span>
                         )}
                       </td>
-                      <td><StatusPill contract={contract} /></td>
-                      <td><FindingsCell contract={contract} /></td>
-                      <td className="ws-mono">
+                      <td data-label="Status"><StatusPill contract={contract} /></td>
+                      <td data-label="Findings"><FindingsCell contract={contract} /></td>
+                      <td className="ws-mono" data-label="Last analyzed">
                         {bucket === "analyzing" ? "In progress"
                           : relativeTime(contract.latest_analysis?.completed_at ?? null)}
                       </td>
-                      <td className="ws-mono">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
+                      <td className="ws-mono" data-label="Added">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
                       <td>
                         <div className="ws-rowact">
                           {/* A per-row action reads better as a link than a
                               repeated solid button (2026-09-02) — the page's
                               one true `.btn--primary` stays "+ Upload
                               Contract" in the header above. */}
-                          <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--link">
-                            {bucket === "draft" ? "Analyze"
+                          {/* The visible word stays short; the ACCESSIBLE name
+                              carries the contract (2026-09-08). Twenty-five
+                              links all announcing "Review, link" gave a screen
+                              reader no way to tell one row's action from
+                              another's — the same reason the ⋯ toggle already
+                              names its contract.
+
+                              An archived contract reads "View": it is
+                              read-only server-side (AB-12 r6), so offering
+                              "Analyze" on it advertised an operation the
+                              server refuses. */}
+                          <Link
+                            href={`/dashboard?id=${contract.id}`}
+                            className="ws-btn ws-btn--sm ws-btn--link"
+                            aria-label={`${contract.archived_at ? "View"
+                              : bucket === "draft" ? "Analyze"
+                              : bucket === "analyzing" ? "View progress for"
+                              : "Review"} ${contract.name}`}
+                          >
+                            {contract.archived_at ? "View"
+                              : bucket === "draft" ? "Analyze"
                               : bucket === "analyzing" ? "View Progress" : "Review"}
                             <IconChevronRight size={13} aria-hidden="true" />
                           </Link>
@@ -634,8 +794,11 @@ function DocumentsListView() {
                               {menuFor === contract.id && menuPos
                                 ? createPortal(
                                   <div
+                                    ref={menuRef}
                                     className="ws-menu__list"
                                     role="menu"
+                                    aria-orientation="vertical"
+                                    onKeyDown={onMenuKeyDown}
                                     style={{
                                       position: "fixed",
                                       right: menuPos.right,
@@ -723,6 +886,31 @@ function DocumentsListView() {
                     </button>
                   ) : null}
                 </div>
+              ) : noFilters ? (
+                /* An empty VIEW, not an empty account (2026-09-08): the shelf
+                   holds nothing, or this department's members own nothing yet.
+                   Either way the reader has contracts, so neither the first-run
+                   invitation nor a "clear your filters" dead end is true. */
+                <div className="ws-docempty">
+                  <span className="ws-docempty__mark" aria-hidden="true">
+                    <IconFile size={22} />
+                  </span>
+                  <h2>{showArchived ? "Nothing archived" : "No deals in this view yet"}</h2>
+                  <p>
+                    {showArchived
+                      ? "A contract you archive is kept here — read-only, with its versions, findings and history — and can be restored at any time."
+                      : "Deals owned by the other people in your department appear here as they are added."}
+                  </p>
+                  {showArchived ? (
+                    <button
+                      type="button"
+                      className="ws-btn"
+                      onClick={() => { setShowArchived(false); setPage(1); }}
+                    >
+                      Back to active contracts
+                    </button>
+                  ) : null}
+                </div>
               ) : (
                 <div className="ws-docempty">
                   <span className="ws-docempty__mark" aria-hidden="true">
@@ -763,7 +951,10 @@ function DocumentsListView() {
 
         {pagination && pagination.total > 0 ? (
           <nav className="ws-pager" aria-label="Pagination">
-            <span className="ws-pane__note">
+            {/* Announced (2026-09-08): paging is a keyboard-and-screen-reader
+                operation whose only feedback was the table's own contents
+                changing silently below the fold. */}
+            <span className="ws-pane__note" role="status" aria-live="polite">
               Showing {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.page_size + 1}
               {" "}to {Math.min(pagination.page * pagination.page_size, pagination.total)} of {pagination.total} contracts
             </span>
@@ -931,10 +1122,13 @@ function EditContractDialog({
     }
   }
 
+  /* No scrim-click dismissal on THIS dialog (2026-09-08), unlike the two
+     confirmations below. It is a form: a stray click beside it discarded a
+     half-typed name, a corrected document type and three declared version
+     facts with no warning and no undo. Escape and Cancel are both still here,
+     and both are deliberate gestures. */
   return (
-    <div className="ws-modal" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
+    <div className="ws-modal">
       <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
            aria-labelledby="ws-edit-title" tabIndex={-1}
            onKeyDown={(e) => {
@@ -1178,6 +1372,15 @@ function TransferContractDialog({
         {members && members.department === null ? (
           <p className="ws-field__error" role="alert">
             Your account is not in a department, so there is nobody to transfer to.
+          </p>
+        ) : null}
+        {/* A department of one (2026-09-08). Without this the reader got a
+            select holding nothing but its own placeholder and a permanently
+            disabled Transfer button, with no statement of why. */}
+        {members && members.department !== null && eligible.length === 0 ? (
+          <p className="ws-field__error" role="alert">
+            You are the only member of {members.department.name}, so there is nobody
+            to transfer this to yet.
           </p>
         ) : null}
         <label className="ws-field">

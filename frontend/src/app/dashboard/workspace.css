@@ -125,7 +125,13 @@
   line-height: 1.5;
   color: var(--ws-ink-900);
   background: var(--ws-paper);
+  /* `dvh` after `vh` (2026-09-08): on a phone, `100vh` is the viewport with the
+     browser's own chrome hidden, so a full-height shell is taller than what is
+     actually on screen and the page starts life scrollable by the height of the
+     address bar. `dvh` is that bar-inclusive height, and the `vh` line stays as
+     the fallback for anything that does not know the unit. */
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -343,14 +349,22 @@
 
 /* Collapsed mode: secondary regions become real tabs. */
 .ws-tabs { display: flex; gap: var(--ws-s1); padding: var(--ws-s2) var(--ws-s4); background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100); }
-.ws-tabs [role="tab"] {
+/* Two kinds of control share this strip. The workspace's real tabs carry
+   `role="tab"` and own a panel each; the Dashboard's scope filter carries
+   `aria-pressed` and re-queries one region (2026-09-08 — it used to claim
+   `role="tab"` for a panel it never had). Both are styled here so the product
+   keeps ONE segmented-control idiom, and the pressed/selected state is
+   whichever attribute the control legitimately uses. */
+.ws-tabs [role="tab"], .ws-tabs [aria-pressed] {
   font: inherit; font-size: var(--ws-text-sm); padding: 6px 12px; min-height: 36px;
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
   background: var(--ws-surface); color: var(--ws-ink-700); cursor: pointer;
   transition: background-color var(--ws-t), border-color var(--ws-t);
 }
-.ws-tabs [role="tab"]:hover[aria-selected="false"] { background: var(--ws-paper); border-color: var(--ws-ink-300); }
-.ws-tabs [role="tab"][aria-selected="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+.ws-tabs [role="tab"]:hover[aria-selected="false"],
+.ws-tabs [aria-pressed="false"]:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); }
+.ws-tabs [role="tab"][aria-selected="true"],
+.ws-tabs [aria-pressed="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
 
 /* --------------------------------------------------------------------------
  * Document area — the clauses card and the document card (DD-9).
@@ -1333,7 +1347,10 @@
   padding: 10px var(--ws-s4); display: flex; flex-direction: column; gap: 4px;
   transition: border-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
-.ws-doctile:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
+/* Only a tile that GOES somewhere responds to the pointer (2026-09-08): three
+   of the four are plain counts, and giving all four a lift-and-brighten hover
+   advertised three controls that do nothing when clicked. */
+.ws-doctile--act:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
 .ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
 .ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
 .ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
@@ -1897,13 +1914,26 @@
    widening the page widens the document name rather than the "Added" date. */
 @media (min-width: 1200px) {
   .ws-docs--index .ws-docs__table table { table-layout: fixed; }
-  .ws-docs--index .ws-docs__table th:nth-child(1) { width: 32%; }
+  .ws-docs--index .ws-docs__table th:nth-child(1) { width: 30%; }
   .ws-docs--index .ws-docs__table th:nth-child(2) { width: 8%; }
   .ws-docs--index .ws-docs__table th:nth-child(3) { width: 13%; }
   .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(5) { width: 13%; }
+  /* Action widened 11% → 14%, the two points coming from Document, which has
+     the slack (2026-09-08). At 11% the cell was 2px narrower than its own
+     contents on the rows whose verb is the longest — "Analyze" — so the ⋯
+     toggle was clipped by the card's `overflow: hidden`, AND the table grew a
+     2px horizontal scroller. That scroller had a second-order consequence
+     worth recording: a click on the toggle made the browser scroll those 2px
+     to reveal it, the scroll dismissed the menu that the same click had just
+     opened, and the row menu became unopenable by pointer on exactly those
+     rows. `dashboard-list.spec.ts` caught it; a 2px overflow is not a
+     cosmetic problem. */
   .ws-docs--index .ws-docs__table th:nth-child(6) { width: 11%; }
-  .ws-docs--index .ws-docs__table th:nth-child(7) { width: 11%; }
+  .ws-docs--index .ws-docs__table th:nth-child(7) { width: 14%; }
+  /* The action pair sets its own tighter gutter: it holds two controls, not a
+     value, and 16px each side is space the controls need more. */
+  .ws-docs--index .ws-docs__table td:nth-child(7) { padding-inline: var(--ws-s3); }
 
   /* A long filename must not force the row taller. It clips to one line with the
      full value on the link's `title`, which is the pattern for an unpredictable
@@ -2003,10 +2033,6 @@
  * shared `.ws-docs` / `.ws-docs__table` / `.ws-pager` selectors also render
  * Reviews, Legal, Ask and Admin, so nothing here may widen to them.
  * ========================================================================== */
-
-/* --- Primary action --------------------------------------------------- */
-/* Upload reads as one button, not a permanently-open form holding the fold. */
-.ws-dash__act { display: flex; justify-content: flex-end; }
 
 /* The disclosure panel. A top border and a flat surface — no shadow: DESIGN.md
    reserves floating-panel depth for real overlays, and this is inline content
@@ -2456,3 +2482,284 @@
   .ws-admin__body { flex-direction: column; }
   .ws-detail { flex: 1 1 auto; width: 100%; max-height: none; }
 }
+
+
+/* ==========================================================================
+ * Dashboard — production-quality audit pass (owner, 2026-09-08, explicit
+ * UX-review request; the 2026-08-31 freeze's own stated exception).
+ *
+ * Every rule below answers something MEASURED in a browser across the twelve
+ * viewports 320×568 → 2560×1440, with forty seeded contracts including
+ * 200-character names and undeclared types — not something inferred from
+ * reading the markup. The measurement is quoted with each fix.
+ *
+ * Scope discipline is unchanged from the blocks above: `.ws-docs--index` and
+ * this page's own classes only, except where a defect is genuinely in a shared
+ * primitive (the modal, the tab strip) and fixing it anywhere else would leave
+ * the same bug on the pages that share it.
+ * ========================================================================== */
+
+/* --- 1. The modal could not be completed on a short viewport ------------- */
+/* MEASURED at 320×568: the Edit dialog rendered with `boxTop: -38` and
+   `boxBottom: 606` in a 568px viewport — its title clipped off the top, "Save
+   changes" 38px below the bottom edge, and NOTHING scrollable, because the
+   overlay is `position: fixed; inset: 0` with `align-items: center` and the box
+   had no height cap. The dialog was not merely ugly, it was impossible to
+   submit. At 1280×600 it measured 587 of 600px: one more field from the same
+   failure, and the Edit dialog grows by three fields whenever the contract has
+   a version to declare.
+
+   The fix is the overlay owning the scroll while the box keeps `margin: auto`.
+   A flex item with auto margins still centres when there is free space, so a
+   short dialog is centred exactly as before and a tall one scrolls — one rule,
+   no sticky-footer machinery, and it fixes every dialog in the product rather
+   than the one this audit happened to open. */
+/* First attempt, and why it was not enough. Scrolling the OVERLAY (`align-items:
+   flex-start` + `margin: auto` + `overflow-y: auto`) is the pattern usually
+   recommended, and re-measuring caught it failing the same way: at 320×568 the
+   box reported `top: 0` against a 24px overlay padding, i.e. auto margins on an
+   overflowing flex item had pulled it back OUT of the scrollable region — the
+   long-standing flexbox overflow trap. The title was reachable, "Save changes"
+   at 650px still was not.
+
+   So the BOX is the scroller instead, capped at the viewport and centred by the
+   overlay exactly as before. Deterministic — no auto-margin interaction at all
+   — and it lets the action row stay put while the fields move, which is better
+   than either version: on the shortest viewport the reader can always see what
+   they are about to confirm. */
+.ws-modal {
+  align-items: center;
+  padding-block: var(--ws-s4);
+  overscroll-behavior: contain;
+}
+.ws-modal__box {
+  max-height: calc(100vh - 2 * var(--ws-s4));
+  max-height: calc(100dvh - 2 * var(--ws-s4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The confirm/cancel pair rides the bottom of the box's own scrollport, so it
+   never scrolls out of reach. The negative margin and padding put its surface
+   flush with the box's padding edge, and the hairline appears only once there
+   is something scrolled under it. */
+.ws-modal__acts {
+  position: sticky; bottom: calc(-1 * var(--ws-s5));
+  margin: var(--ws-s1) calc(-1 * var(--ws-s5)) calc(-1 * var(--ws-s5));
+  padding: var(--ws-s3) var(--ws-s5);
+  background: var(--ws-surface);
+  border-top: 1px solid transparent;
+}
+.ws-modal__box:has(.ws-modal__acts) { scroll-padding-bottom: var(--ws-s7); }
+/* A form's fields are the part that scrolls; the grid gap must not collapse the
+   sticky row's own spacing. */
+.ws-modal__box form { min-height: 0; }
+
+/* --- 2. Touch targets, and the iOS zoom trap ---------------------------- */
+/* MEASURED at every width: the filter selects render 38px tall, `.ws-btn--sm`
+   26–32px, and the ⋯ row toggle 30×30 — all under the 44px minimum for a
+   finger. Raised only where a finger is the likely pointer, so the deliberate
+   desktop density above 900px is untouched.
+
+   The 16px input floor is the other half: iOS Safari zooms the whole page when
+   a focused input's text is smaller than 16px, and every control on this
+   toolbar was 13px. That zoom is what leaves a phone user scrolled sideways
+   inside a page that has no horizontal overflow of its own. */
+@media (max-width: 899px) {
+  .ws-docs--index .ws-doctoolbar__search,
+  .ws-docs--index .ws-doctoolbar__select select,
+  .ws-docs--index .ws-field input,
+  .ws-docs--index .ws-field select,
+  .ws-modal__box input,
+  .ws-modal__box select {
+    min-height: 44px;
+    font-size: var(--ws-text-md);
+  }
+  .ws-docs--index .ws-doctoolbar__search input { font-size: var(--ws-text-md); }
+  .ws-docs--index .ws-btn,
+  .ws-context__acts .ws-btn,
+  .ws-modal__box .ws-btn { min-height: 44px; }
+  .ws-docs--index .ws-pager .ws-btn--sm { min-height: 44px; min-width: 44px; }
+  .ws-docs--index .ws-menu__toggle { min-height: 44px; min-width: 44px; }
+  .ws-menu__item { min-height: 44px; align-items: center; display: flex; }
+}
+/* The ⋯ toggle was a 30px square even with a mouse — small for a control that
+   is the only way to reach Edit, Transfer and Archive. */
+.ws-menu__toggle { min-width: 34px; min-height: 34px; }
+
+/* --- 3. The seven-column row below 900px -------------------------------- */
+/* MEASURED at 320/375/390/430/768: the table's own min-content width is 777px,
+   so it overflowed its card at every one of those widths and the row's action
+   cell sat at x=657–778 — the "Review"/"Analyze" link and the ⋯ menu BOTH off
+   screen, behind a nested horizontal scroller with no scrollbar and no visual
+   cue. At 768px (a tablet held in portrait, an ordinary way to read this page)
+   the ⋯ toggle was still clipped.
+
+   Horizontal scrolling was never a decision here — it is what `overflow-x:
+   auto` does when nobody chose anything. The deliberate strategy is one card
+   per contract, carrying the SAME cells with their own labels: nothing is
+   hidden, nothing is summarised away, and every control lands inside the
+   viewport. 900px is where the table's 777px plus the card and page gutters
+   stop fitting; above it the desktop table is untouched. */
+@media (max-width: 899px) {
+  .ws-docs--index .ws-docs__table table { display: block; width: 100%; }
+
+  /* The header row is the card labels' source, so it is announced rather than
+     drawn — `data-label` below repeats each one in place. */
+  .ws-docs--index .ws-docs__table thead {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+
+  .ws-docs--index .ws-docs__table tbody {
+    display: grid; gap: var(--ws-s3); padding: var(--ws-s3);
+  }
+
+  .ws-docs--index .ws-docs__table tbody tr {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--ws-s2) var(--ws-s4);
+    padding: var(--ws-s3) var(--ws-s4);
+    border: 1px solid var(--ws-ink-100);
+    border-radius: var(--ws-radius);
+    background: var(--ws-surface);
+  }
+  .ws-docs--index .ws-docs__table tbody tr:hover td { background: transparent; }
+  .ws-docs--index .ws-docs__table tbody tr:hover { border-color: var(--ws-ink-300); }
+
+  .ws-docs--index .ws-docs__table td {
+    display: flex; align-items: center; gap: 6px;
+    border: 0; padding: 0; font-size: var(--ws-text-sm);
+  }
+
+  /* The name is the card's title: its own full-width line, wrapping rather
+     than truncating — a card has the room a fixed column does not, and a
+     200-character contract name is exactly the case where an ellipsis costs
+     the reader the part that identifies it. */
+  .ws-docs--index .ws-docs__table td:first-child {
+    flex: 1 0 100%; font-size: var(--ws-text-base); font-weight: 600;
+  }
+  .ws-docs--index .ws-docs__table td:first-child .ws-doc-name { align-items: start; }
+  .ws-docs--index .ws-docs__table td:first-child .ws-doc-name svg { margin-top: 3px; }
+  .ws-docs--index .ws-docs__table td:first-child .ws-doc-name__text {
+    white-space: normal; overflow: visible; text-overflow: clip;
+    overflow-wrap: anywhere;
+  }
+
+  /* Each remaining value states what it is. `attr()` keeps the label in one
+     place — the cell's own `data-label` — so a column can never be renamed in
+     the header and stay stale down here. */
+  .ws-docs--index .ws-docs__table td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--ws-text-xs); font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--ws-ink-500); flex: none;
+  }
+  /* Type and Status are self-describing chips; a label beside them is noise. */
+  .ws-docs--index .ws-docs__table td[data-label="Type"]::before,
+  .ws-docs--index .ws-docs__table td[data-label="Status"]::before { content: none; }
+
+  /* The actions close the card, on their own rule, right-aligned — the same
+     reading order the desktop row has, wrapped. */
+  .ws-docs--index .ws-docs__table td:last-child {
+    flex: 1 0 100%; justify-content: flex-end;
+    margin-top: 2px; padding-top: var(--ws-s2);
+    border-top: 1px solid var(--ws-ink-100);
+  }
+
+  /* The attention cue survives the reshape: a left stripe on the card, the
+     same `--ws-warn` channel the tile and the pill use. A full amber card
+     background at this size read as an error rather than a flag. */
+  .ws-docs--index .ws-docs__table tr.ws-tr--attention {
+    border-left: 3px solid var(--ws-warn);
+    background: var(--ws-warn-soft);
+  }
+  .ws-docs--index .ws-docs__table tr.ws-tr--attention td { background: transparent; }
+}
+
+/* --- 4. The filter toolbar wrapped into three ragged rows --------------- */
+/* MEASURED at 375: search on line one, "Type: All" alone on line two, Status
+   and Show sharing line three, Sort alone on line four — four controls of four
+   different widths staircasing down the card. A two-column grid puts them in
+   two even pairs, and each control fills its cell instead of sizing to its own
+   longest option. */
+@media (max-width: 899px) {
+  .ws-doctable .ws-doctoolbar {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ws-s2);
+  }
+  .ws-docs--index .ws-doctoolbar__search { grid-column: 1 / -1; min-width: 0; }
+  .ws-docs--index .ws-doctoolbar__select { display: flex; min-width: 0; }
+  .ws-docs--index .ws-doctoolbar__select select { width: 100%; }
+}
+/* One column only on the narrowest phones. Re-measuring the two-column rule at
+   375px showed the four selects still stacking one per row — the 439px
+   threshold this replaces caught every common phone width and spent ~210px on
+   filters. Two even pairs cost ~110px, and a native select truncates its own
+   option text from the END, so the part that identifies the filter ("Sort:",
+   "Type:") is the part that survives. Below 360px the pairs would be ~124px,
+   where that truncation starts eating the VALUE as well, so there they stack. */
+@media (max-width: 359px) {
+  .ws-doctable .ws-doctoolbar { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- 5. Four stat tiles took the whole first screen -------------------- */
+/* MEASURED at 375: `minmax(160px, 1fr)` with a 24px gap needs 344px and the
+   content box is 343 — one pixel short, so the row collapsed to a SINGLE
+   column and the four counts spent ~390px of vertical space before the search
+   box began, while 390px wide got two columns. A cliff that steep between two
+   ordinary phone widths is a bug, not a breakpoint: the counts are context,
+   and the table is the page. Narrower minimum and a tighter gap hold 2×2 down
+   to 320px. */
+@media (max-width: 899px) {
+  .ws-doctiles {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: var(--ws-s3);
+  }
+  .ws-docs--index .ws-doctile { min-height: 64px; padding: var(--ws-s3); }
+  .ws-docs--index .ws-doctile__icon { width: 32px; height: 32px; }
+  .ws-docs--index .ws-doctile__n { font-size: 1.4rem; }
+}
+
+/* --- 6. The type-size floor -------------------------------------------- */
+/* The status pill sat at 10px and the tile label at 11.5px — the pill being
+   the single most-read piece of text in the table. 11px is the floor for a
+   tracked-out chip and 12px for anything read as a sentence; the 2026-09-02
+   contrast correction is untouched, this is size only. */
+.ws-status-pill { font-size: 11px; }
+.ws-docs--index .ws-doctile__label { font-size: var(--ws-text-xs); }
+.ws-doctable__foot { font-size: var(--ws-text-xs); }
+
+/* --- 7. A failed refresh is not a failed page -------------------------- */
+/* The error box said "Documents could not be loaded" directly above
+   twenty-five loaded documents (measured: 1 alert, 25 rows). `--warn` is the
+   quieter statement the honest message needs — the rows below it are real. */
+.ws-state--warn {
+  border: 1px solid color-mix(in srgb, var(--ws-warn) 34%, transparent);
+  background: var(--ws-warn-soft);
+  border-radius: var(--ws-radius);
+  padding: var(--ws-s4);
+  display: grid; gap: var(--ws-s2); justify-items: start;
+}
+.ws-state--warn h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; }
+.ws-state--warn p { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+
+/* --- 8. The primary action moved into the page header ------------------ */
+/* It held a row of its own — one right-aligned button spending ~60px of every
+   viewport, which on a 1366×768 laptop is the difference between five and six
+   rows of the table it sits above. `.ws-context` is where the workspace
+   already keeps its page actions. */
+.ws-context__acts .ws-btn { white-space: nowrap; }
+@media (max-width: 620px) {
+  /* Wrapped onto its own line by the header's own `flex-wrap`, it may as well
+     be reachable with a thumb across the full measure. Scoped to
+     `--dash`: `.ws-context__acts` is also the workspace's page-action row
+     (Export/Share in WorkspacePage.tsx), which is not this button and must not
+     stretch. */
+  .ws-context--dash .ws-context__acts { flex: 1 0 100%; }
+  .ws-context--dash .ws-context__acts .ws-btn { width: 100%; }
+}
+
+/* --- 9. The loading skeleton now carries the header row ---------------- */
+/* Six rows, and the real `<thead>`, so the card is the height it will be when
+   the data lands instead of growing by a header plus three rows on first
+   paint. */
+.ws-docs--index .ws-docs__table > table[aria-hidden="true"] { display: table; }
