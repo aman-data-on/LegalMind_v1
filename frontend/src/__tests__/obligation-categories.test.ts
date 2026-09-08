@@ -45,6 +45,23 @@ describe("obligationCategories", () => {
     expect(categories[0]!.title).toBe("Both sides must");
   });
 
+  it("merges the casing and the article the documents actually use", () => {
+    // Every one of these labels is present in the live extraction table.
+    const categories = obligationCategories([
+      g("Receiving Party", 6), g("receiving party", 4), g("The Receiving Party", 1),
+      g("Customer", 2), g("customer", 1),
+      g("Both parties", 2), g("Each party", 1), g("Either Party", 3), g("Party", 1),
+    ]);
+    expect(categories.map((c) => [c.title, c.items.length])).toEqual([
+      ["Both sides must", 7], ["Receiving Party must", 11], ["Customer must", 3],
+    ]);
+  });
+
+  it("starts a lower-case role label with a capital", () => {
+    expect(obligationCategories([g("non-disclosing party", 1)])[0]!.title)
+      .toBe("Non-disclosing party must");
+  });
+
   it("drops an empty group and survives no groups at all", () => {
     expect(obligationCategories([g("Customer", 0)])).toEqual([]);
     expect(obligationCategories([])).toEqual([]);

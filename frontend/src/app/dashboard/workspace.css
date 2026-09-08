@@ -1061,6 +1061,9 @@
   background: none; border: 0; padding: var(--ws-s2) var(--ws-s3);
   text-align: left; cursor: pointer; border-radius: inherit;
 }
+/* The ring sits INSIDE the card: the default 2px offset drew it over the first
+   obligation of the list directly below. */
+.ws-obligations__party:focus-visible { outline-offset: -2px; }
 .ws-obligations__partyname { flex: 1; min-width: 0; }
 .ws-obligations__count {
   font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
@@ -1069,7 +1072,8 @@
 .ws-obligations__chev { display: inline-flex; color: var(--ws-ink-500); }
 .ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ws-obligations__group .ws-obligations__list {
-  padding: 0 var(--ws-s3) var(--ws-s3); animation: ws-obligations-open 140ms ease-out;
+  padding: var(--ws-s1) var(--ws-s3) var(--ws-s3);
+  animation: ws-obligations-open 140ms ease-out;
 }
 /* `display: flex` above out-specifies the UA stylesheet's `[hidden]` rule. */
 .ws-obligations__list[hidden] { display: none; }

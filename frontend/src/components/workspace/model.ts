@@ -728,17 +728,21 @@ export function obligationCategories<T>(
   const rank = { mutual: 0, role: 1, neither: 2 };
   const seen = new Map<string, ObligationCategory<T> & { order: number }>();
   for (const group of groups) {
-    const label = group.party_label.trim().replace(/\s+/g, " ");
-    const bare = label.toLowerCase().replace(/\s*obligations?$/, "").trim();
+    // Real extractions carry every casing and article the documents use —
+    // "Customer"/"customer", "Receiving Party"/"The Receiving Party" — so a
+    // role's identity is its bare lower-case name, which merges those.
+    const label = group.party_label.trim().replace(/\s+/g, " ")
+      .replace(/\s*obligations?$/i, "").replace(/^the\s+/i, "");
+    const bare = label.toLowerCase();
     const kind = /^neither\b/.test(bare)
       ? "neither"
-      : /^(both|each|all|the)?\s*(part(y|ies)|sides?)$/.test(bare)
+      : /^(both|each|either|all)?\s*(part(y|ies)|sides?)$/.test(bare)
         ? "mutual"
         : "role";
     const key = kind === "role" ? `role:${bare}` : kind;
     const title = kind === "neither" ? "Neither side can"
       : kind === "mutual" ? "Both sides must"
-        : `${label.replace(/\s*obligations?$/i, "")} must`;
+        : `${label.charAt(0).toUpperCase()}${label.slice(1)} must`;
     const existing = seen.get(key);
     if (existing) existing.items = existing.items.concat(group.items);
     else seen.set(key, { key, title, items: [...group.items], order: rank[kind] });
