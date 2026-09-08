@@ -20,7 +20,8 @@ import {
   nextStep,
   reasoningSteps,
   requirementTitle,
-  classificationTone,
+  userStatus,
+  constitutionProhibition,
   reviewHeadline,
   sameAsTitle,
   sideOf,
@@ -316,18 +317,33 @@ describe("the Company Standard column reads as an expectation, not a search resu
   });
 });
 
-describe("the classification's tone, for the status mark", () => {
-  it("gives every real classification exactly one of the four tones", () => {
-    expect(classificationTone("MATCH")).toBe("ok");
-    expect(classificationTone("DEVIATION")).toBe("warn");
-    expect(classificationTone("CONFLICT")).toBe("warn");
-    expect(classificationTone("MISSING")).toBe("bad");
-    expect(classificationTone("UNABLE_TO_EVALUATE")).toBe("unknown");
+describe("the three-word user-facing status (owner, 2026-09-08)", () => {
+  const f = (classification: string, evaluations: Array<Partial<Evaluation>> = [{}]) =>
+    ({ classification, evaluations: evaluations as Evaluation[] });
+
+  it("maps the four engine classifications onto exactly two of the three words", () => {
+    expect(userStatus(f("MATCH"))).toBe("ACCEPTED");
+    expect(userStatus(f("DEVIATION"))).toBe("NEEDS_REVIEW");
+    expect(userStatus(f("MISSING"))).toBe("NEEDS_REVIEW");
+    expect(userStatus(f("UNABLE_TO_EVALUATE"))).toBe("NEEDS_REVIEW");
+    expect(userStatus(f("CONFLICT"))).toBe("NEEDS_REVIEW");
   });
 
-  it("falls back to the neutral tone for a value it does not recognise", () => {
-    // Never throws, never guesses ok/warn/bad for something new — "unknown"
-    // is the honest default.
-    expect(classificationTone("SOMETHING_NEW")).toBe("unknown");
+  it("treats an unknown classification as needing review — the honest default", () => {
+    expect(userStatus(f("SOMETHING_NEW"))).toBe("NEEDS_REVIEW");
+  });
+
+  it("never reads an UNACCEPTABLE rule outcome as Not accepted", () => {
+    expect(userStatus(f("DEVIATION", [{ rule_outcome: "UNACCEPTABLE" }]))).toBe("NEEDS_REVIEW");
+    expect(userStatus(f("MISSING", [{ rule_outcome: "UNACCEPTABLE" }]))).toBe("NEEDS_REVIEW");
+  });
+
+  it("is Not accepted only on an explicit, complete Constitution citation", () => {
+    const cited = { section: "9", quote: "Unlimited liability is Unacceptable." };
+    expect(userStatus(f("DEVIATION", [{ constitution_prohibition: cited }]))).toBe("NOT_ACCEPTED");
+    expect(constitutionProhibition(f("DEVIATION", [{}, { constitution_prohibition: cited }]))).toEqual(cited);
+    expect(userStatus(f("DEVIATION", [{ constitution_prohibition: null }]))).toBe("NEEDS_REVIEW");
+    expect(userStatus(f("DEVIATION", [{ constitution_prohibition: { section: "9", quote: "" } }]))).toBe("NEEDS_REVIEW");
+    expect(constitutionProhibition(f("MATCH"))).toBeNull();
   });
 });

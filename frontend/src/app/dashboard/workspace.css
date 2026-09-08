@@ -2868,7 +2868,27 @@
 .ws-finding__mark--ok { background: var(--ws-ok-soft); color: var(--ws-ok); }
 .ws-finding__mark--warn { background: var(--ws-warn-soft); color: var(--ws-warn); }
 .ws-finding__mark--bad { background: var(--ws-bad-soft); color: var(--ws-bad); }
-.ws-finding__mark--unknown { background: var(--ws-paper); color: var(--ws-ink-500); }
+
+/* The three-word status chip (owner, 2026-09-08): the same ok / warn / bad
+   tokens the mark and the Summary tiles already use — one status colour system,
+   and never colour alone: the word is in the chip, the icon in the mark. Sentence
+   case and the sans face: this is the one chip written for a non-lawyer. */
+.ws-chip--status-accepted,
+.ws-chip--status-needs_review,
+.ws-chip--status-not_accepted {
+  font-family: var(--ws-sans, inherit); font-size: var(--ws-text-xs); letter-spacing: 0;
+}
+.ws-chip--status-accepted { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
+.ws-chip--status-needs_review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
+.ws-chip--status-not_accepted { background: var(--ws-bad-soft); color: var(--ws-bad); border-color: color-mix(in srgb, var(--ws-bad) 28%, transparent); }
+
+/* The Constitution citation under a Not accepted — the source is part of the
+   status, so it sits with the lede, quoted, not tucked in the disclosure. */
+.ws-finding__prohibition {
+  margin: 0 0 var(--ws-s3); padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-bad);
+  font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); text-wrap: pretty;
+}
 
 /* The plain sentence under the heading: what the outcome MEANS. Not a chip, not
    a repeat of the enum — the one line a non-lawyer reads first. */

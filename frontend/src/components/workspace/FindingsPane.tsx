@@ -49,7 +49,7 @@ import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import {
   classificationSentence,
-  classificationTone,
+  constitutionProhibition,
   evidenceLocation,
   evidenceNote,
   excerpt,
@@ -60,6 +60,9 @@ import {
   sideOf,
   standardSideOf,
   type Side,
+  type UserStatus,
+  USER_STATUS_LABELS,
+  userStatus,
 } from "./findingLanguage";
 import { requirementHeading, reviewOrder } from "./model";
 import { useHighlight } from "./highlight";
@@ -67,10 +70,9 @@ import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
-type View = "attention" | "all" | { classification: string };
+type View = "attention" | "all" | { classification: string } | { status: UserStatus };
 
 const ATTENTION_OUTCOMES = new Set(["APPROVAL_REQUIRED", "UNACCEPTABLE"]);
-const CALM_CLASSIFICATIONS = new Set(["MATCH"]);
 const CALM_OUTCOMES = new Set(["ACCEPTABLE", "NOT_APPLICABLE"]);
 
 function initialView(): View {
@@ -326,7 +328,15 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
       ? findings
       : effectiveView === "attention"
         ? findings.filter((f) => f.requires_decision)
-        : findings.filter((f) => f.classification === effectiveView.classification));
+        : "status" in effectiveView
+          ? findings.filter((f) => userStatus(f) === effectiveView.status)
+          : findings.filter((f) => f.classification === effectiveView.classification));
+  // The filter row speaks the reader's three-word vocabulary; the classification
+  // view survives only for the `?classification=` deep links from the Summary
+  // tiles and the report, which still name the engine's own words.
+  const statusCounts = (["ACCEPTED", "NEEDS_REVIEW", "NOT_ACCEPTED"] as UserStatus[])
+    .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
+    .filter(({ n }) => n > 0);
 
   return (
     <>
@@ -408,17 +418,15 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               >
                 All ({findings.length})
               </button>
-              {summary.counts.map(({ classification, n }) => (
+              {statusCounts.map(({ status, n }) => (
                 <button
-                  key={classification}
+                  key={status}
                   type="button"
-                  aria-pressed={
-                    typeof effectiveView === "object" &&
-                    effectiveView.classification === classification
-                  }
-                  onClick={() => setView({ classification })}
+                  aria-pressed={typeof effectiveView === "object" && "status" in effectiveView &&
+                    effectiveView.status === status}
+                  onClick={() => setView({ status })}
                 >
-                  {classification} ({n})
+                  {USER_STATUS_LABELS[status]} ({n})
                 </button>
               ))}
             </div>
@@ -465,7 +473,8 @@ export function FindingCard({ finding, onChanged, prepared }: {
   prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
 }) {
   const askIntent = useAskIntent();
-  const calm = CALM_CLASSIFICATIONS.has(finding.classification);
+  const status = userStatus(finding);
+  const prohibition = constitutionProhibition(finding);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   const title = requirementTitle(finding.requirement);
   const meaning = classificationSentence(finding.classification);
@@ -491,16 +500,26 @@ export function FindingCard({ finding, onChanged, prepared }: {
             plus the fourth for "needs a person" — never colour alone, the
             classification chip beside it still carries the word. */}
         <span className="ws-finding__titlewrap">
-          <FindingStatusMark classification={finding.classification} />
+          <FindingStatusMark status={status} />
           <h3 className="ws-finding__title">{title}</h3>
         </span>
-        <span className={`ws-chip${calm ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
-              title="Derived summary of the evaluations below">
-          {classificationLabel(finding.classification)}
+        {/* The three-word status (owner, 2026-09-08): Accepted / Needs review /
+            Not accepted. The engine's own classification moved into "How this
+            was determined" below — unchanged in the data, one click away. */}
+        <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
+              data-status={status}>
+          {USER_STATUS_LABELS[status]}
         </span>
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
       {meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
+      {prohibition ? (
+        // NOT ACCEPTED always shows its source: the Constitution section the
+        // server cited, quoted verbatim. Without this the status is not shown.
+        <p className="ws-finding__prohibition">
+          Legal Constitution §{prohibition.section}: “{prohibition.quote}”
+        </p>
+      ) : null}
       {finding.evaluations.map((evaluation) => (
         <EvaluationCard
           key={evaluation.id}
@@ -529,10 +548,10 @@ export function FindingCard({ finding, onChanged, prepared }: {
 
 /** The finding's status, as an icon in a coloured disc — reuses the existing
  *  icon set (`icons.tsx`) rather than adding a new one; `aria-hidden` because
- *  the classification chip right beside it already carries the word this
- *  icon repeats visually. */
-function FindingStatusMark({ classification }: { classification: string }) {
-  const tone = classificationTone(classification);
+ *  the status chip right beside it already carries the word this icon
+ *  repeats visually. One tone per user-facing status, no fourth. */
+function FindingStatusMark({ status }: { status: UserStatus }) {
+  const tone = status === "ACCEPTED" ? "ok" : status === "NOT_ACCEPTED" ? "bad" : "warn";
   const Icon = tone === "ok" ? IconCheckCircle
     : tone === "bad" ? IconXCircle
     : IconAlertCircle;
@@ -727,6 +746,16 @@ function EvaluationCard({
             LEGAL-02 test (which asserts by count/text, never by position on
             the page) holds exactly as it did. */}
         <dl className="ws-determined__tech">
+          {/* The engine's own word for this result — MATCH / DEVIATION /
+              MISSING / CONFLICT / NEEDS A PERSON — kept verbatim for audit
+              and traceability (rules 11, 12); the card face says Accepted /
+              Needs review / Not accepted instead (owner, 2026-09-08). */}
+          <dt>Classification</dt>
+          <dd>
+            <span className="ws-chip ws-chip--fill ws-chip--classify-fill">
+              {classificationLabel(evaluation.classification)}
+            </span>
+          </dd>
           {finding.requirement.code ? (
             <>
               <dt>Requirement</dt>

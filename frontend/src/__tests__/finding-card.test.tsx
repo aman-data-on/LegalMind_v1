@@ -67,9 +67,13 @@ describe("every classification renders a card a reader can act on", () => {
     it(`${classification} carries the plain sentence and the canonical word`, () => {
       const html = card({ classification }, { classification });
       expect(html).toMatch(sentence);
-      // The chip keeps the canonical vocabulary beside the sentence —
+      // The canonical word survives — inside "How this was determined", never
+      // on the card face (owner, 2026-09-08: three user-facing statuses).
       // UNABLE_TO_EVALUATE renders as its locked label "NEEDS A PERSON".
-      expect(html).toMatch(classification === "UNABLE_TO_EVALUATE" ? /NEEDS A PERSON/ : new RegExp(classification));
+      const { before, inside } = splitAtDetails(html);
+      const word = classification === "UNABLE_TO_EVALUATE" ? /NEEDS A PERSON/ : new RegExp(classification);
+      expect(inside).toMatch(word);
+      expect(before).not.toMatch(word);
       // The title is words, never the identifier repeated as one.
       expect(html).toContain("Residuals");
       expect(html).not.toMatch(/Residuals nda 001/i);
@@ -338,7 +342,9 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     );
     const { before, inside } = splitAtDetails(html);
     expect(before).toMatch(/not enough reliable information/i);
-    expect(before).toMatch(/NEEDS A PERSON/);
+    // The locked word lives in the disclosure now; the face says "Needs review".
+    expect(before).toMatch(/Needs review/);
+    expect(inside).toMatch(/NEEDS A PERSON/);
     expect(before).toMatch(/legal authority needs to review/i);
     // Honest about having nothing to compare — never a guess, never silence.
     expect(before).toMatch(/Not recorded/);
@@ -402,12 +408,14 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
 
 describe("the status mark and the merged three-part comparison (owner, 2026-09-08, fourth pass)", () => {
   it("gives every classification a status mark with the right tone, before any click", () => {
+    // One tone per user-facing status: Accepted ok, Needs review warn, and
+    // "bad" reserved for Not accepted — so MISSING is no longer red on sight.
     const cases: Array<[string, string]> = [
       ["MATCH", "ws-finding__mark--ok"],
       ["DEVIATION", "ws-finding__mark--warn"],
       ["CONFLICT", "ws-finding__mark--warn"],
-      ["MISSING", "ws-finding__mark--bad"],
-      ["UNABLE_TO_EVALUATE", "ws-finding__mark--unknown"],
+      ["MISSING", "ws-finding__mark--warn"],
+      ["UNABLE_TO_EVALUATE", "ws-finding__mark--warn"],
     ];
     for (const [classification, markClass] of cases) {
       const html = card({ classification }, { classification });
@@ -447,5 +455,86 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
     );
     const { before } = splitAtDetails(html);
     expect(before).not.toContain("Next step");
+  });
+});
+
+/**
+ * The three user-facing statuses (owner, 2026-09-08, fifth pass). The four
+ * engine classifications are untouched in the data; the card FACE says one of
+ * three words, and NOT ACCEPTED fires only on an explicit Constitution citation.
+ */
+describe("the three-word status on the card face", () => {
+  const face = (over: Partial<Finding>, evalOver: Partial<Evaluation> = {}) =>
+    splitAtDetails(card(over, evalOver)).before;
+
+  it("maps MATCH to Accepted and every other classification to Needs review", () => {
+    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="ACCEPTED"[^>]*>Accepted</);
+    for (const classification of ["DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const html = face({ classification }, { classification });
+      expect(html, classification).toMatch(/data-status="NEEDS_REVIEW"[^>]*>Needs review</);
+      expect(html, classification).not.toMatch(/Not accepted/);
+    }
+  });
+
+  it("never infers Not accepted from a DEVIATION, a MISSING or an UNACCEPTABLE rule outcome", () => {
+    for (const classification of ["DEVIATION", "MISSING"]) {
+      const html = face(
+        { classification, requires_decision: true },
+        { classification, rule_outcome: "UNACCEPTABLE" },
+      );
+      expect(html, classification).toMatch(/Needs review/);
+      expect(html, classification).not.toMatch(/Not accepted/);
+      // And it does not tell the reader the contract must be modified.
+      expect(html, classification).not.toMatch(/must be (modified|changed|amended)/i);
+    }
+  });
+
+  it("shows Not accepted, with the Constitution citation, only when the server sends one", () => {
+    const html = card(
+      { classification: "DEVIATION", requires_decision: true },
+      {
+        classification: "DEVIATION", rule_outcome: "UNACCEPTABLE",
+        actual_value: { cap_status: "UNLIMITED" }, expected_value: { preferred: 12, unit: "MONTHS" },
+        constitution_prohibition: { section: "9", quote: "Unlimited liability is Unacceptable." },
+      },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).toMatch(/data-status="NOT_ACCEPTED"[^>]*>Not accepted</);
+    expect(before).toContain("ws-finding__mark--bad");
+    expect(before).toMatch(/Legal Constitution §9: “Unlimited liability is Unacceptable\.”/);
+    // The engine's own words are still there, one click away.
+    expect(inside).toMatch(/DEVIATION/);
+    expect(inside).toMatch(/Not acceptable/);
+  });
+
+  it("ignores an empty or null prohibition — an incomplete citation is no citation", () => {
+    const cases: Array<{ section: string; quote: string } | null> =
+      [null, { section: "", quote: "x" }, { section: "9", quote: "" }];
+    for (const prohibition of cases) {
+      const html = face(
+        { classification: "DEVIATION" },
+        { classification: "DEVIATION", constitution_prohibition: prohibition },
+      );
+      expect(html).toMatch(/Needs review/);
+      expect(html).not.toMatch(/Not accepted|Legal Constitution/);
+    }
+  });
+
+  it("keeps every technical field inside the disclosure and off the face", () => {
+    const html = card(
+      { classification: "DEVIATION", requires_decision: true },
+      { classification: "DEVIATION", rule_outcome: "UNACCEPTABLE", operator: "!=",
+        actual_value: { cap_value: 24, cap_unit: "MONTHS" }, expected_value: { preferred: 12, unit: "MONTHS" } },
+    );
+    const { before, inside } = splitAtDetails(html);
+    for (const tech of ["DEVIATION", "RESIDUALS-NDA-001", "PRESENCE-v1", ">!=<", "Not acceptable", "Classification"]) {
+      expect(before, tech).not.toContain(tech);
+      expect(inside, tech).toContain(tech);
+    }
+    // The four reader questions stay on the face.
+    expect(before).toMatch(/Residuals/);
+    expect(before).toMatch(/24 MONTHS/);
+    expect(before).toMatch(/12 MONTHS/);
+    expect(before).toMatch(/Next step/i);
   });
 });

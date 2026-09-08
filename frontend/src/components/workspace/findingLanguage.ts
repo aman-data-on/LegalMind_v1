@@ -84,26 +84,46 @@ export function classificationSentence(classification: string): string | null {
 }
 
 /**
- * The classification, reduced to one of four visual tones — owner request,
- * 2026-09-08 (fourth pass): a leading status mark beside the title, so the
- * card's overall state reads before a single word of it is read. Reuses the
- * SAME three tones `Side`/the Dashboard's status pills already use (rule 12:
- * one status vocabulary, not a second one invented for this mark), plus a
- * fourth for "needs a person" — the classification's own separate meaning
- * from "wrong" (DEVIATION) or "absent" (MISSING).
+ * The status a reader sees — owner instruction, 2026-09-08 (fifth pass): three
+ * words, for a Sales user who has to know in one glance whether anything is
+ * expected of them.
+ *
+ *   ACCEPTED      the Finding is MATCH — matches the company standard.
+ *   NEEDS REVIEW  DEVIATION, MISSING, CONFLICT, UNABLE_TO_EVALUATE — a person
+ *                 must look; it does NOT say the contract must change.
+ *   NOT ACCEPTED  ONLY when the server sends an explicit Constitution
+ *                 prohibition with its citation. Never inferred: a deviation
+ *                 from the standard is not automatically legally unacceptable,
+ *                 and `rule_outcome: UNACCEPTABLE` is the zero-tolerance
+ *                 routing to a human, not a Constitution ruling.
+ *
+ * Presentation only. The four classifications, the Rule Outcomes and the
+ * Finding statuses stay exactly what the API sends; they render inside "How
+ * this was determined". Every surface that shows a Finding's status goes
+ * through this function — one vocabulary (rule 12), never a second one.
  */
-export type ClassificationTone = "ok" | "warn" | "bad" | "unknown";
+export type UserStatus = "ACCEPTED" | "NEEDS_REVIEW" | "NOT_ACCEPTED";
 
-const CLASSIFICATION_TONES: Record<string, ClassificationTone> = {
-  MATCH: "ok",
-  DEVIATION: "warn",
-  CONFLICT: "warn",
-  MISSING: "bad",
-  UNABLE_TO_EVALUATE: "unknown",
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  ACCEPTED: "Accepted",
+  NEEDS_REVIEW: "Needs review",
+  NOT_ACCEPTED: "Not accepted",
 };
 
-export function classificationTone(classification: string): ClassificationTone {
-  return CLASSIFICATION_TONES[classification] ?? "unknown";
+export function userStatus(finding: Pick<Finding, "classification" | "evaluations">): UserStatus {
+  if (constitutionProhibition(finding)) return "NOT_ACCEPTED";
+  return finding.classification === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW";
+}
+
+/** The Constitution citation behind a NOT ACCEPTED, or null. */
+export function constitutionProhibition(
+  finding: Pick<Finding, "evaluations">,
+): { section: string; quote: string } | null {
+  for (const evaluation of finding.evaluations) {
+    const p = evaluation.constitution_prohibition;
+    if (p && p.section && p.quote) return p;
+  }
+  return null;
 }
 
 /**

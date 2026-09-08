@@ -298,6 +298,13 @@ export interface Evaluation {
   comparison?: unknown;
   explanation?: string[];
   legal_rule_version_id?: string | null;
+  /**
+   * Present ONLY when the approved Legal Constitution explicitly establishes
+   * that the contract's position is not acceptable (owner, 2026-09-08). The
+   * server states it with its citation; the UI never derives it from a
+   * DEVIATION, a MISSING or an UNACCEPTABLE rule outcome. Not sent today.
+   */
+  constitution_prohibition?: { section: string; quote: string } | null;
 }
 
 export interface Finding {

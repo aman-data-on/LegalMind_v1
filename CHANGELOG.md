@@ -10,6 +10,41 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — The Finding card speaks three words: Accepted · Needs review · Not accepted (2026-09-08)
+
+Owner instruction: keep the four evaluator states (`MATCH`, `DEVIATION`, `MISSING`,
+`UNABLE_TO_EVALUATE`) exactly as they are for evaluation, audit, evidence and
+traceability, and change ONLY the user-facing presentation to three statuses a
+Sales user reads at a glance. `findingLanguage.userStatus()` is the single
+source: **Accepted** = `MATCH`; **Needs review** = `DEVIATION`, `MISSING`,
+`CONFLICT`, `UNABLE_TO_EVALUATE` (a person must look; the card never says the
+contract must be modified); **Not accepted** ONLY when the server sends an explicit
+Constitution prohibition on the evaluation (new optional `Evaluation.
+constitution_prohibition: {section, quote}`), rendered with its citation under the
+lede. It is never inferred from a deviation, an absence or `rule_outcome:
+UNACCEPTABLE` — the zero-tolerance rule routes to a human; it is not a
+Constitution ruling. **The backend does not send that field yet**, so no live
+card reads Not accepted until Counsel marks which Constitution "Unacceptable
+Position" entries apply and the API carries them — a follow-up, not a defect.
+
+The classification chip left the card face and sits first in "How this was
+determined" beside the requirement code, rule outcome, evaluator, comparison and
+scope. The Findings filter row uses the same three words; the `?classification=`
+deep links from the Summary tiles and the report still work. The status mark has
+one tone per status (ok / warn / bad) — `MISSING` is no longer red on sight.
+Every peer session was told the vocabulary and acknowledged reusing
+`userStatus()`. Tests: finding-card +5 (all four states → three words; no
+inference from UNACCEPTABLE; citation shown; empty citation ignored; technical
+fields off the face), finding-language +4; 288 Vitest green; Findings-related
+browser specs re-run. Verified visually on the e2e stack and a static render of
+all three states.
+
+⚠️ Rule 5 note: the Summary tiles keep the engine's own words under the owner's
+2026-09-01 correction ("never an invented catch-all like Needs review" —
+`workspace.spec.ts` still asserts it). Today's instruction covers the Finding
+card and its list; the two rulings now sit on adjacent surfaces and the owner
+should say whether the tiles follow.
+
 ### Changed — Key Obligations is a single-open accordion in plain language (owner, 2026-09-08)
 
 The permanent side-by-side party columns made the section as tall as the longest
