@@ -1,0 +1,282 @@
+/**
+ * The Finding, in a reader's language (owner request, 2026-09-08).
+ *
+ * Every case here is one the screenshots or the live database actually produced,
+ * and the module's whole job is to be honest about data it did not get. So the
+ * two properties worth pinning are: it says something a non-lawyer can act on
+ * when the data supports it, and it says NOTHING — `null`, or a plain statement
+ * that the value was not recorded — when the data does not. A helper that
+ * guesses a sentence is worse than one that returns null, because the guess
+ * looks authoritative.
+ */
+
+import { describe, expect, it } from "vitest";
+
+import {
+  classificationSentence,
+  evidenceLocation,
+  evidenceNote,
+  excerpt,
+  nextStep,
+  reasoningSteps,
+  requirementTitle,
+  reviewHeadline,
+  sideOf,
+} from "@/components/workspace/findingLanguage";
+import type { Evaluation, Evidence, Finding } from "@/lib/types";
+
+function finding(over: Partial<Finding> = {}): Finding {
+  return {
+    id: "f1",
+    review_id: "r1",
+    requirement: { code: "RESIDUALS-NDA-001", name: "RESIDUALS-NDA-001", version_id: "v1", version_number: 1 },
+    classification: "MISSING",
+    status: "DECISION_REQUIRED",
+    requires_decision: true,
+    escalated: false,
+    evaluations: [],
+    evidence: [],
+    created_at: null,
+    updated_at: null,
+    ...over,
+  } as Finding;
+}
+
+function evaluation(over: Partial<Evaluation> = {}): Evaluation {
+  return {
+    id: "e1",
+    finding_id: "f1",
+    scope_key: "GENERAL",
+    scope_label: null,
+    evaluation_kind: "PRIMARY",
+    classification: "MISSING",
+    actual_value: { presence: "ABSENT" },
+    evaluated_facts: null,
+    evidence_refs: [],
+    diagnostics: [],
+    evaluator_type: "PRESENCE",
+    evaluator_version: "PRESENCE-v1",
+    requires_decision: true,
+    current_decision: null,
+    created_at: null,
+    ...over,
+  } as Evaluation;
+}
+
+describe("the requirement's title", () => {
+  it("parses the code when configuration names the requirement after itself", () => {
+    // The live database: every ratified standard has `name = code`, because
+    // `import_ratified_standards.py` falls back to the code. The old heading
+    // ran that through a generic label helper and produced "Residuals nda 001"
+    // — the document-type token and the sequence number rendered as words.
+    expect(requirementTitle({ code: "RESIDUALS-NDA-001", name: "RESIDUALS-NDA-001" }))
+      .toBe("Residuals");
+    expect(requirementTitle({ code: "CONF-SURVIVAL-NDA-001", name: "CONF-SURVIVAL-NDA-001" }))
+      .toBe("Conf survival");
+    expect(requirementTitle({ code: "EARLY-TERM-RESTRICTION-MSA-001", name: null }))
+      .toBe("Early term restriction");
+  });
+
+  it("prefers a real name whenever configuration carries one", () => {
+    expect(requirementTitle({ code: "X-MSA-001", name: "Liability cap" })).toBe("Liability cap");
+  });
+
+  it("never returns an empty heading", () => {
+    expect(requirementTitle({ code: null, name: null })).toBe("Requirement");
+    expect(requirementTitle(null)).toBe("Requirement");
+    // A code made only of stripped tokens still has to render as something.
+    expect(requirementTitle({ code: "NDA-001", name: "NDA-001" })).toBe("NDA-001");
+  });
+});
+
+describe("what the outcome means, in one sentence", () => {
+  it("puts every classification the engine can produce into words", () => {
+    for (const classification of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const sentence = classificationSentence(classification);
+      expect(sentence, classification).toBeTruthy();
+      // The sentence explains; it never restates the enum at the reader.
+      expect(sentence).not.toContain(classification);
+    }
+  });
+
+  it("returns null rather than inventing a sentence for a value it does not know", () => {
+    expect(classificationSentence("SOMETHING_NEW")).toBeNull();
+  });
+});
+
+describe("what happens next", () => {
+  it("names the person when the server flagged that one is needed", () => {
+    expect(nextStep(finding(), evaluation())).toMatch(/legal authority/i);
+  });
+
+  it("states a recorded decision as settled", () => {
+    const decided = evaluation({
+      requires_decision: false,
+      current_decision: { decision_type: "ACCEPT_DEVIATION" } as never,
+    });
+    expect(nextStep(finding({ requires_decision: false }), decided)).toMatch(/recorded/i);
+  });
+
+  it("reads NOT_APPLICABLE as the fail-closed state it is, not as 'does not apply'", () => {
+    // Locked Step 20 r4: no rule disposes of this, so the deviation stands and
+    // a person decides. "Not applicable" read as "ignore this".
+    const step = nextStep(
+      finding({ requires_decision: false }),
+      evaluation({ requires_decision: false, rule_outcome: "NOT_APPLICABLE" }),
+    );
+    expect(step).toMatch(/a person decides/i);
+  });
+
+  it("says nothing when the outcome is omitted for this caller (LEGAL-02)", () => {
+    // `rule_outcome` is absent without `legal_position.view`. Silence is
+    // correct: a guessed next step would be a legal position by another route.
+    expect(nextStep(finding({ requires_decision: false }), evaluation({ requires_decision: false })))
+      .toBeNull();
+  });
+});
+
+describe("a recorded value as one phrase", () => {
+  it("reads the PRESENCE evaluator's shape", () => {
+    expect(sideOf({ presence: "ABSENT" })).toEqual({ tone: "absent", text: "Not found" });
+    expect(sideOf({ presence: "PRESENT" })).toEqual({ tone: "present", text: "Found" });
+    expect(sideOf({ presence: "INDETERMINATE" })).toEqual({ tone: "unknown", text: "Unclear" });
+  });
+
+  it("reads the numeric evaluator's shape on both sides, keeping the basis verbatim", () => {
+    // Measured shapes. `FEES_PAID` and `FEES_PAID_FOR_AFFECTED_SERVICES` are
+    // NOT interchangeable (45B.4), so the token is never reworded.
+    expect(sideOf({ scope: "GENERAL", cap_unit: "DAYS", cap_basis: "FORCE_MAJEURE", cap_value: 30.0 }))
+      .toEqual({ tone: "value", text: "30 DAYS", detail: "FORCE_MAJEURE" });
+    expect(sideOf({ unit: "YEARS", preferred: 3 }))
+      .toEqual({ tone: "value", text: "3 YEARS" });
+  });
+
+  it("gives a concrete value NO tick — a tick beside a number reads as 'satisfied'", () => {
+    expect(sideOf({ unit: "YEARS", preferred: 3 }).tone).toBe("value");
+  });
+
+  it("reads an unextracted cap as absent, not as zero", () => {
+    expect(sideOf({ cap_status: "ABSENT" })).toEqual({ tone: "absent", text: "Not found" });
+  });
+
+  it("counts conflicting provisions instead of picking one", () => {
+    // Which provision prevails is exactly what the engine could not decide.
+    const side = sideOf({ caps: [{ cap_value: 6 }, { cap_value: null }] });
+    expect(side.text).toBe("2 separate limits stated");
+    expect(side.tone).toBe("unknown");
+  });
+
+  it("says 'not recorded' for null, and never prints JSON at the reader", () => {
+    expect(sideOf(null)).toEqual({ tone: "unknown", text: "Not recorded" });
+    expect(sideOf(undefined)).toEqual({ tone: "unknown", text: "Not recorded" });
+    const odd = sideOf({ something: "unexpected", nested: { a: 1 } });
+    expect(odd.text).not.toContain("{");
+    expect(odd.text).not.toContain("something");
+  });
+});
+
+describe("why this was flagged — the reasoning chain", () => {
+  it("runs Requirement → This document → Company standard → Result", () => {
+    const steps = reasoningSteps(finding(), evaluation({ rule_outcome: "NOT_APPLICABLE", expected_value: { presence: "PRESENT" } }), 0);
+    expect(steps.map((s) => s.label))
+      .toEqual(["Requirement", "This document", "Company standard", "Result"]);
+    expect(steps[1]!.text).toBe("No matching provision was found.");
+    expect(steps[2]!.text).toMatch(/expects this to be present/i);
+    expect(steps[3]!.text).toMatch(/not found in the document/i);
+  });
+
+  it("drops the standard step entirely when it is omitted for this caller", () => {
+    // LEGAL-02 omits `expected_value`; SEC-07 says omit, never null. So the
+    // chain reads Requirement → This document → Result, with no empty row and
+    // no "not available" placeholder standing in for a legal position.
+    const steps = reasoningSteps(finding(), evaluation(), 0);
+    expect(steps.map((s) => s.label)).toEqual(["Requirement", "This document", "Result"]);
+  });
+
+  it("counts the passages it actually has, and says so when it has none", () => {
+    const one = reasoningSteps(finding({ classification: "MATCH" }), evaluation({
+      classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["a"],
+    }), 1);
+    expect(one[1]!.text).toMatch(/1 passage/);
+    const many = reasoningSteps(finding({ classification: "MATCH" }), evaluation({
+      classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["a", "b", "c"],
+    }), 3);
+    expect(many[1]!.text).toMatch(/3 passages/);
+    // Present, but nothing cited — stated plainly rather than implied.
+    const bare = reasoningSteps(finding({ classification: "MATCH" }), evaluation({
+      classification: "MATCH", actual_value: { presence: "PRESENT" },
+    }), 0);
+    expect(bare[1]!.text).toMatch(/no supporting passage/i);
+  });
+
+  it("never renders an empty step, which is what the old explainer did", () => {
+    // The defect this replaces: "How this result was reached" over a bare
+    // numbered list whose items were engine notes — or nothing at all.
+    for (const c of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const steps = reasoningSteps(finding({ classification: c }), evaluation({ classification: c }), 0);
+      for (const step of steps) {
+        expect(step.label.length, c).toBeGreaterThan(0);
+        expect(step.text.trim().length, `${c}/${step.label}`).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe("evidence", () => {
+  function row(over: Partial<Evidence> = {}): Evidence {
+    return {
+      id: "ev1", relationship_type: "PRIMARY", page_number: 3,
+      section_number: "11.2", section_title: "Residuals",
+      content: "The Receiving Party may use Residuals.", source_type: "NATIVE_TEXT",
+      ...over,
+    };
+  }
+
+  it("names where a passage sits, using only the parts that exist", () => {
+    expect(evidenceLocation(row(), 0)).toBe("§11.2 · Residuals · page 3");
+    expect(evidenceLocation(row({ section_number: null, section_title: null }), 0))
+      .toBe("page 3");
+    // Nothing at all still gives the reader a handle, never an empty control.
+    expect(evidenceLocation(row({ section_number: null, section_title: null, page_number: null }), 4))
+      .toBe("Passage 5");
+  });
+
+  it("flags only the reads that affect trust", () => {
+    // `source_type` says HOW the passage was read. Native text says nothing
+    // because there is nothing to say.
+    expect(evidenceNote("NATIVE_TEXT")).toBeNull();
+    expect(evidenceNote("OCR")).toBe("read by OCR");
+    expect(evidenceNote("TABLE")).toBe("from a table");
+  });
+
+  it("cuts a long passage at a boundary, never mid-word", () => {
+    const long = `${"The Receiving Party shall not disclose. ".repeat(20)}End.`;
+    const cut = excerpt(long);
+    expect(cut.length).toBeLessThan(long.length);
+    expect(cut.endsWith("…")).toBe(true);
+    expect(cut).not.toMatch(/\w…$/);        // never a severed word
+    // A short passage is returned whole, so a caller can compare and decide
+    // whether a "show the full passage" control is needed at all.
+    expect(excerpt("Short.")).toBe("Short.");
+  });
+});
+
+describe("the report headline", () => {
+  it("leads with what needs a person, because that is the only actionable count", () => {
+    expect(reviewHeadline({ total: 7, needsDecision: 4, missing: 1, match: 3 }))
+      .toMatch(/^4 points need a person/);
+    expect(reviewHeadline({ total: 7, needsDecision: 1, missing: 1, match: 3 }))
+      .toMatch(/^1 point needs a person/);
+  });
+
+  it("states a clean review as a fact, not as praise or a score", () => {
+    const line = reviewHeadline({ total: 5, needsDecision: 0, missing: 0, match: 5 });
+    expect(line).toMatch(/All 5 requirements checked match/);
+    expect(line).not.toMatch(/\d+%|score|excellent|risk/i);
+  });
+
+  it("does not call an empty analysis an approval", () => {
+    expect(reviewHeadline({ total: 0, needsDecision: 0, missing: 0, match: 0 }))
+      .toMatch(/no ratified requirement/i);
+  });
+});

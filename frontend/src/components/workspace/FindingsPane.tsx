@@ -47,6 +47,17 @@ import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
+import {
+  classificationSentence,
+  evidenceLocation,
+  evidenceNote,
+  excerpt,
+  nextStep,
+  reasoningSteps,
+  requirementTitle,
+  sideOf,
+  type Side,
+} from "./findingLanguage";
 import { requirementHeading, reviewOrder } from "./model";
 import { useHighlight } from "./highlight";
 import { findingsSummary } from "./model";
@@ -449,45 +460,36 @@ function FindingCard({ finding, onChanged, prepared }: {
   const askIntent = useAskIntent();
   const calm = CALM_CLASSIFICATIONS.has(finding.classification);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
+  const title = requirementTitle(finding.requirement);
+  const meaning = classificationSentence(finding.classification);
   return (
     <article
       className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}
       data-finding-id={finding.id}
       tabIndex={-1}
     >
+      {/*
+        * The card answers four questions in reading order (owner, 2026-09-08):
+        * what was checked, what does this document say, what does our standard
+        * expect, and does someone need to act. Everything that answers none of
+        * them — the requirement code, the evaluator version, the comparison
+        * operator, the scope key, the engine's own notes — moved into "How this
+        * was determined" below, where it is one click away and no longer the
+        * loudest text on the card.
+        */}
       <header className="ws-finding__head">
-        {/* The requirement in a lawyer's words, with the code as a quiet
-            reference beside it. Two fixes at once (2026-09-05): the code was
-            the loudest text on the card when it is support-desk material, and
-            where the ratified config gives a requirement the same value for
-            `name` and `code` — which it does — this printed the identifier
-            TWICE, joined by an em dash. */}
-        <h3 className="ws-finding__title">
-          {requirementHeading(finding.requirement)}
-        </h3>
-        {finding.requirement.code && finding.requirement.code !== requirementHeading(finding.requirement) ? (
-          <span className="ws-finding__code ws-mono">{finding.requirement.code}</span>
-        ) : null}
-        <span className={`ws-chip${calm ? "" : " ws-chip--fill ws-chip--classify-fill"}`} title="Derived summary of the Evaluations below">
+        <h3 className="ws-finding__title">{title}</h3>
+        <span className={`ws-chip${calm ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
+              title="Derived summary of the evaluations below">
           {classificationLabel(finding.classification)}
         </span>
-        {/* The finding's workflow position — a DIFFERENT axis from the
-            evaluation's "Decision required" flag below, and kept as its own
-            value. Quiet text rather than a second filled chip: the actionable
-            one is the flag next to the decision control, and two shouts saying
-            the same thing at the same volume is what made this card noisy. */}
-        <span className="ws-finding__status">{findingStatusLabel(finding.status)}</span>
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
-      {finding.classification === "MISSING" ? (
-        <p className="ws-finding__missing">
-          This requirement is expected for this document type and was not found
-          in the document.
-        </p>
-      ) : null}
+      {meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
       {finding.evaluations.map((evaluation) => (
         <EvaluationCard
           key={evaluation.id}
+          finding={finding}
           evaluation={evaluation}
           evidenceById={evidenceById}
           onChanged={onChanged}
@@ -505,17 +507,51 @@ function FindingCard({ finding, onChanged, prepared }: {
           </button>
         ) : null}
         <EscalateControl finding={finding} onChanged={onChanged} />
+        {/* The requirement code, quiet and last.
+
+            It used to be the loudest text on the card, and moving it into the
+            details block alone went one step too far the other way: a legal
+            reviewer quotes this code in an escalation and a support request
+            starts with it, so it belongs on the face of the card — as the
+            smallest text on it, after the actions, where it informs without
+            competing. `analysis.spec.ts` reads it here too. */}
+        {finding.requirement.code ? (
+          <span className="ws-finding__ref ws-mono">{finding.requirement.code}</span>
+        ) : null}
       </div>
     </article>
   );
 }
 
+/** One side of the comparison: a mark, then a word. The mark is never the only
+ *  signal — the word carries the same fact, so the row survives greyscale,
+ *  colour-blindness and a screen reader (rule 12 / accessibility). */
+function SideValue({ side }: { side: Side }) {
+  // A concrete value gets no mark: a tick beside "6 MONTHS" reads as
+  // "satisfied" when it is only the number the standard states.
+  const mark = side.tone === "present" ? "✓"
+    : side.tone === "absent" ? "✗"
+    : side.tone === "unknown" ? "?" : null;
+  return (
+    <span className={`ws-side ws-side--${side.tone}`}>
+      {mark ? <span className="ws-side__mark" aria-hidden="true">{mark}</span> : null}
+      <span>{side.text}</span>
+      {side.detail ? (
+        // A controlled-vocabulary token, verbatim (45B.4) — never reworded.
+        <span className="ws-side__detail ws-mono">{side.detail}</span>
+      ) : null}
+    </span>
+  );
+}
+
 function EvaluationCard({
   prepared,
+  finding,
   evaluation,
   evidenceById,
   onChanged,
 }: {
+  finding: Finding;
   evaluation: Evaluation;
   evidenceById: Map<string, Evidence>;
   onChanged: () => void;
@@ -529,60 +565,127 @@ function EvaluationCard({
       : false) || evaluation.requires_decision;
   const showDecision = evaluation.requires_decision || evaluation.current_decision !== null;
   const explanation = evaluation.explanation ?? [];
+  const cited = evaluation.evidence_refs
+    .map((id) => evidenceById.get(id))
+    .filter((row): row is Evidence => row !== undefined);
+  const steps = reasoningSteps(finding, evaluation, evaluation.evidence_refs.length);
+  const action = nextStep(finding, evaluation);
+  /* A scope worth naming, or none. Every requirement carries a scope key and
+     most are the placeholder `GENERAL`, which as a heading said nothing while
+     occupying the first line of every evaluation. */
+  const scope = evaluation.scope_label
+    ?? (evaluation.scope_key && evaluation.scope_key !== "GENERAL"
+      ? scopeLabel(evaluation.scope_key) : null);
 
   return (
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>
-      <div className="ws-evaluation__head">
-        <span className="ws-evaluation__scope">
-          {evaluation.scope_label ?? scopeLabel(evaluation.scope_key)}
-        </span>
-        {/* Presence-tested, not permission-tested (52.4) — an omitted field renders nothing. */}
-        {/* `ws-evaluation__outcome` is a STABLE hook, not styling: LEGAL-02 turns
-            on this element being absent for a caller without
-            `legal_position.view` and present for one with it, and the fill
-            classes below appear only for non-calm outcomes — so asserting on
-            them would pass for the wrong reason on an ACCEPTABLE result. */}
-        {evaluation.rule_outcome !== undefined ? (
-          <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
-            {ruleOutcomeLabel(evaluation.rule_outcome)}
-          </span>
-        ) : null}
-        {evaluation.current_decision ? (
-          <span className="ws-chip--fill ws-chip--decision-fill">{evaluation.current_decision.decision_type}</span>
-        ) : attention ? (
-          <span className="ws-chip--flag">Decision required</span>
-        ) : null}
-      </div>
+      {scope || evaluation.rule_outcome !== undefined || evaluation.current_decision || attention ? (
+        <div className="ws-evaluation__head">
+          {scope ? <span className="ws-evaluation__scope">{scope}</span> : null}
+          {/* Presence-tested, not permission-tested (52.4) — an omitted field renders nothing. */}
+          {/* `ws-evaluation__outcome` is a STABLE hook, not styling: LEGAL-02 turns
+              on this element being absent for a caller without
+              `legal_position.view` and present for one with it, and the fill
+              classes below appear only for non-calm outcomes — so asserting on
+              them would pass for the wrong reason on an ACCEPTABLE result. */}
+          {evaluation.rule_outcome !== undefined ? (
+            <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
+              {ruleOutcomeLabel(evaluation.rule_outcome)}
+            </span>
+          ) : null}
+          {evaluation.current_decision ? (
+            <span className="ws-chip--fill ws-chip--decision-fill">{evaluation.current_decision.decision_type}</span>
+          ) : attention ? (
+            <span className="ws-chip--flag">Decision required</span>
+          ) : null}
+        </div>
+      ) : null}
 
-      <dl className="ws-facts">
+      {/*
+        * The comparison, as the two facts a reader came for.
+        *
+        * `.ws-facts` and these two `dt` strings are LEGAL-02's own proof and are
+        * NOT free to rename: `confidentiality.spec.ts` reads the `dt` labels to
+        * assert that "Company Standard" is ABSENT for a caller without
+        * `legal_position.view` and present for one with it. So the labels stay
+        * exactly as they were and only the VALUES changed — from the raw
+        * `ABSENT` / `PRESENT` enums to a mark and a word.
+        *
+        * `Comparison: presence` used to sit here as a third row. It names the
+        * operator the evaluator ran, which is a fact about the engine and not
+        * about the contract; it now lives in the details block below.
+        */}
+      <dl className="ws-facts ws-facts--compare">
         <dt>Found in contract</dt>
-        <dd>{renderValue(evaluation.actual_value)}</dd>
+        <dd><SideValue side={sideOf(evaluation.actual_value)} /></dd>
         {evaluation.expected_value !== undefined ? (
           <>
             <dt>Company Standard</dt>
-            <dd>{renderValue(evaluation.expected_value)}</dd>
-          </>
-        ) : null}
-        {evaluation.operator ? (
-          <>
-            <dt>Comparison</dt>
-            <dd className="ws-mono">{evaluation.operator}</dd>
+            <dd><SideValue side={sideOf(evaluation.expected_value)} /></dd>
           </>
         ) : null}
       </dl>
 
-      {explanation.length > 0 ? (
-        // Rule 12 — the Evidence → Fact → Standard → Rule → Result chain, in
-        // the engine's own words, beside the verdict it explains.
-        <details className="ws-explain">
-          <summary>How this result was reached</summary>
-          <ol>
-            {explanation.map((line, index) => (
-              <li key={index}>{line}</li>
-            ))}
-          </ol>
-        </details>
+      {action ? (
+        <p className="ws-eval__next">
+          <span className="ws-eval__next-label">Next step</span> {action}
+        </p>
       ) : null}
+
+      {/*
+        * "How this was determined" — rule 12's Evidence → Fact → Standard →
+        * Rule → Result chain, first in the reader's language and then in the
+        * engine's own words, with the identifiers last.
+        *
+        * It replaces a `<details>` whose entire content was two engine notes
+        * ("mapping CONFIRMED for RESIDUALS-NDA-001", "absence established by
+        * mapping, not by evaluator inspection") rendered as a bare numbered
+        * list. Those lines are the audit trail and are kept verbatim — they are
+        * simply no longer the whole answer.
+        */}
+      <details className="ws-determined">
+        <summary>How this was determined</summary>
+        <ol className="ws-determined__steps">
+          {steps.map((step) => (
+            <li key={step.label}>
+              <span className="ws-determined__label">{step.label}</span>
+              <span>{step.text}</span>
+            </li>
+          ))}
+        </ol>
+        {explanation.length > 0 ? (
+          // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
+          // travels with `explanation`, which is omitted for a caller without
+          // `legal_position.view`, and `confidentiality.spec.ts` asserts the
+          // element is absent for them. Presence-tested, so that holds.
+          <div className="ws-explain">
+            <p className="ws-determined__label">The engine&apos;s own record</p>
+            <ol>
+              {explanation.map((line, index) => (
+                <li key={index}>{line}</li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+        {/* The requirement code is NOT repeated here — it sits on the face of
+            the card, in the action row. Printing it in both places made
+            `getByText` ambiguous and gave the reader the same identifier
+            twice. */}
+        <dl className="ws-determined__tech">
+          <dt>Finding state</dt>
+          <dd>{findingStatusLabel(finding.status)}</dd>
+          <dt>Evaluator</dt>
+          <dd className="ws-mono">{evaluation.evaluator_version}</dd>
+          {evaluation.operator ? (
+            <>
+              <dt>Comparison</dt>
+              <dd className="ws-mono">{evaluation.operator}</dd>
+            </>
+          ) : null}
+          <dt>Scope</dt>
+          <dd className="ws-mono">{evaluation.scope_key}</dd>
+        </dl>
+      </details>
 
       {/*
         * WHICH evaluator produced this, always — 2026-09-04, found by porting
@@ -595,7 +698,8 @@ function EvaluationCard({
         * 45B.10 / AM-19 are explicit that omission removes the legal POSITION and
         * not the audit trail, and an evaluator version is provenance, not a
         * position — so it is rendered unconditionally, beside the scope it
-        * belongs to.
+        * belongs to. `analysis.spec.ts` and `confidentiality.spec.ts` both read
+        * this element, so it keeps its class and its two facts.
         */}
       <p className="ws-evaluation__provenance ws-pane__note ws-mono">
         {evaluation.evaluator_version}
@@ -604,34 +708,27 @@ function EvaluationCard({
         {evaluation.evidence_refs.length === 1 ? "evidence reference" : "evidence references"}
       </p>
 
-      {evaluation.evidence_refs.length > 0 ? (
+      {cited.length > 0 ? (
         <div className="ws-evidence">
-          {evaluation.evidence_refs.map((evidenceId, index) => {
-            const row = evidenceById.get(evidenceId);
-            return (
-              <div key={evidenceId} className="ws-evidence__item">
-                <button
-                  type="button"
-                  className="ws-evidence__loc"
-                  aria-current={target === evidenceId ? "true" : undefined}
-                  onClick={() => point(evidenceId, "the cited")}
-                >
-                  {row
-                    ? [
-                        sectionRef(row.section_number),
-                        row.section_title,
-                        row.page_number != null ? `p.${row.page_number}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || `Evidence ${index + 1}`
-                    : `Evidence ${index + 1}`}
-                </button>
-                {row ? (
-                  <blockquote className="ws-evidence__quote ws-quote">{row.content}</blockquote>
-                ) : null}
-              </div>
-            );
-          })}
+          {/* Always from the document under review — `finding_evidence` holds
+              nothing else — so the heading says so once rather than repeating
+              per passage. `source_type` says how the passage was READ, and only
+              OCR and table extraction are worth a reader's attention. */}
+          <div className="ws-evidence__group">
+            <p className="ws-evidence__source">
+              {cited.length === 1 ? "Quoted from this document"
+                : `Quoted from this document · ${cited.length} passages`}
+            </p>
+            {cited.map((row, index) => (
+              <EvidenceItem
+                key={row.id}
+                row={row}
+                index={index}
+                current={target === row.id}
+                onPoint={() => point(row.id, "the cited")}
+              />
+            ))}
+          </div>
         </div>
       ) : (
         <p className="ws-pane__note">No supporting text was found in the document for this Requirement.</p>
@@ -644,37 +741,39 @@ function EvaluationCard({
   );
 }
 
-function scalar(value: unknown): string {
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return JSON.stringify(value);
-}
-
-/** Values verbatim — presentation only, no interpretation (rule 12: the server's
- *  keys and values, exactly; just never a clipped one-line JSON blob). */
-function renderValue(value: unknown): React.ReactNode {
-  if (value === null || value === undefined) return "Not recorded";
-  if (typeof value === "object" && !Array.isArray(value)) {
-    const entries = Object.entries(value as Record<string, unknown>);
-    // A single-key fact prints its value alone: the row's own label already
-    // says what it is, so "Found in contract: presence ABSENT" was saying
-    // "presence" three times down the column for no added meaning. Multi-key
-    // facts keep their keys — there the key is the distinction (amount vs unit
-    // vs basis), not noise.
-    if (entries.length === 1 && entries[0]) {
-      return <span className="ws-mono">{scalar(entries[0][1])}</span>;
-    }
-    return (
-      <span className="ws-facts__pairs">
-        {Object.entries(value as Record<string, unknown>).map(([key, entry]) => (
-          <span key={key} className="ws-facts__pair">
-            <span className="ws-facts__k">{key}</span>{" "}
-            <span className="ws-mono">{scalar(entry)}</span>
-          </span>
-        ))}
-      </span>
-    );
-  }
-  return scalar(value);
+/** A cited passage: where it is, what it says, and a way into the document at
+ *  that exact spot. A long passage is cut at a sentence boundary with an
+ *  explicit control to see the rest — never silently truncated, and never a
+ *  hover-only reveal. */
+function EvidenceItem({ row, index, current, onPoint }: {
+  row: Evidence; index: number; current: boolean; onPoint: () => void;
+}) {
+  const [full, setFull] = useState(false);
+  const short = excerpt(row.content);
+  const truncated = short !== row.content.trim();
+  const note = evidenceNote(row.source_type);
+  return (
+    <div className="ws-evidence__item">
+      <button
+        type="button"
+        className="ws-evidence__loc"
+        aria-current={current ? "true" : undefined}
+        onClick={onPoint}
+        title="Show this passage in the document"
+      >
+        {evidenceLocation(row, index)}
+      </button>
+      <blockquote className="ws-evidence__quote ws-quote">
+        {full ? row.content.trim() : short}
+      </blockquote>
+      {note ? <p className="ws-evidence__how">{note}</p> : null}
+      {truncated ? (
+        <button type="button" className="ws-evidence__more"
+                aria-expanded={full}
+                onClick={() => setFull((open) => !open)}>
+          {full ? "Show less" : "Show the full passage"}
+        </button>
+      ) : null}
+    </div>
+  );
 }

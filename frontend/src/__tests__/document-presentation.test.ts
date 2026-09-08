@@ -220,3 +220,70 @@ describe("the review loop, both directions (2026-09-05)", () => {
     expect(requirementHeading({ code: null, name: null })).toBe("Requirement");
   });
 });
+
+/**
+ * The Contents, and the paragraphs that were pretending to be headings
+ * (owner's screenshot, 2026-09-08).
+ *
+ * A real NDA's Contents read "AND", "Information", "The information is
+ * independently developed by employees of the…", then §10, §11, §12. The first
+ * three are body text: the parser promotes an unnumbered line to a heading when
+ * the line after it does not begin lowercase, which is true of a party block
+ * and of a definitions paragraph.
+ *
+ * Fixed in the outline rather than in the parser, deliberately — `is_heading`
+ * also feeds the mapping engine and the analysis refusal check, so re-tuning
+ * detection would risk changing legal results to fix a navigation defect.
+ */
+describe("the Contents shows headings, not paragraphs that begin like one", () => {
+  const ev = (over: Partial<EvidenceRow>): EvidenceRow => ({
+    id: "x", document_version_id: "v", page_number: 1,
+    section_number: null, section_title: null, content: "",
+    source_type: "NATIVE_TEXT", start_offset: 0, end_offset: 0, ...over,
+  } as EvidenceRow);
+
+  // The six rows the live document actually produced, verbatim lengths.
+  const real = [
+    ev({ id: "s10", section_number: "10", section_title: "GOVERNING LAW & JURISDICTION",
+         content: "10. GOVERNING LAW & JURISDICTION", is_heading: true }),
+    ev({ id: "s11", section_number: "11", section_title: "NO REPRESENTATIONS",
+         content: "11. NO REPRESENTATIONS", is_heading: true }),
+    ev({ id: "s12", section_number: "12", section_title: "MISCELLANEOUS",
+         content: "12. MISCELLANEOUS", is_heading: true }),
+  ];
+  const false_ = [
+    ev({ id: "and", section_title: "AND", is_heading: true,
+         content: `AND \n${"a company incorporated under the Companies Act ".repeat(16)}` }),
+    ev({ id: "info", section_title: "Information", is_heading: true,
+         content: `Information \n${"Subject to exceptions as stated in clause 3 hereinbelow ".repeat(3)}` }),
+    ev({ id: "dev", section_title: "The information is independently developed by employees of the Receiving",
+         is_heading: true,
+         content: "The information is independently developed by employees of the Receiving \nParty who have not had access to the Confidential Information of the Disclosing Party." }),
+  ];
+
+  it("keeps the three real headings and drops the three paragraphs", () => {
+    expect(outlineOf([...real, ...false_]).map((r) => r.id)).toEqual(["s10", "s11", "s12"]);
+  });
+
+  it("keeps a heading whose title is long, so long titles are not the test", () => {
+    const long = ev({
+      id: "long", section_number: "7",
+      section_title: "RESTRICTION ON EARLY TERMINATION BY THE CUSTOMER FOR CONVENIENCE",
+      content: "7. RESTRICTION ON EARLY TERMINATION BY THE CUSTOMER FOR CONVENIENCE",
+      is_heading: true,
+    });
+    expect(outlineOf([long]).map((r) => r.id)).toEqual(["long"]);
+  });
+
+  it("trusts a heading the parser recorded with no title — an annexure label", () => {
+    const annexure = ev({ id: "anx", content: "Annexure-1", annexure: "Annexure-1", is_heading: true });
+    expect(outlineOf([annexure]).map((r) => r.id)).toEqual(["anx"]);
+  });
+
+  it("still falls back to numbered rows when filtering leaves nothing", () => {
+    // A document whose ONLY heading marks are paragraphs must not lose its
+    // Contents altogether — the numbered rows are the honest fallback.
+    const rows = [...false_, ev({ id: "n", section_number: "3", section_title: "Term" })];
+    expect(outlineOf(rows).map((r) => r.id)).toEqual(["n"]);
+  });
+});

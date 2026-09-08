@@ -2762,3 +2762,174 @@
   .ws-context--dash .ws-context__acts { flex: 1 0 100%; }
   .ws-context--dash .ws-context__acts .ws-btn { width: 100%; }
 }
+
+
+/* ==========================================================================
+ * The Finding, in a reader's language — owner request, 2026-09-08.
+ *
+ * The card is now four answers in reading order: what was checked, what this
+ * document says, what our standard expects, and who has to act. Everything
+ * that answers none of those — the requirement code, the evaluator version,
+ * the comparison operator, the scope key, the engine's own notes — moved into
+ * "How this was determined". See FindingsPane.tsx; the LEGAL-02 hooks
+ * (`.ws-facts` labels, `.ws-evaluation__outcome`, `.ws-explain`,
+ * `.ws-evaluation__provenance`) are unchanged and still carry their guards.
+ * ========================================================================== */
+
+/* --- The title, which used to render vertically ------------------------- */
+/* THE BUG, from the owner's screenshot: `CONF-SURVIVAL-NDA-001` rendered as a
+   column one or two letters wide — "Co / nf / sur / viv / al / nd / a / 00 / 1".
+   `.ws-finding__title` carried `flex: 1` AND `min-width: 0` AND
+   `overflow-wrap: break-word` in a wrapping flex row that also held a chip, a
+   status and the code. In a 340px pane the title's flex base collapsed to
+   almost nothing, and `break-word` then honoured that by breaking inside every
+   word. Three rules that are each defensible alone.
+
+   The title now owns its own line — it is the card's heading, and a heading
+   sharing a row with three chips was what created the pressure. Words no
+   longer break at all; a single unbroken token longer than the pane (a
+   requirement code, in practice) may still break, and only then. */
+.ws-finding__title {
+  flex: 1 1 100%;
+  min-width: 0;
+  font-size: var(--ws-text-md);
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: normal;
+  word-break: normal;
+  letter-spacing: -0.005em;
+}
+.ws-finding__head { align-items: baseline; row-gap: 6px; margin-bottom: 6px; }
+
+/* The plain sentence under the heading: what the outcome MEANS. Not a chip, not
+   a repeat of the enum — the one line a non-lawyer reads first. */
+.ws-finding__lede {
+  margin: 0 0 var(--ws-s3);
+  font-size: var(--ws-text-base);
+  line-height: 1.5;
+  color: var(--ws-ink-700);
+  text-wrap: pretty;
+}
+
+/* --- The comparison ----------------------------------------------------- */
+/* Two facts, aligned, in words. The `dt` strings and the `.ws-facts` class are
+   LEGAL-02's own proof (confidentiality.spec.ts reads them to assert "Company
+   Standard" is absent without `legal_position.view`), so only the values and
+   the presentation changed. */
+.ws-facts--compare {
+  grid-template-columns: max-content 1fr;
+  gap: 6px var(--ws-s4);
+  align-items: baseline;
+  padding: var(--ws-s3);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-paper);
+  margin-bottom: var(--ws-s3);
+}
+.ws-facts--compare dt {
+  font-family: var(--ws-sans);
+  font-size: var(--ws-text-sm);
+  color: var(--ws-ink-500);
+}
+.ws-facts--compare dd { font-size: var(--ws-text-base); }
+
+/* A mark AND a word, always — the mark is a second channel, never the only one
+   (a red tick and a green tick would read identically in greyscale, and a
+   screen reader gets `aria-hidden` on the glyph and the word in the text). */
+.ws-side { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 550; }
+.ws-side__mark { font-weight: 700; }
+.ws-side--present { color: var(--ws-ok); }
+.ws-side--absent { color: var(--ws-bad); }
+.ws-side--unknown { color: var(--ws-ink-500); }
+
+/* --- What happens next -------------------------------------------------- */
+/* The question every reader actually arrived with. Its own line, its own
+   label, above the details rather than inside them. */
+.ws-eval__next {
+  margin: 0 0 var(--ws-s3);
+  font-size: var(--ws-text-base);
+  line-height: 1.5;
+  color: var(--ws-ink-900);
+}
+.ws-eval__next-label {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: var(--ws-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ws-ink-500);
+}
+
+/* --- "How this was determined" ------------------------------------------ */
+/* Collapsed by default, so a reader who trusts the verdict pays nothing and a
+   reviewer who needs the chain is one click away. */
+.ws-determined { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); }
+.ws-determined > summary {
+  cursor: pointer;
+  color: var(--ws-accent);
+  padding: 4px 0;
+  font-size: var(--ws-text-sm);
+}
+.ws-determined > summary:hover { color: var(--ws-accent-strong); }
+.ws-determined__steps {
+  list-style: none;
+  margin: var(--ws-s2) 0;
+  padding: 0 0 0 var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100);
+  display: grid;
+  gap: var(--ws-s2);
+}
+.ws-determined__steps li { display: grid; gap: 1px; }
+.ws-determined__label {
+  margin: 0;
+  font-size: var(--ws-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ws-ink-500);
+}
+.ws-determined__steps li span:last-child { color: var(--ws-ink-900); line-height: 1.45; }
+
+/* The engine's own notes, verbatim — the audit trail, kept and labelled as
+   what it is rather than presented as the explanation. */
+.ws-explain { margin: var(--ws-s3) 0; }
+.ws-explain ol {
+  margin: 4px 0 0; padding-left: 1.3em;
+  color: var(--ws-ink-500); font-size: var(--ws-text-xs); line-height: 1.5;
+}
+
+.ws-determined__tech {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 2px var(--ws-s3); margin: var(--ws-s3) 0 0;
+  font-size: var(--ws-text-xs);
+}
+.ws-determined__tech dt { color: var(--ws-ink-500); }
+.ws-determined__tech dd { margin: 0; color: var(--ws-ink-700); overflow-wrap: anywhere; }
+
+/* --- Evidence ----------------------------------------------------------- */
+/* Grouped and named by source: a passage from this document and a passage from
+   the company's own approved document are different kinds of fact. */
+.ws-evidence__group { display: grid; gap: var(--ws-s2); }
+.ws-evidence__group + .ws-evidence__group { margin-top: var(--ws-s3); }
+.ws-evidence__source {
+  margin: 0;
+  font-size: var(--ws-text-xs); font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ws-ink-500);
+}
+.ws-evidence__more {
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 550;
+  background: none; border: 0; padding: 2px 0;
+  color: var(--ws-accent); cursor: pointer; justify-self: start;
+}
+.ws-evidence__more:hover { text-decoration: underline; }
+.ws-side--value { color: var(--ws-ink-900); }
+.ws-side__detail { font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-weight: 500; }
+.ws-evidence__how { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* The requirement code: available at a glance for the reviewer who quotes it,
+   the smallest thing on the card, pushed to the far end of the action row. */
+.ws-finding__ref {
+  margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-300);
+  align-self: center; overflow-wrap: anywhere;
+}

@@ -70,9 +70,50 @@ export function groupByPage(rows: EvidenceRow[]): PageGroup[] {
  * beats an empty one, and it improves the moment a document is re-uploaded.
  */
 export function outlineOf(rows: EvidenceRow[]): EvidenceRow[] {
-  const headings = rows.filter((row) => row.is_heading);
+  const headings = rows.filter((row) => row.is_heading && isHeadingLine(row));
   if (headings.length > 0) return headings;
-  return rows.filter((row) => row.section_number || row.section_title);
+  // The fallback applies the SAME line test. Without it, a document whose only
+  // heading marks are false ones fell through to here and the paragraphs came
+  // straight back — they carry a `section_title`, which is exactly what the
+  // parser promoted. A numbered row is admitted regardless: a clause reference
+  // is a navigation target whether or not the row is a heading.
+  return rows.filter((row) =>
+    row.section_number || (row.section_title && isHeadingLine(row)));
+}
+
+/**
+ * Whether a heading-marked row is a heading LINE rather than a paragraph whose
+ * first line merely looked like one.
+ *
+ * THE DEFECT (owner's screenshot, 2026-09-08): the Contents of a real NDA read
+ * "AND", "Information", "The information is independently developed by
+ * employees of the…", then §10, §11, §12. The first three are body text.
+ * `parsing._is_unnumbered_heading` promotes an unnumbered line when the line
+ * after it does not begin lowercase — which is true of a party block ("AND"
+ * followed by a company name in capitals) and of a definitions paragraph.
+ *
+ * The fix is HERE and not in the parser on purpose. `is_heading` is not a
+ * presentation flag: `mapping/service.py` feeds it to the mapping engine as
+ * `Clause.is_heading`, and `analysis/service.py` reads it to decide whether a
+ * document is too unsegmented to analyse at all. Re-tuning the parser could
+ * therefore change which provisions map and which documents are refused — a
+ * change to legal results, for a navigation defect. So the outline filters what
+ * it shows and the recorded marker is left exactly as it is.
+ *
+ * The test is a fact about the row, not about this document: a heading is a
+ * line, so its content is its own heading text and nothing more. Measured on
+ * the live rows — the three real headings carry 17, 22 and 32 characters
+ * against titles of 13, 18 and 28; the three false ones carry 159, 187 and 772
+ * characters against titles of 72, 11 and 3. The slack covers the number, its
+ * separator and stray whitespace.
+ */
+function isHeadingLine(row: EvidenceRow): boolean {
+  const title = row.section_title?.trim() ?? "";
+  // A heading the parser recorded with no title at all — an annexure label, in
+  // practice — is trusted: there is no body text to have mistaken it for.
+  if (!title) return true;
+  const number = row.section_number?.trim() ?? "";
+  return row.content.trim().length <= number.length + title.length + 6;
 }
 
 /**
