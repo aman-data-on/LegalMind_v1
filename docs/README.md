@@ -19,7 +19,7 @@
 - [design/UX_CORRECTION_2026-08-31.md](design/UX_CORRECTION_2026-08-31.md) — 📁 the owner-ordered UX/product-model audit behind the upload-first intake and in-flow analysis
 | **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
 | **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
-| Supply the statutes (C-16) — what and how | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |
+| The statute intake (C-16 — ✅ satisfied 2026-09-08; only the Income-tax Act 2025 outstanding) | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |
 | Activate Gemini, step by step | [09-implementation/GEMINI_ACTIVATION_RUNBOOK.md](09-implementation/GEMINI_ACTIVATION_RUNBOOK.md) |
 | Run production operations | [`../ops/README.md`](../ops/README.md) |
 | The new workspace UI plan (Phase 2) | [design/WORKSPACE_UI_PLAN.md](design/WORKSPACE_UI_PLAN.md) |

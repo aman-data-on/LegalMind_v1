@@ -35,6 +35,12 @@ Verified live: NI Act s. 138, BSA s. 63, IT Act s. 43A, Contract Act ss. 73–74
 Arbitration Act s. 29A all answer with Act + section citations. Tests: +3
 (NI §138 on the real file, named-Act ranking, no-space section start). `AM-48`
 appended to `all_lock.md`; C-16 resolved; STATUTE_INTAKE.md marked satisfied.
+`AM-28` Tier-2 gate re-run on the completed corpus: **SHIPPABLE** — wrongly answered
+1/13 (≤ 1), correct refusals 12/13, retained 43/64 (≥ 41), recall@10 0.469 (≥ 0.438),
+hit@1 0.344, faithfulness 1.0, citation precision 1.0, user-visible wrong 0/13.
+Records synchronized after the gate: CLAUDE.md (C-16 resolved; five conflicts open),
+IMPLEMENTATION_STATUS (sync line 17,623; unit 12 A8 built), PROJECT_STATE (blockers),
+docs/README.
 
 ### Changed — The Constitution governs; Ask routes by question shape (AB-14, 2026-09-08)
 
