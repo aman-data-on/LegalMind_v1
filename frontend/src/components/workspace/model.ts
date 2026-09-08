@@ -702,3 +702,49 @@ export function partLabel(row: { annexure?: string }): string | undefined {
   const word = row.annexure?.match(/^[A-Za-z]+/)?.[0];
   return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : undefined;
 }
+
+/**
+ * Key Obligations categories — the accordion rows (owner, 2026-09-08). The
+ * server groups under the document's OWN role labels; this collapses the
+ * mutual ones ("Both Parties", "Parties", "Each Party") into one row and reads
+ * "Neither Party" as the prohibition it is, so a Sales or CS reader gets a
+ * sentence rather than a legal role noun.
+ *
+ * A NAMED role keeps its own label verbatim ("Receiving Party must"). The
+ * requested "Our company must" / "The other party must" split is deliberately
+ * NOT synthesised: nothing in the extraction says which role is us — a mutual
+ * NDA makes both sides the Receiving Party — and guessing would tell a
+ * non-lawyer that an obligation is ours when it is the counterparty's.
+ */
+export interface ObligationCategory<T> {
+  key: string;
+  title: string;
+  items: T[];
+}
+
+export function obligationCategories<T>(
+  groups: Array<{ party_label: string; items: T[] }>,
+): Array<ObligationCategory<T>> {
+  const rank = { mutual: 0, role: 1, neither: 2 };
+  const seen = new Map<string, ObligationCategory<T> & { order: number }>();
+  for (const group of groups) {
+    const label = group.party_label.trim().replace(/\s+/g, " ");
+    const bare = label.toLowerCase().replace(/\s*obligations?$/, "").trim();
+    const kind = /^neither\b/.test(bare)
+      ? "neither"
+      : /^(both|each|all|the)?\s*(part(y|ies)|sides?)$/.test(bare)
+        ? "mutual"
+        : "role";
+    const key = kind === "role" ? `role:${bare}` : kind;
+    const title = kind === "neither" ? "Neither side can"
+      : kind === "mutual" ? "Both sides must"
+        : `${label.replace(/\s*obligations?$/i, "")} must`;
+    const existing = seen.get(key);
+    if (existing) existing.items = existing.items.concat(group.items);
+    else seen.set(key, { key, title, items: [...group.items], order: rank[kind] });
+  }
+  return [...seen.values()]
+    .filter((category) => category.items.length > 0)
+    .sort((a, b) => a.order - b.order)
+    .map(({ key, title, items }) => ({ key, title, items }));
+}

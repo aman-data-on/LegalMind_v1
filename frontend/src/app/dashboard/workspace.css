@@ -1044,11 +1044,42 @@
 .ws-chip--bucket-review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); font-weight: 600; }
 .ws-chip--bucket-missing { background: var(--ws-bad-soft); color: var(--ws-bad); border-color: color-mix(in srgb, var(--ws-bad) 28%, transparent); font-weight: 600; }
 
-/* Key obligations — the document's own role labels, two-up when room allows. */
-.ws-obligations { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--ws-s3); }
-.ws-obligations__group { display: flex; flex-direction: column; gap: var(--ws-s2); min-width: 0; }
-.ws-obligations__party { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+/* Key obligations — a single-open accordion (2026-09-08). Columns made the
+   section as tall as its longest party and left the rest of the row empty. */
+.ws-obligations { display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-obligations__group {
+  min-width: 0; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  transition: border-color var(--ws-t);
+}
+.ws-obligations__group[data-open="true"] { border-color: var(--ws-ink-300); }
+.ws-obligations__party:hover .ws-obligations__chev,
+.ws-obligations__party:hover .ws-obligations__partyname { color: var(--ws-accent); }
+.ws-obligations__party {
+  display: flex; align-items: center; gap: var(--ws-s2); width: 100%;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
+  background: none; border: 0; padding: var(--ws-s2) var(--ws-s3);
+  text-align: left; cursor: pointer; border-radius: inherit;
+}
+.ws-obligations__partyname { flex: 1; min-width: 0; }
+.ws-obligations__count {
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
+  font-variant-numeric: tabular-nums;
+}
+.ws-obligations__chev { display: inline-flex; color: var(--ws-ink-500); }
 .ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ws-obligations__group .ws-obligations__list {
+  padding: 0 var(--ws-s3) var(--ws-s3); animation: ws-obligations-open 140ms ease-out;
+}
+/* `display: flex` above out-specifies the UA stylesheet's `[hidden]` rule. */
+.ws-obligations__list[hidden] { display: none; }
+@keyframes ws-obligations-open {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-obligations__group .ws-obligations__list { animation: none; }
+}
 .ws-obligations__item { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
 .ws-obligations__item .ws-status { margin-top: 2px; }
 .ws-obligations__text { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }

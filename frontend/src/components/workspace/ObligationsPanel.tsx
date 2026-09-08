@@ -7,8 +7,11 @@
  * the text, never a judgment: nothing here says whether an obligation is
  * acceptable, risky or compliant — that is the evaluator's domain.
  *
- * Groups render stacked, not the reference's 2-up grid: this column is the
- * narrowest of the three, and a side-by-side grid would wrap every line.
+ * Categories render as a single-open accordion (owner, 2026-09-08): the
+ * side-by-side columns left one long party's list dictating the height of the
+ * whole section, with the rest of the row empty. `obligationCategories` does
+ * the label work — see its note on why "our side / their side" is not
+ * synthesised from a role label.
  *
  * Flow: read what exists; when nothing was extracted yet, request the
  * extraction once (the server runs it synchronously — the Ask precedent) and
@@ -16,14 +19,15 @@
  * convenience, and their absence blocks nothing.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
 import { api } from "@/lib/api";
-import type { ObligationGroup } from "@/lib/types";
+import type { ObligationGroup, ObligationItem } from "@/lib/types";
 
 import { useHighlight } from "./highlight";
-import { IconCheckCircle } from "./icons";
+import { IconCheckCircle, IconChevronDown, IconChevronUp } from "./icons";
+import { obligationCategories } from "./model";
 
 type Load =
   | { kind: "loading" }
@@ -37,10 +41,14 @@ const OBLIGATIONS_SHOWN = 5;
 export function ObligationsPanel({ documentVersionId }: { documentVersionId: string }) {
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [expanded, setExpanded] = useState(false);
+  /** null = "the first category", the sensible default; "" = the user closed it. */
+  const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setState({ kind: "loading" });
+    setOpen(null);
+    setExpanded(false);
 
     (async () => {
       try {
@@ -69,12 +77,15 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
     };
   }, [documentVersionId]);
 
+  const categories = state.kind === "ready" ? obligationCategories(state.groups) : [];
+  const openKey = open === null ? categories[0]?.key : open;
+  const openCategory = categories.find((category) => category.key === openKey);
+
   return (
     <section className="ws-analysis__section" aria-label="Key obligations">
       <div className="ws-analysis__head">
         <h3 className="ws-analysis__title">Key obligations</h3>
-        {state.kind === "ready" &&
-        state.groups.some((group) => group.items.length > OBLIGATIONS_SHOWN) ? (
+        {openCategory && openCategory.items.length > OBLIGATIONS_SHOWN ? (
           <button type="button" className="ws-viewall" onClick={() => setExpanded((v) => !v)}>
             {expanded ? "Show fewer" : "View all"}
           </button>
@@ -93,12 +104,22 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
           Obligations could not be extracted for this document. Everything else
           here still works.
         </p>
-      ) : state.groups.length === 0 ? (
+      ) : categories.length === 0 ? (
         <p className="ws-pane__note">No party obligations were identified in this document.</p>
       ) : (
         <div className="ws-obligations">
-          {state.groups.map((group) => (
-            <ObligationGroupView key={group.party_label} group={group} expanded={expanded} />
+          {categories.map((category) => (
+            <ObligationCategoryRow
+              key={category.key}
+              title={category.title}
+              items={category.items}
+              open={category.key === openKey}
+              expanded={expanded}
+              onToggle={() => {
+                setExpanded(false);
+                setOpen(category.key === openKey ? "" : category.key);
+              }}
+            />
           ))}
         </div>
       )}
@@ -106,15 +127,35 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
   );
 }
 
-function ObligationGroupView({ group, expanded }: { group: ObligationGroup; expanded: boolean }) {
+function ObligationCategoryRow({
+  title, items, open, expanded, onToggle,
+}: {
+  title: string;
+  items: ObligationItem[];
+  open: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const { point, target } = useHighlight();
-  const items = expanded ? group.items : group.items.slice(0, OBLIGATIONS_SHOWN);
+  const panelId = useId();
+  const shown = expanded ? items : items.slice(0, OBLIGATIONS_SHOWN);
   return (
-    <div className="ws-obligations__group">
-      {/* The document's own role label, verbatim — never a forced "us/them". */}
-      <h4 className="ws-obligations__party">{group.party_label} obligations</h4>
-      <ul className="ws-obligations__list">
-        {items.map((item) => (
+    <div className="ws-obligations__group" data-open={open ? "true" : "false"}>
+      <button
+        type="button"
+        className="ws-obligations__party"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+      >
+        <span className="ws-obligations__partyname">{title}</span>
+        <span className="ws-obligations__count">{items.length}</span>
+        <span className="ws-obligations__chev" aria-hidden="true">
+          {open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+        </span>
+      </button>
+      <ul className="ws-obligations__list" id={panelId} hidden={!open}>
+        {shown.map((item) => (
           <li key={item.id} className="ws-obligations__item">
             <span className="ws-status ws-status--match" aria-hidden="true">
               <IconCheckCircle size={14} />
@@ -136,8 +177,8 @@ function ObligationGroupView({ group, expanded }: { group: ObligationGroup; expa
             )}
           </li>
         ))}
-        {!expanded && group.items.length > OBLIGATIONS_SHOWN ? (
-          <li className="ws-pane__note">+{group.items.length - OBLIGATIONS_SHOWN} more</li>
+        {!expanded && items.length > OBLIGATIONS_SHOWN ? (
+          <li className="ws-pane__note">+{items.length - OBLIGATIONS_SHOWN} more</li>
         ) : null}
       </ul>
     </div>
