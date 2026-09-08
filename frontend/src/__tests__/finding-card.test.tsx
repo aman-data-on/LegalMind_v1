@@ -260,8 +260,8 @@ describe("technical/engineering facts stay off the default-visible card (owner, 
     );
     const { before } = splitAtDetails(html);
     expect(before).toMatch(/Residuals/);                        // what was checked
-    expect(before).toMatch(/24 MONTHS/);                          // what the document says
-    expect(before).toMatch(/6 MONTHS/);                           // what the standard expects
+    expect(before).toMatch(/24 months/);                          // what the document says
+    expect(before).toMatch(/6 months/);                           // what the standard expects
     expect(before).toMatch(/NEXT STEP/i);                         // what to do next
     // And NOT the raw outcome label that used to sit right beside it.
     expect(before).not.toMatch(/Not acceptable/);
@@ -395,8 +395,8 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     );
     const { before, inside } = splitAtDetails(html);
     expect(before).toMatch(/while the company standard expects/i);
-    expect(before).toMatch(/30 DAYS/);
-    expect(before).toMatch(/60 DAYS/);
+    expect(before).toMatch(/30 days/);
+    expect(before).toMatch(/60 days/);
     expect(before).toMatch(/legal authority needs to review/i);
     expect(before).not.toMatch(/Not acceptable/);
     expect(before).not.toMatch(/>!=</);
@@ -549,8 +549,8 @@ describe("the three-word status on the card face", () => {
     expect(html).not.toMatch(/<details[^>]*\sopen/);
     // The four reader questions stay on the face.
     expect(before).toMatch(/Residuals/);
-    expect(before).toMatch(/24 MONTHS/);
-    expect(before).toMatch(/12 MONTHS/);
+    expect(before).toMatch(/24 months/);
+    expect(before).toMatch(/12 months/);
     expect(before).toMatch(/Next step/i);
   });
 });

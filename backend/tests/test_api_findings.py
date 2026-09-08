@@ -304,7 +304,7 @@ def test_an_unlimited_liability_evaluation_carries_the_constitution_citation(
     payload = resp.json()["data"]["evaluations"][0]
     assert payload["constitution_prohibition"] == {
         "section": "9",
-        "quote": "An uncapped/unlimited liability term, or a cap applying to only one party.",
+        "quote": "An uncapped/unlimited liability term […]",
     }
 
 

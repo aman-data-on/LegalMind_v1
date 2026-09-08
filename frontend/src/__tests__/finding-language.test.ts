@@ -73,7 +73,9 @@ describe("the requirement's title", () => {
     expect(requirementTitle({ code: "GOVLAW-NDA-001" })).toBe("Governing law");
     expect(requirementTitle({ code: "CONF-SURVIVAL-MSA-001" })).toBe("Confidentiality survival");
     expect(requirementTitle({ code: "LIAB-CARVEOUTS-MSA-001" })).toBe("Liability carve-outs");
-    expect(requirementTitle({ code: "IP-OWNERSHIP-MSA-001" })).toBe("Ip ownership");
+    expect(requirementTitle({ code: "IP-OWNERSHIP-MSA-001" })).toBe("IP ownership");
+    expect(requirementTitle({ code: "KYC-RETENTION-TOS-001" })).toBe("KYC retention");
+    expect(requirementTitle({ code: "NON-SOLICIT-NDA-001" })).toBe("Non-solicit");
   });
 
   it("parses the code when configuration names the requirement after itself", () => {
@@ -140,8 +142,17 @@ describe("what happens next", () => {
     expect(without).not.toMatch(/rule|applicable/i);
   });
 
+  it("keeps an escalated MATCH pointed at a person — never 'No action is needed' beside a decision flag", () => {
+    const step = nextStep(finding({ classification: "MATCH", requires_decision: true, escalated: true }),
+                          evaluation({ classification: "MATCH", requires_decision: true }));
+    expect(step).toMatch(/escalated/i);
+    expect(step).toMatch(/legal authority/i);
+    expect(step).not.toMatch(/No action/);
+  });
+
   it("gives every classification its own step, and only a MATCH needs nothing", () => {
-    const step = (c: string) => nextStep(finding({ classification: c }), evaluation({ classification: c }));
+    const step = (c: string) => nextStep(finding({ classification: c, requires_decision: c !== "MATCH" }),
+                                         evaluation({ classification: c, requires_decision: c !== "MATCH" }));
     expect(step("MATCH")).toBe("No action is needed.");
     expect(step("DEVIATION")).toMatch(/review this difference/);
     expect(step("MISSING")).toMatch(/decide whether this must be added/);
@@ -174,7 +185,7 @@ describe("the one sentence a Sales reader gets — built from the data, for ever
     expect(findingSentence(
       finding({ requirement: cap, classification: "MATCH" }),
       evaluation({ classification: "MATCH", actual_value: { cap_value: 12, cap_unit: "MONTHS" }, expected_value: { preferred: 12, unit: "MONTHS" } }),
-    )).toBe("The document's liability is 12 MONTHS, which matches the company standard.");
+    )).toBe("The document's liability is 12 months, which matches the company standard.");
     expect(findingSentence(
       finding({ classification: "MATCH" }),
       evaluation({ classification: "MATCH", actual_value: { presence: "PRESENT" }, expected_value: { presence: "PRESENT" } }),
@@ -184,18 +195,18 @@ describe("the one sentence a Sales reader gets — built from the data, for ever
   it("DEVIATION states both values when it has them, and only the contract's when the standard is omitted", () => {
     const both = evaluation({ classification: "DEVIATION", actual_value: { cap_value: 8, cap_unit: "PERCENT_PER_MONTH" }, expected_value: { preferred: 5, unit: "PERCENT_PER_MONTH" } });
     expect(findingSentence(finding({ requirement: { ...cap, code: "LATE-FEE-TOS-001", name: "LATE-FEE-TOS-001" }, classification: "DEVIATION" }), both))
-      .toBe("The document sets late fee at 8 PERCENT_PER_MONTH, while the company standard expects 5 PERCENT_PER_MONTH.");
+      .toBe("The document sets late fee at 8 percent per month, while the company standard expects 5 percent per month.");
     const omitted = evaluation({ classification: "DEVIATION", actual_value: { cap_value: 24, cap_unit: "MONTHS" } });
     delete (omitted as { expected_value?: unknown }).expected_value;
     expect(findingSentence(finding({ requirement: cap, classification: "DEVIATION" }), omitted))
-      .toBe("The document sets liability at 24 MONTHS, which differs from the company standard.");
+      .toBe("The document sets liability at 24 months, which differs from the company standard.");
   });
 
   it("DEVIATION reads an unlimited cap as 'no limit'", () => {
     expect(findingSentence(
       finding({ requirement: cap, classification: "DEVIATION" }),
       evaluation({ classification: "DEVIATION", actual_value: { cap_status: "UNLIMITED" }, expected_value: { preferred: 12, unit: "MONTHS" } }),
-    )).toBe("The document sets no limit on liability, while the company standard expects 12 MONTHS.");
+    )).toBe("The document sets no limit on liability, while the company standard expects 12 months.");
   });
 
   it("MISSING says the standard requires it only when the standard was sent", () => {
@@ -242,9 +253,9 @@ describe("a recorded value as one phrase", () => {
     // Measured shapes. `FEES_PAID` and `FEES_PAID_FOR_AFFECTED_SERVICES` are
     // NOT interchangeable (45B.4), so the token is never reworded.
     expect(sideOf({ scope: "GENERAL", cap_unit: "DAYS", cap_basis: "FORCE_MAJEURE", cap_value: 30.0 }))
-      .toEqual({ tone: "value", text: "30 DAYS", detail: "FORCE_MAJEURE" });
+      .toEqual({ tone: "value", text: "30 days", detail: "FORCE_MAJEURE" });
     expect(sideOf({ unit: "YEARS", preferred: 3 }))
-      .toEqual({ tone: "value", text: "3 YEARS" });
+      .toEqual({ tone: "value", text: "3 years" });
   });
 
   it("gives a concrete value NO tick — a tick beside a number reads as 'satisfied'", () => {

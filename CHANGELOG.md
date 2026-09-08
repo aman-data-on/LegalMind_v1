@@ -52,6 +52,15 @@ operator, scope, and the engine's own record.
   ("The analysis of this clause: DEVIATION · …") and the version comparison's
   finding chip now read the same three words as the card (the comparison DTO
   carries no evaluations, so it can say Accepted / Needs review only).
+* **Peer review fixes (legalmind-v1-2e):** an escalated MATCH no longer reads
+  "No action is needed." beside a decision flag — the server's
+  `requires_decision` wins; acronyms in titles keep their case (`IP ownership`,
+  `KYC retention`, `Non-solicit`); units read as words in the sentence and the
+  columns ("12 months", "8 percent per month" — the `basis` token beside them
+  stays verbatim per 45B.4); and both Constitution citations are trimmed to the
+  limb the check actually tests ("An uncapped/unlimited liability term […]",
+  "A post-termination data-export window shorter than 30 days […]"), so a reader
+  is never shown a condition that was not evaluated.
 * **Document view unchanged** — legalmind-v1-6d's fifth pass (`2557b5f`, the
   owner's own live review) stands: closed by default, findings fill the
   workspace; "Show document" opens it alongside. Verified in the browser:

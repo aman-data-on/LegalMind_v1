@@ -28,10 +28,11 @@ ConstitutionProhibition = dict[str, str]
 _LIABILITY_CODES = {"LIABILITY-MSA-001", "LIABILITY-TOS-001"}
 _RETRIEVAL_CODES = {"DATA-RETRIEVAL-TOS-001"}
 
-_LIABILITY_QUOTE = ("An uncapped/unlimited liability term, or a cap applying "
-                    "to only one party.")
-_RETRIEVAL_QUOTE = ("A post-termination data-export window shorter than 30 "
-                    "days, or billing the customer for that export window.")
+# Each paragraph has two limbs; only the FIRST is checked here (an unlimited
+# cap; a window under 30 days). The citation shows the limb that fired, with
+# the elision marked, so a reader is never told the unchecked limb applied.
+_LIABILITY_QUOTE = "An uncapped/unlimited liability term […]"
+_RETRIEVAL_QUOTE = "A post-termination data-export window shorter than 30 days […]"
 
 
 def constitution_prohibition_for(requirement_code: str | None,

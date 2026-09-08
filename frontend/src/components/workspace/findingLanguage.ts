@@ -53,11 +53,11 @@ const TYPE_CODES = new Set(DOCUMENT_TYPES.map((t) => t.code));
  *  clause); they carry no legal position, so this is presentation, not
  *  configuration. A code that uses none of them is unaffected. */
 const CODE_WORDS: Record<string, string> = {
-  GOVLAW: "Governing law",
-  CONF: "Confidentiality",
-  LIAB: "Liability",
-  TERM: "Termination",
-  AUTORENEW: "Auto-renewal",
+  GOVLAW: "governing law",
+  CONF: "confidentiality",
+  LIAB: "liability",
+  TERM: "termination",
+  AUTORENEW: "auto-renewal",
   IP: "IP",
   KYC: "KYC",
   CARVEOUTS: "carve-outs",
@@ -79,9 +79,11 @@ export function requirementTitle(
     // not meaning. Everything else is the requirement's own words.
     .filter((part) => !/^\d+$/.test(part))
     .filter((part) => !TYPE_CODES.has(part.toUpperCase()))
-    .map((part) => CODE_WORDS[part.toUpperCase()] ?? part);
+    .map((part) => CODE_WORDS[part.toUpperCase()] ?? part.toLowerCase());
   if (words.length === 0) return code;
-  const sentence = words.join(" ").toLowerCase();
+  // "Non" joins its neighbour with a hyphen ("Non-solicit"); everything else
+  // with a space. Acronyms in CODE_WORDS keep their case.
+  const sentence = words.join(" ").replace(/\bNon /g, "Non-");
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
 
@@ -195,7 +197,11 @@ export function nextStep(
   const classification = evaluation?.classification ?? finding.classification;
   switch (classification) {
     case "MATCH":
-      return "No action is needed.";
+      // An escalated MATCH still needs a person (workflow.py clause (d)): the
+      // server's flag wins over the classification's default.
+      return finding.requires_decision || evaluation?.requires_decision
+        ? "This has been escalated. Someone with legal authority needs to review it and record a decision."
+        : "No action is needed.";
     case "DEVIATION":
       return "Someone with legal authority needs to review this difference. Matching the company standard would make it Accepted.";
     case "MISSING":
@@ -326,6 +332,22 @@ const NUMBER_KEYS = ["cap_value", "value", "amount", "preferred"];
 const UNIT_KEYS = ["cap_unit", "unit"];
 const BASIS_KEYS = ["cap_basis", "basis"];
 
+/** A unit enum in the reader's words — "12 months", "1 year", "8 percent per
+ *  month". Units are measurement, not legal position, so this is presentation;
+ *  the `basis` token beside it stays verbatim (45B.4). Unknown units fall back
+ *  to lower-case words. */
+const UNIT_WORDS: Record<string, string> = {
+  MONTHS: "months", YEARS: "years", DAYS: "days", WEEKS: "weeks", HOURS: "hours",
+  PERCENT_PER_MONTH: "percent per month", PERCENT_PER_ANNUM: "percent per year",
+  PERCENT: "percent",
+};
+
+function unitWords(unit: unknown, n: number): string {
+  const raw = String(unit);
+  const words = UNIT_WORDS[raw.toUpperCase()] ?? raw.toLowerCase().replace(/_/g, " ");
+  return n === 1 && /s$/.test(words) && !/percent/.test(words) ? words.slice(0, -1) : words;
+}
+
 function firstOf(record: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
     const found = record[key];
@@ -375,7 +397,8 @@ export function sideOf(value: unknown): Side {
     const basis = firstOf(record, BASIS_KEYS);
     return {
       tone: "value",
-      text: [plain(number), unit].filter((part) => part !== undefined).join(" "),
+      text: [plain(number), unit === undefined ? undefined : unitWords(unit, Number(number))]
+        .filter((part) => part !== undefined).join(" "),
       ...(basis !== undefined ? { detail: String(basis) } : {}),
     };
   }

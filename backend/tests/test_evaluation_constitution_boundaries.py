@@ -13,7 +13,7 @@ def test_unlimited_liability_matches_section_9():
     result = constitution_prohibition_for("LIABILITY-MSA-001", {"cap_status": "UNLIMITED"})
     assert result == {
         "section": "9",
-        "quote": "An uncapped/unlimited liability term, or a cap applying to only one party.",
+        "quote": "An uncapped/unlimited liability term […]",
     }
     assert constitution_prohibition_for("LIABILITY-TOS-001", {"cap_status": "UNLIMITED"}) == result
 
@@ -29,8 +29,7 @@ def test_a_retrieval_window_under_30_days_matches_section_13():
         "DATA-RETRIEVAL-TOS-001", {"cap_value": 15, "cap_unit": "DAYS"},
     ) == {
         "section": "13",
-        "quote": ("A post-termination data-export window shorter than 30 days, "
-                  "or billing the customer for that export window."),
+        "quote": "A post-termination data-export window shorter than 30 days […]",
     }
 
 
