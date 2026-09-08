@@ -7,6 +7,7 @@ import {
   openAsk,
   openFindingsTab,
   openUploadPanel,
+  showDocument,
   storageStatePath,
 } from "./support";
 
@@ -51,8 +52,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
   const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
 
-  // The workspace shows the document; the full findings pane is the side
-  // card's second tab (DD-9), one click away, with Ask pinned below throughout.
+  // The workspace opens on the analysis (2026-09-08: the document no longer
+  // holds the majority of the screen permanently); the document is one
+  // disclosure away, and the full findings pane is the side card's second tab.
+  await showDocument(page);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   await openFindingsTab(page);
   const finding = page.locator("article[data-finding-id]").first();
@@ -118,6 +121,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // Upload the revision through the workspace's own control.
   await page.goto(`/dashboard?id=${v1.contractId}`);
+  await showDocument(page);
   await page.getByRole("button", { name: "Upload a revised version" }).click();
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);

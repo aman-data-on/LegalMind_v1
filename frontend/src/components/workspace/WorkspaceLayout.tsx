@@ -20,11 +20,36 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 
+import { useHighlight } from "./highlight";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 
 export type Region = "document" | "findings" | "analysis";
 type Mode = "wide" | "one";
 type SideTab = "analysis" | "findings";
+
+/**
+ * How the wide workspace divides itself — owner request, 2026-09-08.
+ *
+ * THE PROBLEM. The document held the centre of the screen permanently and the
+ * whole of the analysis lived in a 380px rail beside it (340px below 1440px).
+ * For most of the people who open a review — Sales, Customer Success,
+ * management — the document is not the task: the findings are, and they were
+ * the narrowest thing on screen. It is also why a finding's heading rendered
+ * one letter per line: 380px minus padding is not a column a heading, three
+ * chips and a comparison can share.
+ *
+ * `review` gives the findings the width and keeps the document one click away
+ * with its state intact; `split` is the previous layout, which is the right one
+ * when the job IS reading the document. Two states rather than a resizable
+ * splitter and three named modes: the document already takes the majority in
+ * `split`, so a third "document" mode would only have removed the findings.
+ *
+ * Pointing at evidence switches to `split` on its own (see the effect below) —
+ * a citation click has to end with the passage visible, and asking the reader
+ * to reveal the document first would break the workspace's signature gesture.
+ */
+type Focus = "review" | "split";
+const FOCUS_KEY = "legalmind.workspace.focus";
 
 /*
  * ⚠️ Never "AI Analysis" (renamed 2026-09-01). The default tab is labelled
@@ -74,6 +99,23 @@ export function useSideTabs() {
   return useContext(SideTabCtx);
 }
 
+/**
+ * The reader's own last choice, remembered per browser.
+ *
+ * A layout preference is exactly what `localStorage` is for — it is this
+ * viewer's convenience, it never needs to reach the server, and losing it
+ * costs one click. Every access is guarded: a private window, cleared site
+ * data or a browser set to block storage all throw on read, and the workspace
+ * must render regardless.
+ */
+function storedFocus(): Focus {
+  try {
+    return window.localStorage.getItem(FOCUS_KEY) === "split" ? "split" : "review";
+  } catch {
+    return "review";
+  }
+}
+
 function useMode(): Mode {
   const [mode, setMode] = useState<Mode>("wide");
   useEffect(() => {
@@ -105,6 +147,28 @@ export function WorkspaceLayout({
      showed up as the collapsed layout rendering no tabs at all. */
   const shortcuts = useWorkspaceShortcuts();
   const [tab, setTab] = useState<Region>("document");
+  const [focus, setFocus] = useState<Focus>("review");
+  // Read after mount, never during render: the server has no `localStorage`,
+  // and reading it in a `useState` initialiser is a hydration mismatch.
+  useEffect(() => { setFocus(storedFocus()); }, []);
+  const chooseFocus = useCallback((next: Focus) => {
+    setFocus(next);
+    try {
+      window.localStorage.setItem(FOCUS_KEY, next);
+    } catch {
+      // A viewer who blocks storage keeps the choice for this visit only.
+    }
+  }, []);
+  /* Pointing at evidence reveals the document. `target` is the workspace's one
+     "look at this passage" signal — a citation, an outline entry, a verdict or
+     a `?evidence=` link all set it — so this is the single place that has to
+     answer, rather than every call site remembering to. The finding stays
+     exactly where it is: both panes are mounted in this layout, so nothing is
+     unmounted and nothing is re-fetched. */
+  const { target } = useHighlight();
+  useEffect(() => {
+    if (target) setFocus("split");
+  }, [target]);
   const [sideTab, setSideTab] = useState<SideTab>(initialSideTab);
   const [findingsPoint, setFindingsPoint] = useState<FindingsPoint | null>(null);
   const tabsRef = useRef<HTMLDivElement | null>(null);
@@ -187,12 +251,24 @@ export function WorkspaceLayout({
         * a keyboard affordance rather than dead code.
         */}
       <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-      <div className="ws-workspace ws-workspace--wide" data-mode="wide">
-        <section className="ws-pane ws-pane--document" aria-label="Document" data-region="document">
+      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-focus={focus}>
+        <section
+          className="ws-pane ws-pane--document"
+          aria-label="Document"
+          data-region="document"
+          /* `inert`, not unmounted: the pane keeps its scroll position, its
+             Original/Text choice and its outline state, so revealing it returns
+             the reader to where they were. `hidden` would take it out of the
+             accessibility tree AND stop the scroll-to-evidence gesture from
+             finding its rows, so the CSS hides it and `inert` keeps it out of
+             the tab order while it is not shown. */
+          inert={focus === "review" ? true : undefined}
+        >
           {document}
         </section>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
-          <div className="ws-side__tabs" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
+          <div className="ws-side__tabs">
+            <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
             {sideTabs.map((which, index) => (
               <button
                 key={which}
@@ -208,6 +284,19 @@ export function WorkspaceLayout({
                 {LABEL[which]}
               </button>
             ))}
+            </div>
+            {/* The document, on request. A real toggle rather than a third tab:
+                the document is not a view OF the analysis, it is the thing the
+                analysis is about, and in `split` both are on screen at once —
+                which no tab set can express. */}
+            <button
+              type="button"
+              className="ws-side__doctoggle"
+              aria-pressed={focus === "split"}
+              onClick={() => chooseFocus(focus === "split" ? "review" : "split")}
+            >
+              {focus === "split" ? "Hide document" : "Show document"}
+            </button>
           </div>
           <div
             className="ws-side__panel"

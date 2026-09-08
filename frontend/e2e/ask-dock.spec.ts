@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-import { askSend, createAnalysedReview, csrfToken, fixture, openAsk, storageStatePath } from "./support";
+import { askSend, createAnalysedReview, csrfToken, fixture, openAsk, showDocument, storageStatePath } from "./support";
 
 /** Signed in as `owner` — USER and nothing else. Every assertion below is
  *  therefore what an ORDINARY user meets, not what an administrator meets. */
@@ -61,6 +61,7 @@ test.describe("Ask is a floating secondary tool", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     const launcher = page.getByRole("button", { name: /Ask about this document/i });
     await expect(launcher).toBeVisible();
@@ -118,6 +119,7 @@ test.describe("Ask is a floating secondary tool", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     await page.getByRole("button", { name: /Ask about this document/i }).click();
 
     // Not a modal: the document is still visible and its outline still clickable,

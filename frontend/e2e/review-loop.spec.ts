@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, openFindingsTab, storageStatePath } from "./support";
+import { createAnalysedReview, openFindingsTab, showDocument, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -19,6 +19,7 @@ test.use({ storageState: storageStatePath("owner") });
 test("a citation keeps the reader in the view they are reading", async ({ page }) => {
   const { contractId } = await createAnalysedReview(page);
   await page.goto(`/dashboard?id=${contractId}`);
+  await showDocument(page);
   const doc = page.locator('[data-region="document"]');
   await expect(doc.locator(".ws-row").first()).toBeVisible();
 
@@ -35,6 +36,7 @@ test("a citation keeps the reader in the view they are reading", async ({ page }
 test("a clause carries the way back to the finding that cites it", async ({ page }) => {
   const { contractId } = await createAnalysedReview(page);
   await page.goto(`/dashboard?id=${contractId}`);
+  await showDocument(page);
   const doc = page.locator('[data-region="document"]');
 
   // Reverse link: the clause the analysis cited names its finding.
@@ -70,6 +72,7 @@ test("a clause carries the way back to the finding that cites it", async ({ page
 test("a clause with no finding offers no reverse link at all", async ({ page }) => {
   const { contractId } = await createAnalysedReview(page, { analyse: false });
   await page.goto(`/dashboard?id=${contractId}`);
+  await showDocument(page);
   const doc = page.locator('[data-region="document"]');
   await expect(doc.locator(".ws-row").first()).toBeVisible();
   // No analysis has run, so nothing cites anything. The honest state is an

@@ -2933,3 +2933,79 @@
   margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-300);
   align-self: center; overflow-wrap: anywhere;
 }
+
+
+/* ==========================================================================
+ * The workspace divides itself two ways — owner request, 2026-09-08.
+ *
+ * The document used to hold the centre of the screen permanently while the
+ * whole analysis lived in a 380px rail beside it (340px below 1440px). For
+ * most people who open a review the document is not the task — the findings
+ * are, and they were the narrowest thing on screen. It is also the mechanical
+ * cause of the heading that rendered one letter per line: 380px minus padding
+ * is not a column a heading, three chips and a comparison can share.
+ *
+ * `review` (the default) gives the analysis the width; `split` is the previous
+ * layout, one click away, for when the job IS reading the document. See
+ * WorkspaceLayout.tsx — pointing at any evidence switches to `split` by
+ * itself, and both panes stay mounted either way, so nothing is lost.
+ * ========================================================================== */
+.ws-workspace--wide[data-focus="review"] { grid-template-columns: minmax(0, 1fr); }
+.ws-workspace--wide[data-focus="review"] .ws-pane--document { display: none; }
+.ws-workspace--wide[data-focus="split"] {
+  grid-template-columns: minmax(0, 1fr) var(--ws-side-w);
+}
+
+/* Findings read at a measure, not at whatever width the monitor happens to be:
+   past roughly 90 characters a line is measurably harder to track, and this
+   pane is now the widest thing on a 2560px display. The card keeps the full
+   width — the CONTENT inside it is what gets the measure. */
+.ws-workspace--wide[data-focus="review"] .ws-side__panel > * {
+  width: 100%; max-width: 64rem; margin-inline: auto;
+}
+
+/* The tab row now carries the document toggle at its far end. */
+.ws-side__tabs { justify-content: space-between; align-items: center; }
+.ws-side__tablist { display: flex; gap: var(--ws-s1); }
+.ws-side__doctoggle {
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  margin: 0 var(--ws-s2) var(--ws-s2);
+  padding: 6px 11px; min-height: 32px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-700); cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--ws-t), color var(--ws-t), background-color var(--ws-t);
+}
+.ws-side__doctoggle:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); }
+.ws-side__doctoggle[aria-pressed="true"] {
+  background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: #fff;
+}
+
+/* The finding card has room now, so it can use it: the comparison sits beside
+   the reasoning rather than under it once there is width for two columns. */
+@media (min-width: 1100px) {
+  .ws-workspace--wide[data-focus="review"] .ws-facts--compare {
+    grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
+  }
+}
+
+/* --- The comparison in the 380px rail ----------------------------------- */
+/* Re-measured in `split`, where the analysis is back in its narrow rail: the
+   comparison read "24 / months" over two lines and the basis token broke as
+   "BASIS_F / EES". The mid-word break comes from `.ws-facts dd {
+   overflow-wrap: anywhere }`, which is right for an unpredictable value in a
+   fixed table column and wrong for a controlled-vocabulary token that must
+   stay readable as one word. So in the rail the two facts stack — label above
+   value — and the value keeps its words whole, wrapping onto its own line
+   instead. */
+.ws-workspace--wide[data-focus="split"] .ws-facts--compare {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+.ws-workspace--wide[data-focus="split"] .ws-facts--compare dt { margin-top: 4px; }
+.ws-workspace--wide[data-focus="split"] .ws-facts--compare dt:first-child { margin-top: 0; }
+.ws-facts--compare dd { overflow-wrap: normal; }
+.ws-side { flex-wrap: wrap; }
+/* A long token still has to fit SOMETHING: allowed to break only when it alone
+   is wider than the rail, which is the one case where clipping is worse. */
+.ws-side__detail { overflow-wrap: break-word; }

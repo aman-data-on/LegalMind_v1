@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { csrfToken, postOk, storageStatePath } from "./support";
+import { csrfToken, postOk, showDocument, storageStatePath } from "./support";
 
 /** Signed in as `owner` — USER and nothing else. */
 test.use({ storageState: storageStatePath("owner") });
@@ -78,6 +78,7 @@ test.describe("the Original document view", () => {
   }) => {
     const contractId = await uploadPdfContract(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     // The toggle exists, and Original is the default for a PDF.
     const original = page.getByRole("button", { name: "Original" });
@@ -106,6 +107,7 @@ test.describe("the Original document view", () => {
   }) => {
     const contractId = await uploadPdfContract(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     await expect(page.locator(".ws-original")).toHaveAttribute("src", /^blob:/);
 
     /*
@@ -141,6 +143,7 @@ test.describe("the Original document view", () => {
     const { createAnalysedReview } = await import("./support");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     await expect(page.locator(".ws-text")).toBeVisible();
     await expect(page.locator(".ws-viewtoggle")).toHaveCount(0);

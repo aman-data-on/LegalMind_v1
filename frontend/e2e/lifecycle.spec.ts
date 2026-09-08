@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { csrfToken, fixture, postOk, snapshotId, storageStatePath } from "./support";
+import { csrfToken, fixture, postOk, showDocument, snapshotId, storageStatePath } from "./support";
 
 /**
  * Two lifecycle facts a document can now carry (2026-09-06).
@@ -39,6 +39,7 @@ test("a version is re-read in place only while nothing relies on it", async ({ p
 
   // The workspace offers the re-read while no Review exists, and the pane reloads.
   await page.goto(`/dashboard?id=${contractId}`);
+  await showDocument(page);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   await page.getByRole("button", { name: "Re-read with the current parser" }).click();
   await expect(page.getByRole("status").filter({ hasText: /Re-read:/ }))

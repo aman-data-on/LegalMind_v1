@@ -211,6 +211,37 @@ export async function openUploadPanel(page: Page): Promise<void> {
   await input.waitFor({ state: "attached", timeout: 15_000 });
 }
 
+/**
+ * Reveal the document pane in the wide workspace.
+ *
+ * The workspace divides itself two ways since 2026-09-08 (owner request): the
+ * default gives the analysis the width and the document is one click away, in
+ * `split`. Same class of change as the upload disclosure that `openUploadPanel`
+ * exists for — a spec that asserts on document internals has to disclose the
+ * document first, and reaching past the control would test a state a reader
+ * never sees.
+ *
+ * Idempotent, and a no-op in narrow mode, where the document is a top-level tab
+ * rather than a pane beside the analysis.
+ */
+export async function showDocument(page: Page): Promise<void> {
+  // WAIT for the control before deciding it is absent. A first version checked
+  // `count() === 0` straight after `goto` and returned silently every time —
+  // the workspace had not rendered yet, so every caller carried on with the
+  // document still hidden and failed ten seconds later on an assertion that
+  // looked unrelated. Same trap `openAsk` documents.
+  const toggle = page.locator(".ws-side__doctoggle");
+  try {
+    await toggle.waitFor({ state: "visible", timeout: 15_000 });
+  } catch {
+    return;   // narrow mode (the document is a top-level tab), or no workspace
+  }
+  if ((await toggle.getAttribute("aria-pressed")) === "true") return;   // already shown
+  await toggle.click();
+  await page.locator('[data-region="document"]').first()
+    .waitFor({ state: "visible", timeout: 15_000 });
+}
+
 export async function openFindingsTab(page: Page): Promise<void> {
   const tab = page.getByRole("tab", { name: "Findings" });
   await tab.waitFor({ state: "visible", timeout: 15_000 });

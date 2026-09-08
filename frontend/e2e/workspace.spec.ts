@@ -8,6 +8,7 @@ import {
   openAsk,
   openFindingsTab,
   openUploadPanel,
+  showDocument,
   storageStatePath,
 } from "./support";
 
@@ -28,6 +29,7 @@ test.describe("the document pane", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     // The new shell, not the legacy chrome.
     await expect(page.locator(".ws-shell")).toBeVisible();
@@ -62,6 +64,7 @@ test.describe("the document pane", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
 
@@ -81,6 +84,7 @@ test.describe("the document pane", () => {
   test("a shared link lands on the exact row", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     const targetId = await doc.locator(".ws-row").last().getAttribute("data-evidence-id");
@@ -109,6 +113,7 @@ test.describe("the document pane", () => {
 
     await page.setInputFiles('input[type="file"]', f.document.path);
     await page.getByRole("button", { name: "Upload" }).click();
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   });
 
@@ -238,9 +243,12 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     await select.selectOption("NDA");
     await page.getByRole("button", { name: "Confirm & Analyze" }).click();
 
-    // One act lands in the workspace with the document there — no empty-record
-    // detour, no "No document uploaded yet".
+    // One act lands in the workspace with the document THERE — mounted and one
+    // disclosure away, never an empty-record detour and never "No document
+    // uploaded yet". Since 2026-09-08 the workspace opens on the analysis, so
+    // the document is disclosed rather than already filling the screen.
     await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     await expect(page.locator(".ws-context")).toContainText("NDA");
   });
@@ -447,6 +455,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     // The fixture analysis yields a DEVIATION, so at least one outline row is
     // marked needs-review. Every marker is one of the three DD-9 buckets and
@@ -464,6 +473,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 700 });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
     // Scroll the document pane to its end — Ask must still be reachable without
