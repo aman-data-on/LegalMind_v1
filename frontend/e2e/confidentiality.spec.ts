@@ -91,8 +91,8 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
     await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
     const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
-    expect(labels).toContain("Found in contract");     // the contract's own value
-    expect(labels).not.toContain("Company Standard");  // an internal position
+    expect(labels).toContain("Contract");              // the contract's own value
+    expect(labels).not.toContain("Company standard");  // an internal position
     expect(labels).not.toContain("Comparison");
 
     // The scoped Evaluation is still fully identified — omission removes the legal
@@ -154,7 +154,7 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     // than asserting a visibility default the redesign deliberately dropped.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
     const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
-    expect(labels).toContain("Company Standard");
+    expect(labels).toContain("Company standard");
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

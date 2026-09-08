@@ -1264,7 +1264,7 @@
 }
 .ws-finding__acts {
   display: flex; gap: var(--ws-s4); align-items: baseline;
-  margin-top: var(--ws-s2); flex-wrap: wrap;
+  margin-top: 0; flex-wrap: wrap;
 }
 .ws-explain { margin: var(--ws-s2) 0; font-size: var(--ws-text-sm); }
 .ws-explain summary { cursor: pointer; color: var(--ws-accent); }
@@ -2876,7 +2876,11 @@
 .ws-chip--status-accepted,
 .ws-chip--status-needs_review,
 .ws-chip--status-not_accepted {
-  font-family: var(--ws-sans, inherit); font-size: var(--ws-text-xs); letter-spacing: 0;
+  /* Set in capitals per the owner's reference (ACCEPTED · NEEDS REVIEW ·
+     NOT ACCEPTED); the text node stays sentence case so it reads the same
+     to a screen reader and to the tests. */
+  font-family: var(--ws-sans, inherit); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
 }
 .ws-chip--status-accepted { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
 .ws-chip--status-needs_review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
@@ -2900,16 +2904,9 @@
   text-wrap: pretty;
 }
 
-/* The "Needs review" closing line — what to change, and that doing so is
-   enough (owner, 2026-09-08, sixth pass). Quieter than the lede: it is the
-   second sentence, not a second fact. */
-.ws-finding__guidance {
-  margin: 0 0 var(--ws-s3);
-  font-size: var(--ws-text-sm);
-  line-height: 1.5;
-  color: var(--ws-ink-500);
-  text-wrap: pretty;
-}
+/* Evidence inside the disclosure (seventh pass): the same block, indented with
+   the chain below it. */
+.ws-determined > .ws-evidence { margin: var(--ws-s2) 0 var(--ws-s3); }
 
 /* --- The comparison ----------------------------------------------------- */
 /* Two facts, aligned, in words. The `dt` strings and the `.ws-facts` class are

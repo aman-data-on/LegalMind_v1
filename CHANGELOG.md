@@ -10,6 +10,62 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — The Finding card is the four answers and nothing else (2026-09-09, seventh pass)
+
+Owner instruction: the card still read as engineering; a Sales user must get it in
+five seconds. The default-visible card is now exactly: the requirement's name ·
+the three-word status (ACCEPTED / NEEDS REVIEW / NOT ACCEPTED, unchanged model) ·
+one plain sentence · **Contract / Company standard / Next step** · "How this was
+determined ▸", collapsed. Everything else moved INSIDE that disclosure and
+nothing was deleted: the verbatim evidence quotes and their location buttons
+(the highlight gesture is one click away), "Decision required" and a recorded
+decision type (now the Finding state row — same `.ws-chip--flag` element), the
+requirement code, rule outcome, evaluator and evidence count, comparison
+operator, scope, and the engine's own record.
+
+* **`findingSentence()`** — one reusable sentence built from the requirement's
+  title, the classification and the two values, for every requirement type
+  (Residuals is not special-cased anywhere): *"The document does not include
+  residuals, which the company standard requires."* · *"The document sets
+  confidentiality survival at 2 YEARS, while the company standard expects 3
+  YEARS."* · *"The document's liability is 12 MONTHS, which matches the company
+  standard."* · *"There is no approved company standard recorded for governing
+  law, so LegalMind cannot tell whether it is acceptable."* It never explains what
+  a clause means in law (rules 7, 12, 21) and never names the standard's value
+  when `expected_value` is omitted (LEGAL-02).
+* **`nextStep()`** answers by classification, on every card: MATCH "No action is
+  needed."; DEVIATION/MISSING name the person and say, conditionally, what
+  *would* make it Accepted (never an instruction to amend — rule 13); CONFLICT,
+  UNABLE_TO_EVALUATE and Not accepted each have their own; a recorded decision
+  wins. The rule outcome no longer drives it, so the step reads the same with or
+  without `legal_position.view`. The sixth pass's separate guidance line is
+  folded in — nothing is said twice.
+* **Titles** spell out our own code abbreviations (`GOVLAW` → Governing law,
+  `CONF` → Confidentiality, `LIAB` → Liability, `TERM` → Termination …) —
+  naming, not legal content.
+* **Disclosure de-duplicated**: the Result step carries the engine's word
+  ("Recorded as MISSING.") once; the separate Classification row is gone.
+* Labels: "Found in contract" → **Contract**, "Company Standard" → **Company
+  standard** (`confidentiality.spec.ts` updated). Status chip set in capitals by
+  CSS per the owner's reference; the text node stays sentence case.
+* **One vocabulary across the workspace**: the document pane's clause link
+  ("The analysis of this clause: DEVIATION · …") and the version comparison's
+  finding chip now read the same three words as the card (the comparison DTO
+  carries no evaluations, so it can say Accepted / Needs review only).
+* **Document view unchanged** — legalmind-v1-6d's fifth pass (`2557b5f`, the
+  owner's own live review) stands: closed by default, findings fill the
+  workspace; "Show document" opens it alongside. Verified in the browser:
+  closed → open → closed, findings visible throughout.
+
+Tests: finding-language +12 / finding-card +4 (every classification → sentence,
+next step, three-word status; nothing technical on the face for all five
+classifications; evidence verbatim inside the disclosure; disclosure collapsed by
+default; engine word appears once; two vs three `dt`s by permission) — **302
+Vitest**; browser: journey, workspace, confidentiality, gating, review-loop,
+analysis, decision, legal-access, escalation all green (the four evidence-click
+specs now open the disclosure first). All five peer sessions notified; none
+introduces a second status vocabulary.
+
 ### Added — Not accepted is now real for two Constitution boundaries, and Needs review says what closes the gap (2026-09-08, sixth pass)
 
 Owner clarification: (1) a DEVIATION/MISSING/CONFLICT under "Needs review" should

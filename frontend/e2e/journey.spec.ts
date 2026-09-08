@@ -62,7 +62,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(finding).toBeVisible();
   // The face says the reader's word; the engine's word is one click away.
   await expect(finding.locator("[data-status]")).toHaveText("Needs review");
-  await expect(finding.locator(".ws-determined__tech")).toContainText("DEVIATION");
+  await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
@@ -70,8 +70,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(filters.getByRole("button", { name: /^Needs review \(\d+\)$/ })).toBeVisible();
   await filters.getByRole("button", { name: /^Needs review/ }).click();
   await expect(finding).toBeVisible();
-  // …and the drill ends in verbatim text: the cited excerpt sits beside the
-  // finding, and its location button lights the passage in the document.
+  // …and the drill ends in verbatim text: the cited excerpt sits one click
+  // inside "How this was determined" (seventh pass — the face is the four
+  // answers only), and its location button lights the passage in the document.
+  await finding.locator(".ws-determined > summary").first().click();
   await expect(finding.locator(".ws-evidence__quote").first()).toBeVisible();
   await finding.locator(".ws-evidence__loc").first().click();
   await expect(page.locator(".ws-row--lit")).toBeVisible();

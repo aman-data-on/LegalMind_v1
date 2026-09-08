@@ -25,6 +25,7 @@
  */
 
 import { DOCUMENT_TYPES } from "@/lib/documentTypes";
+import { classificationLabel } from "@/lib/labels";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
 
 /** The ten declared document-type codes, as a set — so the title parser below
@@ -47,6 +48,23 @@ const TYPE_CODES = new Set(DOCUMENT_TYPES.map((t) => t.code));
  * whenever configuration starts carrying one, wins outright — this is the
  * fallback, not the preference.
  */
+/** The abbreviations our own requirement codes use, spelt out. These name the
+ *  clause type the way `CLAUSE_CATALOGUE.md` does ("GOVLAW" is the governing-law
+ *  clause); they carry no legal position, so this is presentation, not
+ *  configuration. A code that uses none of them is unaffected. */
+const CODE_WORDS: Record<string, string> = {
+  GOVLAW: "Governing law",
+  CONF: "Confidentiality",
+  LIAB: "Liability",
+  TERM: "Termination",
+  AUTORENEW: "Auto-renewal",
+  IP: "IP",
+  KYC: "KYC",
+  CARVEOUTS: "carve-outs",
+  CARVEOUT: "carve-out",
+  NON: "Non",
+};
+
 export function requirementTitle(
   requirement: { code?: string | null; name?: string | null } | null | undefined,
 ): string {
@@ -60,7 +78,8 @@ export function requirementTitle(
     // A trailing sequence number and the document-type token are addressing,
     // not meaning. Everything else is the requirement's own words.
     .filter((part) => !/^\d+$/.test(part))
-    .filter((part) => !TYPE_CODES.has(part.toUpperCase()));
+    .filter((part) => !TYPE_CODES.has(part.toUpperCase()))
+    .map((part) => CODE_WORDS[part.toUpperCase()] ?? part);
   if (words.length === 0) return code;
   const sentence = words.join(" ").toLowerCase();
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
@@ -83,27 +102,6 @@ export function classificationSentence(classification: string): string | null {
   return CLASSIFICATION_SENTENCES[classification] ?? null;
 }
 
-/**
- * What making the requirement true again would look like — owner instruction,
- * 2026-09-08 (sixth pass): "Deviation/Missing/Unable-to-evaluate need to say
- * they require modification; once the user aligns the document, it becomes a
- * Match." Shown only under NEEDS REVIEW (never under Accepted, and never
- * under Not accepted — that status routes to a person for a decision, not to
- * a self-service edit, via `nextStep` below).
- *
- * UNABLE_TO_EVALUATE gets none: there is no established gap to close, only
- * insufficient evidence, so "modify the document" would overclaim what is
- * actually missing (rule 15 — fail closed, never invent a fix).
- */
-const ALIGNMENT_GUIDANCE: Record<string, string> = {
-  DEVIATION: "Update the document to match the company standard, and this will show as Accepted.",
-  MISSING: "Add this to the document to match the company standard, and this will show as Accepted.",
-  CONFLICT: "Resolve the contradiction so the document matches the company standard, and this will show as Accepted.",
-};
-
-export function alignmentGuidance(classification: string): string | null {
-  return ALIGNMENT_GUIDANCE[classification] ?? null;
-}
 
 /**
  * The status a reader sees — owner instruction, 2026-09-08 (fifth pass): three
@@ -170,31 +168,122 @@ export function sameAsTitle(scope: string, title: string): boolean {
 }
 
 /**
- * What happens next — from the Finding's own workflow position and the
- * Evaluation's Rule Outcome, never from an opinion about severity.
+ * What the reader does next — one sentence, by what the engine found and
+ * where the Finding sits in the workflow (owner, 2026-09-08, seventh pass).
  *
- * A recorded decision is stated as a fact and nothing further is asked for; a
- * Finding the server flagged `requires_decision` says a person must act. The
- * fail-closed outcome (`NOT_APPLICABLE`, locked Step 20 r4) is the one that
- * misleads on sight, so it says what it actually means: no rule disposes of
- * this, so a person decides.
+ * The engine never produces a Legal Decision (rule 13) and under the
+ * zero-tolerance rule essentially every non-MATCH routes to a person, so
+ * every non-MATCH step names that person. A DEVIATION or MISSING also says,
+ * conditionally, what would make it Accepted — the owner's sixth-pass
+ * instruction — worded as what WOULD happen, never as an instruction to amend
+ * the contract, which would be a legal position the standard does not carry.
+ * Not accepted routes to a person and says why; it never suggests a
+ * self-service edit. Never null for a real classification: "Next step" is one
+ * of the four questions the card exists to answer.
  */
-export function nextStep(finding: Finding, evaluation?: Evaluation): string | null {
+export function nextStep(
+  finding: Finding,
+  evaluation?: Evaluation,
+  status: UserStatus = userStatus(finding),
+): string | null {
   if (evaluation?.current_decision) {
     return "A decision has been recorded for this. No further action is needed.";
   }
-  if (finding.requires_decision || evaluation?.requires_decision) {
-    return "Someone with legal authority needs to review this and record a decision.";
+  if (status === "NOT_ACCEPTED") {
+    return "This goes against an approved company position. Someone with legal authority must decide how to proceed.";
   }
-  const outcome = evaluation?.rule_outcome;
-  if (outcome === "ACCEPTABLE") return "No action is needed.";
-  if (outcome === "APPROVAL_REQUIRED") {
-    return "This needs approval before the contract can proceed on these terms.";
+  const classification = evaluation?.classification ?? finding.classification;
+  switch (classification) {
+    case "MATCH":
+      return "No action is needed.";
+    case "DEVIATION":
+      return "Someone with legal authority needs to review this difference. Matching the company standard would make it Accepted.";
+    case "MISSING":
+      return "Someone with legal authority needs to decide whether this must be added. Adding it would make this Accepted.";
+    case "CONFLICT":
+      return "Someone with legal authority needs to decide which of the contradicting provisions applies.";
+    case "UNABLE_TO_EVALUATE":
+      return "A legal or business decision may be required. Someone with legal authority needs to review this.";
+    default:
+      return finding.requires_decision || evaluation?.requires_decision
+        ? "Someone with legal authority needs to review this and record a decision."
+        : null;
   }
-  if (outcome === "NOT_APPLICABLE") {
-    return "No published rule covers this result, so a person decides what to do.";
+}
+
+/**
+ * The one sentence a Sales reader gets — what was found, in the words of the
+ * data (owner, 2026-09-08, seventh pass). Built from the requirement's title
+ * and the two values only; it never explains what a clause MEANS in law and
+ * never names a consequence (rules 7, 12, 21). Residuals is nothing special
+ * here: every requirement type flows through the same five shapes.
+ *
+ *   MATCH      "The document's liability cap is 12 MONTHS, which matches the
+ *               company standard."
+ *   DEVIATION  "The document sets the late fee at 8 PERCENT_PER_MONTH, while
+ *               the company standard expects 5 PERCENT_PER_MONTH."
+ *   MISSING    "The document does not include residuals, which the company
+ *               standard requires."
+ *   CONFLICT   "The document contains provisions on … that contradict each
+ *               other."
+ *   UNABLE     "There is no approved company standard recorded for …, so
+ *               LegalMind cannot tell whether it is acceptable." — or, when
+ *               the standard exists but the document is unreadable on the
+ *               point, "The document does not say enough about … to tell
+ *               whether it meets the company standard."
+ *
+ * `expected_value` is OMITTED for a caller without `legal_position.view`;
+ * those sentences then simply do not mention the standard's value.
+ */
+export function findingSentence(finding: Finding, evaluation?: Evaluation): string | null {
+  const classification = evaluation?.classification ?? finding.classification;
+  const subject = subjectOf(requirementTitle(finding.requirement));
+  const contract = evaluation ? sideOf(evaluation.actual_value) : null;
+  const hasStandard = evaluation !== undefined && evaluation.expected_value !== undefined;
+  const standard = hasStandard ? standardSideOf(evaluation.expected_value) : null;
+  const standardValue = standard && standard.tone === "value" ? standard.text : null;
+  const contractValue = contract && contract.tone === "value" ? contract.text : null;
+
+  switch (classification) {
+    case "MATCH":
+      return contractValue
+        ? `The document's ${subject} is ${contractValue}, which matches the company standard.`
+        : `The document includes ${subject}, as the company standard requires.`;
+    case "DEVIATION":
+      if (contract?.text === "No limit stated") {
+        return standardValue
+          ? `The document sets no limit on ${subject}, while the company standard expects ${standardValue}.`
+          : `The document sets no limit on ${subject}, which differs from the company standard.`;
+      }
+      if (contractValue && standardValue) {
+        return `The document sets ${subject} at ${contractValue}, while the company standard expects ${standardValue}.`;
+      }
+      if (contractValue) {
+        return `The document sets ${subject} at ${contractValue}, which differs from the company standard.`;
+      }
+      return `The document covers ${subject}, but not in the way the company standard expects.`;
+    case "MISSING":
+      return hasStandard
+        ? `The document does not include ${subject}, which the company standard requires.`
+        : `The document does not include ${subject}.`;
+    case "CONFLICT":
+      return `The document contains provisions on ${subject} that contradict each other.`;
+    case "UNABLE_TO_EVALUATE":
+      if (hasStandard && standard && standard.tone === "unknown") {
+        return `There is no approved company standard recorded for ${subject}, so LegalMind cannot tell whether it is acceptable.`;
+      }
+      return `The document does not say enough about ${subject} to tell whether it meets the company standard.`;
+    default:
+      return classificationSentence(classification);
   }
-  return null;
+}
+
+/** A title, ready to sit mid-sentence: "Residuals" → "residuals", but an
+ *  acronym or a name that is already mid-sentence-shaped is left alone
+ *  ("NDA term", "IP assignment"). */
+function subjectOf(title: string): string {
+  if (title.length > 1 && title[1] === title[1]!.toUpperCase() && /[A-Z]/.test(title[1]!)) return title;
+  return title.charAt(0).toLowerCase() + title.slice(1);
 }
 
 /**
@@ -379,11 +468,13 @@ export function reasoningSteps(
     });
   }
 
-  const result = classificationSentence(evaluation.classification);
-  const action = nextStep(finding, evaluation);
+  // The engine's own word — MATCH / DEVIATION / MISSING / CONFLICT / NEEDS A
+  // PERSON — kept verbatim for audit (rules 11, 12). The card face says
+  // Accepted / Needs review / Not accepted; this is the only place the
+  // classification appears, so nothing is said twice.
   steps.push({
     label: "Result",
-    text: [result, action].filter(Boolean).join(" "),
+    text: `Recorded as ${classificationLabel(evaluation.classification)}.`,
   });
   return steps;
 }

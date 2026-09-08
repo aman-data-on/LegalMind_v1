@@ -272,8 +272,10 @@ test.describe("the Findings pane, slice 2", () => {
     await expect(pane.locator(".ws-finding").first()).toContainText(findings[0].classification);
 
     if (target.evidence_refs.length > 0) {
-      // 2026-08-31 v2: the excerpt renders verbatim beside the finding, and its
-      // location button keeps the highlight gesture into the document pane.
+      // 2026-08-31 v2 / seventh pass: the excerpt renders verbatim inside the
+      // finding's "How this was determined", and its location button keeps the
+      // highlight gesture into the document pane.
+      await pane.locator(".ws-finding").first().locator(".ws-determined > summary").first().click();
       await expect(pane.locator(".ws-evidence__quote").first()).toBeVisible();
       const evidenceButton = pane.locator(".ws-evidence__loc").first();
       await evidenceButton.click();
@@ -437,6 +439,8 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // The list is the work surface: a finding's cited evidence is a button
     // labelled with the location itself (§ / title / page), and pressing it
     // lights that passage in the document pane.
+    await page.locator('[data-region="findings"] .ws-finding').first()
+      .locator(".ws-determined > summary").first().click();
     const cited = page.locator('[data-region="findings"] .ws-evidence__loc').first();
     await expect(cited).toBeVisible();
     await cited.click();

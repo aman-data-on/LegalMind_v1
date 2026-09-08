@@ -18,7 +18,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
-import { classificationLabel } from "@/lib/labels";
+import { USER_STATUS_LABELS, userStatus } from "./findingLanguage";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -769,7 +769,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                             className="ws-escalate__link"
                             onClick={() => sideTabs.openFindings({ findingId: finding.id })}
                           >
-                            {classificationLabel(finding.classification)} ·{" "}
+                            {/* The reader's three words, not the engine's (seventh
+                                pass) — one status vocabulary across the workspace. */}
+                            {USER_STATUS_LABELS[userStatus(finding)]} ·{" "}
                             {requirementHeading(finding.requirement)}
                           </button>
                         ))}

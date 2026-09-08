@@ -48,8 +48,7 @@ import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import {
-  alignmentGuidance,
-  classificationSentence,
+  findingSentence,
   constitutionProhibition,
   evidenceLocation,
   evidenceNote,
@@ -484,10 +483,13 @@ export function FindingCard({ finding, onChanged, prepared }: {
   const askIntent = useAskIntent();
   const status = userStatus(finding);
   const prohibition = constitutionProhibition(finding);
-  const guidance = status === "NEEDS_REVIEW" ? alignmentGuidance(finding.classification) : null;
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   const title = requirementTitle(finding.requirement);
-  const meaning = classificationSentence(finding.classification);
+  // The one sentence, from the evaluation that carries the Finding's own
+  // classification (the derived summary follows its worst scope), else the first.
+  const lead = finding.evaluations.find((e) => e.classification === finding.classification)
+    ?? finding.evaluations[0];
+  const meaning = findingSentence(finding, lead);
   return (
     <article
       className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}
@@ -523,12 +525,6 @@ export function FindingCard({ finding, onChanged, prepared }: {
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
       {meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
-      {/* "Needs review" says what closes the gap and what happens then — owner,
-          2026-09-08 (sixth pass): edit the document to align, and the finding
-          becomes Accepted. Absent for MATCH, for NOT_ACCEPTED (routed to a
-          person instead), and for UNABLE_TO_EVALUATE (nothing established to
-          modify). */}
-      {guidance ? <p className="ws-finding__guidance">{guidance}</p> : null}
       {prohibition ? (
         // NOT ACCEPTED always shows its source: the Constitution section the
         // server cited, quoted verbatim. Without this the status is not shown.
@@ -540,6 +536,7 @@ export function FindingCard({ finding, onChanged, prepared }: {
         <EvaluationCard
           key={evaluation.id}
           finding={finding}
+          status={status}
           evaluation={evaluation}
           evidenceById={evidenceById}
           onChanged={onChanged}
@@ -602,11 +599,13 @@ function SideValue({ side }: { side: Side }) {
 function EvaluationCard({
   prepared,
   finding,
+  status,
   evaluation,
   evidenceById,
   onChanged,
 }: {
   finding: Finding;
+  status: UserStatus;
   evaluation: Evaluation;
   evidenceById: Map<string, Evidence>;
   onChanged: () => void;
@@ -624,7 +623,7 @@ function EvaluationCard({
     .map((id) => evidenceById.get(id))
     .filter((row): row is Evidence => row !== undefined);
   const steps = reasoningSteps(finding, evaluation, evaluation.evidence_refs.length);
-  const action = nextStep(finding, evaluation);
+  const action = nextStep(finding, evaluation, status);
   /* A scope worth naming, or none. Every requirement carries a scope key and
      most are the placeholder `GENERAL`, which as a heading said nothing while
      occupying the first line of every evaluation. And when a scope IS named,
@@ -655,14 +654,14 @@ function EvaluationCard({
         * it — `confidentiality.spec.ts` and `legal-access.spec.ts` assert on
         * its COUNT, not its position on the page.
         */}
-      {scope || evaluation.current_decision || attention ? (
+      {/* Only a scope that says more than the title sits on the face (owner,
+          2026-09-08, seventh pass). "Decision required" and a recorded
+          decision type are workflow states — they moved into "How this was
+          determined" below as the Finding state row, same elements, same
+          classes, so `gating.spec.ts` and `journey.spec.ts` still read them. */}
+      {scope ? (
         <div className="ws-evaluation__head">
-          {scope ? <span className="ws-evaluation__scope">{scope}</span> : null}
-          {evaluation.current_decision ? (
-            <span className="ws-chip--fill ws-chip--decision-fill">{evaluation.current_decision.decision_type}</span>
-          ) : attention ? (
-            <span className="ws-chip--flag">Decision required</span>
-          ) : null}
+          <span className="ws-evaluation__scope">{scope}</span>
         </div>
       ) : null}
 
@@ -681,11 +680,11 @@ function EvaluationCard({
         * about the contract; it now lives in the details block below.
         */}
       <dl className="ws-facts ws-facts--compare">
-        <dt>Found in contract</dt>
+        <dt>Contract</dt>
         <dd><SideValue side={sideOf(evaluation.actual_value)} /></dd>
         {evaluation.expected_value !== undefined ? (
           <>
-            <dt>Company Standard</dt>
+            <dt>Company standard</dt>
             <dd><SideValue side={standardSideOf(evaluation.expected_value)} /></dd>
           </>
         ) : null}
@@ -718,6 +717,35 @@ function EvaluationCard({
         */}
       <details className="ws-determined">
         <summary>How this was determined</summary>
+        {/* The evidence first — verbatim passages and the location button that
+            lights the passage in the document (rule 11). Off the face since the
+            seventh pass (owner, 2026-09-08): the face answers four questions,
+            and the proof is one click away, not deleted. */}
+      {cited.length > 0 ? (
+          <div className="ws-evidence">
+            {/* Always from the document under review — `finding_evidence` holds
+                nothing else — so the heading says so once rather than repeating
+                per passage. `source_type` says how the passage was READ, and only
+                OCR and table extraction are worth a reader's attention. */}
+            <div className="ws-evidence__group">
+              <p className="ws-evidence__source">
+                {cited.length === 1 ? "Quoted from this document"
+                  : `Quoted from this document · ${cited.length} passages`}
+              </p>
+              {cited.map((row, index) => (
+                <EvidenceItem
+                  key={row.id}
+                  row={row}
+                  index={index}
+                  current={target === row.id}
+                  onPoint={() => point(row.id, "the cited")}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="ws-pane__note">No supporting text was found in the document for this Requirement.</p>
+        )}
         <ol className="ws-determined__steps">
           {steps.map((step) => (
             <li key={step.label}>
@@ -762,16 +790,6 @@ function EvaluationCard({
             LEGAL-02 test (which asserts by count/text, never by position on
             the page) holds exactly as it did. */}
         <dl className="ws-determined__tech">
-          {/* The engine's own word for this result — MATCH / DEVIATION /
-              MISSING / CONFLICT / NEEDS A PERSON — kept verbatim for audit
-              and traceability (rules 11, 12); the card face says Accepted /
-              Needs review / Not accepted instead (owner, 2026-09-08). */}
-          <dt>Classification</dt>
-          <dd>
-            <span className="ws-chip ws-chip--fill ws-chip--classify-fill">
-              {classificationLabel(evaluation.classification)}
-            </span>
-          </dd>
           {finding.requirement.code ? (
             <>
               <dt>Requirement</dt>
@@ -789,7 +807,15 @@ function EvaluationCard({
             </>
           ) : null}
           <dt>Finding state</dt>
-          <dd>{findingStatusLabel(finding.status)}</dd>
+          <dd>
+            {evaluation.current_decision ? (
+              <span className="ws-chip--fill ws-chip--decision-fill">{evaluation.current_decision.decision_type}</span>
+            ) : attention ? (
+              <span className="ws-chip--flag">Decision required</span>
+            ) : (
+              findingStatusLabel(finding.status)
+            )}
+          </dd>
           {/*
             * WHICH evaluator produced this, always — 2026-09-04, found by
             * porting the LEGAL-02 browser test off the legacy screen, and
@@ -814,32 +840,6 @@ function EvaluationCard({
           <dd className="ws-mono">{evaluation.scope_key}</dd>
         </dl>
       </details>
-
-      {cited.length > 0 ? (
-        <div className="ws-evidence">
-          {/* Always from the document under review — `finding_evidence` holds
-              nothing else — so the heading says so once rather than repeating
-              per passage. `source_type` says how the passage was READ, and only
-              OCR and table extraction are worth a reader's attention. */}
-          <div className="ws-evidence__group">
-            <p className="ws-evidence__source">
-              {cited.length === 1 ? "Quoted from this document"
-                : `Quoted from this document · ${cited.length} passages`}
-            </p>
-            {cited.map((row, index) => (
-              <EvidenceItem
-                key={row.id}
-                row={row}
-                index={index}
-                current={target === row.id}
-                onPoint={() => point(row.id, "the cited")}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="ws-pane__note">No supporting text was found in the document for this Requirement.</p>
-      )}
 
       {showDecision ? (
         <DecisionControl evaluation={evaluation} onRecorded={onChanged} prepared={prepared} />

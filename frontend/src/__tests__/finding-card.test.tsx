@@ -56,11 +56,11 @@ function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {}): 
 
 describe("every classification renders a card a reader can act on", () => {
   const cases: Array<[string, RegExp]> = [
-    ["MATCH", /matches what the company standard expects/i],
-    ["DEVIATION", /not in the way the company standard expects/i],
-    ["MISSING", /was not found in the document/i],
+    ["MATCH", /matches the company standard|as the company standard requires/i],
+    ["DEVIATION", /the company standard/i],
+    ["MISSING", /does not include residuals/i],
     ["CONFLICT", /contradict each other/i],
-    ["UNABLE_TO_EVALUATE", /not enough reliable information/i],
+    ["UNABLE_TO_EVALUATE", /does not say enough about residuals|no approved company standard/i],
   ];
 
   for (const [classification, sentence] of cases) {
@@ -183,11 +183,11 @@ describe("LEGAL-02 — an omitted legal position leaves no trace", () => {
     const html = card({}, {
       expected_value: undefined, rule_outcome: undefined, explanation: undefined,
     } as unknown as Partial<Evaluation>);
-    expect(html).not.toMatch(/Company Standard/);
+    expect(html).not.toMatch(/Company standard/);
     expect(html).not.toMatch(/ws-evaluation__outcome/);
     expect(html).not.toMatch(/ws-explain/);
     // What survives: the contract's own value and the audit provenance.
-    expect(html).toMatch(/Found in contract/);
+    expect(html).toMatch(/<dt>Contract<\/dt>/);
     expect(html).toMatch(/PRESENCE-v1/);
   });
 });
@@ -310,12 +310,12 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     );
     const { before, inside } = splitAtDetails(html);
     expect(before).toMatch(/Residuals/);
-    expect(before).toMatch(/was not found in the document/i);
+    expect(before).toMatch(/does not include residuals, which the company standard requires/i);
     expect(before).toMatch(/Not found/);
     // "Required", not "Found" — a presence-shaped Company Standard value
     // states what the standard requires, not that the standard was "found".
     expect(before).toMatch(/Required/);
-    expect(before).toMatch(/legal authority needs to review/i);
+    expect(before).toMatch(/legal authority needs to decide whether this must be added/i);
     // Nothing technical on the visible surface: no evaluator name, no raw
     // "presence" operator word, no scope key, no raw outcome label.
     expect(before).not.toMatch(/PRESENCE-v1/);
@@ -341,7 +341,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/not enough reliable information/i);
+    expect(before).toMatch(/does not say enough about confidentiality survival|no approved company standard recorded for confidentiality survival/i);
     // The locked word lives in the disclosure now; the face says "Needs review".
     expect(before).toMatch(/Needs review/);
     expect(inside).toMatch(/NEEDS A PERSON/);
@@ -368,7 +368,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/matches what the company standard expects/i);
+    expect(before).toMatch(/matches the company standard|as the company standard requires/i);
     expect(before).toMatch(/Found/);
     expect(before).toMatch(/Required/);
     // A MATCH still answers "does someone need to act?" explicitly — saying
@@ -394,7 +394,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/not in the way the company standard expects/i);
+    expect(before).toMatch(/while the company standard expects/i);
     expect(before).toMatch(/30 DAYS/);
     expect(before).toMatch(/60 DAYS/);
     expect(before).toMatch(/legal authority needs to review/i);
@@ -443,7 +443,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
     expect(before).not.toContain("ws-eval__next");
   });
 
-  it("omits the Next Step column entirely when there is nothing to act on — never an empty cell", () => {
+  it("answers Next step on a MATCH too — \"No action is needed.\" — never an empty cell", () => {
     // MATCH with no legal_position.view: rule_outcome is omitted, finding
     // does not require a decision -> nextStep() returns null.
     const html = card(
@@ -454,7 +454,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
       } as unknown as Partial<Evaluation>,
     );
     const { before } = splitAtDetails(html);
-    expect(before).not.toContain("Next step");
+    expect(before).toMatch(/<dt>Next step<\/dt><dd[^>]*>No action is needed\.<\/dd>/);
   });
 });
 
@@ -476,11 +476,12 @@ describe("the three-word status on the card face", () => {
     }
   });
 
-  it("tells the reader what closes the gap for a real DEVIATION, but not for UNABLE_TO_EVALUATE", () => {
+  it("puts the Next step on every card, conditional about what would make it Accepted", () => {
     const deviation = face({ classification: "DEVIATION" }, { classification: "DEVIATION" });
-    expect(deviation).toMatch(/Update the document to match the company standard, and this will show as Accepted\./);
+    expect(deviation).toMatch(/Matching the company standard would make it Accepted\./);
     const unable = face({ classification: "UNABLE_TO_EVALUATE" }, { classification: "UNABLE_TO_EVALUATE" });
-    expect(unable).not.toMatch(/will show as Accepted/);
+    expect(unable).toMatch(/legal or business decision may be required/i);
+    expect(unable).not.toMatch(/would make/);
   });
 
   it("never infers Not accepted from a DEVIATION, a MISSING or an UNACCEPTABLE rule outcome", () => {
@@ -510,7 +511,8 @@ describe("the three-word status on the card face", () => {
     expect(before).toContain("ws-finding__mark--bad");
     expect(before).toMatch(/Legal Constitution §9: “Unlimited liability is Unacceptable\.”/);
     // Not accepted routes to a person; it never claims a self-service edit fixes it.
-    expect(before).not.toMatch(/will show as Accepted/);
+    expect(before).not.toMatch(/would make/);
+    expect(before).toMatch(/goes against an approved company position/);
     // The engine's own words are still there, one click away.
     expect(inside).toMatch(/DEVIATION/);
     expect(inside).toMatch(/Not acceptable/);
@@ -536,14 +538,54 @@ describe("the three-word status on the card face", () => {
         actual_value: { cap_value: 24, cap_unit: "MONTHS" }, expected_value: { preferred: 12, unit: "MONTHS" } },
     );
     const { before, inside } = splitAtDetails(html);
-    for (const tech of ["DEVIATION", "RESIDUALS-NDA-001", "PRESENCE-v1", ">!=<", "Not acceptable", "Classification"]) {
+    for (const tech of ["DEVIATION", "RESIDUALS-NDA-001", "PRESENCE-v1", ">!=<", "Not acceptable", "Decision required", "Finding state", "Scope", "Evaluator"]) {
       expect(before, tech).not.toContain(tech);
       expect(inside, tech).toContain(tech);
     }
+    // Nothing is said twice: the engine's word appears once, in the Result step.
+    expect(inside.match(/DEVIATION/g)?.length).toBe(1);
+    // The disclosure is collapsed by default — no `open` attribute.
+    expect(html).toMatch(/<details class="ws-determined">/);
+    expect(html).not.toMatch(/<details[^>]*\sopen/);
     // The four reader questions stay on the face.
     expect(before).toMatch(/Residuals/);
     expect(before).toMatch(/24 MONTHS/);
     expect(before).toMatch(/12 MONTHS/);
     expect(before).toMatch(/Next step/i);
+  });
+});
+
+describe("the face is only the four answers; the proof is one click away (owner, 2026-09-08, seventh pass)", () => {
+  it("keeps the evidence quote and its location button inside the disclosure, verbatim", () => {
+    const html = card(
+      { classification: "MATCH", evidence: [evidence()] },
+      { classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["ev1"] },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).not.toMatch(/ws-evidence/);
+    expect(inside).toMatch(/ws-evidence__quote/);
+    expect(inside).toContain("The Receiving Party may use Residuals.");
+    expect(inside).toMatch(/ws-evidence__loc/);
+  });
+
+  it("shows exactly three labelled facts on the face for a caller who sees the standard, two otherwise", () => {
+    const full = splitAtDetails(card({ classification: "MISSING" }, { classification: "MISSING" })).before;
+    expect(full.match(/<dt>/g)?.length).toBe(3);
+    expect(full).toMatch(/<dt>Contract<\/dt>.*<dt>Company standard<\/dt>.*<dt>Next step<\/dt>/s);
+    const limited = splitAtDetails(card({}, { expected_value: undefined, rule_outcome: undefined, explanation: undefined } as unknown as Partial<Evaluation>)).before;
+    expect(limited.match(/<dt>/g)?.length).toBe(2);
+  });
+
+  it("carries no evidence count, operator, evaluator, requirement code or workflow state on the face, for every classification", () => {
+    for (const c of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const { before } = splitAtDetails(card(
+        { classification: c, requires_decision: true, evidence: [evidence()] },
+        { classification: c, operator: "!=", evidence_refs: ["ev1"], rule_outcome: "NOT_APPLICABLE" },
+      ));
+      for (const leak of ["evidence reference", "PRESENCE-v1", "RESIDUALS-NDA-001", ">!=<", "No rule covers this",
+                          "Decision required", ">GENERAL<", "mapping", "NEEDS A PERSON", `>${c}<`]) {
+        expect(before, `${c}: ${leak}`).not.toContain(leak);
+      }
+    }
   });
 });

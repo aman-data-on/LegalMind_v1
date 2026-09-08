@@ -45,7 +45,7 @@ import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
-import { classificationLabel } from "@/lib/labels";
+import { USER_STATUS_LABELS, requirementTitle, userStatus } from "./findingLanguage";
 import type { ClauseChange, DocumentVersion, VersionComparison as Comparison } from "@/lib/types";
 
 type Load =
@@ -216,8 +216,10 @@ function Result({
                   <span className="ws-compare__findlabel">The analysis of this clause:</span>
                   {clause.findings.map((finding) => (
                     <span key={finding.finding_id} className="ws-chip ws-chip--classify-fill">
-                      {classificationLabel(finding.classification)}
-                      {finding.requirement_code ? ` · ${finding.requirement_code}` : ""}
+                      {/* The comparison DTO carries no evaluations, so the status
+                          is Accepted / Needs review only — never Not accepted. */}
+                      {USER_STATUS_LABELS[userStatus({ classification: finding.classification, evaluations: [] })]}
+                      {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}
                 </p>

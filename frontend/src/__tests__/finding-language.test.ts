@@ -22,7 +22,7 @@ import {
   requirementTitle,
   userStatus,
   constitutionProhibition,
-  alignmentGuidance,
+  findingSentence,
   reviewHeadline,
   sameAsTitle,
   sideOf,
@@ -69,6 +69,13 @@ function evaluation(over: Partial<Evaluation> = {}): Evaluation {
 }
 
 describe("the requirement's title", () => {
+  it("spells out the abbreviations our own codes use", () => {
+    expect(requirementTitle({ code: "GOVLAW-NDA-001" })).toBe("Governing law");
+    expect(requirementTitle({ code: "CONF-SURVIVAL-MSA-001" })).toBe("Confidentiality survival");
+    expect(requirementTitle({ code: "LIAB-CARVEOUTS-MSA-001" })).toBe("Liability carve-outs");
+    expect(requirementTitle({ code: "IP-OWNERSHIP-MSA-001" })).toBe("Ip ownership");
+  });
+
   it("parses the code when configuration names the requirement after itself", () => {
     // The live database: every ratified standard has `name = code`, because
     // `import_ratified_standards.py` falls back to the code. The old heading
@@ -77,9 +84,9 @@ describe("the requirement's title", () => {
     expect(requirementTitle({ code: "RESIDUALS-NDA-001", name: "RESIDUALS-NDA-001" }))
       .toBe("Residuals");
     expect(requirementTitle({ code: "CONF-SURVIVAL-NDA-001", name: "CONF-SURVIVAL-NDA-001" }))
-      .toBe("Conf survival");
+      .toBe("Confidentiality survival");
     expect(requirementTitle({ code: "EARLY-TERM-RESTRICTION-MSA-001", name: null }))
-      .toBe("Early term restriction");
+      .toBe("Early termination restriction");
   });
 
   it("prefers a real name whenever configuration carries one", () => {
@@ -122,23 +129,107 @@ describe("what happens next", () => {
     expect(nextStep(finding({ requires_decision: false }), decided)).toMatch(/recorded/i);
   });
 
-  it("reads NOT_APPLICABLE as the fail-closed state it is, not as 'does not apply'", () => {
-    // Locked Step 20 r4: no rule disposes of this, so the deviation stands and
-    // a person decides. "Not applicable" read as "ignore this".
-    const step = nextStep(
-      finding({ requires_decision: false }),
-      evaluation({ requires_decision: false, rule_outcome: "NOT_APPLICABLE" }),
-    );
-    expect(step).toMatch(/a person decides/i);
+  it("answers by what was found, never by the rule outcome — so it reads the same with or without legal_position.view", () => {
+    // The rule outcome ("No rule covers this") is a legal position and lives in
+    // the disclosure; the next step is workflow guidance a Sales reader needs
+    // on every card, so it is never null for a real classification.
+    const withOutcome = nextStep(finding(), evaluation({ rule_outcome: "NOT_APPLICABLE" }));
+    const without = nextStep(finding(), evaluation());
+    expect(withOutcome).toBe(without);
+    expect(without).toMatch(/legal authority/i);
+    expect(without).not.toMatch(/rule|applicable/i);
   });
 
-  it("says nothing when the outcome is omitted for this caller (LEGAL-02)", () => {
-    // `rule_outcome` is absent without `legal_position.view`. Silence is
-    // correct: a guessed next step would be a legal position by another route.
-    expect(nextStep(finding({ requires_decision: false }), evaluation({ requires_decision: false })))
-      .toBeNull();
+  it("gives every classification its own step, and only a MATCH needs nothing", () => {
+    const step = (c: string) => nextStep(finding({ classification: c }), evaluation({ classification: c }));
+    expect(step("MATCH")).toBe("No action is needed.");
+    expect(step("DEVIATION")).toMatch(/review this difference/);
+    expect(step("MISSING")).toMatch(/decide whether this must be added/);
+    expect(step("CONFLICT")).toMatch(/which of the contradicting provisions applies/);
+    expect(step("UNABLE_TO_EVALUATE")).toMatch(/legal or business decision may be required/i);
+  });
+
+  it("says what WOULD make a deviation or an absence Accepted — conditionally, never as an instruction to amend", () => {
+    for (const c of ["DEVIATION", "MISSING"]) {
+      const step = nextStep(finding({ classification: c }), evaluation({ classification: c }))!;
+      expect(step).toMatch(/would make (it|this) Accepted/);
+      expect(step).not.toMatch(/must be (modified|changed|amended)/i);
+    }
+    expect(nextStep(finding({ classification: "UNABLE_TO_EVALUATE" }), evaluation({ classification: "UNABLE_TO_EVALUATE" })))
+      .not.toMatch(/would make/);
+  });
+
+  it("routes Not accepted to a person and never suggests a self-service edit", () => {
+    const step = nextStep(finding({ classification: "DEVIATION" }), evaluation({ classification: "DEVIATION" }), "NOT_ACCEPTED");
+    expect(step).toMatch(/goes against an approved company position/);
+    expect(step).toMatch(/legal authority/i);
+    expect(step).not.toMatch(/would make/);
   });
 });
+
+describe("the one sentence a Sales reader gets — built from the data, for every requirement", () => {
+  const cap = { code: "LIABILITY-MSA-001", name: "LIABILITY-MSA-001", version_id: "v1", version_number: 1 };
+
+  it("MATCH names the value when there is one", () => {
+    expect(findingSentence(
+      finding({ requirement: cap, classification: "MATCH" }),
+      evaluation({ classification: "MATCH", actual_value: { cap_value: 12, cap_unit: "MONTHS" }, expected_value: { preferred: 12, unit: "MONTHS" } }),
+    )).toBe("The document's liability is 12 MONTHS, which matches the company standard.");
+    expect(findingSentence(
+      finding({ classification: "MATCH" }),
+      evaluation({ classification: "MATCH", actual_value: { presence: "PRESENT" }, expected_value: { presence: "PRESENT" } }),
+    )).toBe("The document includes residuals, as the company standard requires.");
+  });
+
+  it("DEVIATION states both values when it has them, and only the contract's when the standard is omitted", () => {
+    const both = evaluation({ classification: "DEVIATION", actual_value: { cap_value: 8, cap_unit: "PERCENT_PER_MONTH" }, expected_value: { preferred: 5, unit: "PERCENT_PER_MONTH" } });
+    expect(findingSentence(finding({ requirement: { ...cap, code: "LATE-FEE-TOS-001", name: "LATE-FEE-TOS-001" }, classification: "DEVIATION" }), both))
+      .toBe("The document sets late fee at 8 PERCENT_PER_MONTH, while the company standard expects 5 PERCENT_PER_MONTH.");
+    const omitted = evaluation({ classification: "DEVIATION", actual_value: { cap_value: 24, cap_unit: "MONTHS" } });
+    delete (omitted as { expected_value?: unknown }).expected_value;
+    expect(findingSentence(finding({ requirement: cap, classification: "DEVIATION" }), omitted))
+      .toBe("The document sets liability at 24 MONTHS, which differs from the company standard.");
+  });
+
+  it("DEVIATION reads an unlimited cap as 'no limit'", () => {
+    expect(findingSentence(
+      finding({ requirement: cap, classification: "DEVIATION" }),
+      evaluation({ classification: "DEVIATION", actual_value: { cap_status: "UNLIMITED" }, expected_value: { preferred: 12, unit: "MONTHS" } }),
+    )).toBe("The document sets no limit on liability, while the company standard expects 12 MONTHS.");
+  });
+
+  it("MISSING says the standard requires it only when the standard was sent", () => {
+    expect(findingSentence(finding(), evaluation({ expected_value: { presence: "PRESENT" } })))
+      .toBe("The document does not include residuals, which the company standard requires.");
+    expect(findingSentence(finding(), evaluation()))
+      .toBe("The document does not include residuals.");
+  });
+
+  it("UNABLE_TO_EVALUATE distinguishes 'no standard recorded' from 'document unreadable on this point'", () => {
+    const noStandard = evaluation({ classification: "UNABLE_TO_EVALUATE", actual_value: null, expected_value: null });
+    expect(findingSentence(finding({ classification: "UNABLE_TO_EVALUATE" }), noStandard))
+      .toMatch(/no approved company standard recorded for residuals/);
+    const unreadable = evaluation({ classification: "UNABLE_TO_EVALUATE", actual_value: { cap_status: "UNKNOWN" }, expected_value: { preferred: 3, unit: "YEARS" } });
+    expect(findingSentence(finding({ classification: "UNABLE_TO_EVALUATE" }), unreadable))
+      .toMatch(/does not say enough about residuals/);
+  });
+
+  it("CONFLICT and an unknown classification still produce a sentence, never null for the five real ones", () => {
+    expect(findingSentence(finding({ classification: "CONFLICT" }), evaluation({ classification: "CONFLICT", actual_value: { caps: [{}, {}] } })))
+      .toBe("The document contains provisions on residuals that contradict each other.");
+    for (const c of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      expect(findingSentence(finding({ classification: c }), evaluation({ classification: c })), c).toBeTruthy();
+    }
+  });
+
+  it("never prints a requirement code, an enum or JSON at the reader", () => {
+    for (const c of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const text = findingSentence(finding({ classification: c }), evaluation({ classification: c, actual_value: { wibble: 1 } }))!;
+      expect(text).not.toMatch(/RESIDUALS-NDA-001|ABSENT|PRESENT|\{|MISSING|DEVIATION/);
+    }
+  });
+});
+
 
 describe("a recorded value as one phrase", () => {
   it("reads the PRESENCE evaluator's shape", () => {
@@ -187,7 +278,7 @@ describe("why this was flagged — the reasoning chain", () => {
       .toEqual(["Requirement", "This document", "Company standard", "Result"]);
     expect(steps[1]!.text).toBe("No matching provision was found.");
     expect(steps[2]!.text).toMatch(/expects this to be present/i);
-    expect(steps[3]!.text).toMatch(/not found in the document/i);
+    expect(steps[3]!.text).toBe("Recorded as MISSING.");
   });
 
   it("drops the standard step entirely when it is omitted for this caller", () => {
@@ -349,19 +440,3 @@ describe("the three-word user-facing status (owner, 2026-09-08)", () => {
   });
 });
 
-describe("what closing the gap looks like — the Needs review guidance (owner, 2026-09-08, sixth pass)", () => {
-  it("names the fix for DEVIATION, MISSING and CONFLICT", () => {
-    expect(alignmentGuidance("DEVIATION")).toMatch(/Update the document.*show as Accepted/);
-    expect(alignmentGuidance("MISSING")).toMatch(/Add this to the document.*show as Accepted/);
-    expect(alignmentGuidance("CONFLICT")).toMatch(/Resolve the contradiction.*show as Accepted/);
-  });
-
-  it("says nothing for UNABLE_TO_EVALUATE — there is no established gap to close", () => {
-    expect(alignmentGuidance("UNABLE_TO_EVALUATE")).toBeNull();
-  });
-
-  it("says nothing for MATCH or an unrecognised classification", () => {
-    expect(alignmentGuidance("MATCH")).toBeNull();
-    expect(alignmentGuidance("SOMETHING_NEW")).toBeNull();
-  });
-});

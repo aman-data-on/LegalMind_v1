@@ -62,6 +62,8 @@ test("a clause carries the way back to the finding that cites it", async ({ page
 
   // And the forward direction still works from there — the loop closes.
   await openFindingsTab(page);
+  const disclosure = page.locator('[data-region="findings"] .ws-determined > summary').first();
+  if (await disclosure.count()) await disclosure.click();
   const cite = page.locator(".ws-evidence__loc").first();
   if (await cite.count()) {
     await cite.click();
