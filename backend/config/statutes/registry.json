@@ -1,0 +1,38 @@
+{
+  "_about": [
+    "Domain C registry — the seven statutes the owner supplied on 2026-08-18 (AM-47 r1).",
+    "Every value below is either stated by the supplied file itself or is a fact of the supply;",
+    "a field the file does not state reads NOT STATED IN SUPPLIED FILE (AM-47 r2). Nothing is",
+    "fetched (rule 21). `source` carries the quality caveat in the record: India Code",
+    "re-verification is PENDING (C-16 item 2). NOT present, because never supplied: the",
+    "Negotiable Instruments Act 1881 and the Evidence Act 1872 / Bharatiya Sakshya Adhiniyam 2023."
+  ],
+  "directory": "Indian_Laws_and_Acts",
+  "supplied_by": "owner (Drive tranche Indian_Laws_and_Acts-20260818T124920Z-1-001.zip)",
+  "supplied_at": "2026-08-18T00:00:00+05:30",
+  "source": "owner-supplied 2026-08-18; India Code re-verification PENDING (C-16 item 2)",
+  "jurisdiction": "IN",
+  "statutes": [
+    {"file": "Indian_Contract_Act_1872.pdf", "official_title": "The Indian Contract Act, 1872",
+     "act_number_year": "Act No. 9 of 1872", "source_ref": "Act No. 9 of 1872 (as stated in the file)",
+     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
+    {"file": "IT_Act_2000.pdf", "official_title": "The Information Technology Act, 2000",
+     "act_number_year": "Act No. 21 of 2000", "source_ref": "Act No. 21 of 2000 (as stated in the file)",
+     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
+    {"file": "SPDI_Rules_2011.pdf", "official_title": "The Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011",
+     "act_number_year": "Rules under s. 87(2)(ob) read with s. 43A, IT Act 2000", "source_ref": "G.S.R. 313(E), 11 April 2011 (as stated in the file)",
+     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
+    {"file": "Companies_Act_2013_sp.pdf", "official_title": "The Companies Act, 2013 (supplied excerpt: selected provisions)",
+     "act_number_year": "Act No. 18 of 2013 (number not stated in the supplied excerpt)", "source_ref": "NOT STATED IN SUPPLIED FILE (4-page excerpt)",
+     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
+    {"file": "CERT-In_Directions_2022.pdf", "official_title": "CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022)",
+     "act_number_year": "Directions under s. 70B(6), IT Act 2000", "source_ref": "No. 20(3)/2022-CERT-In, dated 28 April 2022 (as stated in the file)",
+     "as_amended_date": "28 April 2022 (date of issue as stated in the file)"},
+    {"file": "DPDP_Act_2023.pdf", "official_title": "The Digital Personal Data Protection Act, 2023",
+     "act_number_year": "Act No. 22 of 2023", "source_ref": "No. 22 of 2023, assented 11 August 2023 (as stated in the file)",
+     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
+    {"file": "IT_Rules_2021_Updated_2026.pdf", "official_title": "The Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021",
+     "act_number_year": "Rules under s. 87, IT Act 2000", "source_ref": "G.S.R. 139(E), 25 February 2021; amended by G.S.R. 120(E) (as stated in the file)",
+     "as_amended_date": "updated as on 10.02.2026 (as stated in the file)"}
+  ]
+}

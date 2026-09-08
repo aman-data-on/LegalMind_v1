@@ -21,7 +21,7 @@ import Link from "next/link";
 import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
-import { PositionsSection } from "./AskDock";
+import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
  *  the shared helper — that shadowing is how this file kept its own `§` prefix
@@ -57,6 +57,7 @@ export function TranscriptTurn({
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
           <p>{turn.content}</p>
           <PositionsSection positions={turn.positions ?? []} />
+          <StatutesSection statutes={turn.statutes ?? null} />
         </div>
       </div>
     );

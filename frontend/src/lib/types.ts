@@ -593,6 +593,26 @@ export interface AssistComparison {
   findings_by_classification: Record<string, number>;
 }
 
+/** One statute citation — Domain C (`AM-32` r7): Act + section, never a page alone. */
+export interface AssistStatuteCitation {
+  statute_chunk_id: string;
+  citation: string;
+  official_title: string;
+  section_number: string;
+  sub_section: string | null;
+  marginal_note: string | null;
+  excerpt: string;
+  retrieval_score: number | null;
+}
+
+/** The statute half of an answer, generated over statute evidence only and kept in
+ *  its own section (`AM-45` r2). `text` is null on replay (the turn's content holds it). */
+export interface AssistStatuteAnswer {
+  answer_state: AssistAnswerState;
+  text: string | null;
+  citations: AssistStatuteCitation[];
+}
+
 export interface AskResult {
   conversation_id: string;
   message_id: string;
@@ -603,12 +623,13 @@ export interface AskResult {
   domains?: string[];
   comparison?: AssistComparison | null;
   positions?: AssistPosition[];
+  statutes?: AssistStatuteAnswer | null;
   /** The document version this answer was read from — STATED by the server, never
    *  inferred here. A conversation is contract-scoped, so it can hold turns from
    *  more than one version, and an answer's `evidence_id`s only highlight on the
-   *  version they came from. */
-  document_version_id: string;
-  version_number: number;
+   *  version they came from. Null on a document-less (statute) conversation. */
+  document_version_id: string | null;
+  version_number: number | null;
   citations: AssistCitation[];
 }
 
@@ -647,6 +668,7 @@ export interface ConversationTurn {
   /** `AM-25` r5 — the SAME citations the live answer carried. `[]` on refusals. */
   citations: AssistCitation[];
   positions?: AssistPosition[];
+  statutes?: AssistStatuteAnswer | null;
 }
 
 export interface ConversationDetail {

@@ -46,7 +46,23 @@ updated in the same change. Canonical Markdown of the DOCX:
 * **Standards reconciled to the Constitution (`AM-43` r4):** six files, history
   kept in `_history`; corpus re-expected (73 fixtures: 21/9/43), six `CST-*`
   MATCH twins added, `corpus_coverage.json` L-01/L-02/L-11 notes updated.
-* **Frontend:** `PositionsSection`, `ComparisonHandoff`; replay carries position
+* **Domain C built (`AM-47`):** `assist/statutes.py` — section-based chunker
+  (`section-1`; handles India Code's footnote-prefixed numbering and skips the
+  arrangement table), provenance-refusing `ingest_statute`, Act + section
+  search with exact-section ranking, best-effort vectors;
+  `tools/ingest_statutes.py` + `config/statutes/registry.json` (provenance as
+  the files state it; India Code re-verification pending). Statute questions
+  get their own generation call over statute evidence only, cited Act + section
+  in their own response field; `answer_citations.statute_chunk_id` used. The
+  seven supplied statutes ingested (410 sections). NI Act / Evidence Act absent
+  — the refusal names the holdings. `/dashboard/research` is now a document-less
+  Ask surface; the placeholder components are retired.
+* **Verdict screen:** a grounded answer that itself states how the document
+  stands against the organization's position (an injected "this clause
+  complies with our approved standard") is refused as `CLAIM_UNSUPPORTED` —
+  `intent.is_comparison_question` applied to the model's text (`AM-25` r1/r4).
+* **Frontend:** `PositionsSection`, `StatutesSection`, `ComparisonHandoff`;
+  `AskDock` accepts a null contract; replay carries position and statute
   citations; e2e intake expectation updated.
 
 ### Fixed — Dashboard UI/UX audit pass: responsive, reachable, keyboard-operable (2026-09-08)

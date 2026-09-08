@@ -109,7 +109,9 @@ _STATUTES_UNAVAILABLE = (
     "questions about the law itself cannot be answered.")
 
 
-def refusal_text(route: RoutePlan) -> str:
+def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = ()) -> str:
+    """`statute_holdings` — the Acts the corpus holds, named when a statute-shaped
+    question missed inside an available corpus (AM-46 r3: a public, global fact)."""
     searched = []
     if route.has(Domain.DOCUMENT):
         searched.append("the selected document")
@@ -124,4 +126,7 @@ def refusal_text(route: RoutePlan) -> str:
                                " Attach a document to ask about it.")
     if route.statute_shaped and not route.has(Domain.STATUTES):
         text += _STATUTES_UNAVAILABLE
+    elif route.statute_shaped and statute_holdings:
+        text += (" The approved statute corpus currently holds: "
+                 + "; ".join(statute_holdings) + ".")
     return text

@@ -24,7 +24,6 @@ import {
   readiness,
 } from "@/components/workspace/model";
 import { TranscriptTurn } from "@/components/workspace/TranscriptTurn";
-import { ResearchPlaceholder } from "@/components/workspace/ResearchPlaceholder";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 
@@ -301,16 +300,6 @@ describe("TranscriptTurn (ask history replay)", () => {
   });
 });
 
-describe("ResearchPlaceholder (the one disclosed placeholder — C-16)", () => {
-  it("discloses without teasing: no link, no button, no input, no fake search", () => {
-    const html = renderToStaticMarkup(<ResearchPlaceholder />);
-    expect(html).toContain("available yet");
-    expect(html).toContain("C-16");
-    expect(html).not.toContain("<a ");
-    expect(html).not.toContain("<button");
-    expect(html).not.toContain("<input");
-  });
-});
 
 describe("upload-first intake helpers (2026-08-31 UX correction)", () => {
   it("derives an editable name from the filename — never a demand", () => {

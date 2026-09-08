@@ -68,7 +68,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import { classificationLabel } from "@/lib/labels";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import type { AskResult, AssistComparison, AssistPosition, ConversationTurn } from "@/lib/types";
+import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, ConversationTurn } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
 import { useHighlight } from "./highlight";
@@ -104,10 +104,11 @@ export function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
         answer_state: message.answer_state ?? "ANSWERED",
         text: message.content,
         routed_to_evaluator: message.routed_to_evaluator,
-        document_version_id: message.document_version_id ?? "",
-        version_number: message.version_number ?? 0,
+        document_version_id: message.document_version_id ?? null,
+        version_number: message.version_number ?? null,
         citations: message.citations,
         positions: message.positions ?? [],
+        statutes: message.statutes ?? null,
       };
       last.versionNumber = message.version_number;
       last.documentVersionId = message.document_version_id;
@@ -123,10 +124,12 @@ export function AskDock({
   isLatest,
   onOpenVersion,
 }: {
-  contractId: string;
+  /** Null on the Research surface: a document-less conversation answered from the
+   *  approved statute corpus and positions (2026-09-08). */
+  contractId: string | null;
   /** The version on screen — what a question is about. */
-  documentVersionId: string;
-  versionNumber: number;
+  documentVersionId: string | null;
+  versionNumber: number | null;
   /** Whether the open version is the newest; used for the header's wording only. */
   isLatest: boolean;
   /** Open another version — for a citation belonging to a different one. */
@@ -152,6 +155,7 @@ export function AskDock({
     let cancelled = false;
     (async () => {
       try {
+        if (!contractId) return;
         const { items } = await api.conversations({ contract_id: contractId, page_size: 1 });
         const latest = items[0];
         if (!latest || cancelled) return;
@@ -241,7 +245,7 @@ export function AskDock({
       }
       // The version on screen is the version asked about — never "whichever is
       // newest". This is the fix; everything else here is presentation.
-      const result = await api.ask(conversationRef.current, asked, documentVersionId);
+      const result = await api.ask(conversationRef.current, asked, documentVersionId ?? undefined);
       setTurns((previous) => [...previous, {
         question: asked,
         result,
@@ -316,8 +320,14 @@ export function AskDock({
         {/* Which document a question will be answered about — stated, never
             assumed. Naming the version is what replaced disabling the input. */}
         <p className="ws-dock__scope">
-          Answers are about <strong>Version {versionNumber}</strong>
-          {isLatest ? " (latest)" : ", the version you are reading"}.
+          {contractId ? (
+            <>
+              Answers are about <strong>Version {versionNumber}</strong>
+              {isLatest ? " (latest)" : ", the version you are reading"}.
+            </>
+          ) : (
+            <>Answers come from the <strong>approved statute corpus</strong> and the organization&rsquo;s approved positions — cited by Act and section.</>
+          )}
         </p>
 
         <div className="ws-dock__log" ref={logRef} tabIndex={-1}>
@@ -340,8 +350,8 @@ export function AskDock({
                     ) : null}
                     <WsAnswerView
                       result={turn.result}
-                      contractId={contractId}
-                      openVersionNumber={versionNumber}
+                      contractId={contractId ?? undefined}
+                      openVersionNumber={versionNumber ?? undefined}
                       onOpenVersion={onOpenVersion}
                     />
                   </>
@@ -464,6 +474,7 @@ export function WsAnswerView({
         <p>{result.text}</p>
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
         <PositionsSection positions={result.positions ?? []} />
+        <StatutesSection statutes={result.statutes ?? null} />
       </div>
     );
   }
@@ -483,6 +494,7 @@ export function WsAnswerView({
    * open the version the answer actually read — instead. */
   const elsewhere =
     openVersionNumber !== undefined &&
+    result.version_number !== null &&
     result.version_number > 0 &&
     result.version_number !== openVersionNumber;
 
@@ -497,7 +509,7 @@ export function WsAnswerView({
                 <button
                   type="button"
                   className="ws-ask__cite"
-                  onClick={() => onOpenVersion?.(result.document_version_id)}
+                  onClick={() => result.document_version_id && onOpenVersion?.(result.document_version_id)}
                   disabled={!onOpenVersion}
                   data-evidence-id={citation.evidence_id}
                   data-other-version={result.version_number}
@@ -527,7 +539,31 @@ export function WsAnswerView({
         </ol>
       ) : null}
       <PositionsSection positions={result.positions ?? []} />
+      <StatutesSection statutes={result.statutes ?? null} />
     </div>
+  );
+}
+
+/** Domain C — the statute answer, generated over statute evidence only and cited
+ *  Act + section (`AM-32` r7). Its own section, never merged with document text. */
+export function StatutesSection({ statutes }: { statutes: AssistStatuteAnswer | null }) {
+  if (!statutes || statutes.citations.length === 0) return null;
+  return (
+    <section className="ws-ask__statutes" aria-label="From the approved statute corpus">
+      <p className="ws-ask__routed-label">Applicable law — from the approved statute corpus</p>
+      {statutes.text ? <p className="ws-ask__text">{statutes.text}</p> : null}
+      <ol className="ws-ask__citations">
+        {statutes.citations.map((c, index) => (
+          <li key={c.statute_chunk_id} className="ws-ask__citation">
+            <span className="ws-ask__cite ws-ask__cite--static">
+              <span className="ws-mono">[{index + 1}]</span> {c.citation}
+              {c.marginal_note ? ` — ${c.marginal_note}` : ""}
+            </span>
+            <blockquote className="ws-ask__excerpt">{c.excerpt}</blockquote>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

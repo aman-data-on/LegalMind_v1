@@ -6,7 +6,7 @@
  * backend and the existing verification screens still work — it simply is not
  * reachable by a click from here yet.
  *
- * Distinct from `DomainPlaceholder`, which is for capabilities the BACKEND does
+ * Distinct from a backend-capability placeholder (the last one, Research, retired 2026-09-08 when Domain C shipped), which is for capabilities the BACKEND does
  * not offer yet; this is for UI the roadmap sequences later.
  */
 

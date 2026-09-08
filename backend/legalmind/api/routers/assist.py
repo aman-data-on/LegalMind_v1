@@ -304,6 +304,24 @@ def get_conversation(conversation_id: UUID,
          WHERE m.conversation_id = :c
          ORDER BY ac.claim_ordinal
     """), {"c": conversation_id}).all()
+    statuted = guard.db.execute(text(f"""
+        SELECT ac.answer_id, sc.id, s.official_title, sc.section_number, sc.sub_section,
+               sc.marginal_note, sc.content
+          FROM "{schema}".answer_citations ac
+          JOIN "{schema}".ai_answers a ON a.id = ac.answer_id
+          JOIN "{schema}".messages m ON m.id = a.message_id
+          JOIN "{schema}".statute_chunks sc ON sc.id = ac.statute_chunk_id
+          JOIN "{schema}".statutes s ON s.id = sc.statute_id
+         WHERE m.conversation_id = :c
+         ORDER BY ac.claim_ordinal
+    """), {"c": conversation_id}).all()
+    statutes_by_answer: dict = {}
+    for row in statuted:
+        sub = f" {row[4]}" if row[4] else ""
+        statutes_by_answer.setdefault(row[0], []).append({
+            "statute_chunk_id": str(row[1]), "citation": f"{row[2]}, s. {row[3]}{sub}",
+            "official_title": row[2], "section_number": row[3], "sub_section": row[4],
+            "marginal_note": row[5], "excerpt": row[6][:240], "retrieval_score": None})
     positions_by_answer: dict = {}
     for row in positioned:
         positions_by_answer.setdefault(row[0], []).append({
@@ -333,6 +351,11 @@ def get_conversation(conversation_id: UUID,
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in (
                 service.EVALUATOR_ROUTE_TEXT, service.EVALUATOR_NO_REVIEW_TEXT)),
             "positions": positions_by_answer.get(t[5], []),
+            # Replayed statute citations; the generated statute text is the turn's
+            # content when the statute corpus was the answering source.
+            "statutes": ({"answer_state": t[4], "text": None,
+                          "citations": statutes_by_answer[t[5]]}
+                         if t[5] in statutes_by_answer else None),
             # None for a user turn, and for an assistant turn that never
             # retrieved (a compliance-shaped question routed to the evaluator).
             "document_version_id": str(t[6]) if t[6] else None,
@@ -388,6 +411,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         "routed_to_evaluator": outcome.routed_to_evaluator,
         "comparison": outcome.comparison,
         "positions": outcome.positions,
+        "statutes": outcome.statutes,
         "domains": list(outcome.domains),
         "citations": [{
             "chunk_id": str(c.chunk_id),

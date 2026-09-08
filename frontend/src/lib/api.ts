@@ -258,10 +258,12 @@ export const api = {
   logout: () => request<{ revoked: boolean }>("/auth/logout", { method: "POST" }),
 
   // ---- assist lane (AB-3/AB-4) -------------------------------------------
-  createConversation: (contractId: string) =>
+  createConversation: (contractId: string | null) =>
     request<Conversation>("/conversations", {
       method: "POST",
-      body: { contract_id: contractId },
+      // A document-less conversation (2026-09-08): the router answers from the
+      // approved statute corpus and positions; nothing else is in scope.
+      body: contractId ? { contract_id: contractId } : {},
     }),
   /** Ask about ONE document version — the one the reader has open.
    *

@@ -33,8 +33,10 @@ from legalmind.assist import (
     embedding_runtime,
     generation,
     guardrails,
+    intent,
     positions,
     routing,
+    statutes,
     store,
 )
 
@@ -86,6 +88,9 @@ class AskOutcome:
     positions: list[dict] = field(default_factory=list)
     # The routing decision — which authorized domains were candidates (`AM-25` r6).
     domains: tuple[str, ...] = ()
+    # Domain C (`AM-32` r7/r8, `AM-47`): the statute answer, generated over statute
+    # evidence ONLY and cited Act + section — its own field, never merged (`AM-45` r2).
+    statutes: dict | None = None
 
 
 def _persist_turn(db: DBSession, conversation_id: UUID, ordinal: int,
@@ -127,8 +132,9 @@ def conversation_owner(db: DBSession, conversation_id: UUID) -> UUID | None:
 
 def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
                        outcome: store.RetrievalOutcome, *,
-                       document_version_id: UUID,
-                       domains: tuple[str, ...] = ("DOCUMENT",)) -> UUID:
+                       document_version_id: UUID | None,
+                       domains: tuple[str, ...] = ("DOCUMENT",),
+                       statute_hits: list | None = None) -> UUID:
     """The retrieval record behind the answer — `AM-27`'s `retrieval_runs`.
 
     Chunk ids and scores only, never text (r6), plus the gate's raw features so the
@@ -147,6 +153,10 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
                  "vector_top_score": outcome.vector_top_score,
                  "vector_peak_gap": outcome.vector_peak_gap},
         "embedding_model": outcome.embedding_model,
+        # Domain C hits — ids and scores only (r6), so the statute half of the
+        # answer is reconstructable from the same row.
+        "statute_hits": [{"statute_chunk_id": str(h.statute_chunk_id),
+                          "score": round(h.score, 6)} for h in (statute_hits or [])],
     })
     # `filters` is the column AM-27 describes as part of "the retrieval record
     # behind an answer: query, filters, chunk ids, scores", and the document scope
@@ -156,7 +166,8 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
     # document text (r6 stands: identifiers and scores only).
     # `domains` is the routing decision (2026-09-08) — which authorized sources were
     # candidates for this question — so the answer's provenance names its route.
-    filters = _json.dumps({"document_version_id": str(document_version_id),
+    filters = _json.dumps({"document_version_id": (str(document_version_id)
+                                                   if document_version_id else None),
                            "domains": list(domains)})
     db.execute(text(f"""
         INSERT INTO "{schema}".retrieval_runs
@@ -226,7 +237,8 @@ def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
              route: routing.RoutePlan) -> AskOutcome:
     """Every refusal path converges here — one wording per candidate set, whatever
     the cause (`AM-29` r4 as amended by `AM-46`; see `routing.refusal_text`)."""
-    wording = routing.refusal_text(route)
+    held = tuple(statutes.holdings(db)) if route.has(routing.Domain.STATUTES) else ()
+    wording = routing.refusal_text(route, statute_holdings=held)
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
     _persist_answer(db, reply_id, retrieval_run_id, state,
@@ -248,6 +260,67 @@ def _persist_position_citations(db: DBSession, answer_id: UUID,
             VALUES (:i, :a, :c, :o)
         """), {"i": uuid.uuid4(), "a": answer_id, "c": hit.position_chunk_id,
                "o": 1000 + ordinal})
+
+
+def _persist_statute_citations(db: DBSession, answer_id: UUID,
+                               hits: list[statutes.StatuteHit], cited: list[int]) -> None:
+    """Domain C citations — `answer_citations.statute_chunk_id`, one row per VERIFIED
+    claim→section link (the same discipline as document citations)."""
+    schema = config.assist_schema()
+    for ordinal, index in enumerate(cited):
+        db.execute(text(f"""
+            INSERT INTO "{schema}".answer_citations
+                (id, answer_id, statute_chunk_id, claim_ordinal)
+            VALUES (:i, :a, :c, :o)
+        """), {"i": uuid.uuid4(), "a": answer_id, "c": hits[index - 1].statute_chunk_id,
+               "o": 2000 + ordinal})
+
+
+def _statute_views(hits: list[statutes.StatuteHit], cited: list[int]) -> list[dict]:
+    return [{"statute_chunk_id": str(hits[i - 1].statute_chunk_id),
+             "citation": hits[i - 1].citation,
+             "official_title": hits[i - 1].official_title,
+             "section_number": hits[i - 1].section_number,
+             "sub_section": hits[i - 1].sub_section,
+             "marginal_note": hits[i - 1].marginal_note,
+             "excerpt": hits[i - 1].content[:240],
+             "retrieval_score": round(hits[i - 1].score, 4)} for i in cited]
+
+
+def _answer_statutes(db: DBSession, conversation_id: UUID, question: str,
+                     hits: list[statutes.StatuteHit], *, request_id: str | None) -> dict:
+    """Generate over statute evidence ONLY (AM-32 r8), verify mechanically, and return
+    the Domain C section — or its own refusal state. Never touches document text."""
+    if not hits:
+        return {"answer_state": AssistAnswerState.NO_EVIDENCE_RETRIEVED.value,
+                "text": None, "citations": []}
+    texts = [h.content for h in hits]
+    if not guardrails.evidence_is_sufficient(texts):
+        return {"answer_state": AssistAnswerState.EVIDENCE_INSUFFICIENT.value,
+                "text": None, "citations": []}
+    try:
+        result = generation.generate(question, texts, environment=config.environment(),
+                                     request_id=request_id)
+    except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
+        log_event("assist.ask.statutes_refused", request_id=request_id,
+                  cause=type(exc).__name__, conversation_id=str(conversation_id))
+        return {"answer_state": AssistAnswerState.EVIDENCE_INSUFFICIENT.value,
+                "text": None, "citations": []}
+    from legalmind.security import audit as audit_log
+
+    audit_log.record(
+        db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
+        entity_id=conversation_id, request_id=request_id,
+        after={"model": result.model, "prompt_version": result.prompt_version,
+               "payload_sha256": result.payload_sha256, "evidence_chunks": len(texts),
+               "domain": "STATUTES"})
+    verification = guardrails.verify_answer(result.text, texts)
+    if not verification.passed:
+        return {"answer_state": verification.state.value, "text": None, "citations": []}
+    cited = sorted({c.chunk_index for c in verification.citations if c.grounded})
+    return {"answer_state": AssistAnswerState.ANSWERED.value, "text": result.text,
+            "citations": _statute_views(hits, cited), "_cited": cited,
+            "_model": result.model, "_latency_ms": result.latency_ms}
 
 
 def _position_views(hits: list[positions.PositionHit]) -> list[dict]:
@@ -311,7 +384,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if not permissions:
         permissions = frozenset({"assist.ask"})
     route = routing.plan(question, has_document=document_version_id is not None,
-                         permissions=permissions)
+                         permissions=permissions,
+                         statutes_available=statutes.available(db))
     domains = tuple(d.value for d in route.domains)
     log_event("assist.ask.routed", request_id=request_id,
               conversation_id=str(conversation_id), domains=",".join(domains),
@@ -324,6 +398,11 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if route.has(routing.Domain.POSITIONS):
         position_hits = positions.search_positions(
             db, query=question, permissions=permissions, limit=POSITION_LIMIT)
+    # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
+    statute_hits: list[statutes.StatuteHit] = []
+    if route.has(routing.Domain.STATUTES):
+        statute_hits = statutes.search_statutes(db, query=question,
+                                                permissions=permissions)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.
     if route.comparison:
@@ -344,24 +423,36 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                           domains=domains)
 
     if not route.has(routing.Domain.DOCUMENT):
-        # No document in scope: positions are the only thing that can answer.
-        return _positions_or_refusal(db, conversation_id, user_message_id, None,
+        # No document in scope: statutes and/or positions are what can answer.
+        run_id = None
+        if statute_hits:
+            run_id = _persist_retrieval(
+                db, user_message_id, question,
+                store.RetrievalOutcome(hits=[], gate_open=True, lexical_hit=True,
+                                       vector_top_score=None, vector_peak_gap=None,
+                                       strategy_version="statutes-lexical-1",
+                                       embedding_model=None),
+                document_version_id=None, domains=domains, statute_hits=statute_hits)
+        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
                                      AssistAnswerState.NO_EVIDENCE_RETRIEVED,
-                                     request_id)
+                                     request_id, statute_hits=statute_hits,
+                                     question=question)
 
     retrieval = store.search_hybrid(
         db, document_version_id=document_version_id, query=question,
         embed_query=embedding_runtime.embed_query)
     run_id = _persist_retrieval(db, user_message_id, question, retrieval,
-                                document_version_id=document_version_id, domains=domains)
+                                document_version_id=document_version_id, domains=domains,
+                                statute_hits=statute_hits)
 
     if not retrieval.gate_open:
         log_event("assist.ask.refused", request_id=request_id, cause="gate_closed",
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
-                                     AssistAnswerState.NO_EVIDENCE_RETRIEVED, request_id)
+                                     AssistAnswerState.NO_EVIDENCE_RETRIEVED, request_id,
+                                     statute_hits=statute_hits, question=question)
 
     chunk_texts = [h.content for h in retrieval.hits]
     if not guardrails.evidence_is_sufficient(chunk_texts):
@@ -370,7 +461,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
-                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id)
+                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
+                                     statute_hits=statute_hits, question=question)
 
     try:
         # Document chunks ONLY reach the model. Position text never does (AM-32 r4).
@@ -385,14 +477,16 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
-                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id)
+                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
+                                     statute_hits=statute_hits, question=question)
     except generation.GenerationUnavailable:
         log_event("assist.ask.refused", request_id=request_id,
                   cause="generation_unavailable", level=logging.WARNING,
                   operational_failure=True, conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
-                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id)
+                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
+                                     statute_hits=statute_hits, question=question)
 
     # AM-30 t5 — the audit record of the egress: model, prompt version, payload
     # hash. Recorded whether or not verification later rejects the text, because the
@@ -408,6 +502,17 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                "evidence_chunks": len(chunk_texts)})
 
     verification = guardrails.verify_answer(result.text, chunk_texts)
+    if verification.passed and intent.is_comparison_question(result.text):
+        # A grounded sentence can still be a VERDICT — a document that says "this
+        # clause complies with our approved standard" is grounded and is exactly
+        # the statement the assistant may never make (AM-25 r1/r4; Constitution
+        # §29.1.1 distinction 5). Mechanical, outside the model, as AM-28 r2 wants.
+        log_event("assist.ask.refused", request_id=request_id, cause="verdict_language",
+                  conversation_id=str(conversation_id))
+        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
+                                     position_hits, route, domains,
+                                     AssistAnswerState.CLAIM_UNSUPPORTED, request_id,
+                                     statute_hits=statute_hits, question=question)
     if not verification.passed:
         # CLAIM_UNSUPPORTED or the model's own NOT FOUND — either way the generated
         # text never reaches the user (AM-25 r5).
@@ -417,7 +522,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                   failures=str(len(verification.failures)),
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains, state, request_id)
+                                     position_hits, route, domains, state, request_id,
+                                     statute_hits=statute_hits, question=question)
 
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", result.text)
@@ -427,6 +533,14 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                                 latency_ms=result.latency_ms)
     _persist_citations(db, answer_id, verification, retrieval.hits)
     _persist_position_citations(db, answer_id, position_hits)
+    statute_section = None
+    if statute_hits:
+        statute_section = _answer_statutes(db, conversation_id, question, statute_hits,
+                                           request_id=request_id)
+        _persist_statute_citations(db, answer_id, statute_hits,
+                                   statute_section.pop("_cited", []))
+        statute_section = {k: v for k, v in statute_section.items()
+                           if not k.startswith("_")}
 
     cited_indexes = sorted({c.chunk_index for c in verification.citations
                             if c.grounded})
@@ -446,26 +560,56 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED,
                       text=result.text, citations=citations,
-                      positions=_position_views(position_hits), domains=domains)
+                      positions=_position_views(position_hits), domains=domains,
+                      statutes=statute_section)
+
+
+STATUTES_ONLY_TEXT = ("Answered from the approved statute corpus, cited by Act and "
+                      "section below.")
+STATUTES_BESIDE_TEXT = (
+    "No answer was found in the selected document. The approved statute corpus answers "
+    "below, cited by Act and section.")
 
 
 def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
                           run_id: UUID | None, position_hits: list, route, domains,
-                          state: AssistAnswerState, request_id: str | None) -> AskOutcome:
-    """The document did not answer (or there was none). If the organization's
-    position does, the turn is ANSWERED extractively — `AM-32` r4's "ratified text
-    quoted verbatim with its citation". Otherwise the one refusal for this route."""
-    if not position_hits:
+                          state: AssistAnswerState, request_id: str | None, *,
+                          statute_hits: list | None = None,
+                          question: str = "") -> AskOutcome:
+    """The document did not answer (or there was none). The other authorized
+    sources may still: the organization's position is quoted extractively (`AM-32`
+    r4), the statute corpus is answered over its own evidence (r8). Otherwise the
+    one refusal for this route."""
+    statute_section = None
+    if statute_hits:
+        statute_section = _answer_statutes(db, conversation_id, question, statute_hits,
+                                           request_id=request_id)
+    statute_answered = bool(statute_section and statute_section.get("text"))
+    if not position_hits and not statute_answered:
         return _refusal(db, conversation_id, message_id, run_id, state, route)
-    wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
-               else POSITIONS_ONLY_TEXT)
+    if statute_answered:
+        wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
+                   else STATUTES_ONLY_TEXT)
+    else:
+        wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
+                   else POSITIONS_ONLY_TEXT)
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
-    answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
-                                model=None, prompt_version_id=None, latency_ms=None)
+    answer_id = _persist_answer(
+        db, reply_id, run_id, AssistAnswerState.ANSWERED,
+        model=statute_section.get("_model") if statute_answered else None,
+        prompt_version_id=_prompt_version_id(db) if statute_answered else None,
+        latency_ms=statute_section.get("_latency_ms") if statute_answered else None)
     _persist_position_citations(db, answer_id, position_hits)
-    log_event("assist.ask.answered_from_positions", request_id=request_id,
-              conversation_id=str(conversation_id), positions=str(len(position_hits)))
+    if statute_section is not None:
+        _persist_statute_citations(db, answer_id, statute_hits,
+                                   statute_section.pop("_cited", []))
+        statute_section = {k: v for k, v in statute_section.items()
+                           if not k.startswith("_")}
+    log_event("assist.ask.answered_from_other_sources", request_id=request_id,
+              conversation_id=str(conversation_id), positions=str(len(position_hits)),
+              statutes=str(statute_answered))
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=wording,
-                      positions=_position_views(position_hits), domains=domains)
+                      positions=_position_views(position_hits), domains=domains,
+                      statutes=statute_section)

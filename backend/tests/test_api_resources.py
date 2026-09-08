@@ -820,9 +820,10 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
         select(M.CompanyStandardVersion)
         .where(M.CompanyStandardVersion.requirement_version_id == versions[0].id)
     ).scalars().one()
-    assert cs.configuration["preferred"] == 6        # the ratified MSA value
+    assert cs.configuration["preferred"] == 12       # Constitution §9 (AM-43 r4, 2026-09-08)
     assert cs.configuration["document_type"] == "MSA"
-    assert "MSA.pdf" in versions[0].description or "Master Services" in versions[0].description
+    assert ("Legal Constitution" in versions[0].description   # AM-43 r4: the MSA standard is sourced from the Constitution since 2026-09-08
+            or "Master Services" in versions[0].description)
 
     # The terminology of 2026-08-19 makes the Requirement publishable: mapping
     # rules with a usable confirm_threshold (D-1) and an evaluation rule version.
