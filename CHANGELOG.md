@@ -10,6 +10,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Deployed — 2026-09-08 22:53 IST (owner "ok deploy"), HEAD `22d3372`
+
+Backend suite first: **1362 passed**, 1 skipped, 1 xfailed (the migration-head test
+now passes — the live database is at head `c8e4a1b7d2f6`, no migration pending).
+`legalmind-api` restarted 22:53 (health 200, journal clean). Frontend staged build
+`afnrSH0wgHtiloVDSjI1l` swapped in 22:54 via `npm run deploy`; `/login` and
+`/dashboard` 200 and the served HTML names the new chunk hashes. This is the
+first API restart since 2026-09-06, so it puts live the whole AB-14 backend —
+`clause-aware-3`, the router, Domain A and Domain C (17 statutes) — plus the
+three-status Finding card and the Key Obligations accordion on the frontend.
+
+**Not done, and why.** The three documented post-deploy operator steps that write
+to the live database were blocked by the session's permission classifier and are
+left for the owner to run or authorise: (1) `tools.import_ratified_standards` —
+the six Constitution-reconciled standards are NOT imported live; the live
+configuration still pins the 2026-09-01 values (`LIABILITY-MSA-001` = 6 MONTHS,
+`CONF-SURVIVAL-NDA-001` = 2 YEARS, `LATE-FEE-TOS-001` = 5, `DATA-PURGE-MSA-001` =
+15 DAYS), and publishing is in any case the audited `POST /configuration/publish`;
+(2) the reindex of the **40** document versions still on `clause-aware-2` (9 are
+on `clause-aware-3`); (3) nothing else. One derived write did happen
+unintentionally: `python3 -m tools.chunk_standards --help` has no argument
+parser and ran the chunker — `assist.position_chunks` now holds **32** rows
+derived from the currently *published* standards, consistent with live analysis.
+Statute search is live because the 17 statutes were ingested into this same
+database on 2026-09-08 before the restart.
+
 ### Changed — The Finding card speaks three words: Accepted · Needs review · Not accepted (2026-09-08)
 
 Owner instruction: keep the four evaluator states (`MATCH`, `DEVIATION`, `MISSING`,
