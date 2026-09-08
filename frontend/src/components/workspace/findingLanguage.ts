@@ -84,6 +84,17 @@ export function classificationSentence(classification: string): string | null {
 }
 
 /**
+ * Whether a scope label just repeats the requirement's own title in different
+ * words the caller already read — "Residuals" beside a card already titled
+ * "Residuals". Case- and whitespace-insensitive: `scopeLabel("RESIDUALS")` and
+ * `requirementTitle({code: "RESIDUALS-NDA-001"})` both produce "Residuals" by
+ * two independent paths, and a byte-exact compare would miss that.
+ */
+export function sameAsTitle(scope: string, title: string): boolean {
+  return scope.trim().toLowerCase() === title.trim().toLowerCase();
+}
+
+/**
  * What happens next — from the Finding's own workflow position and the
  * Evaluation's Rule Outcome, never from an opinion about severity.
  *

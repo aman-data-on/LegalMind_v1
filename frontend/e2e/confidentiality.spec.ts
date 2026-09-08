@@ -144,10 +144,21 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
-    // The mirror image of the owner's screen: the elements that were absent there are
-    // present here, which is what makes their absence meaningful rather than incidental.
-    await expect(evaluation.locator(".ws-chip").first()).toBeVisible();
+    // The mirror image of the owner's screen: the elements that were absent there
+    // are PRESENT here — count, not visibility (2026-09-08): the rule-outcome
+    // chip moved from the always-visible header into the "How this was
+    // determined" disclosure (a readability change, not a permission change),
+    // so it is no longer visible without a click even for a caller who holds
+    // `legal_position.view`. `legal-access.spec.ts` already proves this same
+    // element the same way (`toHaveCount(1)`); this test now matches it rather
+    // than asserting a visibility default the redesign deliberately dropped.
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
     const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
     expect(labels).toContain("Company Standard");
+
+    // And it is real, renderable content — not dead markup sitting unreachable
+    // in a disclosure nobody can open: expanding it makes the chip visible.
+    await evaluation.locator(".ws-determined > summary").click();
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toBeVisible();
   });
 });

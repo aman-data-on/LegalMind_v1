@@ -21,6 +21,7 @@ import {
   reasoningSteps,
   requirementTitle,
   reviewHeadline,
+  sameAsTitle,
   sideOf,
 } from "@/components/workspace/findingLanguage";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
@@ -278,5 +279,17 @@ describe("the report headline", () => {
   it("does not call an empty analysis an approval", () => {
     expect(reviewHeadline({ total: 0, needsDecision: 0, missing: 0, match: 0 }))
       .toMatch(/no ratified requirement/i);
+  });
+});
+
+describe("a scope that just repeats the title", () => {
+  it("is recognised regardless of case or stray whitespace", () => {
+    expect(sameAsTitle("Residuals", "Residuals")).toBe(true);
+    expect(sameAsTitle("RESIDUALS", "residuals")).toBe(true);
+    expect(sameAsTitle("  Residuals  ", "Residuals")).toBe(true);
+  });
+
+  it("is false when the scope actually adds information", () => {
+    expect(sameAsTitle("Aggregate", "Liability cap")).toBe(false);
   });
 });

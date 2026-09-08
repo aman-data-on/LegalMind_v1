@@ -85,6 +85,27 @@ describe("every classification renders a card a reader can act on", () => {
   });
 });
 
+/**
+ * Splits a rendered card's HTML at its `<details>…</details>` boundary.
+ * `renderToStaticMarkup` emits a closed `<details>`'s content in the markup
+ * regardless — the browser hides it, not the server — so a plain substring
+ * search cannot tell "on the visible card" from "behind the disclosure".
+ * This can, and is what the tests below actually need: the manager's report
+ * was specifically that certain facts sat OUTSIDE the disclosure, on the
+ * always-visible part of the card.
+ */
+function splitAtDetails(html: string): { before: string; inside: string; after: string } {
+  const open = html.indexOf("<details");
+  const closeTag = "</details>";
+  const close = html.lastIndexOf(closeTag);
+  if (open === -1 || close === -1) return { before: html, inside: "", after: "" };
+  return {
+    before: html.slice(0, open),
+    inside: html.slice(open, close + closeTag.length),
+    after: html.slice(close + closeTag.length),
+  };
+}
+
 describe("evidence shapes", () => {
   it("says plainly when nothing was cited", () => {
     expect(card()).toMatch(/No supporting text was found in the document/i);
@@ -175,5 +196,84 @@ describe("odd value shapes never reach the reader as JSON", () => {
       { classification: "CONFLICT", actual_value: { caps: [{ cap_value: 6 }, { cap_value: 12 }] } },
     );
     expect(html).toMatch(/2 separate limits stated/);
+  });
+});
+
+describe("technical/engineering facts stay off the default-visible card (owner, 2026-09-08)", () => {
+  it("keeps the raw rule outcome out of the visible card and inside the disclosure", () => {
+    const html = card({}, {
+      rule_outcome: "NOT_APPLICABLE", expected_value: { presence: "PRESENT" },
+    });
+    const { before, inside } = splitAtDetails(html);
+    // The label the manager's screenshot flagged: not on the visible card.
+    expect(before).not.toMatch(/No rule covers this/);
+    // Not deleted — inside the disclosure, still reachable.
+    expect(inside).toMatch(/No rule covers this/);
+    expect(inside).toContain("ws-evaluation__outcome");
+  });
+
+  it("keeps the evaluator/evidence-count provenance out of the visible card", () => {
+    const html = card(
+      { classification: "MATCH", evidence: [evidence()] },
+      { classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["ev1"] },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).not.toMatch(/PRESENCE-v1/);
+    expect(inside).toMatch(/PRESENCE-v1/);
+    expect(inside).toContain("ws-evaluation__provenance");
+  });
+
+  it("still proves the LEGAL-02 hooks by count, wherever they now live", () => {
+    // The two tests above prove POSITION changed; this proves the property the
+    // browser suite actually checks — presence/absence — is untouched. Both
+    // `.ws-evaluation__outcome` and `.ws-evaluation__provenance` must appear
+    // exactly once when the data is present.
+    const html = card({}, { rule_outcome: "UNACCEPTABLE", expected_value: { presence: "PRESENT" } });
+    expect((html.match(/ws-evaluation__outcome/g) ?? []).length).toBe(1);
+    expect((html.match(/ws-evaluation__provenance/g) ?? []).length).toBe(1);
+  });
+
+  it("what a reader sees WITHOUT expanding anything still answers all four questions", () => {
+    // What was checked / what the document says / what the standard expects /
+    // what to do next — the manager's own four questions — must all be in the
+    // `before` segment, i.e. visible with zero clicks.
+    // Finding-level `requires_decision: true` (never the evaluation's — that
+    // would also render `DecisionControl`, which needs a live session and has
+    // its own browser coverage in `decision.spec.ts`) matches what a real
+    // UNACCEPTABLE produces: D-3.5(a)'s zero-tolerance routing.
+    const html = card(
+      { classification: "DEVIATION", requires_decision: true },
+      {
+        classification: "DEVIATION", rule_outcome: "UNACCEPTABLE",
+        actual_value: { cap_value: 24, cap_unit: "MONTHS" },
+        expected_value: { preferred: 6, unit: "MONTHS" },
+      },
+    );
+    const { before } = splitAtDetails(html);
+    expect(before).toMatch(/Residuals/);                        // what was checked
+    expect(before).toMatch(/24 MONTHS/);                          // what the document says
+    expect(before).toMatch(/6 MONTHS/);                           // what the standard expects
+    expect(before).toMatch(/NEXT STEP/i);                         // what to do next
+    // And NOT the raw outcome label that used to sit right beside it.
+    expect(before).not.toMatch(/Not acceptable/);
+  });
+
+  it("drops a scope label that only repeats the title, on every classification", () => {
+    for (const classification of ["MATCH", "DEVIATION", "MISSING"]) {
+      const html = card(
+        { classification },
+        { classification, scope_key: "RESIDUALS" },   // scopeLabel("RESIDUALS") === "Residuals" === the title
+      );
+      const { before } = splitAtDetails(html);
+      expect(before, classification).not.toMatch(/ws-evaluation__scope/);
+    }
+  });
+
+  it("keeps a scope label that says something the title did not", () => {
+    const html = card(
+      { requirement: { code: "X-MSA-001", name: "Liability cap", version_id: "v1", version_number: 1 } },
+      { scope_key: "AGGREGATE" },
+    );
+    expect(html).toMatch(/ws-evaluation__scope[^>]*>Aggregate</);
   });
 });

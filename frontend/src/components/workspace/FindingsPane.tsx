@@ -55,6 +55,7 @@ import {
   nextStep,
   reasoningSteps,
   requirementTitle,
+  sameAsTitle,
   sideOf,
   type Side,
 } from "./findingLanguage";
@@ -575,27 +576,37 @@ function EvaluationCard({
   const action = nextStep(finding, evaluation);
   /* A scope worth naming, or none. Every requirement carries a scope key and
      most are the placeholder `GENERAL`, which as a heading said nothing while
-     occupying the first line of every evaluation. */
-  const scope = evaluation.scope_label
+     occupying the first line of every evaluation. And when a scope IS named,
+     it usually just repeats the finding's own title in different words —
+     "Residuals" under a card already titled "Residuals" (owner, 2026-09-08:
+     the manager's screenshot showed exactly this row). Worth showing only
+     when it adds something the title did not already say — a finding whose
+     evaluations span more than one scope. */
+  const rawScope = evaluation.scope_label
     ?? (evaluation.scope_key && evaluation.scope_key !== "GENERAL"
       ? scopeLabel(evaluation.scope_key) : null);
+  const scope = rawScope && !sameAsTitle(rawScope, requirementTitle(finding.requirement))
+    ? rawScope : null;
 
   return (
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>
-      {scope || evaluation.rule_outcome !== undefined || evaluation.current_decision || attention ? (
+      {/*
+        * The primary card's header now carries only what a reader acts on:
+        * a real scope name (when it says more than the title already did)
+        * and whether a decision is pending or made. The RAW rule outcome
+        * ("No rule covers this", "Not acceptable") moved into "How this was
+        * determined" below — it is legal-position jargon layered on top of
+        * facts the NEXT STEP sentence already states in plain language, and
+        * it was the loudest thing on the card in the manager's screenshot
+        * (owner, 2026-09-08). The element itself is unmoved in the sense that
+        * matters to LEGAL-02: `.ws-evaluation__outcome` still exists, absent
+        * for a caller without `legal_position.view`, present for one with
+        * it — `confidentiality.spec.ts` and `legal-access.spec.ts` assert on
+        * its COUNT, not its position on the page.
+        */}
+      {scope || evaluation.current_decision || attention ? (
         <div className="ws-evaluation__head">
           {scope ? <span className="ws-evaluation__scope">{scope}</span> : null}
-          {/* Presence-tested, not permission-tested (52.4) — an omitted field renders nothing. */}
-          {/* `ws-evaluation__outcome` is a STABLE hook, not styling: LEGAL-02 turns
-              on this element being absent for a caller without
-              `legal_position.view` and present for one with it, and the fill
-              classes below appear only for non-calm outcomes — so asserting on
-              them would pass for the wrong reason on an ACCEPTABLE result. */}
-          {evaluation.rule_outcome !== undefined ? (
-            <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
-              {ruleOutcomeLabel(evaluation.rule_outcome)}
-            </span>
-          ) : null}
           {evaluation.current_decision ? (
             <span className="ws-chip--fill ws-chip--decision-fill">{evaluation.current_decision.decision_type}</span>
           ) : attention ? (
@@ -673,12 +684,49 @@ function EvaluationCard({
         {/* The requirement code is NOT repeated here — it sits on the face of
             the card, in the action row. Printing it in both places made
             `getByText` ambiguous and gave the reader the same identifier
-            twice. */}
+            twice.
+
+            The rule outcome and the provenance line both moved IN here
+            (2026-09-08, second pass): both used to sit on the visible card by
+            default — "No rule covers this" in the header, "PRESENCE-v1 · 0
+            evidence references" just above the evidence — and both are
+            exactly the "internal/engineering information" the manager's
+            report named. Neither is deleted: rule 11/12 still require the
+            chain to be reconstructible, and 45B.10/AM-19 still require
+            provenance to survive a LEGAL-02 omission. They are simply no
+            longer competing with the plain-language NEXT STEP for the
+            reader's first look. `.ws-evaluation__outcome` and
+            `.ws-evaluation__provenance` are UNCHANGED as elements — same
+            classes, same conditional rendering on the same fields — so every
+            LEGAL-02 test (which asserts by count/text, never by position on
+            the page) holds exactly as it did. */}
         <dl className="ws-determined__tech">
+          {evaluation.rule_outcome !== undefined ? (
+            <>
+              <dt>Rule outcome</dt>
+              <dd>
+                <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
+                  {ruleOutcomeLabel(evaluation.rule_outcome)}
+                </span>
+              </dd>
+            </>
+          ) : null}
           <dt>Finding state</dt>
           <dd>{findingStatusLabel(finding.status)}</dd>
+          {/*
+            * WHICH evaluator produced this, always — 2026-09-04, found by
+            * porting the LEGAL-02 browser test off the legacy screen, and
+            * never nested inside the `.ws-explain` block above: `explanation`
+            * is omitted for a caller without `legal_position.view` and this
+            * row must not be.
+            */}
           <dt>Evaluator</dt>
-          <dd className="ws-mono">{evaluation.evaluator_version}</dd>
+          <dd className="ws-mono ws-evaluation__provenance">
+            {evaluation.evaluator_version}
+            {" · "}
+            {evaluation.evidence_refs.length}{" "}
+            {evaluation.evidence_refs.length === 1 ? "evidence reference" : "evidence references"}
+          </dd>
           {evaluation.operator ? (
             <>
               <dt>Comparison</dt>
@@ -689,27 +737,6 @@ function EvaluationCard({
           <dd className="ws-mono">{evaluation.scope_key}</dd>
         </dl>
       </details>
-
-      {/*
-        * WHICH evaluator produced this, always — 2026-09-04, found by porting
-        * the LEGAL-02 browser test off the legacy screen.
-        *
-        * This line used to live INSIDE the explanation block above, and
-        * `explanation` is one of the fields LEGAL-02 omits for a caller without
-        * `legal_position.view`. So an owner saw a verdict with no record of what
-        * produced it, while the legacy screen showed provenance to everyone.
-        * 45B.10 / AM-19 are explicit that omission removes the legal POSITION and
-        * not the audit trail, and an evaluator version is provenance, not a
-        * position — so it is rendered unconditionally, beside the scope it
-        * belongs to. `analysis.spec.ts` and `confidentiality.spec.ts` both read
-        * this element, so it keeps its class and its two facts.
-        */}
-      <p className="ws-evaluation__provenance ws-pane__note ws-mono">
-        {evaluation.evaluator_version}
-        {" · "}
-        {evaluation.evidence_refs.length}{" "}
-        {evaluation.evidence_refs.length === 1 ? "evidence reference" : "evidence references"}
-      </p>
 
       {cited.length > 0 ? (
         <div className="ws-evidence">

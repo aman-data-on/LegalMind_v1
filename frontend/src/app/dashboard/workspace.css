@@ -2906,6 +2906,14 @@
 }
 .ws-determined__tech dt { color: var(--ws-ink-500); }
 .ws-determined__tech dd { margin: 0; color: var(--ws-ink-700); overflow-wrap: anywhere; }
+/* The rule-outcome chip, relocated here from the card header (2026-09-08,
+   second pass): a technical footnote now, not the loudest thing on the card,
+   so it drops the raised "fill" treatment and reads at the same quiet weight
+   as every other row in this list. */
+.ws-determined__tech .ws-evaluation__outcome {
+  font-size: var(--ws-text-xs); padding: 1px 6px;
+  background: transparent; border: 1px solid var(--ws-ink-100); color: var(--ws-ink-700);
+}
 
 /* --- Evidence ----------------------------------------------------------- */
 /* Grouped and named by source: a passage from this document and a passage from
