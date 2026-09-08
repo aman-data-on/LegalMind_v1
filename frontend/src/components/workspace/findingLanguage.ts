@@ -224,10 +224,10 @@ export function nextStep(
  * never names a consequence (rules 7, 12, 21). Residuals is nothing special
  * here: every requirement type flows through the same five shapes.
  *
- *   MATCH      "The document's liability cap is 12 MONTHS, which matches the
+ *   MATCH      "The document's liability is 12 months, which matches the
  *               company standard."
- *   DEVIATION  "The document sets the late fee at 8 PERCENT_PER_MONTH, while
- *               the company standard expects 5 PERCENT_PER_MONTH."
+ *   DEVIATION  "The document sets late fee at 8 percent per month, while the
+ *               company standard expects 5 percent per month."
  *   MISSING    "The document does not include residuals, which the company
  *               standard requires."
  *   CONFLICT   "The document contains provisions on … that contradict each
@@ -335,7 +335,9 @@ const BASIS_KEYS = ["cap_basis", "basis"];
 /** A unit enum in the reader's words — "12 months", "1 year", "8 percent per
  *  month". Units are measurement, not legal position, so this is presentation;
  *  the `basis` token beside it stays verbatim (45B.4). Unknown units fall back
- *  to lower-case words. */
+ *  to lower-case words — unreachable on the 32 ratified standards (DAYS, MONTHS,
+ *  YEARS, PERCENT_PER_MONTH only); add a monetary unit here explicitly before
+ *  configuring one, or "USD" would render as "usd". */
 const UNIT_WORDS: Record<string, string> = {
   MONTHS: "months", YEARS: "years", DAYS: "days", WEEKS: "weeks", HOURS: "hours",
   PERCENT_PER_MONTH: "percent per month", PERCENT_PER_ANNUM: "percent per year",
