@@ -309,6 +309,9 @@ LEGAL_POSITION_FIELDS = (
     "comparison",
     "explanation",
     "rule_configuration",
+    # The Constitution citation behind "Not accepted" (AB-14 follow-up) — a
+    # confirmed company legal position exactly like the four above it.
+    "constitution_prohibition",
     "legal_rule_version_id",
 )
 

@@ -302,7 +302,16 @@ export interface Evaluation {
    * Present ONLY when the approved Legal Constitution explicitly establishes
    * that the contract's position is not acceptable (owner, 2026-09-08). The
    * server states it with its citation; the UI never derives it from a
-   * DEVIATION, a MISSING or an UNACCEPTABLE rule outcome. Not sent today.
+   * DEVIATION, a MISSING or an UNACCEPTABLE rule outcome. Omitted (never
+   * null) whenever it does not apply — see `redact_legal_position`, which
+   * omits it identically for a caller without `legal_position.view`.
+   *
+   * Wired for two Company Standards only (2026-09-08, sixth pass):
+   * `LIABILITY-MSA-001`/`LIABILITY-TOS-001` on an unlimited cap (Constitution
+   * §9) and `DATA-RETRIEVAL-TOS-001` on a retrieval window under 30 days
+   * (§13) — see `backend/legalmind/evaluation/constitution_boundaries.py`
+   * for why the other four reconciled standards are not (their Unacceptable
+   * Position text is qualitative, not a checkable threshold).
    */
   constitution_prohibition?: { section: string; quote: string } | null;
 }

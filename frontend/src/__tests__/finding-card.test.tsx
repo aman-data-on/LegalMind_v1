@@ -476,6 +476,13 @@ describe("the three-word status on the card face", () => {
     }
   });
 
+  it("tells the reader what closes the gap for a real DEVIATION, but not for UNABLE_TO_EVALUATE", () => {
+    const deviation = face({ classification: "DEVIATION" }, { classification: "DEVIATION" });
+    expect(deviation).toMatch(/Update the document to match the company standard, and this will show as Accepted\./);
+    const unable = face({ classification: "UNABLE_TO_EVALUATE" }, { classification: "UNABLE_TO_EVALUATE" });
+    expect(unable).not.toMatch(/will show as Accepted/);
+  });
+
   it("never infers Not accepted from a DEVIATION, a MISSING or an UNACCEPTABLE rule outcome", () => {
     for (const classification of ["DEVIATION", "MISSING"]) {
       const html = face(
@@ -502,6 +509,8 @@ describe("the three-word status on the card face", () => {
     expect(before).toMatch(/data-status="NOT_ACCEPTED"[^>]*>Not accepted</);
     expect(before).toContain("ws-finding__mark--bad");
     expect(before).toMatch(/Legal Constitution §9: “Unlimited liability is Unacceptable\.”/);
+    // Not accepted routes to a person; it never claims a self-service edit fixes it.
+    expect(before).not.toMatch(/will show as Accepted/);
     // The engine's own words are still there, one click away.
     expect(inside).toMatch(/DEVIATION/);
     expect(inside).toMatch(/Not acceptable/);

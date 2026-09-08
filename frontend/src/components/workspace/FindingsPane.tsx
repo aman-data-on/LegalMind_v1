@@ -48,6 +48,7 @@ import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import {
+  alignmentGuidance,
   classificationSentence,
   constitutionProhibition,
   evidenceLocation,
@@ -483,6 +484,7 @@ export function FindingCard({ finding, onChanged, prepared }: {
   const askIntent = useAskIntent();
   const status = userStatus(finding);
   const prohibition = constitutionProhibition(finding);
+  const guidance = status === "NEEDS_REVIEW" ? alignmentGuidance(finding.classification) : null;
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   const title = requirementTitle(finding.requirement);
   const meaning = classificationSentence(finding.classification);
@@ -521,6 +523,12 @@ export function FindingCard({ finding, onChanged, prepared }: {
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
       {meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
+      {/* "Needs review" says what closes the gap and what happens then — owner,
+          2026-09-08 (sixth pass): edit the document to align, and the finding
+          becomes Accepted. Absent for MATCH, for NOT_ACCEPTED (routed to a
+          person instead), and for UNABLE_TO_EVALUATE (nothing established to
+          modify). */}
+      {guidance ? <p className="ws-finding__guidance">{guidance}</p> : null}
       {prohibition ? (
         // NOT ACCEPTED always shows its source: the Constitution section the
         // server cited, quoted verbatim. Without this the status is not shown.

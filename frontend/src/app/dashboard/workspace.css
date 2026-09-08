@@ -2900,6 +2900,17 @@
   text-wrap: pretty;
 }
 
+/* The "Needs review" closing line — what to change, and that doing so is
+   enough (owner, 2026-09-08, sixth pass). Quieter than the lede: it is the
+   second sentence, not a second fact. */
+.ws-finding__guidance {
+  margin: 0 0 var(--ws-s3);
+  font-size: var(--ws-text-sm);
+  line-height: 1.5;
+  color: var(--ws-ink-500);
+  text-wrap: pretty;
+}
+
 /* --- The comparison ----------------------------------------------------- */
 /* Two facts, aligned, in words. The `dt` strings and the `.ws-facts` class are
    LEGAL-02's own proof (confidentiality.spec.ts reads them to assert "Company

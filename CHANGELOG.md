@@ -10,6 +10,40 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Not accepted is now real for two Constitution boundaries, and Needs review says what closes the gap (2026-09-08, sixth pass)
+
+Owner clarification: (1) a DEVIATION/MISSING/CONFLICT under "Needs review" should
+say a person can fix it by aligning the document, and it then shows as Accepted;
+(2) resolve the DEVIATION/MISSING-vs-Not-accepted overlap by PRECEDENCE, not
+inference — Not accepted is checked first as a narrow, server-stated condition;
+everything else that is not MATCH falls through to Needs review.
+
+New `legalmind/evaluation/constitution_boundaries.py` implements the two
+Unacceptable Position paragraphs the Constitution states as a checkable
+condition rather than a qualitative one: **§9 Liability** (an unlimited cap,
+`LIABILITY-MSA-001`/`LIABILITY-TOS-001`) and **§13 Termination** (a
+post-termination export window under 30 days, `DATA-RETRIEVAL-TOS-001`). Wired
+into `serialize_evaluation` (both `GET /findings/{id}` and
+`GET /findings/{id}/evaluations`), gated by `legal_position.view` exactly like
+`rule_outcome`/`expected_value` (`constitution_prohibition` added to
+`LEGAL_POSITION_FIELDS`). The other four reconciled standards' Unacceptable
+Position text is qualitative ("without specific approval", "materially less
+favorable") — not wired, and extending the table needs the owner's yes per
+rule 6, quoting the Constitution's own words.
+
+Frontend: `findingLanguage.alignmentGuidance()` renders under "Needs review"
+only (never under Accepted or Not accepted, which routes to a person instead) —
+"Update/Add this to the document to match the company standard, and this will
+show as Accepted," omitted for `UNABLE_TO_EVALUATE` (nothing established to
+modify, so nothing to claim). `userStatus()`'s precedence documented inline.
+
+Tests: 7 new unit tests for the boundary module, +3 real API tests through
+`GET /findings/{id}` proving the field appears for an unlimited cap, is absent
+for a finite one, and is omitted without `legal_position.view` — 1372 backend
+passed (+10) — and +5 frontend (292 Vitest). Verified visually: a real
+DATA-RETRIEVAL-TOS-001 finding at 15 days renders "Not accepted" with its §13
+citation; MISSING/DEVIATION render "Needs review" with the alignment sentence.
+
 ### Deployed — 2026-09-08 22:53 IST (owner "ok deploy"), HEAD `22d3372`
 
 Backend suite first: **1362 passed**, 1 skipped, 1 xfailed (the migration-head test

@@ -84,6 +84,28 @@ export function classificationSentence(classification: string): string | null {
 }
 
 /**
+ * What making the requirement true again would look like — owner instruction,
+ * 2026-09-08 (sixth pass): "Deviation/Missing/Unable-to-evaluate need to say
+ * they require modification; once the user aligns the document, it becomes a
+ * Match." Shown only under NEEDS REVIEW (never under Accepted, and never
+ * under Not accepted — that status routes to a person for a decision, not to
+ * a self-service edit, via `nextStep` below).
+ *
+ * UNABLE_TO_EVALUATE gets none: there is no established gap to close, only
+ * insufficient evidence, so "modify the document" would overclaim what is
+ * actually missing (rule 15 — fail closed, never invent a fix).
+ */
+const ALIGNMENT_GUIDANCE: Record<string, string> = {
+  DEVIATION: "Update the document to match the company standard, and this will show as Accepted.",
+  MISSING: "Add this to the document to match the company standard, and this will show as Accepted.",
+  CONFLICT: "Resolve the contradiction so the document matches the company standard, and this will show as Accepted.",
+};
+
+export function alignmentGuidance(classification: string): string | null {
+  return ALIGNMENT_GUIDANCE[classification] ?? null;
+}
+
+/**
  * The status a reader sees — owner instruction, 2026-09-08 (fifth pass): three
  * words, for a Sales user who has to know in one glance whether anything is
  * expected of them.
@@ -111,6 +133,13 @@ export const USER_STATUS_LABELS: Record<UserStatus, string> = {
 };
 
 export function userStatus(finding: Pick<Finding, "classification" | "evaluations">): UserStatus {
+  // Precedence, not overlap (owner, 2026-09-08, sixth pass): a DEVIATION or a
+  // MISSING can be EITHER outcome, never both at once, and NOT ACCEPTED is
+  // checked first because it is the narrower, server-stated condition. The
+  // engine never infers it from the classification alone — only an explicit
+  // Constitution prohibition the server sent produces it. Everything left
+  // over that is not MATCH needs a person to look, which is what NEEDS_REVIEW
+  // means; it does not by itself mean the clause is fine.
   if (constitutionProhibition(finding)) return "NOT_ACCEPTED";
   return finding.classification === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW";
 }

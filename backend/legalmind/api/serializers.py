@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain.enums import FindingStatus
+from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.workflow import (
     current_decision,
     evaluation_requires_decision,
@@ -60,7 +61,8 @@ def evidence_refs(db: DBSession, evaluation_id: UUID) -> list[str]:
 
 def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
                          legal_position: bool,
-                         escalated: bool = False) -> dict[str, Any]:
+                         escalated: bool = False,
+                         requirement_code: str | None = None) -> dict[str, Any]:
     result = ev.result or {}
     payload: dict[str, Any] = {
         "id": str(ev.id),
@@ -94,6 +96,9 @@ def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
         "current_decision": None,
         "created_at": _iso(ev.created_at),
     }
+    prohibition = constitution_prohibition_for(requirement_code, ev.actual_value)
+    if prohibition is not None:
+        payload["constitution_prohibition"] = prohibition
     decision = current_decision(db, ev.id)
     if decision is not None:
         payload["current_decision"] = serialize_decision(decision)
@@ -143,7 +148,8 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
         "escalated": escalated,
         "evaluations": [
             serialize_evaluation(db, ev, legal_position=legal_position,
-                                 escalated=escalated)
+                                 escalated=escalated,
+                                 requirement_code=req.code if req else None)
             for ev in evaluations
         ],
         "evidence": finding_evidence(db, finding.id),

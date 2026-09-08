@@ -275,3 +275,82 @@ def test_audit_state_payloads_are_gated(api, db, owner, scoped):
         assert "after_state" not in event
         assert "before_state" not in event
     assert "ACCEPT_DEVIATION" not in api.get(f"{V1}/audit-events").text
+
+
+# ==========================================================================
+# AB-14 follow-up (2026-09-08, sixth pass): the Constitution prohibition
+# field, end to end through the real API and the real permission gate.
+# ==========================================================================
+def test_an_unlimited_liability_evaluation_carries_the_constitution_citation(
+    api, db, owner,
+):
+    req = M.Requirement(code="LIABILITY-MSA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                              name="Limitation of Liability",
+                              evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                              created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv,
+                           classification=E.FindingClassification.DEVIATION)
+    ev = make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                        rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    ev.actual_value = {"cap_status": "UNLIMITED"}
+    db.flush(); db.commit()
+
+    sign_in(api, db, owner)
+    resp = api.get(f"{V1}/findings/{finding.id}")
+    payload = resp.json()["data"]["evaluations"][0]
+    assert payload["constitution_prohibition"] == {
+        "section": "9",
+        "quote": "An uncapped/unlimited liability term, or a cap applying to only one party.",
+    }
+
+
+def test_a_finite_liability_deviation_carries_no_citation(api, db, owner):
+    req = M.Requirement(code="LIABILITY-MSA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                              name="Limitation of Liability",
+                              evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                              created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv,
+                           classification=E.FindingClassification.DEVIATION)
+    ev = make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                        rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    ev.actual_value = {"cap_value": 24, "cap_unit": "MONTHS", "cap_basis": "FEES_PAID"}
+    db.flush(); db.commit()
+
+    sign_in(api, db, owner)
+    resp = api.get(f"{V1}/findings/{finding.id}")
+    payload = resp.json()["data"]["evaluations"][0]
+    assert "constitution_prohibition" not in payload
+
+
+def test_the_constitution_citation_is_omitted_without_legal_position_view(
+    api, db, owner,
+):
+    req = M.Requirement(code="LIABILITY-MSA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                              name="Limitation of Liability",
+                              evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                              created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv,
+                           classification=E.FindingClassification.DEVIATION)
+    ev = make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                        rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    ev.actual_value = {"cap_status": "UNLIMITED"}
+    db.flush(); db.commit()
+
+    restricted = without_legal_position(db, owner)
+    sign_in(api, db, restricted)
+    resp = api.get(f"{V1}/findings/{finding.id}")
+    payload = resp.json()["data"]["evaluations"][0]
+    assert "constitution_prohibition" not in payload
+    assert "constitution_prohibition" in LEGAL_POSITION_FIELDS

@@ -22,6 +22,7 @@ import {
   requirementTitle,
   userStatus,
   constitutionProhibition,
+  alignmentGuidance,
   reviewHeadline,
   sameAsTitle,
   sideOf,
@@ -345,5 +346,22 @@ describe("the three-word user-facing status (owner, 2026-09-08)", () => {
     expect(userStatus(f("DEVIATION", [{ constitution_prohibition: null }]))).toBe("NEEDS_REVIEW");
     expect(userStatus(f("DEVIATION", [{ constitution_prohibition: { section: "9", quote: "" } }]))).toBe("NEEDS_REVIEW");
     expect(constitutionProhibition(f("MATCH"))).toBeNull();
+  });
+});
+
+describe("what closing the gap looks like — the Needs review guidance (owner, 2026-09-08, sixth pass)", () => {
+  it("names the fix for DEVIATION, MISSING and CONFLICT", () => {
+    expect(alignmentGuidance("DEVIATION")).toMatch(/Update the document.*show as Accepted/);
+    expect(alignmentGuidance("MISSING")).toMatch(/Add this to the document.*show as Accepted/);
+    expect(alignmentGuidance("CONFLICT")).toMatch(/Resolve the contradiction.*show as Accepted/);
+  });
+
+  it("says nothing for UNABLE_TO_EVALUATE — there is no established gap to close", () => {
+    expect(alignmentGuidance("UNABLE_TO_EVALUATE")).toBeNull();
+  });
+
+  it("says nothing for MATCH or an unrecognised classification", () => {
+    expect(alignmentGuidance("MATCH")).toBeNull();
+    expect(alignmentGuidance("SOMETHING_NEW")).toBeNull();
   });
 });
