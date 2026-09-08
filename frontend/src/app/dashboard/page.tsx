@@ -62,6 +62,21 @@ import {
 
 const PAGE_SIZE = 25;
 
+/** The seven columns, in one place — the table renders them and so does the
+ *  loading skeleton, which must reserve the header's height or the whole body
+ *  jumps down the instant data lands. */
+const COLUMNS = [
+  "Document", "Type", "Status", "Findings", "Last Analyzed", "Added", "Action",
+] as const;
+
+function TableHead() {
+  return (
+    <tr>
+      {COLUMNS.map((column) => <th key={column} scope="col">{column}</th>)}
+    </tr>
+  );
+}
+
 const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
   draft: <IconClock size={13} />,
   analyzing: <span className="ws-spin" aria-hidden="true" />,
@@ -197,8 +212,10 @@ function DocumentsListView() {
     if (restoreFocus) menuToggleRef.current?.focus();
   }
 
-  /** Arrow/Home/End move within the menu; Tab and Escape close it and return
-   *  focus to the toggle, which is the WAI-ARIA menu-button behaviour. */
+  /** Arrows move within the menu and wrap; Tab and Escape close it and return
+   *  focus to the toggle, which is the WAI-ARIA menu-button behaviour. (No
+   *  Home/End: the menu holds three items at most, where both keys are one
+   *  arrow press.) */
   function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const items = Array.from(
       menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [],
@@ -211,8 +228,6 @@ function DocumentsListView() {
     }
     const to = event.key === "ArrowDown" ? (at + 1) % items.length
       : event.key === "ArrowUp" ? (at - 1 + items.length) % items.length
-      : event.key === "Home" ? 0
-      : event.key === "End" ? items.length - 1
       : -1;
     if (to < 0) return;
     event.preventDefault();
@@ -413,6 +428,8 @@ function DocumentsListView() {
    *  contracts. An empty shelf is not an empty account, and neither is a
    *  department view for someone with no department. */
   const noFilters = !q && !typeFilter && !statusFilter;
+  /** Rows are already on screen, so whatever just failed was a REFRESH. */
+  const stale = !!contracts && contracts.length > 0;
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
     && noFilters && !showArchived && scope === "own";
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
@@ -565,26 +582,19 @@ function DocumentsListView() {
             distrust a correct table. With no rows to show, the original
             message is the right one. */}
         {error ? (
-          contracts && contracts.length > 0 ? (
-            <div className="ws-state ws-state--warn" role="alert">
-              <h2>These results could not be refreshed.</h2>
-              <p>
-                {describeError(error)} The rows below are the last ones loaded
-                successfully.
-              </p>
-              <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
-                Try again
-              </button>
-            </div>
-          ) : (
-            <div className="ws-state ws-state--error" role="alert">
-              <h2>Documents could not be loaded.</h2>
-              <p>{describeError(error)}</p>
-              <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
-                Try again
-              </button>
-            </div>
-          )
+          <div className={`ws-state ws-state--${stale ? "warn" : "error"}`} role="alert">
+            <h2>
+              {stale ? "These results could not be refreshed."
+                : "Documents could not be loaded."}
+            </h2>
+            <p>
+              {describeError(error)}
+              {stale ? " The rows below are the last ones loaded successfully." : ""}
+            </p>
+            <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
+              Try again
+            </button>
+          </div>
         ) : null}
 
         {/*
@@ -655,19 +665,7 @@ function DocumentsListView() {
                 instant data landed — a layout shift on the page's first paint,
                 every visit. Six skeleton rows also hold roughly the height a
                 full page of results occupies, so the card does not jump size. */}
-            <table aria-hidden="true">
-              <thead>
-                <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Findings</th>
-                  <th scope="col">Last Analyzed</th>
-                  <th scope="col">Added</th>
-                  <th scope="col">Action</th>
-                </tr>
-              </thead>
-            </table>
+            <table aria-hidden="true"><thead><TableHead /></thead></table>
             {[0, 1, 2, 3, 4, 5].map((row) => (
               <div key={row} className="ws-docs__skel" aria-hidden="true">
                 <span className="ws-skel ws-skel--line" style={{ width: "40%" }} />
@@ -681,20 +679,15 @@ function DocumentsListView() {
         {contracts ? (
           <div className="ws-docs__table">
             <table>
-              <thead>
-                <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Findings</th>
-                  <th scope="col">Last Analyzed</th>
-                  <th scope="col">Added</th>
-                  <th scope="col">Action</th>
-                </tr>
-              </thead>
+              <thead><TableHead /></thead>
               <tbody>
                 {contracts.map((contract) => {
                   const bucket = documentStatusBucket(contract);
+                  // One word, used as both the visible label and the head of the
+                  // accessible name — written twice, they drifted immediately.
+                  const verb = contract.archived_at ? "View"
+                    : bucket === "draft" ? "Analyze"
+                    : bucket === "analyzing" ? "View Progress" : "Review";
                   return (
                     <tr key={contract.id} className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
                       <td>
@@ -762,14 +755,9 @@ function DocumentsListView() {
                           <Link
                             href={`/dashboard?id=${contract.id}`}
                             className="ws-btn ws-btn--sm ws-btn--link"
-                            aria-label={`${contract.archived_at ? "View"
-                              : bucket === "draft" ? "Analyze"
-                              : bucket === "analyzing" ? "View progress for"
-                              : "Review"} ${contract.name}`}
+                            aria-label={`${verb} ${contract.name}`}
                           >
-                            {contract.archived_at ? "View"
-                              : bucket === "draft" ? "Analyze"
-                              : bucket === "analyzing" ? "View Progress" : "Review"}
+                            {verb}
                             <IconChevronRight size={13} aria-hidden="true" />
                           </Link>
                           {/* Only the operations this caller actually has. An

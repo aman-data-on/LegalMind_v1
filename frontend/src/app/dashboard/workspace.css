@@ -2565,6 +2565,7 @@
    toolbar was 13px. That zoom is what leaves a phone user scrolled sideways
    inside a page that has no horizontal overflow of its own. */
 @media (max-width: 899px) {
+
   .ws-docs--index .ws-doctoolbar__search,
   .ws-docs--index .ws-doctoolbar__select select,
   .ws-docs--index .ws-field input,
@@ -2581,26 +2582,7 @@
   .ws-docs--index .ws-pager .ws-btn--sm { min-height: 44px; min-width: 44px; }
   .ws-docs--index .ws-menu__toggle { min-height: 44px; min-width: 44px; }
   .ws-menu__item { min-height: 44px; align-items: center; display: flex; }
-}
-/* The ⋯ toggle was a 30px square even with a mouse — small for a control that
-   is the only way to reach Edit, Transfer and Archive. */
-.ws-menu__toggle { min-width: 34px; min-height: 34px; }
 
-/* --- 3. The seven-column row below 900px -------------------------------- */
-/* MEASURED at 320/375/390/430/768: the table's own min-content width is 777px,
-   so it overflowed its card at every one of those widths and the row's action
-   cell sat at x=657–778 — the "Review"/"Analyze" link and the ⋯ menu BOTH off
-   screen, behind a nested horizontal scroller with no scrollbar and no visual
-   cue. At 768px (a tablet held in portrait, an ordinary way to read this page)
-   the ⋯ toggle was still clipped.
-
-   Horizontal scrolling was never a decision here — it is what `overflow-x:
-   auto` does when nobody chose anything. The deliberate strategy is one card
-   per contract, carrying the SAME cells with their own labels: nothing is
-   hidden, nothing is summarised away, and every control lands inside the
-   viewport. 900px is where the table's 777px plus the card and page gutters
-   stop fitting; above it the desktop table is untouched. */
-@media (max-width: 899px) {
   .ws-docs--index .ws-docs__table table { display: block; width: 100%; }
 
   /* The header row is the card labels' source, so it is announced rather than
@@ -2640,7 +2622,7 @@
   .ws-docs--index .ws-docs__table td:first-child .ws-doc-name { align-items: start; }
   .ws-docs--index .ws-docs__table td:first-child .ws-doc-name svg { margin-top: 3px; }
   .ws-docs--index .ws-docs__table td:first-child .ws-doc-name__text {
-    white-space: normal; overflow: visible; text-overflow: clip;
+    white-space: normal; overflow: visible;
     overflow-wrap: anywhere;
   }
 
@@ -2673,15 +2655,7 @@
     background: var(--ws-warn-soft);
   }
   .ws-docs--index .ws-docs__table tr.ws-tr--attention td { background: transparent; }
-}
 
-/* --- 4. The filter toolbar wrapped into three ragged rows --------------- */
-/* MEASURED at 375: search on line one, "Type: All" alone on line two, Status
-   and Show sharing line three, Sort alone on line four — four controls of four
-   different widths staircasing down the card. A two-column grid puts them in
-   two even pairs, and each control fills its cell instead of sizing to its own
-   longest option. */
-@media (max-width: 899px) {
   .ws-doctable .ws-doctoolbar {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ws-s2);
@@ -2689,7 +2663,42 @@
   .ws-docs--index .ws-doctoolbar__search { grid-column: 1 / -1; min-width: 0; }
   .ws-docs--index .ws-doctoolbar__select { display: flex; min-width: 0; }
   .ws-docs--index .ws-doctoolbar__select select { width: 100%; }
+
+  .ws-doctiles {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: var(--ws-s3);
+  }
+  .ws-docs--index .ws-doctile { min-height: 64px; padding: var(--ws-s3); }
+  .ws-docs--index .ws-doctile__icon { width: 32px; height: 32px; }
+  .ws-docs--index .ws-doctile__n { font-size: 1.4rem; }
 }
+/* The ⋯ toggle was a 30px square even with a mouse — small for a control that
+   is the only way to reach Edit, Transfer and Archive. */
+.ws-menu__toggle { min-width: 34px; min-height: 34px; }
+
+/* --- 3. The seven-column row below 900px -------------------------------- */
+/* MEASURED at 320/375/390/430/768: the table's own min-content width is 777px,
+   so it overflowed its card at every one of those widths and the row's action
+   cell sat at x=657–778 — the "Review"/"Analyze" link and the ⋯ menu BOTH off
+   screen, behind a nested horizontal scroller with no scrollbar and no visual
+   cue. At 768px (a tablet held in portrait, an ordinary way to read this page)
+   the ⋯ toggle was still clipped.
+
+   Horizontal scrolling was never a decision here — it is what `overflow-x:
+   auto` does when nobody chose anything. The deliberate strategy is one card
+   per contract, carrying the SAME cells with their own labels: nothing is
+   hidden, nothing is summarised away, and every control lands inside the
+   viewport. 900px is where the table's 777px plus the card and page gutters
+   stop fitting; above it the desktop table is untouched. */
+/* (rules for this section live in the single 899px block above.) */
+
+/* --- 4. The filter toolbar wrapped into three ragged rows --------------- */
+/* MEASURED at 375: search on line one, "Type: All" alone on line two, Status
+   and Show sharing line three, Sort alone on line four — four controls of four
+   different widths staircasing down the card. A two-column grid puts them in
+   two even pairs, and each control fills its cell instead of sizing to its own
+   longest option. */
+/* (rules for this section live in the single 899px block above.) */
 /* One column only on the narrowest phones. Re-measuring the two-column rule at
    375px showed the four selects still stacking one per row — the 439px
    threshold this replaces caught every common phone width and spent ~210px on
@@ -2709,15 +2718,7 @@
    ordinary phone widths is a bug, not a breakpoint: the counts are context,
    and the table is the page. Narrower minimum and a tighter gap hold 2×2 down
    to 320px. */
-@media (max-width: 899px) {
-  .ws-doctiles {
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-    gap: var(--ws-s3);
-  }
-  .ws-docs--index .ws-doctile { min-height: 64px; padding: var(--ws-s3); }
-  .ws-docs--index .ws-doctile__icon { width: 32px; height: 32px; }
-  .ws-docs--index .ws-doctile__n { font-size: 1.4rem; }
-}
+/* (rules for this section live in the single 899px block above.) */
 
 /* --- 6. The type-size floor -------------------------------------------- */
 /* The status pill sat at 10px and the tile label at 11.5px — the pill being
@@ -2757,9 +2758,3 @@
   .ws-context--dash .ws-context__acts { flex: 1 0 100%; }
   .ws-context--dash .ws-context__acts .ws-btn { width: 100%; }
 }
-
-/* --- 9. The loading skeleton now carries the header row ---------------- */
-/* Six rows, and the real `<thead>`, so the card is the height it will be when
-   the data lands instead of growing by a header plus three rows on first
-   paint. */
-.ws-docs--index .ws-docs__table > table[aria-hidden="true"] { display: table; }
