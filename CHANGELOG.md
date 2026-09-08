@@ -65,6 +65,100 @@ updated in the same change. Canonical Markdown of the DOCX:
   `AskDock` accepts a null contract; replay carries position and statute
   citations; e2e intake expectation updated.
 
+### Changed — the Finding speaks to a non-lawyer; the analysis gets the width (2026-09-08)
+
+Owner request, 2026-09-08: *"A non-lawyer user such as Sales, Customer Success
+or Management should open LegalMind and immediately understand: what was
+checked? what did the contract say? what does our standard expect? what is
+different? does someone need to act? what should I do next?"* Presentation
+only — `DESIGN.md` governs it and **no entry in LOCKED_DECISIONS.md is
+amended**. Three commits: `ae3cc94`, `99f5086`, `cf4ebe7`.
+
+The canonical vocabulary is untouched. `MATCH`, `DEVIATION`, `MISSING`,
+`CONFLICT`, `UNABLE_TO_EVALUATE`, the four Rule Outcomes and the Finding
+statuses are still what the API sends, what the audit trail records and what
+the chips render; a sentence now sits BESIDE the chip and nothing replaces it.
+No new string feeds a filter, a request body or a decision. Every one is built
+from a field the server actually sent — where the data does not support a
+statement it is omitted, never guessed, and the reasoning chain drops its
+Company-standard step entirely for a caller whose `expected_value` is omitted
+rather than printing a placeholder where a legal position would go (LEGAL-02 /
+SEC-07).
+
+* **The card.** It said `RESIDUALS-NDA-001`, `MISSING`, "No rule covers this",
+  "Found in contract: ABSENT", "Comparison: presence", "PRESENCE-v1 · 0
+  evidence references" — an identifier, four enums and an evaluator's note. It
+  now reads as a title in words, one plain sentence of what the outcome means,
+  the two facts side by side ("Found in contract **24 months**" against
+  "Company Standard **6 months**"), and a NEXT STEP naming who must act.
+* **The title rendered vertically** in the owner's screenshot — one or two
+  letters per line. `flex: 1` plus `min-width: 0` plus `overflow-wrap:
+  break-word` in a wrapping row that also held three chips; each rule
+  defensible alone. Its real cause was the 380px rail, which is why the layout
+  change below is the same fix.
+* **The requirement title.** Every ratified standard has `name = code` (the
+  importer falls back to it), so the old heading printed "Residuals nda 001" —
+  the document-type token and the sequence number as words. The code is parsed
+  instead. A real `name` in configuration would still win outright, and adding
+  one per standard (from each file's own `source_clause`) would give better
+  titles still — recorded as a configuration change for the owner, not made
+  here, because it needs a re-import and a publish on live.
+* **"How this result was reached"** was a bare numbered list of engine notes.
+  It is now Requirement → This document → Company standard → Result in the
+  reader's language, with the engine's own lines kept verbatim underneath as
+  what they are: the audit trail. Identifiers, evaluator version, operator and
+  scope moved into that disclosure; the requirement code stayed on the face of
+  the card, because a reviewer quotes it in an escalation.
+* **Evidence** says how it was read where that affects trust (OCR, a table),
+  cuts a long passage at a sentence boundary with an explicit control for the
+  rest, and names its location from whatever the parser recorded.
+* **The layout.** The document held the centre of the screen permanently while
+  the whole analysis lived in a 380px rail. The wide workspace now divides two
+  ways: `review` (default) gives the analysis the width and keeps the document
+  mounted one click away with its scroll position and tab choice intact;
+  `split` is the previous layout, for when the job is reading the document.
+  Pointing at any evidence switches to `split` by itself — `target` from
+  `useHighlight` is the single "look at this passage" signal, so one effect
+  answers for citations, outline entries, verdicts and `?evidence=` links
+  alike. `inert`, not `hidden`, on the concealed pane, so it stays in the
+  accessibility tree and the scroll-to-evidence gesture still finds its rows.
+* **The Contents listed paragraphs as headings** — a real NDA read "AND",
+  "Information", "The information is independently developed by employees of
+  the…", then §10, §11, §12. `parsing._is_unnumbered_heading` promotes a line
+  whose successor does not begin lowercase, which is true of a party block and
+  of a definitions paragraph. **Fixed in the outline, not in the parser:**
+  `is_heading` feeds the mapping engine as `Clause.is_heading` and the analysis
+  refusal check, so re-tuning detection could change which provisions map and
+  which documents are refused — a change to legal results, to fix a navigation
+  defect. The test is a fact about the row: a heading is a line, so its content
+  is its own heading text. The three real headings carried 17/22/32 characters
+  against titles of 13/18/28; the three false ones 159/187/772 against 72/11/3.
+* **The Summary** opens with one sentence saying what its counts amount to,
+  leading with what needs a person. No score, no grade, no severity ranking —
+  `AM-43` r3 is explicit that the Constitution's §24.1 Risk Level has no
+  assignment rule, so 36.10 and rule 12 stand.
+* **Three accessibility defects, each measured**: a heading-level skip (H1 →
+  H3 with no H2, fixed with a visually-hidden panel heading); the requirement
+  code at 2.00:1 contrast, less than half the AA minimum, now 5.39:1; and two
+  action links at 99×23 and 183×20, now 24px and 44px below 900px. Verified by
+  measurement: 26 tabs with zero missing focus rings, every control named, no
+  two names alike, every `details` with its `summary`, and every status
+  carrying a word beside its glyph so none is colour alone.
+* **The LEGAL-02 hooks are deliberately unchanged** and still carry their
+  guards: `.ws-facts`'s two `dt` strings (`confidentiality.spec.ts` reads them
+  to prove "Company Standard" is absent without `legal_position.view`),
+  `.ws-evaluation__outcome`, `.ws-explain` and `.ws-evaluation__provenance`.
+* Nine specs assert on document internals and now disclose it first through a
+  `showDocument` helper — the same shape and the same reason as
+  `openUploadPanel`, which exists because the 2026-09-01 upload disclosure
+  broke specs identically. No assertion was weakened; each still proves exactly
+  what it did.
+* Tests: typecheck 0, forbidden-terms clean, **254 frontend unit** (44 new: 25
+  for the language layer, 15 rendering one card per classification and evidence
+  shape, 4 for the Contents), **1358 backend passed**, browser suite green.
+  ⚠️ The `ws-report`/`ws-documents` visual baselines will fail job 15 by
+  design; adopt CI's `*-actual.png` per the standing rule.
+
 ### Fixed — Dashboard UI/UX audit pass: responsive, reachable, keyboard-operable (2026-09-08)
 
 Owner request, 2026-09-08: an explicit UX review of the Dashboard — the
