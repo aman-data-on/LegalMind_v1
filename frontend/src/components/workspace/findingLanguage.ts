@@ -224,6 +224,31 @@ export function sideOf(value: unknown): Side {
     : { tone: "unknown", text: "Not recorded" };
 }
 
+/**
+ * The SAME value, worded for the Company Standard column rather than the
+ * "Found in contract" one — owner request, 2026-09-08 (third pass): "Company
+ * Standard: Found" reads as if the standard document itself turned up
+ * somewhere, when what a presence-shaped standard value actually states is
+ * REQUIRED or NOT REQUIRED (the ratified configuration's own field is
+ * `expected_presence: PRESENT`, alongside `applicability: REQUIRED` — this is
+ * a direct reading of that pair, not an invented distinction). Every other
+ * shape (a numeric cap, a controlled-vocabulary basis) is unaffected: this
+ * only reworks the two presence tokens.
+ *
+ * "Not required" gets no mark — `sideOf`'s plain absence reads as a defect
+ * (✗), and a standard that simply does not require something is not one.
+ */
+export function standardSideOf(value: unknown): Side {
+  const side = sideOf(value);
+  if (side.tone === "present" && side.text === "Found") {
+    return { tone: "present", text: "Required" };
+  }
+  if (side.tone === "absent" && side.text === "Not found") {
+    return { tone: "unknown", text: "Not required" };
+  }
+  return side;
+}
+
 /** One step of the reasoning chain. `detail` is the engine's own note, kept for
  *  the reader who wants it and never required to make the step make sense. */
 export interface Step {

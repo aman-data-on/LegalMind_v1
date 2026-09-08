@@ -2935,17 +2935,10 @@
 .ws-side--value { color: var(--ws-ink-900); }
 .ws-side__detail { font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-weight: 500; }
 .ws-evidence__how { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-/* The requirement code: available at a glance for the reviewer who quotes it,
-   the smallest thing on the card, pushed to the far end of the action row. */
-.ws-finding__ref {
-  /* `--ws-ink-500`, not `--ws-ink-300`: measured 5.39:1 against the card
-     ground where ink-300 was 2.00:1, less than half the AA minimum. It looked
-     appropriately quiet and was simply unreadable — and this is text a
-     reviewer quotes into an escalation, not decoration. Quiet now comes from
-     size and position instead. */
-  margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
-  align-self: center; overflow-wrap: anywhere;
-}
+/* `.ws-finding__ref` (the requirement code on the card face) is retired —
+   2026-09-08, third pass: the code moved into "How this was determined" as a
+   `Requirement` row in `.ws-determined__tech`, which already carries the same
+   contrast-safe `--ws-ink-700`/`--ws-ink-500` pair. No rule left to keep. */
 
 
 /* ==========================================================================

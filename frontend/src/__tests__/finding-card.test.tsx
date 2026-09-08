@@ -78,10 +78,15 @@ describe("every classification renders a card a reader can act on", () => {
     });
   }
 
-  it("keeps the requirement code available, but not as the heading", () => {
+  it("keeps the requirement code available, but not as the heading or on the visible card", () => {
+    // Relocated 2026-09-08 (third pass): a raw identifier is an "internal ID"
+    // by the manager's own definition, so it moved from the card face into
+    // "How this was determined" alongside the rest of the technical facts.
     const html = card();
-    expect(html).toContain("RESIDUALS-NDA-001");
     expect(html).toMatch(/ws-finding__title[^>]*>Residuals</);
+    const { before, inside } = splitAtDetails(html);
+    expect(before).not.toContain("RESIDUALS-NDA-001");
+    expect(inside).toContain("RESIDUALS-NDA-001");
   });
 });
 
@@ -275,5 +280,122 @@ describe("technical/engineering facts stay off the default-visible card (owner, 
       { scope_key: "AGGREGATE" },
     );
     expect(html).toMatch(/ws-evaluation__scope[^>]*>Aggregate</);
+  });
+});
+
+/**
+ * The five real cases the manager named explicitly, with EXACT values pulled
+ * (read-only) from the live database's own analysed NDA/MSA reviews — not
+ * approximated, not invented. Every actual_value/expected_value/operator/
+ * evaluator_version/explanation below is what the evaluator actually
+ * produced for these requirements, so a wording bug here is a wording bug a
+ * real Sales user would actually see.
+ */
+describe("the five required real-world cases (owner, 2026-09-08, third pass)", () => {
+  it("RESIDUALS-NDA-001 — MISSING: absent from the contract, required by the standard", () => {
+    const html = card(
+      { requirement: { code: "RESIDUALS-NDA-001", name: "RESIDUALS-NDA-001", version_id: "v1", version_number: 1 },
+        classification: "MISSING", status: "DECISION_REQUIRED", requires_decision: true },
+      {
+        classification: "MISSING", scope_key: "RESIDUALS", rule_outcome: "NOT_APPLICABLE",
+        actual_value: { presence: "ABSENT" }, expected_value: { presence: "PRESENT" },
+        operator: "presence", evaluator_version: "PRESENCE-v1",
+        explanation: ["mapping layer completed and mapped no provision",
+                      "absence established by mapping, not by evaluator inspection"],
+      },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).toMatch(/Residuals/);
+    expect(before).toMatch(/was not found in the document/i);
+    expect(before).toMatch(/Not found/);
+    // "Required", not "Found" — a presence-shaped Company Standard value
+    // states what the standard requires, not that the standard was "found".
+    expect(before).toMatch(/Required/);
+    expect(before).toMatch(/legal authority needs to review/i);
+    // Nothing technical on the visible surface: no evaluator name, no raw
+    // "presence" operator word, no scope key, no raw outcome label.
+    expect(before).not.toMatch(/PRESENCE-v1/);
+    expect(before).not.toMatch(/>presence</);
+    expect(before).not.toMatch(/RESIDUALS-NDA-001/);
+    expect(before).not.toMatch(/No rule covers this/);
+    // All of it is still reachable inside the disclosure.
+    expect(inside).toContain("PRESENCE-v1");
+    expect(inside).toMatch(/No rule covers this/);
+    expect(inside).toContain("RESIDUALS-NDA-001");
+  });
+
+  it("CONF-SURVIVAL-NDA-001 — UNABLE_TO_EVALUATE (\"NEEDS A PERSON\"): nothing extracted on either side", () => {
+    const html = card(
+      { requirement: { code: "CONF-SURVIVAL-NDA-001", name: "CONF-SURVIVAL-NDA-001", version_id: "v1", version_number: 1 },
+        classification: "UNABLE_TO_EVALUATE", status: "DECISION_REQUIRED", requires_decision: true,
+        evidence: [evidence({ id: "ev1", section_number: null, section_title: null, page_number: 3 })] },
+      {
+        classification: "UNABLE_TO_EVALUATE", scope_key: "GENERAL", rule_outcome: "NOT_APPLICABLE",
+        actual_value: null, expected_value: null, operator: null,
+        evaluator_version: "NUMERIC-COMPARISON-v1", evidence_refs: ["ev1"],
+        explanation: ["no extracted facts were supplied", "failing closed rather than guessing (ENG-09)"],
+      },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).toMatch(/not enough reliable information/i);
+    expect(before).toMatch(/NEEDS A PERSON/);
+    expect(before).toMatch(/legal authority needs to review/i);
+    // Honest about having nothing to compare — never a guess, never silence.
+    expect(before).toMatch(/Not recorded/);
+    expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
+    expect(before).not.toMatch(/CONF-SURVIVAL-NDA-001/);
+    expect(before).not.toMatch(/No rule covers this/);
+    expect(inside).toContain("NUMERIC-COMPARISON-v1");
+    expect(inside).toContain("CONF-SURVIVAL-NDA-001");
+  });
+
+  it("GOVLAW-NDA-001 — MATCH: present in the contract, and the standard requires it", () => {
+    const html = card(
+      { requirement: { code: "GOVLAW-NDA-001", name: "GOVLAW-NDA-001", version_id: "v1", version_number: 1 },
+        classification: "MATCH", status: "OPEN", requires_decision: false,
+        evidence: [evidence({ id: "ev1", section_number: null, section_title: null, page_number: 6 })] },
+      {
+        classification: "MATCH", scope_key: "GOVERNING_LAW", rule_outcome: "ACCEPTABLE",
+        actual_value: { presence: "PRESENT" }, expected_value: { presence: "PRESENT" },
+        operator: "presence", evaluator_version: "PRESENCE-v1", evidence_refs: ["ev1"],
+        explanation: ["mapping CONFIRMED for GOVLAW-NDA-001", "expected PRESENT; a qualifying provision is present"],
+      },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).toMatch(/matches what the company standard expects/i);
+    expect(before).toMatch(/Found/);
+    expect(before).toMatch(/Required/);
+    // A MATCH still answers "does someone need to act?" explicitly — saying
+    // "No action is needed" is more useful to a Sales reader than silently
+    // omitting the row, and it is a fact about the workflow state, not an
+    // invented legal conclusion.
+    expect(before).toMatch(/NEXT STEP.*No action is needed/is);
+    expect(before).not.toMatch(/PRESENCE-v1/);
+    expect(before).not.toMatch(/GOVLAW-NDA-001/);
+    expect(inside).toContain("PRESENCE-v1");
+    expect(inside).toContain("GOVLAW-NDA-001");
+  });
+
+  it("FORCE-MAJEURE-MSA-001 — DEVIATION: a real numeric mismatch, both sides in plain units", () => {
+    const html = card(
+      { requirement: { code: "FORCE-MAJEURE-MSA-001", name: "FORCE-MAJEURE-MSA-001", version_id: "v1", version_number: 1 },
+        classification: "DEVIATION", status: "DECISION_REQUIRED", requires_decision: true },
+      {
+        classification: "DEVIATION", scope_key: "GENERAL", rule_outcome: "UNACCEPTABLE", operator: "!=",
+        actual_value: { scope: "GENERAL", cap_unit: "DAYS", cap_basis: "FORCE_MAJEURE_TERMINATION_TRIGGER", cap_value: 30.0 },
+        expected_value: { unit: "DAYS", basis: "FORCE_MAJEURE_TERMINATION_TRIGGER", preferred: 60, scope_key: "GENERAL" },
+        evaluator_version: "NUMERIC-COMPARISON-v1",
+      },
+    );
+    const { before, inside } = splitAtDetails(html);
+    expect(before).toMatch(/not in the way the company standard expects/i);
+    expect(before).toMatch(/30 DAYS/);
+    expect(before).toMatch(/60 DAYS/);
+    expect(before).toMatch(/legal authority needs to review/i);
+    expect(before).not.toMatch(/Not acceptable/);
+    expect(before).not.toMatch(/>!=</);
+    expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
+    expect(inside).toMatch(/Not acceptable/);
+    expect(inside).toContain("NUMERIC-COMPARISON-v1");
   });
 });

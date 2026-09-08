@@ -53,6 +53,12 @@ test.describe("The analysis surface", () => {
     // "Awaiting legal decision". The enum is unchanged on the wire; only the
     // rendering goes through `lib/labels`.
     await expect(page.getByText("Awaiting legal decision").first()).toBeVisible();
+    // The requirement code moved into "How this was determined" (2026-09-08,
+    // third pass): a raw identifier is exactly the "internal ID" the manager's
+    // report asked off the default-visible surface. Expanding the disclosure
+    // is the same one click a reader would make to confirm it, and proves the
+    // right requirement actually fired — the property this assertion exists for.
+    await page.locator(".ws-determined > summary").first().click();
     await expect(page.getByText(f.configuration.requirement_code)).toBeVisible();
   });
 

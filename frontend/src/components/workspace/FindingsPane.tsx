@@ -57,6 +57,7 @@ import {
   requirementTitle,
   sameAsTitle,
   sideOf,
+  standardSideOf,
   type Side,
 } from "./findingLanguage";
 import { requirementHeading, reviewOrder } from "./model";
@@ -511,17 +512,6 @@ export function FindingCard({ finding, onChanged, prepared }: {
           </button>
         ) : null}
         <EscalateControl finding={finding} onChanged={onChanged} />
-        {/* The requirement code, quiet and last.
-
-            It used to be the loudest text on the card, and moving it into the
-            details block alone went one step too far the other way: a legal
-            reviewer quotes this code in an escalation and a support request
-            starts with it, so it belongs on the face of the card — as the
-            smallest text on it, after the actions, where it informs without
-            competing. `analysis.spec.ts` reads it here too. */}
-        {finding.requirement.code ? (
-          <span className="ws-finding__ref ws-mono">{finding.requirement.code}</span>
-        ) : null}
       </div>
     </article>
   );
@@ -635,7 +625,7 @@ function EvaluationCard({
         {evaluation.expected_value !== undefined ? (
           <>
             <dt>Company Standard</dt>
-            <dd><SideValue side={sideOf(evaluation.expected_value)} /></dd>
+            <dd><SideValue side={standardSideOf(evaluation.expected_value)} /></dd>
           </>
         ) : null}
       </dl>
@@ -681,10 +671,12 @@ function EvaluationCard({
             </ol>
           </div>
         ) : null}
-        {/* The requirement code is NOT repeated here — it sits on the face of
-            the card, in the action row. Printing it in both places made
-            `getByText` ambiguous and gave the reader the same identifier
-            twice.
+        {/* The requirement code lives here now, not on the card face
+            (2026-09-08, third pass) — a raw identifier is exactly the
+            "internal ID" the manager's report asked off the default-visible
+            surface. A legal reviewer who needs it for an escalation or a
+            support request is already one click into this disclosure by the
+            time they need to quote it.
 
             The rule outcome and the provenance line both moved IN here
             (2026-09-08, second pass): both used to sit on the visible card by
@@ -701,6 +693,12 @@ function EvaluationCard({
             LEGAL-02 test (which asserts by count/text, never by position on
             the page) holds exactly as it did. */}
         <dl className="ws-determined__tech">
+          {finding.requirement.code ? (
+            <>
+              <dt>Requirement</dt>
+              <dd className="ws-mono">{finding.requirement.code}</dd>
+            </>
+          ) : null}
           {evaluation.rule_outcome !== undefined ? (
             <>
               <dt>Rule outcome</dt>

@@ -23,6 +23,7 @@ import {
   reviewHeadline,
   sameAsTitle,
   sideOf,
+  standardSideOf,
 } from "@/components/workspace/findingLanguage";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
 
@@ -291,5 +292,25 @@ describe("a scope that just repeats the title", () => {
 
   it("is false when the scope actually adds information", () => {
     expect(sameAsTitle("Aggregate", "Liability cap")).toBe(false);
+  });
+});
+
+describe("the Company Standard column reads as an expectation, not a search result", () => {
+  it("reads a presence-shaped standard as Required / Not required", () => {
+    // `expected_presence: PRESENT` in the ratified config is paired with
+    // `applicability: REQUIRED` — this is a direct reading of that pair, not
+    // an invented distinction.
+    expect(standardSideOf({ presence: "PRESENT" })).toEqual({ tone: "present", text: "Required" });
+    expect(standardSideOf({ presence: "ABSENT" })).toEqual({ tone: "unknown", text: "Not required" });
+  });
+
+  it("gives 'Not required' no mark — it is not a defect, just a fact about the standard", () => {
+    expect(standardSideOf({ presence: "ABSENT" }).tone).not.toBe("absent");
+  });
+
+  it("leaves every other shape exactly as sideOf renders it", () => {
+    expect(standardSideOf({ unit: "YEARS", preferred: 3 })).toEqual(sideOf({ unit: "YEARS", preferred: 3 }));
+    expect(standardSideOf(null)).toEqual(sideOf(null));
+    expect(standardSideOf({ presence: "INDETERMINATE" })).toEqual(sideOf({ presence: "INDETERMINATE" }));
   });
 });
