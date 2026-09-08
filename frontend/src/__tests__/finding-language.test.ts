@@ -20,6 +20,7 @@ import {
   nextStep,
   reasoningSteps,
   requirementTitle,
+  classificationTone,
   reviewHeadline,
   sameAsTitle,
   sideOf,
@@ -312,5 +313,21 @@ describe("the Company Standard column reads as an expectation, not a search resu
     expect(standardSideOf({ unit: "YEARS", preferred: 3 })).toEqual(sideOf({ unit: "YEARS", preferred: 3 }));
     expect(standardSideOf(null)).toEqual(sideOf(null));
     expect(standardSideOf({ presence: "INDETERMINATE" })).toEqual(sideOf({ presence: "INDETERMINATE" }));
+  });
+});
+
+describe("the classification's tone, for the status mark", () => {
+  it("gives every real classification exactly one of the four tones", () => {
+    expect(classificationTone("MATCH")).toBe("ok");
+    expect(classificationTone("DEVIATION")).toBe("warn");
+    expect(classificationTone("CONFLICT")).toBe("warn");
+    expect(classificationTone("MISSING")).toBe("bad");
+    expect(classificationTone("UNABLE_TO_EVALUATE")).toBe("unknown");
+  });
+
+  it("falls back to the neutral tone for a value it does not recognise", () => {
+    // Never throws, never guesses ok/warn/bad for something new — "unknown"
+    // is the honest default.
+    expect(classificationTone("SOMETHING_NEW")).toBe("unknown");
   });
 });

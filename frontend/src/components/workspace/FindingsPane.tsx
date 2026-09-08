@@ -49,6 +49,7 @@ import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import {
   classificationSentence,
+  classificationTone,
   evidenceLocation,
   evidenceNote,
   excerpt,
@@ -62,6 +63,7 @@ import {
 } from "./findingLanguage";
 import { requirementHeading, reviewOrder } from "./model";
 import { useHighlight } from "./highlight";
+import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
@@ -483,7 +485,15 @@ export function FindingCard({ finding, onChanged, prepared }: {
         * loudest text on the card.
         */}
       <header className="ws-finding__head">
-        <h3 className="ws-finding__title">{title}</h3>
+        {/* The status mark — owner, 2026-09-08 (fourth pass): the card's
+            overall state readable before a single word of it is read, the
+            same three tones `Side` already uses for the comparison below
+            plus the fourth for "needs a person" — never colour alone, the
+            classification chip beside it still carries the word. */}
+        <span className="ws-finding__titlewrap">
+          <FindingStatusMark classification={finding.classification} />
+          <h3 className="ws-finding__title">{title}</h3>
+        </span>
         <span className={`ws-chip${calm ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
               title="Derived summary of the evaluations below">
           {classificationLabel(finding.classification)}
@@ -514,6 +524,22 @@ export function FindingCard({ finding, onChanged, prepared }: {
         <EscalateControl finding={finding} onChanged={onChanged} />
       </div>
     </article>
+  );
+}
+
+/** The finding's status, as an icon in a coloured disc — reuses the existing
+ *  icon set (`icons.tsx`) rather than adding a new one; `aria-hidden` because
+ *  the classification chip right beside it already carries the word this
+ *  icon repeats visually. */
+function FindingStatusMark({ classification }: { classification: string }) {
+  const tone = classificationTone(classification);
+  const Icon = tone === "ok" ? IconCheckCircle
+    : tone === "bad" ? IconXCircle
+    : IconAlertCircle;
+  return (
+    <span className={`ws-finding__mark ws-finding__mark--${tone}`} aria-hidden="true">
+      <Icon size={16} />
+    </span>
   );
 }
 
@@ -628,13 +654,21 @@ function EvaluationCard({
             <dd><SideValue side={standardSideOf(evaluation.expected_value)} /></dd>
           </>
         ) : null}
+        {/* "Next step" as a third fact in the SAME comparison, not a separate
+            paragraph below it (owner, 2026-09-08, fourth pass — matching the
+            reference layout's three-column card). It is still a `dt`/`dd`
+            pair, still genuinely a term/definition, and CSS Grid's
+            `grid-auto-flow: column` (see .ws-facts--compare in workspace.css)
+            is what turns however many pairs exist — two without
+            `legal_position.view`, three with it — into that many side-by-side
+            columns, with no column count hardcoded either place. */}
+        {action ? (
+          <>
+            <dt>Next step</dt>
+            <dd className="ws-facts__next">{action}</dd>
+          </>
+        ) : null}
       </dl>
-
-      {action ? (
-        <p className="ws-eval__next">
-          <span className="ws-eval__next-label">Next step</span> {action}
-        </p>
-      ) : null}
 
       {/*
         * "How this was determined" — rule 12's Evidence → Fact → Standard →

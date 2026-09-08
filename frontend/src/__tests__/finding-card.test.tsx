@@ -399,3 +399,53 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(inside).toContain("NUMERIC-COMPARISON-v1");
   });
 });
+
+describe("the status mark and the merged three-part comparison (owner, 2026-09-08, fourth pass)", () => {
+  it("gives every classification a status mark with the right tone, before any click", () => {
+    const cases: Array<[string, string]> = [
+      ["MATCH", "ws-finding__mark--ok"],
+      ["DEVIATION", "ws-finding__mark--warn"],
+      ["CONFLICT", "ws-finding__mark--warn"],
+      ["MISSING", "ws-finding__mark--bad"],
+      ["UNABLE_TO_EVALUATE", "ws-finding__mark--unknown"],
+    ];
+    for (const [classification, markClass] of cases) {
+      const html = card({ classification }, { classification });
+      const { before } = splitAtDetails(html);
+      expect(before, classification).toContain(markClass);
+      // aria-hidden: the chip right beside it already carries the word.
+      expect(before).toMatch(/ws-finding__mark[^>]*aria-hidden="true"/);
+    }
+  });
+
+  it("puts \"Next step\" inside the SAME comparison as a third fact, not a separate paragraph", () => {
+    // Finding-level requires_decision only (not the evaluation's, which would
+    // also render DecisionControl — that needs a live session and has its own
+    // browser coverage in decision.spec.ts).
+    const html = card(
+      { classification: "DEVIATION", requires_decision: true },
+      { classification: "DEVIATION", expected_value: { presence: "PRESENT" } },
+    );
+    const { before } = splitAtDetails(html);
+    // One `.ws-facts--compare` block; "Next step" is a dt/dd pair inside it,
+    // not a second, separately-styled element after it.
+    expect((before.match(/ws-facts--compare/g) ?? []).length).toBe(1);
+    expect(before).toMatch(/<dt>Next step<\/dt><dd class="ws-facts__next">/);
+    // The old standalone paragraph class is gone.
+    expect(before).not.toContain("ws-eval__next");
+  });
+
+  it("omits the Next Step column entirely when there is nothing to act on — never an empty cell", () => {
+    // MATCH with no legal_position.view: rule_outcome is omitted, finding
+    // does not require a decision -> nextStep() returns null.
+    const html = card(
+      { classification: "MATCH" },
+      {
+        classification: "MATCH", actual_value: { presence: "PRESENT" },
+        rule_outcome: undefined, expected_value: undefined,
+      } as unknown as Partial<Evaluation>,
+    );
+    const { before } = splitAtDetails(html);
+    expect(before).not.toContain("Next step");
+  });
+});

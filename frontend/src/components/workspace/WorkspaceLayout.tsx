@@ -28,28 +28,31 @@ type Mode = "wide" | "one";
 type SideTab = "analysis" | "findings";
 
 /**
- * How the wide workspace divides itself — owner request, 2026-09-08.
+ * How the wide workspace divides itself — owner request, 2026-09-08, fourth
+ * pass: findings/summary are ALWAYS the primary region; the document is
+ * always a fixed-width companion panel that appears on request and reclaims
+ * nothing when it isn't there — never the other way round.
  *
- * THE PROBLEM. The document held the centre of the screen permanently and the
- * whole of the analysis lived in a 380px rail beside it (340px below 1440px).
- * For most of the people who open a review — Sales, Customer Success,
- * management — the document is not the task: the findings are, and they were
- * the narrowest thing on screen. It is also why a finding's heading rendered
- * one letter per line: 380px minus padding is not a column a heading, three
- * chips and a comparison can share.
+ * THE PROBLEM this answers (and the second, narrower one the third pass left).
+ * The document used to hold the centre of the screen permanently while the
+ * analysis lived in a 380px rail (340px below 1440px) — a finding's heading
+ * rendered one letter per line in that rail, because 380px minus padding is
+ * not a column a heading, three chips and a comparison can share. The second
+ * pass fixed that by making the WIDE side swap between the two regions
+ * (`review`/`split`), which fixed the width problem but left the arrangement
+ * itself swapping which region is primary depending on a toggle — exactly the
+ * "document takes over the screen" complaint in a new form once the toggle was
+ * pressed. This pass keeps the side card (`.ws-pane--side`, analysis/findings)
+ * as the flex:1 primary region UNCONDITIONALLY, and turns the document into a
+ * genuine secondary panel at a fixed width, shown or not — never the region
+ * that decides how much room anything else gets.
  *
- * `review` gives the findings the width and keeps the document one click away
- * with its state intact; `split` is the previous layout, which is the right one
- * when the job IS reading the document. Two states rather than a resizable
- * splitter and three named modes: the document already takes the majority in
- * `split`, so a third "document" mode would only have removed the findings.
- *
- * Pointing at evidence switches to `split` on its own (see the effect below) —
- * a citation click has to end with the passage visible, and asking the reader
- * to reveal the document first would break the workspace's signature gesture.
+ * `docOpen` is one boolean now, not two named states: there is nothing left
+ * for a second axis to distinguish. Pointing at evidence still opens the
+ * panel by itself (see the effect below) — a citation click has to end with
+ * the passage visible.
  */
-type Focus = "review" | "split";
-const FOCUS_KEY = "legalmind.workspace.focus";
+const DOC_OPEN_KEY = "legalmind.workspace.docOpen";
 
 /*
  * ⚠️ Never "AI Analysis" (renamed 2026-09-01). The default tab is labelled
@@ -108,11 +111,11 @@ export function useSideTabs() {
  * data or a browser set to block storage all throw on read, and the workspace
  * must render regardless.
  */
-function storedFocus(): Focus {
+function storedDocOpen(): boolean {
   try {
-    return window.localStorage.getItem(FOCUS_KEY) === "split" ? "split" : "review";
+    return window.localStorage.getItem(DOC_OPEN_KEY) === "1";
   } catch {
-    return "review";
+    return false;
   }
 }
 
@@ -147,14 +150,14 @@ export function WorkspaceLayout({
      showed up as the collapsed layout rendering no tabs at all. */
   const shortcuts = useWorkspaceShortcuts();
   const [tab, setTab] = useState<Region>("document");
-  const [focus, setFocus] = useState<Focus>("review");
+  const [docOpen, setDocOpen] = useState(false);
   // Read after mount, never during render: the server has no `localStorage`,
   // and reading it in a `useState` initialiser is a hydration mismatch.
-  useEffect(() => { setFocus(storedFocus()); }, []);
-  const chooseFocus = useCallback((next: Focus) => {
-    setFocus(next);
+  useEffect(() => { setDocOpen(storedDocOpen()); }, []);
+  const chooseDocOpen = useCallback((next: boolean) => {
+    setDocOpen(next);
     try {
-      window.localStorage.setItem(FOCUS_KEY, next);
+      window.localStorage.setItem(DOC_OPEN_KEY, next ? "1" : "0");
     } catch {
       // A viewer who blocks storage keeps the choice for this visit only.
     }
@@ -167,7 +170,7 @@ export function WorkspaceLayout({
      unmounted and nothing is re-fetched. */
   const { target } = useHighlight();
   useEffect(() => {
-    if (target) setFocus("split");
+    if (target) setDocOpen(true);
   }, [target]);
   const [sideTab, setSideTab] = useState<SideTab>(initialSideTab);
   const [findingsPoint, setFindingsPoint] = useState<FindingsPoint | null>(null);
@@ -251,21 +254,13 @@ export function WorkspaceLayout({
         * a keyboard affordance rather than dead code.
         */}
       <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-focus={focus}>
-        <section
-          className="ws-pane ws-pane--document"
-          aria-label="Document"
-          data-region="document"
-          /* `inert`, not unmounted: the pane keeps its scroll position, its
-             Original/Text choice and its outline state, so revealing it returns
-             the reader to where they were. `hidden` would take it out of the
-             accessibility tree AND stop the scroll-to-evidence gesture from
-             finding its rows, so the CSS hides it and `inert` keeps it out of
-             the tab order while it is not shown. */
-          inert={focus === "review" ? true : undefined}
-        >
-          {document}
-        </section>
+      {/* The side card is FIRST in the DOM now (2026-09-08, fourth pass) — it is
+          the primary region, and DOM order is what drives both visual order
+          (no CSS `order` trick, which would leave Tab order disagreeing with
+          what the eye sees) and the natural keyboard tab sequence: analysis
+          tabs, then the document toggle, then whichever region's own controls,
+          then — only if open — the document panel after it. */}
+      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
           <div className="ws-side__tabs">
             <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
@@ -287,15 +282,16 @@ export function WorkspaceLayout({
             </div>
             {/* The document, on request. A real toggle rather than a third tab:
                 the document is not a view OF the analysis, it is the thing the
-                analysis is about, and in `split` both are on screen at once —
-                which no tab set can express. */}
+                analysis is about, and open or closed, the analysis never loses
+                the primary region to it — which no tab set can express. */}
             <button
               type="button"
               className="ws-side__doctoggle"
-              aria-pressed={focus === "split"}
-              onClick={() => chooseFocus(focus === "split" ? "review" : "split")}
+              aria-pressed={docOpen}
+              aria-controls="ws-pane-document"
+              onClick={() => chooseDocOpen(!docOpen)}
             >
-              {focus === "split" ? "Hide document" : "Show document"}
+              {docOpen ? "Hide document" : "Show document"}
             </button>
           </div>
           <div
@@ -318,6 +314,21 @@ export function WorkspaceLayout({
           >
             {findings}
           </div>
+        </section>
+        <section
+          className="ws-pane ws-pane--document"
+          id="ws-pane-document"
+          aria-label="Document"
+          data-region="document"
+          /* `inert`, not unmounted: the pane keeps its scroll position, its
+             Original/Text choice and its outline state, so revealing it returns
+             the reader to where they were. `hidden` would take it out of the
+             accessibility tree AND stop the scroll-to-evidence gesture from
+             finding its rows, so the CSS hides it and `inert` keeps it out of
+             the tab order while it is not shown. */
+          inert={docOpen ? undefined : true}
+        >
+          {document}
         </section>
       </div>
     </SideTabCtx.Provider>
