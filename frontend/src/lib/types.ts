@@ -574,12 +574,35 @@ export interface AssistCitation {
   retrieval_score: number | null;
 }
 
+/** One verbatim quote from a ratified Company Standard — Domain A (`AM-32` r4).
+ *  Never paraphrased, never sent to the model; cited by standard code and clause. */
+export interface AssistPosition {
+  position_chunk_id: string;
+  standard_code: string;
+  document_type: string;
+  source_clause: string | null;
+  content: string;
+  retrieval_score: number | null;
+}
+
+/** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
+ *  of the asked version and its Finding counts — read, never produced, by Ask. */
+export interface AssistComparison {
+  review_id: string;
+  review_status: string;
+  findings_by_classification: Record<string, number>;
+}
+
 export interface AskResult {
   conversation_id: string;
   message_id: string;
   answer_state: AssistAnswerState;
   text: string;
   routed_to_evaluator: boolean;
+  /** Which authorized sources were candidates for this question (2026-09-08). */
+  domains?: string[];
+  comparison?: AssistComparison | null;
+  positions?: AssistPosition[];
   /** The document version this answer was read from — STATED by the server, never
    *  inferred here. A conversation is contract-scoped, so it can hold turns from
    *  more than one version, and an answer's `evidence_id`s only highlight on the
@@ -623,6 +646,7 @@ export interface ConversationTurn {
   version_number: number | null;
   /** `AM-25` r5 — the SAME citations the live answer carried. `[]` on refusals. */
   citations: AssistCitation[];
+  positions?: AssistPosition[];
 }
 
 export interface ConversationDetail {

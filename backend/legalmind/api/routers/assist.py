@@ -294,6 +294,22 @@ def get_conversation(conversation_id: UUID,
          WHERE m.conversation_id = :c
          ORDER BY ac.claim_ordinal, ch.id
     """), {"c": conversation_id}).all()
+    positioned = guard.db.execute(text(f"""
+        SELECT ac.answer_id, pc.id, pc.standard_code, pc.document_type,
+               pc.source_clause, pc.content
+          FROM "{schema}".answer_citations ac
+          JOIN "{schema}".ai_answers a ON a.id = ac.answer_id
+          JOIN "{schema}".messages m ON m.id = a.message_id
+          JOIN "{schema}".position_chunks pc ON pc.id = ac.position_chunk_id
+         WHERE m.conversation_id = :c
+         ORDER BY ac.claim_ordinal
+    """), {"c": conversation_id}).all()
+    positions_by_answer: dict = {}
+    for row in positioned:
+        positions_by_answer.setdefault(row[0], []).append({
+            "position_chunk_id": str(row[1]), "standard_code": row[2],
+            "document_type": row[3], "source_clause": row[4], "content": row[5],
+            "retrieval_score": None})
     by_answer: dict = {}
     for row in cited:
         by_answer.setdefault(row[0], []).append({
@@ -314,8 +330,9 @@ def get_conversation(conversation_id: UUID,
         "messages": [{
             "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
             "answer_state": t[4],
-            "routed_to_evaluator": (t[2] == "ASSISTANT"
-                                    and t[3] == service.EVALUATOR_ROUTE_TEXT),
+            "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in (
+                service.EVALUATOR_ROUTE_TEXT, service.EVALUATOR_NO_REVIEW_TEXT)),
+            "positions": positions_by_answer.get(t[5], []),
             # None for a user turn, and for an assistant turn that never
             # retrieved (a compliance-shaped question routed to the evaluator).
             "document_version_id": str(t[6]) if t[6] else None,
@@ -330,21 +347,23 @@ def ask(conversation_id: UUID, body: AskRequest,
         guard: Guard = Depends(get_guard)) -> dict:
     guard.permission(P.ASSIST_ASK)
     conversation = _visible_conversation(guard, conversation_id)
-    if conversation["contract_id"] is None:
-        # Domain C (general legal research) has no authorized corpus table yet
-        # (C-15/C-16); a document-less conversation cannot retrieve anything, and
-        # saying so plainly beats a refusal that looks like a search miss.
+    version = None
+    if conversation["contract_id"] is not None:
+        # The full existing authorization chain for the underlying document — the
+        # same READ resolver every other document read goes through (AM-25 r6:
+        # server-side, before retrieval). A previous owner who kept the conversation
+        # can still read it; they can no longer ask new questions about a contract
+        # they lost scope on.
+        guard.contract_readable(conversation["contract_id"], P.ASSIST_ASK)
+        version = _asked_document_version(guard, conversation["contract_id"],
+                                          body.document_version_id)
+    elif body.document_version_id is not None:
         raise BusinessRuleRejected(
-            "this conversation has no contract attached; general legal research "
-            "is not available yet")
-
-    # The full existing authorization chain for the underlying document — the same
-    # READ resolver every other document read goes through (AM-25 r6: server-side,
-    # before retrieval). A previous owner who kept the conversation can still read
-    # it; they can no longer ask new questions about a contract they lost scope on.
-    guard.contract_readable(conversation["contract_id"], P.ASSIST_ASK)
-    version = _asked_document_version(guard, conversation["contract_id"],
-                                      body.document_version_id)
+            "this conversation has no contract attached; document_version_id "
+            "cannot be named")
+    # A document-less conversation is legitimate since 2026-09-08: the router
+    # (`assist.routing`) decides which authorized sources can answer, and a question
+    # nothing can answer gets the route's one refusal wording, not an error.
 
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
@@ -352,7 +371,8 @@ def ask(conversation_id: UUID, body: AskRequest,
         raise BusinessRuleRejected("the question exceeds 2000 characters")
 
     outcome = service.ask(guard.db, conversation_id=conversation_id,
-                          document_version_id=version.id,
+                          document_version_id=version.id if version else None,
+                          permissions=guard.permissions,
                           question=body.question, request_id=guard.request_id)
     return data({
         "conversation_id": str(outcome.conversation_id),
@@ -361,12 +381,14 @@ def ask(conversation_id: UUID, body: AskRequest,
         # caller. A conversation may span versions (the table is contract-scoped),
         # so the answer says which one it read rather than leaving the reader to
         # assume it matched whatever was on screen.
-        "document_version_id": str(version.id),
-        "version_number": version.version_number,
+        "document_version_id": str(version.id) if version else None,
+        "version_number": version.version_number if version else None,
         "answer_state": outcome.answer_state.value,
         "text": outcome.text,
         "routed_to_evaluator": outcome.routed_to_evaluator,
         "comparison": outcome.comparison,
+        "positions": outcome.positions,
+        "domains": list(outcome.domains),
         "citations": [{
             "chunk_id": str(c.chunk_id),
             "evidence_id": str(c.evidence_id),

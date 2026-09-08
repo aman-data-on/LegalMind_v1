@@ -170,15 +170,19 @@ export function UploadContract({ firstRun, counterparties = [] }: {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!contractId || !contractType) return;
+    if (!contractId) return;
     setError(null);
     setStage("analyzing");
     try {
       // The human act that records the declaration — the suggestion never
       // wrote anything.
+      // Owner requirement 2026-09-08: the type is no longer a gate. Without one the
+      // document opens for questions (Ask never needed it); the deterministic
+      // analysis still refuses an undeclared type (owner Q9 / `AM-34`, and the
+      // control that keeps a statute out of the evaluator) and the workspace says so.
       await api.updateContract(contractId, {
         name: name.trim(),
-        contract_type: contractType,
+        ...(contractType ? { contract_type: contractType } : {}),
       });
       // The declared facts about THIS version (2026-09-06), recorded by the same
       // confirm — and only what was actually said. Nothing is read from the file.
@@ -197,7 +201,7 @@ export function UploadContract({ firstRun, counterparties = [] }: {
     }
     // Analysis, best-effort: resolve the latest published standards and run.
     // Any failure here is a STATE the workspace explains, never a dead end.
-    await chainAnalysis(contractId, can(P.REVIEW_CREATE));
+    if (contractType) await chainAnalysis(contractId, can(P.REVIEW_CREATE));
     router.push(`/dashboard?id=${contractId}`);
   }
 
@@ -307,7 +311,7 @@ export function UploadContract({ firstRun, counterparties = [] }: {
           */}
           <label className="ws-field ws-field--type">
               <span className="ws-field__label">
-                Document type <span className="ws-field__req">(required)</span>
+                Document type <span className="ws-field__help">(needed to run analysis — you can ask questions without it)</span>
               </span>
               <select
                 required
@@ -389,9 +393,9 @@ export function UploadContract({ firstRun, counterparties = [] }: {
           <button
             type="submit"
             className="ws-btn ws-btn--primary"
-            disabled={!name.trim() || !contractType}
+            disabled={!name.trim()}
           >
-            Confirm &amp; Analyze
+            {contractType ? "Confirm & Analyze" : "Confirm & Open"}
           </button>
         </div>
       ) : null}

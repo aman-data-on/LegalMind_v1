@@ -615,3 +615,149 @@ def test_the_managers_own_phrasings_route_to_the_evaluator(db, user, indexed_con
         assert out.routed_to_evaluator, q
         assert "not found in the selected document" not in out.text
     assert called == []          # the model was never consulted on a comparison question
+
+
+# ==========================================================================
+# Multi-source routing (2026-09-08): document + positions, separated
+# ==========================================================================
+def _ratified_positions(db, user, tmp_path):
+    """Two synthetic ratified standards, chunked as Domain A (borrowed shape from
+    tests/test_positions.py — inert test values, never a legal position)."""
+    import json as _json
+
+    import tools.import_ratified_standards as imp
+    from legalmind.assist import positions
+    a = {"requirement_code": "TESTPOS-MSA-001", "ratified": "2026-08-27",
+         "source_document": "Synthetic MSA for tests", "source_clause": "9.9 Widget Handling",
+         "source_quote": "Widgets shall be handled with care at all times.",
+         "configuration": {"document_type": "MSA", "expected_presence": "PRESENT",
+                           "scope_key": "WIDGETS", "applicability": "REQUIRED"},
+         "evaluator_type": "PRESENCE"}
+    (tmp_path / "TESTPOS-MSA-001.json").write_text(_json.dumps(a))
+    original = imp.RATIFIED_STANDARDS_DIR
+    imp.RATIFIED_STANDARDS_DIR = tmp_path
+    try:
+        imp.import_standards(db, actor_email=user.email)
+    finally:
+        imp.RATIFIED_STANDARDS_DIR = original
+    positions.chunk_ratified_standards(db, directory=tmp_path)
+
+
+USER_PERMS = frozenset({"assist.ask", "legal_position.view"})
+
+
+def test_a_position_question_is_answered_from_the_ratified_standard_verbatim(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    _ratified_positions(db, user, tmp_path)
+    contract, version = indexed_contract
+    sent = []
+    monkeypatch.setattr(generation, "generate",
+                        lambda q, chunks, **k: sent.append(chunks) or (_ for _ in ()).throw(
+                            generation.GenerationUnavailable("off")))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="What is our approved position on widget handling care?")
+    assert out.domains == ("DOCUMENT", "POSITIONS")
+    assert out.answer_state.value == "ANSWERED"
+    assert out.positions and out.positions[0]["standard_code"] == "TESTPOS-MSA-001"
+    assert "Widgets shall be handled with care" in out.positions[0]["content"]
+    # AM-32 r4: no position text ever reached the model's payload.
+    for payload in sent:
+        assert not any("Widgets shall be handled" in c for c in payload)
+
+
+def test_a_department_user_without_the_grant_never_sees_a_position(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    _ratified_positions(db, user, tmp_path)
+    contract, version = indexed_contract
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
+        generation.GenerationUnavailable("off")))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=frozenset({"assist.ask"}),
+                      question="What is our approved position on widget handling care?")
+    assert out.domains == ("DOCUMENT",) and out.positions == []
+    assert out.text.startswith("Information not found in the selected document.")
+
+
+def test_the_refusal_names_every_searched_domain_and_nothing_else(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    _ratified_positions(db, user, tmp_path)
+    contract, version = indexed_contract
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
+        generation.GenerationUnavailable("off")))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="What is our company policy on zebra xylophones?")
+    assert out.answer_state.value != "ANSWERED"
+    assert "selected document or in the organization's approved positions" in out.text
+
+
+def test_a_comparison_question_quotes_the_position_beside_the_findings_handoff(
+        db, user, indexed_contract, tmp_path):
+    _ratified_positions(db, user, tmp_path)
+    contract, version = indexed_contract
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="Does this widget handling clause comply with our standard?")
+    assert out.routed_to_evaluator
+    assert out.positions and out.positions[0]["standard_code"] == "TESTPOS-MSA-001"
+    assert out.comparison is None       # no Review exists for this version yet
+    assert "no analysis has been run" in out.text
+
+
+def test_a_document_less_conversation_refuses_instead_of_erroring(api, db, seeded, user):
+    from tests.conftest import grant_role, sign_in
+    grant_role(db, user, "USER")
+    sign_in(api, db, user)
+    conv = api.post("/api/v1/conversations", json={})
+    assert conv.status_code == 201
+    cid = conv.json()["data"]["id"]
+    reply = api.post(f"/api/v1/conversations/{cid}/messages",
+                     json={"question": "What does Section 138 say?"})
+    assert reply.status_code == 201, reply.text
+    payload = reply.json()["data"]
+    assert payload["answer_state"] == "NO_EVIDENCE_RETRIEVED"
+    assert payload["text"].startswith("No document is attached")
+    assert "Statutory text is not yet part" in payload["text"]
+    assert payload["domains"] == [] and payload["document_version_id"] is None
+
+
+def test_a_statute_question_with_a_document_says_why_the_law_is_unavailable(
+        db, user, indexed_contract, monkeypatch):
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
+        generation.GenerationUnavailable("off")))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="What does Section 138 of the Negotiable Instruments Act say?")
+    assert out.answer_state.value != "ANSWERED"
+    assert out.text.startswith("Information not found in the selected document.")
+    assert "Statutory text is not yet part" in out.text
+
+
+def test_replay_carries_the_position_citations(api, db, seeded, user, storage, tmp_path,
+                                               monkeypatch):
+    from tests.conftest import grant_role, sign_in
+    from legalmind.assist import generation
+    grant_role(db, user, "USER")
+    sign_in(api, db, user)
+    _ratified_positions(db, user, tmp_path)
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
+        generation.GenerationUnavailable("off")))
+    created = api.post("/api/v1/contracts", json={"name": "Replay", "contract_type": "MSA"})
+    contract_id = created.json()["data"]["id"]
+    api.post(f"/api/v1/contracts/{contract_id}/document-versions",
+             content=build_docx(PARAGRAPHS),
+             headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+    cid = api.post("/api/v1/conversations", json={"contract_id": contract_id}).json()["data"]["id"]
+    live = api.post(f"/api/v1/conversations/{cid}/messages",
+                    json={"question": "What is our approved position on widget handling?"})
+    assert live.json()["data"]["positions"], live.text
+    replay = api.get(f"/api/v1/conversations/{cid}").json()["data"]["messages"]
+    answer = [m for m in replay if m["role"] == "ASSISTANT"][-1]
+    assert answer["positions"][0]["standard_code"] == "TESTPOS-MSA-001"
+    assert answer["positions"][0]["content"].startswith("TESTPOS") or "Widgets" in answer["positions"][0]["content"]

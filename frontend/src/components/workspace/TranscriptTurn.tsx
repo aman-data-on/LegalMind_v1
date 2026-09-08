@@ -21,6 +21,8 @@ import Link from "next/link";
 import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
+import { PositionsSection } from "./AskDock";
+
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
  *  the shared helper — that shadowing is how this file kept its own `§` prefix
  *  when the other five callers were converted. */
@@ -52,7 +54,9 @@ export function TranscriptTurn({
     return (
       <div className="ws-turn">
         <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}>
+          <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
           <p>{turn.content}</p>
+          <PositionsSection positions={turn.positions ?? []} />
         </div>
       </div>
     );

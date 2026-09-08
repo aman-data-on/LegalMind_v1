@@ -64,5 +64,29 @@ def is_comparison_question(question: str) -> bool:
     org = _hits(tokens, _ORG_STEMS)
     org |= {i for i, t in enumerate(tokens) if t in _ORG_PRONOUNS}
     signal = _hits(tokens, _VERB_STEMS) | _hits(tokens, _NOUN_STEMS)
-    # Two distinct tokens are needed: one token may not carry both roles ("approv").
-    return bool(org) and bool(signal) and len(org | signal) >= 2
+    # A signal token that is NOT itself an organization token is required: "our
+    # approved position" is a position LOOKUP (Domain A), not a comparison, even
+    # though "approved" is also a verb stem. "match our approved position" has one.
+    return bool(org) and bool(signal - org)
+
+
+def mentions_organization(question: str) -> bool:
+    """True when the question refers to the organization's own position — "our
+    standard", "company policy", "the approved position", "Leapswitch's template".
+    The Domain A candidate signal; authorization decides whether it is honoured."""
+    tokens = _stems(question or "")
+    return bool(_hits(tokens, _ORG_STEMS)
+                or {i for i, t in enumerate(tokens) if t in _ORG_PRONOUNS})
+
+
+_STATUTE = re.compile(
+    r"\b(section|sec\.?|s\.)\s*\d+[a-z]?\b|\b(act|statute|statutory|rules?,?\s*\d{4}|"
+    r"regulation|ordinance|adhiniyam|ipc|crpc|dpdp|cert-?in|it act|contract act|"
+    r"companies act|negotiable instruments|evidence act|penal code)\b",
+    re.IGNORECASE)
+
+
+def is_statute_question(question: str) -> bool:
+    """True when the question asks about the law itself — a section number, an Act,
+    a set of Rules. The Domain C candidate signal."""
+    return bool(_STATUTE.search(question or ""))

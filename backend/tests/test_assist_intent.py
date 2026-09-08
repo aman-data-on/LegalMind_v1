@@ -32,6 +32,9 @@ DESCRIPTIVE = [
     "What does Section 138 of the Negotiable Instruments Act say?",
     "When does this agreement commence?",
     "Summarise the indemnity clause.",
+    "What is our approved position on widget handling care?",   # a position lookup, not a comparison
+    "What is our standard liability cap?",
+    "What does company policy say about late fees?",
     "What about that?",
     "",
 ]

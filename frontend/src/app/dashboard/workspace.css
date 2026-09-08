@@ -724,6 +724,10 @@
  * words differ (AM-29 r4). Nothing red, nothing iconic. */
 .ws-ask__answer--refusal p { color: var(--ws-ink-700); }
 .ws-ask__answer--routed { border-left-style: dashed; }
+.ws-ask__positions { margin-top: var(--ws-s3); }
+.ws-ask__cite--static { cursor: default; }
+.ws-ask__handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); margin-top: var(--ws-s3); }
+.ws-ask__counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s3); font-size: 12.5px; }
 .ws-ask__routed-label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
 .ws-ask__citations { list-style: none; margin: var(--ws-s3) 0 0; padding: var(--ws-s3) 0 0; border-top: 1px dashed var(--ws-ink-100); display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-ask__cite {

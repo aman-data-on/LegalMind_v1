@@ -232,8 +232,9 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     const codes = (await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).filter(Boolean);
     expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
 
-    // Without the type the action stays unavailable.
-    await expect(page.getByRole("button", { name: "Confirm & Analyze" })).toBeDisabled();
+    // Without the type the document still opens for questions (owner, 2026-09-08 —
+    // the type gates analysis, never asking); with one, the same act also analyzes.
+    await expect(page.getByRole("button", { name: "Confirm & Open" })).toBeEnabled();
     await select.selectOption("NDA");
     await page.getByRole("button", { name: "Confirm & Analyze" }).click();
 
