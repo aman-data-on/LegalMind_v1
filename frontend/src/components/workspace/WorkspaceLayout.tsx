@@ -28,29 +28,26 @@ type Mode = "wide" | "one";
 type SideTab = "analysis" | "findings";
 
 /**
- * How the wide workspace divides itself — owner request, 2026-09-08, fourth
- * pass: findings/summary are ALWAYS the primary region; the document is
- * always a fixed-width companion panel that appears on request and reclaims
- * nothing when it isn't there — never the other way round.
+ * How the wide workspace divides itself — owner request, 2026-09-08, FIFTH
+ * pass, reverting the fourth's arrangement while keeping its `docOpen` model.
  *
- * THE PROBLEM this answers (and the second, narrower one the third pass left).
- * The document used to hold the centre of the screen permanently while the
- * analysis lived in a 380px rail (340px below 1440px) — a finding's heading
- * rendered one letter per line in that rail, because 380px minus padding is
- * not a column a heading, three chips and a comparison can share. The second
- * pass fixed that by making the WIDE side swap between the two regions
- * (`review`/`split`), which fixed the width problem but left the arrangement
- * itself swapping which region is primary depending on a toggle — exactly the
- * "document takes over the screen" complaint in a new form once the toggle was
- * pressed. This pass keeps the side card (`.ws-pane--side`, analysis/findings)
- * as the flex:1 primary region UNCONDITIONALLY, and turns the document into a
- * genuine secondary panel at a fixed width, shown or not — never the region
- * that decides how much room anything else gets.
+ * The fourth pass made the side card (analysis/findings) the flex:1 primary
+ * region unconditionally, so the document was always a fixed ~380px companion
+ * panel whether shown or not. The owner reviewed that against the earlier
+ * (third-pass) behaviour — the document going WIDE when explicitly opened,
+ * the side card becoming the narrow rail beside it — and asked for that back:
+ * "when I click show doc [...] the screen that used to appear, that was
+ * fine". So: CLOSED, the side card still fills the whole workspace exactly as
+ * the fourth pass left it (that half was never the complaint). OPEN, the
+ * document is once again the wide `1fr` column and the side card is the fixed
+ * `var(--ws-side-w)` rail — the opposite of the fourth pass's open state, and
+ * a return to the third pass's.
  *
- * `docOpen` is one boolean now, not two named states: there is nothing left
- * for a second axis to distinguish. Pointing at evidence still opens the
- * panel by itself (see the effect below) — a citation click has to end with
- * the passage visible.
+ * `docOpen` — one boolean, not two named states — is kept from the fourth
+ * pass; only which grid column each region draws when it is `true` changes,
+ * driven here by DOM order (document first again) rather than a second state
+ * to track. Pointing at evidence still opens the panel by itself (see the
+ * effect below) — a citation click has to end with the passage visible.
  */
 const DOC_OPEN_KEY = "legalmind.workspace.docOpen";
 
@@ -254,13 +251,32 @@ export function WorkspaceLayout({
         * a keyboard affordance rather than dead code.
         */}
       <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-      {/* The side card is FIRST in the DOM now (2026-09-08, fourth pass) — it is
-          the primary region, and DOM order is what drives both visual order
-          (no CSS `order` trick, which would leave Tab order disagreeing with
-          what the eye sees) and the natural keyboard tab sequence: analysis
-          tabs, then the document toggle, then whichever region's own controls,
-          then — only if open — the document panel after it. */}
+      {/* The document is FIRST in the DOM again (2026-09-08, fifth pass,
+          reverting the fourth's order): with `grid-template-columns:
+          minmax(0, 1fr) var(--ws-side-w)` unchanged below, whichever region is
+          FIRST draws the wide `1fr` track and whichever is second draws the
+          fixed rail — so restoring document-first is what makes it the wide
+          one again when open, with no change to the grid rule itself needed.
+          DOM order still drives visual order and keyboard tab order together
+          (no CSS `order` trick to leave them disagreeing): document controls,
+          then — only if open — nothing follows, since the side card's own
+          tabs and toggle come after it in the markup below. */}
       <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}>
+        <section
+          className="ws-pane ws-pane--document"
+          id="ws-pane-document"
+          aria-label="Document"
+          data-region="document"
+          /* `inert`, not unmounted: the pane keeps its scroll position, its
+             Original/Text choice and its outline state, so revealing it returns
+             the reader to where they were. `hidden` would take it out of the
+             accessibility tree AND stop the scroll-to-evidence gesture from
+             finding its rows, so the CSS hides it and `inert` keeps it out of
+             the tab order while it is not shown. */
+          inert={docOpen ? undefined : true}
+        >
+          {document}
+        </section>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
           <div className="ws-side__tabs">
             <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
@@ -282,8 +298,8 @@ export function WorkspaceLayout({
             </div>
             {/* The document, on request. A real toggle rather than a third tab:
                 the document is not a view OF the analysis, it is the thing the
-                analysis is about, and open or closed, the analysis never loses
-                the primary region to it — which no tab set can express. */}
+                analysis is about, and in the open state both are on screen at
+                once — which no tab set can express. */}
             <button
               type="button"
               className="ws-side__doctoggle"
@@ -314,21 +330,6 @@ export function WorkspaceLayout({
           >
             {findings}
           </div>
-        </section>
-        <section
-          className="ws-pane ws-pane--document"
-          id="ws-pane-document"
-          aria-label="Document"
-          data-region="document"
-          /* `inert`, not unmounted: the pane keeps its scroll position, its
-             Original/Text choice and its outline state, so revealing it returns
-             the reader to where they were. `hidden` would take it out of the
-             accessibility tree AND stop the scroll-to-evidence gesture from
-             finding its rows, so the CSS hides it and `inert` keeps it out of
-             the tab order while it is not shown. */
-          inert={docOpen ? undefined : true}
-        >
-          {document}
         </section>
       </div>
     </SideTabCtx.Provider>

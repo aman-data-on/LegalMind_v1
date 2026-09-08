@@ -3032,49 +3032,46 @@
 
 
 /* ==========================================================================
- * The workspace divides itself — owner request, 2026-09-08, fourth pass.
+ * The workspace divides itself — owner request, 2026-09-08, FIFTH pass.
  *
- * The document held the centre of the screen permanently (first pass fixed
- * the WIDTH problem it caused, by making whichever region was "focused" wide
- * — but that meant the region that takes over the screen could still be the
- * document, once the toggle was pressed, which is the same complaint in a new
- * shape). Here the side card (analysis/findings) is the flex:1 primary region
- * UNCONDITIONALLY; the document is always a fixed-width companion panel,
- * present or not, and never decides how much room anything else gets. See
- * WorkspaceLayout.tsx — pointing at any evidence opens the panel by itself,
- * and both panes stay mounted either way, so nothing is lost.
+ * The fourth pass kept the side card (analysis/findings) as the flex:1
+ * primary region unconditionally, so the document was always a fixed ~380px
+ * companion panel whether shown or not. Reviewed against the live page, the
+ * owner asked for the EARLIER (third-pass) open-state behaviour back: "when I
+ * click show doc [...] the screen that used to appear, that was fine" —
+ * the document should go WIDE when explicitly opened, with the side card
+ * becoming the narrow rail beside it. Restoring that is `WorkspaceLayout.tsx`
+ * putting the document section first in the DOM again, so it draws the wide
+ * `minmax(0, 1fr)` track below and the side card draws the fixed
+ * `var(--ws-side-w)` one — the grid rule itself is UNCHANGED from the fourth
+ * pass, only which region is first is different.
+ *
+ * The CLOSED state is untouched: the side card still fills the whole
+ * workspace exactly as the fourth pass left it (that half was never the
+ * complaint). Only the OPEN state's column assignment reverts.
  * ========================================================================== */
 .ws-workspace--wide { grid-template-columns: minmax(0, 1fr); }
 .ws-workspace--wide .ws-pane--document { display: none; }
 .ws-workspace--wide[data-doc-open="true"] {
-  /* `--ws-side-w` is a "narrow fixed column" token wherever it is used, not a
-     name tied to which region uses it — it was the analysis card's width
-     before this pass and is the document panel's width now. */
+  /* Document (first in the DOM) draws this wide track; the side card (second)
+     draws the fixed `var(--ws-side-w)` one that follows it. */
   grid-template-columns: minmax(0, 1fr) var(--ws-side-w);
 }
 .ws-workspace--wide[data-doc-open="true"] .ws-pane--document { display: flex; }
-/* `.ws-doc`'s own clauses+viewer 2-column layout switches to stacked on a
-   VIEWPORT-width media query — a reasonable proxy back when the document pane
-   itself took most of the viewport. It no longer does: as the fixed ~380px
-   companion panel, its own width has nothing to do with the viewport's, and
-   at any desktop viewport (>1100px) the query left it in 2-column mode
-   squeezed into ~380px total — measured: the viewer column collapsed to
-   ~116px and its text became too narrow for Playwright to call visible. This
-   selector's specificity (two classes + an attribute) beats both the base
-   rule and the media-queried one, so it wins regardless of viewport width
-   whenever the document is actually rendered in this fixed-width panel. */
-.ws-workspace--wide[data-doc-open="true"] .ws-doc {
-  grid-template-columns: 1fr;
-  grid-template-rows: minmax(260px, 45%) 1fr;
-}
+/* `.ws-doc`'s own clauses+viewer 2-column layout is UNCHANGED from before the
+   fourth pass: it switches to stacked on the pre-existing `max-width: 1100px`
+   viewport media query below (see `.ws-doc`'s own rule), which is once again
+   a reasonable proxy now that the document pane's width tracks the viewport's
+   the same way it did in the third pass — no override needed here, and the
+   fourth pass's forced-stacking rule (written to compensate for a fixed
+   ~380px container regardless of viewport) is gone; it would now stack the
+   document even on a wide desktop where there is real room for two columns. */
 
-/* Findings read at a measure, not at whatever width the monitor happens to be:
-   past roughly 90 characters a line is measurably harder to track, and this
-   pane is the widest thing on screen in BOTH states now — closed, it is the
-   whole workspace; open, it is the workspace minus one fixed 380px column,
-   still far past a comfortable reading measure on anything but the narrowest
-   desktop width. The card keeps the full width — the CONTENT inside it is
-   what gets the measure. */
+/* Findings read at a measure, not at whatever width the monitor happens to be
+   — past roughly 90 characters a line is measurably harder to track. Applies
+   in the CLOSED state, where the side card is the whole workspace; in the
+   OPEN state it is the ~380px rail, well under this cap already, so the rule
+   is a no-op there rather than something that needs its own condition. */
 .ws-side__panel > * { width: 100%; max-width: 64rem; margin-inline: auto; }
 
 /* The tab row carries the document toggle at its far end. */
@@ -3095,21 +3092,13 @@
 }
 
 /* The comparison's three-column shape needs REAL width to hold three short
-   columns without cramping. The side card is wide enough for it whenever the
-   viewport itself has room to spare beyond the fixed document-panel column —
-   900px when the panel is closed (it owns the whole workspace), 1300px when
-   the panel is open (roughly 900px of it remains after the fixed column and
-   the page gutters, measured, not guessed). Below either threshold the base
-   rule two paragraphs down — one column of stacked label/value rows — is what
-   renders, and reads fine at any width. */
+   columns without cramping — the side card has that only in the CLOSED state
+   (it owns the whole workspace, ≥900px). Reverted (fifth pass): OPEN, the
+   side card is once again the ~380px rail, exactly the width that caused the
+   comparison to cramp into "24 / months" in the third pass, so it stacks
+   there instead — see the rail block below, restored from the third pass. */
 @media (min-width: 900px) {
   .ws-workspace--wide:not([data-doc-open="true"]) .ws-facts--compare {
-    grid-template-columns: none; grid-auto-flow: column; grid-template-rows: auto auto;
-    grid-auto-columns: minmax(150px, 1fr); align-items: start; column-gap: var(--ws-s5);
-  }
-}
-@media (min-width: 1300px) {
-  .ws-workspace--wide[data-doc-open="true"] .ws-facts--compare {
     grid-template-columns: none; grid-auto-flow: column; grid-template-rows: auto auto;
     grid-auto-columns: minmax(150px, 1fr); align-items: start; column-gap: var(--ws-s5);
   }
@@ -3117,20 +3106,28 @@
 /* In the three-column shape a `dt` sits ABOVE its `dd`, not beside it — the
    base rule's `align-items: baseline` on a two-column dt/dd row would pull a
    short label and a wrapped multi-line "Next step" sentence onto the wrong
-   baseline once they stack into a column instead. */
+   baseline once they stack into a column instead. Scoped to the CLOSED state
+   only now, matching the rule above it. */
 @media (min-width: 900px) {
-  .ws-workspace--wide:not([data-doc-open="true"]) .ws-facts--compare dt,
-  .ws-workspace--wide[data-doc-open="true"] .ws-facts--compare dt {
+  .ws-workspace--wide:not([data-doc-open="true"]) .ws-facts--compare dt {
     margin-bottom: 2px;
   }
 }
 
-/* --- The comparison in the 380px document panel -------------------------- */
-/* Measured: the comparison read "24 / months" over two lines and the basis
-   token broke as "BASIS_F / EES" inside a column this narrow. The mid-word
-   break comes from `.ws-facts dd { overflow-wrap: anywhere }`, which is right
-   for an unpredictable value in a fixed table column and wrong for a
-   controlled-vocabulary token that must stay readable as one word. */
+/* --- The comparison in the 380px rail (open state, restored) ------------- */
+/* Measured in the third pass: the comparison read "24 / months" over two
+   lines and the basis token broke as "BASIS_F / EES" inside a column this
+   narrow. The mid-word break comes from `.ws-facts dd { overflow-wrap:
+   anywhere }`, which is right for an unpredictable value in a fixed table
+   column and wrong for a controlled-vocabulary token that must stay readable
+   as one word. So in the rail the facts stack — label above value — and the
+   value keeps its words whole, wrapping onto its own line instead. */
+.ws-workspace--wide[data-doc-open="true"] .ws-facts--compare {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+.ws-workspace--wide[data-doc-open="true"] .ws-facts--compare dt { margin-top: 4px; }
+.ws-workspace--wide[data-doc-open="true"] .ws-facts--compare dt:first-child { margin-top: 0; }
 .ws-facts--compare dd { overflow-wrap: normal; }
 .ws-side { flex-wrap: wrap; }
 /* A long token still has to fit SOMETHING: allowed to break only when it alone
