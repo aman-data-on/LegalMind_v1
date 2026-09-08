@@ -127,3 +127,56 @@ def test_the_supplied_it_act_yields_section_43a(db):
     hits = search_statutes(db, query="What does section 43A of the IT Act say?", permissions=ASK)
     assert hits and hits[0].section_number == "43A"
     assert "body corporate" in hits[0].content.lower()
+
+
+NI = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR",
+                         "/root/Legalmind.v1/legal-docs")) / "Indian_Laws_and_Acts" / "NI_Act_1881.pdf"
+
+
+@pytest.mark.skipif(not NI.exists(), reason="NI Act not present on this machine")
+def test_the_ni_act_yields_section_138_dishonour_of_cheque(db):
+    """The product vision's headline statute question, answerable only once the Act was
+    obtained from an official source (AM-48, 2026-09-08). Cited Act + section (AM-32 r7)."""
+    report = ingest_statute(db, path=NI, provenance=_provenance(
+        official_title="The Negotiable Instruments Act, 1881", act_number_year="Act No. 26 of 1881"))
+    assert report["chunks"] > 100
+    hits = search_statutes(db, query="What does Section 138 of the Negotiable Instruments Act say?",
+                           permissions=ASK)
+    assert hits and hits[0].section_number == "138"
+    assert hits[0].citation == "The Negotiable Instruments Act, 1881, s. 138"
+    assert "cheque" in hits[0].content.lower()
+
+
+def test_the_named_act_outranks_other_acts_holding_the_same_section_number(db, tmp_path):
+    """Eighteen Acts means eighteen section 3s. The Act the question NAMES wins."""
+    import pymupdf
+    other = ("THE SYNTHETIC GADGETS ACT, 2098\n"
+             "3. Gadget storage.\u2014Every keeper shall store every gadget in a synthetic cupboard "
+             "at all times and in all places within the test suite, which is the only place this "
+             "Act has any effect whatsoever, being entirely synthetic and binding on nobody.\n"
+             "4. Gadget records.\u2014Every keeper shall keep a synthetic record of every gadget, "
+             "for a synthetic period, and produce it to nobody at all, since this Act exists only "
+             "inside a test and creates no obligation anywhere at any time.\n")
+    path = tmp_path / "gadgets.pdf"
+    doc = pymupdf.open(); page = doc.new_page(); page.insert_text((40, 60), other, fontsize=8)
+    doc.save(str(path))
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    ingest_statute(db, path=path, provenance=_provenance(
+        official_title="The Synthetic Gadgets Act, 2098", act_number_year="Act No. 1 of 2098"))
+    hits = search_statutes(db, query="What does section 3 of the Synthetic Gadgets Act say?",
+                           permissions=ASK)
+    assert hits[0].citation == "The Synthetic Gadgets Act, 2098, s. 3"
+    hits = search_statutes(db, query="What does section 3 of the Synthetic Widgets Act say?",
+                           permissions=ASK)
+    assert hits[0].citation == "The Synthetic Widgets Act, 2099, s. 3"
+
+
+def test_a_section_number_with_no_space_after_the_dot_still_starts_a_section():
+    """India Code's Contract Act body: `73.Compensation for loss or damage…` (no space)."""
+    text = ("72. Liability of person to whom money is paid.—A person to whom money has been paid "
+            "by mistake must repay it, in this entirely synthetic paraphrase used only for a test "
+            "and stating nobody's legal position whatsoever, at any time or place.\n"
+            "73.Compensation for loss or damage caused by breach of contract.—When a contract has "
+            "been broken, the party who suffers is entitled to receive compensation, in this equally "
+            "synthetic paraphrase that binds nobody and is used only to exercise a parser.\n")
+    assert [c.section_number for c in chunk_statute_text(text)] == ["72", "73"]

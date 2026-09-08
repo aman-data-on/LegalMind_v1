@@ -17557,3 +17557,67 @@ r5   AM-32 r9: the ratified 77-question evaluation set already holds 23 statute
 
 **Approved by the owner on 2026-09-08** ("If the Constitution provides a way to add the
 source and the required source material exists locally, implement it.").
+
+--------------------------------------------------------------------------------
+
+# `AM-48` — Statutes are obtained from India Code by an operator; the §6.1 corpus is completed (Owner Instruction — 2026-09-08, evening)
+
+**Amends:** `AM-32` r6's clause *"statute material is supplied, never authored, never
+fetched by the application"* — by defining who may supply: the owner, or an operator
+acting on the owner's written instruction, from an official Government of India source
+(India Code first; the issuing ministry where India Code does not hold the instrument).
+**Amends** `AM-47` r3 (the NI Act and BSA are now present). **Does not amend:** `AM-32`
+r6's provenance record requirement, r7 (section-based, Act + section citations, statutes
+never enter the evaluator), r8, r9; rule 21's bar on authoring or rewriting law; the
+Constitution's authority over company positions.
+
+The owner instructed: *"For genuinely missing statutes, fetch the authoritative/current
+text from official Indian Government sources (prefer India Code / Gazette / official
+ministry source) … Preserve source provenance, Act name, year, section/chapter structure
+and source URL. Do not hallucinate, summarize, or rewrite the law."*
+
+```text
+r1   WHO FETCHES. The application never fetches (AM-32 r6 stands). An operator may,
+     on the owner's instruction, obtain a statute from an official source and place
+     it at LEGALMIND_SOURCE_MATERIAL_DIR with a registry entry. Precedence: India
+     Code (indiacode.gov.in — the product vision's hard rule) → the issuing ministry
+     or the Gazette → nothing else. No aggregator, no commercial site, no summary.
+
+r2   WHAT THE RECORD SAYS. Every registry entry carries the source host, the India
+     Code handle and file name (or the ministry URL), the "as on" date the file
+     itself states (or NOT STATED IN SUPPLIED FILE), and the SHA-256 of the file as
+     obtained. Where the only official copy is deficient, the deficiency is in the
+     record — the Income-tax Act, 1961 is held only as a Department of Revenue-hosted
+     2011 Taxmann edition and is marked NOT current and REPEALED w.e.f. 1 April 2026.
+
+r3   THE EVIDENCE ACT QUESTION IS ANSWERED BY THE CONSTITUTION. §6.1 and §28.4.3 name
+     the Bharatiya Sakshya Adhiniyam, 2023 as the successor to the Indian Evidence
+     Act, 1872 w.e.f. 1 July 2024. The BSA is ingested; the Evidence Act is
+     deliberately not. C-16's "owner must choose" is closed by the Constitution.
+
+r4   CANONICAL TEXT PREFERRED. Where India Code holds an Act the owner had supplied
+     from another source, the India Code "as on" text is the corpus text and the
+     owner's file is retained on disk with its SHA recorded — the three central Acts
+     (Contract Act 1872, IT Act 2000, DPDP Act 2023) and the Companies Act 2013
+     (full Act replaces the supplied 4-page excerpt).
+
+r5   CORPUS AFTER THIS RECORD (17 instruments): Contract Act 1872 · IT Act 2000 ·
+     SPDI Rules 2011 · CERT-In Directions 2022 · IT Rules 2021 (upd. 10.02.2026) ·
+     DPDP Act 2023 · DPDP Rules 2025 · Negotiable Instruments Act 1881 · Arbitration
+     and Conciliation Act 1996 · Code of Civil Procedure 1908 · Copyright Act 1957 ·
+     Bharatiya Sakshya Adhiniyam 2023 · CGST Act 2017 · IGST Act 2017 · Companies Act
+     2013 · Companies Act 1956 (repealed; historical incorporation) · Income-tax Act
+     1961 (repealed; 2011 edition — see r2). NOT obtained: the Income-tax Act, 2025
+     (30 of 2025) — official copies (incometaxindia.gov.in, egazette.gov.in) were
+     unreachable from the operator's host; recorded as STILL MISSING, never
+     substituted from an unofficial source.
+
+r6   RANKING. A statute question that names an Act ranks that Act's sections before
+     every other Act's section of the same number (eighteen Acts hold a section 138).
+     Retrieval remains lexical-first with exact-section ranking; statutes never
+     produce a Requirement, Standard, Rule or acceptance position (AM-32 r7).
+```
+
+**Approved by the owner on 2026-09-08** ("Do NOT stop after discovering a missing file.
+If it can legally/technically be obtained from an authoritative public source, obtain
+it, ingest it, test it and continue.").

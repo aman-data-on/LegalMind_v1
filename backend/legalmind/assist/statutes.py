@@ -51,9 +51,13 @@ PROVENANCE_FIELDS = ("official_title", "act_number_year", "jurisdiction", "sourc
 # India Code PDFs prefix an inserted section with its footnote marker — `3[43A. …`
 # — so an optional `\d{1,2}[` is admitted before the number; U+00A0/U+200B are
 # blanks after the number (the same lesson as the document chunker).
+# `\.` followed by blanks OR directly by a capital/quote/bracket: India Code's Contract
+# Act body reads `73.Compensation for loss…` with no space (measured 2026-09-08 — §73
+# had folded into §72 and the Constitution's own ss. 73–74 citation was unanswerable).
 _SECTION_START = re.compile(
-    r"^[ \t]*(?:\d{1,2}\[)?(?P<num>\d{1,3}[A-Z]{0,2})\.[ \t\u00a0\u200b]+(?=\S)",
-                            re.MULTILINE)
+    r"^[ \t]*(?:\d{1,2}\[)?(?P<num>\d{1,3}[A-Z]{0,2})\."
+    r"(?:[ \t\u00a0\u200b]+(?=\S)|(?=[A-Z\u201c\"\[(]))",
+    re.MULTILINE)
 _DIRECTION_START = re.compile(r"^[ \t]*\((?P<num>[ivxl]{1,5})\)[ \t]+(?=\S)",
                               re.MULTILINE)
 _MARGINAL_END = re.compile("\\.\\s*[\u2014\u2013-]|\u2014|\n")
@@ -305,8 +309,12 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     """Lexical retrieval over the statute corpus, authorized inside the function.
 
     A section number named in the question ("section 43A") ranks its exact section
-    first — that is what a statute question usually is. Otherwise the question's
-    lexemes are OR-ed with a two-lexeme floor, as Domain A does. Deterministic order.
+    first — that is what a statute question usually is — and the Act the question
+    NAMES ranks before every other Act holding a section of that number (eighteen
+    Acts in the corpus means eighteen section 138s; measured live 2026-09-08, the NI
+    Act's was outranked by the CPC's until the title match was added). Otherwise the
+    question's lexemes are OR-ed with a two-lexeme floor, as Domain A does.
+    Deterministic order.
     """
     if P.ASSIST_ASK not in permissions:
         return []
@@ -321,14 +329,19 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                ts_rank(sc.content_tsv,
                        to_tsquery('english', (SELECT array_to_string(lex, ' | ') FROM q)))
                    AS score,
-               (upper(sc.section_number) = ANY(:wanted)) AS exact_section
+               (upper(sc.section_number) = ANY(:wanted)) AS exact_section,
+               (SELECT count(*)
+                  FROM q, unnest(tsvector_to_array(to_tsvector('english',
+                                                               s.official_title))) t
+                 WHERE t = ANY(q.lex) AND t NOT IN ('act', 'rule', 'india', 'indian'))
+                   AS act_match
           FROM "{schema}".statute_chunks sc
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
          WHERE (SELECT cardinality(lex) FROM q) > 0
-         ORDER BY exact_section DESC, matched DESC, score DESC, s.official_title,
-                  sc.ordinal
+         ORDER BY act_match DESC, exact_section DESC, matched DESC, score DESC,
+                  s.official_title, sc.ordinal
          LIMIT :limit
-    """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 3}).all()
+    """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
     floor = 2 if len((query or "").split()) > 1 else 1
     hits = [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
                        r.sub_section, r.marginal_note, r.content, float(r.score))

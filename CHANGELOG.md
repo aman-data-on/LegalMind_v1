@@ -10,6 +10,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — The §6.1 statute corpus is complete except the Income-tax Act 2025 (AM-48, 2026-09-08)
+
+Owner instruction: verify the corpus, then obtain genuinely missing statutes from
+official Government of India sources. Verified first: DPDP Act 2023 was present all
+along; the Evidence Act 1872 was never on disk and is not wanted — the Constitution
+(§6.1, §28.4.3) names the Bharatiya Sakshya Adhiniyam 2023 as its successor.
+Then, over India Code's DSpace REST API (`indiacode.gov.in/server/api`, handle →
+bundles → bitstream), an operator obtained the English "as on" texts of the NI Act
+1881, Arbitration Act 1996, CPC 1908, Copyright Act 1957, BSA 2023, CGST/IGST Acts
+2017, Companies Act 2013 (full) and Companies Act 1956 (repealed), plus India Code
+copies of the three central Acts the owner had supplied; the DPDP Rules 2025 from
+MeitY's gazette copy; the Income-tax Act 1961 from the Department of Revenue (a
+2011 Taxmann edition — recorded NOT current, repealed 01.04.2026). **Not obtained:
+the Income-tax Act 2025** (incometaxindia.gov.in and egazette.gov.in unreachable;
+never substituted). `config/statutes/registry.json`: 17 entries with handle/URL,
+as-on date and SHA-256. Ingested through the existing Domain C pipeline: **17
+statutes, 5,140 sections**, all embedded.
+
+Two chunker fixes found by the new material: India Code bodies read `73.Compensation`
+with no space after the number (§73 had folded into §72) and eighteen Acts hold a
+section 138, so `search_statutes` now ranks the Act the question NAMES first.
+Verified live: NI Act s. 138, BSA s. 63, IT Act s. 43A, Contract Act ss. 73–74 and
+Arbitration Act s. 29A all answer with Act + section citations. Tests: +3
+(NI §138 on the real file, named-Act ranking, no-space section start). `AM-48`
+appended to `all_lock.md`; C-16 resolved; STATUTE_INTAKE.md marked satisfied.
+
 ### Changed — The Constitution governs; Ask routes by question shape (AB-14, 2026-09-08)
 
 Owner instruction, 2026-09-08 (full GO): the Legal Constitution L1.5 is the

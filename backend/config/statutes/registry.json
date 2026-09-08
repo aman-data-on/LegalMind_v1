@@ -1,38 +1,176 @@
 {
   "_about": [
-    "Domain C registry — the seven statutes the owner supplied on 2026-08-18 (AM-47 r1).",
-    "Every value below is either stated by the supplied file itself or is a fact of the supply;",
-    "a field the file does not state reads NOT STATED IN SUPPLIED FILE (AM-47 r2). Nothing is",
-    "fetched (rule 21). `source` carries the quality caveat in the record: India Code",
-    "re-verification is PENDING (C-16 item 2). NOT present, because never supplied: the",
-    "Negotiable Instruments Act 1881 and the Evidence Act 1872 / Bharatiya Sakshya Adhiniyam 2023."
+    "Domain C registry (AM-32 r6; AM-47; AM-48). Every value is stated by the file itself or is a fact of how the file",
+    "was obtained. India Code (indiacode.gov.in) is the canonical source; files fetched from it on 2026-09-08 by an operator",
+    "over its DSpace REST API at the owner's instruction (AM-48) — the APPLICATION never fetches (rule 21).",
+    "NOT present: the Income-tax Act, 2025 (30 of 2025; in force 1 April 2026) — official copies (incometaxindia.gov.in, egazette.gov.in)",
+    "were unreachable from this host; the Income-tax Act, 1961 is held only as a DoR-hosted 2011 edition and is repealed.",
+    "The Indian Evidence Act, 1872 is deliberately absent: the Constitution names its successor, the Bharatiya Sakshya Adhiniyam, 2023.",
+    "`source` is bounded at 128 characters by the statutes table; the full India Code rationale is this note: India Code is the Legislative Department's official repository and the product vision's canonical source; each entry's source_ref names the handle and file."
   ],
   "directory": "Indian_Laws_and_Acts",
-  "supplied_by": "owner (Drive tranche Indian_Laws_and_Acts-20260818T124920Z-1-001.zip)",
-  "supplied_at": "2026-08-18T00:00:00+05:30",
-  "source": "owner-supplied 2026-08-18; India Code re-verification PENDING (C-16 item 2)",
   "jurisdiction": "IN",
+  "supplied_by": "owner (2026-08-18) or operator fetch from India Code/MeitY/DoR (2026-09-08, AM-48) — see `source`",
+  "supplied_at": "2026-09-08T18:30:00+05:30",
+  "source": "see per-entry `source`",
   "statutes": [
-    {"file": "Indian_Contract_Act_1872.pdf", "official_title": "The Indian Contract Act, 1872",
-     "act_number_year": "Act No. 9 of 1872", "source_ref": "Act No. 9 of 1872 (as stated in the file)",
-     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
-    {"file": "IT_Act_2000.pdf", "official_title": "The Information Technology Act, 2000",
-     "act_number_year": "Act No. 21 of 2000", "source_ref": "Act No. 21 of 2000 (as stated in the file)",
-     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
-    {"file": "SPDI_Rules_2011.pdf", "official_title": "The Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011",
-     "act_number_year": "Rules under s. 87(2)(ob) read with s. 43A, IT Act 2000", "source_ref": "G.S.R. 313(E), 11 April 2011 (as stated in the file)",
-     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
-    {"file": "Companies_Act_2013_sp.pdf", "official_title": "The Companies Act, 2013 (supplied excerpt: selected provisions)",
-     "act_number_year": "Act No. 18 of 2013 (number not stated in the supplied excerpt)", "source_ref": "NOT STATED IN SUPPLIED FILE (4-page excerpt)",
-     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
-    {"file": "CERT-In_Directions_2022.pdf", "official_title": "CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022)",
-     "act_number_year": "Directions under s. 70B(6), IT Act 2000", "source_ref": "No. 20(3)/2022-CERT-In, dated 28 April 2022 (as stated in the file)",
-     "as_amended_date": "28 April 2022 (date of issue as stated in the file)"},
-    {"file": "DPDP_Act_2023.pdf", "official_title": "The Digital Personal Data Protection Act, 2023",
-     "act_number_year": "Act No. 22 of 2023", "source_ref": "No. 22 of 2023, assented 11 August 2023 (as stated in the file)",
-     "as_amended_date": "NOT STATED IN SUPPLIED FILE"},
-    {"file": "IT_Rules_2021_Updated_2026.pdf", "official_title": "The Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021",
-     "act_number_year": "Rules under s. 87, IT Act 2000", "source_ref": "G.S.R. 139(E), 25 February 2021; amended by G.S.R. 120(E) (as stated in the file)",
-     "as_amended_date": "updated as on 10.02.2026 (as stated in the file)"}
+    {
+      "file": "Indian_Contract_Act_1872_indiacode.pdf",
+      "official_title": "The Indian Contract Act, 1872",
+      "act_number_year": "Act No. 9 of 1872",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496413, file a1872-9.pdf",
+      "as_amended_date": "NOT STATED IN SUPPLIED FILE",
+      "note": "replaces the owner-supplied Indian_Contract_Act_1872.pdf (sha d756d45a58c4…) as corpus text; owner file retained on disk",
+      "file_sha256": "85a7a066098255c93001d678aeaf483f91d3080918363c03b78d40c3eeb8b386"
+    },
+    {
+      "file": "IT_Act_2000_indiacode.pdf",
+      "official_title": "The Information Technology Act, 2000",
+      "act_number_year": "Act No. 21 of 2000",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496511, file A2000-21.pdf",
+      "as_amended_date": "as on 27th June, 2025 (stated in the file)",
+      "note": "replaces owner-supplied IT_Act_2000.pdf (sha e71725fa32e8…)",
+      "file_sha256": "003b3218fe399b293c73f6aef9ca52e5c1d080388c43fb0523572c1dc5f3d529"
+    },
+    {
+      "file": "DPDP_Act_2023_indiacode.pdf",
+      "official_title": "The Digital Personal Data Protection Act, 2023",
+      "act_number_year": "Act No. 22 of 2023",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496508, file a2023-22.pdf",
+      "as_amended_date": "as on 19th November, 2025 (stated in the file)",
+      "note": "replaces owner-supplied DPDP_Act_2023.pdf (sha 4deb23981d30…)",
+      "file_sha256": "dda561b9fd6420e1b99157b60f92bb0470a6154c6d559bbee3482ac255ac2c24"
+    },
+    {
+      "file": "SPDI_Rules_2011.pdf",
+      "official_title": "The Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011",
+      "act_number_year": "Rules under s. 87(2)(ob) read with s. 43A, IT Act 2000",
+      "source": "owner-supplied 2026-08-18; India Code re-verification PENDING (rules not in Acts collection)",
+      "source_ref": "G.S.R. 313(E), 11 April 2011 (as stated in the file)",
+      "as_amended_date": "NOT STATED IN SUPPLIED FILE",
+      "file_sha256": "c192ecbe5cf1acbf9200d55f005966e5bf0a4b594f5280237fa915a485ffd064"
+    },
+    {
+      "file": "CERT-In_Directions_2022.pdf",
+      "official_title": "CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022)",
+      "act_number_year": "Directions under s. 70B(6), IT Act 2000",
+      "source": "owner-supplied 2026-08-18 (CERT-In is the issuing authority; not an India Code document)",
+      "source_ref": "No. 20(3)/2022-CERT-In, dated 28 April 2022 (as stated in the file)",
+      "as_amended_date": "28 April 2022 (date of issue as stated in the file)",
+      "file_sha256": "202c2f3953d792dcfb3ecb3634fc82ab75437ee596de89b8d59a211e8e42431f"
+    },
+    {
+      "file": "IT_Rules_2021_Updated_2026.pdf",
+      "official_title": "The Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021",
+      "act_number_year": "Rules under s. 87, IT Act 2000",
+      "source": "owner-supplied 2026-08-18 (MeitY consolidated text); India Code re-verification PENDING",
+      "source_ref": "G.S.R. 139(E), 25 February 2021; amended by G.S.R. 120(E) (as stated in the file)",
+      "as_amended_date": "updated as on 10.02.2026 (as stated in the file)",
+      "file_sha256": "7881536e07458e616f6c91b841814cc95b7084edc7ded8a0897a4beaec701351"
+    },
+    {
+      "file": "DPDP_Rules_2025.pdf",
+      "official_title": "The Digital Personal Data Protection Rules, 2025",
+      "act_number_year": "Rules under the Digital Personal Data Protection Act, 2023 (22 of 2023)",
+      "source": "MeitY (meity.gov.in) — Gazette of India Extraordinary Pt II s.3(i), 13 Nov 2025; operator fetch 2026-09-08",
+      "source_ref": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf (G.S.R. 846(E) per Constitution §6.1; the gazette page is the file's first page)",
+      "as_amended_date": "notified 13 November 2025 (as stated in the file)",
+      "file_sha256": "eabc7d05e013144615d78ddc0e8b9c9aac1920e814f4fad38ce6560951f5aa08"
+    },
+    {
+      "file": "NI_Act_1881.pdf",
+      "official_title": "The Negotiable Instruments Act, 1881",
+      "act_number_year": "Act No. 26 of 1881",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496318, file a1881-26.pdf",
+      "as_amended_date": "NOT STATED IN SUPPLIED FILE",
+      "file_sha256": "ed3e9db7f37052a1bc1cd665500910c5e123de888bce0375585e9a766bf38501"
+    },
+    {
+      "file": "Arbitration_Conciliation_Act_1996.pdf",
+      "official_title": "The Arbitration and Conciliation Act, 1996",
+      "act_number_year": "Act No. 26 of 1996",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496493, file a1996-26.pdf",
+      "as_amended_date": "as on 1st June, 2026 (stated in the file)",
+      "file_sha256": "6fb32e5ffe2581740345d948c1e362bfbb5018ca7958932cde8ca92436485b6c"
+    },
+    {
+      "file": "CPC_1908.pdf",
+      "official_title": "The Code of Civil Procedure, 1908",
+      "act_number_year": "Act No. 5 of 1908",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496430, file a1908-05.pdf",
+      "as_amended_date": "as on 10th January, 2026 (stated in the file)",
+      "file_sha256": "393b8848fdfc476a21cc3abf4f0d3f510557e2dff6fc6914b1f379bea1730614"
+    },
+    {
+      "file": "Copyright_Act_1957.pdf",
+      "official_title": "The Copyright Act, 1957",
+      "act_number_year": "Act No. 14 of 1957",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496733, file a1957-14.pdf",
+      "as_amended_date": "as on 15th June, 2026 (stated in the file)",
+      "file_sha256": "fc1e8ab7dee763fcda531eedc44de835c8e2bc4b9aaaf8cf29730e45b4289523"
+    },
+    {
+      "file": "Bharatiya_Sakshya_Adhiniyam_2023.pdf",
+      "official_title": "The Bharatiya Sakshya Adhiniyam, 2023",
+      "act_number_year": "Act No. 47 of 2023",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496549, file a2023-47.pdf",
+      "as_amended_date": "as on 6th October, 2025 (stated in the file)",
+      "note": "replaced the Indian Evidence Act, 1872 w.e.f. 1 July 2024 (Constitution §6.1, §28.4.3) — the Evidence Act is deliberately NOT ingested",
+      "file_sha256": "554b2b4ae3d9f09bf31e6e1ba2b2cb8a4e7f4f5ffd6f3156736752cbbce116d5"
+    },
+    {
+      "file": "CGST_Act_2017.pdf",
+      "official_title": "The Central Goods and Services Tax Act, 2017",
+      "act_number_year": "Act No. 12 of 2017",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496310, file a2017-12.pdf",
+      "as_amended_date": "as on 11th June, 2026 (stated in the file)",
+      "file_sha256": "219dd2b8243663e34d7de211ad6b3d4f9f619e9545c96c413b2f44eb09a5c69c"
+    },
+    {
+      "file": "IGST_Act_2017.pdf",
+      "official_title": "The Integrated Goods and Services Tax Act, 2017",
+      "act_number_year": "Act No. 13 of 2017",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496312, file A2017-13.pdf",
+      "as_amended_date": "as on 1st September, 2026 (stated in the file)",
+      "file_sha256": "a4bf7a7a5068f2f5b76e550f501ce9f0e490a83af14acfb5a286a15daeb79ba9"
+    },
+    {
+      "file": "Companies_Act_2013_full.pdf",
+      "official_title": "The Companies Act, 2013",
+      "act_number_year": "Act No. 18 of 2013",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/496128, file a2013-18.pdf",
+      "as_amended_date": "NOT STATED IN SUPPLIED FILE",
+      "note": "supersedes the owner-supplied 4-page excerpt Companies_Act_2013_sp.pdf, retained on disk",
+      "file_sha256": "0b915c8ea8927674b988584a9c8572fcaa526ad6d89a02b4234797087946b4d6"
+    },
+    {
+      "file": "Companies_Act_1956_repealed.pdf",
+      "official_title": "The Companies Act, 1956 (REPEALED — historical incorporating statute per Constitution §4.1/§28.4.2)",
+      "act_number_year": "Act No. 1 of 1956 (repealed)",
+      "source": "India Code (indiacode.gov.in) — operator fetch via DSpace REST API, 2026-09-08 (AM-48)",
+      "source_ref": "India Code handle 123456789/549069",
+      "as_amended_date": "repealed; text as held by India Code (no as-on date in file)",
+      "file_sha256": "5c2d96926bfed376967aae1506cb8762efdc33ceec68a63bcc58e9d75c191b54"
+    },
+    {
+      "file": "Income_Tax_Act_1961.pdf",
+      "official_title": "The Income-tax Act, 1961 (REPEALED w.e.f. 1 April 2026 by the Income-tax Act, 2025 — cited by Constitution §6.1 for ss. 194J/194C)",
+      "act_number_year": "Act No. 43 of 1961 (repealed 01.04.2026)",
+      "source": "Dept. of Revenue (dor.gov.in) hosted 2011 Taxmann edition — NOT India Code, NOT current; fetched 2026-09-08",
+      "source_ref": "https://dor.gov.in/files/acts_files/IT%20Act%20(English)_0_0.pdf",
+      "as_amended_date": "2011 edition (as stated in the file) — NOT current",
+      "file_sha256": "1ec6e4c38dc1d524d1d40b1fd35d13ac1336c8fc549cef2af1bf723a999c822b"
+    }
   ]
 }
