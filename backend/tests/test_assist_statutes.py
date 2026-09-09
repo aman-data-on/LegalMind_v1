@@ -115,11 +115,27 @@ def test_reingestion_replaces_rather_than_accumulates(db, tmp_path):
     assert n == 1 and statutes.holdings(db) == ["The Synthetic Widgets Act, 2099"]
 
 
+def _present(path: Path) -> bool:
+    """Is the supplied material readable on THIS machine?
+
+    `Path.exists()` does not answer that question safely: it RAISES on EACCES, and
+    the default source-material path lives under `/root`, which a CI runner cannot
+    traverse. So the guard meant to SKIP these two tests instead raised
+    `PermissionError` while the decorator was being evaluated, which is import time
+    — taking the whole module down as a collection error rather than skipping two
+    tests. A machine that cannot stat the file does not have the material.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 REAL = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR",
                            "/root/Legalmind.v1/legal-docs")) / "Indian_Laws_and_Acts" / "IT_Act_2000.pdf"
 
 
-@pytest.mark.skipif(not REAL.exists(), reason="supplied statute not present on this machine")
+@pytest.mark.skipif(not _present(REAL), reason="supplied statute not present on this machine")
 def test_the_supplied_it_act_yields_section_43a(db):
     report = ingest_statute(db, path=REAL, provenance=_provenance(
         official_title="The Information Technology Act, 2000", act_number_year="Act No. 21 of 2000"))
@@ -133,7 +149,7 @@ NI = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR",
                          "/root/Legalmind.v1/legal-docs")) / "Indian_Laws_and_Acts" / "NI_Act_1881.pdf"
 
 
-@pytest.mark.skipif(not NI.exists(), reason="NI Act not present on this machine")
+@pytest.mark.skipif(not _present(NI), reason="NI Act not present on this machine")
 def test_the_ni_act_yields_section_138_dishonour_of_cheque(db):
     """The product vision's headline statute question, answerable only once the Act was
     obtained from an official source (AM-48, 2026-09-08). Cited Act + section (AM-32 r7)."""
