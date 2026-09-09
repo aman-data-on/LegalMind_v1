@@ -10,6 +10,56 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — one colour system and one order for the three reader statuses (owner, 2026-09-09)
+
+Owner instruction, presentation only. **Order**, everywhere the three words appear as a
+sequence: Acceptable → Requires modification → Needs a decision. **Tone**: green Acceptable
+(unchanged), **amber** Requires modification, **red** Needs a decision. The amber and the red
+were the wrong way round — "Requires modification" had inherited the loud red treatment (solid
+chip, red card edge) from the status `AM-56` renamed away, while "Needs a decision", the one
+word that says acceptance could not be determined at all, wore amber.
+
+Five surfaces spelled the order and the colour out for themselves and two disagreed, so the
+pairing now lives in ONE place: `USER_STATUS_ORDER` and `USER_STATUS_TONE` in
+`frontend/src/components/workspace/findingLanguage.ts`. The Summary tiles, the proportion bar,
+the ring and its legend, the Dashboard count badges, the filter row and the report chips all
+read those two; the ring takes an ordered segment list instead of three positional counts named
+for the engine's old buckets, which is where its legend could drift from the tiles above it.
+The status-only CSS slots were renamed from engine buckets (`match`/`review`/`missing`) to tone
+slots (`ok`/`warn`/`bad`); the document outline's dots keep the bucket names — they key off the
+CLASSIFICATION, a different axis — via one rule carrying both names. The version-comparison
+chip showed a status word in `--ws-classify` and now wears its status tone.
+
+No new colour: the three hues are DD-12's audited ones, reassigned, and never colour alone —
+every surface carries the word and an icon (✓ green, ! amber, ✕ red). Nothing backend changed:
+counts, classification, `user_status` derivation, the evaluators, the API and the database are
+untouched, and `api/export_render.py` was already emitting the three in this order as text.
+Tests: `frontend/src/__tests__/status-tones.test.tsx` (new — the rendered tone and order on
+tiles, bar, ring legend and cards), the tone expectations in `finding-card.test.tsx`, and
+browser assertions in `e2e/journey.spec.ts` (Dashboard badges) and `e2e/workspace.spec.ts`
+(Summary tiles).
+
+⚠️ **The visual baselines are now stale by design.** `e2e/visual.spec.ts-snapshots/` still holds
+the pre-swap renderings. Per that spec's own header they are regenerated from CI, never locally:
+let job 15 fail, take its `visual-regression-diffs` artifact and commit the `*-actual.png`. Also
+noted while working there: the `workspace — document pane, slice 1` shot fails a precondition
+(`[data-region="document"] .ws-row` hidden) unrelated to colour — the workspace opens on the
+analysis since 2026-09-08 and that spec never reveals the document, as `journey.spec.ts` does
+with `showDocument`. Left for whoever regenerates the baselines.
+
+⚠️ **Coordination note — an unresolved colour conflict, raised with the owner.** A concurrent
+session has an uncommitted `workspace.css` pass that introduces a separate `--ws-tone-*` token
+set and moves the `bad` slot to **indigo `#4f46e5`** and `warn` to `#c2410c`, citing "the
+owner's reference design, 2026-09-09" — so "Needs a decision" becomes indigo, not the red this
+change was instructed to use. Both passes agree on the *structure* (the fixed order, the tone
+slots, one source of truth) and differ only on the hue for two slots; this repository's tests
+assert the slot, not the hex, so both pass. Not resolved here (rule 5). Its file was left
+untouched.
+
+Two further observations, neither acted on: `.ws-tile--decision`, `.ws-status--decision` and
+`.ws-risk--match|review|missing` are unreferenced leftovers of the fourth status tile removed
+in `7275d1f`, and `--ws-decision` remains legitimately in use for Legal Decision surfaces.
+
 ### Changed — the Findings filter row is one fixed order, "All" first and selected (owner, 2026-09-09)
 
 Owner instruction. The row reads `All` · `Acceptable` · `Requires modification` · `Needs a
