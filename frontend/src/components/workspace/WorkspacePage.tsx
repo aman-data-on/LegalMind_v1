@@ -340,21 +340,26 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
 
       {version ? (
         <>
+          {/* Ask is DOCKED into the right column (owner, 2026-09-09,
+              superseding DD-15's floating dock): it reserves space in that
+              column only while open, so it never comes to rest over the
+              document or a finding. Closed it is the launcher at the foot of
+              the column. It asks about the version on screen, whichever that
+              is. Below 900px there is only one column, so it keeps DD-15's
+              overlay sheet — see the layout's narrow branch. */}
           <WorkspaceLayout
             document={<DocumentPane version={version} />}
             findings={<FindingsPane version={version} />}
             analysis={<AnalysisPanel documentVersionId={version.id} />}
-          />
-          {/* A floating launcher, not a layout row (DD-15): it reserves no
-              workspace height, is mounted at every breakpoint, and opens over
-              the canvas without replacing the document. It asks about the
-              version on screen, whichever that is. */}
-          <AskDock
-            contractId={contract.id}
-            documentVersionId={version.id}
-            versionNumber={version.version_number}
-            isLatest={isLatest}
-            onOpenVersion={(id) => openVersion(id)}
+            ask={
+              <AskDock
+                contractId={contract.id}
+                documentVersionId={version.id}
+                versionNumber={version.version_number}
+                isLatest={isLatest}
+                onOpenVersion={(id) => openVersion(id)}
+              />
+            }
           />
         </>
       ) : (

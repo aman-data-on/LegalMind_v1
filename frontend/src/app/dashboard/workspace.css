@@ -406,10 +406,47 @@
    internally; this is what makes that scrolling the thing that happens
    instead of an overflow no container was catching. */
 .ws-doc__clauses { display: flex; flex-direction: column; gap: var(--ws-s3); min-height: 0; overflow: hidden; }
+/* Collapsed (owner, 2026-09-09): the index gives up its column entirely and
+   leaves a rail. `[hidden]` on `.ws-doc__clauses` takes it out of flow and out
+   of the accessibility tree; this reclaims the track it was holding. */
+.ws-doc[data-contents="closed"] { grid-template-columns: 40px minmax(0, 1fr); }
+.ws-doc__rail {
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: var(--ws-s3) 0; min-width: 40px;
+  font: inherit; color: var(--ws-ink-500); cursor: pointer;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  transition: color var(--ws-t), background-color var(--ws-t), border-color var(--ws-t);
+}
+.ws-doc__rail:hover { color: var(--ws-accent); background: var(--ws-accent-soft); border-color: var(--ws-accent); }
 .ws-outline { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: var(--ws-s3) 0 0; }
+.ws-outline__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--ws-s2); padding-right: var(--ws-s2); flex: none;
+}
+.ws-outline__collapse {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  /* 32px box in a 44px row: the padding above and below the head row carries
+     the rest of the touch target. */
+  width: 32px; height: 32px; border-radius: var(--ws-radius);
+  border: 1px solid transparent; background: transparent;
+  color: var(--ws-ink-500); cursor: pointer;
+  transition: background-color var(--ws-t), color var(--ws-t), border-color var(--ws-t);
+}
+.ws-outline__collapse:hover {
+  background: var(--ws-paper); border-color: var(--ws-ink-100); color: var(--ws-ink-900);
+}
 .ws-outline__title {
   font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--ws-ink-700); padding: 0 var(--ws-s4) var(--ws-s2); margin: 0;
+}
+.ws-outline__head .ws-outline__title { padding-bottom: 0; }
+/* The page jump and the marker key share the list's card — one border, not
+   three (owner, 2026-09-09). A hairline divider does the separating. */
+.ws-outline__foot {
+  flex: none; display: flex; flex-direction: column; gap: var(--ws-s2);
+  padding: var(--ws-s3) var(--ws-s4) var(--ws-s3);
+  border-top: 1px solid var(--ws-ink-100);
 }
 .ws-outline__search {
   display: flex; align-items: center; gap: 7px; margin: 0 var(--ws-s3) var(--ws-s2);
@@ -446,11 +483,13 @@
 .ws-outline__list .ws-status { margin-top: 1px; }
 .ws-outline .ws-mono { color: var(--ws-ink-500); margin-right: 6px; }
 .ws-outline__list button[aria-current="true"] .ws-mono { color: var(--ws-accent); }
-.ws-outline__pages {
-  margin: 0; padding: var(--ws-s2) var(--ws-s4); border-top: 1px solid var(--ws-ink-100);
-  font-size: var(--ws-text-xs); color: var(--ws-ink-500); flex: none;
+/* `.ws-outline__pages` is retired — the wrapper paragraph it styled is gone,
+   and `.ws-outline__foot` above carries the padding and the divider for both
+   the page jump and the marker key. */
+.ws-outline__pagenav {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
 }
-.ws-outline__pagenav { display: inline-flex; align-items: center; gap: 6px; }
 .ws-outline__pagenav select {
   font: inherit; font-size: var(--ws-text-xs); padding: 2px 4px;
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
@@ -469,7 +508,9 @@
 .ws-status--ok { color: var(--ws-tone-ok); }
 .ws-status--warn { color: var(--ws-tone-warn); }
 .ws-status--bad { color: var(--ws-tone-bad); }
-.ws-legend { padding: var(--ws-s3) var(--ws-s4); flex: none; }
+/* No longer a card of its own — it sits in `.ws-outline__foot`, which supplies
+   the padding it used to carry itself. */
+.ws-legend { flex: none; }
 .ws-legend p { margin: 0 0 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-700); display: flex; align-items: center; gap: 7px; }
 .ws-legend p:last-child { margin-bottom: 0; }
 
@@ -949,13 +990,57 @@
   font-size: 10.5px; color: var(--ws-ink-500);
 }
 
-/* The launcher's footprint, reserved by the panels that scroll UNDER it so
-   nothing — and no focused control — can come to rest hidden behind it.
-   (WCAG 2.2 AA 2.4.11. The launcher is 44px + a 16px inset + breathing room.) */
-.ws-workmain .ws-side__panel, .ws-workmain .ws-text, .ws-workmain .ws-outline__list {
-  scroll-padding-bottom: 76px;
+/* ==========================================================================
+ * Ask, DOCKED into the right column — owner, 2026-09-09, superseding DD-15.
+ *
+ * DD-15 made Ask a floating dock so it reserved no workspace height. The owner
+ * reviewed the result: "It feels like a temporary popup rather than a permanent
+ * workspace panel… The Ask panel should have a defined docked area, not randomly
+ * appear over content." It is now a flow child of `.ws-pane--side`, so the
+ * column divides between the findings panel and Ask, and the panel cannot be
+ * over anything. DD-15's own reason to float — 128px reserved on every screen
+ * whether or not anyone was asking — is answered by reserving it only while
+ * open: closed, this is a 44px launcher row and nothing else.
+ *
+ * That also removes the two WCAG 2.2 AA 2.4.11 defences the floating version
+ * needed (hiding the launcher while open, and 76px of scroll padding under every
+ * scrolling panel so no focused row could rest behind it). A docked panel
+ * obscures nothing, so there is nothing to compensate for.
+ * ========================================================================== */
+.ws-pane--side > .ws-dock {
+  position: static; inset: auto;
+  align-items: stretch; min-height: 0;
+  border-top: 1px solid var(--ws-ink-100);
 }
-.ws-workmain .ws-side__panel { padding-bottom: 76px; }
+.ws-pane--side > .ws-dock[data-open="true"] {
+  /* A share of the column, never all of it: the findings above stay readable,
+     and the log inside is what scrolls. */
+  flex: 0 1 auto; max-height: 62%;
+}
+.ws-pane--side > .ws-dock .ws-dock__launcher {
+  /* The persistent way back in — full-width and flush in the column rather
+     than a floating pill, still 44px for the touch-target minimum. */
+  width: 100%; justify-content: center; border-radius: 0;
+  border: 0; box-shadow: none;
+  background: var(--ws-surface); color: var(--ws-accent);
+}
+.ws-pane--side > .ws-dock .ws-dock__launcher:hover {
+  background: var(--ws-accent-soft); box-shadow: none; transform: none;
+}
+.ws-pane--side > .ws-dock .ws-dock__launcher:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: -3px; box-shadow: none;
+}
+.ws-pane--side > .ws-dock .ws-dock__count {
+  color: #fff; background: var(--ws-accent);
+}
+.ws-pane--side > .ws-dock .ws-dock__panel {
+  width: auto; max-height: none; min-height: 0; flex: 1;
+  border: 0; border-radius: 0; box-shadow: none;
+  background: transparent;
+}
+/* Docked, the launcher stays visible as the panel's own collapse control's
+   sibling — but only one of the two is ever in flow, so the UA `[hidden]`
+   suppression that the floating pill had to re-assert still applies here. */
 
 /* ==========================================================================
  * Analysis panel (DD-9 reference match) — counts and facts, no scores.
@@ -3092,18 +3177,25 @@
  * workspace exactly as the fourth pass left it (that half was never the
  * complaint). Only the OPEN state's column assignment reverts.
  * ========================================================================== */
+/* SIXTH pass — owner, 2026-09-09, amending AM-50 r5.
+ *
+ * "For legal review, the document should be the primary reference surface, with
+ * navigation/index on the left." So the three regions read
+ * LEFT contents · CENTRE document · RIGHT findings/Ask, which is what the
+ * document pane's own two-column split (`.ws-doc`) plus the side card already
+ * describe once the document draws the flexible track: the contents card is the
+ * left column, the paper the centre, the side card the fixed right rail.
+ *
+ * The CLOSED state is unchanged from the fifth pass: "Hide document" gives the
+ * side card the whole workspace, which is still the right answer for a reader
+ * working the findings list alone. What changed is the default — the document
+ * now opens with the workspace (see `storedDocOpen`) rather than on request. */
 .ws-workspace--wide { grid-template-columns: minmax(0, 1fr); }
 .ws-workspace--wide .ws-pane--document { display: none; }
-/* AM-50 r5 (owner, 2026-09-09): findings keep the flexible column; the document
-   opens beside them at a readable fixed width the reader can drag wider or
-   narrower (native `resize`), never the other way round. */
-.ws-workspace--wide[data-doc-open="true"] { grid-template-columns: minmax(0, 1fr) auto; }
-.ws-workspace--wide[data-doc-open="true"] .ws-pane--document {
-  display: flex;
-  width: clamp(440px, 42vw, 760px);
-  min-width: 380px; max-width: 62vw;
-  resize: horizontal; overflow: hidden;
+.ws-workspace--wide[data-doc-open="true"] {
+  grid-template-columns: minmax(0, 1fr) var(--ws-side-w);
 }
+.ws-workspace--wide[data-doc-open="true"] .ws-pane--document { display: flex; }
 /* `.ws-doc`'s own clauses+viewer 2-column layout is UNCHANGED from before the
    fourth pass: it switches to stacked on the pre-existing `max-width: 1100px`
    viewport media query below (see `.ws-doc`'s own rule), which is once again
