@@ -26,30 +26,100 @@ import { sectionRef } from "@/lib/documentTypes";
 import { describeError } from "@/lib/api";
 import type { Finding } from "@/lib/types";
 
+import {
+  USER_STATUS_LABELS,
+  USER_STATUS_ORDER,
+  USER_STATUS_TONE,
+  reviewHeadline,
+  statusCounts,
+  type StatusTone,
+} from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
+import { classificationLabel } from "@/lib/labels";
+
 import { useHighlight } from "./highlight";
-import { IconAlertCircle, IconCheckCircle, IconRefresh, IconXCircle } from "./icons";
+import { IconAlertCircle, IconCheckCircle, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
   findingsNeedingDecision,
   findingsSummary,
   relativeTime,
-  type StatusBucket,
 } from "./model";
 import { ObligationsPanel } from "./ObligationsPanel";
 import { useSideTabs } from "./WorkspaceLayout";
 
-const BUCKET_LABEL: Record<StatusBucket, string> = {
-  match: "Match",
-  review: "Needs review",
-  missing: "Missing",
+/** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
+ *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
+ *  of tones `findingLanguage` declares: Acceptable · Requires modification ·
+ *  Needs a decision, green · amber · red. The tiles, the bar, the ring and its
+ *  legend all read THIS list, so the four cannot disagree. */
+const STATUS_SUB: Record<string, string> = {
+  ACCEPTABLE: "Constitution match",
+  REQUIRES_MODIFICATION: "Deviation or missing",
+  NEEDS_DECISION: "Unclear, conflicting or no position",
 };
+
+const STATUS_TILES = USER_STATUS_ORDER.map((status) => ({
+  status,
+  tone: USER_STATUS_TONE[status],
+  sub: STATUS_SUB[status] ?? "",
+}));
+
+/** One icon per tone, everywhere a tone is drawn (tiles, marks, legend):
+ *  ✓ Acceptable, ! Requires modification, ⚖ Needs a decision. */
+export function ToneIcon({ tone, size }: { tone: StatusTone; size: number }) {
+  if (tone === "ok") return <IconCheckCircle size={size} />;
+  if (tone === "warn") return <IconAlertCircle size={size} />;
+  return <IconScale size={size} />;
+}
+
+/** How the three words are decided — the same three cards on the Summary and,
+ *  collapsed, above the Findings list. Plain words, no engine vocabulary, and
+ *  no claim about who decides beyond "someone with legal authority". */
+export function StatusExplainer({ collapsible = false }: { collapsible?: boolean }) {
+  const cards = (
+    <div className="ws-explain__grid">
+      <div className="ws-explain__card ws-explain__card--ok">
+        <b>Match → Acceptable</b>
+        <span>The clause matches the company&rsquo;s approved position.</span>
+      </div>
+      <div className="ws-explain__card ws-explain__card--warn">
+        <b>Deviation or missing → Requires modification</b>
+        <span>The clause differs from the approved position, or a required clause is absent.</span>
+      </div>
+      <div className="ws-explain__card ws-explain__card--bad">
+        <b>Unclear or no position → Needs a decision</b>
+        <span>The wording is unclear or conflicting, or the company has no approved position yet.</span>
+      </div>
+    </div>
+  );
+  if (!collapsible) {
+    return (
+      <div className="ws-explain">
+        <p className="ws-explain__title">How the three statuses are decided</p>
+        {cards}
+      </div>
+    );
+  }
+  return (
+    <details className="ws-explain ws-explain--collapsible">
+      <summary>How the three statuses are decided</summary>
+      {cards}
+    </details>
+  );
+}
 
 export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
   const { state, reload } = useFindingsState();
 
   return (
     <div className="ws-analysis">
+      {/* The panel's own heading (2026-09-08 a11y audit). Its sections are all
+          `h3`, so the document went H1 → H3 with no H2 between — a level skip
+          a screen-reader user navigating by heading falls straight through.
+          Visually hidden because the tab above already says "Summary" on
+          screen; the outline needs the level, not a second label. */}
+      <h2 className="ws-visually-hidden">Summary</h2>
       <div className="ws-analysis__updated">
         <span className="ws-pane__note">
           {state.kind === "ready" && state.review.completed_at
@@ -66,6 +136,12 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
         </p>
       ) : state.kind === "no-review" ? (
         <p className="ws-pane__note">This version has not been analysed yet.</p>
+      ) : state.kind === "not-started" ? (
+        /* A Review exists and analysis was never submitted — the Findings tab
+           carries the control that starts it (2026-09-04 state split). */
+        <p className="ws-pane__note">
+          This version has not been analysed yet — start it from the Findings tab.
+        </p>
       ) : state.kind === "in-flight" ? (
         <p className="ws-pane__note" aria-busy="true" role="status">
           Analysis is running — this panel fills in when it completes.
@@ -89,14 +165,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
   const summary = findingsSummary(findings);
   const risks = findingsNeedingDecision(findings);
 
-  const buckets = useMemo(() => {
-    const totals: Record<StatusBucket, number> = { match: 0, review: 0, missing: 0 };
-    for (const { classification, n } of summary.counts) {
-      totals[classificationBucket(classification)] += n;
-    }
-    return totals;
-  }, [summary]);
   const total = findings.length;
+  const statuses = statusCounts(findings);
 
   if (total === 0) {
     return (
@@ -109,85 +179,119 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
     );
   }
 
+  const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
   return (
     <>
-      <section className="ws-analysis__section" aria-label="Status summary">
-        <div className="ws-analysis__head">
-          <h3 className="ws-analysis__title">Status summary</h3>
-          {sideTabs ? (
-            <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
-              View all
+      {/* The hero — the owner's reference layout (2026-09-09): the one sentence
+          a reader needs and the way through to what needs a person, then the
+          three tiles on the left and the ring on the right. Counts only: no
+          score, no grade, no severity ranking (rule 12). */}
+      <section className="ws-hero" aria-label="Status summary">
+        <div className="ws-hero__top">
+          <div className="ws-hero__words">
+            <p className="ws-analysis__headline">
+              {reviewHeadline({
+                total,
+                needsDecision: summary.needsDecision,
+                missing: statuses.REQUIRES_MODIFICATION,
+                match: statuses.ACCEPTABLE,
+              })}
+            </p>
+            <p className="ws-hero__sub">
+              Five determinations — match, deviation, missing, unclear or conflicting, no
+              position — shown as three statuses.
+            </p>
+          </div>
+          {sideTabs && summary.needsDecision > 0 ? (
+            <button
+              type="button"
+              className="ws-hero__cta"
+              onClick={() => sideTabs.openFindings({ status: "NEEDS_DECISION" })}
+            >
+              Review pending decisions <b className="ws-hero__ctan">{summary.needsDecision}</b>
             </button>
           ) : null}
         </div>
-        {/* One tile per classification that ACTUALLY occurred — the real Step 19
-            vocabulary, never an invented catch-all label. "Needs review" is not
-            a status in this system; DEVIATION and UNABLE_TO_EVALUATE are
-            different facts and stay named as themselves (rule 7/12/14).
-            Each tile is a real control (DD-14): it opens the Findings tab
-            filtered to exactly that classification. */}
-        <div className="ws-tiles">
-          {summary.counts.map(({ classification, n }) => {
-            const bucket = classificationBucket(classification);
-            return (
-              <button
-                key={classification}
-                type="button"
-                className={`ws-tile ws-tile--${bucket}`}
-                aria-label={`Show the ${n} ${classification} finding${n === 1 ? "" : "s"}`}
-                onClick={() => sideTabs?.openFindings({ classification })}
-              >
-                <span className="ws-tile__n">{n}</span>
-                <span className="ws-tile__label ws-mono">{classification}</span>
-                <span className={`ws-status ws-status--${bucket}`}>
-                  {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div
-          className="ws-bar"
-          role="img"
-          aria-label={summary.counts.map(({ classification, n }) => `${n} ${classification}`).join(", ")}
-        >
-          {summary.counts.map(({ classification, n }) =>
-            n > 0 ? (
-              <span
-                key={classification}
-                className={`ws-bar__seg ws-bar__seg--${classificationBucket(classification)}`}
-                style={{ flexGrow: n }}
-              />
-            ) : null,
-          )}
-        </div>
-        <p className="ws-pane__note">
-          Total requirements analyzed: <span className="ws-mono">{total}</span>
-        </p>
-      </section>
-
-      <section className="ws-analysis__section" aria-label="Clause status breakdown">
-        <h3 className="ws-analysis__title">Clause status breakdown</h3>
-        <div className="ws-ring">
-          <Donut match={buckets.match} review={buckets.review} missing={buckets.missing} total={total} />
-          <ul className="ws-ring__legend">
-            {summary.counts.map(({ classification, n }) => (
-              <li key={classification} data-bucket={classificationBucket(classification)}>
-                {/* The legend row is the same control as its tile (DD-14). */}
-                <button
-                  type="button"
-                  className="ws-ring__go"
-                  aria-label={`Show the ${n} ${classification} finding${n === 1 ? "" : "s"}`}
-                  onClick={() => sideTabs?.openFindings({ classification })}
-                >
-                  <span className="ws-ring__swatch" aria-hidden="true" />
-                  <span className="ws-mono">{n}</span>
-                  <span className="ws-ring__pct">({Math.round((n / total) * 100)}%)</span>
-                  {classification}
+        <div className="ws-hero__grid">
+          <div className="ws-hero__left">
+            <div className="ws-analysis__head">
+              <h3 className="ws-analysis__title">Status breakdown</h3>
+              {sideTabs ? (
+                <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
+                  View all in Findings
                 </button>
-              </li>
-            ))}
-          </ul>
+              ) : null}
+            </div>
+            {/* Exactly three tiles (owner, 2026-09-09) — how many need a legal
+                decision is the button above and the line below, never a tile.
+                A zero tile stays visible and inert, so the three words are
+                always in the same three places. */}
+            <div className="ws-tiles">
+              {STATUS_TILES.map(({ status, tone, sub }) => (
+                <button
+                  key={status}
+                  type="button"
+                  className={`ws-tile ws-tile--${tone}`}
+                  aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+                  onClick={() => sideTabs?.openFindings({ status })}
+                  disabled={statuses[status] === 0}
+                >
+                  <span className="ws-tile__n">{statuses[status]}</span>
+                  <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
+                  <span className="ws-tile__sub">{sub} ({pct(statuses[status])})</span>
+                  {/* Never colour alone: the word above, the icon beside it. */}
+                  <span className={`ws-status ws-status--${tone}`}>
+                    <ToneIcon tone={tone} size={18} />
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div
+              className="ws-bar"
+              role="img"
+              aria-label={STATUS_TILES.filter(({ status }) => statuses[status] > 0)
+                .map(({ status }) => `${statuses[status]} ${USER_STATUS_LABELS[status]}`).join(", ")}
+            >
+              {STATUS_TILES.map(({ status, tone }) =>
+                statuses[status] > 0 ? (
+                  <span key={status} className={`ws-bar__seg ws-bar__seg--${tone}`} style={{ flexGrow: statuses[status] }} />
+                ) : null,
+              )}
+            </div>
+            <p className="ws-pane__note ws-hero__total">
+              Total requirements analyzed: <span className="ws-mono">{total}</span>
+            </p>
+            <StatusExplainer />
+          </div>
+          <section className="ws-hero__right" aria-label="At a glance">
+            <h3 className="ws-analysis__title">At a glance</h3>
+            <div className="ws-ring">
+              <Donut
+                segments={STATUS_TILES.map(({ status, tone }) => ({
+                  tone, label: USER_STATUS_LABELS[status], n: statuses[status],
+                }))}
+                total={total}
+              />
+              <ul className="ws-ring__legend">
+                {STATUS_TILES.map(({ status, tone }) => (
+                  <li key={status} data-tone={tone}>
+                    <button
+                      type="button"
+                      className="ws-ring__go"
+                      aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+                      onClick={() => sideTabs?.openFindings({ status })}
+                      disabled={statuses[status] === 0}
+                    >
+                      <span className="ws-ring__swatch" aria-hidden="true" />
+                      <span className="ws-ring__word">{USER_STATUS_LABELS[status]}</span>
+                      <span className="ws-mono">{statuses[status]}</span>
+                      <span className="ws-ring__pct">({pct(statuses[status])})</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -200,19 +304,33 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
         defaults to). Naming it that tells the reader what to DO with it, which
         "risk" never did.
       */}
-      <section className="ws-analysis__section" aria-label="Findings awaiting a decision">
+      {/*
+        * ONE call to action, not a second copy of the list (2026-09-04 audit).
+        *
+        * This section used to render a card per awaiting-decision finding — name,
+        * description, "View clause", "Open finding" — while the Findings tab beside
+        * it opens on exactly that same set by default. Two surfaces answering "what
+        * needs a decision?" in one panel is the duplication a reader notices as
+        * "why am I seeing this twice?", and every card's own buttons only led to
+        * the other tab anyway. The count and the way through remain; the second
+        * rendering is gone.
+        */}
+      <section className="ws-analysis__section" aria-label="What needs a decision">
         <div className="ws-analysis__head">
-          <h3 className="ws-analysis__title">Awaiting a decision</h3>
-          {risks.length > 0 && sideTabs ? (
-            <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
-              View all
-            </button>
-          ) : null}
+          <h3 className="ws-analysis__title">What needs a decision</h3>
         </div>
         {risks.length === 0 ? (
           <p className="ws-pane__note">Nothing awaits a decision on this version.</p>
         ) : (
-          risks.map((finding) => <RiskCard key={finding.id} finding={finding} />)
+          <p className="ws-analysis__act">
+            <b className="ws-mono">{risks.length}</b>{" "}
+            {risks.length === 1 ? "finding needs" : "findings need"} a legal decision.{" "}
+            {sideTabs ? (
+              <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
+                Open the list →
+              </button>
+            ) : null}
+          </p>
         )}
       </section>
     </>
@@ -221,34 +339,35 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
 
 /** Real counts as a three-part donut. The center is the raw total — no
  *  percentage-as-verdict, no invented score (rule 12). */
-function Donut({ match, review, missing, total }: {
-  match: number; review: number; missing: number; total: number;
+/** The ring reads the caller's ordered segments — it used to take three
+ *  positional counts named for the engine's old buckets, which is where the
+ *  legend and the ring could drift apart from the tiles above them. */
+function Donut({ segments, total }: {
+  segments: Array<{ tone: StatusTone; label: string; n: number }>; total: number;
 }) {
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
   const start = circumference / 4; // 12 o'clock
-  const segments: Array<{ bucket: StatusBucket; n: number }> = [
-    { bucket: "match", n: match },
-    { bucket: "review", n: review },
-    { bucket: "missing", n: missing },
-  ];
   let consumed = 0;
   return (
     <svg
       className="ws-ring__svg"
       viewBox="0 0 92 92"
       role="img"
-      aria-label={`${total} findings: ${match} match, ${review} need review, ${missing} missing`}
+      aria-label={`${total} findings: ${segments
+        .filter(({ n }) => n > 0)
+        .map(({ n, label }) => `${n} ${label}`)
+        .join(", ")}`}
     >
-      {segments.map(({ bucket, n }) => {
+      {segments.map(({ tone, n }) => {
         if (n === 0) return null;
         const length = (n / total) * circumference;
         const offset = start - consumed;
         consumed += length;
         return (
           <circle
-            key={bucket}
-            className={`ws-ring__seg ws-ring__seg--${bucket}`}
+            key={tone}
+            className={`ws-ring__seg ws-ring__seg--${tone}`}
             cx="46"
             cy="46"
             r={radius}
@@ -263,65 +382,3 @@ function Donut({ match, review, missing, total }: {
   );
 }
 
-function riskDescription(finding: Finding): string {
-  if (finding.classification === "MISSING") {
-    return "Expected for this document type and not found in the document.";
-  }
-  const line = finding.evaluations[0]?.explanation?.[0];
-  return line ?? "Awaits a Legal Decision — open the finding for the full evaluation.";
-}
-
-function RiskCard({ finding }: { finding: Finding }) {
-  const { point, target } = useHighlight();
-  const sideTabs = useSideTabs();
-  const bucket = classificationBucket(finding.classification);
-  const firstEvidence = finding.evidence[0];
-  return (
-    <article className={`ws-risk ws-risk--${bucket}`}>
-      <p className="ws-risk__name">
-        {/* The name opens THIS finding's full card — evaluations, evidence,
-            decision controls — on the Findings tab (DD-14). */}
-        {sideTabs ? (
-          <button
-            type="button"
-            className="ws-risk__open"
-            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
-          >
-            {finding.requirement.code ?? "Requirement"}
-            {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
-            {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
-          </button>
-        ) : (
-          <span>
-            {finding.requirement.code ?? "Requirement"}
-            {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
-            {sectionRef(firstEvidence?.section_number) ? ` · ${sectionRef(firstEvidence?.section_number)}` : ""}
-          </span>
-        )}
-        <span className={`ws-chip ws-chip--bucket-${bucket}`}>{finding.classification}</span>
-      </p>
-      <p className="ws-risk__desc">{riskDescription(finding)}</p>
-      <p className="ws-risk__meta">
-        {firstEvidence ? (
-          <button
-            type="button"
-            className="ws-evidence__loc"
-            aria-current={target === firstEvidence.id ? "true" : undefined}
-            onClick={() => point(firstEvidence.id, "the cited")}
-          >
-            View clause →
-          </button>
-        ) : null}
-        {sideTabs ? (
-          <button
-            type="button"
-            className="ws-evidence__loc"
-            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
-          >
-            Open finding →
-          </button>
-        ) : null}
-      </p>
-    </article>
-  );
-}

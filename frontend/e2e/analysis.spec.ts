@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, storageStatePath } from "./support";
+import { createAnalysedReview, fixture, storageStatePath, openFindingsTab } from "./support";
 
 // `owner` holds USER only — the caller who submits analysis and owns the Review.
 // The session is established once in `auth.setup.ts`; S-5 limits logins (10/300s) and
@@ -30,21 +30,35 @@ test.describe("The analysis surface", () => {
   }) => {
     const f = fixture();
     // Deliberately NOT analysed — this test drives the control on screen.
-    const { reviewId } = await createAnalysedReview(page, { analyse: false });
+    const { reviewId, contractId } = await createAnalysedReview(page, { analyse: false });
 
-    await page.goto(`/reviews?id=${reviewId}`);
-    await expect(page.getByRole("heading", { name: /Analyse this Review/i })).toBeVisible();
-    // Step 30 — a fresh Review is DRAFT, and the screen reads that from the server.
-    await expect(page.getByText("DRAFT")).toBeVisible();
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    await expect(page.getByRole("button", { name: /Analyze against current standards|Analysing/i })).toBeVisible();
+    // Step 30 — a fresh Review is DRAFT, and the screen reads that from the
+    // server. Since 2026-09-04 the pane renders it in a reviewer's words
+    // ("Draft") through `lib/labels`, and states it in the Findings pane header
+    // rather than as a bare enum somewhere on the page.
+    await expect(page.locator('[data-region="findings"] .ws-pane__note')
+      .filter({ hasText: "Draft" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Run analysis" }).click();
+    await page.getByRole("button", { name: /Analyze against current standards/i }).click();
 
     // 52.7 — the lifecycle IS the progress report. LEGAL_REVIEW because the
     // STRUCTURAL cap (24) deviates from the structural standard (12) and the
     // fixture rule is the authorized blanket form (AM-33): any deviation requires
     // a decision. The fixture exercises the path, not a legal conclusion.
-    await expect(page.locator("li.evaluation").first()).toBeVisible();
-    await expect(page.getByText("LEGAL_REVIEW").first()).toBeVisible();
+    await expect(page.locator(".ws-evaluation").first()).toBeVisible();
+    // The lifecycle in a reviewer's words since 2026-09-04 — LEGAL_REVIEW reads
+    // "Awaiting legal decision". The enum is unchanged on the wire; only the
+    // rendering goes through `lib/labels`.
+    await expect(page.getByText("Awaiting legal decision").first()).toBeVisible();
+    // The requirement code moved into "How this was determined" (2026-09-08,
+    // third pass): a raw identifier is exactly the "internal ID" the manager's
+    // report asked off the default-visible surface. Expanding the disclosure
+    // is the same one click a reader would make to confirm it, and proves the
+    // right requirement actually fired — the property this assertion exists for.
+    await page.locator(".ws-determined > summary").first().click();
     await expect(page.getByText(f.configuration.requirement_code)).toBeVisible();
   });
 
@@ -52,7 +66,7 @@ test.describe("The analysis surface", () => {
     page,
   }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
 
     // 43.28 / 49.8 — a repeat is not an error, and must not produce a second Finding.
     const before = await (
@@ -77,32 +91,34 @@ test.describe("The analysis surface", () => {
 
   test("an analysed Review no longer offers analysis", async ({ page }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews?id=${reviewId}`);
-    await expect(page.locator("li.evaluation").first()).toBeVisible();
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    await expect(page.locator(".ws-evaluation").first()).toBeVisible();
     // The control is gone because Findings exist — offering it would promise
     // something 43.28 refuses.
     await expect(
-      page.getByRole("heading", { name: /Analyse this Review/i }),
+      page.getByRole("button", { name: /Analyze against current standards|Analysing/i }),
     ).toHaveCount(0);
   });
 
   test("the evidence trail is on screen, not just in the database", async ({ page }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews?id=${reviewId}`);
-    const evaluation = page.locator("li.evaluation").first();
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
     // Rule 11 / 45B.3 — evidence must survive the evaluator, and rule 12 requires a
     // Finding to be reconstructible. The provenance line carries the evaluator
     // version and the evidence count, which is the visible end of that chain.
-    await expect(evaluation.locator(".evaluation__provenance")).toContainText(
+    await expect(evaluation.locator(".ws-evaluation__provenance")).toContainText(
       "evidence reference",
     );
-    await expect(evaluation.locator(".evaluation__provenance")).toContainText(
+    await expect(evaluation.locator(".ws-evaluation__provenance")).toContainText(
       "NUMERIC-COMPARISON-v1",
     );
   });

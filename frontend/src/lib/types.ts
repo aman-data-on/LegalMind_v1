@@ -49,6 +49,9 @@ export interface SessionIdentity {
    * stale array can only over-hide, never over-permit (52.3).
    */
   permissions: string[];
+  /** AB-12 r3 — presentation only, like `permissions`: names the department the
+   *  "Department deals" view is about, or `null` if the account is in none. */
+  department: Department | null;
   session_id?: string;
   authenticated_at?: string;
 }
@@ -62,6 +65,14 @@ export interface EvidenceRow {
   page_number: number | null;
   section_number: string | null;
   section_title: string | null;
+  /** Whether this row BEGINS a section — recorded by the parser at extraction,
+   *  never derived here. Rows written before 2026-09-05 carry `false`, so the
+   *  outline falls back to numbered rows for them rather than rendering empty. */
+  is_heading?: boolean;
+  /** The document's OWN annexure/schedule/appendix title when this row is one
+   *  ("Annexure-1", "Schedule 2 – Fees") — locked 44.4's "where detectable",
+   *  recorded by the parser (2026-09-06). Present only on such rows. */
+  annexure?: string;
   content: string;
   source_type: string;
   start_offset: number | null;
@@ -76,12 +87,38 @@ export interface LatestAnalysis {
   created_at: string | null;
   completed_at: string | null;
   classification_counts?: Record<string, number>;
+  /** ACCEPTABLE / REQUIRES_MODIFICATION / NEEDS_DECISION per finding — the Dashboard's counts. */
+  user_status_counts?: Record<string, number>;
 }
+
+/** Step 6's source axis — declared by the uploader, never inferred. */
+export type DocumentSource = "ORGANIZATION" | "COUNTERPARTY";
 
 export interface LatestVersionSummary {
   id: string;
   version_number: number;
   processing_status: string;
+  /** Declared (2026-09-06): present only when someone said so — never null. */
+  source?: DocumentSource;
+  counterparty?: string;
+  /** ISO date, as declared. Never read out of the document. */
+  effective_date?: string;
+}
+
+/** The company on the other side of a deal — AB-13 r1. `industry` and
+ *  `relationship_notes` are OMITTED when nobody typed them: an unknown industry
+ *  is a fact, and a null would invite the UI to render "Industry: —" as though
+ *  it had been checked. */
+export interface Counterparty {
+  id: string;
+  name: string;
+  industry?: string;
+  relationship_notes?: string;
+  created_at: string | null;
+  updated_at: string | null;
+  /** Present only on the detail endpoint: every contract for this company that
+   *  the caller may already see. AB-13 r3 — derived from the link, not a graph. */
+  contracts?: Contract[];
 }
 
 export interface Contract {
@@ -92,9 +129,18 @@ export interface Contract {
   latest_analysis?: LatestAnalysis | null;
   id: string;
   owner_id: string;
+  /** Whose deal this is — present on list rows and the detail (AB-12): the
+   *  Department deals view holds more than the caller's own. */
+  owner_name?: string | null;
   name: string;
   contract_type: string | null;
   status: string;
+  /** AB-12 r6 — set means read-only and off the working list. Never a sixth
+   *  `status` value. */
+  archived_at: string | null;
+  /** AB-13 r2 — who this deal is with; null when unlinked, which is the honest
+   *  state for every contract predating the record. */
+  counterparty_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -125,6 +171,11 @@ export interface DocumentVersion {
   extraction_status: string | null;
   uploaded_by: string;
   created_at: string | null;
+  /** Declared (2026-09-06), from locked 42.4's `metadata` JSONB: present only
+   * when someone said so — never null. Fixed once the version has a Review. */
+  source?: DocumentSource;
+  counterparty?: string;
+  effective_date?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
    * ready / lexical-only / not-indexed. Present on the detail endpoint. */
   assist_index?: { chunks: number; embedded_chunks: number };
@@ -221,6 +272,8 @@ export interface Decision {
   created_at: string | null;
 }
 
+export type UserStatusWord = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
+
 export interface Evaluation {
   id: string;
   finding_id: string;
@@ -238,6 +291,10 @@ export interface Evaluation {
   evaluator_version: string;
   /** Derived server-side (D-3.5). Never computed here. */
   requires_decision: boolean;
+  /** The reader's three words (owner's final decision, 2026-09-09) — derived
+   *  server-side from classification, the approved rule's outcome and the
+   *  Constitution citation. The UI renders it and never re-derives it. */
+  user_status?: UserStatusWord;
   current_decision: Decision | null;
   created_at: string | null;
 
@@ -249,6 +306,34 @@ export interface Evaluation {
   comparison?: unknown;
   explanation?: string[];
   legal_rule_version_id?: string | null;
+  /**
+   * Present ONLY when the approved Legal Constitution explicitly establishes
+   * that the contract's position is not acceptable (owner, 2026-09-08). The
+   * server states it with its citation; the UI never derives it from a
+   * DEVIATION, a MISSING or an UNACCEPTABLE rule outcome. Omitted (never
+   * null) whenever it does not apply — see `redact_legal_position`, which
+   * omits it identically for a caller without `legal_position.view`.
+   *
+   * Wired for two Company Standards only (2026-09-08, sixth pass):
+   * `LIABILITY-MSA-001`/`LIABILITY-TOS-001` on an unlimited cap (Constitution
+   * §9) and `DATA-RETRIEVAL-TOS-001` on a retrieval window under 30 days
+   * (§13) — see `backend/legalmind/evaluation/constitution_boundaries.py`
+   * for why the other four reconciled standards are not (their Unacceptable
+   * Position text is qualitative, not a checkable threshold).
+   */
+  constitution_prohibition?: { section: string; quote: string } | null;
+}
+
+/** `POST /findings/{id}/explain` — the grounded one-sentence explanation
+ *  (owner, 2026-09-09; AM-49). Language only: it never carries or changes the
+ *  classification or the status. `text` is null unless `status` is ACCEPTED. */
+export interface FindingExplanation {
+  status: "ACCEPTED" | "FALLBACK" | "FAILED";
+  text: string | null;
+  reason: string | null;
+  prompt_version: string;
+  passages: number;
+  cached: boolean;
 }
 
 export interface Finding {
@@ -257,6 +342,10 @@ export interface Finding {
   requirement: {
     code: string | null;
     name: string | null;
+    /** What this requirement checks, in plain words — from the ratified
+     *  standard's `description` (owner, 2026-09-09). Explanatory only: it
+     *  never determines the classification or the user-facing status. */
+    description?: string | null;
     version_id: string;
     version_number: number | null;
   };
@@ -268,6 +357,8 @@ export interface Finding {
   status: string;
   requires_decision: boolean;
   escalated: boolean;
+  /** The worst of its evaluations' `user_status`, server-derived. */
+  user_status?: UserStatusWord;
   evaluations: Evaluation[];
   evidence: Evidence[];
   created_at: string | null;
@@ -292,6 +383,7 @@ export interface ReviewReport {
     requirements_with_findings: number;
   };
   classification_counts: Record<string, number>;
+  user_status_counts?: Record<string, number>;
   status_counts: Record<string, number>;
   /** F-9 — a ratio over evaluated Requirements. Carries no legal meaning. */
   alignment: {
@@ -366,30 +458,91 @@ export interface ConfigurationSnapshot {
 export interface AuditEvent {
   id: string;
   actor_id: string | null;
+  /** Resolved account. `null` for a pre-authentication event (42.18 makes
+   *  `actor_id` nullable so a failed login can be recorded) — not "unknown". */
+  actor: { id: string; name: string; email: string } | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
+  /** Resolved only for user/department/role/session. A contract is deliberately
+   *  never labelled here — naming it would hand a Platform Admin the one thing
+   *  the scope model withholds. */
+  entity_label: string | null;
+  /** Identity-and-access event: its payload is legible to an `audit.view` holder. */
+  administrative: boolean;
   timestamp: string | null;
   request_id: string | null;
-  /** Gated behind `legal_position.view` — omitted, not nulled (Step 24 r8). */
+  /** Present for administrative events, and otherwise gated behind
+   *  `legal_position.view` — omitted, never nulled (Step 24 r8). */
   before_state?: unknown;
   after_state?: unknown;
 }
 
 // ---------------------------------------------------------- administration
+/** AB-12 r3 — the boundary a Department Lead's oversight is scoped to. */
+export interface Department {
+  id: string;
+  code: string;
+  name: string;
+  created_at?: string | null;
+  /** Rollup, present on the administration list and detail. `leads` is DERIVED
+   *  from who holds `DEPARTMENT_LEAD` in the department — there is no
+   *  `lead_id` column, because the role assignment is what grants the scope. */
+  members?: number;
+  active_members?: number;
+  leads?: { name: string; email: string }[];
+  /** Detail only. */
+  member_accounts?: User[];
+}
+
+export interface DepartmentMembers {
+  department: Department | null;
+  members: { id: string; name: string; email: string }[];
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   status: string;
   roles: string[];
+  department: Department | null;
+  /** How this account can sign in — names only, never a subject or a hash (S-4).
+   *  Empty means no credential is provisioned: the account exists and cannot yet
+   *  authenticate by any route. */
+  auth_providers: string[];
+  /** Last successful authentication. `null` means never — not "unknown". */
+  last_login_at: string | null;
+  /** From the `admin.user_created` audit row (AUD-01). `null` for an account the
+   *  seed made or an SSO identity linked to (47.1.3 r2) — not a gap to fill in. */
+  provisioned_by: { id: string; name: string; email: string } | null;
   created_at: string | null;
+  updated_at: string | null;
 }
+
+/** The SEC-04 catalogue, grouped as an administrator reads it. */
+export interface PermissionCatalogue {
+  groups: {
+    group: string;
+    permissions: {
+      name: string;
+      description: string | null;
+      /** SEC-02/ROLE-05 — no bypass may ever reach these two. */
+      confers_legal_authority: boolean;
+    }[];
+  }[];
+}
+
+/** What KIND of role a row is (AB-12 r10) — the screen speaks in these, never
+ *  in codes. `future_legal` roles exist for a workflow nobody runs yet and stay
+ *  out of the everyday picker. */
+export type RoleTier = "department" | "platform" | "break_glass" | "future_legal" | "custom";
 
 export interface Role {
   id: string;
   code: string;
   name: string;
+  tier: RoleTier;
   permissions: string[];
   /** SEC-02 / ROLE-05 made visible without knowing which names are special. */
   confers_legal_authority: string[];
@@ -464,18 +617,62 @@ export interface AssistCitation {
   retrieval_score: number | null;
 }
 
+/** One verbatim quote from a ratified Company Standard — Domain A (`AM-32` r4).
+ *  Never paraphrased, never sent to the model; cited by standard code and clause. */
+export interface AssistPosition {
+  position_chunk_id: string;
+  standard_code: string;
+  document_type: string;
+  source_clause: string | null;
+  content: string;
+  retrieval_score: number | null;
+}
+
+/** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
+ *  of the asked version and its Finding counts — read, never produced, by Ask. */
+export interface AssistComparison {
+  review_id: string;
+  review_status: string;
+  findings_by_classification: Record<string, number>;
+}
+
+/** One statute citation — Domain C (`AM-32` r7): Act + section, never a page alone. */
+export interface AssistStatuteCitation {
+  statute_chunk_id: string;
+  citation: string;
+  official_title: string;
+  section_number: string;
+  sub_section: string | null;
+  marginal_note: string | null;
+  excerpt: string;
+  retrieval_score: number | null;
+}
+
+/** The statute half of an answer, generated over statute evidence only and kept in
+ *  its own section (`AM-45` r2). `text` is null on replay (the turn's content holds it). */
+export interface AssistStatuteAnswer {
+  answer_state: AssistAnswerState;
+  text: string | null;
+  citations: AssistStatuteCitation[];
+}
+
 export interface AskResult {
   conversation_id: string;
   message_id: string;
   answer_state: AssistAnswerState;
   text: string;
   routed_to_evaluator: boolean;
+  /** Which authorized sources were candidates for this question (2026-09-08). */
+  domains?: string[];
+  comparison?: AssistComparison | null;
+  positions?: AssistPosition[];
+  statutes?: AssistStatuteAnswer | null;
   /** The document version this answer was read from — STATED by the server, never
    *  inferred here. A conversation is contract-scoped, so it can hold turns from
    *  more than one version, and an answer's `evidence_id`s only highlight on the
-   *  version they came from. */
-  document_version_id: string;
-  version_number: number;
+   *  version they came from. Null on a document-less (statute) conversation. */
+  document_version_id: string | null;
+  version_number: number | null;
   citations: AssistCitation[];
 }
 
@@ -491,6 +688,11 @@ export interface ConversationSummary {
   created_at: string | null;
   message_count: number;
   first_question: string | null;
+  /** Served with the conversation since 2026-09-04 — see the Reviews payload's
+   *  note; the per-row `GET /contracts/{id}` this replaces 404'd for any
+   *  soft-deleted document and rendered a raw UUID. */
+  document_name?: string | null;
+  document_accessible?: boolean;
 }
 
 /** One turn of a replayed conversation (`GET /conversations/{id}`). */
@@ -508,10 +710,54 @@ export interface ConversationTurn {
   version_number: number | null;
   /** `AM-25` r5 — the SAME citations the live answer carried. `[]` on refusals. */
   citations: AssistCitation[];
+  positions?: AssistPosition[];
+  statutes?: AssistStatuteAnswer | null;
 }
 
 export interface ConversationDetail {
   id: string;
   contract_id: string | null;
   messages: ConversationTurn[];
+}
+
+/** One version's text for a clause, as the comparison reports it.
+ *
+ *  The excerpt is a WINDOW, centred by the server on the point the two versions
+ *  diverge rather than taken from the top of the clause — a prefix would hide a
+ *  change that sits 900 characters in and present two identical-looking
+ *  excerpts under a heading saying the wording changed. The truncation flags
+ *  say when text was cut, because an excerpt that hides its own truncation
+ *  makes a claim about completeness it cannot support. */
+export interface ClauseSide {
+  evidence_id: string;
+  page_number: number | null;
+  excerpt: string;
+  truncated_start: boolean;
+  truncated_end: boolean;
+}
+
+/** One clause as `GET /contracts/{id}/version-comparison` reports it.
+ *
+ *  33.16 is visible in the SHAPE: there is no verdict, acceptability or
+ *  approval field, and `status` describes what happened to the TEXT, never what
+ *  Legal should do about it. `findings` quotes Findings the evaluator already
+ *  produced against a pinned snapshot; a comparison never creates one. */
+export interface ClauseChange {
+  status: "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
+  section_number: string | null;
+  section_title: string | null;
+  before: ClauseSide | null;
+  after: ClauseSide | null;
+  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; requirement_code: string | null }[];
+}
+
+export interface VersionComparison {
+  before: { document_version_id: string; version_number: number };
+  after: { document_version_id: string; version_number: number };
+  summary: { ADDED: number; REMOVED: number; CHANGED: number; UNCHANGED: number };
+  /** Text with no clause number of its own — counted, never paired by guesswork. */
+  unnumbered: { unchanged: number; added: number; removed: number };
+  /** Stated by the server so the reader knows how the two sides were aligned. */
+  matched_on: string;
+  clauses: ClauseChange[];
 }

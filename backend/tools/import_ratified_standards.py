@@ -149,15 +149,45 @@ def import_standards(db: Session, *, actor_email: str | None = None,
                 .where(M.LegalRuleVersion.requirement_version_id == latest.id)
                 .order_by(M.LegalRuleVersion.version_number.desc())
                 .limit(1)).scalars().first()
+            current_mr = db.execute(
+                select(M.MappingRuleVersion)
+                .where(M.MappingRuleVersion.requirement_version_id == latest.id)
+                .order_by(M.MappingRuleVersion.version_number.desc())
+                .limit(1)).scalars().first()
+            current_er = db.execute(
+                select(M.EvaluationRuleVersion)
+                .where(M.EvaluationRuleVersion.requirement_version_id == latest.id)
+                .order_by(M.EvaluationRuleVersion.version_number.desc())
+                .limit(1)).scalars().first()
             # Idempotence covers the Legal Rule too: a file that gained (or
             # changed) its rule must append a new version, not be skipped.
             lr_unchanged = (
                 (legal_rule is None and current_lr is None)
                 or (legal_rule is not None and current_lr is not None
                     and current_lr.configuration == legal_rule["configuration"]))
+            # …and the mapping and evaluation rules (2026-09-09, found deploying
+            # AM-54: a file that gained negative patterns was reported
+            # "unchanged" and the live engine never saw them). Terminology is
+            # configuration (35.4); a changed rule set appends a version too.
+            rules_unchanged = (
+                (mapping_rules is None or (current_mr is not None
+                                           and current_mr.rules == mapping_rules))
+                and (evaluation_rules is None or (current_er is not None
+                                                  and current_er.rules == evaluation_rules)))
             if (current is not None and current.configuration == cfg
-                    and lr_unchanged):
-                report.append(f"{code}: unchanged (version {latest.version_number})")
+                    and lr_unchanged and rules_unchanged):
+                # The plain-English `description` (owner, 2026-09-09) is
+                # presentation, not configuration: it is never snapshotted and
+                # no evaluator reads it, so a changed line updates the current
+                # version in place rather than appending one (rule 16 governs
+                # configuration values; this is not one).
+                wanted = payload.get("description")
+                if wanted and latest.description != wanted:
+                    latest.description = wanted
+                    report.append(f"{code}: description updated "
+                                  f"(version {latest.version_number})")
+                else:
+                    report.append(f"{code}: unchanged (version {latest.version_number})")
                 if mapping_rules and evaluation_rules:
                     publishable.append(code)
                 continue
@@ -166,10 +196,11 @@ def import_standards(db: Session, *, actor_email: str | None = None,
             requirement_id=req.id,
             version_number=(latest.version_number + 1) if latest else 1,
             name=payload.get("name") or code,
-            description=f"Imported from ratified {path.name} "
-                        f"(ratified {payload['ratified']}; "
-                        f"source: {payload['source_document']}, "
-                        f"{payload['source_clause']})",
+            description=payload.get("description")
+                or (f"Imported from ratified {path.name} "
+                    f"(ratified {payload['ratified']}; "
+                    f"source: {payload['source_document']}, "
+                    f"{payload['source_clause']})"),
             evaluator_type=E.EvaluatorType(
                 payload.get("evaluator_type", "NUMERIC_COMPARISON")),
             created_by=actor.id)

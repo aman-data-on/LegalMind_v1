@@ -60,8 +60,31 @@ def _text(nullable: bool = True):
 # ==========================================================================
 # Identity & Access — 42.2, 42.3, Step 47
 # ==========================================================================
+class Department(Base):
+    """The organisational boundary a Department Lead's oversight is scoped to —
+    AB-12 r3 (2026-09-05). NEW TABLE, authorised by that record.
+
+    Why a table and not a string on the user: the Lead's scope is a security
+    boundary, and a boundary defined by matching free text is one typo away from
+    either leaking or silently shrinking. A row with a unique code is something an
+    administrator creates once and assigns deliberately.
+    """
+
+    __tablename__ = "departments"
+
+    id = pk_uuid()
+    code = mapped_column(String, nullable=False, unique=True)
+    name = _str()
+    created_at = ts_created()
+
+
 class User(Base):
-    """42.2. No credential or provider columns — see UserIdentity (Step 47)."""
+    """42.2. No credential or provider columns — see UserIdentity (Step 47).
+
+    `department_id` (AB-12 r3) is nullable: an account outside any department has
+    exactly its own contracts in scope, and `department.view` widens nothing for
+    it. There is no "everyone" department and no global scope.
+    """
 
     __tablename__ = "users"
 
@@ -69,8 +92,13 @@ class User(Base):
     email = mapped_column(String, nullable=False, unique=True)
     name = _str()
     status = mapped_column(_enum(E.UserStatus, "user_status"), nullable=False)
+    department_id = fk_uuid("departments.id", nullable=True, ondelete="RESTRICT")
     created_at = ts_created()
     updated_at = ts_updated()
+
+    __table_args__ = (
+        Index("ix_users_department_id", "department_id"),
+    )
 
 
 class Role(Base):
@@ -169,6 +197,35 @@ class UserIdentity(Base):
 # ==========================================================================
 # Contracts & Documents — 42.3 - 42.6
 # ==========================================================================
+class Counterparty(Base):
+    """The company on the other side of a deal — AB-13 r1 (2026-09-06). NEW TABLE,
+    authorised by that record.
+
+    Why a table and not the free text Phase 3 already stores: that text is a
+    DECLARATION about one version and carries no identity, so "Acme Ltd" and
+    "Acme Limited" are two unrelated strings — nothing can be grouped by them and
+    no attribute can hang off them. Identity is the whole point of this row.
+
+    `industry` and `relationship_notes` are nullable and stay empty unless a human
+    types them (r1): rule 21 forbids inventing company or industry information,
+    and "not known yet" is the normal state of a counterparty, not a gap to fill.
+    """
+
+    __tablename__ = "counterparties"
+
+    id = pk_uuid()
+    name = _str()
+    industry = _str(nullable=True)
+    relationship_notes = mapped_column(Text, nullable=True)
+    created_by = fk_uuid("users.id")
+    created_at = ts_created()
+    updated_at = ts_updated()
+
+    __table_args__ = (
+        Index("ix_counterparties_name", "name"),
+    )
+
+
 class Contract(Base):
     """42.3. owner_id makes ownership traversable (41.23) for 41.24 checks."""
 
@@ -181,17 +238,25 @@ class Contract(Base):
     status = mapped_column(_enum(E.ContractStatus, "contract_status"), nullable=False)
     created_at = ts_created()
     updated_at = ts_updated()
-    # Soft-delete marker. NOT a sixth value on ContractStatus: that enum is the
-    # locked 42.3 / Step 2 vocabulary and a delete is not a contract lifecycle
-    # state. Set only when the contract already carries a Review, so rule 17's
-    # append-only audit and reproducible history survive the deletion.
-    deleted_at = ts_nullable()
+    # Archive marker — AB-12 r6 (the column AM-37 added as `deleted_at`). NOT a
+    # sixth value on ContractStatus: that enum is the locked 42.3 / Step 2
+    # vocabulary and archiving is a visibility state orthogonal to lifecycle.
+    # Nothing is ever destroyed: an archived contract keeps its document,
+    # versions, reviews, findings and audit trail, leaves every default list,
+    # refuses every write, and stays readable by its owner and department lead.
+    archived_at = ts_nullable()
+    # Who this deal is WITH — AB-13 r2. Nullable: every contract predating this
+    # record has none, and inventing one would be inventing data. The link is the
+    # live identity; `document_versions.metadata.counterparty` stays the frozen
+    # per-version declaration (r7), and the two answer different questions.
+    counterparty_id = fk_uuid("counterparties.id", nullable=True, ondelete="RESTRICT")
 
     __table_args__ = (
         Index("ix_contracts_owner_id", "owner_id"),
+        Index("ix_contracts_counterparty_id", "counterparty_id"),
         Index("ix_contracts_status", "status"),
         Index("ix_contracts_created_at", "created_at"),
-        Index("ix_contracts_deleted_at", "deleted_at"),
+        Index("ix_contracts_archived_at", "archived_at"),
     )
 
 
@@ -203,7 +268,8 @@ class DocumentVersion(Base):
     __tablename__ = "document_versions"
 
     id = pk_uuid()
-    contract_id = fk_uuid("contracts.id")
+    # CASCADE — AM-55: deleting the Contract deletes every version with it.
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE")
     version_number = mapped_column(Integer, nullable=False)
     original_filename = _str()
     mime_type = _str()
@@ -234,7 +300,7 @@ class DocumentProcessingRun(Base):
     __tablename__ = "document_processing_runs"
 
     id = pk_uuid()
-    document_version_id = fk_uuid("document_versions.id")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
     run_type = mapped_column(_enum(E.ProcessingRunType, "processing_run_type"),
                              nullable=False)
     status = mapped_column(_enum(E.ProcessingRunStatus, "processing_run_status"),
@@ -260,8 +326,8 @@ class DocumentEvidence(Base):
     __tablename__ = "document_evidence"
 
     id = pk_uuid()
-    document_version_id = fk_uuid("document_versions.id")
-    processing_run_id = fk_uuid("document_processing_runs.id")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
+    processing_run_id = fk_uuid("document_processing_runs.id", ondelete="CASCADE")
     page_number = mapped_column(Integer, nullable=True)
     section_number = _str(nullable=True)
     section_title = _text()
@@ -431,8 +497,8 @@ class Review(Base):
     __tablename__ = "reviews"
 
     id = pk_uuid()
-    contract_id = fk_uuid("contracts.id")
-    document_version_id = fk_uuid("document_versions.id")
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
     configuration_snapshot_id = fk_uuid("configuration_snapshots.id")
     status = mapped_column(_enum(E.ReviewStatus, "review_status"), nullable=False)
     created_by = fk_uuid("users.id")
@@ -463,7 +529,7 @@ class Finding(Base):
     __tablename__ = "findings"
 
     id = pk_uuid()
-    review_id = fk_uuid("reviews.id")
+    review_id = fk_uuid("reviews.id", ondelete="CASCADE")
     requirement_version_id = fk_uuid("requirement_versions.id")
     classification = mapped_column(
         _enum(E.FindingClassification, "finding_classification"), nullable=False)
@@ -493,7 +559,7 @@ class Evaluation(Base):
     __tablename__ = "evaluations"
 
     id = pk_uuid()
-    finding_id = fk_uuid("findings.id")
+    finding_id = fk_uuid("findings.id", ondelete="CASCADE")
     evaluator_type = mapped_column(_enum(E.EvaluatorType, "evaluator_type"),
                                    nullable=False)
     evaluator_version = _str()                       # AM-19 (locked 45B.10)
@@ -524,8 +590,8 @@ class FindingEvidence(Base):
 
     __tablename__ = "finding_evidence"
 
-    finding_id = fk_uuid("findings.id", primary_key=True)
-    evidence_id = fk_uuid("document_evidence.id", primary_key=True)
+    finding_id = fk_uuid("findings.id", primary_key=True, ondelete="CASCADE")
+    evidence_id = fk_uuid("document_evidence.id", primary_key=True, ondelete="CASCADE")
     relationship_type = mapped_column(
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
 
@@ -540,8 +606,8 @@ class EvaluationEvidence(Base):
 
     __tablename__ = "evaluation_evidence"
 
-    evaluation_id = fk_uuid("evaluations.id", primary_key=True)
-    evidence_id = fk_uuid("document_evidence.id", primary_key=True)
+    evaluation_id = fk_uuid("evaluations.id", primary_key=True, ondelete="CASCADE")
+    evidence_id = fk_uuid("document_evidence.id", primary_key=True, ondelete="CASCADE")
     relationship_type = mapped_column(
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
 
@@ -560,8 +626,8 @@ class LegalDecision(Base):
     __tablename__ = "legal_decisions"
 
     id = pk_uuid()
-    finding_id = fk_uuid("findings.id")
-    evaluation_id = fk_uuid("evaluations.id")
+    finding_id = fk_uuid("findings.id", ondelete="CASCADE")
+    evaluation_id = fk_uuid("evaluations.id", ondelete="CASCADE")
     decision_type = mapped_column(_enum(E.DecisionType, "decision_type"), nullable=False)
     justification = mapped_column(Text, nullable=False)     # AM-15 (Step 31 r11)
     decided_by = fk_uuid("users.id")
@@ -575,6 +641,7 @@ class LegalDecision(Base):
             ["finding_id", "evaluation_id"],
             ["evaluations.finding_id", "evaluations.id"],
             name="fk_legal_decisions_evaluation_same_finding",
+            ondelete="CASCADE",
         ),
         Index("ix_legal_decisions_evaluation_version",
               "evaluation_id", "version_number"),
@@ -590,8 +657,8 @@ class UnmatchedProvision(Base):
     __tablename__ = "unmatched_provisions"
 
     id = pk_uuid()
-    review_id = fk_uuid("reviews.id")
-    evidence_id = fk_uuid("document_evidence.id")
+    review_id = fk_uuid("reviews.id", ondelete="CASCADE")
+    evidence_id = fk_uuid("document_evidence.id", ondelete="CASCADE")
     created_at = ts_created()
 
     __table_args__ = (

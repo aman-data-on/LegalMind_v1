@@ -17,31 +17,40 @@ import type {
   AnalysisSubmission,
   AskResult,
   AuditEvent,
-  Conversation,
-  ConversationDetail,
-  ConversationSummary,
   ConfigurationSnapshot,
   Contract,
   ContractsSummary,
+  Conversation,
+  Counterparty,
+  ConversationDetail,
+  ConversationSummary,
   DataEnvelope,
   Decision,
+  Department,
+  DepartmentMembers,
   DocumentVersion,
   Escalation,
   Evaluation,
   Finding,
-  Pagination,
+  FindingExplanation,
+  ObligationsResult,
   PaginatedEnvelope,
+  Pagination,
+  PermissionCatalogue,
   Requirement,
   Review,
   ReviewReport,
   Role,
   SessionIdentity,
-  ObligationsResult,
   SnapshotSummary,
   TypeSuggestion,
   UploadResult,
   User,
+  VersionComparison,
 } from "./types";
+
+/** AB-12 r3 — which deals a list is about. */
+export type ContractScope = "own" | "department";
 
 import type { EvidenceRow } from "./types";
 
@@ -250,10 +259,12 @@ export const api = {
   logout: () => request<{ revoked: boolean }>("/auth/logout", { method: "POST" }),
 
   // ---- assist lane (AB-3/AB-4) -------------------------------------------
-  createConversation: (contractId: string) =>
+  createConversation: (contractId: string | null) =>
     request<Conversation>("/conversations", {
       method: "POST",
-      body: { contract_id: contractId },
+      // A document-less conversation (2026-09-08): the router answers from the
+      // approved statute corpus and positions; nothing else is in scope.
+      body: contractId ? { contract_id: contractId } : {},
     }),
   /** Ask about ONE document version — the one the reader has open.
    *
@@ -284,15 +295,23 @@ export const api = {
       contract_type?: string | undefined;
       status?: string | undefined;
       sort?: string | undefined;
+      /** `own` (default) or `department` — AB-12 r3. The server refuses
+       *  `department` without `department.view`; this is a view choice. */
+      scope?: ContractScope | undefined;
+      /** `true` lists ONLY archived contracts (AB-12 r6). */
+      archived?: boolean | undefined;
     } = {},
   ) =>
     requestPage<Contract>("/contracts", {
-      query: { page, page_size: pageSize, ...filters },
+      // The query string is text; a boolean only exists on this side of it.
+      query: { page, page_size: pageSize, ...filters,
+               archived: filters.archived ? "true" : undefined },
     }),
-  /** Real counts across EVERY contract the caller owns, not just the current
+  /** Real counts across EVERY contract in the chosen scope, not just the current
    *  page — the same bucket the list's own `?status=` filters on (server:
    *  `_status_bucket`), so a tile and a row can never disagree. */
-  contractsSummary: () => request<ContractsSummary>("/contracts/summary"),
+  contractsSummary: (scope: ContractScope = "own") =>
+    request<ContractsSummary>("/contracts/summary", { query: { scope } }),
   contract: (id: string) => request<Contract>(`/contracts/${id}`),
   createContract: (name: string, contractType?: string) =>
     request<Contract>("/contracts", {
@@ -301,21 +320,62 @@ export const api = {
     }),
   updateContract: (id: string, patch: Record<string, unknown>) =>
     request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
+  /**
+   * Declare ONE version's source, counterparty and effective date (2026-09-06)
+   * into locked 42.4's `metadata` JSONB. A key sent as null clears it; a key
+   * left out is untouched. The server refuses (409) once the version has a
+   * Review — this call only surfaces that rule, it never decides it.
+   */
+  /**
+   * The companies this caller actually deals with — AB-13 r6 scopes this to
+   * counterparties reachable from their own contracts. There is deliberately no
+   * "all counterparties" endpoint to call.
+   */
+  counterparties: () => request<Counterparty[]>("/counterparties"),
+  counterparty: (id: string) => request<Counterparty>(`/counterparties/${id}`),
+  createCounterparty: (body: { name: string; industry?: string; relationship_notes?: string }) =>
+    request<Counterparty>("/counterparties", { method: "POST", body }),
+  updateCounterparty: (id: string, patch: Record<string, string | null>) =>
+    request<Counterparty>(`/counterparties/${id}`, { method: "PATCH", body: patch }),
+  declareVersion: (id: string, patch: Record<string, string | null>) =>
+    request<DocumentVersion>(`/document-versions/${id}`, { method: "PATCH", body: patch }),
+  /**
+   * Re-read a version's preserved original with the current parser (Phase 5,
+   * Option C, 2026-09-06). A NEW processing run; nothing existing is touched.
+   * The server refuses (409, with the reason) while a Review, an Ask answer or
+   * Key Obligations rely on the current reading — this only surfaces that.
+   */
+  reprocessVersion: (id: string) =>
+    request<UploadResult>(`/document-versions/${id}/reprocess`, { method: "POST" }),
 
   /**
-   * Delete one contract — owner approval 2026-09-01, closing the gap `AM-31`
-   * left open.
-   *
-   * `mode` reports what the server actually did, and the caller must say so
-   * rather than assuming: a contract that was never analyzed is destroyed
-   * (`"hard"`), while one carrying a Review is withdrawn from every view with
-   * its findings and audit trail preserved (`"soft"`) — rule 17 keeps history
-   * reproducible. Telling a user "permanently deleted" when the server soft-
-   * deleted would be a lie about legal records.
+   * Archive a contract — AB-12 r6, replacing the two-mode delete. Nothing is
+   * destroyed: the document, versions, findings and audit trail stay; the
+   * contract leaves the working list and refuses writes. Owner-scoped.
+   */
+  archiveContract: (id: string) =>
+    request<Contract>(`/contracts/${id}/archive`, { method: "POST" }),
+  restoreContract: (id: string) =>
+    request<Contract>(`/contracts/${id}/restore`, { method: "POST" }),
+  /**
+   * Genuinely destroy a contract — AM-55, beside Archive. Unlike Archive this
+   * reaches an analyzed contract too and its Findings/Evaluations/Legal
+   * Decisions/evidence go with it (server-side cascade). Irreversible.
    */
   deleteContract: (id: string) =>
-    request<{ deleted: boolean; mode: "hard" | "soft" }>(
-      `/contracts/${id}`, { method: "DELETE" }),
+    request<void>(`/contracts/${id}`, { method: "DELETE" }),
+  /**
+   * Move a deal to a colleague in the same department — AB-12 r5. The server
+   * checks the boundary and records previous owner, new owner, actor and reason.
+   */
+  transferContract: (id: string, newOwnerId: string, reason: string) =>
+    request<Contract>(`/contracts/${id}/transfer`, {
+      method: "POST",
+      body: { new_owner_id: newOwnerId, reason },
+    }),
+  /** Who a Department Lead may transfer to: ACTIVE colleagues in their own
+   *  department. Empty when the account is in no department. */
+  departmentMembers: () => request<DepartmentMembers>("/departments/mine/members"),
 
   /**
    * The body **is** the file. Locked 34.16 treats the declared content type as a
@@ -344,6 +404,8 @@ export const api = {
     }),
   /** Key Obligations (assist lane): descriptive facts about the document's own
    *  text, grouped by its own role labels — never a Finding or a judgment. */
+  explainFinding: (findingId: string) =>
+    request<FindingExplanation>(`/findings/${findingId}/explain`, { method: "POST" }),
   obligations: (documentVersionId: string) =>
     request<ObligationsResult>(`/document-versions/${documentVersionId}/obligations`),
   extractObligations: (documentVersionId: string) =>
@@ -355,6 +417,13 @@ export const api = {
   documentEvidence: (id: string, page = 1, pageSize = 100) =>
     requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
       query: { page, page_size: pageSize },
+    }),
+  /** Clause-level comparison of two versions of one contract (locked 33.15).
+   *  Deterministic and server-side: the client renders the answer and derives
+   *  nothing from the two texts itself (rule 18). */
+  versionComparison: (contractId: string, before: string, after: string) =>
+    request<VersionComparison>(`/contracts/${contractId}/version-comparison`, {
+      query: { before, after },
     }),
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
   /**
@@ -512,15 +581,50 @@ export const api = {
       page_size?: number;
       action?: string;
       entity_type?: string;
+      entity_id?: string;
+      since?: string;
+      until?: string;
+      administrative?: string;
       actor_id?: string;
     } = {},
   ) => requestPage<AuditEvent>("/audit-events", { query }),
 
   // ---- administration --------------------------------------------------
-  users: (query: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
-    requestPage<User>("/users", { query }),
-  createUser: (email: string, name: string) =>
-    request<User>("/users", { method: "POST", body: { email, name } }),
+  /** The roster. Every filter and the sort are applied server-side over the
+   *  WHOLE collection — never over the page already fetched, which is the defect
+   *  class that made the old screen's sort control decorative. */
+  users: (
+    query: {
+      page?: number;
+      page_size?: number;
+      status?: string;
+      search?: string;
+      role?: string;
+      department_id?: string;
+      unassigned?: string;
+      sort?: string;
+    } = {},
+  ) => requestPage<User>("/users", { query }),
+  user: (id: string) => request<User>(`/users/${id}`),
+  departments: (query: { page?: number; page_size?: number } = {}) =>
+    requestPage<Department>("/departments", { query }),
+  department: (id: string) => request<Department>(`/departments/${id}`),
+  createDepartment: (code: string, name: string) =>
+    request<Department>("/departments", { method: "POST", body: { code, name } }),
+  /** The name only — the code identifies the boundary in an append-only audit
+   *  trail, so the server does not accept a new one. */
+  renameDepartment: (id: string, name: string) =>
+    request<Department>(`/departments/${id}`, { method: "PATCH", body: { name } }),
+  /** The SEC-04 catalogue, grouped, so the Roles screen can explain a grant
+   *  rather than printing a dotted string. */
+  permissionCatalogue: () => request<PermissionCatalogue>("/permissions"),
+  /** Department and role are optional; naming a role still runs S-8 server-side,
+   *  and a refusal leaves no account behind (one transaction, 43.26). */
+  createUser: (
+    email: string,
+    name: string,
+    extra: { department_id?: string; role_code?: string } = {},
+  ) => request<User>("/users", { method: "POST", body: { email, name, ...extra } }),
   updateUser: (id: string, patch: Record<string, unknown>) =>
     request<User>(`/users/${id}`, { method: "PATCH", body: patch }),
   deleteUser: (id: string) =>

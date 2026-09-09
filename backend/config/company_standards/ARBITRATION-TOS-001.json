@@ -10,6 +10,7 @@
     "Closes the asymmetry the 2026-08-20 audit found: ARBITRATION-MSA-001 existed while TOS 21 carried a full arbitration clause with no Requirement, and no recorded rationale for the omission. The SEAT differs from the MSA's (Pune vs Mumbai) and that is legitimate per-contract choice, not a contradiction — and it is content, not compared here."
   ],
   "requirement_code": "ARBITRATION-TOS-001",
+  "description": "Disputes under the Terms are settled by arbitration before a sole arbitrator appointed by both parties.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Terms of Service, last updated 26 February 2026 — TOS-leapswitch.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "21 Dispute Resolution — Arbitration",

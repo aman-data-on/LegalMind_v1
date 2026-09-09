@@ -76,8 +76,15 @@ def test_document_is_present_or_the_case_is_skipped(filename):
     document is an unmet precondition, not an expected failure.
     """
     path = _source_dir() / filename
-    if not path.exists():
-        pytest.skip(f"{filename} not supplied yet at {_source_dir()}")
+    try:
+        present = path.exists()
+    except OSError:
+        # `exists()` RAISES on EACCES rather than returning False, and the default
+        # source-material path is under `/root`, which CI cannot traverse. Unreadable
+        # is "not supplied on this machine" — an unmet precondition, same as absent.
+        present = False
+    if not present:
+        pytest.skip(f"{filename} not supplied or not readable at {_source_dir()}")
     assert path.stat().st_size > 0, f"{filename} is present but empty"
 
 

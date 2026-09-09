@@ -133,3 +133,4 @@ frontend/e2e/.fixture-snapshot.json
 # Generated STRUCTURAL document, the e2e object store and verification logs. The
 # document is also caught by `*.docx` above, which CI job 8 enforces separately.
 backend/.e2e/
+.next-p1/

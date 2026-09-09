@@ -1,5 +1,7 @@
 # Statute intake — what C-16 needs, exactly
 
+> **✅ SATISFIED 2026-09-08 (`AM-47`, `AM-48`).** Sixteen of seventeen instruments were obtained from India Code (DSpace REST API, handle + file + as-on date + SHA-256 recorded) or the issuing ministry and ingested as Domain C; the Evidence-Act question is settled by the Constitution (BSA 2023). Only the **Income-tax Act, 2025** remains unobtained (official hosts unreachable). The live register is `backend/config/statutes/registry.json`. The text below is the original intake specification, retained for the record.
+
 **Status: 📁 DERIVED — an intake specification. It decides nothing and supplies
 nothing**; rule 21 stands: statute material is supplied by the owner, never authored or
 fetched by us. Prepared 2026-08-27. Companion to

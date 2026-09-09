@@ -1319,6 +1319,18 @@ gap against the lock, not a new feature.
 | 286 | **Judged per DOCUMENT, never per page**, and only above 200 words | Measured on the real corpus: a cover page, a signature page and a website footer legitimately score 0.055–0.086 because they are noun lists with almost no prose. A per-page rule would send correctly-extracted pages to OCR and make good documents worse — the more expensive mistake. The accepted cost is that a very short garbled document still slips through; pinned as a visible bound in `test_a_document_too_short_to_judge_is_left_alone` | A better short-text signal, which would need different evidence, not a lower threshold |
 | 287 | **Threshold 0.15, chosen from measurement** | Across the 21 supplied contract and statute PDFs, document-level shares ran **0.210 to 0.422**. The garbled upload measured **0.080**, and **0.345** once the shift was undone — inside the healthy band, confirming both signal and gap. 0.15 sits between the populations: 29% below the lowest legitimate document, 88% above the garbled one. Re-validated against all 21: **1 flagged, 20 kept native, 0 false positives** | Nothing about retrieval or generation. `COSINE_FLOOR`, the AM-28 gate and every guardrail are untouched; the AM-28 gate was re-run byte-identical |
 | 288 | **No character-level "repair", and OCR output is adopted only when measurably better** | Inverting the observed shift was tried as a diagnostic: it recovers the body text **and corrupts every capital** ("Strad" → "ptrad"), because the shifted range collides with the upper-case block. A remap that damages some characters to fix others is the invented text 34.9 forbids. OCR reads the RENDERED glyphs, which are correct. And OCR is only kept if its own legibility passes — so the change cannot trade working text for worse text, by construction | Whether to install the OCR toolchain. It is **absent on this server**, so today the outcome is an honest refusal rather than a repair — see OWNER DECISION REQUIRED |
+| 290 | **Department is a table with a unique code, not a string on the user (AB-12 r3)** | The Lead's scope is a security boundary; a boundary defined by matching free text is one typo from leaking or silently shrinking. A row an administrator creates once and assigns deliberately is the smallest robust form | Whether departments nest or a user may belong to several — neither asked for |
+| 291 | **A write to an archived contract is 409, not 404** | Visibility and permission are settled first, so the 409 only ever reaches the owner; for them the contract's existence is not the secret, its state is the reason. A 404 would tell the owner their own contract vanished | Nothing about reads: archived contracts are readable on the same bases as live ones |
+| 292 | **Review visibility is rooted in the contract, not `reviews.created_by`** | The two coincide today (only an owner can create a Review on their contract) and diverge exactly once — after a transfer — where the contract-rooted answer is the one the owner asked for: the new owner gets the analysis history, the previous owner loses it | `created_by` itself, which stays as history |
+| 293 | **The Lead does NOT hold `legal.review`** | `legal.review` widens `GET /reviews` to every escalated Review on the platform (`REC-09`) — precisely the "sees everything globally" AB-12 r3 forbids. Department scope is `department.view`, bounded by `users.department_id` | `REC-09` itself, retained for the future legal workflow |
+| 294 | **The migration reconciles grants and removes exactly three** | Adding every default keeps the seed's additive contract; the three removals (`legal.review` from the Lead, the two legal-authority permissions from DEVELOPER) are the ones AB-12 names, listed explicitly in the migration rather than derived, so a reviewer can eyeball them | Anything an administrator granted beyond the defaults — untouched |
+| 295 | **The live database was NOT migrated** | `legalmind_v1_dev` is what `legalmind-api.service` serves; the owner's brief says LOCAL ONLY. The migration was exercised on a `pg_dump` clone (`legalmind_v1_rbac_scratch`) with the real 6 users, 6 held roles and 4 soft-deleted contracts | The deployment itself — owner's call; order is migrate → restart API → deploy frontend |
+| 296 | **Audit `before`/`after` payloads are served for `admin.*` and `auth.*` actions to any `audit.view` holder** | The existing gate is `legal_position.view`, which a Platform Admin correctly lacks — so an administrator could not read the role change they had just made, and the trail was useless for the one job that is theirs. The allow-list is chosen by what the payloads CONTAIN: identity and access metadata. `contract.archived` (carries the contract name) and `contract.ownership_transferred` (carries a Lead's free-text reason) stay gated, and a test asserts it. Step 24 r8 and 49.7 r4 are unaffected — neither names an account payload | Whether a future non-`admin.*` action should be readable. Prefix-matched deliberately, so a new `contract.*` or `legal.*` action inherits the gate |
+| 297 | **Audit entity labels resolve for user/department/role/session only** | Naming a contract in the audit view would hand a Platform Admin the one thing the whole scope model withholds, through a screen they are entitled to open. Type + id still answers the auditor's correlation question | Nothing about the envelope, which is unchanged |
+| 298 | **A department has no `lead_id` column; the lead is derived from `DEPARTMENT_LEAD`** | The role assignment is what grants department scope. A stored lead would be a second record of the same fact and the two would eventually disagree about who can actually see the department's deals. Derived also handles the real cases: no lead appointed yet, or two during leave | Whether a department should have an explicit owner concept — not asked for, not invented |
+| 299 | **`POST /users` accepts an optional department and role, with S-8 run before the row is created** | The three-step dance (create, place, grant) left an account in a state nobody chose for as long as it took to finish. One transaction (43.26) means a refusal leaves nothing behind. The guard is unchanged and runs first | Any relaxation of S-8 — there is none; the standalone grant endpoint is untouched |
+| 300 | **The retained legal roles are removed from every assignment picker** | AB-12 r10 says they are hidden from the everyday grant picker; the implementation had them last in the list rather than absent. The server refuses under S-8 either way, but offering an action the backend rejects is its own defect. They remain on the Roles & permissions catalogue, labelled "Not in use yet" | Their retention, which is AB-12 r10 and unchanged |
+| 301 | **Administration selection is React state, read once from `?user=`, never written back** | Both write paths remount the screen: `router.replace` is a soft navigation, and Next patches `history.replaceState` and re-syncs the router. Either way the table reloaded under the pointer and the panel closed as it opened. Reading the parameter keeps an incoming link working (AB-11 r2 — no record id in a path segment) | Deep-linking a panel from inside the app, which nothing needs |
 
 **What the refusal costs and why it is still right.** With no OCR toolchain, an
 illegible document now extracts to nothing: `ExtractionStatus.FAILED`, which
@@ -1430,6 +1442,165 @@ collision permanently, but the harness is shared with the other in-flight task
 and changing its defaults mid-flight would be the more disruptive act. A session
 that sees scattered browser failures should suspect this first, and re-run
 isolated before believing any of them.
+
+## 2026-09-06 — Declared metadata, one-run evidence, review order, annexures, re-read, declared status, the re-read lock (296–302) — LOCAL ONLY, not committed
+
+### 296 — the declaration is a second call after upload, not an upload header
+
+The upload endpoint's body is the file itself (38.24), so `source`,
+`counterparty` and `effective_date` travel as `PATCH /document-versions/{id}`
+after the upload — the same moment the intake already PATCHes `contract_type`.
+Headers were rejected on evidence, not taste: `X-Filename` needed
+percent-encoding after a real filename with an en dash broke `fetch`
+(2026-09-03), and a counterparty name is exactly that class of value. Storage is
+locked 42.4's `metadata` JSONB — the `D-3` route owner Q2 chose for Document
+Type — and `contracts` has no JSONB at all, so version-level is also the only
+migration-free home. Permission is `document.upload`: declaring what a version
+IS belongs to the act of putting it there. None added.
+
+### 297 — no "all counterparties" endpoint; the datalist reads the list the caller already has
+
+A distinct-values endpoint would disclose counterparty names across owners and
+departments (the `SEC-07` / `LEGAL-02` class of leak) for no gain. The Dashboard
+list's `latest_version` carries the declared keys under the same `document.view`
+gate as the version itself; `knownCounterparties()` derives the datalist from
+those rows and nothing else.
+
+### 298 — one processing run IS the document, chosen in one place (P-8)
+
+`load_clauses` already scoped to the latest COMPLETED run; the document pane,
+unmatched provisions and version comparison did not, so a second run would have
+rendered two segmentations merged — dormant today, live the day any retry or
+REPROCESS writes evidence. `latest_completed_run_id` (ENG-11 ordering:
+`started_at`, `created_at`, `id`) is now the single chooser. The assist lane's
+evidence reads are left as they are — the retrieval boundary is not this task's
+to move.
+
+### 299 — annexures are detected only where the document declares them (44.4)
+
+Measured before building: 1 of 12 native-text corpus documents has annexures
+(five titles), the heading heuristic missed all five, and no other document
+produced a candidate. Detection is a title line that IS the word plus the
+document's own label ("Annexure-3A", "Schedule 2 – Fees"); a bare "Schedule" is
+not claimed, and prose that mentions one is not one. Proven metadata-only over
+the whole corpus (0 boundary or content changes, 5 markers gained), so chunking
+and every Tier-2 gate input are unchanged. The outline names a part by the
+document's own word and nothing more — naming what a part IS would be inventing
+structure the file does not declare.
+
+### 300 — a re-read is a NEW run, refused while anything is anchored to the old one (Phase 5, Option C)
+
+The owner chose Option C. "Relied upon" was resolved from the schema, not
+assumed: Reviews (Findings and Evaluations hang off them and cite evidence),
+`answer_citations` (they reference this reading's CHUNKS, which the rebuild
+deletes), and `obligation_extractions` (anchored to evidence ids) — each named
+in the 409 so the reader knows why and what to do (re-upload). No evidence row
+is ever deleted or rewritten; the old run is history under 42.5 and the new
+reading becomes the document only because P-8 made every reader choose one
+run. A FAILED re-read restores the version's standing statuses — otherwise a
+COMPLETED document would read FAILED while its rows still rendered. Deferred
+OCR is reused unchanged; the OCR job now passes `reindex=True`, a no-op on a
+first upload (no chunks yet) and the correct behaviour after a re-read.
+
+### 301 — the contract's state is declared, audited, and never inferred (P-1)
+
+Three designs were weighed. Inference from a declared effective date or an
+"executed" version was rejected: it is the Q9 / DOC-06 error in another form
+(the system asserting a fact the owner did not state), and effective date is
+optional. Deriving state from the newest Review was rejected: Step 30 r13 keeps
+the document axis apart from the Review lifecycle, and the Dashboard already
+derives its analysis buckets — a second derivation would collide with it. The
+existing `PATCH /contracts/{id}` already accepted `status`; it gained an audit
+event and a UI. Transitions are unconstrained on purpose — nothing locks an
+order, a mistake must be correctable, and the audit trail carries who and when.
+
+### 302 — one advisory-lock key over BOTH the OCR job and `/reprocess`, and the leak that key had (2026-09-06, pre-commit review)
+
+The adversarial review found `/reprocess` doing a plain check-then-act:
+`_reprocess_blockers` read "nothing in flight", then the run was created, with
+nothing between them. Two callers (a double-click, a client retry, a script)
+could both pass and both create a REPROCESS run — no corruption, since 42.5
+keeps every run and rule 17 rewrites nothing, but the assist index would then be
+built from whichever call finished LAST, which is not necessarily the run every
+reader resolves to through `latest_completed_run_id`. That is an Ask citation
+pointing at chunks the document pane no longer shows.
+
+**The key is shared, deliberately.** `_ocr_lock_key` became public
+`version_lock_key` and now guards both paths. OCR and a re-read both write a
+processing run and evidence for the same version, so they must exclude each
+OTHER, not merely themselves.
+
+**The variants differ, and each is right where it is.** The OCR job holds a
+SESSION-level lock on a dedicated connection because it spans several
+independent `factory()` sessions and commits. The endpoint takes
+`pg_try_advisory_xact_lock` on the request session, because locked 43.26 makes
+the whole request one transaction: the lock is then held across every write and
+released at exactly the commit that makes the run visible, leaving no window in
+which the lock is gone but the run is not yet readable. A session-level lock
+taken in the request would have had precisely that window. Postgres keeps both
+variants in ONE lock space, so the two paths still conflict — verified, not
+assumed.
+
+**The leak the shared key exposed.** The OCR job's lock was never released. Its
+comment claimed the `with` released it; `engine()` is a `QueuePool` with no
+`pool_recycle`, so closing a connection returns it to the pool WITHOUT ending
+its PostgreSQL session, and a session-level advisory lock survives that (and
+survives the pool's rollback). Measured directly: the lock was still held in
+`pg_locks` after the `with` exited. Consequence, latent since the OCR job was
+written: the retry `OCR_MAX_ATTEMPTS = 3` exists for could never run in the same
+process — the first attempt's lock made every later one "step aside" forever.
+Sharing the key would additionally have made `/reprocess` refuse permanently for
+any version whose OCR had run. Fixed with an explicit `pg_advisory_unlock` in a
+`finally`, which is what makes the existing comment true. No processing
+semantics changed: this RESTORES the documented, intended behaviour.
+
+### 303 — two AB-13 defects the owner review found, and why each was a real one (2026-09-06)
+
+**A Department Lead saw the company and none of its documents.** `_readable`
+grants sight through a DEPARTMENT contract (r6), but the detail listed only
+`own`, and only unarchived. So the persona the "everything for this company"
+view exists for opened it and saw an EMPTY list — the manager's requirement
+failing silently for the one role that most needs it. Under-showing is the safe
+direction for disclosure, which is exactly why no security test caught it. The
+list is now the caller's full read scope in both archive states: a company's
+history is not a working list, AB-12 r6 destroys nothing, and each row carries
+`archived_at` so they are told apart. Pinned by a regression test proven to fail
+without the fix.
+
+**The related-documents view had no UI at all.** The endpoint existed, returned
+the right rows and was tested — and no screen called it, while the workspace
+header still showed only Phase 3's frozen per-version text, contradicting AB-13
+r7's own "the UI prefers the linked profile". That is the difference between
+technically present and genuinely done: the manager asked to SEE a company's NDA
+and MSA together, and nothing did. The header now names the LINKED company as a
+real control that opens every document for it, falling back to the declared text
+when there is no link.
+
+Both were found by reading the code against the requirement rather than by a red
+test, which is the argument for doing an adversarial pass over a feature that
+already looks finished.
+
+### 304 — the deploy preflight is run from the command line, so it must be runnable from one (2026-09-06, found while deploying)
+
+`python -m legalmind.deploy.preflight` died with NameError: six check functions
+sat below a mid-file `if __name__ == "__main__"` guard, so main() ran before they
+existed. pytest imports the whole module first, so 32 preflight tests were green
+while the one tool locked 55.5 places between "migrate" and "deploy" had never
+once worked for a person deploying. Guard moved to end-of-file; a regression
+test runs the real CLI in a subprocess. No check changed.
+
+### 305 — DOCX paragraphs get the same structure markers as PDF text (2026-09-06, found by the live smoke test)
+
+`parse_docx` built its Segments directly and never passed through the marker
+logic in `segment_paragraphs`, so a Word upload carried NEITHER P1's heading
+marker NOR 44.4's annexure marker — it got the outline's numbered-row fallback
+while the same text as a PDF got the real outline. The corpus proof could not
+see it: all 13 corpus documents are PDFs, and the manager's GRP MSA is a PDF, so
+the measured result there was real and this was a second, unmeasured path. One
+shared `_structure_markers` now decides the markers for both; for DOCX, "the
+prose that follows" is the next non-empty paragraph. Boundaries and content are
+unchanged, historical evidence rows untouched, verified on the live site with a
+fresh Word upload after the API restart.
 
 ## 2026-09-03 — The Original view and deferred OCR (289–294) — LOCAL ONLY, deployment awaiting owner approval
 

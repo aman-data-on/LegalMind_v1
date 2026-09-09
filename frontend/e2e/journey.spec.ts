@@ -7,6 +7,7 @@ import {
   openAsk,
   openFindingsTab,
   openUploadPanel,
+  showDocument,
   storageStatePath,
 } from "./support";
 
@@ -41,32 +42,92 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // DD-4: upload is a disclosure behind the primary action, not an open form.
   await openUploadPanel(page);
   await page.setInputFiles('input[type="file"]', f.document.path);
-  // Create + upload + type suggestion run behind the file gesture; the select
-  // re-enables when the confirm panel is ready. In e2e there is no generation
-  // credential, so the suggestion honestly degrades and the human declares.
-  const typeSelect = page.getByLabel(/^Document type/);
-  await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
-  await typeSelect.selectOption("MSA");
-  await page.getByRole("button", { name: "Confirm & Analyze" }).click();
-  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+  // AM-51: upload → review → workspace, with no question asked. In e2e there is
+  // no generation credential, so no type is recorded and the engine measures
+  // the document by its content alone.
+  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
   const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
 
-  // The workspace shows the document; the full findings pane is the side
-  // card's second tab (DD-9), one click away, with Ask pinned below throughout.
+  // The workspace opens on the analysis (2026-09-08: the document no longer
+  // holds the majority of the screen permanently); the document is one
+  // disclosure away, and the full findings pane is the side card's second tab.
+  await showDocument(page);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   await openFindingsTab(page);
   const finding = page.locator("article[data-finding-id]").first();
   await expect(finding).toBeVisible();
-  await expect(finding).toContainText("DEVIATION");
+  // The face says the reader's word; the engine's word is one click away. The
+  // fixture's zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
+  // reader sees Not accepted (owner's final status decision, 2026-09-09).
+  await expect(finding.locator("[data-status]")).toHaveText("Requires modification");
+  await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
+  /*
+   * The count is a `.ws-filter__n` badge beside the word since the reference-design
+   * restyle (2026-09-09), so a pill reads "Requires modification 1" — the count
+   * separated by whitespace, not wrapped in parentheses as it was before.
+   *
+   * The shape is written ONCE here rather than spelled out at each of the four
+   * places below that need it. Three of them were still matching `(n)` after the
+   * restyle: one failed loudly, and `labels[0].match(...)![1]` failed as a
+   * TypeError on a null match, which reads like a broken page rather than a
+   * renamed label.
+   */
+  const PILL = /^(.*?)\s+(\d+)$/;               // [, word, count]
+  const countOf = (label: string) => Number(label.match(PILL)![2]);
+  const wordOf = (label: string) => label.match(PILL)![1];
+
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^DEVIATION \(\d+\)$/ })).toBeVisible();
-  await filters.getByRole("button", { name: /^DEVIATION/ }).click();
+  await expect(filters.getByRole("button", { name: /^Requires modification\s+\d+$/ })).toBeVisible();
+
+  /*
+   * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"
+   * first and pressed on arrival, then `AM-56`'s three words in their own fixed
+   * order. It used to open pre-filtered, on a requires_decision filter that
+   * pushed "All" into second place — so the row a reader learned on one
+   * contract was not the row the next contract gave them.
+   *
+   * Asserted in a browser because a click is the one thing the static suite
+   * cannot make: `src/__tests__/findings-filter.test.tsx` pins the order, the
+   * labels, the counts and the default; only here can the subset each filter
+   * actually shows be checked.
+   */
+  const labels = await filters.getByRole("button").allTextContents();
+  expect(wordOf(labels[0]!)).toBe("All");
+  const total = countOf(labels[0]!);
+  const words = labels.slice(1).map(wordOf);
+  // A subsequence of the fixed order — a word with no findings renders no
+  // button, and the words that remain keep their places.
+  expect(words).toEqual(
+    ["Acceptable", "Requires modification", "Needs a decision"].filter((w) => words.includes(w)));
+  await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
+  const cards = page.locator("article[data-finding-id]");
+  await expect(cards).toHaveCount(total);
+
+  for (const word of words) {
+    const button = filters.getByRole("button", { name: new RegExp(`^${word}\\s+\\d+$`) });
+    const n = countOf((await button.textContent())!);
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    // Its own count, and nothing but its own findings.
+    await expect(cards).toHaveCount(n);
+    for (let i = 0; i < n; i += 1) {
+      await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(word);
+    }
+  }
+
+  // "All" comes back to every finding, which is what makes the filters undoable.
+  await filters.getByRole("button", { name: /^All\s+\d+$/ }).click();
+  await expect(cards).toHaveCount(total);
+
+  await filters.getByRole("button", { name: /^Requires modification/ }).click();
   await expect(finding).toBeVisible();
-  // …and the drill ends in verbatim text: the cited excerpt sits beside the
-  // finding, and its location button lights the passage in the document.
+  // …and the drill ends in verbatim text: the cited excerpt sits one click
+  // inside "How this was determined" (seventh pass — the face is the four
+  // answers only), and its location button lights the passage in the document.
+  await finding.locator(".ws-determined > summary").first().click();
   await expect(finding.locator(".ws-evidence__quote").first()).toBeVisible();
   await finding.locator(".ws-evidence__loc").first().click();
   await expect(page.locator(".ws-row--lit")).toBeVisible();
@@ -106,8 +167,18 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // badges — the underlying fact is the same).
   await page.goto("/dashboard");
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
-  await expect(row.locator(".ws-status-pill")).toContainText("Needs Review");
-  await expect(row.locator(".ws-findings-badge--review")).not.toHaveClass(/ws-findings-badge--zero/);
+  await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
+  // Three badges, always in the one order, wearing the one set of tones
+  // (owner, 2026-09-09): green Acceptable, amber Requires modification, red
+  // Needs a decision. The fixture's DEVIATION is a Requires modification, so
+  // the AMBER badge is the non-zero one — it was the red one until the tones
+  // were put right.
+  const badges = row.locator(".ws-findings-badge");
+  await expect(badges).toHaveCount(3);
+  expect(await badges.nth(0).getAttribute("class")).toContain("ws-findings-badge--ok");
+  expect(await badges.nth(1).getAttribute("class")).toContain("ws-findings-badge--warn");
+  expect(await badges.nth(2).getAttribute("class")).toContain("ws-findings-badge--bad");
+  await expect(badges.nth(1)).not.toHaveClass(/ws-findings-badge--zero/);
 });
 
 test("journey: a revised version is a real new analysis; v1 stays historically valid", async ({
@@ -118,6 +189,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // Upload the revision through the workspace's own control.
   await page.goto(`/dashboard?id=${v1.contractId}`);
+  await showDocument(page);
   await page.getByRole("button", { name: "Upload a revised version" }).click();
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);

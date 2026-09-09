@@ -19,13 +19,28 @@ import type { DocumentVersion, Finding, Review } from "@/lib/types";
 export type FindingsLoad =
   | { kind: "loading" }
   | { kind: "no-review" }
+  /** A Review exists and analysis has NOT been submitted (Step 30 DRAFT/UPLOADED).
+   *  Distinct from `in-flight` on purpose — see the note on the status sets. */
+  | { kind: "not-started"; review: Review }
   | { kind: "in-flight"; review: Review }
   | { kind: "failed"; review: Review }
   | { kind: "ready"; review: Review; findings: Finding[] }
   | { kind: "error"; error: unknown };
 
-/** Review lifecycle states that mean "a result is still coming" (Step 30). */
-const IN_FLIGHT_STATUSES = new Set(["DRAFT", "UPLOADED", "PROCESSING"]);
+/*
+ * Step 30's pre-result states, split into the two things they actually mean —
+ * 2026-09-04, found by porting the legacy analysis browser test.
+ *
+ * They used to be one set, all rendered as "Analysing against configuration
+ * snapshot…" with a poll behind it. But DRAFT and UPLOADED mean nothing has been
+ * submitted: the screen claimed work was running that was not, and offered no way
+ * to start it — so a Review that stopped at DRAFT could never be analysed from
+ * the new UI at all, while the legacy screen it replaced carried exactly that
+ * control. Two states, two honest renderings: one offers the action, the other
+ * reports real progress.
+ */
+const NOT_STARTED_STATUSES = new Set(["DRAFT", "UPLOADED"]);
+const IN_FLIGHT_STATUSES = new Set(["PROCESSING"]);
 const POLL_MS = 2500;
 const POLL_LIMIT = 120; // five minutes of patience, then the state stands as is
 
@@ -55,6 +70,10 @@ export function FindingsProvider({
       const review = reviews.find((r) => r.document_version_id === version.id);
       if (!review) {
         setState({ kind: "no-review" });
+        return;
+      }
+      if (NOT_STARTED_STATUSES.has(review.status)) {
+        setState({ kind: "not-started", review });
         return;
       }
       if (IN_FLIGHT_STATUSES.has(review.status)) {

@@ -4,8 +4,7 @@ import {
   createAnalysedReview,
   csrfToken,
   evaluationIds,
-  storageStatePath,
-} from "./support";
+  storageStatePath, openFindingsTab } from "./support";
 
 /**
  * Escalation, and the access it confers — locked Steps 4 and 22, `ROLE-04`,
@@ -30,14 +29,20 @@ test.describe("ROLE-04 — escalation is a request for review, not an approval",
   test.use({ storageState: storageStatePath("owner") });
 
   test("the owner can escalate and cannot approve", async ({ page }) => {
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    const escalation = page.locator(".escalation").first();
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const escalation = page.locator(".ws-escalate").first();
     await expect(escalation).toBeVisible();
+    /* The new control keeps the reason field behind a disclosure (DD-9: an
+     * escalation is adjacent activity, not a primary act), so it is opened the
+     * way a reader opens it. The property under test is unchanged. */
+    await escalation.getByRole("button", { name: "Escalate for authorized review" })
+      .click();
 
     // Step 22 r4 / ROLE-03 — a normal User may escalate…
     await expect(
-      escalation.getByLabel("Escalate for authorized review — reason"),
+      escalation.getByLabel("Why does this need authorized review?"),
     ).toBeVisible();
     // …and Step 22 r5 — may approve nothing. The decision form is not rendered for a
     // caller without `legal.decision`, and `gating.spec.ts` proves the endpoint refuses
@@ -54,7 +59,7 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     page,
     browser,
   }) => {
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
     const [evaluationId] = await evaluationIds(page, reviewId);
 
     // ---- resolve it, which takes it OUT of Legal scope -------------------
@@ -85,11 +90,17 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     );
 
     // ---- the owner escalates, from the screen ---------------------------
-    await page.goto(`/reviews?id=${reviewId}`);
-    const escalation = page.locator(".escalation").first();
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const escalation = page.locator(".ws-escalate").first();
     await expect(escalation).toBeVisible();
+    /* The new control keeps the reason field behind a disclosure (DD-9: an
+     * escalation is adjacent activity, not a primary act), so it is opened the
+     * way a reader opens it. The property under test is unchanged. */
+    await escalation.getByRole("button", { name: "Escalate for authorized review" })
+      .click();
     await escalation
-      .getByLabel("Escalate for authorized review — reason")
+      .getByLabel("Why does this need authorized review?")
       .fill("STRUCTURAL escalation for the browser suite. Not a legal position.");
 
     const raised = page.waitForResponse(
@@ -99,8 +110,8 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     expect((await raised).status()).toBe(201);
 
     // ROLE-04's wording, rendered only after the fact so it describes what happened.
-    await expect(page.locator(".escalation").first()).toContainText(
-      "request for review, not an approval",
+    await expect(page.locator(".ws-escalate").first()).toContainText(
+      "a request, not an approval",
     );
 
     // ---- and Legal can see it again -------------------------------------

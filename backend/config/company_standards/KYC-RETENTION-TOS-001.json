@@ -7,6 +7,7 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "requirement_code": "KYC-RETENTION-TOS-001",
+  "description": "KYC records and subscriber information are kept for a set minimum period after a subscriber's registration ends.",
   "ratified": "2026-08-19",
   "source_document": "Leapswitch Networks Terms of Service (26 February 2026) — TOS-leapswitch.pdf",
   "source_clause": "8 KYC — Data Retention",

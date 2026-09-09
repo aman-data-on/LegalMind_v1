@@ -348,3 +348,23 @@ def test_the_committed_openapi_snapshot_matches_the_app():
     assert SNAPSHOT.read_text() == render(current_schema()), (
         f"{SNAPSHOT} is stale: the application's contract changed. Review the "
         "change against STEP_49_API_FINALIZATION.md, then regenerate in this commit.")
+
+
+def test_declaring_a_type_is_audited_with_its_source(api, db, seeded):
+    """AM-50 r1: the trail says whether a human chose the type or the intake
+    applied a confident suggestion. The default is HUMAN."""
+    from sqlalchemy import select
+
+    from legalmind.db import models as M
+    from tests.conftest import grant_role, make_user, sign_in
+    owner = make_user(db); grant_role(db, owner, "USER"); sign_in(api, db, owner)
+    created = api.post(f"{V1}/contracts", json={"name": "Typed later"}).json()["data"]
+    api.patch(f"{V1}/contracts/{created['id']}",
+              json={"contract_type": "MSA", "contract_type_source": "ASSIST_SUGGESTION"})
+    api.patch(f"{V1}/contracts/{created['id']}", json={"contract_type": "NDA"})
+    rows = db.execute(select(M.AuditEvent)
+                      .where(M.AuditEvent.action == "contract.type_declared")
+                      .order_by(M.AuditEvent.timestamp)).scalars().all()
+    assert [r.after_state["source"] for r in rows[-2:]] == ["ASSIST_SUGGESTION", "HUMAN"]
+    assert [r.after_state["contract_type"] for r in rows[-2:]] == ["MSA", "NDA"]
+    assert rows[-1].before_state == {"contract_type": "MSA"}

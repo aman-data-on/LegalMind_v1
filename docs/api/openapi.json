@@ -124,6 +124,29 @@
     "title": "ContractStatus",
     "type": "string"
    },
+   "ContractTransfer": {
+    "additionalProperties": false,
+    "description": "AB-12 r5 \u2014 move a contract to a colleague in the same department. The\nreason is mandatory: a transfer is a custody change and the audit row\nshould say why without anyone having to ask.",
+    "properties": {
+     "new_owner_id": {
+      "format": "uuid",
+      "title": "New Owner Id",
+      "type": "string"
+     },
+     "reason": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "new_owner_id",
+     "reason"
+    ],
+    "title": "ContractTransfer",
+    "type": "object"
+   },
    "ContractUpdate": {
     "additionalProperties": false,
     "properties": {
@@ -138,6 +161,33 @@
        }
       ],
       "title": "Contract Type"
+     },
+     "contract_type_source": {
+      "anyOf": [
+       {
+        "enum": [
+         "HUMAN",
+         "ASSIST_SUGGESTION"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Type Source"
+     },
+     "counterparty_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Counterparty Id"
      },
      "name": {
       "anyOf": [
@@ -184,6 +234,92 @@
      }
     },
     "title": "ConversationCreate",
+    "type": "object"
+   },
+   "CounterpartyCreate": {
+    "additionalProperties": false,
+    "description": "AB-13 r1 \u2014 the profile, and nothing more.\n\n`industry` and `relationship_notes` are optional and stay empty unless a\nhuman types them: rule 21 forbids inventing company or industry\ninformation, and \"not known yet\" is the normal state of a counterparty.",
+    "properties": {
+     "industry": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Industry"
+     },
+     "name": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "relationship_notes": {
+      "anyOf": [
+       {
+        "maxLength": 5000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Relationship Notes"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "CounterpartyCreate",
+    "type": "object"
+   },
+   "CounterpartyUpdate": {
+    "additionalProperties": false,
+    "description": "Every field optional; a field left out is untouched, and one sent as\nnull is cleared. `name` cannot be cleared \u2014 a company with no name is not\nan identity anyone can use.",
+    "properties": {
+     "industry": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Industry"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "relationship_notes": {
+      "anyOf": [
+       {
+        "maxLength": 5000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Relationship Notes"
+     }
+    },
+    "title": "CounterpartyUpdate",
     "type": "object"
    },
    "DecisionCreate": {
@@ -234,6 +370,89 @@
     ],
     "title": "DecisionType",
     "type": "string"
+   },
+   "DepartmentCreate": {
+    "additionalProperties": false,
+    "properties": {
+     "code": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "name"
+    ],
+    "title": "DepartmentCreate",
+    "type": "object"
+   },
+   "DepartmentUpdate": {
+    "additionalProperties": false,
+    "description": "The name only \u2014 the code identifies the boundary in an append-only audit\ntrail and does not change.",
+    "properties": {
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "DepartmentUpdate",
+    "type": "object"
+   },
+   "DocumentVersionDeclare": {
+    "additionalProperties": false,
+    "description": "Declared facts about one Document Version \u2014 Step 2's \"should store\"\nmetadata (Counterparty, Effective date) and Step 6's source axis, kept in\nlocked 42.4's `metadata` JSONB. All optional (owner, 2026-09-06). A field\nthat is SENT changes the value; sent as null it clears it; a field left out\nis untouched \u2014 `model_fields_set` tells the two apart. Declared, never\ninferred: no date is ever read out of the document text.",
+    "properties": {
+     "counterparty": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Counterparty"
+     },
+     "effective_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective Date"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source"
+     }
+    },
+    "title": "DocumentVersionDeclare",
+    "type": "object"
    },
    "EscalationCreate": {
     "additionalProperties": false,
@@ -558,8 +777,20 @@
    },
    "UserCreate": {
     "additionalProperties": false,
-    "description": "47.1.3 account resolution r3 \u2014 LegalMind does not self-provision. An\naccount exists only because an authorized administrator created it, so its\nroles are always assigned deliberately and never inferred from a login.",
+    "description": "47.1.3 account resolution r3 \u2014 LegalMind does not self-provision. An\naccount exists only because an authorized administrator created it, so its\nroles are always assigned deliberately and never inferred from a login.\n\n``department_id`` and ``role_code`` are optional and change nothing about\nthat: naming a role here still runs S-8, so an administrator can only start\nan account with authority they already hold themselves.",
     "properties": {
+     "department_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Department Id"
+     },
      "email": {
       "maxLength": 320,
       "minLength": 3,
@@ -571,6 +802,18 @@
       "minLength": 1,
       "title": "Name",
       "type": "string"
+     },
+     "role_code": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Role Code"
      }
     },
     "required": [
@@ -592,7 +835,20 @@
    },
    "UserUpdate": {
     "additionalProperties": false,
+    "description": "`department_id` (AB-12 r3): present-and-null clears the department,\nabsent leaves it alone \u2014 the router reads `model_fields_set` to tell the\ntwo apart, because both arrive here as ``None``.",
     "properties": {
+     "department_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Department Id"
+     },
      "name": {
       "anyOf": [
        {
@@ -670,6 +926,7 @@
  "paths": {
   "/api/v1/audit-events": {
    "get": {
+    "description": "``administrative=true`` narrows to identity-and-access events \u2014 the\naccount lifecycle a platform administrator is answerable for, without the\nlegal-workflow traffic they cannot read the payloads of anyway. Matched by\nthe same prefixes the payload gate uses, so the filter and the gate can never\ndisagree about what \"administrative\" means.\n\n``since``/``until`` are a half-open range on the recorded timestamp. Still an\nallow-list (49.6): the caller chooses among these parameters and no other.",
     "operationId": "list_audit_events_api_v1_audit_events_get",
     "parameters": [
      {
@@ -738,6 +995,50 @@
         }
        ],
        "title": "Actor Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "since",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "in": "query",
+      "name": "until",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     },
+     {
+      "in": "query",
+      "name": "administrative",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Administrative",
+       "type": "boolean"
       }
      },
      {
@@ -1074,7 +1375,7 @@
   },
   "/api/v1/contracts": {
    "get": {
-    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.\n\n``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a\nDERIVED bucket (`_status_bucket`) that does not exist as a contracts-table\ncolumn, so it cannot be pushed into the same ``WHERE`` \u2014 this owner-scoped\nset is bounded (one account's own contracts, never a global scan), so it is\ncomputed once over every matching id and paginated in Python, exactly the\nprecedent `_list_summaries` already set for the per-row projection.",
+    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.\n\n``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a\nDERIVED bucket (`_status_bucket`) that does not exist as a contracts-table\ncolumn, so it cannot be pushed into the same ``WHERE`` \u2014 the scoped set is\nbounded (one account's, or one department's, never a global scan), so it is\ncomputed once over every matching id and paginated in Python, exactly the\nprecedent `_list_summaries` already set for the per-row projection.\n\n``archived=true`` lists ONLY archived contracts (AB-12 r6) \u2014 the shelf, kept\napart from the working list rather than mixed into it.",
     "operationId": "list_contracts_api_v1_contracts_get",
     "parameters": [
      {
@@ -1135,6 +1436,26 @@
        "default": "created_desc",
        "title": "Sort",
        "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "scope",
+      "required": false,
+      "schema": {
+       "default": "own",
+       "title": "Scope",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "archived",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Archived",
+       "type": "boolean"
       }
      },
      {
@@ -1233,8 +1554,20 @@
   },
   "/api/v1/contracts/summary": {
    "get": {
-    "description": "The Documents list's stat tiles \u2014 real counts across EVERY one of the\ncaller's contracts, not just the current page (49.6 scope; additive, no\nlocked row). One aggregation, computed the same way each row's own status\nis (`_status_bucket`), so a tile and a row can never disagree.",
+    "description": "The Dashboard's stat tiles \u2014 real counts across EVERY contract in the\ncaller's chosen scope, not just the current page (49.6 scope; additive, no\nlocked row). One aggregation, computed the same way each row's own status\nis (`_status_bucket`), so a tile and a row can never disagree.",
     "operationId": "contracts_summary_api_v1_contracts_summary_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "scope",
+      "required": false,
+      "schema": {
+       "default": "own",
+       "title": "Scope",
+       "type": "string"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -1247,6 +1580,16 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "summary": "Contracts Summary",
@@ -1257,7 +1600,7 @@
   },
   "/api/v1/contracts/{contract_id}": {
    "delete": {
-    "description": "Delete one contract \u2014 owner approval 2026-09-01.\n\nCloses the gap `AM-31` left explicitly open (*\"No hard-delete path for a\nContract exists today, and this record does not create one or assume its\nshape\"*). The shape is two modes behind one verb, chosen by whether the\ncontract has ever been analyzed:\n\n* **No Review** \u2014 hard delete. The contract was uploaded and never\n  evaluated, so nothing downstream cites it and nothing is lost: the row,\n  its document versions, their processing runs and extracted evidence, the\n  stored bytes, and the assist-lane chunks and obligation extractions all\n  go. `AM-27 r5` requires the chunks to go with the document.\n* **A Review exists** \u2014 soft delete. `deleted_at` is stamped and the\n  contract leaves every list, summary and by-id response, but its findings,\n  evaluations, decisions and audit entries are untouched.\n\nThat split is the whole point. **Rule 17** \u2014 append-only audit trail,\nhistorical Reviews stay reproducible \u2014 was not authorised for override, and\nhard-deleting an analyzed contract would break it. The response names which\nmode ran so the caller can tell the user what actually happened rather than\nimplying a permanence it did not deliver.\n\nOwnership is the scope, as everywhere else here: `guard.contract` resolves\n`owner_id` per request, so a contract belonging to someone else is a 404 \u2014\nand so is one that is already soft-deleted.",
+    "description": "Genuinely destroy a contract \u2014 AM-55, beside Archive, not instead of it.\n\nOwner's explicit choice, made after the tradeoff was named: unlike Archive,\nthis reaches an analyzed contract too, and its Reviews, Findings,\nEvaluations, Legal Decisions and evidence go with it (DB-level\n`ON DELETE CASCADE` on the whole subtree \u2014 see migration\na1b2c3d4e5f6). Rule 17 (historical Reviews stay reproducible) no longer\nholds for what gets deleted here; Archive is what rule 17 protects.\n\nWhat survives: this audit row. `audit_events` has no FK to `contracts`\n(entity_id is polymorphic), so \"a contract existed and was deleted by X at\nT\" stays answerable even though the contract's content does not.",
     "operationId": "delete_contract_api_v1_contracts__contract_id__delete",
     "parameters": [
      {
@@ -1272,16 +1615,7 @@
      }
     ],
     "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "additionalProperties": true,
-         "title": "Response Delete Contract Api V1 Contracts  Contract Id  Delete",
-         "type": "object"
-        }
-       }
-      },
+     "204": {
       "description": "Successful Response"
      },
      "422": {
@@ -1398,6 +1732,52 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/archive": {
+   "post": {
+    "description": "Put a contract on the shelf \u2014 AB-12 r6, replacing AM-37's two-mode delete.\n\nNothing is destroyed. The document, every version, the evidence, the\nreviews, findings, decisions, Ask citations and the audit trail all stay\nexactly where they are, so \"what did LegalMind know about this contract at\nthat point in time?\" stays answerable for as long as the database exists.\nWhat changes: the contract leaves the working lists, every write to it is\nrefused with 409, and it stays readable by its owner and department lead.\n\nOwner-scoped like every write; `guard.contract` also refuses a contract\nthat is already archived, so archiving twice is a 409 rather than a silent\nno-op that would hide the second actor from the trail.",
+    "operationId": "archive_contract_api_v1_contracts__contract_id__archive_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Archive Contract Api V1 Contracts  Contract Id  Archive Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Archive Contract",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/document-versions": {
    "post": {
     "description": "Ingest one document version \u2014 locked Step 34, 42.4.\n\n**The body is the file itself**, with the declared type in ``Content-Type``\nand the original name in ``X-Filename``. Endpoint shape is outside the locked\nboundary (38.24), and this shape avoids adding a multipart parser to the path\nthat handles untrusted input \u2014 locked 34.16 and Step 39's upload-validation\nitem both argue for the smaller surface. The declared type is treated as a\n*claim*: ``validate_upload`` sniffs the magic bytes and rejects a mismatch.\n\nA duplicate is **reported, never silently suppressed** (34.5): whether a\nre-upload is a new contractual version is a business decision (Step 33.9).",
@@ -1451,6 +1831,178 @@
     "summary": "Upload Document Version",
     "tags": [
      "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/restore": {
+   "post": {
+    "description": "The mirror of archive \u2014 same permission, same owner scope, audited.",
+    "operationId": "restore_contract_api_v1_contracts__contract_id__restore_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Restore Contract Api V1 Contracts  Contract Id  Restore Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Restore Contract",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/transfer": {
+   "post": {
+    "description": "Move a deal to a colleague \u2014 AB-12 r5. The Department Lead's coverage tool.\n\nThree checks, in the locked 43.23 order, and all of them server-side:\n\n1. **Visibility** \u2014 the contract is in the caller's read scope (404 if not).\n2. **Permission** \u2014 `contract.transfer` (403 without it).\n3. **Boundary** \u2014 the caller holds the contract as owner or through\n   DEPARTMENT scope (Legal scope is read-only and never custody), and the\n   new owner is an ACTIVE account in the caller's own department. A target\n   outside it is refused with the same message as one that does not exist,\n   so this endpoint is not a probe for other departments' accounts.\n\nWhat moves: the contract, and with it \u2014 because visibility is rooted in the\ncontract (`can_see_review`) \u2014 every version, review, finding, report and\nannotation. What does not: `reviews.created_by` (history), and any Ask\nconversation, which stays with the person who asked (AB-12 r8).",
+    "operationId": "transfer_contract_api_v1_contracts__contract_id__transfer_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ContractTransfer"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Transfer Contract Api V1 Contracts  Contract Id  Transfer Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Transfer Contract",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/version-comparison": {
+   "get": {
+    "description": "Clause-level comparison of two versions of one Contract \u2014 locked 33.15.\n\nLocked 33.15 asks for this and fixes the method: deterministic section\ncomparison, explicitly **not** LLM/RAG. Locked PROD-04 puts `compare` in an\nordinary User's hands, so the permission is `document.view` \u2014 the same\npermission that lets the caller read both versions, which is all a comparison\ndiscloses.\n\nStep 33 r19 and locked 33.16 are the boundary, and they are enforced by what\nthis endpoint CANNOT return: no Finding, no Classification, no Rule Outcome,\nno verdict field. Where the newer version already has Findings, the ones\nlanding in a changed clause are quoted beside it so the reader can see that\nthe engine has something to say there \u2014 but that Finding was produced by the\nevaluator against a pinned snapshot, and a comparison never becomes one.\n\nBoth versions resolve through the READ rule (ownership or `REC-09` Legal\nscope), so a Legal reviewer comparing the negotiation history of a document\nthey are reviewing gets the same answer its owner does \u2014 and anyone else\ngets the same 404 either version would give on its own.",
+    "operationId": "compare_document_versions_api_v1_contracts__contract_id__version_comparison_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "the earlier document version",
+      "in": "query",
+      "name": "before",
+      "required": true,
+      "schema": {
+       "description": "the earlier document version",
+       "format": "uuid",
+       "title": "Before",
+       "type": "string"
+      }
+     },
+     {
+      "description": "the later document version",
+      "in": "query",
+      "name": "after",
+      "required": true,
+      "schema": {
+       "description": "the later document version",
+       "format": "uuid",
+       "title": "After",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Compare Document Versions Api V1 Contracts  Contract Id  Version Comparison Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Compare Document Versions",
+    "tags": [
+     "documents"
     ]
    }
   },
@@ -1671,6 +2223,418 @@
     ]
    }
   },
+  "/api/v1/counterparties": {
+   "get": {
+    "description": "The companies this caller actually deals with \u2014 never the whole book (r6).",
+    "operationId": "list_counterparties_api_v1_counterparties_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "scope",
+      "required": false,
+      "schema": {
+       "default": "own",
+       "title": "Scope",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Counterparties Api V1 Counterparties Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Counterparties",
+    "tags": [
+     "counterparties"
+    ]
+   },
+   "post": {
+    "description": "`contract.update` (r5) \u2014 you are naming a company you are about to link.\n\nDeliberately NOT unique on name: two genuinely different companies may share\none, and a unique constraint would make the second one unrecordable. The\nconvergence affordance is the picker, which shows what already exists.",
+    "operationId": "create_counterparty_api_v1_counterparties_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CounterpartyCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Counterparty Api V1 Counterparties Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
+  "/api/v1/counterparties/{counterparty_id}": {
+   "get": {
+    "description": "The profile AND its documents \u2014 this is the manager's \"related documents\"\nanswer (r3): every contract for this company, in one place, derived from the\nlink rather than from a relationship table. Scoped: the list holds only\ncontracts this caller could already open one by one (49.6).",
+    "operationId": "get_counterparty_api_v1_counterparties__counterparty_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Counterparty Api V1 Counterparties  Counterparty Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   },
+   "patch": {
+    "description": "`contract.update` (r5), and every change audited (r8) \u2014 a shared profile\nthat several people may edit is exactly what AUD-01 exists for.",
+    "operationId": "update_counterparty_api_v1_counterparties__counterparty_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CounterpartyUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Counterparty Api V1 Counterparties  Counterparty Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
+  "/api/v1/departments": {
+   "get": {
+    "description": "Departments with their lead and member counts.\n\nCounts only \u2014 never the deals. A department is a boundary around contract\nvisibility, and listing it tells an administrator how many people it contains\nand who oversees them, which is account administration (Step 24 r9). It\ndiscloses nothing about what those people are working on.",
+    "operationId": "list_departments_api_v1_departments_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Departments Api V1 Departments Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Departments",
+    "tags": [
+     "administration"
+    ]
+   },
+   "post": {
+    "description": "A department is created empty. Membership is set per user through\n``PATCH /users/{id}`` \u2014 one audited act per person, never a bulk move.",
+    "operationId": "create_department_api_v1_departments_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DepartmentCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Department Api V1 Departments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Department",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/departments/mine/members": {
+   "get": {
+    "description": "Who a Department Lead may transfer a deal to: the ACTIVE accounts in the\ncaller's OWN department, by id, name and email \u2014 nothing else about them.\n\nGated on `department.view` rather than `user.manage`, because this is the\nLead's screen, not the administrator's: a Lead is not an account\nadministrator and must not need to become one to cover a colleague's leave.\nA caller in no department gets an empty list \u2014 never everyone (AB-12 r3).",
+    "operationId": "my_department_members_api_v1_departments_mine_members_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response My Department Members Api V1 Departments Mine Members Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "My Department Members",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
+  "/api/v1/departments/{department_id}": {
+   "get": {
+    "description": "One department, its rollup, and its members as accounts.\n\nThe member list is the same account projection the user list serves \u2014 one\nplace decides what an account looks like \u2014 and it is bounded by the\ndepartment, so this is not a second unfiltered roster.",
+    "operationId": "get_department_api_v1_departments__department_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "department_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Department Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Department Api V1 Departments  Department Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Department",
+    "tags": [
+     "administration"
+    ]
+   },
+   "patch": {
+    "description": "Rename a department. The CODE is deliberately immutable.\n\nThe name is a label; the code is the identifier an administrator recognises\na boundary by, and it appears in audit rows that are append-only. Letting it\nchange would make yesterday's trail read as if it referred to somewhere else.\nMembership is not edited here either \u2014 it is a property of each account and\nchanges one audited act at a time through `PATCH /users/{id}`.",
+    "operationId": "update_department_api_v1_departments__department_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "department_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Department Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DepartmentUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Department Api V1 Departments  Department Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Department",
+    "tags": [
+     "administration"
+    ]
+   }
+  },
   "/api/v1/document-versions/{document_version_id}": {
    "get": {
     "operationId": "get_document_version_api_v1_document_versions__document_version_id__get",
@@ -1711,6 +2675,60 @@
      }
     },
     "summary": "Get Document Version",
+    "tags": [
+     "documents"
+    ]
+   },
+   "patch": {
+    "description": "Declare a version's source, counterparty and effective date (2026-09-06).\n\nWrites into locked 42.4's `metadata` JSONB \u2014 no column, no migration \u2014 the\nroute owner Q2 chose for Document Type (the `D-3` precedent). Owner-scoped\nlike every write (`guard.document_version`: department and Legal scope are\nREAD scopes; an archived contract refuses with 409, AB-12 r6).\n\n**Immutable once reviewed.** Locked 33.7 / 34.15 r3 make a version immutable\nonce a Review exists, and the owner ruled (2026-09-06) that declared metadata\nfollows the same line: it may be corrected only while no Review exists. So\nthe check is on Reviews, not on analysis outcome \u2014 a DRAFT Review freezes it.\n\nDeclared, never inferred: nothing here reads the document. The upload\nendpoint's body is the file itself (38.24), which is why the declaration is\na second call rather than a header \u2014 a counterparty name is exactly the kind\nof non-ASCII value that broke the `X-Filename` header path (2026-09-03).",
+    "operationId": "declare_document_version_api_v1_document_versions__document_version_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DocumentVersionDeclare"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Declare Document Version Api V1 Document Versions  Document Version Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Declare Document Version",
     "tags": [
      "documents"
     ]
@@ -1914,6 +2932,52 @@
     "summary": "Read Obligations",
     "tags": [
      "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/reprocess": {
+   "post": {
+    "description": "Re-read a version's preserved original with the CURRENT parser \u2014 Phase 5,\nOption C (owner, 2026-09-06).\n\nA NEW `REPROCESS` processing run (locked 42.5's run type, unused until now)\nover the bytes 34.5 preserved. The file is never touched and no existing\nevidence row is rewritten or deleted (rule 17): the earlier run stays as\nhistory, and \u2014 because every reader scopes to the latest COMPLETED run\n(P-8) \u2014 the new reading simply becomes the document. Refused with 409, and\nthe reason, while anything relies on the current reading; the way forward\nthen is a new version by re-upload, exactly as before this existed.\n\nOwner-only under `document.upload` (`guard.document_version`), 409 on an\narchived contract (AB-12 r6), audited (`document.reprocessed`). A FAILED\nre-read changes nothing for readers, so the version keeps the statuses its\nstanding reading earned rather than inheriting the failed attempt's.",
+    "operationId": "reprocess_document_version_api_v1_document_versions__document_version_id__reprocess_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reprocess Document Version Api V1 Document Versions  Document Version Id  Reprocess Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reprocess Document Version",
+    "tags": [
+     "documents"
     ]
    }
   },
@@ -2251,6 +3315,76 @@
     "summary": "List Evaluations",
     "tags": [
      "findings"
+    ]
+   }
+  },
+  "/api/v1/findings/{finding_id}/explain": {
+   "post": {
+    "description": "The grounded plain-English sentence under a Finding's status (owner,\n2026-09-09; `AM-49`). Language only: the deterministic result is read, never\nwritten. Cached against the Finding and a hash of its approved sources, so\nthe wording is stable until a source changes; a rejected or unavailable\ngeneration returns FALLBACK/FAILED and the card shows the approved\ndescription instead.\n\nPermission is `finding.view` (the `AM-35` t5 reasoning): the sentence is\nbuilt only from material the caller already sees \u2014 the requirement's\napproved description and the cited passages \u2014 never from a Company\nStandard value or a Rule Outcome, so LEGAL-02's stricter gate does not\napply and the reply is identical for every caller who can see the Finding.",
+    "operationId": "explain_finding_api_v1_findings__finding_id__explain_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Explain Finding Api V1 Findings  Finding Id  Explain Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Explain Finding",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/permissions": {
+   "get": {
+    "description": "The permission catalogue, grouped \u2014 SEC-04's eleven groups as the\nadministrator sees them.\n\n`permissions.permission_group` has been stored since the catalogue was seeded\nand served nowhere, so the Roles screen had to render bare dotted strings and\nan administrator had to know that `legal.decision` is not like `report.view`.\nThis is a read projection of data that already exists: no new permission, no\nnew grant, and nothing that changes what any role may do.\n\n`confers_legal_authority` marks the two SEC-02/ROLE-05 permissions no bypass\nmay ever reach, so a screen can separate them without hardcoding their names.\nUnpaginated by design: the catalogue is a fixed 30 rows, not a collection.",
+    "operationId": "list_permissions_api_v1_permissions_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Permissions Api V1 Permissions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Permissions",
+    "tags": [
+     "administration"
     ]
    }
   },
@@ -3120,7 +4254,7 @@
   },
   "/api/v1/users": {
    "get": {
-    "description": "List users with optional filtering by status and search by email/name.",
+    "description": "The administration roster \u2014 49.6's allow-listed filters and sorting.\n\n``role`` and ``department_id`` are the two questions an administrator\nactually asks of this list (\"who leads Sales?\", \"who is in no department?\"),\nand both are answered in SQL rather than by filtering a page client-side \u2014\notherwise a filter would only ever see the 25 rows already on screen, which\nis the same class of defect the Dashboard's status filter had.\n\n``unassigned`` is separate from ``department_id`` because \"no department\" is\nnot a department id, and it matters: an account nobody has placed is invisible\nto every Department Lead, so finding those accounts is an administrative task\nin its own right.",
     "operationId": "list_users_api_v1_users_get",
     "parameters": [
      {
@@ -3146,6 +4280,7 @@
       "schema": {
        "anyOf": [
         {
+         "maxLength": 200,
          "type": "string"
         },
         {
@@ -3153,6 +4288,60 @@
         }
        ],
        "title": "Search"
+      }
+     },
+     {
+      "in": "query",
+      "name": "role",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 100,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Role"
+      }
+     },
+     {
+      "in": "query",
+      "name": "department_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "uuid",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Department Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "unassigned",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Unassigned",
+       "type": "boolean"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sort",
+      "required": false,
+      "schema": {
+       "default": "name_asc",
+       "title": "Sort",
+       "type": "string"
       }
      },
      {
@@ -3208,7 +4397,7 @@
     ]
    },
    "post": {
-    "description": "47.1.3 r3 \u2014 LegalMind never self-provisions an account.\n\nThe new account holds **no roles**. Authority is always a later, deliberate\ngrant, never a side effect of creation.",
+    "description": "47.1.3 r3 \u2014 LegalMind never self-provisions an account.\n\nAn account still holds **no roles unless one is named here**, and naming one\nis not a shortcut around anything: the grant runs the same `require_can_grant_role`\n(S-8) the standalone endpoint runs, and records the same audit events. What\nit removes is the three-step provisioning dance \u2014 create, then place, then\ngrant \u2014 during which the account exists in a state nobody chose.\n\nA refusal at any step aborts the whole request: 43.26 puts the transaction\naround the request, so a half-provisioned account is not representable.",
     "operationId": "create_user_api_v1_users_post",
     "requestBody": {
      "content": {

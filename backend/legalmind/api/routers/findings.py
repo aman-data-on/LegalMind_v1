@@ -51,6 +51,12 @@ def list_evaluations(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dic
     """
     finding = guard.finding(finding_id, P.EVALUATION_VIEW)
     escalated = is_escalated(guard.db, finding.id)
+    requirement = guard.db.execute(
+        select(M.Requirement)
+        .join(M.RequirementVersion,
+              M.RequirementVersion.requirement_id == M.Requirement.id)
+        .where(M.RequirementVersion.id == finding.requirement_version_id)
+    ).scalar_one_or_none()
     evaluations = guard.db.execute(
         select(M.Evaluation)
         .where(M.Evaluation.finding_id == finding.id)
@@ -59,7 +65,8 @@ def list_evaluations(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dic
     return data([
         serialize_evaluation(guard.db, ev,
                              legal_position=guard.sees_legal_position,
-                             escalated=escalated)
+                             escalated=escalated,
+                             requirement_code=requirement.code if requirement else None)
         for ev in evaluations
     ])
 

@@ -7,6 +7,7 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "requirement_code": "FORCE-MAJEURE-TOS-001",
+  "description": "If a force majeure event lasts longer than a set period, either party may end the affected services by written notice.",
   "ratified": "2026-08-19",
   "source_document": "Leapswitch Networks Terms of Service (26 February 2026) \u2014 TOS-leapswitch.pdf",
   "source_clause": "15 Force Majeure",

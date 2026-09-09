@@ -31,7 +31,6 @@ from uuid import uuid4
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 from legalmind.extraction.liability import (
     FINITE,
-    UNKNOWN,
     LiabilityExtractionConfig,
     extract_liability_facts,
 )
@@ -157,14 +156,15 @@ XEROX_SURVIVAL = (
 def test_the_effective_date_survival_anchor_can_never_falsely_match():
     """Xerox/Global Imaging Mutual NDA §8 (SEC EDGAR EX-99.(D)(2), 2007): two
     years FROM THE EFFECTIVE DATE — same number as the ratified standard,
-    different clock. The clause maps (Legal sees it), but the value is in words
-    (UNKNOWN) and the effective-date anchor is deliberately absent from the
-    basis terms, so '2 == 2' can never be asserted across different anchors —
-    the exact 45B.4 trap the catalogue documents."""
+    different clock. The clause maps (Legal sees it) and since AM-54 the word
+    "two" is read as the numeral it is — but the effective-date anchor is
+    deliberately absent from the basis terms, so the basis is None and the
+    evaluator fails closed on it: '2 == 2' can never be asserted across
+    different anchors — the exact 45B.4 trap the catalogue documents."""
     result, facts = _run("CONF-SURVIVAL-NDA-001", XEROX_SURVIVAL)
     assert result.state.value == "CONFIRMED"
     cap = _single_cap(facts)
-    assert cap.cap_status == UNKNOWN
+    assert cap.cap_status == FINITE and cap.cap_value == 2.0
     assert cap.cap_basis is None
 
 

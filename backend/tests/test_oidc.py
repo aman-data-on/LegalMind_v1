@@ -258,8 +258,10 @@ def test_provisioning_grants_work_permissions_and_no_authority(
         api, db, configured, monkeypatch, seeded):
     """`SEC-01`, `SEC-02`, `ROLE-05`, Step 23 — the load-bearing test of this feature.
 
-    A provisioned account may do ordinary contract and review work. It must hold
-    NONE of `legal.decision`, `legal.approve_customization`, `legal_position.view`,
+    A provisioned account may do ordinary contract and review work — including
+    seeing WHY its own findings are what they are (`legal_position.view`, granted
+    to every Department User by AB-12 r7). It must hold NONE of `legal.decision`,
+    `legal.approve_customization`, `department.view`, `contract.transfer`,
     `user.manage`, `role.manage`, `platform.manage` or `audit.view`. If an identity
     provider could confer any of those, authentication would be conferring
     authority, which is the one thing Step 47 forbids outright.
@@ -274,10 +276,35 @@ def test_provisioning_grants_work_permissions_and_no_authority(
     granted = set(api.get("/api/v1/auth/session").json()["data"]["permissions"])
 
     assert P.CONTRACT_VIEW in granted and P.REVIEW_CREATE in granted
+    assert P.LEGAL_POSITION_VIEW in granted
     for forbidden in (P.LEGAL_DECISION, P.LEGAL_APPROVE_CUSTOMIZATION,
-                      P.LEGAL_POSITION_VIEW, P.USER_MANAGE, P.ROLE_MANAGE,
-                      P.PLATFORM_MANAGE, P.AUDIT_VIEW):
+                      P.DEPARTMENT_VIEW, P.CONTRACT_TRANSFER,
+                      P.USER_MANAGE, P.ROLE_MANAGE, P.PLATFORM_MANAGE, P.AUDIT_VIEW):
         assert forbidden not in granted, forbidden
+
+
+def test_provisioning_refuses_a_jit_role_that_carries_authority(
+        api, db, configured, monkeypatch, seeded):
+    """AB-12 r11 — the whitelist is enforced, not configured.
+
+    `LEGALMIND_OIDC_JIT_ROLES` can name any seeded role, and before AB-12 the code
+    took it at its word: `DEVELOPER` (then holding `legal.decision`) or
+    `PLATFORM_ADMIN` would have been handed to every first-time SSO sign-in. Now a
+    role carrying legal authority or platform administration is refused at
+    provisioning — the indistinguishable refusal, no row written.
+    """
+    from legalmind.db import models as M
+    from legalmind.security import permissions as P
+
+    monkeypatch.setenv("LEGALMIND_OIDC_JIT_ROLES", f"USER,{P.ROLE_PLATFORM_ADMIN}")
+    before = db.query(M.User).count()
+
+    response = _refusal(api, db, monkeypatch,
+                        claims={"email": "wouldbeadmin@leapswitch.com"})
+
+    assert "sso=failed" in response.text
+    assert db.query(M.User).count() == before
+    assert api.get("/api/v1/auth/session").status_code == 401
 
 
 def test_provisioning_is_refused_outside_the_permitted_domain(

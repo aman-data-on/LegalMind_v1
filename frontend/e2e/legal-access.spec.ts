@@ -5,8 +5,7 @@ import {
   csrfToken,
   evaluationIds,
   fixture,
-  storageStatePath,
-} from "./support";
+  storageStatePath, openFindingsTab } from "./support";
 
 /**
  * Cross-user Legal access — locked `REC-09`, Step 24 r5/r6/r16, Step 30.
@@ -31,7 +30,7 @@ test.describe("REC-09 — a Legal Reviewer reaches another user's Review", () =>
     const f = fixture();
 
     // ---- as the owner: create and analyse -------------------------------
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
     // Step 30 — the STRUCTURAL cap (24) exceeds the configured maximum (12), so an
     // Evaluation requires a decision and the engine derives LEGAL_REVIEW. That is
     // `REC-09` condition (b), reached with no human escalation at all.
@@ -62,10 +61,11 @@ test.describe("REC-09 — a Legal Reviewer reaches another user's Review", () =>
     // The Review screen renders for them, including the internal legal position that
     // `LEGAL-02` gates on `legal_position.view` — which counsel holds and the owner
     // does not (see confidentiality.spec.ts for the other half).
-    await legalPage.goto(`/reviews?id=${reviewId}`);
-    const evaluation = legalPage.locator("li.evaluation").first();
+    await legalPage.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(legalPage);
+    const evaluation = legalPage.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
-    await expect(evaluation.locator(".outcome")).toHaveCount(1);
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
 
     // ---- and the decision goes through ---------------------------------
     const [evaluationId] = await evaluationIds(legalPage, reviewId);
@@ -114,7 +114,7 @@ test.describe("REC-09 — a Legal Reviewer reaches another user's Review", () =>
   test("an un-analysed Review stays invisible to Legal", async ({ page, browser }) => {
     // The widening is bounded by `REC-09`'s two conditions. A Review with no Findings
     // is DRAFT, in no Legal scope, and `SEC-07`'s non-disclosure still applies.
-    const { reviewId } = await createAnalysedReview(page, { analyse: false });
+    const { reviewId, contractId } = await createAnalysedReview(page, { analyse: false });
 
     const legal = await browser.newContext({
       storageState: storageStatePath("counsel"),

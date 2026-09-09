@@ -7,10 +7,15 @@ seeding chronology: a grant ADDED to `DEFAULT_ROLE_GRANTS` after a role was firs
 seeded never reaches an existing database. Two owner-decided grants were stranded
 exactly this way on the development instance:
 
-    export.generate   -> USER, LEGAL_REVIEWER, LEGAL_ADMIN   (owner directive
+    export.generate   -> USER, LEGAL_REVIEWER, LEGAL_ADMIN*  (owner directive
                          2026-08-31; AUTO_MODE_DECISIONS #232)
     contract.delete   -> USER                                (locked AB-10 r6,
                          owner approval 2026-09-01)
+
+    * `LEGAL_ADMIN` is `DEPARTMENT_LEAD` since AB-12 (2026-09-05), and
+      `contract.delete` is `contract.archive`. The AB-12 migration reconciles
+      grants itself as it renames; this tool remains the additive repair for any
+      LATER drift of the same kind.
 
 Both features worked only for the DEVELOPER role, which happened to be seeded after
 the grants existed.

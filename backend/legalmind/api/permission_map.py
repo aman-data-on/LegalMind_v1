@@ -58,11 +58,15 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/contracts/summary"): P.CONTRACT_VIEW,
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_UPDATE,
-    # Owner approval 2026-09-01 (closes the gap AM-31 left open). Two modes
-    # behind one verb — hard delete when the contract was never analyzed, soft
-    # delete once a Review exists, so rule 17's audit trail and reproducible
-    # history survive. Ownership, not role reach, is the real scope.
-    ("DELETE", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_DELETE,
+    # AB-12 r6 — archive: reversible, destroys nothing. Owner-scoped.
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/archive"): P.CONTRACT_ARCHIVE,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/restore"): P.CONTRACT_ARCHIVE,
+    # AM-55 (2026-09-09) — a real DELETE beside Archive, not instead of it.
+    # Same permission: it's the same owner-scoped write capability.
+    ("DELETE", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_ARCHIVE,
+    # AB-12 r5 — a Department Lead moves a deal to another owner in the same
+    # department. Visibility is department scope; the permission is the act.
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/transfer"): P.CONTRACT_TRANSFER,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/document-versions"):
         P.DOCUMENT_UPLOAD,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}"):
@@ -124,6 +128,21 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/roles"): P.ROLE_MANAGE,
     ("POST", f"{API_PREFIX}/roles"): P.ROLE_MANAGE,
     ("PATCH", f"{API_PREFIX}/roles/{{role_id}}"): P.ROLE_MANAGE,
+    # AB-12 r3 — departments are account administration (Step 24 r9: separate
+    # from contract content), so they sit behind `user.manage`.
+    ("GET", f"{API_PREFIX}/departments"): P.USER_MANAGE,
+    ("POST", f"{API_PREFIX}/departments"): P.USER_MANAGE,
+    ("GET", f"{API_PREFIX}/departments/{{department_id}}"): P.USER_MANAGE,
+    ("PATCH", f"{API_PREFIX}/departments/{{department_id}}"): P.USER_MANAGE,
+    # The permission catalogue itself — a read projection of `permissions`,
+    # grouped, so the Roles screen can explain what a grant means instead of
+    # rendering dotted strings. Role administration, so `role.manage` (49.3's
+    # own row for `/roles`); it grants nothing and changes nothing.
+    ("GET", f"{API_PREFIX}/permissions"): P.ROLE_MANAGE,
+    # The Lead's transfer targets: ACTIVE colleagues in the caller's OWN
+    # department, names and emails only. Department scope is the gate; a caller
+    # outside any department gets an empty list, never everyone.
+    ("GET", f"{API_PREFIX}/departments/mine/members"): P.DEPARTMENT_VIEW,
 }
 
 
@@ -153,6 +172,10 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
         P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/obligations"):
         P.FINDING_VIEW,
+    # The grounded explanation layer (owner, 2026-09-09; AM-49): one plain-English
+    # sentence built from the requirement's approved description and the cited
+    # passages — material the findings-viewer already sees; LEGAL-02 does not apply.
+    ("POST", f"{API_PREFIX}/findings/{{finding_id}}/explain"): P.FINDING_VIEW,
 }
 ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
 
@@ -165,6 +188,35 @@ ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
 IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/evidence"):
         P.DOCUMENT_VIEW,
+    # Version comparison (2026-09-04). Locked 33.15 requires the capability and
+    # locked PROD-04 puts `compare` in an ordinary User's hands, so the permission
+    # is the one that already governs reading the two versions — a comparison
+    # discloses their text and nothing else. 33.16 keeps it non-evaluative: the
+    # response carries no Finding, Classification, Rule Outcome or verdict field,
+    # so no legal-position permission is implicated.
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/version-comparison"):
+        P.DOCUMENT_VIEW,
+    # Declared version metadata (2026-09-06): source, counterparty, effective
+    # date, written into locked 42.4's `metadata` JSONB. The permission is the
+    # one that already creates the version — declaring what a version IS is
+    # part of putting it there — resolved owner-only through `guard.
+    # document_version`, and refused (409) once a Review exists (33.7, 34.15 r3).
+    ("PATCH", f"{API_PREFIX}/document-versions/{{document_version_id}}"):
+        P.DOCUMENT_UPLOAD,
+    # Re-read in place (Phase 5, Option C — owner, 2026-09-06): a new REPROCESS
+    # run (42.5) over the preserved original, refused (409) while anything —
+    # a Review, an Ask citation, Key Obligations — relies on the current
+    # reading. Same permission as the upload it re-does; owner-only.
+    ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/reprocess"):
+        P.DOCUMENT_UPLOAD,
+    # Counterparties — AB-13 r5: NO new permission. `contract.view` reads and
+    # `contract.update` writes, because naming who a contract is with is part of
+    # maintaining that contract. Visibility is rooted in the Contract (r6), so
+    # there is deliberately no endpoint that lists every counterparty.
+    ("GET", f"{API_PREFIX}/counterparties"): P.CONTRACT_VIEW,
+    ("POST", f"{API_PREFIX}/counterparties"): P.CONTRACT_UPDATE,
+    ("GET", f"{API_PREFIX}/counterparties/{{counterparty_id}}"): P.CONTRACT_VIEW,
+    ("PATCH", f"{API_PREFIX}/counterparties/{{counterparty_id}}"): P.CONTRACT_UPDATE,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 

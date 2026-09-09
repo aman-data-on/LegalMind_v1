@@ -7,6 +7,7 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "requirement_code": "ARBITRATION-MSA-001",
+  "description": "Disputes under the agreement can be taken to arbitration by a single arbitrator if either party chooses.",
   "ratified": "2026-08-19",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "19.3–19.4 Governing Law and Arbitration",

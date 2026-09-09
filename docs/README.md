@@ -15,10 +15,11 @@
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 - [00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md) — 📁 the owner-ordered product-intent audit behind AB-6/AM-33 and the version-lifecycle UI
 - [00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md](00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md) — 📁 the E1 retrieval audit: assist recall@10 is 0.438 against a 0.938 basis, attributed to COSINE_FLOOR's two applications and **not** to fusion; awaits an owner calibration decision
+- [00-project/RESEARCH_DOMAIN_C_RD_2026-09-04.md](00-project/RESEARCH_DOMAIN_C_RD_2026-09-04.md) — 📁 R&D for Research (Domain C, statute questions): what the existing assist lane already covers, the measured finding that Hindi/Hinglish retrieval fails on the English embedding model (0.037 cosine, below the unrelated-text baseline), why the headline "Section 138" query is a deterministic lookup rather than a search, and the six owner inputs that block the domain
 - [design/UX_CORRECTION_2026-08-31.md](design/UX_CORRECTION_2026-08-31.md) — 📁 the owner-ordered UX/product-model audit behind the upload-first intake and in-flow analysis
 | **The backend freeze & UI/UX handoff (2026-08-27)** | [00-project/BACKEND_FREEZE_HANDOFF.md](00-project/BACKEND_FREEZE_HANDOFF.md) |
 | **Approve the Domain A/C tables (C-15)** | [00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md](00-project/AB5_DOMAIN_CORPUS_PROPOSAL.md) — 📁 PROPOSAL awaiting the owner |
-| Supply the statutes (C-16) — what and how | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |
+| The statute intake (C-16 — ✅ satisfied 2026-09-08; only the Income-tax Act 2025 outstanding) | [00-project/STATUTE_INTAKE.md](00-project/STATUTE_INTAKE.md) |
 | Activate Gemini, step by step | [09-implementation/GEMINI_ACTIVATION_RUNBOOK.md](09-implementation/GEMINI_ACTIVATION_RUNBOOK.md) |
 | Run production operations | [`../ops/README.md`](../ops/README.md) |
 | The new workspace UI plan (Phase 2) | [design/WORKSPACE_UI_PLAN.md](design/WORKSPACE_UI_PLAN.md) |
@@ -111,6 +112,9 @@ Declared at the top of every specification document. Never mix states without la
 | [LEGAL_RULES.md](02-legal-domain/LEGAL_RULES.md) | How far the organization tolerates departing from a Standard |
 | [FINDING_CLASSIFICATION.md](02-legal-domain/FINDING_CLASSIFICATION.md) | The seven Finding classifications; RESOLVED ≠ MATCH |
 | [LEGAL_DECISIONS.md](02-legal-domain/LEGAL_DECISIONS.md) | Authorized human rulings; the engine never produces one |
+| [LEGAL_CONSTITUTION_L1.5.md](02-legal-domain/LEGAL_CONSTITUTION_L1.5.md) | **The governing source for company positions** (owner ruling 2026-09-08, `AM-43`) — verbatim Markdown of the lawyer-review DOCX; configuration source, never runtime corpus |
+| [REQUIREMENT_DESCRIPTIONS_2026-09-09.md](02-legal-domain/REQUIREMENT_DESCRIPTIONS_2026-09-09.md) | 📁 The 32 plain-English requirement descriptions shown on the Finding card — requirement → source clause → source quote → line — awaiting Counsel's wording approval; explanatory only, never an evaluator input |
+| [CONSTITUTION_RECONCILIATION_2026-09-08.md](02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-08.md) | The engineering/legal handoff: Constitution rules inspected, conflicts found and resolved, effective values, what remains for Counsel |
 
 ### [03-document-model/](03-document-model/) — documents and evidence
 
@@ -165,6 +169,7 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | File | Purpose |
 |---|---|
 | [STEP_47_SECURITY_SPECIFICATION.md](06-security/STEP_47_SECURITY_SPECIFICATION.md) | 🔒 **Authoritative** — OIDC, sessions, permission catalogue, SEC-01–SEC-09 |
+| [RBAC_MODEL.md](06-security/RBAC_MODEL.md) | 🔒 **AB-12 (2026-09-05)** — the four personas, OWN / DEPARTMENT / PLATFORM scope, transfer, archive, Ask privacy, what is audited — plain language |
 | [SECURITY_MODEL.md](06-security/SECURITY_MODEL.md) | 🔒 The server-side boundary; no UI→DB; no UI legal logic |
 | [AUTHORIZATION.md](06-security/AUTHORIZATION.md) | 🔒 Object-level authorization rules |
 | [OWNERSHIP.md](06-security/OWNERSHIP.md) | 🔒 Review visibility and ownership (Step 24, 18 rules) |

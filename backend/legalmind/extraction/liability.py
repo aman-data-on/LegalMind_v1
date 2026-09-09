@@ -59,6 +59,23 @@ UNKNOWN = "UNKNOWN"
 # because it names "the general rule" rather than any legal category.
 SCOPE_GENERAL = "GENERAL"
 
+# A bare heading is not a clause — mirrors `assist/chunking.py::_is_heading`'s
+# narrow judgment (one line, short, not a sentence) without importing across
+# the authoritative/assist boundary (AM-25 r2).
+_HEADING_MAX_CHARS = 80
+
+
+def _looks_like_heading(text: str) -> bool:
+    stripped = (text or "").strip()
+    # A table row ("CAP | 12 months of fees") or a short line stating a quantity
+    # ("Cure period: 30 days") is a position, not a heading — AM-54's live corpus
+    # showed the guard swallowing both and minting evidence-free MISSINGs. Only
+    # the section number itself may carry digits ("3. Limitation of Liability").
+    body = re.sub(r"^\d+(?:\.\d+)*\.?\s*", "", stripped)
+    return ("\n" not in stripped and len(stripped) < _HEADING_MAX_CHARS
+            and not stripped.endswith((".", ";", ")"))
+            and "|" not in body and not re.search(r"\d", body))
+
 
 @dataclass(frozen=True)
 class ExceptionPattern:
@@ -184,10 +201,6 @@ def extract_liability_facts(
             continue
 
         found = _extract_from_clause(clause, body, config, diagnostics)
-        if not found:
-            # Not a diagnostic: a mapped clause need not contain a cap. Locked
-            # 45C.15 — absence never manufactures a position.
-            continue
         caps.extend(found)
 
     if not caps:
@@ -212,10 +225,23 @@ def extract_liability_facts(
     status = (ExtractionStatus.PARTIAL if unread_clauses
               else ExtractionStatus.COMPLETE)
     return LiabilityFacts(
-        caps=tuple(caps),
+        caps=prune_absent(caps),
         extraction_status=status,
         extraction_diagnostics=tuple(diagnostics),
     )
+
+
+def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
+    """An ABSENT cap says "this clause states nothing"; it is not a position.
+    Beside a clause of the same kind and scope that DOES state one, it is dropped
+    — otherwise a mapped exclusions clause would turn a clean cap into a
+    same-scope CONFLICT (45C.2 is about incompatible POSITIONS). Alone, ABSENT
+    stands, with its evidence (AM-52)."""
+    stated = {(c.cap_kind, c.scope, c.scope_label)
+              for c in caps if c.cap_status != ABSENT}
+    return tuple(c for c in caps
+                 if c.cap_status != ABSENT
+                 or (c.cap_kind, c.scope, c.scope_label) not in stated)
 
 
 # --------------------------------------------------------------------------
@@ -244,7 +270,29 @@ def _extract_from_clause(
         contains_phrase(body, phrase) for phrase in config.cap_phrases)
 
     if not (states_unlimited or states_cap):
-        return []
+        # The mapping layer already confirmed this clause is relevant to THIS
+        # Requirement (`confirmed_clauses` — 35.x's own confirm_threshold), so
+        # a mapped clause stating neither a cap nor unlimited-liability phrase
+        # is an established ABSENCE, not a missing observation: rule 11 requires
+        # every Finding to trace to its evidence, and 45C.14's own worked
+        # example (a damages-exclusion clause with no monetary cap) requires
+        # exactly this — "the clause was found and mapped, so it must remain
+        # attached" — MISSING, but never with the supporting text discarded.
+        # No new phrase is added and no clause is reclassified: this only
+        # keeps the clause the mapping layer already confirmed as its evidence.
+        #
+        # EXCEPT a bare heading fragment ("1. Limitation of Liability" with no
+        # body) — `section_heading_terms` lets mapping confirm a heading on its
+        # own, and a heading is not a legal position to attach as evidence of
+        # absence. `_looks_like_heading` mirrors the same narrow, deliberate
+        # judgment `assist/chunking.py::_is_heading` already makes (a separate
+        # copy, not an import: the authoritative path does not depend on the
+        # assist lane, AM-25 r2) — one line, short, not a sentence.
+        if _looks_like_heading(clause.content):
+            return []
+        return [Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
+                    scope_label=None, cap_status=ABSENT, cap_value=None,
+                    cap_unit=None, cap_basis=None, evidence_refs=evidence)]
 
     states_composite = any(
         contains_phrase(body, phrase) for phrase in config.composite_phrases)
@@ -310,8 +358,10 @@ def _find_magnitude(
     """Locked 44.30 "regex/pattern matching for structured values".
 
     Recognises a number immediately followed by one of the **configured** units. No
-    unit vocabulary is built in, and no word-number ("six") is interpreted: doing so
-    would be inventing terminology that 35.4/44.29 place in configuration.
+    unit vocabulary is built in. Since AM-54 (owner, 2026-09-09) a number WORD
+    ("six", "twenty-four") is read as the numeral it is — a numeral is not legal
+    terminology, so 35.4/44.29 are untouched; what is still never done is GUESSING
+    a number the text does not state (44.24).
 
     Legal drafting states magnitudes as ``twelve (12) months`` — the word, then the
     digits in parentheses, then the unit — or mirrored as ``15 (fifteen) calendar
@@ -346,18 +396,60 @@ def _find_magnitude(
     # Digits with optional thousands separators and decimals, then the unit. The
     # optional `\)` is the "twelve (12) months" convention; the optional
     # parenthesised word is its mirror, "15 (fifteen) calendar days".
+    # AM-54 (owner, 2026-09-09): a number WORD is a numeral, not terminology —
+    # "six months" and "6 months" state the same quantity, and reading the word
+    # is arithmetic, not a synonym the engine invented (35.4 governs legal
+    # terminology, which a numeral is not). Words to ninety-nine; "twenty-four"
+    # and "twenty four" both read.
     pattern = re.compile(
-        rf"(?<!\w)(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*"
-        rf"(?:\)|\([a-z]+\))?\s*"
+        rf"(?<!\w)(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?|\d+(?:\.\d+)?|{_NUMBER_WORD})\s*"
+        rf"(?:\)|\([a-z0-9]+\))?\s*"
         rf"({alternatives})(?!\w)")
     match = pattern.search(body)
     if match is None:
         return None
-    raw = match.group(1).replace(",", "")
-    try:
-        return float(raw), canonical_for[match.group(2)]
-    except ValueError:                                  # pragma: no cover
+    value = parse_number(match.group(1))
+    if value is None:                                   # pragma: no cover
         return None
+    return value, canonical_for[match.group(2)]
+
+
+_UNITS_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+                "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+                "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19}
+_TENS_WORDS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+               "seventy": 70, "eighty": 80, "ninety": 90}
+_NUMBER_WORD = (r"(?:(?:" + "|".join(_TENS_WORDS) + r")(?:[- ](?:" + "|".join(
+    k for k, v in _UNITS_WORDS.items() if v < 10) + r"))?|"
+                + "|".join(_UNITS_WORDS) + r")")
+
+
+def parse_number(token: str) -> float | None:
+    """Digits (with separators) or a number word up to ninety-nine, as a float."""
+    raw = token.strip().lower().replace(",", "")
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    parts = re.split(r"[- ]", raw)
+    if len(parts) == 1 and raw in _UNITS_WORDS:
+        return float(_UNITS_WORDS[raw])
+    if len(parts) == 1 and raw in _TENS_WORDS:
+        return float(_TENS_WORDS[raw])
+    if len(parts) == 2 and parts[0] in _TENS_WORDS and parts[1] in _UNITS_WORDS \
+            and _UNITS_WORDS[parts[1]] < 10:
+        return float(_TENS_WORDS[parts[0]] + _UNITS_WORDS[parts[1]])
+    return None
+
+
+def number_in_text(value: float, body: str) -> bool:
+    """Whether ``value`` is WRITTEN in ``body`` — as digits or as a number word.
+    The mechanical check behind every semantically read magnitude (AM-54)."""
+    for token in re.findall(rf"\d+(?:\.\d+)?|{_NUMBER_WORD}", body):
+        if parse_number(token) == value:
+            return True
+    return False
 
 
 def _find_basis(body: str, bases: dict[str, tuple[str, ...]]) -> str | None:

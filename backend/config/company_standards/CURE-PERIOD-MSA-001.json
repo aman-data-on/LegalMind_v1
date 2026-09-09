@@ -7,6 +7,7 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "requirement_code": "CURE-PERIOD-MSA-001",
+  "description": "A customer in breach gets a set period after written notice to fix it before the agreement can be terminated.",
   "ratified": "2026-08-19",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "7.4 Termination for Breach or Non-Payment",

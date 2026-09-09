@@ -43,7 +43,7 @@ from itertools import pairwise
 # The chunker's own version, recorded on every row it writes. A change to the
 # boundaries below must change this, because chunk ids recorded against an older
 # algorithm would otherwise be silently reinterpreted.
-CHUNKING_ALGORITHM_VERSION = "clause-aware-2"
+CHUNKING_ALGORITHM_VERSION = "clause-aware-3"
 
 # An evidence row longer than this is split. The number is a retrieval-shape choice,
 # not a legal one, and it is characters rather than tokens on purpose: counting tokens
@@ -59,6 +59,18 @@ MAX_CHUNK_CHARS = 2000
 # Below this, a trailing fragment is merged back rather than left as its own chunk. A
 # 30-character chunk is not a retrievable idea, it is noise in the index.
 MIN_TAIL_CHARS = 200
+
+# A one-line piece under this length that does not end a sentence is a HEADING, not a
+# clause, and it is merged into the piece that FOLLOWS it so the heading travels with
+# the clause it introduces. A short one-line definition ending in a full stop
+# (`1.13. "Agreement" means this document.`) is still a clause and still its own chunk.
+# Measured live on 2026-09-08: 29% of the index (2,195 of 7,356 chunks) was under 60
+# characters — `7. TERM AND TERMINATION`, `7.6. Effect of Termination:` — and those
+# headings outranked the clauses beneath them on the very words a user asks with,
+# so "termination notice period" retrieved four headings and refused. 80 matches
+# `guardrails.evidence_is_sufficient`: text that cannot constitute evidence on its own
+# should not be a retrieval unit on its own either.
+MIN_CHUNK_CHARS = 80
 
 # --------------------------------------------------------------------------
 # Clause boundaries — the primary split, and why it is not length-driven
@@ -80,8 +92,13 @@ MIN_TAIL_CHARS = 200
 # This reads structure the document itself states. It does not invent numbering —
 # locked 34.12's rule that existing clause numbering is *preserved, never generated*
 # applies here exactly as it does in the parser.
+# `[ \t\u00a0\u200b]`: real documents put a zero-width space or an NBSP after the
+# number (`17.\u200b LIMITATION OF LIABILITY`, measured live 2026-09-08). Treating only
+# ASCII blanks as separators made the whole of §17 one 1,366-character chunk, and a
+# question about the liability cap then failed grounding against it.
+_BLANK = r"[ \t\u00a0\u200b]"
 _CLAUSE_LINE = re.compile(
-    r"^[ \t]*(?P<num>\d{1,3}(?:\.\d{1,3})*)\.?(?=[ \t]*$|[ \t]+\S)",
+    rf"^{_BLANK}*(?P<num>\d{{1,3}}(?:\.\d{{1,3}})*)\.?(?={_BLANK}*$|{_BLANK}+\S)",
     re.MULTILINE)
 
 
@@ -185,6 +202,42 @@ def _accumulate(parts: list[str]) -> list[str]:
     return out
 
 
+def _is_heading(piece: str) -> bool:
+    """One line, short, and not a sentence: `7. TERM AND TERMINATION`,
+    `7.6. Effect of Termination:`. Deterministic, and deliberately narrow."""
+    return ("\n" not in piece and len(piece) < MIN_CHUNK_CHARS
+            and not piece.rstrip().endswith((".", ";", ")")))
+
+
+def _fold_fragments(pieces: list[str]) -> list[str]:
+    """Merge a heading or fragment into the piece that follows it.
+
+    A piece under `MIN_CHUNK_CHARS` is carried forward and prepended to the next
+    piece, so `7. TERM AND TERMINATION` becomes the first line of the chunk holding
+    §7.1 rather than a chunk of its own. A trailing fragment with nothing after it
+    folds back into its predecessor. Lossless: the pieces still concatenate to the
+    original text, joined by the newline the split consumed nothing of.
+    """
+    out: list[str] = []
+    carry = ""
+    for piece in pieces:
+        piece = piece.strip()
+        if not piece:
+            continue
+        piece = f"{carry}\n{piece}" if carry else piece
+        carry = ""
+        if _is_heading(piece):
+            carry = piece
+            continue
+        out.append(piece)
+    if carry:
+        if out:
+            out[-1] = f"{out[-1]}\n{carry}"
+        else:
+            out.append(carry)
+    return out
+
+
 def chunk_evidence(rows: list) -> list[Chunk]:
     """Turn committed evidence rows into chunks, in document order.
 
@@ -222,10 +275,8 @@ def chunk_evidence(rows: list) -> list[Chunk]:
                 continue
             pieces.extend([clause] if len(clause) <= MAX_CHUNK_CHARS
                           else _split_long(clause))
+        pieces = _fold_fragments(pieces)
         for index, piece in enumerate(pieces):
-            piece = piece.strip()
-            if not piece:
-                continue
             first = index == 0
             chunks.append(Chunk(
                 evidence_id=row.id,

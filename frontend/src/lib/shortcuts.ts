@@ -32,10 +32,17 @@ export function shortcutKey(event: KeyboardEvent): string | null {
  * as output).
  */
 export const REVIEW_SHORTCUTS: ReadonlyArray<{ key: string; does: string }> = [
-  { key: "n", does: "Next finding in the current view" },
-  { key: "p", does: "Previous finding in the current view" },
-  { key: "d", does: "Jump to the decision form for the current finding" },
-  { key: "a", does: "Prepare ACCEPT_DEVIATION — select it and focus the justification (never submits)" },
-  { key: "r", does: "Prepare REJECT — select it and focus the justification (never submits)" },
-  { key: "?", does: "Show or hide this help" },
+  // Navigation, on the bindings a reviewer already knows from other tools
+  // (2026-09-04): j/k as in Gmail and GitHub, with this product's original n/p
+  // kept as aliases so nobody's habit breaks.
+  { key: "j  or  n", does: "Next finding" },
+  { key: "k  or  p", does: "Previous finding" },
+  { key: "/", does: "Find in the document" },
+  // Decision keys. Owned by the decision form itself, and deliberately named
+  // "prepare": a single keystroke never records a Legal Decision (Step 31 r11).
+  { key: "d", does: "Jump to the decision form for the focused finding" },
+  { key: "a", does: "Prepare ACCEPT_DEVIATION — selects it and focuses the justification (never submits)" },
+  { key: "r", does: "Prepare REJECT — selects it and focuses the justification (never submits)" },
+  { key: "?", does: "Show or hide this list" },
+  { key: "Esc", does: "Close this list, or the Ask panel" },
 ];

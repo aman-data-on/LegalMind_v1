@@ -54,6 +54,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.db.lookup import latest_completed_run_id
 
 
 def _clause_groups(
@@ -83,7 +84,10 @@ def record_unmatched_provisions(db: DBSession, review: M.Review,
     """
     rows = db.execute(
         select(M.DocumentEvidence)
-        .where(M.DocumentEvidence.document_version_id == document_version_id)
+        .where(M.DocumentEvidence.document_version_id == document_version_id,
+               # The run mapping read (P-8, 2026-09-06) — never a merge of two.
+               M.DocumentEvidence.processing_run_id
+               == latest_completed_run_id(db, document_version_id))
         .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
                  M.DocumentEvidence.start_offset.asc().nulls_last(),
                  M.DocumentEvidence.id.asc())

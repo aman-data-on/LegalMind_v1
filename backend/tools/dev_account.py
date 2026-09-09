@@ -11,7 +11,7 @@ or updates one password-fallback account.
 must not be creatable on the environment that holds real documents (55.3); production
 account bootstrap is a deliberate operator act, not this script.
 
-Granting multiple roles is the sanctioned way to see every screen: SUPER_ADMIN still
+Granting multiple roles is the sanctioned way to see every screen: PLATFORM_ADMIN still
 holds neither `legal.decision` nor `legal_position.view` (SEC-02, ROLE-05) — legal
 authority comes only from the legal roles granted alongside, exactly as in the e2e
 fixture's `counsel`.
@@ -38,7 +38,7 @@ from legalmind.domain import enums as E
 from legalmind.security.passwords import hash_password
 from legalmind.security.seed import bootstrap
 
-ALL_ROLES = ("SUPER_ADMIN", "LEGAL_ADMIN", "LEGAL_REVIEWER",
+ALL_ROLES = ("PLATFORM_ADMIN", "DEPARTMENT_LEAD", "LEGAL_REVIEWER",
              "LEGAL_DECISION_AUTHORITY", "USER")
 
 

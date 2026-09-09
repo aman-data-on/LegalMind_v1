@@ -10,6 +10,7 @@
     "Closes the asymmetry the 2026-08-20 audit found: RETURN-DESTRUCTION-NDA-001 existed, the MSA had the equivalent clause and no Requirement. Same scope_key as the NDA standard deliberately — it is the same question, and the document-type filter keeps the two from ever meeting. Presence only, so no 45B.4 basis question arises: the 30-day request window and the compliance/backup retention exceptions are content for Legal."
   ],
   "requirement_code": "RETURN-DESTRUCTION-MSA-001",
+  "description": "The receiving party must promptly return or destroy all materials containing confidential information, at the disclosing party's choice.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "12.2",

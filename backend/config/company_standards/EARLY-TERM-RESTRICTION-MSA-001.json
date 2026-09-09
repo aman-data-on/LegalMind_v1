@@ -10,6 +10,7 @@
     "Reads whether the no-early-termination restriction exists. The early-termination FEE FORMULA is deliberately not extracted as a numeric position: 'total fees that would have become payable for the remainder of the Term' is a formula, not a magnitude, and 45B.4 forbids flattening it into a comparable number."
   ],
   "requirement_code": "EARLY-TERM-RESTRICTION-MSA-001",
+  "description": "The customer cannot end the agreement before the term expires, and owes the remaining fees if it does so without permission.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "7.2 Restriction on Early Termination by Customer",

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, storageStatePath } from "./support";
+import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from "./support";
 
 /**
  * Internal legal position must not leak — locked LEGAL-02, SEC-07, 49.7 r4, 52.4.
@@ -15,8 +15,13 @@ import { createAnalysedReview, fixture, storageStatePath } from "./support";
  * discloses that an internal position exists for this object, which is the disclosure
  * LEGAL-02 prevents; the key must simply not be there.
  *
- * `owner` holds `USER` and therefore not `legal_position.view`; `counsel` holds
- * `LEGAL_REVIEWER` and does. Same object, two callers, one difference.
+ * Who lacks the grant changed under AB-12 r7 (2026-09-05): every Department User
+ * now holds `legal_position.view` for their OWN deals, because the department is
+ * the audience for the organisation's position. So the caller here is `reader`,
+ * an account on a custom role carrying every USER grant EXCEPT the position —
+ * the shape an administrator could create for a read-only outsider — and the gate
+ * is asserted on it end to end. `counsel` (LEGAL_REVIEWER) holds the grant. Same
+ * object, two callers, one difference.
  */
 
 const CONFIDENTIAL_KEYS = [
@@ -29,10 +34,11 @@ const CONFIDENTIAL_KEYS = [
 ];
 
 test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
-  // `owner` holds USER, and therefore not `legal_position.view`. Sessions come from
-  // `auth.setup.ts`: S-5 caps logins at 10 per 300s and re-authenticating per test
-  // exhausted it — the control working as locked.
-  test.use({ storageState: storageStatePath("owner") });
+  // `reader` holds everything a USER holds except `legal_position.view` (AB-12
+  // r7 gave USER itself the grant). Sessions come from `auth.setup.ts`: S-5 caps
+  // logins at 10 per 300s and re-authenticating per test exhausted it — the
+  // control working as locked.
+  test.use({ storageState: storageStatePath("reader") });
 
   test("a user without legal_position.view receives no such key", async ({ page }) => {
     const f = fixture();
@@ -63,31 +69,50 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     page,
   }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
+    const { contractId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews?id=${reviewId}`);
+    /*
+     * Ported to the new workspace 2026-09-04. The legacy `/reviews?id=` screen
+     * this used to drive is being retired, and LEGAL-02 is the last thing that
+     * may lose browser coverage in the move — so the same property is asserted
+     * on the surface a reviewer actually uses now: the workspace's Findings pane.
+     */
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
     // Wait for an Evaluation to have rendered before asserting an absence, or the
     // assertion would pass against an empty screen — the commonest way a
     // confidentiality test proves nothing.
-    const evaluation = page.locator("li.evaluation").first();
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
     // Locked 52.4 renders these **presence-tested**: when the server omits a field
     // there is no element at all, not an empty span and not a placeholder. So the
     // assertion is on elements, not on substrings of the page text.
-    await expect(evaluation.locator(".outcome")).toHaveCount(0);
-    await expect(evaluation.locator(".evaluation__explanation")).toHaveCount(0);
-    const labels = await evaluation.locator(".evaluation__facts dt").allInnerTexts();
-    expect(labels).toContain("Found in contract");     // the contract's own value
-    expect(labels).not.toContain("Company Standard");  // an internal position
-    expect(labels).not.toContain("Comparison");
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
+    await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
+    // Case-normalised deliberately. `.ws-facts--compare dt` is rendered
+    // `text-transform: uppercase` by the reference-design restyle (2026-09-09) and
+    // `allInnerTexts()` returns RENDERED text, so an exact-case comparison silently
+    // stopped matching — which made the two `not.toContain` assertions below pass
+    // vacuously, proving nothing about LEGAL-02. The labels themselves are still
+    // not free to rename (see FindingsPane); only their casing is presentation.
+    const labels = (await evaluation.locator(".ws-facts dt").allInnerTexts()).map((t) =>
+      t.trim().toLowerCase(),
+    );
+    expect(labels).toContain("contract");              // the contract's own value
+    expect(labels).not.toContain("company standard");  // an internal position
+    expect(labels).not.toContain("comparison");
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
     await expect(evaluation).toHaveAttribute("data-scope", "GENERAL");
-    await expect(evaluation.locator(".evaluation__provenance")).toContainText(
-      "NUMERIC-COMPARISON-v1",
-    );
+    // Provenance survives the omission (45B.10 / AM-19): the reader loses the
+    // legal position, never the record of what produced the result. Porting this
+    // test off the legacy screen is what found the new UI nesting this line
+    // inside the omitted explanation block, so an owner saw a verdict with no
+    // provenance at all — fixed in the same change.
+    await expect(evaluation.locator(".ws-evaluation__provenance"))
+      .toContainText("NUMERIC-COMPARISON-v1");
   });
 
 });
@@ -121,15 +146,35 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
   });
 
   test("and the screen renders it", async ({ page }) => {
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    const evaluation = page.locator("li.evaluation").first();
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
-    // The mirror image of the owner's screen: the elements that were absent there are
-    // present here, which is what makes their absence meaningful rather than incidental.
-    await expect(evaluation.locator(".outcome")).toHaveCount(1);
-    const labels = await evaluation.locator(".evaluation__facts dt").allInnerTexts();
-    expect(labels).toContain("Company Standard");
+    // The mirror image of the owner's screen: the elements that were absent there
+    // are PRESENT here — count, not visibility (2026-09-08): the rule-outcome
+    // chip moved from the always-visible header into the "How this was
+    // determined" disclosure (a readability change, not a permission change),
+    // so it is no longer visible without a click even for a caller who holds
+    // `legal_position.view`. `legal-access.spec.ts` already proves this same
+    // element the same way (`toHaveCount(1)`); this test now matches it rather
+    // than asserting a visibility default the redesign deliberately dropped.
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
+    // Case-normalised deliberately. `.ws-facts--compare dt` is rendered
+    // `text-transform: uppercase` by the reference-design restyle (2026-09-09) and
+    // `allInnerTexts()` returns RENDERED text, so an exact-case comparison silently
+    // stopped matching — which made the two `not.toContain` assertions below pass
+    // vacuously, proving nothing about LEGAL-02. The labels themselves are still
+    // not free to rename (see FindingsPane); only their casing is presentation.
+    const labels = (await evaluation.locator(".ws-facts dt").allInnerTexts()).map((t) =>
+      t.trim().toLowerCase(),
+    );
+    expect(labels).toContain("company standard");
+
+    // And it is real, renderable content — not dead markup sitting unreachable
+    // in a disclosure nobody can open: expanding it makes the chip visible.
+    await evaluation.locator(".ws-determined > summary").click();
+    await expect(evaluation.locator(".ws-evaluation__outcome")).toBeVisible();
   });
 });

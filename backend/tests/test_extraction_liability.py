@@ -148,13 +148,21 @@ def test_a_composite_formula_is_never_reduced_to_one_readable_limb():
     assert facts.caps[0].cap_status == FINITE
 
 
-def test_word_only_magnitudes_stay_unrecognised():
-    """The convention above changes nothing for digitless text: "six months"
-    still yields UNKNOWN, never a value (44.24)."""
+def test_word_only_magnitudes_are_read_as_numerals():
+    """AM-54 (owner, 2026-09-09): "six months" states the same quantity as
+    "6 months". A number word is a numeral, not terminology — reading it is
+    arithmetic, and 44.24's rule against GUESSING a number is untouched: the
+    number is written."""
     facts = extract_liability_facts(
         [clause("Liability shall not exceed six months of fees paid.")], CONFIG)
-    assert facts.caps[0].cap_status == UNKNOWN
-    assert facts.caps[0].cap_value is None
+    assert facts.caps[0].cap_status == FINITE
+    assert facts.caps[0].cap_value == 6.0
+    for text, value in [("twenty-four months", 24.0), ("twenty four months", 24.0),
+                        ("thirty (30) days", 30.0), ("30 (thirty) days", 30.0),
+                        ("ninety days", 90.0)]:
+        facts = extract_liability_facts(
+            [clause(f"Liability shall not exceed {text} of fees paid.")], CONFIG)
+        assert (facts.caps[0].cap_status, facts.caps[0].cap_value) == (FINITE, value), text
 
 
 # =====================================================================
@@ -217,11 +225,10 @@ def test_one_clause_may_state_several_carveouts():
 # 44.24 / 45B.7 — uncertainty is recorded, never resolved
 # =====================================================================
 def test_cap_language_without_a_recognisable_magnitude_is_unknown():
-    """Locked 44.24 — deterministic uncertainty. A number must never be guessed,
-    and "six" is not interpreted because word-number vocabulary would be
-    terminology the engine invented (35.4, 44.29)."""
+    """Locked 44.24 — deterministic uncertainty. A number must never be guessed:
+    cap language with no magnitude in a configured unit stays UNKNOWN."""
     facts = extract_liability_facts(
-        [clause("Liability shall not exceed six months.", number="11.2")], CONFIG)
+        [clause("Liability shall not exceed a reasonable amount.", number="11.2")], CONFIG)
 
     assert facts.caps[0].cap_status == UNKNOWN
     assert facts.caps[0].cap_value is None
@@ -256,14 +263,38 @@ def test_an_unrecognised_basis_is_none_not_assumed():
     assert facts.caps[0].cap_basis is None
 
 
-def test_a_clause_with_no_cap_language_yields_nothing():
-    """45C.15 — absence never manufactures a position, and a mapped clause need not
-    contain a cap."""
-    facts = extract_liability_facts(
-        [clause("This Agreement is governed by the laws of Ruritania.")], CONFIG)
-    assert facts.caps == ()
+def test_a_mapped_clause_with_no_cap_language_is_absent_WITH_its_evidence_retained():
+    """45C.15 — absence never manufactures a position, and a mapped clause need
+    not contain a cap — but 45C.14's own worked example (a damages-exclusion
+    clause with no monetary cap) and rule 11 both require the clause that WAS
+    found and mapped to remain attached as evidence. Corrected 2026-09-09,
+    pre-deployment live verification: this clause used to vanish with zero
+    evidence, indistinguishable from a document that never mentioned liability
+    at all — exactly the loss of traceability rule 11 forbids."""
+    c = clause("In no event shall either party be liable for indirect, "
+              "incidental or consequential damages of any kind.")
+    facts = extract_liability_facts([c], CONFIG)
+    assert len(facts.caps) == 1
+    cap = facts.caps[0]
+    assert cap.cap_status == "ABSENT"
+    assert cap.cap_value is None and cap.cap_unit is None and cap.cap_basis is None
+    assert cap.evidence_refs == (c.evidence_id,)
     assert facts.extraction_status is ExtractionStatus.COMPLETE
     assert facts.extraction_diagnostics == ()
+
+
+def test_a_clause_entirely_unrelated_to_liability_still_yields_an_absent_cap_because_mapping_already_confirmed_it():
+    """The extractor trusts the mapping layer's own confirm_threshold (35.x): by
+    the time a clause reaches here it was ALREADY judged relevant to this
+    Requirement. A clause about something else entirely reaching this function
+    would be a MAPPING defect, not an extraction one (out of scope here, tested
+    against the mapping engine's own suite) — this only confirms the extractor
+    does not additionally filter what mapping already decided."""
+    c = clause("This Agreement is governed by the laws of Ruritania.")
+    facts = extract_liability_facts([c], CONFIG)
+    assert len(facts.caps) == 1
+    assert facts.caps[0].cap_status == "ABSENT"
+    assert facts.caps[0].evidence_refs == (c.evidence_id,)
 
 
 # =====================================================================
@@ -393,3 +424,20 @@ def test_dict_units_are_read_from_the_extraction_block():
         }
     })
     assert config.units == {"DAYS": ("calendar days", "days")}
+
+
+def test_a_table_row_or_a_short_line_stating_a_quantity_is_not_a_heading():
+    """AM-54 live corpus: "CAP | 12 months of fees" and "Cure period: 30 days" were
+    swallowed by the heading guard and produced evidence-free MISSINGs. A row or a
+    line that states a quantity is a position; only the section number may carry
+    digits."""
+    from legalmind.extraction.liability import _looks_like_heading
+    assert _looks_like_heading("3. Limitation of Liability")
+    assert _looks_like_heading("ARTICLE IX — LIABILITY")
+    assert not _looks_like_heading("LIABILITY CAP | total fees paid in the 12 months preceding the claim")
+    assert not _looks_like_heading("Cure period: 30 days after receipt of written notice")
+    assert not _looks_like_heading("CONFIDENTIALITY SURVIVAL | 3 (three) years after termination")
+    # …and such a row keeps its evidence as an ABSENT cap when no cap phrase is configured for it.
+    facts = extract_liability_facts(
+        [clause("LIABILITY CEILING | fees paid in the 12 months preceding the claim")], CONFIG)
+    assert facts.caps and facts.caps[0].evidence_refs

@@ -1,8 +1,9 @@
 """Reviews and the review report — locked 49.3, 49.6, 49.8, Step 30.
 
-Review visibility follows locked Step 24 / ROLE-07 exactly: ownership or an active
-Legal assignment, and nothing else — not role name (r12). The list query below
-mirrors ``can_see_review`` deliberately, and a test asserts the two cannot
+Review visibility is rooted in the Contract (AB-12): the contract's owner, the
+owner's department lead (`department.view`), an active Legal assignment, or
+`REC-09` Legal scope — and nothing else, not role name (r12). The list query
+below mirrors ``can_see_review`` deliberately, and a test asserts the two cannot
 disagree, because a list that leaked one row a ``GET`` would 404 on is the same
 defect as an IDOR (49.6).
 
@@ -30,7 +31,7 @@ from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import permissions as P
-from legalmind.security.authorization import require_contract_visible
+from legalmind.security.authorization import can_read_contract
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 
 router = APIRouter(tags=["reviews"])
@@ -57,7 +58,21 @@ def _visible_reviews(guard: Guard):
         .where(M.ReviewAssignment.user_id == guard.user_id,
                M.ReviewAssignment.revoked_at.is_(None))
     )
-    scopes = [M.Review.created_by == guard.user_id, M.Review.id.in_(assigned)]
+    # Ownership is the CONTRACT's (AB-12 r5): a transferred deal carries its
+    # analysis history to the new owner, and `created_by` stays as history.
+    owned = select(M.Contract.id).where(M.Contract.owner_id == guard.user_id)
+    scopes = [M.Review.contract_id.in_(owned), M.Review.id.in_(assigned)]
+
+    # Department scope (AB-12 r3): every review of every contract owned by
+    # someone in the caller's department. Permission AND a department — a Lead
+    # nobody has placed yet widens nothing.
+    if guard.sees_department:
+        department_contracts = (
+            select(M.Contract.id)
+            .join(M.User, M.User.id == M.Contract.owner_id)
+            .where(M.User.department_id == guard.department_id)
+        )
+        scopes.append(M.Review.contract_id.in_(department_contracts))
 
     # Permission first, then resource scope — locked Step 24 r12's own ordering. A
     # caller without `legal.review` never widens beyond ownership and assignment.
@@ -109,12 +124,14 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
         item = serialize_review(review)
         item["document_name"] = contract.name if contract is not None else None
         item["document_type"] = contract.contract_type if contract is not None else None
-        # Exactly `require_contract_visible`'s rule, which is what the workspace
-        # this links to will apply: owned, and not soft-deleted.
+        # Exactly the rule the workspace this links to will apply — which since
+        # the owner's 2026-09-04 ruling is `can_read_contract`: ownership OR
+        # `REC-09` Legal scope. The field answers "will this open for YOU", so it
+        # has to move with that rule; otherwise the UI would withhold a link that
+        # now works, which is what it did for Legal until this changed.
         item["document_accessible"] = bool(
             contract is not None
-            and contract.owner_id == guard.user_id
-            and contract.deleted_at is None
+            and can_read_contract(guard.db, guard.user_id, contract)
         )
         payload.append(item)
     return payload
@@ -164,8 +181,10 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
     if version is None:
         from legalmind.security.errors import NotVisible
         raise NotVisible("document version not found")
-    # 47.6 — reachable only through a Contract the caller can see.
-    require_contract_visible(guard.db, guard.user_id, version.contract_id)
+    # 47.6 — reachable only through a Contract the caller OWNS: creating a
+    # Review is a write, so department scope does not reach it, and an archived
+    # contract refuses it (AB-12 r6).
+    guard.contract(version.contract_id, P.REVIEW_CREATE)
 
     snapshot = guard.db.get(M.ConfigurationSnapshot, body.configuration_snapshot_id)
     if snapshot is None:
@@ -232,6 +251,9 @@ def analyze_review(
     output would be the worse failure.
     """
     review = guard.review(review_id, P.REVIEW_CREATE)
+    # Analysis is a write on the contract: owner only, and never on an archived
+    # contract (AB-12 r6). A department lead reads the analysis; the owner runs it.
+    guard.contract(review.contract_id, P.REVIEW_CREATE)
 
     # S-5 / 49.10 — analysis is the expensive path. Keyed per user so one caller
     # cannot exhaust the limit for everyone.

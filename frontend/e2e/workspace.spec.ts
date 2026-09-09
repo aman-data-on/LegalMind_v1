@@ -8,6 +8,7 @@ import {
   openAsk,
   openFindingsTab,
   openUploadPanel,
+  showDocument,
   storageStatePath,
 } from "./support";
 
@@ -28,6 +29,7 @@ test.describe("the document pane", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     // The new shell, not the legacy chrome.
     await expect(page.locator(".ws-shell")).toBeVisible();
@@ -36,7 +38,9 @@ test.describe("the document pane", () => {
     const doc = page.locator('[data-region="document"]');
     // DD-9: the document area is two cards — the clauses card and the document
     // card under its toolbar.
-    await expect(doc.locator(".ws-outline__title")).toHaveText("Clauses");
+    // "Contents" since 2026-09-05: this is the document's own outline, and a
+    // clause is what a finding attaches to rather than a navigation target.
+    await expect(doc.locator(".ws-outline__title")).toHaveText("Contents");
     await expect(doc.locator(".ws-doccard__bar")).toBeVisible();
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     // A lone "Unnumbered pages" banner is noise when the WHOLE document has no
@@ -60,6 +64,7 @@ test.describe("the document pane", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
 
@@ -79,6 +84,7 @@ test.describe("the document pane", () => {
   test("a shared link lands on the exact row", async ({ page }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
     const targetId = await doc.locator(".ws-row").last().getAttribute("data-evidence-id");
@@ -107,6 +113,7 @@ test.describe("the document pane", () => {
 
     await page.setInputFiles('input[type="file"]', f.document.path);
     await page.getByRole("button", { name: "Upload" }).click();
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
   });
 
@@ -188,7 +195,14 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // `AM-38` (AB-11, 2026-09-01) renamed this screen: the heading is "Dashboard".
     await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
-    const row = page.getByRole("link", { name: contract.name });
+    // `exact` (2026-09-08): the row's action link is now named "Analyze <the
+    // contract>" rather than a bare "Analyze" — twenty-five links all
+    // announcing the same word gave a screen reader no way to tell one row's
+    // action from another's. Its name therefore CONTAINS the contract name,
+    // and `getByRole` matches names by substring, so the un-anchored locator
+    // began resolving to two links. Both point at the same href; this asserts
+    // exactly what it always did, against the document-name link alone.
+    const row = page.getByRole("link", { name: contract.name, exact: true });
     await expect(row).toHaveAttribute("href", `/dashboard?id=${contract.id}`);
     await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
 
@@ -206,33 +220,22 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     await openUploadPanel(page);
     await page.setInputFiles('input[type="file"]', f.document.path);
 
-    // The confirm panel: name derived from the filename, editable. The upload
-    // and the type suggestion run behind the file gesture; the panel is ready
-    // when the fields re-enable.
-    const nameField = page.getByLabel(/^Name/);
-    await expect(nameField).not.toHaveValue("");
-    const select = page.getByLabel(/^Document type/);
-    await expect(select).toBeEnabled({ timeout: 30_000 });
+    // AM-51 (owner, 2026-09-09): nothing to confirm and nothing to choose — no
+    // type control, no knowledge-source control. The upload runs through to the
+    // workspace; the engine measures the document by its content.
+    await expect(page.locator(".ws-intake").getByRole("combobox")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Confirm/ })).toHaveCount(0);
 
-    // The ten locked values, and nothing else, in the select (Step 6). With no
-    // generation credential in e2e the suggestion degrades honestly, so the
-    // select stays EMPTY and the declaration is the human act it always was.
-    await expect(select).toHaveValue("");
-    const options = select.locator("option");
-    await expect(options).toHaveCount(11); // ten values + the empty prompt
-    const codes = (await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).filter(Boolean);
-    expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
-
-    // Without the type the action stays unavailable.
-    await expect(page.getByRole("button", { name: "Confirm & Analyze" })).toBeDisabled();
-    await select.selectOption("NDA");
-    await page.getByRole("button", { name: "Confirm & Analyze" }).click();
-
-    // One act lands in the workspace with the document there — no empty-record
-    // detour, no "No document uploaded yet".
+    // One act lands in the workspace with the document THERE — mounted and one
+    // disclosure away, never an empty-record detour and never "No document
+    // uploaded yet". Since 2026-09-08 the workspace opens on the analysis, so
+    // the document is disclosed rather than already filling the screen.
     await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
-    await expect(page.locator(".ws-context")).toContainText("NDA");
+    // No type was declared (no generation credential in e2e, no question asked),
+    // and nothing pretends one was: the header carries no type chip (AM-51).
+    await expect(page.locator(".ws-context")).not.toContainText(/\b(MSA|NDA|TOS|SLA)\b/);
   });
 });
 
@@ -254,8 +257,10 @@ test.describe("the Findings pane, slice 2", () => {
     await expect(pane.locator(".ws-finding").first()).toContainText(findings[0].classification);
 
     if (target.evidence_refs.length > 0) {
-      // 2026-08-31 v2: the excerpt renders verbatim beside the finding, and its
-      // location button keeps the highlight gesture into the document pane.
+      // 2026-08-31 v2 / seventh pass: the excerpt renders verbatim inside the
+      // finding's "How this was determined", and its location button keeps the
+      // highlight gesture into the document pane.
+      await pane.locator(".ws-finding").first().locator(".ws-determined > summary").first().click();
       await expect(pane.locator(".ws-evidence__quote").first()).toBeVisible();
       const evidenceButton = pane.locator(".ws-evidence__loc").first();
       await evidenceButton.click();
@@ -362,37 +367,48 @@ test.describe("the Ask pane, slice 3", () => {
     await askSend(page).click();
     const routed = pane.locator(".ws-ask__answer--routed");
     await expect(routed).toBeVisible({ timeout: 20_000 });
-    await expect(routed).toContainText("Not answered here");
+    await expect(routed).toContainText("Compared by the evaluator, not the assistant");
     await expect(pane.locator(".ws-ask__answer--refusal")).toHaveCount(0);
   });
 });
 
 test.describe("the 3-column redesign (2026-08-31)", () => {
-  test("the Analysis panel shows real counts, findings awaiting a decision, and honest obligations degradation", async ({
+  test("the Summary panel shows real counts, one way into the decisions, and honest obligations degradation", async ({
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/dashboard?id=${contractId}`);
 
-    // "Analysis" is the side card's DEFAULT tab (DD-9). Renamed from "AI
-    // Analysis" on 2026-09-01: everything in it except Key Obligations is the
-    // DETERMINISTIC evaluator's output, and AI-01 keeps every model out of that
-    // path — the old label credited a model for the one part of the product
-    // whose value is that no model touched it. `exact` because "Analysis" is a
-    // substring of nothing else here, but a future tab could make it one.
-    await expect(page.getByRole("tab", { name: "Analysis", exact: true })).toHaveAttribute("aria-selected", "true");
+    // The side card's DEFAULT tab (DD-9), labelled "Summary" since the
+    // 2026-09-04 audit. It was "AI Analysis" until 2026-09-01 — the old label
+    // credited a model for the one part of the product whose value is that no
+    // model touched it (AI-01) — and plain "Analysis" until the audit, which
+    // read as a second analysis beside "Findings" rather than as its summary.
+    await expect(page.getByRole("tab", { name: "Summary", exact: true })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
     await expect(panel.locator(".ws-tiles")).toBeVisible();
 
-    // Every stat tile is labeled with a REAL Step 19 classification — never an
-    // invented catch-all like "Needs review" (owner correction, 2026-09-01).
-    const REAL_CLASSIFICATIONS = ["MATCH", "DEVIATION", "MISSING", "CONFLICT",
-      "UNABLE_TO_EVALUATE", "AMBIGUOUS", "UNRESOLVED"];
+    // The Summary speaks the reader's three words (owner, 2026-09-09, AM-50 r4 —
+    // reversing the 2026-09-01 correction that pinned the engine's words here).
+    // The engine vocabulary is unchanged underneath and lives in View details.
+    const USER_WORDS = ["Acceptable", "Requires modification", "Needs a decision"];
+    expect(await panel.locator(".ws-tile").count()).toBeLessThanOrEqual(3);
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);
-    for (const label of tileLabels) expect(REAL_CLASSIFICATIONS).toContain(label);
-    expect(await panel.innerText()).not.toContain("Needs review");
+    for (const label of tileLabels) expect(USER_WORDS).toContain(label);
+    // One fixed order and one set of tones (owner, 2026-09-09): the tiles that
+    // render keep USER_WORDS' order, and each wears its own channel — green
+    // Acceptable, amber Requires modification, red Needs a decision.
+    expect(tileLabels).toEqual(USER_WORDS.filter((w) => tileLabels.includes(w)));
+    const TONE = { Acceptable: "ok", "Requires modification": "warn", "Needs a decision": "bad" } as const;
+    for (const label of tileLabels) {
+      const tile = panel.locator(".ws-tile").filter({ hasText: label });
+      expect(await tile.getAttribute("class")).toContain(`ws-tile--${TONE[label as keyof typeof TONE]}`);
+    }
+    for (const engineWord of ["DEVIATION", "MISSING", "UNABLE_TO_EVALUATE"]) {
+      expect(await panel.innerText()).not.toContain(engineWord);
+    }
 
     // The ring is real counts — a raw total in the center; the legend's
     // percentages are shares of those counts, never a grade or confidence.
@@ -401,13 +417,30 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
-    // The awaiting-a-decision list mirrors the findings pane's needs-a-decision
-    // set (renamed from "Key risks" — rule 12 has no risk score to rank), and the
-    // card's "View clause" lights the passage in the document pane.
-    const risk = panel.locator(".ws-risk").first();
-    await expect(risk).toContainText("DEVIATION");
-    await risk.getByRole("button", { name: /View clause/ }).click();
+    /*
+     * Summary states HOW MANY findings need a decision and offers ONE way into
+     * them — it no longer renders a card per finding beside a Findings tab that
+     * opens on the very same set (2026-09-04 audit: the same question answered
+     * twice in one panel). What must survive is the PATH, so it is asserted end
+     * to end here: summary → the list → the passage lit in the document.
+     */
+    await expect(panel.getByText(/needs? a legal decision/)).toBeVisible();
+    await expect(panel.locator(".ws-risk")).toHaveCount(0);
+    await panel.getByRole("button", { name: /Open the list/ }).click();
+    await expect(page.getByRole("tab", { name: "Findings", exact: true }))
+      .toHaveAttribute("aria-selected", "true");
+    // The list is the work surface: a finding's cited evidence is a button
+    // labelled with the location itself (§ / title / page), and pressing it
+    // lights that passage in the document pane.
+    await page.locator('[data-region="findings"] .ws-finding').first()
+      .locator(".ws-determined > summary").first().click();
+    const cited = page.locator('[data-region="findings"] .ws-evidence__loc').first();
+    await expect(cited).toBeVisible();
+    await cited.click();
     await expect(page.locator(".ws-row--lit")).toBeVisible();
+
+    // Back to Summary for the obligations assertion below.
+    await page.getByRole("tab", { name: "Summary", exact: true }).click();
 
     // No generation credential in e2e: obligations degrade to the honest quiet
     // sentence — never an error banner, never fabricated content.
@@ -419,6 +452,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
 
     // The fixture analysis yields a DEVIATION, so at least one outline row is
     // marked needs-review. Every marker is one of the three DD-9 buckets and
@@ -436,6 +470,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const { contractId } = await createAnalysedReview(page);
     await page.setViewportSize({ width: 1440, height: 700 });
     await page.goto(`/dashboard?id=${contractId}`);
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
 
     // Scroll the document pane to its end — Ask must still be reachable without
@@ -462,7 +497,7 @@ test.describe("collapse behavior", () => {
     await expect(tabs).toHaveCount(3);
     await expect(page.getByRole("tab", { name: "Document" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Analysis", exact: true }).click();
+    await page.getByRole("tab", { name: "Summary", exact: true }).click();
     await expect(page.locator('[data-region="analysis"]')).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
@@ -478,7 +513,7 @@ test.describe("collapse behavior", () => {
     await page.keyboard.press("Escape");
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
-    await page.getByRole("tab", { name: "Analysis", exact: true }).focus();
+    await page.getByRole("tab", { name: "Summary", exact: true }).focus();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "Findings" })).toBeFocused();
     await expect(page.locator('[data-region="findings"]')).toBeVisible();

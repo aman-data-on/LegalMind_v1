@@ -120,6 +120,17 @@ making that difference legible at a glance, not just true in the data model.
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+⚠️ **The findings list's default filter above is superseded — owner instruction, 2026-09-09.**
+The filter row is now one fixed order, `All` · `Acceptable` · `Requires modification` ·
+`Needs a decision`, with **"All" first and selected when the workspace opens** — not "needs a
+decision" with "all" as a toggle. The separate requires_decision filter is gone: once `AM-56`
+renamed the third reader word to "Needs a decision" it was two buttons reading almost the same
+label, and the legal-decision count has its own line on the Summary. Everything else in the
+diagram stands. This also displaces [DESIGN.md](../../DESIGN.md) § *Filtering and pagination are
+a means, not a feature* ("default views should bias toward the task") **for this row only** — the
+undoable way to see everything is now the default rather than the toggle. Presentation only: no
+locked decision is amended. See `CHANGELOG.md` [Unreleased].
+
 - **Shell** is the one dark surface in the entire product — no other page gets a separate visual
   "identity moment." Contains: small wordmark, the current Contract/Document switcher, primary nav
   (Contracts · Reviews · Configuration · Audit · Admin, each permission-gated by absence), session

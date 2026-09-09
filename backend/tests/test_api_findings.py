@@ -23,6 +23,7 @@ from tests.conftest import (
     make_review_for,
     make_user,
     sign_in,
+    without_legal_position,
 )
 
 V1 = "/api/v1"
@@ -168,11 +169,14 @@ def test_evidence_refs_is_an_empty_array_never_null(api, db, owner,
 # =====================================================================
 def test_legal_position_is_omitted_for_a_caller_without_the_permission(
         api, db, owner, scoped):
-    """A null would still signal that a value exists (Step 52.4). The normal-user
-    and authorized-legal views are structurally different views, not the same
-    view with fields masked."""
+    """A null would still signal that a value exists (Step 52.4). The two views
+    are structurally different views, not the same view with fields masked.
+
+    Since AB-12 r7 a Department User holds `legal_position.view` for their own
+    deals, so the gate is exercised here on an owner with that one grant removed.
+    """
     review, finding, _, _ = scoped
-    sign_in(api, db, owner)
+    sign_in(api, db, without_legal_position(db, owner))
     assert P.LEGAL_POSITION_VIEW not in \
         api.get(f"{V1}/auth/session").json()["data"]["permissions"]
 
@@ -191,7 +195,7 @@ def test_no_threshold_leaks_in_the_serialized_payload(api, db, owner, scoped):
     """49.5 r2 / LEGAL-02 — no thresholds anywhere in the response, including
     inside the explanation text, which reconstructs the Standard and the Rule."""
     review, finding, _, _ = scoped
-    sign_in(api, db, owner)
+    sign_in(api, db, without_legal_position(db, owner))
     raw = api.get(f"{V1}/findings/{finding.id}").text
     assert "expected >= 6" not in raw
     assert "3 < 6" not in raw
@@ -218,7 +222,7 @@ def test_evaluations_endpoint_applies_the_same_gate(api, db, owner, scoped):
     """A second route to the same data must not be a second disclosure
     posture."""
     review, finding, _, _ = scoped
-    sign_in(api, db, owner)
+    sign_in(api, db, without_legal_position(db, owner))
     for evaluation in api.get(
             f"{V1}/findings/{finding.id}/evaluations").json()["data"]:
         assert "rule_outcome" not in evaluation
@@ -262,7 +266,7 @@ def test_audit_state_payloads_are_gated(api, db, owner, scoped):
              after={"decision_type": "ACCEPT_DEVIATION"})
 
     admin = make_user(db)
-    grant_role(db, admin, P.ROLE_SUPER_ADMIN)
+    grant_role(db, admin, P.ROLE_PLATFORM_ADMIN)
     sign_in(api, db, admin)
     body = api.get(f"{V1}/audit-events").json()
     assert body["data"]
@@ -271,3 +275,140 @@ def test_audit_state_payloads_are_gated(api, db, owner, scoped):
         assert "after_state" not in event
         assert "before_state" not in event
     assert "ACCEPT_DEVIATION" not in api.get(f"{V1}/audit-events").text
+
+
+# ==========================================================================
+# AB-14 follow-up (2026-09-08, sixth pass): the Constitution prohibition
+# field, end to end through the real API and the real permission gate.
+# ==========================================================================
+def test_an_unlimited_liability_evaluation_carries_the_constitution_citation(
+    api, db, owner,
+):
+    req = M.Requirement(code="LIABILITY-MSA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                              name="Limitation of Liability",
+                              evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                              created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv,
+                           classification=E.FindingClassification.DEVIATION)
+    ev = make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                        rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    ev.actual_value = {"cap_status": "UNLIMITED"}
+    db.flush(); db.commit()
+
+    sign_in(api, db, owner)
+    resp = api.get(f"{V1}/findings/{finding.id}")
+    payload = resp.json()["data"]["evaluations"][0]
+    assert payload["constitution_prohibition"] == {
+        "section": "9",
+        "quote": "An uncapped/unlimited liability term […]",
+    }
+
+
+def test_a_finite_liability_deviation_carries_no_citation(api, db, owner):
+    req = M.Requirement(code="LIABILITY-MSA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                              name="Limitation of Liability",
+                              evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                              created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv,
+                           classification=E.FindingClassification.DEVIATION)
+    ev = make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                        rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    ev.actual_value = {"cap_value": 24, "cap_unit": "MONTHS", "cap_basis": "FEES_PAID"}
+    db.flush(); db.commit()
+
+    sign_in(api, db, owner)
+    resp = api.get(f"{V1}/findings/{finding.id}")
+    payload = resp.json()["data"]["evaluations"][0]
+    assert "constitution_prohibition" not in payload
+
+
+def test_the_constitution_citation_is_omitted_without_legal_position_view(
+    api, db, owner,
+):
+    req = M.Requirement(code="LIABILITY-MSA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                              name="Limitation of Liability",
+                              evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                              created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv,
+                           classification=E.FindingClassification.DEVIATION)
+    ev = make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                        rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    ev.actual_value = {"cap_status": "UNLIMITED"}
+    db.flush(); db.commit()
+
+    restricted = without_legal_position(db, owner)
+    sign_in(api, db, restricted)
+    resp = api.get(f"{V1}/findings/{finding.id}")
+    payload = resp.json()["data"]["evaluations"][0]
+    assert "constitution_prohibition" not in payload
+    assert "constitution_prohibition" in LEGAL_POSITION_FIELDS
+
+
+# ==========================================================================
+# The requirement's plain-English description (owner, 2026-09-09): served on
+# the Finding, explanatory only, never read by an evaluator.
+# ==========================================================================
+def test_the_finding_carries_the_requirement_description(api, db, owner):
+    req = M.Requirement(code="TERM-NOTICE-NDA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(
+        requirement_id=req.id, version_number=1, name="TERM-NOTICE-NDA-001",
+        description="Either party may end the NDA early by giving a set period of written notice.",
+        evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON, created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv, classification=E.FindingClassification.MISSING)
+    make_evaluation(db, finding, classification=E.FindingClassification.MISSING,
+                    rule_outcome=E.RuleOutcome.NOT_APPLICABLE)
+    db.commit()
+
+    sign_in(api, db, owner)
+    body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
+    assert body["requirement"]["description"] == (
+        "Either party may end the NDA early by giving a set period of written notice.")
+    # Served to a caller WITHOUT legal_position.view too — it carries no value.
+    restricted = without_legal_position(db, owner)
+    sign_in(api, db, restricted)
+    body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
+    assert body["requirement"]["description"].startswith("Either party may end the NDA")
+    assert "expected_value" not in body["evaluations"][0]
+
+
+def test_description_never_reaches_an_evaluator():
+    """No module that CLASSIFIES reads `description`.
+
+    The evaluators, the extractor and the lexical mapper never see it. Since
+    `AM-54` (owner, 2026-09-09) the approved description IS read by the semantic
+    RECOGNITION stage — `analysis/semantic.py`, wired in `analysis/service.py` —
+    as the requirement's own wording for "does this clause address this
+    requirement?". That decides what is compared, never how the comparison comes
+    out: the classification still flows from the evaluators, which stay blind to it.
+    """
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1] / "legalmind"
+    offenders = []
+    recognition_only = {"semantic.py", "service.py"}
+    for package in ("evaluation", "analysis", "mapping", "extraction"):
+        for path in (root / package).rglob("*.py"):
+            # corpus.py loads golden-corpus FIXTURES, whose own `description`
+            # field names the test case — not a RequirementVersion's text.
+            if path.name == "corpus.py":
+                continue
+            if package == "analysis" and path.name in recognition_only:
+                continue
+            for n, line in enumerate(path.read_text().splitlines(), 1):
+                if "description" in line and not line.lstrip().startswith("#"):
+                    offenders.append(f"{path.relative_to(root)}:{n}")
+    assert offenders == [], offenders

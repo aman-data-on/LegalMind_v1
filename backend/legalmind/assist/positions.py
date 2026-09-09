@@ -165,21 +165,44 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                      limit: int = 10) -> list[PositionHit]:
     """Domain A lexical retrieval, authorization inside the function (r5).
 
-    Without BOTH assist.ask and configuration.view the result is [], exactly the
-    shape an empty corpus returns — `AM-25` r6/r7. Lexical-first: the shared
-    embedding machinery joins in the vector increment; the extractive answer's
+    Without assist.ask AND (configuration.view OR legal_position.view) the result is
+    [], exactly the shape an empty corpus returns — `AM-25` r6/r7. Lexical-first: the
+    shared embedding machinery joins in the vector increment; the extractive answer's
     correctness never depends on it.
     """
-    if P.ASSIST_ASK not in permissions or P.CONFIGURATION_VIEW not in permissions:
+    # `AM-32` r5 as amended by `AM-44` (2026-09-08): `configuration.view` OR
+    # `legal_position.view` — see `routing.positions_permitted` for the reasoning.
+    if P.ASSIST_ASK not in permissions or not (
+            P.CONFIGURATION_VIEW in permissions or P.LEGAL_POSITION_VIEW in permissions):
         return []
     schema = config.assist_schema()
+    # OR-semantics with a match floor (2026-09-08). `plainto_tsquery` ANDs every
+    # lexeme, so a natural question — "what is our approved position on widget
+    # handling?" — matched nothing because "approved" and "position" are not in the
+    # standard's text. The lexemes of the question are OR-ed instead, and a chunk
+    # must share at least two of them (one, for a one-word question) so a single
+    # common word never fetches the whole corpus. Ranked by matched lexemes, then
+    # ts_rank, then code — deterministic for identical input.
     rows = db.execute(sql_text(f"""
-        SELECT id, standard_code, document_type, source_clause, content,
-               ts_rank(content_tsv, plainto_tsquery('english', :q)) AS score
-        FROM "{schema}".position_chunks
-        WHERE content_tsv @@ plainto_tsquery('english', :q)
-        ORDER BY score DESC, standard_code
-        LIMIT :limit
+        WITH q AS (
+            SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
+        ), scored AS (
+            SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause,
+                   pc.content,
+                   (SELECT count(*)
+                      FROM q, unnest(tsvector_to_array(pc.content_tsv)) l
+                     WHERE l = ANY(q.lex)) AS matched,
+                   ts_rank(pc.content_tsv,
+                           to_tsquery('english', (SELECT array_to_string(lex, ' | ')
+                                                    FROM q))) AS score
+              FROM "{schema}".position_chunks pc
+             WHERE (SELECT cardinality(lex) FROM q) > 0
+        )
+        SELECT id, standard_code, document_type, source_clause, content, score, matched
+          FROM scored
+         WHERE matched >= LEAST(2, (SELECT cardinality(lex) FROM q))
+         ORDER BY matched DESC, score DESC, standard_code
+         LIMIT :limit
     """), {"q": query, "limit": limit}).all()
     log_event("assist.positions.searched", hits=len(rows),
               level=logging.DEBUG)

@@ -15,7 +15,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ValueCell } from "@/app/configuration/page";
+import { ValueCell } from "@/app/dashboard/configuration/page";
 import { api } from "@/lib/api";
 import type { RequirementVersion } from "@/lib/types";
 

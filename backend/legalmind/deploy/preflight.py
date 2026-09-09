@@ -542,8 +542,6 @@ def main() -> int:
     return 0 if is_ready(checks) else 1
 
 
-if __name__ == "__main__":                                # pragma: no cover
-    sys.exit(main())
 
 
 # --------------------------------------------------------------------------
@@ -799,3 +797,14 @@ def _tier2_quality_gate() -> Check:
                  "faithfulness joins the blocking set once generation on real "
                  "material is possible (AM-31)",
                  basis="AM-28, AM-31 m4")
+
+
+# The entry point stays LAST. Every check below `run_preflight` is a plain
+# module-level function; when this guard sat mid-file (before 2026-09-06),
+# `python -m legalmind.deploy.preflight` called main() the instant the
+# interpreter reached it — before the functions defined further down existed —
+# and died with NameError on `_assist_generation_gate`. pytest imports the whole
+# module first, so the suite never saw it. A production preflight that cannot be
+# run from the command line is not a preflight.
+if __name__ == "__main__":                                # pragma: no cover
+    sys.exit(main())

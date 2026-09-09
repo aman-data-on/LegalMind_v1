@@ -14,6 +14,7 @@
     "document only as above; never name the counterparty or signatories anywhere."
   ],
   "requirement_code": "COMPELLED-DISCLOSURE-NDA-001",
+  "description": "If a party is legally forced to disclose confidential information, it must promptly tell the other party in writing, where the law allows.",
   "ratified": "2026-08-19",
   "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 — NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
   "source_clause": "5 Compelled Disclosure",

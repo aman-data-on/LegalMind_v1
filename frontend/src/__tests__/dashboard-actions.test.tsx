@@ -14,27 +14,25 @@
  *    filter option all key off. If this value drifts from what the server's
  *    `_status_bucket` computes, all three go stale together and silently.
  *
- * 2. **Delete must go to the server.** Splicing a row out of a React array
- *    looks identical to the user and deletes nothing. It also can't know which
- *    of the two server-side modes ran.
+ * 2. **Archive must go to the server.** Splicing a row out of a React array
+ *    looks identical to the user and archives nothing.
  *
- * 3. **The confirmation must not lie about what happens.** An unanalyzed
- *    contract is destroyed; an analyzed one is withdrawn from view with its
- *    findings and audit trail retained (rule 17). Saying "permanently" in both
- *    cases is wrong in the case that involves legal records.
+ * 3. **Nothing destroys a contract (AB-12 r6).** The client has no delete
+ *    call at all; archive returns the contract with `archived_at` set, and the
+ *    confirmation copy says what the server does — hides and keeps.
  */
 
 import { describe, expect, it, vi } from "vitest";
 
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
-import { documentStatusBucket } from "@/components/workspace/model";
+import { documentStatusBucket, knownCounterparties } from "@/components/workspace/model";
 import type { Contract } from "@/lib/types";
 
 function contract(over: Partial<Contract> = {}): Contract {
   return {
     id: "c1", owner_id: "u1", name: "ACME MSA", contract_type: "MSA",
-    status: "ACTIVE", created_at: "2026-09-01T00:00:00Z",
+    status: "ACTIVE", archived_at: null, created_at: "2026-09-01T00:00:00Z",
     updated_at: "2026-09-01T00:00:00Z",
     ...over,
   } as Contract;
@@ -47,6 +45,7 @@ const analyzed = contract({
     review_id: "r1", review_status: "ANALYSIS_COMPLETE",
     created_at: "2026-09-01T00:00:00Z", completed_at: "2026-09-01T01:00:00Z",
     classification_counts: { MATCH: 6, DEVIATION: 5, MISSING: 4 },
+    user_status_counts: { ACCEPTABLE: 6, NEEDS_DECISION: 5, REQUIRES_MODIFICATION: 4 },
   },
 } as Partial<Contract>);
 
@@ -80,17 +79,31 @@ describe("attention discovery survives off the current page or filter", () => {
   });
 });
 
-describe("delete is a server operation", () => {
-  it("issues a DELETE for the contract and reports the mode the server chose", async () => {
-    const spy = vi.spyOn(api, "deleteContract")
-      .mockResolvedValue({ deleted: true, mode: "soft" });
+describe("archive is a server operation", () => {
+  it("issues the archive call and gets the contract back marked archived", async () => {
+    const spy = vi.spyOn(api, "archiveContract")
+      .mockResolvedValue(contract({ id: "c2", archived_at: "2026-09-05T00:00:00Z" }));
 
-    const result = await api.deleteContract("c2");
+    const result = await api.archiveContract("c2");
 
     expect(spy).toHaveBeenCalledWith("c2");
-    // The mode is the server's to decide and the UI's to report — not something
-    // the client may assume.
-    expect(result.mode).toBe("soft");
+    expect(result.archived_at).not.toBeNull();
+    spy.mockRestore();
+  });
+
+  /* Was "the client exposes no delete call for a contract at all" until
+     `AM-55` (AB-17, 2026-09-09) restored a real, unconditional
+     `DELETE /contracts/{id}` beside Archive on the owner's explicit choice.
+     That amendment replaced the backend twin of this pin
+     (`test_assist_schema.py`) and missed this one, so it failed from then until
+     2026-09-09. Rule 17 no longer holds for a contract removed this way; it
+     still governs Archive, asserted above. */
+  it("exposes the delete call AM-55 restored", async () => {
+    const spy = vi.spyOn(api, "deleteContract").mockResolvedValue(undefined);
+
+    await api.deleteContract("c3");
+
+    expect(spy).toHaveBeenCalledWith("c3");
     spy.mockRestore();
   });
 
@@ -105,25 +118,59 @@ describe("delete is a server operation", () => {
   });
 });
 
-describe("the destructive action is permission-gated", () => {
-  it("names the permission the server enforces", () => {
-    // Presentation gating only (47.6) — but it must gate on the SAME name the
+describe("the row actions are permission-gated", () => {
+  it("names the permissions the server enforces", () => {
+    // Presentation gating only (47.6) — but it must gate on the SAME names the
     // server checks, or the menu hides an action the user has, or offers one
     // they do not.
-    expect(P.CONTRACT_DELETE).toBe("contract.delete");
+    expect(P.CONTRACT_ARCHIVE).toBe("contract.archive");
+    expect(P.CONTRACT_TRANSFER).toBe("contract.transfer");
+    expect(P.DEPARTMENT_VIEW).toBe("department.view");
     expect(P.CONTRACT_UPDATE).toBe("contract.update");
   });
 });
 
-describe("the confirmation describes what the server will actually do", () => {
-  // The dialog branches on whether an analysis exists, because that is exactly
-  // what the server branches on. These two assertions are the contract between
-  // the copy and the endpoint.
-  it("treats a contract with an analysis as the retained case", () => {
-    expect(analyzed.latest_analysis != null).toBe(true);
+describe("the department view is a server scope, not a client filter", () => {
+  it("asks the server for scope=department rather than filtering rows locally", async () => {
+    const spy = vi.spyOn(api, "contracts").mockResolvedValue({
+      items: [], pagination: { page: 1, page_size: 25, total: 0 },
+    });
+    await api.contracts(1, 25, { scope: "department", sort: "created_desc" });
+    const [, , filters] = spy.mock.calls[0]!;
+    expect(filters).toMatchObject({ scope: "department" });
+    spy.mockRestore();
+  });
+});
+
+describe("declared version metadata — source, counterparty, effective date (2026-09-06)", () => {
+  it("is declared through PATCH /document-versions/{id}, where null clears a key", async () => {
+    const spy = vi.spyOn(api, "declareVersion").mockResolvedValue({} as never);
+
+    await api.declareVersion("v1", { source: "COUNTERPARTY", counterparty: null });
+
+    expect(spy).toHaveBeenCalledWith("v1", { source: "COUNTERPARTY", counterparty: null });
+    spy.mockRestore();
   });
 
-  it("treats a contract with no analysis as the destroyed case", () => {
-    expect(contract().latest_analysis != null).toBe(false);
+  it("the counterparty datalist holds only names already on the list — trimmed, once each, sorted", () => {
+    const rows = [
+      contract({ latest_version: { id: "a", version_number: 1, processing_status: "COMPLETED", counterparty: "Zeta Ltd" } }),
+      contract({ latest_version: { id: "b", version_number: 2, processing_status: "COMPLETED", counterparty: " Zeta Ltd " } }),
+      contract({ latest_version: { id: "c", version_number: 1, processing_status: "COMPLETED" } }),
+      contract({ latest_version: { id: "d", version_number: 1, processing_status: "COMPLETED", counterparty: "Alpha Pvt" } }),
+      contract({ latest_version: null }),
+    ];
+    expect(knownCounterparties(rows)).toEqual(["Alpha Pvt", "Zeta Ltd"]);
+    // No list yet (first load) → no suggestions, not a crash.
+    expect(knownCounterparties(null)).toEqual([]);
+  });
+});
+
+describe("the contract's lifecycle state is declared (P-1, 2026-09-06)", () => {
+  it("goes through the same PATCH as every other edit, and only when it changed", async () => {
+    const spy = vi.spyOn(api, "updateContract").mockResolvedValue(contract());
+    await api.updateContract("c1", { name: "ACME MSA", contract_type: "MSA", status: "ACTIVE" });
+    expect(spy).toHaveBeenCalledWith("c1", { name: "ACME MSA", contract_type: "MSA", status: "ACTIVE" });
+    spy.mockRestore();
   });
 });

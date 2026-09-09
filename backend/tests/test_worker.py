@@ -507,3 +507,49 @@ def test_the_preflight_fails_an_inline_production_deployment(monkeypatch):
 
     monkeypatch.setenv("LEGALMIND_BROKER_URL", BROKER)
     assert {c.name: c for c in run_preflight()}["analysis_worker"].status == PASS
+
+
+def test_the_ocr_advisory_lock_is_released_when_the_job_finishes(engine):
+    """Regression, 2026-09-06: the lock used to leak for the life of the process.
+
+    `engine().connect()` draws from a QueuePool, so closing the connection
+    returns it to the pool WITHOUT ending its PostgreSQL session — and a
+    session-level advisory lock survives that (and survives the rollback the
+    pool issues). The job's own comment claimed the `with` released it; it did
+    not, so every later attempt on that version — the retry `OCR_MAX_ATTEMPTS`
+    exists for, and now `/reprocess`, which shares the key — silently stepped
+    aside forever. `dispatch` now unlocks in a `finally`; this pins that.
+
+    Runs against the HARNESS engine (the `engine` fixture), not
+    `legalmind.db.session.engine()`. The app engine resolves the configured
+    database, which defaults to `legalmind_v1_dev` — a database that exists on a
+    developer's machine and on no CI runner, so this test failed there with
+    `database "legalmind_v1_dev" does not exist` rather than testing anything.
+    Nothing is given up: the property under test is that a session-level advisory
+    lock survives a pooled connection being returned to its pool, which is
+    SQLAlchemy's QueuePool and PostgreSQL's behaviour, not this database's.
+    """
+    import uuid
+
+    from sqlalchemy import text
+
+    from legalmind.worker.dispatch import version_lock_key
+
+    key = version_lock_key(uuid.uuid4())
+
+    def held() -> int:
+        with engine.connect() as probe:
+            return probe.execute(text(
+                "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
+                "AND ((classid::bigint << 32) | objid::bigint) = :k"
+            ), {"k": key}).scalar_one()
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                            {"k": key}).scalar() is True
+        assert held() == 1
+        # What the job's `finally` now does.
+        conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
+        conn.commit()
+
+    assert held() == 0, "the advisory lock outlived its holder — the leak is back"

@@ -213,7 +213,12 @@ LAYERING: dict[str, frozenset[str]] = {
     "evaluation": frozenset({"db", "domain"}),
     "mapping": frozenset({"db", "domain"}),
     "extraction": frozenset({"domain", "evaluation", "mapping"}),
-    "analysis": frozenset({"db", "domain", "evaluation", "extraction", "mapping",
+    # `assist` entered with `AM-54` (owner, 2026-09-09): the analysis orchestrator
+    # reaches the local embedding runtime and the single egress seam for the
+    # grounded semantic RECOGNITION stage. The edge is one-way and lands only in
+    # `analysis/` — `evaluation`, `mapping` and `extraction` still import no assist
+    # module, so no classification is ever produced by anything but the evaluators.
+    "analysis": frozenset({"assist", "db", "domain", "evaluation", "extraction", "mapping",
                            "observability", "security", "workflow"}),
     "workflow": frozenset({"db", "domain", "evaluation", "observability", "security"}),
     # The assist lane, added with Gate section 5b unit A2. Its allow-list is the

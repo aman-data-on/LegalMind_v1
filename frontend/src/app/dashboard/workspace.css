@@ -66,6 +66,16 @@
   --ws-ok: #11803a;    --ws-ok-soft: #e9f7ee;
   --ws-warn: #a85c05;  --ws-warn-soft: #fdf3e3;
   --ws-bad: #d52222;   --ws-bad-soft: #fdecec;
+  /* The three READER-STATUS tones (owner's reference design, 2026-09-09):
+     Acceptable green · Requires modification orange · Needs a decision indigo.
+     Named by tone slot (`ok`/`warn`/`bad`, see findingLanguage USER_STATUS_TONE)
+     so every status surface — tiles, bar, ring, chips, marks, badges, card
+     edge — reads ONE set. Distinct from `--ws-warn`/`--ws-bad`, which keep
+     their meanings elsewhere (an absent value's ✗, an error). Text on white:
+     orange 5.0:1, indigo 5.6:1; on their own soft tint both clear 4.5:1. */
+  --ws-tone-ok: var(--ws-ok);       --ws-tone-ok-soft: var(--ws-ok-soft);
+  --ws-tone-warn: #c2410c;          --ws-tone-warn-soft: #fff3ea;
+  --ws-tone-bad: #4f46e5;           --ws-tone-bad-soft: #eef2ff;
   --ws-card-shadow: 0 1px 2px rgba(14, 20, 32, 0.04), 0 1px 3px rgba(14, 20, 32, 0.06);
   /* Axis hues — chips only, never backgrounds (master prompt §4.2). */
   --ws-mapping: #0e7490;      --ws-mapping-soft: #e3f2f5;
@@ -125,7 +135,13 @@
   line-height: 1.5;
   color: var(--ws-ink-900);
   background: var(--ws-paper);
+  /* `dvh` after `vh` (2026-09-08): on a phone, `100vh` is the viewport with the
+     browser's own chrome hidden, so a full-height shell is taller than what is
+     actually on screen and the page starts life scrollable by the height of the
+     address bar. `dvh` is that bar-inclusive height, and the `vh` line stays as
+     the fallback for anything that does not know the unit. */
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -237,6 +253,30 @@
   color: var(--ws-ink-500); background: transparent; white-space: nowrap;
 }
 .ws-chip--type { color: var(--ws-ink-700); }
+/* Whose paper this version is (2026-09-06). Two chips, told apart by WEIGHT and
+   a border, never by colour alone: DD-9 keeps colour for the finding statuses,
+   and a green/red pair here would read as a verdict on the document — which
+   source is not. "Their document" is the one worth noticing, so it carries the
+   heavier border; both keep the neutral chip ink. */
+/* The linked company — a real control (it opens that company's documents), so
+   it reads as one: the chip's own border plus a pointer, no new colour. */
+.ws-chip--company {
+  color: var(--ws-ink-700); cursor: pointer; background: transparent;
+  font-family: var(--ws-mono);
+}
+.ws-chip--company:hover { border-color: var(--ws-ink-300); color: var(--ws-ink-900); }
+
+/* One company's documents. A plain list: the row IS the link, the chips say
+   what kind of paper it is and whether it is shelved. */
+.ws-companydocs { list-style: none; margin: var(--ws-s2) 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-companydocs li { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-companydocs a { color: var(--ws-ink-900); text-decoration: none; font-weight: 500; }
+.ws-companydocs a:hover { text-decoration: underline; }
+
+.ws-chip--source-our { color: var(--ws-ink-700); }
+.ws-chip--source-their {
+  color: var(--ws-ink-900); border-color: var(--ws-ink-300); font-weight: 600;
+}
 
 /* --------------------------------------------------------------------------
  * Workspace layout — cards on the grey canvas (DD-9): document area + side
@@ -319,14 +359,22 @@
 
 /* Collapsed mode: secondary regions become real tabs. */
 .ws-tabs { display: flex; gap: var(--ws-s1); padding: var(--ws-s2) var(--ws-s4); background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100); }
-.ws-tabs [role="tab"] {
+/* Two kinds of control share this strip. The workspace's real tabs carry
+   `role="tab"` and own a panel each; the Dashboard's scope filter carries
+   `aria-pressed` and re-queries one region (2026-09-08 — it used to claim
+   `role="tab"` for a panel it never had). Both are styled here so the product
+   keeps ONE segmented-control idiom, and the pressed/selected state is
+   whichever attribute the control legitimately uses. */
+.ws-tabs [role="tab"], .ws-tabs [aria-pressed] {
   font: inherit; font-size: var(--ws-text-sm); padding: 6px 12px; min-height: 36px;
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
   background: var(--ws-surface); color: var(--ws-ink-700); cursor: pointer;
   transition: background-color var(--ws-t), border-color var(--ws-t);
 }
-.ws-tabs [role="tab"]:hover[aria-selected="false"] { background: var(--ws-paper); border-color: var(--ws-ink-300); }
-.ws-tabs [role="tab"][aria-selected="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+.ws-tabs [role="tab"]:hover[aria-selected="false"],
+.ws-tabs [aria-pressed="false"]:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); }
+.ws-tabs [role="tab"][aria-selected="true"],
+.ws-tabs [aria-pressed="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
 
 /* --------------------------------------------------------------------------
  * Document area — the clauses card and the document card (DD-9).
@@ -335,8 +383,29 @@
   display: grid; grid-template-columns: var(--ws-clauses-w) minmax(0, 1fr);
   gap: var(--ws-s4); min-height: 0; flex: 1;
 }
-@media (max-width: 1100px) { .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 30%) 1fr; } }
-.ws-doc__clauses { display: flex; flex-direction: column; gap: var(--ws-s3); min-height: 0; }
+/* `minmax(260px, 45%)`, not `minmax(120px, 30%)` (2026-09-08, fourth pass) —
+   120px/30% left no room for even one visible outline entry once the status
+   legend (a fixed ~92px) and the outline's own title/search rows are properly
+   clipped to the row instead of overlapping past it; see `.ws-doc__clauses`
+   above for the clipping half of this fix. */
+@media (max-width: 1100px) { .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 45%) 1fr; } }
+/* AM-50 r5: the document is a fixed-width companion beside the findings, so its
+   own two-card split has to answer to the PANE's width, not the viewport's —
+   under ~900px of pane the contents card sits above the paper. */
+.ws-pane--document { container-type: inline-size; }
+@container (max-width: 900px) {
+  .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 32%) 1fr; }
+}
+/* `overflow: hidden` (2026-09-08, fourth pass) — found stacking the layout
+   into the new fixed-width document panel: this column's two children
+   (outline + legend) can together want more height than the grid row
+   allocates, and with no clipping here the excess painted PAST this box and
+   into the legend's own laid-out space, which meant a click meant for an
+   outline entry hit the legend instead ("intercepts pointer events",
+   Playwright's own diagnosis). `.ws-outline__list` already scrolls
+   internally; this is what makes that scrolling the thing that happens
+   instead of an overflow no container was catching. */
+.ws-doc__clauses { display: flex; flex-direction: column; gap: var(--ws-s3); min-height: 0; overflow: hidden; }
 .ws-outline { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: var(--ws-s3) 0 0; }
 .ws-outline__title {
   font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase;
@@ -390,9 +459,16 @@
 /* Status markers — the DD-9 traffic light, as icons (never color alone: each
    carries a title and an accessible name). */
 .ws-status { display: inline-flex; align-items: center; flex: none; }
+/* Two names, one rule: the outline's dots key off the CLASSIFICATION bucket
+   (`match`/`review`/`missing`), the three reader statuses key off their TONE
+   (`ok`/`warn`/`bad`, see `findingLanguage`). Same three channels either way —
+   aliases, never a second colour system. */
 .ws-status--match { color: var(--ws-ok); }
 .ws-status--review { color: var(--ws-warn); }
 .ws-status--missing { color: var(--ws-bad); }
+.ws-status--ok { color: var(--ws-tone-ok); }
+.ws-status--warn { color: var(--ws-tone-warn); }
+.ws-status--bad { color: var(--ws-tone-bad); }
 .ws-legend { padding: var(--ws-s3) var(--ws-s4); flex: none; }
 .ws-legend p { margin: 0 0 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-700); display: flex; align-items: center; gap: 7px; }
 .ws-legend p:last-child { margin-bottom: 0; }
@@ -596,7 +672,10 @@
  * renders filled at the SAME weight — no severity ranking within an axis. Attention
  * is its own channel (a left-border stripe), never merged into a chip's color.
  * ========================================================================== */
-.ws-filter { display: flex; gap: var(--ws-s1); margin-bottom: var(--ws-s4); }
+ /* Wraps. Without this the chip row forced the whole pane wider than its
+    column: a horizontal scrollbar under the findings and the last filter
+    clipped mid-word (2026-09-05, from the owner's screenshot). */
+.ws-filter { display: flex; flex-wrap: wrap; gap: var(--ws-s1); margin-bottom: var(--ws-s4); }
 .ws-filter button {
   font: inherit; font-size: var(--ws-text-xs); padding: 5px 11px; min-height: 30px;
   border-radius: 999px; border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
@@ -683,6 +762,10 @@
  * words differ (AM-29 r4). Nothing red, nothing iconic. */
 .ws-ask__answer--refusal p { color: var(--ws-ink-700); }
 .ws-ask__answer--routed { border-left-style: dashed; }
+.ws-ask__positions { margin-top: var(--ws-s3); }
+.ws-ask__cite--static { cursor: default; }
+.ws-ask__handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); margin-top: var(--ws-s3); }
+.ws-ask__counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s3); font-size: 12.5px; }
 .ws-ask__routed-label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
 .ws-ask__citations { list-style: none; margin: var(--ws-s3) 0 0; padding: var(--ws-s3) 0 0; border-top: 1px dashed var(--ws-ink-100); display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-ask__cite {
@@ -899,7 +982,7 @@
    with the fourth full-width, and "UNABLE_TO_EVALUATE" ellipsized to
    "UNABLE_TO…" — a status the reader could not read. 2×2 gives every tile the
    same shape and every label the room to wrap out in full. */
-.ws-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ws-s2); }
+.ws-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s2); }
 .ws-tile {
   position: relative; display: flex; flex-direction: column; gap: 2px;
   padding: var(--ws-s3); border-radius: var(--ws-radius); border: 1px solid transparent;
@@ -920,24 +1003,31 @@
   overflow-wrap: anywhere; line-height: 1.3; padding-right: 20px;
 }
 .ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
-.ws-tile--match { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
-.ws-tile--review { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
-.ws-tile--missing { background: var(--ws-bad-soft); border-color: color-mix(in srgb, var(--ws-bad) 25%, transparent); color: var(--ws-bad); }
+/* Keyed by TONE, not by the engine's old buckets (2026-09-09): green
+   Acceptable, amber Requires modification, red Needs a decision. */
+.ws-tile--ok { background: var(--ws-tone-ok-soft); border-color: color-mix(in srgb, var(--ws-tone-ok) 25%, transparent); color: var(--ws-tone-ok); }
+.ws-tile--warn { background: var(--ws-tone-warn-soft); border-color: color-mix(in srgb, var(--ws-tone-warn) 25%, transparent); color: var(--ws-tone-warn); }
+.ws-tile--bad { background: var(--ws-tone-bad-soft); border-color: color-mix(in srgb, var(--ws-tone-bad) 25%, transparent); color: var(--ws-tone-bad); }
+.ws-tile[disabled] { cursor: default; opacity: 0.55; }
+.ws-tile[disabled]:hover { box-shadow: none; }
+.ws-tile__sub { font-size: var(--ws-text-xs); color: inherit; opacity: 0.85; line-height: 1.3; }
+.ws-tile--decision { background: var(--ws-decision-soft); border-color: color-mix(in srgb, var(--ws-decision) 25%, transparent); color: var(--ws-decision); }
+.ws-status--decision { color: var(--ws-decision); }
 .ws-tile .ws-tile__n { color: var(--ws-ink-900); }
 
 .ws-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--ws-ink-100); }
 .ws-bar__seg { flex-basis: 0; }
-.ws-bar__seg--match { background: var(--ws-ok); }
-.ws-bar__seg--review { background: var(--ws-warn); }
-.ws-bar__seg--missing { background: var(--ws-bad); }
+.ws-bar__seg--ok { background: var(--ws-tone-ok); }
+.ws-bar__seg--warn { background: var(--ws-tone-warn); }
+.ws-bar__seg--bad { background: var(--ws-tone-bad); }
 
 /* The donut — real counts, raw total in the center. */
 .ws-ring { display: flex; align-items: center; gap: var(--ws-s4); }
 .ws-ring__svg { width: 96px; height: 96px; flex: none; transform: none; }
 .ws-ring__seg { fill: none; stroke-width: 12; }
-.ws-ring__seg--match { stroke: var(--ws-ok); }
-.ws-ring__seg--review { stroke: var(--ws-warn); }
-.ws-ring__seg--missing { stroke: var(--ws-bad); }
+.ws-ring__seg--ok { stroke: var(--ws-tone-ok); }
+.ws-ring__seg--warn { stroke: var(--ws-tone-warn); }
+.ws-ring__seg--bad { stroke: var(--ws-tone-bad); }
 .ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 650; fill: var(--ws-ink-900); }
 .ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
 .ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
@@ -952,9 +1042,11 @@
 .ws-ring__go:hover { background: var(--ws-paper); }
 .ws-ring__go:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 .ws-ring__pct { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
-.ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-warn); }
-.ws-ring__legend li[data-bucket="match"] .ws-ring__swatch { background: var(--ws-ok); }
-.ws-ring__legend li[data-bucket="missing"] .ws-ring__swatch { background: var(--ws-bad); }
+.ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-tone-warn); }
+.ws-ring__legend li[data-tone="ok"] .ws-ring__swatch { background: var(--ws-tone-ok); }
+.ws-ring__legend li[data-tone="bad"] .ws-ring__swatch { background: var(--ws-tone-bad); }
+.ws-ring__word { flex: 1; min-width: 0; }
+.ws-ring__go[disabled] { cursor: default; opacity: 0.55; }
 
 /* Findings awaiting a decision — reference-style cards: status left border,
    chip, description. (Named "Key risks" until 2026-09-01; rule 12 has no risk
@@ -985,11 +1077,49 @@
 .ws-chip--bucket-review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); font-weight: 600; }
 .ws-chip--bucket-missing { background: var(--ws-bad-soft); color: var(--ws-bad); border-color: color-mix(in srgb, var(--ws-bad) 28%, transparent); font-weight: 600; }
 
-/* Key obligations — the document's own role labels, two-up when room allows. */
-.ws-obligations { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--ws-s3); }
-.ws-obligations__group { display: flex; flex-direction: column; gap: var(--ws-s2); min-width: 0; }
-.ws-obligations__party { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+/* Key obligations — a single-open accordion (2026-09-08). Columns made the
+   section as tall as its longest party and left the rest of the row empty. */
+/* Three cards side by side (owner's reference, 2026-09-09); the open one grows,
+   the others stay a header with a count. Single column below 900px. */
+.ws-obligations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s3); align-items: start; }
+@media (max-width: 900px) { .ws-obligations { grid-template-columns: 1fr; } }
+.ws-obligations__group {
+  min-width: 0; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  transition: border-color var(--ws-t);
+}
+.ws-obligations__group[data-open="true"] { border-color: var(--ws-ink-300); }
+.ws-obligations__party:hover .ws-obligations__chev,
+.ws-obligations__party:hover .ws-obligations__partyname { color: var(--ws-accent); }
+.ws-obligations__party {
+  display: flex; align-items: center; gap: var(--ws-s2); width: 100%;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
+  background: none; border: 0; padding: var(--ws-s2) var(--ws-s3);
+  text-align: left; cursor: pointer; border-radius: inherit;
+}
+/* The ring sits INSIDE the card: the default 2px offset drew it over the first
+   obligation of the list directly below. */
+.ws-obligations__party:focus-visible { outline-offset: -2px; }
+.ws-obligations__partyname { flex: 1; min-width: 0; }
+.ws-obligations__count {
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
+  font-variant-numeric: tabular-nums;
+}
+.ws-obligations__chev { display: inline-flex; color: var(--ws-ink-500); }
 .ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ws-obligations__group .ws-obligations__list {
+  padding: var(--ws-s1) var(--ws-s3) var(--ws-s3);
+  animation: ws-obligations-open 140ms ease-out;
+}
+/* `display: flex` above out-specifies the UA stylesheet's `[hidden]` rule. */
+.ws-obligations__list[hidden] { display: none; }
+@keyframes ws-obligations-open {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-obligations__group .ws-obligations__list { animation: none; }
+}
 .ws-obligations__item { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
 .ws-obligations__item .ws-status { margin-top: 2px; }
 .ws-obligations__text { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
@@ -1170,7 +1300,7 @@
 }
 .ws-finding__acts {
   display: flex; gap: var(--ws-s4); align-items: baseline;
-  margin-top: var(--ws-s2); flex-wrap: wrap;
+  margin-top: 0; flex-wrap: wrap;
 }
 .ws-explain { margin: var(--ws-s2) 0; font-size: var(--ws-text-sm); }
 .ws-explain summary { cursor: pointer; color: var(--ws-accent); }
@@ -1306,7 +1436,10 @@
   padding: 10px var(--ws-s4); display: flex; flex-direction: column; gap: 4px;
   transition: border-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
-.ws-doctile:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
+/* Only a tile that GOES somewhere responds to the pointer (2026-09-08): three
+   of the four are plain counts, and giving all four a lift-and-brighten hover
+   advertised three controls that do nothing when clicked. */
+.ws-doctile--act:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
 .ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
 .ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
 .ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
@@ -1365,9 +1498,9 @@
   min-width: 22px; text-align: center; font-family: var(--ws-mono); font-size: 11px;
   font-weight: 650; padding: 2px 6px; border-radius: var(--ws-radius-sm);
 }
-.ws-findings-badge--match { background: var(--ws-ok-soft); color: var(--ws-ok); }
-.ws-findings-badge--review { background: var(--ws-warn-soft); color: var(--ws-warn); }
-.ws-findings-badge--missing { background: var(--ws-bad-soft); color: var(--ws-bad); }
+.ws-findings-badge--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); }
+.ws-findings-badge--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); }
+.ws-findings-badge--bad { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); }
 .ws-findings-badge--zero { opacity: 0.4; }
 
 .ws-doc-name { display: inline-flex; align-items: center; gap: 7px; }
@@ -1437,9 +1570,9 @@
 /* Findings badges destyled to plain numbers (2026-09-02): the filled pill
  * background read as noisy sitting three-wide in a table cell that also has
  * a status pill and a type chip already competing for attention. Colour and
- * left-to-right order (match, review, missing) still carry the meaning — the
- * SAME three DD-12-audited hues, which already clear 4.5:1 on white as plain
- * text, not only on their own soft tint. */
+ * left-to-right order (Acceptable, Requires modification, Needs a decision)
+ * still carry the meaning — the SAME three DD-12-audited hues, which already
+ * clear 4.5:1 on white as plain text, not only on their own soft tint. */
 .ws-docs--index .ws-findings-badge {
   min-width: 0; background: transparent; padding: 0 3px;
   font-size: 12.5px; font-weight: 700;
@@ -1870,13 +2003,26 @@
    widening the page widens the document name rather than the "Added" date. */
 @media (min-width: 1200px) {
   .ws-docs--index .ws-docs__table table { table-layout: fixed; }
-  .ws-docs--index .ws-docs__table th:nth-child(1) { width: 32%; }
+  .ws-docs--index .ws-docs__table th:nth-child(1) { width: 30%; }
   .ws-docs--index .ws-docs__table th:nth-child(2) { width: 8%; }
   .ws-docs--index .ws-docs__table th:nth-child(3) { width: 13%; }
   .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(5) { width: 13%; }
+  /* Action widened 11% → 14%, the two points coming from Document, which has
+     the slack (2026-09-08). At 11% the cell was 2px narrower than its own
+     contents on the rows whose verb is the longest — "Analyze" — so the ⋯
+     toggle was clipped by the card's `overflow: hidden`, AND the table grew a
+     2px horizontal scroller. That scroller had a second-order consequence
+     worth recording: a click on the toggle made the browser scroll those 2px
+     to reveal it, the scroll dismissed the menu that the same click had just
+     opened, and the row menu became unopenable by pointer on exactly those
+     rows. `dashboard-list.spec.ts` caught it; a 2px overflow is not a
+     cosmetic problem. */
   .ws-docs--index .ws-docs__table th:nth-child(6) { width: 11%; }
-  .ws-docs--index .ws-docs__table th:nth-child(7) { width: 11%; }
+  .ws-docs--index .ws-docs__table th:nth-child(7) { width: 14%; }
+  /* The action pair sets its own tighter gutter: it holds two controls, not a
+     value, and 16px each side is space the controls need more. */
+  .ws-docs--index .ws-docs__table td:nth-child(7) { padding-inline: var(--ws-s3); }
 
   /* A long filename must not force the row taller. It clips to one line with the
      full value on the link's `title`, which is the pattern for an unpredictable
@@ -1976,10 +2122,6 @@
  * shared `.ws-docs` / `.ws-docs__table` / `.ws-pager` selectors also render
  * Reviews, Legal, Ask and Admin, so nothing here may widen to them.
  * ========================================================================== */
-
-/* --- Primary action --------------------------------------------------- */
-/* Upload reads as one button, not a permanently-open form holding the fold. */
-.ws-dash__act { display: flex; justify-content: flex-end; }
 
 /* The disclosure panel. A top border and a flat surface — no shadow: DESIGN.md
    reserves floating-panel depth for real overlays, and this is inline content
@@ -2149,3 +2291,1018 @@
 .ws-report__lead { display: grid; }
 .ws-report__lead-stat { display: grid; gap: 4px; }
 .ws-report__lead-act { font-size: var(--ws-text-sm); font-weight: 500; justify-self: start; }
+
+/* Outcome glossary (2026-09-04) — a native <details>, collapsed by default, so
+   a working reviewer pays nothing for it and a first-time reader still gets an
+   answer without leaving the findings. */
+.ws-glossary { margin: 0 0 var(--ws-s4); font-size: var(--ws-text-sm); }
+.ws-glossary > summary {
+  cursor: pointer; color: var(--ws-ink-500); padding: 4px 0;
+  font-size: var(--ws-text-xs); letter-spacing: 0.02em;
+}
+.ws-glossary > summary:hover { color: var(--ws-ink-900); }
+.ws-glossary__list { margin: var(--ws-s2) 0 0; display: grid; gap: var(--ws-s2); }
+.ws-glossary__row { display: grid; grid-template-columns: 9.5rem 1fr; gap: var(--ws-s3); align-items: start; }
+.ws-glossary__row dd { margin: 0; color: var(--ws-ink-700); line-height: 1.5; }
+@media (max-width: 720px) { .ws-glossary__row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Summary's call to action — the count and the way through, in place of a
+   second rendering of the findings list (2026-09-04). */
+.ws-analysis__act { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.6; }
+.ws-analysis__act .ws-viewall { margin-left: 2px; }
+
+/* The shortcut affordance (2026-09-04) — bottom-left, opposite the Ask dock so
+   the two never collide, and quiet enough that a mouse user never notices it. */
+.ws-shortcut-hint {
+  position: absolute; left: var(--ws-s4); bottom: var(--ws-s4); z-index: 5;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
+  color: var(--ws-ink-500); font: inherit; font-size: var(--ws-text-sm);
+  cursor: pointer; opacity: 0.55; transition: opacity var(--ws-t), color var(--ws-t);
+}
+.ws-shortcut-hint:hover, .ws-shortcut-hint:focus-visible {
+  opacity: 1; color: var(--ws-ink-900);
+}
+@media (max-width: 620px) { .ws-shortcut-hint { display: none; } }
+
+/* ---- version comparison (33.15; design pass 2026-09-05) -----------------
+   A revision reads in one direction: what it says now, then what it used to
+   say. So the clause is a single column — current wording leading in the house
+   serif quote role, superseded wording beneath it, quieter and marked by a
+   rule. Two equal columns asked the reader to diff by eye, and gave the
+   superseded text a weight it has not earned.
+
+   NO STATUS COLOUR ANYWHERE BELOW, deliberately. 33.16 forbids the comparison
+   implying acceptability, and a red "changed" or a green "unchanged" would say
+   exactly that. The hierarchy is built from ink weight and one hairline rule;
+   the only colour in the panel is the quoted Finding chip, which is the
+   engine's own classification and is coloured identically everywhere else.
+
+   Scrolls itself: `.ws-workmain` owns page scrolling, so an un-capped block
+   here would push the panes off the viewport. */
+.ws-compare {
+  max-width: 72rem; width: 100%; margin: 0 auto; flex: none;
+  padding: var(--ws-s4) var(--ws-s4) var(--ws-s5);
+  display: grid; gap: var(--ws-s4);
+  max-height: 46vh; overflow-y: auto;
+  border-bottom: 1px solid var(--ws-ink-100);
+}
+
+/* Header: a statement of what is on screen — "Version 1 → Version 2" — with the
+   summary as a sentence beneath it rather than a row of statistic tiles. */
+.ws-compare__head { display: grid; gap: var(--ws-s2); }
+.ws-compare__pair { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-compare__arrow { color: var(--ws-ink-500); font-size: var(--ws-text-md); }
+.ws-compare__pick select {
+  font: inherit; font-size: var(--ws-text-md); font-weight: 600;
+  color: var(--ws-ink-900); background: transparent;
+  border: 1px solid transparent; border-radius: var(--ws-radius-sm);
+  padding: 2px 4px; cursor: pointer;
+  transition: border-color var(--ws-t), background var(--ws-t);
+}
+.ws-compare__pick select:hover { border-color: var(--ws-ink-300); background: var(--ws-surface); }
+.ws-compare__counts {
+  margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The clause list. No card chrome: each clause is separated by the rule it
+   already needs, which is one less box than a card would draw. */
+.ws-compare__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.ws-compare__row {
+  display: grid; gap: var(--ws-s2);
+  padding: var(--ws-s4) 0;
+  border-top: 1px solid var(--ws-ink-100);
+}
+.ws-compare__row:first-child { border-top: 0; padding-top: 0; }
+
+.ws-compare__clause {
+  margin: 0; display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: var(--ws-s2); font-size: var(--ws-text-sm);
+}
+.ws-compare__clause .ws-mono { color: var(--ws-ink-900); font-weight: 600; }
+.ws-compare__title { color: var(--ws-ink-900); font-weight: 550; }
+/* Sentence case, in the flow beside the clause it describes — the status is the
+   ANSWER for this row, not metadata, so it is not tracked-out chrome. */
+.ws-compare__status { color: var(--ws-ink-500); }
+
+.ws-compare__side { display: grid; gap: 2px; }
+/* Contract wording in the house quote role (`.ws-quote` supplies the serif and
+   the italic), at a line length that stays readable and with the extra leading
+   serif body text needs. */
+.ws-compare__excerpt {
+  margin: 0; max-width: 62ch;
+  font-size: var(--ws-text-base); line-height: 1.65; color: var(--ws-ink-900);
+}
+/* The superseded wording: same text, less voice. The rule carries the "this is
+   the older reading" relationship that the indent alone would not. */
+.ws-compare__side--was {
+  margin-top: var(--ws-s1);
+  padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100);
+}
+.ws-compare__side--was .ws-compare__excerpt {
+  font-size: var(--ws-text-sm); line-height: 1.6; color: var(--ws-ink-500);
+}
+.ws-compare__was { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* The ellipsis a windowed excerpt starts or ends with — quieter than the text
+   it bounds, so it reads as a cut rather than as the document's own wording. */
+.ws-compare__cut { color: var(--ws-ink-300); }
+.ws-compare__gone { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-compare__page { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+.ws-compare__findings {
+  margin: var(--ws-s1) 0 0; display: flex; flex-wrap: wrap;
+  align-items: center; gap: var(--ws-s2);
+}
+.ws-compare__findlabel { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+@media (max-width: 720px) {
+  .ws-compare { max-height: none; }
+}
+
+/* ---- finding card heading (design pass 2026-09-05) ----------------------
+   The requirement's name is the heading; its code is a reference beside it, in
+   the mono role every other identifier in this product uses. `anywhere` on the
+   wrap: a long unbroken code like EARLY-TERM-RESTRICTION-MSA-001 has no break
+   opportunity of its own, so it used to set the minimum width of a 380px
+   column and push the pane into a horizontal scroll. */
+/* `break-word`, NOT `anywhere` — and the difference is the whole bug. Both let a
+   long unbreakable code wrap, but `anywhere` also shrinks the element's
+   MIN-CONTENT size to a single character. In a flex row an item's automatic
+   minimum size IS its min-content size, so the browser correctly laid the title
+   out one letter per line (2026-09-05, reported from the live site). `min-width:
+   0` lets the item shrink below its content without that. */
+.ws-finding__title { overflow-wrap: break-word; min-width: 0; }
+/* Shown only when another card on screen carries the same title — the family
+   of the standard this finding was measured against, not a second heading. */
+.ws-finding__family { font-weight: 500; color: var(--ws-ink-500); white-space: nowrap; }
+.ws-finding__code {
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  overflow-wrap: break-word; min-width: 0;
+}
+/* The finding's workflow position: present, but not a second filled chip
+   competing with the evaluation's actionable flag. */
+.ws-finding__status { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* Where the document's numbering starts over — an annexed policy or a schedule
+   with its own §1. A quiet rule with a label, not a section header: it marks a
+   fact about the numbering, and the outline must not imply it knows what the
+   annexure is. */
+.ws-outline__break {
+  margin: var(--ws-s3) 0 var(--ws-s1); padding: 0 12px;
+  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ws-ink-500); border-top: 1px solid var(--ws-ink-100);
+  padding-top: var(--ws-s2);
+}
+
+/* ---- the review loop, both directions (2026-09-05) ---------------------
+   A citation used to eject the reader from the original document into the
+   extracted text. It now turns the original to the cited page instead, and
+   these two lines say where the reader landed and how to go on or back. Quiet
+   by construction: they appear only when a citation actually moved someone. */
+.ws-doccard__cited {
+  margin: 0; display: inline-flex; align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+}
+
+/* The reverse link: from a clause to what the analysis said about it. Sits
+   above the clause text in the metadata voice the row already uses for its
+   location and OCR marks, so it reads as a note ON the clause rather than as
+   part of it. */
+.ws-row__findings {
+  margin: 0 0 var(--ws-s1); display: flex; flex-wrap: wrap;
+  align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-xs);
+}
+.ws-row__findlabel { color: var(--ws-ink-500); }
+
+/* ==========================================================================
+   Administration — Users · Departments · Roles & permissions · Audit log
+   (2026-09-05). Built on the existing tokens and primitives: no new colour, no
+   new type scale, no component library. The only new shapes are the two the
+   area actually needs — a list-plus-detail split, and a role card.
+   ========================================================================== */
+.ws-admin { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s4); }
+.ws-admin__head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--ws-s4); flex-wrap: wrap;
+}
+.ws-admin__head h1 { margin: 0 0 2px; font-size: var(--ws-text-lg); font-weight: 600; }
+.ws-adminnav { margin: 0 calc(-1 * var(--ws-s4)); }
+.ws-adminnav .ws-tab { text-decoration: none; }
+
+/* List and detail sit side by side on a wide screen and stack on a narrow one;
+   the detail never becomes a modal, because an administrator compares it with
+   the row it came from. */
+.ws-admin__body { display: flex; gap: var(--ws-s4); align-items: flex-start; }
+.ws-admin__main { flex: 1 1 auto; min-width: 0; display: flex;
+                  flex-direction: column; gap: var(--ws-s3); }
+.ws-admin__name {
+  font: inherit; font-weight: 500; background: none; border: 0; padding: 0;
+  color: var(--ws-ink-900); cursor: pointer; text-align: left;
+}
+.ws-admin__name:hover { text-decoration: underline; }
+.ws-admin__footnote { max-width: 68ch; }
+.ws-tr--selected { background: var(--ws-paper); }
+
+.ws-detail {
+  flex: 0 0 360px; align-self: stretch; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s4);
+  max-height: calc(100vh - 180px); overflow-y: auto;
+}
+.ws-detail__head { display: flex; align-items: flex-start;
+                   justify-content: space-between; gap: var(--ws-s3); }
+.ws-detail__title { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.ws-detail__sub { margin: 2px 0 0; font-size: var(--ws-text-xs);
+                  color: var(--ws-ink-500); word-break: break-all; }
+.ws-detail__section { display: flex; flex-direction: column; gap: var(--ws-s2);
+                      padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
+.ws-detail__section h3 { margin: 0; font-size: var(--ws-text-xs); font-weight: 600;
+                         text-transform: uppercase; letter-spacing: 0.04em;
+                         color: var(--ws-ink-500); }
+.ws-detail__acts { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-detail__roles { display: flex; flex-wrap: wrap; gap: var(--ws-s1); }
+
+.ws-deflist { margin: 0; display: grid; gap: var(--ws-s2); }
+.ws-deflist > div { display: grid; grid-template-columns: 42% 1fr;
+                    gap: var(--ws-s2); align-items: baseline; }
+.ws-deflist dt { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-deflist dd { margin: 0; font-size: var(--ws-text-sm); word-break: break-word; }
+
+.ws-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-timeline li { display: grid; gap: 2px; font-size: var(--ws-text-xs);
+                  padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100); }
+.ws-timeline__when { color: var(--ws-ink-500); }
+.ws-timeline__what { font-weight: 500; }
+
+.ws-memberlist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-memberlist li { display: flex; align-items: baseline; gap: var(--ws-s2);
+                    flex-wrap: wrap; font-size: var(--ws-text-sm); }
+
+.ws-rolecards { display: grid; gap: var(--ws-s3);
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.ws-rolecard {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); padding: var(--ws-s4);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-rolecard__head { display: flex; align-items: flex-start;
+                     justify-content: space-between; gap: var(--ws-s2); }
+.ws-rolecard__name { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.ws-rolecard__tags { display: flex; gap: var(--ws-s1); flex-wrap: wrap;
+                     justify-content: flex-end; }
+.ws-rolecard__perms { display: grid; gap: var(--ws-s3); margin-top: var(--ws-s2); }
+.ws-rolecard__perms h3 { margin: 0; font-size: var(--ws-text-xs); font-weight: 600;
+                         color: var(--ws-ink-500); }
+.ws-rolecard__perms ul { list-style: none; margin: var(--ws-s1) 0 0; padding: 0;
+                         display: grid; gap: var(--ws-s1); }
+.ws-rolecard__perms li { display: flex; align-items: baseline; gap: var(--ws-s2);
+                         flex-wrap: wrap; font-size: var(--ws-text-xs); }
+
+.ws-field--check { flex-direction: row; align-items: center; gap: var(--ws-s2); }
+.ws-field--check input { width: auto; }
+.ws-auditpayload {
+  margin: var(--ws-s2) 0 0; padding: var(--ws-s2); max-width: 46ch;
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm);
+  font-family: var(--ws-mono); font-size: var(--ws-text-xs);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .ws-admin__body { flex-direction: column; }
+  .ws-detail { flex: 1 1 auto; width: 100%; max-height: none; }
+}
+
+
+/* ==========================================================================
+ * Dashboard — production-quality audit pass (owner, 2026-09-08, explicit
+ * UX-review request; the 2026-08-31 freeze's own stated exception).
+ *
+ * Every rule below answers something MEASURED in a browser across the twelve
+ * viewports 320×568 → 2560×1440, with forty seeded contracts including
+ * 200-character names and undeclared types — not something inferred from
+ * reading the markup. The measurement is quoted with each fix.
+ *
+ * Scope discipline is unchanged from the blocks above: `.ws-docs--index` and
+ * this page's own classes only, except where a defect is genuinely in a shared
+ * primitive (the modal, the tab strip) and fixing it anywhere else would leave
+ * the same bug on the pages that share it.
+ * ========================================================================== */
+
+/* --- 1. The modal could not be completed on a short viewport ------------- */
+/* MEASURED at 320×568: the Edit dialog rendered with `boxTop: -38` and
+   `boxBottom: 606` in a 568px viewport — its title clipped off the top, "Save
+   changes" 38px below the bottom edge, and NOTHING scrollable, because the
+   overlay is `position: fixed; inset: 0` with `align-items: center` and the box
+   had no height cap. The dialog was not merely ugly, it was impossible to
+   submit. At 1280×600 it measured 587 of 600px: one more field from the same
+   failure, and the Edit dialog grows by three fields whenever the contract has
+   a version to declare.
+
+   The fix is the overlay owning the scroll while the box keeps `margin: auto`.
+   A flex item with auto margins still centres when there is free space, so a
+   short dialog is centred exactly as before and a tall one scrolls — one rule,
+   no sticky-footer machinery, and it fixes every dialog in the product rather
+   than the one this audit happened to open. */
+/* First attempt, and why it was not enough. Scrolling the OVERLAY (`align-items:
+   flex-start` + `margin: auto` + `overflow-y: auto`) is the pattern usually
+   recommended, and re-measuring caught it failing the same way: at 320×568 the
+   box reported `top: 0` against a 24px overlay padding, i.e. auto margins on an
+   overflowing flex item had pulled it back OUT of the scrollable region — the
+   long-standing flexbox overflow trap. The title was reachable, "Save changes"
+   at 650px still was not.
+
+   So the BOX is the scroller instead, capped at the viewport and centred by the
+   overlay exactly as before. Deterministic — no auto-margin interaction at all
+   — and it lets the action row stay put while the fields move, which is better
+   than either version: on the shortest viewport the reader can always see what
+   they are about to confirm. */
+.ws-modal {
+  align-items: center;
+  padding-block: var(--ws-s4);
+  overscroll-behavior: contain;
+}
+.ws-modal__box {
+  max-height: calc(100vh - 2 * var(--ws-s4));
+  max-height: calc(100dvh - 2 * var(--ws-s4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The confirm/cancel pair rides the bottom of the box's own scrollport, so it
+   never scrolls out of reach. The negative margin and padding put its surface
+   flush with the box's padding edge, and the hairline appears only once there
+   is something scrolled under it. */
+.ws-modal__acts {
+  position: sticky; bottom: calc(-1 * var(--ws-s5));
+  margin: var(--ws-s1) calc(-1 * var(--ws-s5)) calc(-1 * var(--ws-s5));
+  padding: var(--ws-s3) var(--ws-s5);
+  background: var(--ws-surface);
+  border-top: 1px solid transparent;
+}
+.ws-modal__box:has(.ws-modal__acts) { scroll-padding-bottom: var(--ws-s7); }
+/* A form's fields are the part that scrolls; the grid gap must not collapse the
+   sticky row's own spacing. */
+.ws-modal__box form { min-height: 0; }
+
+/* --- 2. Touch targets, and the iOS zoom trap ---------------------------- */
+/* MEASURED at every width: the filter selects render 38px tall, `.ws-btn--sm`
+   26–32px, and the ⋯ row toggle 30×30 — all under the 44px minimum for a
+   finger. Raised only where a finger is the likely pointer, so the deliberate
+   desktop density above 900px is untouched.
+
+   The 16px input floor is the other half: iOS Safari zooms the whole page when
+   a focused input's text is smaller than 16px, and every control on this
+   toolbar was 13px. That zoom is what leaves a phone user scrolled sideways
+   inside a page that has no horizontal overflow of its own. */
+@media (max-width: 899px) {
+
+  .ws-docs--index .ws-doctoolbar__search,
+  .ws-docs--index .ws-doctoolbar__select select,
+  .ws-docs--index .ws-field input,
+  .ws-docs--index .ws-field select,
+  .ws-modal__box input,
+  .ws-modal__box select {
+    min-height: 44px;
+    font-size: var(--ws-text-md);
+  }
+  .ws-docs--index .ws-doctoolbar__search input { font-size: var(--ws-text-md); }
+  .ws-docs--index .ws-btn,
+  .ws-context__acts .ws-btn,
+  .ws-modal__box .ws-btn { min-height: 44px; }
+  .ws-docs--index .ws-pager .ws-btn--sm { min-height: 44px; min-width: 44px; }
+  .ws-docs--index .ws-menu__toggle { min-height: 44px; min-width: 44px; }
+  .ws-menu__item { min-height: 44px; align-items: center; display: flex; }
+
+  .ws-docs--index .ws-docs__table table { display: block; width: 100%; }
+
+  /* The header row is the card labels' source, so it is announced rather than
+     drawn — `data-label` below repeats each one in place. */
+  .ws-docs--index .ws-docs__table thead {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+
+  .ws-docs--index .ws-docs__table tbody {
+    display: grid; gap: var(--ws-s3); padding: var(--ws-s3);
+  }
+
+  .ws-docs--index .ws-docs__table tbody tr {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--ws-s2) var(--ws-s4);
+    padding: var(--ws-s3) var(--ws-s4);
+    border: 1px solid var(--ws-ink-100);
+    border-radius: var(--ws-radius);
+    background: var(--ws-surface);
+  }
+  .ws-docs--index .ws-docs__table tbody tr:hover td { background: transparent; }
+  .ws-docs--index .ws-docs__table tbody tr:hover { border-color: var(--ws-ink-300); }
+
+  .ws-docs--index .ws-docs__table td {
+    display: flex; align-items: center; gap: 6px;
+    border: 0; padding: 0; font-size: var(--ws-text-sm);
+  }
+
+  /* The name is the card's title: its own full-width line, wrapping rather
+     than truncating — a card has the room a fixed column does not, and a
+     200-character contract name is exactly the case where an ellipsis costs
+     the reader the part that identifies it. */
+  .ws-docs--index .ws-docs__table td:first-child {
+    flex: 1 0 100%; font-size: var(--ws-text-base); font-weight: 600;
+  }
+  .ws-docs--index .ws-docs__table td:first-child .ws-doc-name { align-items: start; }
+  .ws-docs--index .ws-docs__table td:first-child .ws-doc-name svg { margin-top: 3px; }
+  .ws-docs--index .ws-docs__table td:first-child .ws-doc-name__text {
+    white-space: normal; overflow: visible;
+    overflow-wrap: anywhere;
+  }
+
+  /* Each remaining value states what it is. `attr()` keeps the label in one
+     place — the cell's own `data-label` — so a column can never be renamed in
+     the header and stay stale down here. */
+  .ws-docs--index .ws-docs__table td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--ws-text-xs); font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--ws-ink-500); flex: none;
+  }
+  /* Type and Status are self-describing chips; a label beside them is noise. */
+  .ws-docs--index .ws-docs__table td[data-label="Type"]::before,
+  .ws-docs--index .ws-docs__table td[data-label="Status"]::before { content: none; }
+
+  /* The actions close the card, on their own rule, right-aligned — the same
+     reading order the desktop row has, wrapped. */
+  .ws-docs--index .ws-docs__table td:last-child {
+    flex: 1 0 100%; justify-content: flex-end;
+    margin-top: 2px; padding-top: var(--ws-s2);
+    border-top: 1px solid var(--ws-ink-100);
+  }
+
+  /* The attention cue survives the reshape: a left stripe on the card, the
+     same `--ws-warn` channel the tile and the pill use. A full amber card
+     background at this size read as an error rather than a flag. */
+  .ws-docs--index .ws-docs__table tr.ws-tr--attention {
+    border-left: 3px solid var(--ws-warn);
+    background: var(--ws-warn-soft);
+  }
+  .ws-docs--index .ws-docs__table tr.ws-tr--attention td { background: transparent; }
+
+  .ws-doctable .ws-doctoolbar {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ws-s2);
+  }
+  .ws-docs--index .ws-doctoolbar__search { grid-column: 1 / -1; min-width: 0; }
+  .ws-docs--index .ws-doctoolbar__select { display: flex; min-width: 0; }
+  .ws-docs--index .ws-doctoolbar__select select { width: 100%; }
+
+  .ws-doctiles {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: var(--ws-s3);
+  }
+  .ws-docs--index .ws-doctile { min-height: 64px; padding: var(--ws-s3); }
+  .ws-docs--index .ws-doctile__icon { width: 32px; height: 32px; }
+  .ws-docs--index .ws-doctile__n { font-size: 1.4rem; }
+}
+/* The ⋯ toggle was a 30px square even with a mouse — small for a control that
+   is the only way to reach Edit, Transfer and Archive. */
+.ws-menu__toggle { min-width: 34px; min-height: 34px; }
+
+/* --- 3. The seven-column row below 900px -------------------------------- */
+/* MEASURED at 320/375/390/430/768: the table's own min-content width is 777px,
+   so it overflowed its card at every one of those widths and the row's action
+   cell sat at x=657–778 — the "Review"/"Analyze" link and the ⋯ menu BOTH off
+   screen, behind a nested horizontal scroller with no scrollbar and no visual
+   cue. At 768px (a tablet held in portrait, an ordinary way to read this page)
+   the ⋯ toggle was still clipped.
+
+   Horizontal scrolling was never a decision here — it is what `overflow-x:
+   auto` does when nobody chose anything. The deliberate strategy is one card
+   per contract, carrying the SAME cells with their own labels: nothing is
+   hidden, nothing is summarised away, and every control lands inside the
+   viewport. 900px is where the table's 777px plus the card and page gutters
+   stop fitting; above it the desktop table is untouched. */
+/* (rules for this section live in the single 899px block above.) */
+
+/* --- 4. The filter toolbar wrapped into three ragged rows --------------- */
+/* MEASURED at 375: search on line one, "Type: All" alone on line two, Status
+   and Show sharing line three, Sort alone on line four — four controls of four
+   different widths staircasing down the card. A two-column grid puts them in
+   two even pairs, and each control fills its cell instead of sizing to its own
+   longest option. */
+/* (rules for this section live in the single 899px block above.) */
+/* One column only on the narrowest phones. Re-measuring the two-column rule at
+   375px showed the four selects still stacking one per row — the 439px
+   threshold this replaces caught every common phone width and spent ~210px on
+   filters. Two even pairs cost ~110px, and a native select truncates its own
+   option text from the END, so the part that identifies the filter ("Sort:",
+   "Type:") is the part that survives. Below 360px the pairs would be ~124px,
+   where that truncation starts eating the VALUE as well, so there they stack. */
+@media (max-width: 359px) {
+  .ws-doctable .ws-doctoolbar { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- 5. Four stat tiles took the whole first screen -------------------- */
+/* MEASURED at 375: `minmax(160px, 1fr)` with a 24px gap needs 344px and the
+   content box is 343 — one pixel short, so the row collapsed to a SINGLE
+   column and the four counts spent ~390px of vertical space before the search
+   box began, while 390px wide got two columns. A cliff that steep between two
+   ordinary phone widths is a bug, not a breakpoint: the counts are context,
+   and the table is the page. Narrower minimum and a tighter gap hold 2×2 down
+   to 320px. */
+/* (rules for this section live in the single 899px block above.) */
+
+/* --- 6. The type-size floor -------------------------------------------- */
+/* The status pill sat at 10px and the tile label at 11.5px — the pill being
+   the single most-read piece of text in the table. 11px is the floor for a
+   tracked-out chip and 12px for anything read as a sentence; the 2026-09-02
+   contrast correction is untouched, this is size only. */
+.ws-status-pill { font-size: 11px; }
+.ws-docs--index .ws-doctile__label { font-size: var(--ws-text-xs); }
+.ws-doctable__foot { font-size: var(--ws-text-xs); }
+
+/* --- 7. A failed refresh is not a failed page -------------------------- */
+/* The error box said "Documents could not be loaded" directly above
+   twenty-five loaded documents (measured: 1 alert, 25 rows). `--warn` is the
+   quieter statement the honest message needs — the rows below it are real. */
+.ws-state--warn {
+  border: 1px solid color-mix(in srgb, var(--ws-warn) 34%, transparent);
+  background: var(--ws-warn-soft);
+  border-radius: var(--ws-radius);
+  padding: var(--ws-s4);
+  display: grid; gap: var(--ws-s2); justify-items: start;
+}
+.ws-state--warn h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; }
+.ws-state--warn p { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+
+/* --- 8. The primary action moved into the page header ------------------ */
+/* It held a row of its own — one right-aligned button spending ~60px of every
+   viewport, which on a 1366×768 laptop is the difference between five and six
+   rows of the table it sits above. `.ws-context` is where the workspace
+   already keeps its page actions. */
+.ws-context__acts .ws-btn { white-space: nowrap; }
+@media (max-width: 620px) {
+  /* Wrapped onto its own line by the header's own `flex-wrap`, it may as well
+     be reachable with a thumb across the full measure. Scoped to
+     `--dash`: `.ws-context__acts` is also the workspace's page-action row
+     (Export/Share in WorkspacePage.tsx), which is not this button and must not
+     stretch. */
+  .ws-context--dash .ws-context__acts { flex: 1 0 100%; }
+  .ws-context--dash .ws-context__acts .ws-btn { width: 100%; }
+}
+
+
+/* ==========================================================================
+ * The Finding, in a reader's language — owner request, 2026-09-08.
+ *
+ * The card is now four answers in reading order: what was checked, what this
+ * document says, what our standard expects, and who has to act. Everything
+ * that answers none of those — the requirement code, the evaluator version,
+ * the comparison operator, the scope key, the engine's own notes — moved into
+ * "How this was determined". See FindingsPane.tsx; the LEGAL-02 hooks
+ * (`.ws-facts` labels, `.ws-evaluation__outcome`, `.ws-explain`,
+ * `.ws-evaluation__provenance`) are unchanged and still carry their guards.
+ * ========================================================================== */
+
+/* --- The title, which used to render vertically ------------------------- */
+/* THE BUG, from the owner's screenshot: `CONF-SURVIVAL-NDA-001` rendered as a
+   column one or two letters wide — "Co / nf / sur / viv / al / nd / a / 00 / 1".
+   `.ws-finding__title` carried `flex: 1` AND `min-width: 0` AND
+   `overflow-wrap: break-word` in a wrapping flex row that also held a chip, a
+   status and the code. In a 340px pane the title's flex base collapsed to
+   almost nothing, and `break-word` then honoured that by breaking inside every
+   word. Three rules that are each defensible alone.
+
+   The title now owns its own line — it is the card's heading, and a heading
+   sharing a row with three chips was what created the pressure. Words no
+   longer break at all; a single unbroken token longer than the pane (a
+   requirement code, in practice) may still break, and only then. */
+/* The mark travels WITH the title on its own line, in a wrapper that carries
+   the full-row flex-basis the title used to carry alone (2026-09-08, fourth
+   pass) — a preceding sibling with its own fixed width would otherwise force
+   a 100%-basis title onto a SECOND line by itself, one row below the mark. */
+.ws-finding__titlewrap {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 100%; min-width: 0;
+}
+.ws-finding__title {
+  min-width: 0;
+  font-size: var(--ws-text-md);
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: normal;
+  word-break: normal;
+  letter-spacing: -0.005em;
+}
+.ws-finding__head { align-items: baseline; row-gap: 6px; margin-bottom: 6px; }
+
+/* The status mark — a coloured disc reusing the existing icon set, the same
+   three tones `--ws-ok`/`--ws-warn`/`--ws-bad` already carry everywhere else,
+   plus a neutral fourth for "needs a person" (rule 12: never colour alone —
+   the classification chip right beside it still carries the word). */
+.ws-finding__mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+}
+.ws-finding__mark--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border: 1px solid color-mix(in srgb, var(--ws-tone-ok) 30%, transparent); }
+.ws-finding__mark--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border: 1px solid color-mix(in srgb, var(--ws-tone-warn) 30%, transparent); }
+.ws-finding__mark--bad { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border: 1px solid color-mix(in srgb, var(--ws-tone-bad) 30%, transparent); }
+
+/* The three-word status chip (owner, 2026-09-08): the same ok / warn / bad
+   tokens the mark and the Summary tiles already use — one status colour system,
+   and never colour alone: the word is in the chip, the icon in the mark. Sentence
+   case and the sans face: this is the one chip written for a non-lawyer. */
+.ws-chip--status-acceptable,
+.ws-chip--status-needs_decision,
+.ws-chip--status-requires_modification {
+  /* Set in capitals per the owner's reference (ACCEPTED · NEEDS REVIEW ·
+     NOT ACCEPTED); the text node stays sentence case so it reads the same
+     to a screen reader and to the tests. */
+  font-family: var(--ws-sans, inherit); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+/* All three chips soft-tinted, per the owner's reference (2026-09-09): green,
+   orange, indigo — the word, the icon disc beside the title and the card's
+   left edge carry the same status, so no chip has to shout. */
+.ws-chip--status-acceptable { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border-color: color-mix(in srgb, var(--ws-tone-ok) 35%, transparent); }
+.ws-chip--status-requires_modification { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border-color: color-mix(in srgb, var(--ws-tone-warn) 35%, transparent); }
+.ws-chip--status-needs_decision { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border-color: color-mix(in srgb, var(--ws-tone-bad) 35%, transparent); }
+.ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-tone-warn); }
+.ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-tone-bad); }
+.ws-finding[data-user-status="ACCEPTABLE"] { border-left-color: var(--ws-tone-ok); }
+
+/* The Constitution citation under a Not accepted — the source is part of the
+   status, so it sits with the lede, quoted, not tucked in the disclosure. */
+.ws-finding__prohibition {
+  margin: 0 0 var(--ws-s3); padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-bad);
+  font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); text-wrap: pretty;
+}
+
+/* The plain sentence under the heading: what the outcome MEANS. Not a chip, not
+   a repeat of the enum — the one line a non-lawyer reads first. */
+.ws-finding__lede {
+  margin: 0 0 var(--ws-s3);
+  font-size: var(--ws-text-base);
+  line-height: 1.5;
+  color: var(--ws-ink-700);
+  text-wrap: pretty;
+}
+
+/* Evidence inside the disclosure (seventh pass): the same block, indented with
+   the chain below it. */
+.ws-determined > .ws-evidence { margin: var(--ws-s2) 0 var(--ws-s3); }
+
+/* --- The comparison ----------------------------------------------------- */
+/* Two facts, aligned, in words. The `dt` strings and the `.ws-facts` class are
+   LEGAL-02's own proof (confidentiality.spec.ts reads them to assert "Company
+   Standard" is absent without `legal_position.view`), so only the values and
+   the presentation changed. */
+.ws-facts--compare {
+  grid-template-columns: max-content 1fr;
+  gap: 6px var(--ws-s4);
+  align-items: baseline;
+  padding: var(--ws-s3);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-paper);
+  margin-bottom: var(--ws-s3);
+}
+.ws-facts--compare dt {
+  font-family: var(--ws-sans);
+  font-size: var(--ws-text-sm);
+  color: var(--ws-ink-500);
+}
+.ws-facts--compare dd { font-size: var(--ws-text-base); }
+/* The Next Step cell holds a full sentence, not a short value — normal
+   weight (inherited, unlike `.ws-side`'s 550) and a touch more line-height so
+   it stays readable wherever it wraps. */
+.ws-facts__next { color: var(--ws-ink-900); line-height: 1.4; }
+
+/* A mark AND a word, always — the mark is a second channel, never the only one
+   (a red tick and a green tick would read identically in greyscale, and a
+   screen reader gets `aria-hidden` on the glyph and the word in the text). */
+.ws-side { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 550; }
+.ws-side__mark { font-weight: 700; }
+.ws-side--present { color: var(--ws-ok); }
+.ws-side--absent { color: var(--ws-bad); }
+.ws-side--unknown { color: var(--ws-ink-500); }
+
+/* `.ws-eval__next`/`.ws-eval__next-label` are retired (2026-09-08, fourth
+   pass): "Next step" moved from a standalone paragraph into a third dt/dd
+   pair in `.ws-facts--compare` itself, beside "Found in contract" and
+   "Company Standard" — see `.ws-facts__next` above and FindingsPane.tsx. */
+
+/* --- "How this was determined" ------------------------------------------ */
+/* Collapsed by default, so a reader who trusts the verdict pays nothing and a
+   reviewer who needs the chain is one click away. */
+.ws-determined { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); }
+.ws-determined > summary {
+  cursor: pointer;
+  color: var(--ws-accent);
+  padding: 4px 0;
+  font-size: var(--ws-text-sm);
+}
+.ws-determined > summary:hover { color: var(--ws-accent-strong); }
+.ws-determined__steps {
+  list-style: none;
+  margin: var(--ws-s2) 0;
+  padding: 0 0 0 var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100);
+  display: grid;
+  gap: var(--ws-s2);
+}
+.ws-determined__steps li { display: grid; gap: 1px; }
+.ws-determined__label {
+  margin: 0;
+  font-size: var(--ws-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ws-ink-500);
+}
+.ws-determined__steps li span:last-child { color: var(--ws-ink-900); line-height: 1.45; }
+
+/* The engine's own notes, verbatim — the audit trail, kept and labelled as
+   what it is rather than presented as the explanation. */
+.ws-explain { margin: var(--ws-s3) 0; }
+.ws-explain ol {
+  margin: 4px 0 0; padding-left: 1.3em;
+  color: var(--ws-ink-500); font-size: var(--ws-text-xs); line-height: 1.5;
+}
+
+.ws-determined__tech {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 2px var(--ws-s3); margin: var(--ws-s3) 0 0;
+  font-size: var(--ws-text-xs);
+}
+.ws-determined__tech dt { color: var(--ws-ink-500); }
+.ws-determined__tech dd { margin: 0; color: var(--ws-ink-700); overflow-wrap: anywhere; }
+/* The rule-outcome chip, relocated here from the card header (2026-09-08,
+   second pass): a technical footnote now, not the loudest thing on the card,
+   so it drops the raised "fill" treatment and reads at the same quiet weight
+   as every other row in this list. */
+.ws-determined__tech .ws-evaluation__outcome {
+  font-size: var(--ws-text-xs); padding: 1px 6px;
+  background: transparent; border: 1px solid var(--ws-ink-100); color: var(--ws-ink-700);
+}
+
+/* --- Evidence ----------------------------------------------------------- */
+/* Grouped and named by source: a passage from this document and a passage from
+   the company's own approved document are different kinds of fact. */
+.ws-evidence__group { display: grid; gap: var(--ws-s2); }
+.ws-evidence__group + .ws-evidence__group { margin-top: var(--ws-s3); }
+.ws-evidence__source {
+  margin: 0;
+  font-size: var(--ws-text-xs); font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ws-ink-500);
+}
+.ws-evidence__more {
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 550;
+  background: none; border: 0; padding: 2px 0;
+  color: var(--ws-accent); cursor: pointer; justify-self: start;
+}
+.ws-evidence__more:hover { text-decoration: underline; }
+.ws-side--value { color: var(--ws-ink-900); }
+.ws-side__detail { font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-weight: 500; }
+.ws-evidence__how { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* `.ws-finding__ref` (the requirement code on the card face) is retired —
+   2026-09-08, third pass: the code moved into "How this was determined" as a
+   `Requirement` row in `.ws-determined__tech`, which already carries the same
+   contrast-safe `--ws-ink-700`/`--ws-ink-500` pair. No rule left to keep. */
+
+
+/* ==========================================================================
+ * The workspace divides itself — owner request, 2026-09-08, FIFTH pass.
+ *
+ * The fourth pass kept the side card (analysis/findings) as the flex:1
+ * primary region unconditionally, so the document was always a fixed ~380px
+ * companion panel whether shown or not. Reviewed against the live page, the
+ * owner asked for the EARLIER (third-pass) open-state behaviour back: "when I
+ * click show doc [...] the screen that used to appear, that was fine" —
+ * the document should go WIDE when explicitly opened, with the side card
+ * becoming the narrow rail beside it. Restoring that is `WorkspaceLayout.tsx`
+ * putting the document section first in the DOM again, so it draws the wide
+ * `minmax(0, 1fr)` track below and the side card draws the fixed
+ * `var(--ws-side-w)` one — the grid rule itself is UNCHANGED from the fourth
+ * pass, only which region is first is different.
+ *
+ * The CLOSED state is untouched: the side card still fills the whole
+ * workspace exactly as the fourth pass left it (that half was never the
+ * complaint). Only the OPEN state's column assignment reverts.
+ * ========================================================================== */
+.ws-workspace--wide { grid-template-columns: minmax(0, 1fr); }
+.ws-workspace--wide .ws-pane--document { display: none; }
+/* AM-50 r5 (owner, 2026-09-09): findings keep the flexible column; the document
+   opens beside them at a readable fixed width the reader can drag wider or
+   narrower (native `resize`), never the other way round. */
+.ws-workspace--wide[data-doc-open="true"] { grid-template-columns: minmax(0, 1fr) auto; }
+.ws-workspace--wide[data-doc-open="true"] .ws-pane--document {
+  display: flex;
+  width: clamp(440px, 42vw, 760px);
+  min-width: 380px; max-width: 62vw;
+  resize: horizontal; overflow: hidden;
+}
+/* `.ws-doc`'s own clauses+viewer 2-column layout is UNCHANGED from before the
+   fourth pass: it switches to stacked on the pre-existing `max-width: 1100px`
+   viewport media query below (see `.ws-doc`'s own rule), which is once again
+   a reasonable proxy now that the document pane's width tracks the viewport's
+   the same way it did in the third pass — no override needed here, and the
+   fourth pass's forced-stacking rule (written to compensate for a fixed
+   ~380px container regardless of viewport) is gone; it would now stack the
+   document even on a wide desktop where there is real room for two columns. */
+
+/* Findings read at a measure, not at whatever width the monitor happens to be
+   — past roughly 90 characters a line is measurably harder to track. Applies
+   in the CLOSED state, where the side card is the whole workspace; in the
+   OPEN state it is the ~380px rail, well under this cap already, so the rule
+   is a no-op there rather than something that needs its own condition. */
+.ws-side__panel > * { width: 100%; max-width: 64rem; margin-inline: auto; }
+
+/* The tab row carries the document toggle at its far end. */
+.ws-side__tabs { justify-content: space-between; align-items: center; }
+.ws-side__tablist { display: flex; gap: var(--ws-s1); }
+.ws-side__doctoggle {
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  margin: 0 var(--ws-s2) var(--ws-s2);
+  padding: 6px 11px; min-height: 32px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-700); cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--ws-t), color var(--ws-t), background-color var(--ws-t);
+}
+.ws-side__doctoggle:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); }
+.ws-side__doctoggle[aria-pressed="true"] {
+  background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: #fff;
+}
+
+/* The comparison's three-column shape needs REAL width to hold three short
+   columns without cramping — the side card has that only in the CLOSED state
+   (it owns the whole workspace, ≥900px). Reverted (fifth pass): OPEN, the
+   side card is once again the ~380px rail, exactly the width that caused the
+   comparison to cramp into "24 / months" in the third pass, so it stacks
+   there instead — see the rail block below, restored from the third pass. */
+@media (min-width: 900px) {
+  .ws-workspace--wide .ws-facts--compare {
+    grid-template-columns: none; grid-auto-flow: column; grid-template-rows: auto auto;
+    grid-auto-columns: minmax(150px, 1fr); align-items: start; column-gap: var(--ws-s5);
+  }
+}
+/* In the three-column shape a `dt` sits ABOVE its `dd`, not beside it — the
+   base rule's `align-items: baseline` on a two-column dt/dd row would pull a
+   short label and a wrapped multi-line "Next step" sentence onto the wrong
+   baseline once they stack into a column instead. Scoped to the CLOSED state
+   only now, matching the rule above it. */
+@media (min-width: 900px) {
+  .ws-workspace--wide .ws-facts--compare dt { margin-bottom: 2px; }
+}
+
+/* --- The comparison in the 380px rail (open state, restored) ------------- */
+/* Measured in the third pass: the comparison read "24 / months" over two
+   lines and the basis token broke as "BASIS_F / EES" inside a column this
+   narrow. The mid-word break comes from `.ws-facts dd { overflow-wrap:
+   anywhere }`, which is right for an unpredictable value in a fixed table
+   column and wrong for a controlled-vocabulary token that must stay readable
+   as one word. So in the rail the facts stack — label above value — and the
+   value keeps its words whole, wrapping onto its own line instead. */
+/* (The stacked rail variant is gone with the rail — findings keep their width.) */
+.ws-facts--compare dd { overflow-wrap: normal; }
+.ws-side { flex-wrap: wrap; }
+/* A long token still has to fit SOMETHING: allowed to break only when it alone
+   is wider than its column, which is the one case where clipping is worse. */
+.ws-side__detail { overflow-wrap: break-word; }
+
+/* The Summary's opening sentence — what the counts mean, above the counts. */
+.ws-analysis__headline {
+  margin: 0 0 var(--ws-s3);
+  font-size: var(--ws-text-md); line-height: 1.5; font-weight: 550;
+  color: var(--ws-ink-900); text-wrap: pretty;
+}
+
+/* --- The finding's own actions, as real targets -------------------------- */
+/* Measured 99×23 and 183×20 in the 2026-09-08 audit — under any reasonable
+   minimum, and on a phone they are the two controls a reader reaches for most.
+   Padding rather than a font change, so the row still reads as links. */
+.ws-finding__acts .ws-escalate__link {
+  padding: 4px 2px; min-height: 24px;
+}
+@media (max-width: 899px) {
+  .ws-finding__acts { gap: var(--ws-s3); }
+  .ws-finding__acts .ws-escalate__link { min-height: 44px; padding: 10px 2px; }
+  .ws-evidence__more, .ws-determined > summary { min-height: 44px; }
+  .ws-evidence__loc { min-height: 36px; }
+  .ws-side__doctoggle { min-height: 44px; }
+}
+
+
+/* ==========================================================================
+ * The owner's reference design (2026-09-09): Summary hero, status explainer,
+ * filter pills, finding-card head and footer. Plain CSS on the existing tokens;
+ * the three status tones are `--ws-tone-*` (green · orange · indigo).
+ * ========================================================================== */
+.ws-hero {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); padding: var(--ws-s5); box-shadow: var(--ws-card-shadow);
+  display: flex; flex-direction: column; gap: var(--ws-s5);
+}
+.ws-hero__top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ws-s4);
+  padding-bottom: var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-hero__words { min-width: 0; }
+.ws-hero .ws-analysis__headline { font-size: var(--ws-text-lg); font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.ws-hero__sub { margin: 4px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); max-width: 60ch; }
+.ws-hero__cta {
+  flex: none; display: inline-flex; align-items: center; gap: 8px;
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 600; color: #fff;
+  background: var(--ws-tone-bad); border: 0; border-radius: var(--ws-radius);
+  padding: 9px 14px; cursor: pointer; transition: background-color var(--ws-t);
+}
+.ws-hero__cta:hover { background: color-mix(in srgb, var(--ws-tone-bad) 85%, #000); }
+.ws-hero__cta:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-hero__ctan { font-family: var(--ws-mono); background: rgba(255,255,255,0.2); border-radius: 999px; padding: 1px 7px; }
+.ws-hero__grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--ws-s5); align-items: start; }
+.ws-hero__left { display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0; }
+.ws-hero__right {
+  display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0;
+  background: var(--ws-paper); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  padding: var(--ws-s4);
+}
+.ws-hero__right .ws-ring { align-items: center; }
+.ws-hero__right .ws-ring__legend { flex: 1; }
+.ws-hero__right .ws-ring__go { width: 100%; }
+.ws-hero__total { text-align: right; margin: 0; }
+.ws-hero .ws-tile { padding: var(--ws-s4); gap: 4px; }
+.ws-hero .ws-tile__n { font-size: 1.6rem; }
+.ws-hero .ws-tile__label { font-size: var(--ws-text-sm); letter-spacing: 0; text-transform: none; padding-right: 24px; }
+@media (max-width: 1100px) {
+  .ws-hero__grid { grid-template-columns: 1fr; }
+  .ws-hero__top { flex-direction: column; }
+}
+
+/* The explainer — three quiet cards, one per word. */
+.ws-explain { border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-paper); padding: var(--ws-s3) var(--ws-s4); }
+.ws-explain__title, .ws-explain > summary { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-700); }
+.ws-explain > summary { cursor: pointer; margin: 0; }
+.ws-explain[open] > summary { margin-bottom: var(--ws-s2); }
+.ws-explain__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s2); }
+.ws-explain__card {
+  display: flex; flex-direction: column; gap: 2px; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-left-width: 3px; border-radius: var(--ws-radius-sm);
+  padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4;
+}
+.ws-explain__card b { color: var(--ws-ink-900); font-weight: 600; }
+.ws-explain__card--ok { border-left-color: var(--ws-tone-ok); }
+.ws-explain__card--warn { border-left-color: var(--ws-tone-warn); }
+.ws-explain__card--bad { border-left-color: var(--ws-tone-bad); }
+.ws-explain--collapsible { margin-bottom: var(--ws-s4); }
+@media (max-width: 720px) { .ws-explain__grid { grid-template-columns: 1fr; } }
+
+/* Filter pills: a tone dot, the word, the count. */
+.ws-filter button { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--ws-ink-700); }
+.ws-filter__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ws-ink-300); flex: none; }
+.ws-filter button[data-tone="ok"] .ws-filter__dot { background: var(--ws-tone-ok); }
+.ws-filter button[data-tone="warn"] .ws-filter__dot { background: var(--ws-tone-warn); }
+.ws-filter button[data-tone="bad"] .ws-filter__dot { background: var(--ws-tone-bad); }
+.ws-filter__n {
+  font-family: var(--ws-mono); font-size: 10px; font-weight: 650; padding: 1px 6px; border-radius: 999px;
+  background: var(--ws-paper); color: var(--ws-ink-700); border: 1px solid var(--ws-ink-100);
+}
+.ws-filter button[aria-pressed="true"] .ws-filter__n { background: rgba(255,255,255,0.15); color: #fff; border-color: transparent; }
+.ws-pane__await { font-family: var(--ws-sans); font-size: 10.5px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+/* Finding card: title with its determination beneath, the same tone as the status. */
+.ws-finding { border-radius: var(--ws-radius-card); padding: var(--ws-s5); box-shadow: var(--ws-card-shadow); }
+.ws-finding__titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ws-finding__det {
+  display: inline-flex; align-self: flex-start; font-size: 10.5px; font-weight: 600;
+  padding: 1px 7px; border-radius: var(--ws-radius-sm); border: 1px solid transparent;
+}
+.ws-finding__det--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border-color: color-mix(in srgb, var(--ws-tone-ok) 30%, transparent); }
+.ws-finding__det--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border-color: color-mix(in srgb, var(--ws-tone-warn) 30%, transparent); }
+.ws-finding__det--bad { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border-color: color-mix(in srgb, var(--ws-tone-bad) 30%, transparent); }
+
+/* The comparison as three boxed columns (Contract · Company standard · Next
+   step), the labels small and quiet above their values. Column count still
+   follows the pairs present (two without legal_position.view). */
+.ws-facts--compare {
+  grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto; gap: 4px var(--ws-s4); align-items: start;
+  padding: var(--ws-s4); border-radius: var(--ws-radius);
+}
+.ws-facts--compare dt { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ws-ink-500); }
+.ws-facts--compare dd { font-size: var(--ws-text-sm); }
+.ws-facts--compare dd + dt { border-left: 1px solid var(--ws-ink-100); }
+@media (max-width: 720px) {
+  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+}
+
+/* Footer: the way into the document first, then Ask and Escalate. */
+.ws-finding__acts { display: flex; align-items: center; gap: var(--ws-s4); flex-wrap: wrap; padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
+.ws-finding__viewdoc { margin-right: auto; color: var(--ws-accent); }
+/* The title block takes the row; the status chip sits at the right edge on the
+   same line as the title (owner's reference, 2026-09-09). */
+.ws-finding__head { justify-content: space-between; align-items: flex-start; }
+.ws-finding__titlewrap { flex: 1 1 auto; min-width: 0; }
+.ws-finding__head > .ws-chip { flex: none; margin-top: 4px; }

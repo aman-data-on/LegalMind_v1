@@ -27,11 +27,16 @@ test.describe("the reviews queue and the report", () => {
 
     await page.goto("/dashboard/reviews");
     await expect(page.getByRole("heading", { name: "Reviews" })).toBeVisible();
-    // The nav offers the new destinations and nothing legacy.
-    await expect(page.locator('nav a[href="/dashboard/reviews"]')).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    /*
+     * The SCREEN is reachable for any `review.view` holder — a Report is read
+     * from it. The NAV ITEM is not: since the 2026-09-04 audit, Reviews is
+     * offered only to callers who hold `legal.review`, because for a contract
+     * owner (this account) the queue restated what the Dashboard already lists.
+     * `legal-access.spec.ts` covers the counsel side of the same rule.
+     */
+    await expect(page.locator('nav a[href="/dashboard/reviews"]')).toHaveCount(0);
+    await expect(page.locator('nav a[href="/dashboard"]')).toBeVisible();
+    // And nothing legacy is ever offered as a click.
     await expect(page.locator('a[href^="/contracts"], a[href^="/reviews"]')).toHaveCount(0);
 
     const row = page.locator(`tr[data-review-id="${reviewId}"]`);
@@ -87,7 +92,7 @@ test.describe("ask history", () => {
     expect(asked.status(), await asked.text()).toBe(201);
 
     await page.goto("/dashboard/ask");
-    await expect(page.getByRole("heading", { name: "Ask history" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ask", exact: true })).toBeVisible();
     // Target the conversation this test created, by id. Matching on question
     // TEXT made the spec depend on no other spec ever asking the same thing in
     // the shared e2e database — which stopped being true, and is not a property

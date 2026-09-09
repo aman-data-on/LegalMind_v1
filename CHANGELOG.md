@@ -10,6 +10,1282 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — `main` catches up with the product-coherence work, and the CI gate it never ran against (2026-09-09)
+
+Owner instruction: *"merge to main deploy also."* `feat/product-coherence-phase1` had
+accumulated **72 commits without ever being pushed**, so no CI job had seen any of them.
+Merged to `main` frozen at `5483f55`, on its own branch, because two other sessions were
+actively landing owner-approved work on that branch at the time — the `AM-57`
+document-primary workspace and an Ask retrieval fix. Both are deliberately **outside**
+this scope and reach `main` on their own schedule.
+
+**The colour question is closed by owner ruling.** Two passes disagreed on two hues (the
+conflict recorded in the entry below). The owner ruled: take the latest decision, and
+follow what the live site shows. The later pass — green Acceptable, **amber `#c2410c`**
+Requires modification, **indigo `#4f46e5`** Needs a decision — is what `HEAD` carried, and
+deploying it makes it what the live site shows, so both halves of the instruction agree on
+one answer. DD-12's audited hues, reassigned; no new colour, and never colour alone.
+
+**What the gate found, once it finally ran.** 56 ruff findings and 8 mypy errors, both
+clean on `main` beforehand. Fixed in `97f5c4c` with no intended behaviour change. Two
+configuration decisions were taken rather than papered over: `tests/**` ignores `F811`,
+because a pytest fixture imported by name and then taken as a parameter of that name is
+the fixture contract and not a redefinition; and `legalmind/analysis/semantic.py` is
+exempt from `E501`, because `AM-54`'s prompts are multi-line string literals whose BYTES
+are the audited payload — rewrapping one changes the recorded hash silently, and a `noqa`
+placed inside a string literal becomes part of the string.
+
+⚠️ **One of the two red e2e specs was a security spec that had stopped testing anything.**
+`confidentiality.spec.ts` compares the `.ws-facts dt` labels; `4f631ed` restyled them
+`text-transform: uppercase`, and Playwright's `allInnerTexts()` returns RENDERED text. The
+visible failure was the positive assertion, but the consequence was the two
+`not.toContain` assertions, which had been passing **vacuously** ever since — LEGAL-02's
+omission property was no longer being proved by the spec that exists to prove it. The
+labels are now case-normalised, which restores the negative assertions. (A concurrent
+session found the same thing independently and fixed it on its own branch; coordinated,
+one implementation kept.) `journey.spec.ts` expected `Requires modification (n)` where the
+count had moved into a `.ws-filter__n` badge — stale assertion, no defect.
+
+**Migrations**: none pending. The live database was already at `a1b2c3d4e5f6`, so both
+`f3a9c2d7e1b4` (`AM-49`'s `finding_explanations`) and `a1b2c3d4e5f6` (`AM-55`'s cascade)
+were applied before this merge; earlier notes saying a migration was owed are stale.
+
+**Not fixed here, and not from this branch**: job 14 flags 4 npm advisories (1 critical)
+published since `main`'s last green run, and its pip-audit and npm-audit steps also hit
+network errors; job 15's visual baselines are stale **by design** after the tone swap (that
+spec regenerates from CI, never locally); job 13 failed on a `PermissionError` reading
+`legal-docs/` on the runner, which is a file permission on the host, not a code fault.
+
+
+### Changed — one colour system and one order for the three reader statuses (owner, 2026-09-09)
+
+Owner instruction, presentation only. **Order**, everywhere the three words appear as a
+sequence: Acceptable → Requires modification → Needs a decision. **Tone**: green Acceptable
+(unchanged), **amber** Requires modification, **red** Needs a decision. The amber and the red
+were the wrong way round — "Requires modification" had inherited the loud red treatment (solid
+chip, red card edge) from the status `AM-56` renamed away, while "Needs a decision", the one
+word that says acceptance could not be determined at all, wore amber.
+
+Five surfaces spelled the order and the colour out for themselves and two disagreed, so the
+pairing now lives in ONE place: `USER_STATUS_ORDER` and `USER_STATUS_TONE` in
+`frontend/src/components/workspace/findingLanguage.ts`. The Summary tiles, the proportion bar,
+the ring and its legend, the Dashboard count badges, the filter row and the report chips all
+read those two; the ring takes an ordered segment list instead of three positional counts named
+for the engine's old buckets, which is where its legend could drift from the tiles above it.
+The status-only CSS slots were renamed from engine buckets (`match`/`review`/`missing`) to tone
+slots (`ok`/`warn`/`bad`); the document outline's dots keep the bucket names — they key off the
+CLASSIFICATION, a different axis — via one rule carrying both names. The version-comparison
+chip showed a status word in `--ws-classify` and now wears its status tone.
+
+No new colour: the three hues are DD-12's audited ones, reassigned, and never colour alone —
+every surface carries the word and an icon (✓ green, ! amber, ✕ red). Nothing backend changed:
+counts, classification, `user_status` derivation, the evaluators, the API and the database are
+untouched, and `api/export_render.py` was already emitting the three in this order as text.
+Tests: `frontend/src/__tests__/status-tones.test.tsx` (new — the rendered tone and order on
+tiles, bar, ring legend and cards), the tone expectations in `finding-card.test.tsx`, and
+browser assertions in `e2e/journey.spec.ts` (Dashboard badges) and `e2e/workspace.spec.ts`
+(Summary tiles).
+
+⚠️ **The visual baselines are now stale by design.** `e2e/visual.spec.ts-snapshots/` still holds
+the pre-swap renderings. Per that spec's own header they are regenerated from CI, never locally:
+let job 15 fail, take its `visual-regression-diffs` artifact and commit the `*-actual.png`. Also
+noted while working there: the `workspace — document pane, slice 1` shot fails a precondition
+(`[data-region="document"] .ws-row` hidden) unrelated to colour — the workspace opens on the
+analysis since 2026-09-08 and that spec never reveals the document, as `journey.spec.ts` does
+with `showDocument`. Left for whoever regenerates the baselines.
+
+⚠️ **Coordination note — an unresolved colour conflict, raised with the owner.** A concurrent
+session has an uncommitted `workspace.css` pass that introduces a separate `--ws-tone-*` token
+set and moves the `bad` slot to **indigo `#4f46e5`** and `warn` to `#c2410c`, citing "the
+owner's reference design, 2026-09-09" — so "Needs a decision" becomes indigo, not the red this
+change was instructed to use. Both passes agree on the *structure* (the fixed order, the tone
+slots, one source of truth) and differ only on the hue for two slots; this repository's tests
+assert the slot, not the hex, so both pass. Not resolved here (rule 5). Its file was left
+untouched.
+
+Two further observations, neither acted on: `.ws-tile--decision`, `.ws-status--decision` and
+`.ws-risk--match|review|missing` are unreferenced leftovers of the fourth status tile removed
+in `7275d1f`, and `--ws-decision` remains legitimately in use for Legal Decision surfaces.
+
+### Changed — the Findings filter row is one fixed order, "All" first and selected (owner, 2026-09-09)
+
+Owner instruction. The row reads `All` · `Acceptable` · `Requires modification` · `Needs a
+decision`, with "All" first and pressed when the workspace opens, then `AM-56`'s three reader
+words in that fixed order — nothing reorders on the counts, so the row a reader learns on one
+contract is the row the next contract gives them. It had opened *pre-filtered*, on a separate
+requires_decision filter ("Needs decision (n)") that pushed "All" into second place. That
+filter is gone: once `AM-56` renamed the third status, it was two buttons reading almost the
+same label, and the legal-decision count already has its own line on the Summary (same-day,
+`7275d1f`). The `?classification=` deep-link chip moved to the end of the row so it never
+displaces the four positions.
+
+Presentation only, and `FindingsPane.tsx` alone: the filter predicate, the counts' source
+(`user_status`, server-derived — the row groups server values, it never re-derives one), the
+evaluators, the API and the database are untouched. No locked decision is amended;
+[docs/design/UI_UX_MASTER_PROMPT.md](docs/design/UI_UX_MASTER_PROMPT.md) §3's "default filter:
+needs a decision" is annotated as superseded, as is DESIGN.md's *bias toward the task* line for
+this row. Tests: `frontend/src/__tests__/findings-filter.test.tsx` (new — the order, the
+labels, the counts, the default, and that a word nothing carries drops out without disturbing
+the rest) and a filter walk added to `frontend/e2e/journey.spec.ts`, which clicks each button
+in a browser and asserts the subset and count behind it.
+
+⚠️ **Coordination note.** The `FindingsPane.tsx` change itself is inside commit `2c93eef` (the
+`AM-56` rename): it sat unstaged in the shared working tree while a concurrent session
+committed that batch by path. Nothing was lost and the result is coherent, but this entry and
+the two test files are the record of *why* that file changed shape, since the AM-56 commit
+message does not mention it.
+
+### Changed — Acceptable / Requires modification / Needs a decision (`AM-56`, 2026-09-09)
+
+Owner instruction, superseding the `AM-53` vocabulary and mapping. The backend keeps its
+five determinations (MATCH, DEVIATION, MISSING, UNABLE_TO_EVALUATE, CONFLICT; a clause the
+Constitution has no position on stays an unmatched provision routed to a person). The
+reader's word is now mapped by classification in `evaluation/user_status.py`: MATCH →
+Acceptable; DEVIATION or MISSING → Requires modification; UNABLE_TO_EVALUATE or CONFLICT →
+Needs a decision. The Rule Outcome and any Constitution citation still travel with the
+Evaluation but no longer move the word. Same field (`user_status`, `user_status_counts`),
+new values; every surface renamed (card, Summary tiles/bar/ring, filters, report, export,
+Dashboard badges, comparison); next-step sentences by word; the Dashboard's document-level
+bucket reads "Needs attention". The Summary shows exactly three tiles (the fourth,
+"Need legal decision", was removed the same day — the count stays as a line).
+
+### Added — a real `DELETE /contracts/{id}` beside Archive (`AM-55`, 2026-09-09)
+
+Owner instruction, after the tradeoff was named explicitly: restores a genuine, unconditional
+delete alongside AB-12's Archive, reaching an analyzed contract too (unlike AM-37's withdrawn
+branch, which never reached one). New migration `backend/alembic/versions/
+a1b2c3d4e5f6_contract_hard_delete_cascade.py` adds `ON DELETE CASCADE` to every FK on the
+Contract subtree so one `DELETE FROM contracts` cascades at the database level — no hand-rolled
+cascade code. New `DELETE /contracts/{contract_id}` (`legalmind/api/routers/contracts.py`),
+same permission and owner scope as Archive; new `contract.deleted` audit action. Frontend: a
+"Delete permanently" item beside Archive/Restore in the Dashboard's row menu, same modal shape
+as the Archive confirmation, `api.deleteContract`. Rule 17 (audit trail append-only, historical
+Reviews reproducible) no longer holds for a contract removed this way — it continues to govern
+Archive, which is unchanged. Touched tests: `test_contract_archive.py`, `test_assist_schema.py`
+(the pinning test that predicted this exact revisit is replaced with a positive assertion),
+`test_rbac_personas.py`. OpenAPI snapshot regenerated. Coordinate before touching
+`contracts.py`, `models.py`, `audit.py`, `permission_map.py` or the Dashboard row menu. Live DB
+NOT migrated; nothing deployed. See `AM-55` in `all_lock.md`.
+
+### Deployed — AM-53 (three-status model) and AM-54 (grounded semantic recognition), 2026-09-09
+
+Final validation before deploy: golden corpus 165 passed; backend suite 1459 passed (the
+one red test, the migration-head preflight, was another session's then-unapplied `AM-55`
+migration and is green after the deploy applied it); the live labelled corpus once more
+(65/66 recognised, the one miss a fail-safe Needs review; 0 semantic false positives; 0
+wrong classifications; 0 correct results changed). Deployed by the standard sequence
+(`ops/deploy.sh`: import check, `alembic upgrade head` → `a1b2c3d4e5f6`, API restart,
+health 200, staged frontend build `SNZfKgUQCnzqvohtgOIYv`, atomic swap). Then a real
+review through the live API as the owner's session on a synthetic MSA whose seven
+clauses were all paraphrased: liability (12 months of total fees), governing law, cure
+period (30 days), force majeure (60 days) and return/destruction were recognised and
+**Accepted** with evidence attached; a warranty *given* was held to **Needs review** as a
+different position from the disclaimer; nothing was Not accepted without a rule-backed
+deviation. The test contract was archived and the session revoked. Two deploy-path
+defects found and fixed on the way: the import tool reported a Requirement "unchanged"
+when only its mapping rules had changed (so the new `service credit` negative patterns
+never reached the live database — it now versions mapping and evaluation rule changes;
+`LIABILITY-*-001` are at version 3 and a new snapshot is published), and a transient
+provider 503 degraded one requirement to "no model reached" (the analysis egress now
+retries a transient failure once; a refusal is never retried). Inline analysis of a
+14-requirement MSA took 39 s against a 300 s proxy read timeout.
+
+### Added — Grounded semantic recognition in the authoritative lane (`AM-54`, 2026-09-09)
+
+**Proof, appended the same day (`AM-54` r9–r13).** A labelled corpus —
+`backend/tests/test_rd_semantic_corpus.py`, 104 drafting variants for 19 standards across
+MSA, TOS and NDA and every finding type (synonyms, reordered sentences, equivalent unit
+expressions, cross-references, table rows, sub-clauses, contextual wording, genuine
+differences, 38 hard negatives sharing the vocabulary) — run live against the pinned
+model, each variant twice (semantic; lexical-only). Result: 66/66 positives recognised;
+47 correct classifications, 15 fail-safe to Needs review (configured basis or unit
+terminology absent from the paraphrase — a configuration limit, not recognition), 0
+wrong; 0 semantic false positives (1 lexical, pre-existing); 37 results recovered over the
+lexical baseline; 0 correct results changed. The first run exposed three defects, all
+fixed before the record: two adjacent clauses of a different position were confirmed
+(now a confirmation also requires the model to say the clause states the SAME kind of
+position as the approved wording); a semantically mapped clause with no readable quantity
+fell to MISSING (now UNKNOWN → Needs review: semantic mapping never establishes absence);
+and the `AM-52` heading guard swallowed table rows (a line with a pipe or a digit outside
+its section number is not a heading). Recall floor lowered to 0.30 after a paraphrased
+disclaimer measured 0.305. Live in production the stage will use the existing generation
+credential the API service already loads; analysis runs inline in the API process, so no
+worker change is needed. *Coordination note:* another session's `AM-55` record (a real
+DELETE beside Archive) landed in `all_lock.md` between the two `AM-54` records; both are
+pure appends and neither touches the other.
+
+
+Owner instruction: the deterministic architecture is not a requirement for exact-word
+matching. New `backend/legalmind/analysis/semantic.py`, wired into the analysis service.
+**Stage 1 (mapping):** where configured terminology confirms nothing for a Requirement of
+the document's declared family, the local embedding model (all-MiniLM-L6-v2, self-hosted)
+shortlists the clauses closest to the Requirement's approved wording (description plus
+ratified mapping terms) and the generative model is asked, through the single egress seam,
+whether each clause addresses the Requirement's subject. A YES counts only with a span
+copied verbatim from the clause and then scores exactly like one configured exact phrase
+(same threshold, same explanation trail). **Stage 2 (facts):** a mapped clause that states
+no configured cap phrase is asked for the quantity the Requirement is about; a value is
+accepted only when the verbatim span contains it (digits or number word) together with a
+configured unit term; the basis still comes only from configured basis phrases (45B.4), a
+multi-limb formula is never reduced to one limb, an "unlimited" claim is never taken from
+the model. UNCLEAR or unverifiable → UNRESOLVED / UNKNOWN → Needs review; NO → the lexical
+result stands; no model → untouched and the gap recorded (a similarity score decides
+nothing). Out-of-family Requirements and untyped documents never reach the model; a
+configured negative pattern vetoes a clause first. Number words ("six months",
+"twenty-four months") are read as numerals in the deterministic extractor. An ABSENT cap
+beside a stated cap of the same scope is dropped. Every call is one `generate_raw`
+under the environment gate, recorded as `assist.generation_called` with purpose, model
+and payload sha256; payloads carry clause text, the approved description and configured
+unit/basis TERMS only. `LIABILITY-MSA-001`/`LIABILITY-TOS-001` gained
+`negative_patterns: ["service credit", "service credits"]` (the owner's L-13 ruling as
+terminology) — **re-import and publish required** for the live DB. Calibration over the 12
+supplied documents and live R&D with the real model recorded in the lock record: three
+materially different drafting styles of five MSA positions → 14/15 recognised on a
+verbatim span, 1 Needs review, 0 false confirmations; 69/69 near-topic non-matches
+answered NO; an injected instruction, a multi-limb formula and an unconfigured unit all
+fell to a person. Tests: `tests/test_semantic_recognition.py` (model faked, embeddings
+real; skipped where the model is not provisioned), extraction number-word cases, the
+description guard narrowed to the classifying modules, the analysis→assist import edge
+declared. **Built and tested locally; NOT deployed.**
+
+### Changed — The FINAL three-status model: Accepted / Needs review / Not accepted, derived from the authoritative result (`AM-53`, 2026-09-09)
+
+Owner's final product decision. NOT ACCEPTED and NEEDS REVIEW had become indistinguishable
+because NOT ACCEPTED fired only on the two mechanically checkable Constitution citations,
+so every deviation the zero-tolerance rule had already ruled UNACCEPTABLE still read "Needs
+review" with a near-identical next step. The word is now **derived server-side in one
+place** — `backend/legalmind/evaluation/user_status.py` — from the classification, the
+approved rule's own `rule_outcome` and the Constitution citation, and served as
+`user_status` on every Evaluation and Finding (worst evaluation wins), in the report
+(`user_status_counts`), the Dashboard list (badges and the `needs_attention` bucket), the
+version comparison and the export. Not a rename: MATCH → Accepted; a citation or a ruled
+DEVIATION/MISSING → Not accepted; an unruled DEVIATION/MISSING → Needs review; UNABLE_TO_
+EVALUATE / CONFLICT → Needs review always. No rule disposes absence today, so MISSING is
+Needs review by the rule's silence. The frontend's `userStatus()` now renders the server's
+word and re-derives nothing (fails closed to Needs review). Next step reads by status:
+"No action is needed." / "This goes against an approved company position. Legal review or
+modification is required." / "Someone with legal authority needs to review this." Not
+accepted gets a solid red chip and a red card edge; every card carries `data-user-status`.
+The engine classifications are unchanged everywhere they are recorded and stay one click
+away in View details and in the export's audit record. Tests: `tests/test_user_status.py`
+(the owner's ten proofs, incl. the LLM cannot change the word and unsupported claims are
+rejected), four drafting-variant cases in `test_analysis.py` (same cap in three wordings
+→ Accepted; nine months against six → Not accepted), frontend card/language/summary tests
+and the journey spec updated. Backend 1439 · golden corpus 84 · Vitest 310 · browser 94+7.
+**Built and tested locally; NOT deployed.**
+
+### Fixed — A mapped clause that states no cap keeps its evidence; UNABLE_TO_EVALUATE reads "Needs Review" (`AM-52`, 2026-09-09)
+
+Owner-directed end-to-end investigation of two MISSING liability findings on a real
+mixed contract. **The findings were correct**: the clause read "...shall exceed the
+total fees paid..." — no "not" — so it stated no bounded cap and matched no configured
+cap phrase; MISSING was the right fail-closed answer. Re-verified live with the clause
+correctly drafted: `LIABILITY-MSA-001` and `LIABILITY-TOS-001` both **MATCH**, cited to
+the clause. **No phrase, synonym or fuzzy match was added anywhere** (locked 35.4 keeps
+terminology in configuration).
+
+The investigation did surface a real, general defect: `extraction/liability.py`
+discarded any mapped clause containing neither a cap nor an unlimited phrase, so a
+MISSING Finding carried **zero evidence** — indistinguishable from a document that never
+mentioned the subject, and a rule-11 traceability break contradicting `45C.14`'s own
+worked example (a damages-exclusion clause: "the clause was found and mapped, so it must
+remain attached"). It now emits an explicit ABSENT cap carrying that clause's evidence;
+the classification is unchanged. A bare heading fragment is excluded — mapping can
+confirm a heading line on its own via `section_heading_terms`, and citing one as evidence
+of absence would mislead.
+
+`UNABLE_TO_EVALUATE`'s **display label** is now "Needs Review" (was "NEEDS A PERSON") —
+label only; the enum, the audit trail and every evaluator path are untouched. The owner
+also narrowed what that state should mean ("only when genuinely unclear, never a default
+or fallback"); that is a change to rule 15's fail-closed routing and is recorded as an
+open item, not implemented.
+
+**Domain A indexing was genuinely stale and is fixed**: every `position_chunks` row
+referenced a superseded `company_standard_versions` row. Chunk TEXT was already current
+(chunks are built from the ratified file's verbatim fields, never the database's
+configuration values), so no stale position was ever quoted — but the provenance link
+was broken. Rechunked: 32 chunks on the published version. `position_chunk_embeddings`
+stays empty by design; `search_positions` is lexical only.
+
+Tests: +7 (evidence retained on a capless mapped clause; a bare heading excluded; four
+parametrised valid drafting styles — numbered, ARTICLE-style, cross-referenced
+subsection, no separate heading — all MATCH; genuine absence still never MATCH/DEVIATION;
+an unrelated clause never cited as liability evidence; mixed-domain no-flood re-verified).
+1421 backend, 165 golden corpus, 310 Vitest, 35 browser, `AM-28` gate SHIPPABLE.
+
+### Fixed — AM-50 r3 corrected before deployment: statute title-ranking is a ratio, and only india/indian are excluded
+
+Pre-deployment live verification found "Section 43A of the IT Act" refused (CERT-In
+Directions' long title, which happens to embed "Information Technology Act, 2000",
+outranked the Act itself by raw word-count) and, after changing that count to a ratio,
+"What is the DPDP Act?" still answered from the DPDP Rules instead of the Act (excluding
+"act"/"rule" as generic made the two titles nearly identical). Corrected same day:
+title matching is now matched/total non-stopword lexemes, excluding only india/indian.
+`all_lock.md` correction appended (17,919 lines). Live re-verified through the real
+API: IT Act s.43A, DPDP Act ss.3/44, NI Act s.138 all answer correctly and cited.
+
+### Fixed — AM-51 r2 corrected before deployment: family detection is the declared type only
+
+Pre-deployment live verification on a real mixed document (confidentiality, residuals,
+liability, termination, governing law, DPDP/IT Act references, AUP; no declared type)
+found the "≥2 confirmed standards detects a family" heuristic floods every family from
+ordinary boilerplate (Governing Law, a liability cap appear once per family and satisfy
+the count on their own) — 24 of 32 standards produced a Finding, nearly all MISSING,
+for a document with no declared type. Corrected same day: a family is detected only
+when it is the DECLARED type; a confirmed clause still produces its own Finding
+regardless of family, but MISSING is asserted only inside the declared family, never
+inferred from other confirmed clauses. `all_lock.md` correction appended
+(17,842 -> 17,885 lines). Tests: analysis suite rewritten and green (1412 backend,
+165 golden corpus). Live re-verified: the same document now returns Findings only for
+its actually-confirmed clauses and zero false MISSING.
+
+### Changed — Applicability by content: the document type is one optional signal, never a gate (AB-16, `AM-51`, 2026-09-09)
+
+Owner instruction: "Do not make document-type detection the gatekeeper for review or
+retrieval." `legalmind/analysis/service.py` now maps every pinned standard first and
+decides applicability from the document (`applicable_by_content`): a standard applies
+when the document confirms its clause — whatever family it belongs to, so one document
+can span several legal domains — or when it belongs to a detected family (the declared
+type, or a type with at least two confirmed standards); MISSING is asserted only inside
+a detected family; `not_applicable_to` on a standard keeps the 2026-08-20 SLA ruling in
+force (both liability standards list SLA). The `document_type_undeclared` refusal is
+gone; `detected_types` is recorded on the run and the audit event. The intake asks no
+question at all (a confident suggestion is still recorded as the signal it is); the
+analysis chain waits for no type; a type set in Edit details still re-runs analysis.
+Tests: analysis suite rewritten for the new rule (+3: undeclared analysed by content,
+content wins across families, MISSING only inside a detected family); the three intake
+browser specs assert no control is asked for.
+
+### Changed — Upload → Review → Ask: the user never configures the workflow (AB-16, `AM-50`, 2026-09-09)
+
+Owner instruction: the user should not need to understand how LegalMind works —
+upload, review, ask, get simple answers. R&D first (intake, type suggestion,
+routing, Domain A/C, grounding, Summary, layout, tests), then the smallest changes
+to what already existed; no second RAG, no second classifier, no second status
+vocabulary. Where a locked decision collided, the owner chose to amend it; record
+appended to `all_lock.md` (17,701 → **17,782** lines).
+
+* **Intake (r1)** — a confident type suggestion is recorded by the intake and the
+  review starts ("Reviewed as Master Services Agreement — change it any time in
+  Edit details"); not confident → one question, one select, pre-filled from the
+  filename. Audit: `contract.type_declared` with `source` HUMAN /
+  ASSIST_SUGGESTION (`ContractUpdate.contract_type_source`, audit-only, no
+  column). `chainAnalysis` refuses to create a Review for an undeclared type at
+  its one entry point (the deferred-OCR path produced a guaranteed
+  ANALYSIS_FAILED); a type declared later in Edit details now runs the analysis.
+  Declared version facts left the intake — they live in Edit details.
+* **Ask (r2, r3)** — a document-only question the document cannot answer falls
+  through to the statute corpus and the positions before refusing
+  (`assist.ask.fell_through`, domains recorded); "follow / adhere / honour" are
+  comparison signals so "Does this NDA follow our standards?" reaches the
+  evaluator; DPDP / NI Act / CPC / BSA / CGST / IGST / IT Act short names resolve
+  to their titles and a title match alone admits an Act's opening sections
+  ("What is the DPDP Act?" answered, not refused). Research loading copy no
+  longer names a document.
+* **Summary (r4)** — tiles, bar, ring legend and the report speak Accepted /
+  Needs review / Not accepted plus "Need legal decision" (`statusCounts()` over
+  `userStatus()`), each a control into the Findings filtered by status; the
+  dashboard pill reads "Needs review". Engine words unchanged in the API, the
+  audit trail and View details. `workspace.spec.ts`'s 2026-09-01 assertion
+  reversed on the owner's ruling.
+* **Layout (r5)** — findings first in the DOM and always the flexible column; the
+  document opens beside them at `clamp(440px, 42vw, 760px)`, native
+  `resize: horizontal`; the stacked-rail comparison variant is gone. The card's
+  disclosure reads **View details**.
+
+Tests: backend +6 (follow-family stems, alias expansion, bare-Act match,
+fall-through answered from statutes, safe refusal when nothing answers,
+type-declaration audit with source); frontend +1 (chain guard) and the Summary /
+vocabulary assertions updated; OpenAPI snapshot regenerated (optional field).
+
+### Added — The grounded explanation layer under every Finding (AB-15, `AM-49`, 2026-09-09)
+
+Owner instruction: a Sales reader must understand a Finding in five seconds, so the
+card's one sentence is now generated — from authorized material only — and
+validated before anyone sees it. `AM-30` t3 and `AM-32` r4 forbade the payload;
+asked, the owner chose to **amend narrowly** and approved one additive table in the
+same record (`all_lock.md` 17,623 → **17,701** lines).
+
+* **Payload (`AM-49` r1)** — exactly: the requirement's title in words, its approved
+  `description`, the classification as a plain phrase, and the cited contract
+  passages marked as data. Never a Company Standard value, `source_quote`, Rule
+  Outcome, Evaluation payload, requirement code or identifier — a test asserts the
+  prompt's contents.
+* **Validation (r2)** — `assist/explanations.validate`: one sentence within a fixed
+  length; the `AM-35` judgment screen widened (advice, consequence, acceptability,
+  instruction-echo vocabulary); no number the material did not contain; every
+  content word grounded in the material or a fixed frame vocabulary. A rejected or
+  `INSUFFICIENT` reply is stored as FALLBACK and the card shows the approved
+  description. Insufficient source never calls the model.
+* **Stability (r3)** — stored against Finding + sha256(requirement version,
+  description, classification, cited evidence, prompt version); the same Finding
+  reads the same on every visit; a changed description regenerates; FAILED
+  (provider) is not stored so the next visit retries.
+* **Storage (r4)** — `assist.finding_explanations`, migration `f3a9c2d7e1b4`.
+* **Language only (r5)** — a test asserts the Finding and Evaluation rows are
+  byte-identical across an explanation; the card shows the sentence under the
+  three-word status, never as it.
+* **API (r6)** — `POST /findings/{id}/explain` behind `finding.view`, rate-limited,
+  hash-only `audit_events` row per call (`assist.generation_called`, purpose
+  `finding_explanation`); OpenAPI snapshot regenerated (71 operations).
+* **UI (r7)** — the card fetches once per Finding (session cache), shows the
+  grounded sentence when ACCEPTED, else the approved description, else the
+  data-built sentence; "How this was determined" names the source and prompt
+  version.
+
+Tests: +23 backend (`test_assist_explanations.py`: supported sentence, payload
+contents, insufficient source, eight rejected-reply shapes, injected passage,
+five classifications, cache, invalidation, provider failure, byte-identical rows,
+both callers, 404 out of scope) — 1404 passed, the one failure being
+`test_migrations_must_be_at_head` against the deliberately unmigrated live DB;
++3 frontend (accepted/fallback/status independence) — 309 Vitest. Verified
+visually on four finding types with grounded sentences and one fallback.
+
+### Added — An approved plain-English description for every ratified requirement (2026-09-09)
+
+Owner instruction: one short sentence per requirement, drafted from ONLY that
+standard's `source_clause` and `source_quote`, saying what the approved clause
+means in practice for a non-legal reader; explanatory only, never a rule.
+**32 descriptions** written into the standard files as `description`; review
+file `docs/02-legal-domain/REQUIREMENT_DESCRIPTIONS_2026-09-09.md` (requirement →
+clause → quote → line). None marked insufficient; three notes for Counsel there.
+No line states a number from a standard ("a set period", "a set rate") because
+the value is the LEGAL-02 position and the description is served to every reader
+of the Finding.
+
+Pipeline: `tools.import_ratified_standards` writes the file's `description` to
+`requirement_versions.description` and, when only that line changed, updates the
+current version in place (presentation, not configuration — no new version, no
+snapshot); `GET /findings/{id}` serves it on `requirement.description` to every
+caller; the card uses it as its one sentence, falling back to `findingSentence()`
+when a requirement has none. `test_description_never_reaches_an_evaluator`
+asserts no module on the analysis path reads it; the four classifications and the
+three user-facing statuses are untouched. **Live database not yet imported** (a
+live write — owner's step or explicit go).
+
+Tests: backend +5 (served to both callers, never on the analysis path, present
+and value-free in all 32 files, import + in-place refresh) — 1378 passed;
+frontend +3 (description is the sentence for every classification, never decides
+the status, blank falls back) — 306 Vitest; browser journey/workspace/analysis/
+confidentiality/legal-access green. Verified visually on six requirement types.
+
+### Changed — The Finding card is the four answers and nothing else (2026-09-09, seventh pass)
+
+Owner instruction: the card still read as engineering; a Sales user must get it in
+five seconds. The default-visible card is now exactly: the requirement's name ·
+the three-word status (ACCEPTED / NEEDS REVIEW / NOT ACCEPTED, unchanged model) ·
+one plain sentence · **Contract / Company standard / Next step** · "How this was
+determined ▸", collapsed. Everything else moved INSIDE that disclosure and
+nothing was deleted: the verbatim evidence quotes and their location buttons
+(the highlight gesture is one click away), "Decision required" and a recorded
+decision type (now the Finding state row — same `.ws-chip--flag` element), the
+requirement code, rule outcome, evaluator and evidence count, comparison
+operator, scope, and the engine's own record.
+
+* **`findingSentence()`** — one reusable sentence built from the requirement's
+  title, the classification and the two values, for every requirement type
+  (Residuals is not special-cased anywhere): *"The document does not include
+  residuals, which the company standard requires."* · *"The document sets
+  confidentiality survival at 2 YEARS, while the company standard expects 3
+  YEARS."* · *"The document's liability is 12 MONTHS, which matches the company
+  standard."* · *"There is no approved company standard recorded for governing
+  law, so LegalMind cannot tell whether it is acceptable."* It never explains what
+  a clause means in law (rules 7, 12, 21) and never names the standard's value
+  when `expected_value` is omitted (LEGAL-02).
+* **`nextStep()`** answers by classification, on every card: MATCH "No action is
+  needed."; DEVIATION/MISSING name the person and say, conditionally, what
+  *would* make it Accepted (never an instruction to amend — rule 13); CONFLICT,
+  UNABLE_TO_EVALUATE and Not accepted each have their own; a recorded decision
+  wins. The rule outcome no longer drives it, so the step reads the same with or
+  without `legal_position.view`. The sixth pass's separate guidance line is
+  folded in — nothing is said twice.
+* **Titles** spell out our own code abbreviations (`GOVLAW` → Governing law,
+  `CONF` → Confidentiality, `LIAB` → Liability, `TERM` → Termination …) —
+  naming, not legal content.
+* **Disclosure de-duplicated**: the Result step carries the engine's word
+  ("Recorded as MISSING.") once; the separate Classification row is gone.
+* Labels: "Found in contract" → **Contract**, "Company Standard" → **Company
+  standard** (`confidentiality.spec.ts` updated). Status chip set in capitals by
+  CSS per the owner's reference; the text node stays sentence case.
+* **One vocabulary across the workspace**: the document pane's clause link
+  ("The analysis of this clause: DEVIATION · …") and the version comparison's
+  finding chip now read the same three words as the card (the comparison DTO
+  carries no evaluations, so it can say Accepted / Needs review only).
+* **Owner ruling 2026-09-09 — Next step never pre-decides the outcome.** "Adding
+  it would make this Accepted" / "Matching the company standard would make it
+  Accepted" are withdrawn: a lawyer may find the missing clause acceptable as-is
+  or require a different provision. DEVIATION now reads "Someone with legal
+  authority needs to review and decide whether this difference is acceptable.";
+  MISSING "… whether this should be added." This supersedes the sixth pass's
+  alignment wording.
+* **Peer review fixes (legalmind-v1-2e):** an escalated MATCH no longer reads
+  "No action is needed." beside a decision flag — the server's
+  `requires_decision` wins; acronyms in titles keep their case (`IP ownership`,
+  `KYC retention`, `Non-solicit`); units read as words in the sentence and the
+  columns ("12 months", "8 percent per month" — the `basis` token beside them
+  stays verbatim per 45B.4); and both Constitution citations are trimmed to the
+  limb the check actually tests ("An uncapped/unlimited liability term […]",
+  "A post-termination data-export window shorter than 30 days […]"), so a reader
+  is never shown a condition that was not evaluated.
+* **Document view unchanged** — legalmind-v1-6d's fifth pass (`2557b5f`, the
+  owner's own live review) stands: closed by default, findings fill the
+  workspace; "Show document" opens it alongside. Verified in the browser:
+  closed → open → closed, findings visible throughout.
+
+Tests: finding-language +12 / finding-card +4 (every classification → sentence,
+next step, three-word status; nothing technical on the face for all five
+classifications; evidence verbatim inside the disclosure; disclosure collapsed by
+default; engine word appears once; two vs three `dt`s by permission) — **302
+Vitest**; browser: journey, workspace, confidentiality, gating, review-loop,
+analysis, decision, legal-access, escalation all green (the four evidence-click
+specs now open the disclosure first). All five peer sessions notified; none
+introduces a second status vocabulary.
+
+### Added — Not accepted is now real for two Constitution boundaries, and Needs review says what closes the gap (2026-09-08, sixth pass)
+
+Owner clarification: (1) a DEVIATION/MISSING/CONFLICT under "Needs review" should
+say a person can fix it by aligning the document, and it then shows as Accepted;
+(2) resolve the DEVIATION/MISSING-vs-Not-accepted overlap by PRECEDENCE, not
+inference — Not accepted is checked first as a narrow, server-stated condition;
+everything else that is not MATCH falls through to Needs review.
+
+New `legalmind/evaluation/constitution_boundaries.py` implements the two
+Unacceptable Position paragraphs the Constitution states as a checkable
+condition rather than a qualitative one: **§9 Liability** (an unlimited cap,
+`LIABILITY-MSA-001`/`LIABILITY-TOS-001`) and **§13 Termination** (a
+post-termination export window under 30 days, `DATA-RETRIEVAL-TOS-001`). Wired
+into `serialize_evaluation` (both `GET /findings/{id}` and
+`GET /findings/{id}/evaluations`), gated by `legal_position.view` exactly like
+`rule_outcome`/`expected_value` (`constitution_prohibition` added to
+`LEGAL_POSITION_FIELDS`). The other four reconciled standards' Unacceptable
+Position text is qualitative ("without specific approval", "materially less
+favorable") — not wired, and extending the table needs the owner's yes per
+rule 6, quoting the Constitution's own words.
+
+Frontend: `findingLanguage.alignmentGuidance()` renders under "Needs review"
+only (never under Accepted or Not accepted, which routes to a person instead) —
+"Update/Add this to the document to match the company standard, and this will
+show as Accepted," omitted for `UNABLE_TO_EVALUATE` (nothing established to
+modify, so nothing to claim). `userStatus()`'s precedence documented inline.
+
+Tests: 7 new unit tests for the boundary module, +3 real API tests through
+`GET /findings/{id}` proving the field appears for an unlimited cap, is absent
+for a finite one, and is omitted without `legal_position.view` — 1372 backend
+passed (+10) — and +5 frontend (292 Vitest). Verified visually: a real
+DATA-RETRIEVAL-TOS-001 finding at 15 days renders "Not accepted" with its §13
+citation; MISSING/DEVIATION render "Needs review" with the alignment sentence.
+
+### Deployed — 2026-09-08 22:53 IST (owner "ok deploy"), HEAD `22d3372`
+
+Backend suite first: **1362 passed**, 1 skipped, 1 xfailed (the migration-head test
+now passes — the live database is at head `c8e4a1b7d2f6`, no migration pending).
+`legalmind-api` restarted 22:53 (health 200, journal clean). Frontend staged build
+`afnrSH0wgHtiloVDSjI1l` swapped in 22:54 via `npm run deploy`; `/login` and
+`/dashboard` 200 and the served HTML names the new chunk hashes. This is the
+first API restart since 2026-09-06, so it puts live the whole AB-14 backend —
+`clause-aware-3`, the router, Domain A and Domain C (17 statutes) — plus the
+three-status Finding card and the Key Obligations accordion on the frontend.
+
+**Not done, and why.** The three documented post-deploy operator steps that write
+to the live database were blocked by the session's permission classifier and are
+left for the owner to run or authorise: (1) `tools.import_ratified_standards` —
+the six Constitution-reconciled standards are NOT imported live; the live
+configuration still pins the 2026-09-01 values (`LIABILITY-MSA-001` = 6 MONTHS,
+`CONF-SURVIVAL-NDA-001` = 2 YEARS, `LATE-FEE-TOS-001` = 5, `DATA-PURGE-MSA-001` =
+15 DAYS), and publishing is in any case the audited `POST /configuration/publish`;
+(2) the reindex of the **40** document versions still on `clause-aware-2` (9 are
+on `clause-aware-3`); (3) nothing else. One derived write did happen
+unintentionally: `python3 -m tools.chunk_standards --help` has no argument
+parser and ran the chunker — `assist.position_chunks` now holds **32** rows
+derived from the currently *published* standards, consistent with live analysis.
+Statute search is live because the 17 statutes were ingested into this same
+database on 2026-09-08 before the restart.
+
+### Changed — The Finding card speaks three words: Accepted · Needs review · Not accepted (2026-09-08)
+
+Owner instruction: keep the four evaluator states (`MATCH`, `DEVIATION`, `MISSING`,
+`UNABLE_TO_EVALUATE`) exactly as they are for evaluation, audit, evidence and
+traceability, and change ONLY the user-facing presentation to three statuses a
+Sales user reads at a glance. `findingLanguage.userStatus()` is the single
+source: **Accepted** = `MATCH`; **Needs review** = `DEVIATION`, `MISSING`,
+`CONFLICT`, `UNABLE_TO_EVALUATE` (a person must look; the card never says the
+contract must be modified); **Not accepted** ONLY when the server sends an explicit
+Constitution prohibition on the evaluation (new optional `Evaluation.
+constitution_prohibition: {section, quote}`), rendered with its citation under the
+lede. It is never inferred from a deviation, an absence or `rule_outcome:
+UNACCEPTABLE` — the zero-tolerance rule routes to a human; it is not a
+Constitution ruling. **The backend does not send that field yet**, so no live
+card reads Not accepted until Counsel marks which Constitution "Unacceptable
+Position" entries apply and the API carries them — a follow-up, not a defect.
+
+The classification chip left the card face and sits first in "How this was
+determined" beside the requirement code, rule outcome, evaluator, comparison and
+scope. The Findings filter row uses the same three words; the `?classification=`
+deep links from the Summary tiles and the report still work. The status mark has
+one tone per status (ok / warn / bad) — `MISSING` is no longer red on sight.
+Every peer session was told the vocabulary and acknowledged reusing
+`userStatus()`. Tests: finding-card +5 (all four states → three words; no
+inference from UNACCEPTABLE; citation shown; empty citation ignored; technical
+fields off the face), finding-language +4; 288 Vitest green; Findings-related
+browser specs re-run. Verified visually on the e2e stack and a static render of
+all three states.
+
+⚠️ Rule 5 note: the Summary tiles keep the engine's own words under the owner's
+2026-09-01 correction ("never an invented catch-all like Needs review" —
+`workspace.spec.ts` still asserts it). Today's instruction covers the Finding
+card and its list; the two rulings now sit on adjacent surfaces and the owner
+should say whether the tiles follow.
+
+### Changed — Key Obligations is a single-open accordion in plain language (owner, 2026-09-08)
+
+The permanent side-by-side party columns made the section as tall as the longest
+party's list — 13 obligations on one real MSA — and left the rest of the row empty.
+Categories are now collapsible rows carrying their real count, one open at a time,
+first open by default; the section is 206px with a category open where the columns
+ran several times that. Mutual role labels merge into **"Both sides must"** and
+"Neither Party" reads **"Neither side can"**.
+
+**A named role keeps the document's own words** ("Receiving Party must", "Leapswitch
+must"). The owner's requested "Our company must" / "The other party must" split is
+deliberately NOT synthesised, and that is the one part of the request not delivered:
+nothing in the extraction attributes a role to a side — a mutual NDA makes both
+parties the Receiving Party, and the live table holds "Customer", "Supplier",
+"Service Provider", "Partner" and counterparty company names side by side — so the
+mapping would be a guess that could tell a Sales reader an obligation is ours when
+it is the counterparty's. Closing it needs a party-side declaration in the data or
+an owner ruling, not a heuristic.
+
+Labels were fitted to the **live** extraction table rather than the screenshot: the
+same role arrives in every casing and with or without its article, so a role's
+identity is its bare lower-case name and the variants merge. Behavior verified in a
+real browser against a real MSA (real extraction, one-open-at-a-time, keyboard,
+`aria-expanded`/`aria-controls`, mobile full width); the accordion's pure layer is
+pinned by `src/__tests__/obligation-categories.test.ts`. The e2e suite has no
+generation credential, so it still sees only the honest degradation sentence.
+
+Coordination note: deployed with `LEGALMIND_ALLOW_STALE_API=1` — the backend source
+in this shared tree is newer than the running API and restarting it is that
+session's call, and this change is frontend-only and touches no API contract.
+
+### Added — The §6.1 statute corpus is complete except the Income-tax Act 2025 (AM-48, 2026-09-08)
+
+Owner instruction: verify the corpus, then obtain genuinely missing statutes from
+official Government of India sources. Verified first: DPDP Act 2023 was present all
+along; the Evidence Act 1872 was never on disk and is not wanted — the Constitution
+(§6.1, §28.4.3) names the Bharatiya Sakshya Adhiniyam 2023 as its successor.
+Then, over India Code's DSpace REST API (`indiacode.gov.in/server/api`, handle →
+bundles → bitstream), an operator obtained the English "as on" texts of the NI Act
+1881, Arbitration Act 1996, CPC 1908, Copyright Act 1957, BSA 2023, CGST/IGST Acts
+2017, Companies Act 2013 (full) and Companies Act 1956 (repealed), plus India Code
+copies of the three central Acts the owner had supplied; the DPDP Rules 2025 from
+MeitY's gazette copy; the Income-tax Act 1961 from the Department of Revenue (a
+2011 Taxmann edition — recorded NOT current, repealed 01.04.2026). **Not obtained:
+the Income-tax Act 2025** (incometaxindia.gov.in and egazette.gov.in unreachable;
+never substituted). `config/statutes/registry.json`: 17 entries with handle/URL,
+as-on date and SHA-256. Ingested through the existing Domain C pipeline: **17
+statutes, 5,140 sections**, all embedded.
+
+Two chunker fixes found by the new material: India Code bodies read `73.Compensation`
+with no space after the number (§73 had folded into §72) and eighteen Acts hold a
+section 138, so `search_statutes` now ranks the Act the question NAMES first.
+Verified live: NI Act s. 138, BSA s. 63, IT Act s. 43A, Contract Act ss. 73–74 and
+Arbitration Act s. 29A all answer with Act + section citations. Tests: +3
+(NI §138 on the real file, named-Act ranking, no-space section start). `AM-48`
+appended to `all_lock.md`; C-16 resolved; STATUTE_INTAKE.md marked satisfied.
+`AM-28` Tier-2 gate re-run on the completed corpus: **SHIPPABLE** — wrongly answered
+1/13 (≤ 1), correct refusals 12/13, retained 43/64 (≥ 41), recall@10 0.469 (≥ 0.438),
+hit@1 0.344, faithfulness 1.0, citation precision 1.0, user-visible wrong 0/13.
+Records synchronized after the gate: CLAUDE.md (C-16 resolved; five conflicts open),
+IMPLEMENTATION_STATUS (sync line 17,623; unit 12 A8 built), PROJECT_STATE (blockers),
+docs/README.
+
+### Changed — The Constitution governs; Ask routes by question shape (AB-14, 2026-09-08)
+
+Owner instruction, 2026-09-08 (full GO): the Legal Constitution L1.5 is the
+single source of truth for company positions, and a user asks any question of
+any uploaded document without choosing a source. Lock records `AM-43`–`AM-47`
+appended to `all_lock.md` (17,238 → current line count in the file); registry,
+CONFLICTS (C-18 resolved, C-19 registered), IMPLEMENTATION_STATUS and this file
+updated in the same change. Canonical Markdown of the DOCX:
+`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md`; handoff report:
+`docs/02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-08.md`.
+
+* **Retrieval (P0, measured live):** 29 % of the assist index was sub-60-char
+  headings that outranked their clauses; `clause-aware-3` folds a one-line
+  heading into the clause it introduces and reads U+200B/NBSP after a clause
+  number as blanks (§17 of a real MSA had been one 1,366-char chunk). Test
+  account reindexed only. 4 regression tests.
+* **Comparison questions (P0):** the `AM-25` r4 regex passed every natural
+  phrasing ("comply", "our approved position"); replaced by
+  `assist.intent.is_comparison_question`, pinned by a 30-phrase matrix. The
+  handoff carries the latest Review's Finding counts + a link, not prose.
+* **Routing (P1):** new `assist.routing` — candidate domains from the caller's
+  permissions first, question shape second; recorded on
+  `retrieval_runs.filters.domains`; never merged.
+* **Domain A wired (P1):** `search_positions` had zero callers. Positions are
+  now quoted verbatim (standard code · clause · type) in their own section,
+  never in a generation payload (asserted). OR-lexeme search with a two-lexeme
+  floor. Permission: `assist.ask` AND (`configuration.view` OR
+  `legal_position.view`) — `AM-44`.
+* **Refusals (P2):** one wording per candidate set (`AM-46`); document-less
+  conversations refuse instead of erroring; statute-shaped questions say
+  statutory text is not an approved source.
+* **Intake:** document type no longer gates the submit — "Confirm & Open" without
+  one, "Confirm & Analyze" with one. Analysis still refuses an undeclared type.
+* **Standards reconciled to the Constitution (`AM-43` r4):** six files, history
+  kept in `_history`; corpus re-expected (73 fixtures: 21/9/43), six `CST-*`
+  MATCH twins added, `corpus_coverage.json` L-01/L-02/L-11 notes updated.
+* **Domain C built (`AM-47`):** `assist/statutes.py` — section-based chunker
+  (`section-1`; handles India Code's footnote-prefixed numbering and skips the
+  arrangement table), provenance-refusing `ingest_statute`, Act + section
+  search with exact-section ranking, best-effort vectors;
+  `tools/ingest_statutes.py` + `config/statutes/registry.json` (provenance as
+  the files state it; India Code re-verification pending). Statute questions
+  get their own generation call over statute evidence only, cited Act + section
+  in their own response field; `answer_citations.statute_chunk_id` used. The
+  seven supplied statutes ingested (410 sections). NI Act / Evidence Act absent
+  — the refusal names the holdings. `/dashboard/research` is now a document-less
+  Ask surface; the placeholder components are retired.
+* **Verdict screen:** a grounded answer that itself states how the document
+  stands against the organization's position (an injected "this clause
+  complies with our approved standard") is refused as `CLAIM_UNSUPPORTED` —
+  `intent.is_comparison_question` applied to the model's text (`AM-25` r1/r4).
+* **Frontend:** `PositionsSection`, `StatutesSection`, `ComparisonHandoff`;
+  `AskDock` accepts a null contract; replay carries position and statute
+  citations; e2e intake expectation updated.
+
+### Changed — the Finding speaks to a non-lawyer; the analysis gets the width (2026-09-08)
+
+Owner request, 2026-09-08: *"A non-lawyer user such as Sales, Customer Success
+or Management should open LegalMind and immediately understand: what was
+checked? what did the contract say? what does our standard expect? what is
+different? does someone need to act? what should I do next?"* Presentation
+only — `DESIGN.md` governs it and **no entry in LOCKED_DECISIONS.md is
+amended**. Three commits: `ae3cc94`, `99f5086`, `cf4ebe7`.
+
+The canonical vocabulary is untouched. `MATCH`, `DEVIATION`, `MISSING`,
+`CONFLICT`, `UNABLE_TO_EVALUATE`, the four Rule Outcomes and the Finding
+statuses are still what the API sends, what the audit trail records and what
+the chips render; a sentence now sits BESIDE the chip and nothing replaces it.
+No new string feeds a filter, a request body or a decision. Every one is built
+from a field the server actually sent — where the data does not support a
+statement it is omitted, never guessed, and the reasoning chain drops its
+Company-standard step entirely for a caller whose `expected_value` is omitted
+rather than printing a placeholder where a legal position would go (LEGAL-02 /
+SEC-07).
+
+* **The card.** It said `RESIDUALS-NDA-001`, `MISSING`, "No rule covers this",
+  "Found in contract: ABSENT", "Comparison: presence", "PRESENCE-v1 · 0
+  evidence references" — an identifier, four enums and an evaluator's note. It
+  now reads as a title in words, one plain sentence of what the outcome means,
+  the two facts side by side ("Found in contract **24 months**" against
+  "Company Standard **6 months**"), and a NEXT STEP naming who must act.
+* **The title rendered vertically** in the owner's screenshot — one or two
+  letters per line. `flex: 1` plus `min-width: 0` plus `overflow-wrap:
+  break-word` in a wrapping row that also held three chips; each rule
+  defensible alone. Its real cause was the 380px rail, which is why the layout
+  change below is the same fix.
+* **The requirement title.** Every ratified standard has `name = code` (the
+  importer falls back to it), so the old heading printed "Residuals nda 001" —
+  the document-type token and the sequence number as words. The code is parsed
+  instead. A real `name` in configuration would still win outright, and adding
+  one per standard (from each file's own `source_clause`) would give better
+  titles still — recorded as a configuration change for the owner, not made
+  here, because it needs a re-import and a publish on live.
+* **"How this result was reached"** was a bare numbered list of engine notes.
+  It is now Requirement → This document → Company standard → Result in the
+  reader's language, with the engine's own lines kept verbatim underneath as
+  what they are: the audit trail. Identifiers, evaluator version, operator and
+  scope moved into that disclosure; the requirement code stayed on the face of
+  the card, because a reviewer quotes it in an escalation.
+* **Evidence** says how it was read where that affects trust (OCR, a table),
+  cuts a long passage at a sentence boundary with an explicit control for the
+  rest, and names its location from whatever the parser recorded.
+* **The layout.** The document held the centre of the screen permanently while
+  the whole analysis lived in a 380px rail. The wide workspace now divides two
+  ways: `review` (default) gives the analysis the width and keeps the document
+  mounted one click away with its scroll position and tab choice intact;
+  `split` is the previous layout, for when the job is reading the document.
+  Pointing at any evidence switches to `split` by itself — `target` from
+  `useHighlight` is the single "look at this passage" signal, so one effect
+  answers for citations, outline entries, verdicts and `?evidence=` links
+  alike. `inert`, not `hidden`, on the concealed pane, so it stays in the
+  accessibility tree and the scroll-to-evidence gesture still finds its rows.
+* **The Contents listed paragraphs as headings** — a real NDA read "AND",
+  "Information", "The information is independently developed by employees of
+  the…", then §10, §11, §12. `parsing._is_unnumbered_heading` promotes a line
+  whose successor does not begin lowercase, which is true of a party block and
+  of a definitions paragraph. **Fixed in the outline, not in the parser:**
+  `is_heading` feeds the mapping engine as `Clause.is_heading` and the analysis
+  refusal check, so re-tuning detection could change which provisions map and
+  which documents are refused — a change to legal results, to fix a navigation
+  defect. The test is a fact about the row: a heading is a line, so its content
+  is its own heading text. The three real headings carried 17/22/32 characters
+  against titles of 13/18/28; the three false ones 159/187/772 against 72/11/3.
+* **The Summary** opens with one sentence saying what its counts amount to,
+  leading with what needs a person. No score, no grade, no severity ranking —
+  `AM-43` r3 is explicit that the Constitution's §24.1 Risk Level has no
+  assignment rule, so 36.10 and rule 12 stand.
+* **Three accessibility defects, each measured**: a heading-level skip (H1 →
+  H3 with no H2, fixed with a visually-hidden panel heading); the requirement
+  code at 2.00:1 contrast, less than half the AA minimum, now 5.39:1; and two
+  action links at 99×23 and 183×20, now 24px and 44px below 900px. Verified by
+  measurement: 26 tabs with zero missing focus rings, every control named, no
+  two names alike, every `details` with its `summary`, and every status
+  carrying a word beside its glyph so none is colour alone.
+* **The LEGAL-02 hooks are deliberately unchanged** and still carry their
+  guards: `.ws-facts`'s two `dt` strings (`confidentiality.spec.ts` reads them
+  to prove "Company Standard" is absent without `legal_position.view`),
+  `.ws-evaluation__outcome`, `.ws-explain` and `.ws-evaluation__provenance`.
+* Nine specs assert on document internals and now disclose it first through a
+  `showDocument` helper — the same shape and the same reason as
+  `openUploadPanel`, which exists because the 2026-09-01 upload disclosure
+  broke specs identically. No assertion was weakened; each still proves exactly
+  what it did.
+* Tests: typecheck 0, forbidden-terms clean, **254 frontend unit** (44 new: 25
+  for the language layer, 15 rendering one card per classification and evidence
+  shape, 4 for the Contents), **1358 backend passed**, browser suite green.
+  ⚠️ The `ws-report`/`ws-documents` visual baselines will fail job 15 by
+  design; adopt CI's `*-actual.png` per the standing rule.
+
+### Fixed — Dashboard UI/UX audit pass: responsive, reachable, keyboard-operable (2026-09-08)
+
+Owner request, 2026-09-08: an explicit UX review of the Dashboard — the
+2026-08-31 freeze's own stated exception. Presentation only: `DESIGN.md`
+governs it and **no entry in LOCKED_DECISIONS.md is amended**. No backend,
+schema, migration, RBAC, permission or API-contract change; no new dependency
+and no new component — three files (`dashboard/page.tsx`,
+`dashboard/workspace.css`, one e2e locator).
+
+Every fix below answers something **measured** in Chromium across twelve
+viewports (320×568 → 2560×1440) with forty seeded contracts, 200-character
+names and undeclared types — not something inferred from reading the markup.
+Desktop at 1200px and above was already sound; the failures were concentrated
+below 900px, in every dialog on a short viewport, and in the keyboard path.
+
+* **A dialog that could not be submitted.** At 320×568 the Edit dialog
+  rendered from y=−38 to y=606 in a 568px viewport with nothing scrollable:
+  its title clipped off the top and "Save changes" 38px below the fold, at any
+  scroll position. At 1280×600 it measured 587 of 600px — one field short of
+  the same failure, and it grows by three fields whenever the contract has a
+  version to declare. The overlay now centres a box capped at `100dvh` that
+  owns its own scroll, with the confirm/cancel row `sticky` to its bottom. The
+  fix lands on the shared `.ws-modal` primitive deliberately: the workspace's
+  Company-documents dialog had the identical bug, and repairing one copy would
+  have left the other broken.
+* **A row whose actions were off screen.** The seven-column table's
+  min-content width is 777px, so below ~900px it overflowed its card and put
+  the row's "Review"/"Analyze" link and its ⋯ menu at x=657–778 of a 320px
+  viewport — behind a nested horizontal scroller with no scrollbar and no cue.
+  At 768px, a tablet in portrait, the ⋯ was still clipped. Horizontal
+  scrolling was never a decision here; it is what `overflow-x: auto` does when
+  nobody chose anything. Below 900px each contract is now a card carrying the
+  same cells with their own labels (`data-label`) — nothing hidden, nothing
+  summarised away, every control inside the viewport.
+* **An empty shelf read as an empty account.** Switching Show: to Archived
+  with nothing archived rendered "No contracts yet · Upload your first
+  contract" *and* the five-step explainer to an account holding forty
+  contracts; the same for a department view. `firstRun` now tests the archive
+  and scope it always should have, and a third empty state states the real
+  condition.
+* **A menu no keyboard could reach.** Opening the row menu left focus on the
+  toggle, and the menu renders through a portal at the end of `.ws`, so the
+  next Tab went to the *following row's* document link. Focus now enters the
+  menu, Arrow/Home/End traverse it, and Tab or Escape closes it and hands
+  focus back — the WAI-ARIA menu-button behaviour.
+* **A stale table under a wrong headline.** "Documents could not be loaded"
+  rendered directly above twenty-five perfectly good rows. A failed *refresh*
+  now says so, with a Try again, and keeps the original message for the case
+  where there is genuinely nothing to show.
+* **A table that could disagree with its own toolbar.** Every filter, sort,
+  page and scope change fires a request and none cancelled the last, so a
+  slower earlier response could repaint the rows of the *previous* filter
+  while every control read the new one. A request-sequence guard means only
+  the newest response may write.
+* Twenty-five links all announced "Review"; archived rows offered "Analyze",
+  an operation the server refuses. Touch targets of 26–38px, and 13px inputs
+  that make iOS Safari zoom the page on focus. Four stat tiles with a hover
+  lift where one is clickable. Tiles collapsing to a single column at 375px
+  but two at 390px, spending 390px of the fold on counts. Filters staircasing
+  into four ragged rows. A loading skeleton without its header row, shifting
+  the layout on every first paint. `role="tablist"` on a scope filter that
+  owns no panel. A one-person department offering a silent, permanently
+  disabled Transfer. A scrim click discarding a half-typed form. `100vh` on a
+  phone. All fixed; the primary action moved into the page header, which buys
+  back the ~60px that took a 1366×768 laptop from five visible rows to six.
+* **Two cross-page leaks caught before they shipped**, and one regression
+  caught by the suite: `.ws-tabs .ws-tab` would have restyled the Admin nav
+  (now keyed off `[aria-pressed]`), the full-width action rule would have
+  stretched the workspace's Export/Share buttons (now scoped to
+  `.ws-context--dash`), and a 34px ⋯ toggle overflowed the fixed 11% Action
+  column by 2px — which made a click auto-scroll the table those 2px and the
+  menu's own close-on-scroll dismiss the menu that same click had opened.
+  `dashboard-list.spec.ts` failed on it; the column width was the real defect
+  (11% → 14%). A 2px overflow is not a cosmetic problem.
+* Tests: typecheck 0, forbidden-terms clean, **214 frontend unit passed**,
+  **95 browser passed / 0 failed** — identical to the pre-change baseline. One
+  e2e locator in `workspace.spec.ts` gained `exact: true`: the row action's
+  accessible name now contains the contract name and `getByRole` matches by
+  substring, so the un-anchored locator resolved to two links. Its assertion
+  is unchanged.
+* ⚠️ **`ws-documents-chromium-linux.png` will fail job 15** — the header now
+  carries the Upload button, pills and tiles changed size, and the Action
+  column widened. Per the owner's standing rule the baseline was **not**
+  regenerated locally; adopt CI's `*-actual.png` and review it as a diff.
+* Deliberately **not** changed, and why: filters are still not in the URL, so
+  refresh and Back do not preserve them. Mirroring state into the URL
+  measurably breaks Back — the component stays mounted, so the sync effect
+  rewrites the URL forward again — and doing it correctly means making the URL
+  the single source of truth across roughly a dozen call sites. That is a
+  state-ownership refactor, not a UI fix, and it is recommended as its own
+  change. Also left alone: the app shell's own small targets (shared chrome on
+  every page, and `--ws-shell-h` feeds the workspace's height maths) and
+  `.ws-chip`'s 10.5px (shared with Reviews/Legal/Admin).
+
+### Deployed — 2026-09-06 (owner GO), AB-12 + AB-13 and the product-coherence work
+
+* **Live database migrated**, in the owner's exact order, after a verified
+  `pg_dump` backup (`/root/backups/legalmind_v1_dev-pre-ab12-ab13-20260906-134556.dump`,
+  10.8 MB, 92 objects): `a3d5f9c17b46 → b7c3d9e1f2a4` (AB-12: roles renamed on
+  the same rows, `deleted_at → archived_at` with the 4 soft-deleted rows kept,
+  `departments` created) → `c8e4a1b7d2f6` (AB-13: `counterparties` +
+  `contracts.counterparty_id`, nothing backfilled). 42 contracts and 6 users
+  intact; 31 application tables. Preflight: `migrations PASS at head c8e4a1b7d2f6`.
+* **API restarted** on the committed tree — clean start, health 200 in 1s, new
+  routes answer 401 (guarded), not 404. **Frontend deployed** by the atomic
+  staged swap — BUILD_ID `c8uah2QHMuXQ7oOAUZm2G`, served with `no-cache`, previous
+  build kept for rollback.
+* **Smoke tests on the live site**, as the designated `test@leapswitch.com`
+  USER with a throwaway password (rotated afterwards to an unknown value — no
+  known credential remains): login/session, dashboard, upload, declared
+  metadata, company create + link, related-documents grouping, review +
+  deterministic analysis, findings→evidence, both 409 freezes, RBAC 403s,
+  SEC-07 404, archive — 24/25 on the first pass, the one miss being the DOCX
+  marker gap fixed below and re-verified PASS on a fresh upload. **Browser smoke
+  on the live site: 10/10** (real Chromium against the deployed build — login,
+  linked-company header, related-documents dialog, clause→finding links, the
+  Findings tab and glossary, the DOCX outline with its `Annexure` divider, and an
+  ordinary user refused administration data). Two `SMOKE` contracts were
+  created and **archived** (AB-12 r6, nothing destroyed): `d6c562bc-59d4-447c-9aa9-506dc93ba4b2` and
+  `23564027-4303-46f2-affe-ef28cf256549`; the owner may leave or remove them.
+* **Two real defects found by deploying, fixed and redeployed the same hour:**
+  the deploy preflight CLI had never been runnable (`__main__` guard mid-file →
+  `NameError`), and **DOCX uploads carried no heading or annexure markers** —
+  `parse_docx` bypassed the shared segmenter, so P1's outline and 44.4's
+  annexures had only ever applied to PDFs. One shared `_structure_markers` now
+  serves both paths; verified on live with a fresh Word upload.
+* Standing items the preflight still reports (pre-existing, not introduced
+  here): `database_roles` (the app role can run DDL — 55.2 wants a separate
+  migration role), and the ATTEST set (retention, malware scanning, backup
+  verification…) — all NOT YET SPECIFIED, reported rather than assumed.
+  `LEGALMIND_ENVIRONMENT` is unset on the live unit (defaults to
+  `development`); flagged for the owner.
+
+### Added — declared metadata, one-run evidence, review order, annexures, re-read in place, declared status (2026-09-06) — DEPLOYED 2026-09-06 (`2dcfac5`)
+
+Owner decisions of 2026-09-06 on the Phase 3 R&D: declared metadata is
+correctable only while a version has no Review (locked 33.7 / 34.15 r3 read as
+scoped, not amended); source is OPTIONAL; counterparty and effective date are
+VERSION-level in locked 42.4's `metadata` JSONB — no table, no column; Dashboard
+filters/columns out of scope. Then, under the owner's autonomous-execution
+instruction, the two READY items of the same R&D (P-8, P-4) and the 44.4 annexure
+detection, measured on the real corpus first. **No locked decision amended, no
+migration, no permission added, RBAC untouched, nothing deployed or committed.**
+
+* **Phase 3 — source · counterparty · effective date.** `PATCH
+  /document-versions/{id}` (`document.upload`; owner-only via
+  `guard.document_version`; 409 once ANY Review exists; 409 on an archived
+  contract) writes `source` (`ORGANIZATION` | `COUNTERPARTY` — Step 6's own
+  words, validated in code like Document Type), `counterparty` (free text,
+  trimmed) and `effective_date` (a calendar date, declared — never read from the
+  text) into `document_versions.metadata`, beside the `duplicate_of` ingestion
+  already writes. Sent null clears; left out, untouched; absent keys are OMITTED
+  (`SEC-07` discipline). Exposed on the version and on the Dashboard list's
+  `latest_version` — the counterparty datalist's ONLY source, so no
+  "all counterparties" endpoint discloses names across owners. Intake confirm
+  gains Source / Counterparty (native `<datalist>`) / Effective date (native
+  date input); Edit details gains the same, disabled with a plain sentence once
+  the version is analysed (presentation only — the server refuses regardless,
+  rule 18). `docs/api/openapi.json` regenerated (+97 lines).
+* **Phase 4 — one processing run IS the document (P-8).** `latest_completed_run_id`
+  in `ingestion/service.py` is now the single chooser for the document pane's
+  evidence, mapping (`load_clauses`, which already did this), unmatched
+  provisions and version comparison. Failed and in-flight attempts stay history
+  (42.5) and contribute no rows; a second COMPLETED run (an OCR retry, a future
+  REPROCESS) replaces the reading rather than merging with it. Dormant today —
+  no live version carries evidence under two runs — and a precondition to any
+  reprocessing. The assist lane's own evidence reads are deliberately untouched
+  (the retrieval-boundary standing instruction).
+* **P-4 — review order in the Findings pane.** Client-side, presentation only:
+  what needs a decision first, then the document's own order (page, then the
+  section number as the document numbers it — `9 < 9.2 < 10`, never string
+  order), then requirement heading, then id. Deterministic. The API's order is
+  unchanged.
+* **44.4 — annexures/schedules where detectable.** Measured first on the twelve
+  native-text corpus documents: one (the executed GRP MSA) has annexures —
+  `Annexure-1/2/3A`, `Appendix-3B/3C` — all five missed by the heading
+  heuristic, zero false positives elsewhere. `annexure_title()` marks a title
+  line that IS the word plus the document's own label (a bare "Schedule" is not
+  claimed) as a heading carrying `metadata.annexure` verbatim (34.12). Proven
+  metadata-only: boundaries and content byte-identical across all 13 corpus
+  PDFs, exactly 5 rows gained the marker. The evidence serializer exposes
+  `annexure` only on such rows; the Contents outline divides parts by the
+  document's own word ("Annexure", "Appendix") and still says only "Numbering
+  restarts" where the file declares nothing.
+* **Phase 5 — re-read in place, Option C (owner decision).** `POST
+  /document-versions/{id}/reprocess` (`document.upload`, owner-only, archived
+  → 409) records a NEW `REPROCESS` run (locked 42.5's type, unused until now)
+  over the bytes 34.5 preserved. The file is never touched and no existing
+  evidence row is rewritten or deleted (rule 17); because every reader now scopes
+  to the latest COMPLETED run (P-8), the new reading simply becomes the document
+  and the old one stays as history. **Refused with 409 — naming the reason and
+  "upload the document again as a new version" — while anything relies on the
+  current reading:** a Review, an Ask answer's citations (they point at this
+  reading's chunks), or Key Obligations (anchored to evidence ids); also while
+  the version is still processing. Audited (`document.reprocessed`, before/after
+  run ids; `run_metadata.reprocess_of` links the runs). A FAILED re-read is
+  recorded and changes nothing for readers — the version keeps the statuses its
+  standing reading earned. The assist index is rebuilt over the new run's rows
+  (`indexing.py` now scopes its evidence query to the latest COMPLETED run, and
+  the OCR job re-indexes) — a defect the re-read itself would have made live,
+  fixed at its source; retrieval scoring, thresholds and the refusal gate are
+  untouched. The workspace offers "Re-read with the current parser" only while
+  no Review exists; the server is the judge either way.
+* **The declared facts are now VISIBLE where the reviewer reads.** The manager's
+  question — *"document LeapSwitch ne banaya hai ya counterparty ne bheja hai"* —
+  was answered in the database and the edit dialog but nowhere on the screen a
+  reviewer actually works. The workspace header now carries "Our document" /
+  "Their document" for the version on show, the counterparty as declared, and
+  the effective date; the version selector says whose each version is, so
+  *v1 ours → v2 theirs* — the redline round-trip the whole workflow is about — is
+  legible at a glance. Every chip appears ONLY when that fact was declared: an
+  absent declaration is a fact ("nobody said"), and a placeholder would invent
+  one. Source is read from the VERSION, not the contract, because that is where
+  it is declared and where it changes. Told apart by weight and border, never by
+  colour alone: DD-9 reserves colour for finding status, and a green/red pair
+  here would read as a verdict on the document, which source is not.
+* **The re-read is serialised, and the lock it reuses had been leaking.** Found
+  by the pre-commit adversarial review, not by a test failure. `/reprocess` took
+  no lock, so two concurrent callers could each create a REPROCESS run and the
+  assist index could end up built from a different run than the one every reader
+  resolves to. It now takes `pg_try_advisory_xact_lock` on the request
+  transaction (locked 43.26 — released at exactly the commit that makes the run
+  visible, so no gap), under the SAME `version_lock_key` the OCR job uses, so a
+  re-read and a background OCR pass exclude each other rather than only
+  themselves; the blocker checks moved under the lock. Sharing that key exposed
+  a latent defect in the OCR job: its session-level lock was never released,
+  because `engine()` is a `QueuePool` and closing a pooled connection does not
+  end its PostgreSQL session — so the `OCR_MAX_ATTEMPTS` retry could never
+  actually run in the same process. An explicit `pg_advisory_unlock` in a
+  `finally` now does what that code's comment always claimed. Two regression
+  tests: a real second connection holding the key gets the re-read refused with
+  409 and NO run written (proven to fail without the lock), and the lock is
+  proven released after its holder exits.
+* **P-1 — the contract's lifecycle state is declared.** Step 2's Draft / Active /
+  Superseded through the `PATCH /contracts/{id}` that already accepted `status`
+  (no new endpoint), now audited (`contract.status_changed`, before/after) on
+  every real change and silent on a no-op. Any transition is allowed — a wrong
+  click must be correctable, and the trail says who changed what. Never inferred
+  from an effective date or a version (the DOC-06 line). Edit details gains a
+  Status select; the workspace header shows the state in words ("Active"), not
+  the enum. The Dashboard's derived analysis buckets are a different axis and are
+  unchanged.
+* Tests: +4 backend resource (round-trip and omission; refusals; post-Review
+  freeze; the assist lane never reads declared metadata — `AM-30` t4), +1 authz
+  (403 / 404 / 200 / archived 409), +2 comparison (source varies harmlessly;
+  one run per side), +2 ingestion (run chooser; annexure detection), +1
+  vocabulary sync (sources), +1 pane read scoping, +4 re-read (history kept,
+  index rebuilt, audited; refusals for Review / Key Obligations / processing;
+  failed re-read changes nothing; owner-only + `document.upload`), +1 status
+  (declared and audited), +1 assist indexing (one run only); +8 Vitest;
+  +4 Playwright (`declared-metadata.spec.ts`, `lifecycle.spec.ts`).
+* Validation on the current tree (2026-09-06): backend **1282 passed, 1 skipped, 1 xfailed, 1 failed** — the one failure is `test_migrations_must_be_at_head` reading the deliberately unmigrated live database (environmental, unchanged since AB-12); frontend **214 Vitest**; typecheck, forbidden-terms, ruff and mypy clean; browser **94 passed / 14 skipped / 0 failed** from a clean `CI=1` stack; `tools/verify_reproducibility` **PASS** (digest identical across the AB-12 migration round-trip); `tools/verify_assist_quality` **SHIPPABLE**, metrics identical to the recorded baseline (1/13 wrongly answered, 43/64 retained, recall@10 0.469, hit@1 0.344) — the parser change is metadata-only, so no chunk moved.
+
+### Added — the counterparty becomes an entity (AB-13, 2026-09-06) — DEPLOYED 2026-09-06 (`2dcfac5`, migration applied)
+
+Management's last two open product-coherence points: a company **profile**, and
+the NDA → MSA → revisions of one company no longer sitting as isolated
+documents. Phase 3's declared free text could satisfy neither, for one reason —
+**it carries no identity**: `"Acme Ltd"` and `"Acme Limited"` are two unrelated
+strings. Lock record **AB-13** (`AM-42`) authorises the entity; migration
+`c8e4a1b7d2f6`; **31 application tables, 209 columns**.
+
+* **NEW TABLE `counterparties`** (r1) — `name`, nullable `industry`, nullable
+  `relationship_notes`, `created_by`, timestamps. The profile asked for and
+  nothing more: no address book, no contacts, no pipeline. `industry` and
+  `relationship_notes` stay empty unless a human types them, and are **omitted,
+  not nulled**, so no screen renders "Industry: —" as though it had been
+  checked — rule 21, and the manager's "counterparty not fully known yet" point.
+* **NEW COLUMN `contracts.counterparty_id`** (r2) — nullable FK, ON DELETE
+  RESTRICT. Nothing is backfilled: the only honest source for the link is a
+  human saying so.
+* **Relatedness is DERIVED, not stored** (r3). `GET /counterparties/{id}`
+  returns the profile **and every contract for that company** the caller may
+  already see. **No document-to-document relationship table exists, and the
+  record forbids one** — once identity exists, relatedness is a query, and a
+  join table would be a second divergeable source of truth for what the FK
+  already states.
+* **No deal/matter entity** (r4). `AM-25` keeps the PO/commercial lifecycle out
+  of V1 and is NOT amended, so the chain is honestly company → contracts →
+  versions. Modelling a matter nothing populates would have been the
+  half-solution the owner ruled out.
+* **No new permission** (r5): `contract.view` reads, `contract.update` writes.
+* **Disclosure boundary** (r6): a company is visible only through a contract the
+  caller can see — or one they created, without which a new company could never
+  be linked to its first deal. **A global counterparty list is forbidden, not
+  merely unbuilt**: "we have a deal with X" is `SEC-07`/`LEGAL-02` material.
+  A scoping bug that would have leaked every company (a `with_only_columns`
+  applied after `.subquery().select()`, which silently drops the WHERE) was
+  caught by its own adversarial test before it left the branch.
+* **The per-version declaration is NOT replaced or migrated** (r7). It stays the
+  frozen record of what was declared for that version (rule 17); the link is the
+  live identity. The UI prefers the link and falls back to the declared text.
+* Audited (r8): `counterparty.created`, `counterparty.updated`,
+  `contract.counterparty_linked`.
+* UI: a **Company (counterparty)** picker in Edit details, with "+ Add a new
+  company…" creating and linking in one gesture.
+* **Owner-review fixes (same day).** A Department Lead saw the company with an
+  EMPTY document list — `_readable` allows department reachability but the detail
+  listed only `own`, and only unarchived; the list is now the caller's full read
+  scope in both archive states. And the related-documents view had **no UI**: the
+  endpoint was tested but nothing called it, and the header still showed only the
+  frozen per-version text, contradicting r7. The header now names the linked
+  company as a control that opens every document for it.
+* Tests: +7 backend (grouping without a relationship table; unknown industry
+  stays absent; cross-account invisibility incl. the byte-identical 404;
+  dangling link refused; ON DELETE RESTRICT; the forbidden global list pinned
+  structurally), +1 authz (403/404 boundaries), +3 Playwright
+  (`counterparty.spec.ts`).
+
+### Coordination note — 2026-09-06, shared tree (AB-12's version-immutability test)
+
+`test_contract_archive.test_no_route_mutates_a_document_version` (the other
+session's, from `643d0fd`) asserted the API has no PATCH on a document version
+at all, citing "AB-12 §5". The AB-12 lock record says nothing about version
+routes — its r6 is archive-versus-deletion ("nothing is destroyed"). Version
+immutability rests on locked 33.7 / 34.15 r3, which are scoped to "once
+analyzed / once used by a Review", and the owner ruled 2026-09-06 on exactly
+that scope. The test was NARROWED, not deleted: it still forbids PUT/DELETE and
+any route touching the file, the evidence or the processing record, and now
+pins the one PATCH to `document.upload` and the declared-metadata path.
+
+### Added — the Platform Administration area (2026-09-05) — LOCAL ONLY, NOT DEPLOYED
+
+Owner brief of 2026-09-05, built on the frozen AB-12 model. **No locked decision
+is amended and RBAC is unchanged** — no role, permission, grant or scope rule
+moved. Plain-language model: [docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md).
+
+* **Four sections** at `/dashboard/admin`: Users, Departments, Roles &
+  permissions, Audit log, behind a shared sub-navigation.
+* **Users.** Server-side filtering by role, department, "no department", status
+  and search, plus six allow-listed sort orders — `GET /users` gained them, and
+  the screen's old "Sort by" control (which set state that was never sent) is
+  now real. Each row carries name, email, role names, department, status, last
+  sign-in and created date; a detail panel adds sign-in method, who provisioned
+  the account, and its audit history (the existing endpoint filtered by
+  `entity_id`). Every derived field comes from a table already kept —
+  `user_identities.last_used_at` for last sign-in, the `admin.user_created`
+  audit row for the provisioner. **No schema change.**
+* **Create in one act.** `POST /users` accepts an optional `department_id` and
+  `role_code`; the role still runs S-8 *before* the account exists, so a refusal
+  leaves nothing behind.
+* **Departments.** `GET /departments` gained lead and member rollups (lead is
+  derived from who holds `DEPARTMENT_LEAD` — no `lead_id` column); new
+  `GET /departments/{id}` (members as accounts) and `PATCH /departments/{id}`
+  (rename only — the code identifies the boundary in an append-only trail).
+* **Roles & permissions.** New `GET /permissions` serves the SEC-04 catalogue
+  grouped, with `permission_group`/`description` that were stored and never
+  served. Legal authority is marked from the server, not a hardcoded list.
+* 🔴 **Fixed: the retained legal roles were offered in the grant picker.** The
+  server refused under S-8, but the UI offered an action the backend rejects.
+  They are now absent from every assignment control and appear only on the
+  catalogue screen, labelled "Not in use yet".
+* **Audit log.** Actors and targets resolve to names; date range and an
+  "account & access only" filter added. `before`/`after` payloads are served for
+  `admin.*`/`auth.*` actions and stay gated behind `legal_position.view` for
+  everything else — so a Platform Admin can read the role change they made and
+  still cannot read a contract's name from `contract.archived` or a Lead's
+  transfer reason. Entity labels resolve for users/departments/roles/sessions
+  only, never for a contract.
+* **Fixed: opening a row reloaded the table.** Selection is React state read
+  once from `?user=`; both `router.replace` and `history.replaceState` cause
+  Next to re-sync the route and remount the screen.
+* **Fixed (a11y): duplicate accessible names.** The filter bar and the create
+  form both exposed controls named "Role" and "Department"; the filters now
+  carry distinct `aria-label`s that contain their visible text (WCAG 2.5.3).
+* Tests: `backend/tests/test_admin_platform.py` (35) and
+  `frontend/src/__tests__/admin-platform.test.tsx` (11); `admin-area.spec.ts`
+  rewritten (7 browser tests). OpenAPI regenerated (**64 operations**).
+
+### Coordination note — 2026-09-05, shared tree (administration work)
+
+`workspace.css` now carries two adjacent append blocks with no unchanged context
+between them, so `git diff` shows them as one hunk: session `legalmind-v1-80`'s
+22 lines first, then this session's 119. Only the second block is staged, via a
+crafted patch rather than hunk-level staging — `git add -p` cannot split an
+adjacent-append hunk and would sweep the other session's work into this commit.
+Verified before committing that no `ws-doccard__cited` / `ws-row__findings` /
+`ws-row__findlabel` line appears in the staged diff. No selector collides
+between the two blocks.
+
+
+### Changed — RBAC redesigned around the real workflow (AB-12, 2026-09-05) — LOCAL ONLY, NOT DEPLOYED
+
+Owner brief of 2026-09-05 after a six-question interview; lock record **AB-12** in
+`all_lock.md`, registry rows `AM-39`–`AM-41`. Plain-language model:
+[docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md).
+
+* **Roles.** `LEGAL_ADMIN` → `DEPARTMENT_LEAD`, `SUPER_ADMIN` → `PLATFORM_ADMIN`
+  (data migration on the same rows; assignments kept). `USER` displays as
+  "Department User". `LEGAL_REVIEWER`/`LEGAL_DECISION_AUTHORITY` retained for a
+  future legal workflow, hidden from the everyday picker via a new `tier` field on
+  `GET /roles`. `DEVELOPER` loses `legal.decision`/`legal.approve_customization`.
+* **Department scope.** New `departments` table, `users.department_id`, permission
+  `department.view`. A Department Lead reads every deal owned by someone in their
+  department — never globally; writes stay owner-only. Review/Finding/Evaluation
+  visibility is now rooted in the **contract** (`authorization.contract_read_basis`),
+  not `reviews.created_by`. `GET /contracts?scope=department`, `/contracts/summary?scope=`,
+  `GET /departments/mine/members`; admin `GET/POST /departments`,
+  `PATCH /users/{id}` gains `department_id`.
+* **Ownership transfer.** `contract.transfer`; `POST /contracts/{id}/transfer`
+  (same-department, ACTIVE target, mandatory reason); audited as
+  `contract.ownership_transferred`.
+* **Archive replaces delete.** `contract.delete` → `contract.archive`;
+  `contracts.deleted_at` → `archived_at`; **`DELETE /contracts/{id}` removed (405)**;
+  `POST …/archive` / `…/restore`; archived contracts are read-only (409), off the
+  default lists, listable with `?archived=true`, readable by owner and lead. The
+  hard-delete branch that destroyed unanalysed contracts and their bytes is gone.
+* **Legal position visible to users.** `USER` gains `legal_position.view` so a
+  Department User sees the expected value, comparison and explanation on their own
+  findings (LEGAL-02 audience named; gate unchanged).
+* **OIDC JIT whitelist enforced** (`permissions.NEVER_PROVISIONED_BY_IDP`).
+* **Cross-owner reads audited by basis** — `contract.read_via_department_scope`
+  beside the existing `…_legal_scope`.
+* Migration `b7c3d9e1f2a4` — exercised on a `pg_dump` clone of the development
+  database (6 users, all roles held, 4 soft-deleted contracts), **not** on the live
+  database. **Deployment order is forced by the column rename: migrate → restart
+  API → deploy frontend.**
+* Frontend: Dashboard "My deals / Department deals" tabs, "Show: Archived" filter,
+  Archive/Restore/Transfer row actions (Archive replaces Delete), owner names in the
+  department view; Admin page gains departments and a department select per user,
+  role names and tiers instead of codes; nav labels "Standards" and "Administration".
+* Browser suite: a fourth e2e account `reader` on a bootstrap-created custom role (every USER grant except `legal_position.view`) drives the LEGAL-02 confidentiality specs, since `USER` itself now holds the grant; the assertions are unchanged. `LEGALMIND_RATELIMIT_SUGGEST_TYPE_MAX` raised for the suite (two consecutive full runs exhausted the obligations bucket).
+* Tests: `test_rbac_personas.py` (28) and `test_contract_archive.py` (17, replacing
+  `test_contract_deletion.py`); JIT-whitelist test; schema snapshot moved to 30
+  tables / 201 columns in the same change as the migration and lock record;
+  OpenAPI snapshot regenerated (**61 operations**).
+
+### Coordination note — 2026-09-05, shared tree
+
+Session `legalmind-v1-80` had uncommitted workspace-pane work (DocumentPane,
+FindingsPane, workspace.css, e2e specs) throughout; none of it was touched, and my
+only edit to a file it also holds (`model.ts`, two nav labels) is a disjoint hunk
+staged on its own. Its `--reload` API on :8010 picked up this refactor mid-flight
+against an unmigrated DB — diagnosed jointly, it killed that process. That session
+owns the next Playwright run (the bootstrap recreates and migrates the e2e DB).
+**The live `legalmind-api.service` imports from this working tree**; it keeps
+serving pre-AB-12 code from memory until restarted — see the deployment order above.
+
 ### Changed — shared-tree workflow (2026-09-04)
 
 * **A worktree per session.** `git worktree add` gives each session its own directory
@@ -65,6 +1341,30 @@ here so the finding is not lost:
 The remaining three (the `parsing.py` single-worker special case, the `ask()`
 body ternary, and `documentContentBlob` reusing `toApiError`) are correct and
 uncontroversial.
+
+### Added — version comparison, and R&D for Research (2026-09-04)
+
+* **Clause-level version comparison** (locked 33.15; owner decision 2026-09-04).
+  `GET /contracts/{id}/version-comparison` and a panel beside the workspace's
+  version picker report ADDED / REMOVED / CHANGED / UNCHANGED per clause, matched
+  on the document's own section numbering (34.12). Deterministic and server-side —
+  33.15 names the method and forbids LLM/RAG for it. 33.16 is enforced in both the
+  payload and the presentation: no verdict field exists, and no status carries a
+  colour, because a red "changed" would state a legal position the engine never
+  took. Findings the evaluator already produced on a changed clause are quoted
+  beside it; the comparison creates none. Unnumbered text is counted, never paired
+  by guesswork. 9 backend tests, 1 browser spec.
+* **[RESEARCH_DOMAIN_C_RD_2026-09-04.md](docs/00-project/RESEARCH_DOMAIN_C_RD_2026-09-04.md)**
+  — R&D only, no code. Measures the provisioned embedder cross-lingually (Hindi
+  question against the English text that answers it: **0.037** cosine, below the
+  0.100 unrelated-text baseline and far below the 0.50 gate), so multilingual
+  Research is an embedding-model question and lowering the floor is explicitly not
+  proposed. Also: the vision's headline "Section 138" query is a deterministic
+  Act+section lookup, not a search; Domain C needs its own calibrated thresholds
+  rather than Domain B's; a reranker has no measured justification yet; and
+  multi-turn follow-ups should carry their own context rather than be rewritten by
+  a model. Six owner inputs still block the domain (C-16 unchanged).
+  **Nothing in the retrieval system was changed.**
 
 ### Fixed
 

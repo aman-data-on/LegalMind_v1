@@ -146,14 +146,14 @@ describe("a citation from another version", () => {
     expect(html).toContain("open Version 1");
   });
 
-  it("still shows the excerpt and the labelled retrieval score — never a confidence", () => {
+  it("still shows the excerpt, and never a retrieval score", () => {
     const html = render(
       result({ text: "Ninety days [1].", citations: [CITATION],
                document_version_id: "dv-1", version_number: 1 }),
       2,
     );
     expect(html).toContain("ninety days prior written notice");
-    expect(html).toContain("retrieval score 0.621");
+    expect(html).not.toContain("retrieval score");
     expect(html.toLowerCase()).not.toContain("confidence");
   });
 

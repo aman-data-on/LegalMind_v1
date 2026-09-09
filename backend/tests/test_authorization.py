@@ -56,7 +56,7 @@ def test_super_admin_has_no_legal_decision_authority(db, seeded):
     customization merely because they are a Super Admin."
     """
     sa = make_user(db)
-    grant_role(db, sa, P.ROLE_SUPER_ADMIN)
+    grant_role(db, sa, P.ROLE_PLATFORM_ADMIN)
 
     assert has_permission(db, sa.id, P.PLATFORM_MANAGE) is True
     assert has_permission(db, sa.id, P.USER_MANAGE) is True
@@ -69,7 +69,7 @@ def test_super_admin_has_no_legal_decision_authority(db, seeded):
 def test_super_admin_has_no_legal_content_access(db, seeded):
     """Locked Step 24 r8 — no automatic access to confidential Legal content."""
     sa = make_user(db)
-    grant_role(db, sa, P.ROLE_SUPER_ADMIN)
+    grant_role(db, sa, P.ROLE_PLATFORM_ADMIN)
     assert has_permission(db, sa.id, P.LEGAL_POSITION_VIEW) is False
     assert has_permission(db, sa.id, P.REVIEW_VIEW) is False
 
@@ -79,7 +79,7 @@ def test_super_admin_cannot_reach_another_users_review(db, seeded):
     owner = make_user(db)
     review = make_review_for(db, owner)
     sa = make_user(db)
-    grant_role(db, sa, P.ROLE_SUPER_ADMIN)
+    grant_role(db, sa, P.ROLE_PLATFORM_ADMIN)
 
     assert can_see_review(db, sa.id, review) is False
     with pytest.raises(NotVisible):
@@ -96,7 +96,7 @@ def test_legal_review_does_not_confer_legal_decision(db, seeded):
 
 def test_legal_admin_does_not_get_legal_decision(db, seeded):
     admin = make_user(db)
-    grant_role(db, admin, P.ROLE_LEGAL_ADMIN)
+    grant_role(db, admin, P.ROLE_DEPARTMENT_LEAD)
     assert has_permission(db, admin.id, P.CONFIGURATION_PUBLISH) is True
     assert has_permission(db, admin.id, P.LEGAL_DECISION) is False
 
@@ -116,10 +116,10 @@ def test_legal_authority_via_additional_role(db, seeded):
     in legal approval authority. Under the locked many-to-many user_roles that
     is an ADDITIONAL role assignment."""
     admin_a = make_user(db)
-    grant_role(db, admin_a, P.ROLE_LEGAL_ADMIN)
+    grant_role(db, admin_a, P.ROLE_DEPARTMENT_LEAD)
 
     admin_b = make_user(db)
-    grant_role(db, admin_b, P.ROLE_LEGAL_ADMIN)
+    grant_role(db, admin_b, P.ROLE_DEPARTMENT_LEAD)
     grant_role(db, admin_b, P.ROLE_LEGAL_DECISION_AUTHORITY)
 
     assert holds_legal_decision_authority(db, admin_a.id) is False
@@ -302,7 +302,7 @@ def test_cannot_grant_authority_one_does_not_hold(db, seeded):
     edit form."""
     from sqlalchemy import select
     legal_admin = make_user(db)
-    grant_role(db, legal_admin, P.ROLE_LEGAL_ADMIN)
+    grant_role(db, legal_admin, P.ROLE_DEPARTMENT_LEAD)
     authority_role = db.execute(
         select(M.Role).where(M.Role.code == P.ROLE_LEGAL_DECISION_AUTHORITY)
     ).scalar_one()
@@ -314,7 +314,7 @@ def test_cannot_grant_authority_one_does_not_hold(db, seeded):
 def test_holder_may_grant_authority_they_hold(db, seeded):
     from sqlalchemy import select
     holder = make_user(db)
-    grant_role(db, holder, P.ROLE_LEGAL_ADMIN)
+    grant_role(db, holder, P.ROLE_DEPARTMENT_LEAD)
     grant_role(db, holder, P.ROLE_LEGAL_DECISION_AUTHORITY)
     authority_role = db.execute(
         select(M.Role).where(M.Role.code == P.ROLE_LEGAL_DECISION_AUTHORITY)
@@ -325,7 +325,7 @@ def test_holder_may_grant_authority_they_hold(db, seeded):
 def test_guard_covers_editing_a_more_privileged_account(db, seeded):
     """S-9 — the hole the external project admits to. Not inherited here."""
     weaker = make_user(db)
-    grant_role(db, weaker, P.ROLE_SUPER_ADMIN)      # user.manage, no legal.*
+    grant_role(db, weaker, P.ROLE_PLATFORM_ADMIN)      # user.manage, no legal.*
 
     stronger = make_user(db)
     grant_role(db, stronger, P.ROLE_LEGAL_DECISION_AUTHORITY)
@@ -344,7 +344,7 @@ def test_guard_covers_deleting_a_more_privileged_account(db, seeded):
     """S-9 names deleting alongside editing. Deleting the account that holds
     `legal.decision` destroys that authority just as surely as editing it."""
     weaker = make_user(db)
-    grant_role(db, weaker, P.ROLE_SUPER_ADMIN)      # user.manage, no legal.*
+    grant_role(db, weaker, P.ROLE_PLATFORM_ADMIN)      # user.manage, no legal.*
 
     stronger = make_user(db)
     grant_role(db, stronger, P.ROLE_LEGAL_DECISION_AUTHORITY)
@@ -361,7 +361,7 @@ def test_last_administrator_cannot_be_left_with_zero_admins(db, seeded):
         assert_administrative_authority_preserved(db, previous_count=1)
 
     holder = make_user(db)
-    grant_role(db, holder, P.ROLE_SUPER_ADMIN)
+    grant_role(db, holder, P.ROLE_PLATFORM_ADMIN)
     assert_administrative_authority_preserved(db, previous_count=1)   # no raise
 
 
@@ -372,11 +372,11 @@ def test_sole_admin_cannot_lock_the_org_out_over_http(api, db, seeded):
     Guard-level tests prove the rule; this proves it is actually *reached* by
     the endpoints the Admin screen calls."""
     sole_admin = make_user(db)
-    grant_role(db, sole_admin, P.ROLE_SUPER_ADMIN)
+    grant_role(db, sole_admin, P.ROLE_PLATFORM_ADMIN)
     sign_in(api, db, sole_admin)
 
     revoked = api.delete(
-        f"/api/v1/users/{sole_admin.id}/roles/{P.ROLE_SUPER_ADMIN}")
+        f"/api/v1/users/{sole_admin.id}/roles/{P.ROLE_PLATFORM_ADMIN}")
     assert revoked.status_code == 403, revoked.text
     assert "manage users" in revoked.text
 
@@ -389,9 +389,9 @@ def test_sole_admin_cannot_lock_the_org_out_over_http(api, db, seeded):
 
     # With a second administrator present, both operations are permitted again.
     second = make_user(db)
-    grant_role(db, second, P.ROLE_SUPER_ADMIN)
+    grant_role(db, second, P.ROLE_PLATFORM_ADMIN)
     assert api.delete(
-        f"/api/v1/users/{sole_admin.id}/roles/{P.ROLE_SUPER_ADMIN}"
+        f"/api/v1/users/{sole_admin.id}/roles/{P.ROLE_PLATFORM_ADMIN}"
     ).status_code == 200
 
 
@@ -519,7 +519,7 @@ def test_super_admin_still_gets_no_legal_content(db, seeded):
     db.flush()
 
     sa = make_user(db)
-    grant_role(db, sa, P.ROLE_SUPER_ADMIN)
+    grant_role(db, sa, P.ROLE_PLATFORM_ADMIN)
     assert can_see_review(db, sa.id, review) is False
 
 
@@ -594,7 +594,7 @@ def test_contract_access_is_unchanged_by_rec_09(db, seeded):
     """`REC-09` deliberately does not extend to Contracts or Documents — its own
     "What this does NOT settle" says so. Asserted here so a later change that widens
     Contract visibility has to be a deliberate decision rather than a side effect."""
-    from legalmind.security.authorization import require_contract_visible
+    from legalmind.security.authorization import require_contract_owned
 
     owner = make_user(db)
     review = make_review_for(db, owner)
@@ -604,7 +604,7 @@ def test_contract_access_is_unchanged_by_rec_09(db, seeded):
 
     assert can_see_review(db, counsel.id, review) is True
     with pytest.raises(NotVisible):
-        require_contract_visible(db, counsel.id, review.contract_id)
+        require_contract_owned(db, counsel.id, review.contract_id)
 
 
 def test_legal_scope_ends_when_the_review_resolves(db, seeded, requirement_version):

@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard for LIABILITY-TOS-001 \u2014 the TERMS OF SERVICE liability",
+    "RATIFIED Company Standard for LIABILITY-TOS-001 — the TERMS OF SERVICE liability",
     "position. This is the organization's own position, confirmed by the owner on",
     "2026-08-18 and re-scoped to document type TOS by owner decision Q3=B on 2026-08-19",
     "(per-type standards). THE VALUE IS UNCHANGED from the 2026-08-18 ratification:",
@@ -30,12 +30,16 @@
     "  legalmind/evaluation/workflow.py."
   ],
   "requirement_code": "LIABILITY-TOS-001",
+  "description": "Leapswitch's total liability is capped at the fees paid over a set period before the claim.",
   "ratified": "2026-08-18",
   "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
   "source_clause": "13 Limitation of Liability, second bullet",
   "source_quote": "LEAPSWITCH'S TOTAL AGGREGATE LIABILITY TO YOU FOR ALL CLAIMS ARISING OUT OF OR IN CONNECTION WITH THESE TERMS OR THE SERVICES SHALL NOT EXCEED THE TOTAL FEES PAID BY YOU TO LEAPSWITCH DURING THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM.",
   "configuration": {
     "document_type": "TOS",
+    "not_applicable_to": [
+      "SLA"
+    ],
     "preferred": 12,
     "unit": "MONTHS",
     "basis": "FEES_PAID",
@@ -85,16 +89,16 @@
     "It is deliberately distinct from FEES_PAID_FOR_AFFECTED_SERVICES, the basis",
     "used by MSA 17.2 ('for the specific Services giving rise to the claim').",
     "45B.4 forbids assuming the two are equivalent, so a 6-month affected-services",
-    "cap does NOT evaluate as a deviation from this standard \u2014 it fails closed as",
+    "cap does NOT evaluate as a deviation from this standard — it fails closed as",
     "UNABLE_TO_EVALUATE. Declaring them comparable would be a legal judgement and",
     "needs owner approval via comparable_bases."
   ],
   "_owner_rulings": [
-    "2026-08-18 \u2014 BASIS COMPARABILITY: keep FEES_PAID and",
+    "2026-08-18 — BASIS COMPARABILITY: keep FEES_PAID and",
     "FEES_PAID_FOR_AFFECTED_SERVICES DISTINCT. The owner declined to declare them",
     "comparable. Consequence, accepted deliberately: a counterparty cap measured on",
     "fees for the affected Services only is NEVER compared numerically to this",
-    "standard \u2014 it yields UNABLE_TO_EVALUATE and goes to human Legal review, however",
+    "standard — it yields UNABLE_TO_EVALUATE and goes to human Legal review, however",
     "close the numbers look. This is 45B.4's default, so `comparable_bases` stays",
     "empty and NO code change was needed; STD-LIAB-02 pins the behaviour.",
     "",
@@ -125,7 +129,10 @@
         "shall not exceed"
       ]
     ],
-    "negative_patterns": [],
+    "negative_patterns": [
+      "service credit",
+      "service credits"
+    ],
     "section_heading_terms": [
       "liability"
     ],
@@ -140,7 +147,8 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "NEGATIVE PATTERNS 2026-09-09 (AM-54): 'service credit(s)' — the owner's L-13 ruling (2026-08-20) that service credits are a remedy, not a liability cap, stated as mapping terminology so neither the configured phrases nor the semantic stage can map a credits clause to this Requirement. No position, threshold or tolerance changed."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

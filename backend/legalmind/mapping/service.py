@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.db.lookup import latest_completed_run_id
 from legalmind.mapping.engine import Clause, MappingResult, map_document
 from legalmind.mapping.rules import MappingRules
 
@@ -41,24 +42,9 @@ def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
     earlier attempt is retained for history (42.5) but must not contribute
     clauses, or a partially-extracted retry could resurrect stale text.
     """
-    # Ordering note: `created_at` defaults to PostgreSQL now(), which returns
-    # TRANSACTION start time — two runs created in the same transaction share
-    # it, making "latest" non-deterministic. `started_at` is assigned per run
-    # from the application clock, and `id` is a final deterministic tiebreak, so
-    # this ordering is stable (ENG-11).
-    run_id = db.execute(
-        select(M.DocumentProcessingRun.id)
-        .where(
-            M.DocumentProcessingRun.document_version_id == document_version_id,
-            M.DocumentProcessingRun.status == "COMPLETED",
-        )
-        .order_by(
-            M.DocumentProcessingRun.started_at.desc().nullslast(),
-            M.DocumentProcessingRun.created_at.desc(),
-            M.DocumentProcessingRun.id.desc(),
-        )
-        .limit(1)
-    ).scalar_one_or_none()
+    # One run IS the document (P-8, 2026-09-06) — the same choice every other
+    # reader makes, made in one place.
+    run_id = latest_completed_run_id(db, document_version_id)
     if run_id is None:
         return []
 
@@ -74,6 +60,7 @@ def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
             section_number=e.section_number,
             section_title=e.section_title,
             page_number=e.page_number,
+            is_heading=bool((e.evidence_metadata or {}).get("heading")),
         )
         for e in rows
     ]

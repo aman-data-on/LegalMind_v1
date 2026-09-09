@@ -3,6 +3,7 @@
  * derivation. Kept separate so the house static-render tests can pin them.
  */
 
+import { scopeLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 
@@ -53,9 +54,217 @@ export function groupByPage(rows: EvidenceRow[]): PageGroup[] {
   return groups;
 }
 
-/** Rows that carry a clause reference — the document's own outline. */
+/**
+ * The document's own outline — HEADINGS, not every row that starts with a
+ * number.
+ *
+ * The panel used to list every row carrying a number or a title, which put
+ * mid-clause body text ("10.2 Customer acknowledges and understands that the…")
+ * beside real headings at the same weight and made the list unreadable. The
+ * parser now records which rows begin a section, so the outline is what the
+ * document says it is rather than what the text happens to start with.
+ *
+ * FALLBACK, deliberately: documents extracted before 2026-09-05 carry no
+ * marker, and re-extracting them would rewrite evidence that Findings already
+ * cite (rule 17). For those the old rule still applies — an imperfect outline
+ * beats an empty one, and it improves the moment a document is re-uploaded.
+ */
 export function outlineOf(rows: EvidenceRow[]): EvidenceRow[] {
-  return rows.filter((row) => row.section_number || row.section_title);
+  const headings = rows.filter((row) => row.is_heading && isHeadingLine(row));
+  if (headings.length > 0) return headings;
+  // The fallback applies the SAME line test. Without it, a document whose only
+  // heading marks are false ones fell through to here and the paragraphs came
+  // straight back — they carry a `section_title`, which is exactly what the
+  // parser promoted. A numbered row is admitted regardless: a clause reference
+  // is a navigation target whether or not the row is a heading.
+  return rows.filter((row) =>
+    row.section_number
+    || clauseFromText(row)
+    || (row.section_title && isHeadingLine(row)));
+}
+
+/**
+ * The clause number and title a row DECLARES in its own text, for rows the
+ * parser numbered as `null`.
+ *
+ * THE DEFECT (owner's screenshot, 2026-09-09): the Contents of a real 20-page
+ * MSA was empty. Measured on the live rows — 91 evidence rows, ONE with a
+ * `section_number`. The numbers are all there in the text; they are separated
+ * from their titles by U+200B:
+ *
+ *     "1.​\nDEFINITIONS \n1.1.​“Affiliate” shall mean…"
+ *     "7.​\nTERM AND TERMINATION"
+ *     "17.​\nLIMITATION OF LIABILITY"
+ *
+ * That is how Word exports automatic list numbering: the generated number is
+ * its own run, terminated by a zero-width space, and the paragraph text follows
+ * on the next line. `ingestion/parsing.py`'s number regex sees U+200B as a
+ * non-space and matches nothing, so the whole document arrives unnumbered and
+ * the outline has nothing to list.
+ *
+ * The SAME trap was fixed once already, on 2026-09-08, in `assist/chunking.py`
+ * ("U+200B/NBSP are blanks") — the parser was never given the same treatment.
+ *
+ * The fix is HERE and not in the parser, for the reason `isHeadingLine` above
+ * records: `section_number` and `is_heading` are not presentation fields.
+ * `mapping/service.py` feeds them to the mapping engine and `analysis/service.py`
+ * reads them to decide whether a document is too unsegmented to analyse at all,
+ * so re-tuning the parser would change which provisions map and which documents
+ * are refused — legal results, for a navigation defect. Re-extracting instead
+ * would rewrite evidence rows that existing Findings already cite (rule 17).
+ * So this reads the row's own recorded text and derives nothing else.
+ *
+ * Measured against every document in the live database: it fires only on rows
+ * the parser left unnumbered, and every number it recovers is one the document
+ * states — 31 on the MSA above, 49 on the executed GRP MSA, 74 on a partner
+ * agreement, 0 on all six documents the parser already numbers completely.
+ */
+const CLAUSE_ALONE = /^(\d+(?:\.\d+)*)\.$/;
+const CLAUSE_INLINE = /^(\d+(?:\.\d+)*)\.?\s+(\S.*)$/;
+
+export function clauseFromText(
+  row: { content: string },
+): { number: string; title: string } | null {
+  const lines = row.content
+    // U+200B (Word's list-number terminator) and NBSP are blanks, exactly as
+    // the assist chunker treats them.
+    .replace(/[​ ]/g, " ")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter((line) => line.length > 0);
+  const first = lines[0];
+  if (!first) return null;
+  // The number alone on its line MUST carry its trailing dot: "3." is a clause
+  // label, a bare "3" is a page-footer row and there are two of them in the
+  // document above.
+  const alone = CLAUSE_ALONE.exec(first);
+  if (alone) return { number: alone[1]!, title: lines[1] ?? "" };
+  const inline = CLAUSE_INLINE.exec(first);
+  if (inline) return { number: inline[1]!, title: inline[2]! };
+  return null;
+}
+
+/**
+ * The number and title to SHOW for an outline row: what the parser recorded,
+ * else what the row's own text states. Stored values always win — a document
+ * the parser reads correctly is never reinterpreted here.
+ */
+export function clauseOf(row: EvidenceRow): { number: string | null; title: string } {
+  if (row.section_number) {
+    return { number: row.section_number, title: row.section_title ?? "" };
+  }
+  const derived = clauseFromText(row);
+  if (derived) return derived;
+  return { number: null, title: row.section_title ?? "" };
+}
+
+/**
+ * Whether a heading-marked row is a heading LINE rather than a paragraph whose
+ * first line merely looked like one.
+ *
+ * THE DEFECT (owner's screenshot, 2026-09-08): the Contents of a real NDA read
+ * "AND", "Information", "The information is independently developed by
+ * employees of the…", then §10, §11, §12. The first three are body text.
+ * `parsing._is_unnumbered_heading` promotes an unnumbered line when the line
+ * after it does not begin lowercase — which is true of a party block ("AND"
+ * followed by a company name in capitals) and of a definitions paragraph.
+ *
+ * The fix is HERE and not in the parser on purpose. `is_heading` is not a
+ * presentation flag: `mapping/service.py` feeds it to the mapping engine as
+ * `Clause.is_heading`, and `analysis/service.py` reads it to decide whether a
+ * document is too unsegmented to analyse at all. Re-tuning the parser could
+ * therefore change which provisions map and which documents are refused — a
+ * change to legal results, for a navigation defect. So the outline filters what
+ * it shows and the recorded marker is left exactly as it is.
+ *
+ * The test is a fact about the row, not about this document: a heading is a
+ * line, so its content is its own heading text and nothing more. Measured on
+ * the live rows — the three real headings carry 17, 22 and 32 characters
+ * against titles of 13, 18 and 28; the three false ones carry 159, 187 and 772
+ * characters against titles of 72, 11 and 3. The slack covers the number, its
+ * separator and stray whitespace.
+ */
+function isHeadingLine(row: EvidenceRow): boolean {
+  const title = row.section_title?.trim() ?? "";
+  // A heading the parser recorded with no title at all — an annexure label, in
+  // practice — is trusted: there is no body text to have mistaken it for.
+  if (!title) return true;
+  const number = row.section_number?.trim() ?? "";
+  return row.content.trim().length <= number.length + title.length + 6;
+}
+
+/**
+ * Findings that cite a given evidence row — the reverse of the finding-to-
+ * evidence link the pane already draws.
+ *
+ * Built from the SAME findings list the Findings pane renders, which the server
+ * has already filtered by permission and redacted per LEGAL-02. So a reader who
+ * cannot see a Finding cannot learn of it here either: the list they are given
+ * simply does not contain it, and this function invents nothing. It also means
+ * no finding data is duplicated — this is an index over state that is already
+ * loaded, not a second copy of it.
+ *
+ * The map deliberately carries the whole Finding rather than a projection: the
+ * caller needs its id to navigate and its classification to label the link, and
+ * copying two fields out would be the start of the duplication this avoids.
+ */
+export function findingsByEvidenceId<T extends { evidence: Array<{ id: string }> }>(
+  findings: T[],
+): Map<string, T[]> {
+  const byEvidence = new Map<string, T[]>();
+  for (const finding of findings) {
+    for (const row of finding.evidence) {
+      const bucket = byEvidence.get(row.id);
+      if (bucket) {
+        if (!bucket.includes(finding)) bucket.push(finding);
+      } else {
+        byEvidence.set(row.id, [finding]);
+      }
+    }
+  }
+  return byEvidence;
+}
+
+/**
+ * The requirement in a reader's words — the heading the Findings pane shows.
+ *
+ * Lives here rather than in the pane because the document pane's reverse link
+ * must name a finding the SAME way the finding names itself; two spellings of
+ * one requirement is how a reader stops believing they are the same thing.
+ */
+export function requirementHeading(
+  requirement: { code?: string | null; name?: string | null },
+): string {
+  const name = requirement.name?.trim();
+  const code = requirement.code?.trim();
+  if (name && name !== code) return name;
+  if (code) return scopeLabel(code);
+  return "Requirement";
+}
+
+/**
+ * Where the document's numbering restarts — a real MSA carries more than one
+ * sequence: the body §1–§24, then an annexed AUP that begins again at §1, then
+ * a schedule that begins again at §1. Flattening them into one list is why the
+ * outline appeared to jump from §24.9 back to §12 and §4.
+ *
+ * A restart is a top-level number that DECREASES. Equal is not a restart: §1
+ * followed by §1.2 is a sub-heading of the same section, and treating it as one
+ * put a divider inside every section that had one.
+ * That is a fact about the numbers the document states, not an interpretation
+ * of what the annexure IS — naming it would be inventing a document structure
+ * the file does not declare, so the divider says only that numbering restarts.
+ */
+export function sequenceBreaks(rows: EvidenceRow[]): Set<string> {
+  const breaks = new Set<string>();
+  let previous: number | null = null;
+  for (const row of rows) {
+    const top = Number.parseInt(clauseOf(row).number?.split(".")[0] ?? "", 10);
+    if (Number.isNaN(top)) continue;
+    if (previous !== null && top < previous) breaks.add(row.id);
+    previous = top;
+  }
+  return breaks;
 }
 
 export function locationLabel(row: EvidenceRow): string {
@@ -86,12 +295,49 @@ export interface NavItem {
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
   if (can(P.CONTRACT_VIEW)) items.push({ href: "/dashboard", label: "Dashboard" });
-  if (can(P.REVIEW_VIEW)) items.push({ href: "/dashboard/reviews", label: "Reviews" });
+  /*
+   * Reviews is a QUEUE, and a queue is only a destination for someone who works
+   * one (2026-09-04 audit). For a contract owner it listed one row per analysis
+   * run of documents the Dashboard already lists, with the same states — the
+   * same information twice, one click apart. It stays a full screen (a Report is
+   * reached from it, and from the workspace) but leaves the top-level nav unless
+   * the caller actually holds Legal work: `legal.review` widens `GET /reviews`
+   * to other people's Reviews (`REC-09`), which is the point at which a queue
+   * says something the Dashboard cannot.
+   */
+  if (can(P.REVIEW_VIEW) && can(P.LEGAL_REVIEW)) {
+    items.push({ href: "/dashboard/reviews", label: "Reviews" });
+  }
   if (can(P.LEGAL_REVIEW)) items.push({ href: "/dashboard/legal", label: "Legal" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask History" });
-  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/research", label: "Research" });
+  /*
+   * "Ask" — not "Ask History". Asking happens in a document (the workspace
+   * dock); this screen is where the record of it lives. Naming the nav item
+   * after the archive advertised the filing cabinet and hid the feature: the
+   * audit found Ask had no nav presence at all while its history had a
+   * top-level slot. One label for one capability; the page itself explains
+   * where asking happens.
+   */
+  if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask" });
+  /*
+   * Legal configuration — Requirements, Company Standards and the published
+   * snapshot every analysis pins (AUD-04). It has lived at the legacy
+   * `/configuration` route with NO entry in this shell, so a Legal Admin could
+   * only reach the one screen that makes analysis possible by typing a URL.
+   * Adopted here 2026-09-04; the capability is unchanged.
+   */
+  if (can(P.CONFIGURATION_VIEW)) {
+    // "Standards" — AB-12 §18: the Department Lead's word for it, not ours.
+    items.push({ href: "/dashboard/configuration", label: "Standards" });
+  }
   // The control plane sits last — it is not part of the legal workflow (§H).
-  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Admin" });
+  if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Administration" });
+  /*
+   * Research is deliberately ABSENT. Its screen exists and says so honestly
+   * ("Statute research isn't available yet"), but statute intake is an open
+   * owner decision (C-16), so the capability does not exist — and a nav slot is
+   * a promise. Restore this line in the same change that ships the capability:
+   *   if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/research", label: "Research" });
+   */
   return items;
 }
 
@@ -310,13 +556,11 @@ export function outlineStatus(
  * server's own counts, never recomputed from findings.
  */
 export function rowNeedsAttention(row: {
-  latest_analysis?: { classification_counts?: Record<string, number> } | null;
+  latest_analysis?: { user_status_counts?: Record<string, number> } | null;
 }): boolean {
-  const counts = row.latest_analysis?.classification_counts;
+  const counts = row.latest_analysis?.user_status_counts;
   if (!counts) return false;
-  return Object.entries(counts).some(
-    ([classification, n]) => classification !== "MATCH" && n > 0,
-  );
+  return Object.entries(counts).some(([status, n]) => status !== "ACCEPTABLE" && n > 0);
 }
 
 /** Review lifecycle states that mean "a result is still coming" (Step 30) —
@@ -338,22 +582,22 @@ export function documentStatusBucket(row: {
   latest_version?: { processing_status: string } | null;
   latest_analysis?: {
     review_status: string;
-    classification_counts?: Record<string, number>;
+    user_status_counts?: Record<string, number>;
   } | null;
 }): DocumentStatusBucket {
   if (!row.latest_version || row.latest_version.processing_status !== "COMPLETED") return "draft";
   const analysis = row.latest_analysis;
   if (!analysis) return "draft";
   if (IN_FLIGHT_REVIEW_STATUSES.has(analysis.review_status)) return "analyzing";
-  const counts = analysis.classification_counts ?? {};
-  const hasIssue = Object.entries(counts).some(([classification, n]) => classification !== "MATCH" && n > 0);
+  const counts = analysis.user_status_counts ?? {};
+  const hasIssue = Object.entries(counts).some(([status, n]) => status !== "ACCEPTABLE" && n > 0);
   return hasIssue ? "needs_attention" : "analyzed";
 }
 
 export const STATUS_BUCKET_LABEL: Record<DocumentStatusBucket, string> = {
   draft: "Draft",
   analyzing: "Analyzing",
-  needs_attention: "Needs Review",
+  needs_attention: "Needs attention",
   analyzed: "Analyzed",
 };
 
@@ -455,4 +699,131 @@ export function documentTextState(version: {
   }
   if (version.processing_status !== "COMPLETED") return "processing";
   return "empty";
+}
+
+/**
+ * Counterparty names the reader can ALREADY see on the Dashboard list — the
+ * intake and edit datalists converge on these, and only these (2026-09-06).
+ * Deliberately no "every counterparty" endpoint: one would disclose names
+ * across owners and departments, and this list is already permission-scoped
+ * by the server. Trimmed, de-duplicated, sorted; a row with nothing declared
+ * contributes nothing.
+ */
+export function knownCounterparties(
+  contracts: ReadonlyArray<{ latest_version?: { counterparty?: string } | null }> | null,
+): string[] {
+  const seen = new Set<string>();
+  for (const contract of contracts ?? []) {
+    const name = contract.latest_version?.counterparty?.trim();
+    if (name) seen.add(name);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Review order for the Findings list (P-4, 2026-09-06). The API returns findings
+ * in engine order — the requirement catalogue's — which scatters the eight that
+ * need a decision among the fourteen that do not. Presentation only (rule 18):
+ * nothing here decides an outcome; it decides what the reader meets first.
+ *
+ *   1. findings that need a decision, then the rest — the reader's task first;
+ *   2. within each, DOCUMENT order: the earliest clause the finding cites
+ *      (page, then the section number as the document numbers it);
+ *   3. then the requirement's heading, then id — so two findings on one clause
+ *      sit in a stable order.
+ *
+ * Deterministic: the same findings always yield the same order. A finding
+ * citing nothing locatable sorts after those that do, never among them.
+ */
+export function reviewOrder<
+  T extends {
+    id: string;
+    requires_decision: boolean;
+    evidence: ReadonlyArray<{ page_number: number | null; section_number: string | null }>;
+    requirement: { code?: string | null; name?: string | null };
+  },
+>(findings: readonly T[]): T[] {
+  const position = (f: T): number[] => {
+    let best: number[] | null = null;
+    for (const e of f.evidence) {
+      const parts = (e.section_number ?? "").split(".").map((n) => Number.parseInt(n, 10));
+      const key = [e.page_number ?? Number.POSITIVE_INFINITY,
+                   ...(parts.some(Number.isNaN) || parts.length === 0 ? [Number.POSITIVE_INFINITY] : parts)];
+      if (best === null || compareKeys(key, best) < 0) best = key;
+    }
+    return best ?? [Number.POSITIVE_INFINITY];
+  };
+  return [...findings].sort((a, b) =>
+    Number(b.requires_decision) - Number(a.requires_decision)
+    || compareKeys(position(a), position(b))
+    || requirementHeading(a.requirement).localeCompare(requirementHeading(b.requirement))
+    || a.id.localeCompare(b.id));
+}
+
+function compareKeys(a: number[], b: number[]): number {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? -1, y = b[i] ?? -1;      // a shorter key ("3") precedes its children ("3.1")
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * The divider word above an annexed part — the KIND the document's own title
+ * uses ("Annexure", "Schedule", "Appendix", "Exhibit"), never an invented name.
+ * Undefined for a row that is not one (44.4's "where detectable").
+ */
+export function partLabel(row: { annexure?: string }): string | undefined {
+  const word = row.annexure?.match(/^[A-Za-z]+/)?.[0];
+  return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : undefined;
+}
+
+/**
+ * Key Obligations categories — the accordion rows (owner, 2026-09-08). The
+ * server groups under the document's OWN role labels; this collapses the
+ * mutual ones ("Both Parties", "Parties", "Each Party") into one row and reads
+ * "Neither Party" as the prohibition it is, so a Sales or CS reader gets a
+ * sentence rather than a legal role noun.
+ *
+ * A NAMED role keeps its own label verbatim ("Receiving Party must"). The
+ * requested "Our company must" / "The other party must" split is deliberately
+ * NOT synthesised: nothing in the extraction says which role is us — a mutual
+ * NDA makes both sides the Receiving Party — and guessing would tell a
+ * non-lawyer that an obligation is ours when it is the counterparty's.
+ */
+export interface ObligationCategory<T> {
+  key: string;
+  title: string;
+  items: T[];
+}
+
+export function obligationCategories<T>(
+  groups: Array<{ party_label: string; items: T[] }>,
+): Array<ObligationCategory<T>> {
+  const rank = { mutual: 0, role: 1, neither: 2 };
+  const seen = new Map<string, ObligationCategory<T> & { order: number }>();
+  for (const group of groups) {
+    // Real extractions carry every casing and article the documents use —
+    // "Customer"/"customer", "Receiving Party"/"The Receiving Party" — so a
+    // role's identity is its bare lower-case name, which merges those.
+    const label = group.party_label.trim().replace(/\s+/g, " ")
+      .replace(/\s*obligations?$/i, "").replace(/^the\s+/i, "");
+    const bare = label.toLowerCase();
+    const kind = /^neither\b/.test(bare)
+      ? "neither"
+      : /^(both|each|either|all)?\s*(part(y|ies)|sides?)$/.test(bare)
+        ? "mutual"
+        : "role";
+    const key = kind === "role" ? `role:${bare}` : kind;
+    const title = kind === "neither" ? "Neither side can"
+      : kind === "mutual" ? "Both sides must"
+        : `${label.charAt(0).toUpperCase()}${label.slice(1)} must`;
+    const existing = seen.get(key);
+    if (existing) existing.items = existing.items.concat(group.items);
+    else seen.set(key, { key, title, items: [...group.items], order: rank[kind] });
+  }
+  return [...seen.values()]
+    .filter((category) => category.items.length > 0)
+    .sort((a, b) => a.order - b.order)
+    .map(({ key, title, items }) => ({ key, title, items }));
 }

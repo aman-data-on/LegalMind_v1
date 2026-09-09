@@ -1,89 +1,139 @@
 "use client";
 
 /**
- * Admin — Users & roles (slice 7; PRODUCT_UX_ROADMAP §E screen 11, §H). The
- * control plane, deliberately separate from the legal workflow: SUPER_ADMIN
- * provisions accounts and composes authority here, and holds no legal
- * authority of its own (Step 23; SEC-02).
+ * Administration → Users. The roster, and the one place accounts are created.
  *
  * Three server rules this screen surfaces rather than re-implements:
  *
- *   47.1.3   a new account holds NO roles — authority is a later, deliberate
- *            grant, never a side effect of creation; credentials are
- *            provisioned outside this screen entirely
- *   SEC-05   disabling or de-granting the last ACTIVE Legal Decision
- *            Authority is refused server-side — the refusal renders beside
- *            the row that caused it, unaltered
- *   S-8/S-9  who may administer whom, and who may grant what, are server
- *            checks; a 403 here is a result, not a pre-check (43.23)
+ *   47.1.3   an account exists only because an administrator made it; roles are
+ *            assigned deliberately and never inferred from a login
+ *   SEC-05   disabling or de-granting the last ACTIVE holder of an authority is
+ *            refused server-side — the refusal renders beside the control
+ *   S-8/S-9  who may administer whom, and who may grant what, are server checks;
+ *            a 403 here is a result, not a pre-check (43.23)
  *
- * The grant control needs the role list, which `GET /roles` gates on
- * `role.manage` — an account holding only `user.manage` sees the roles a user
- * already has (revocable) and a plain note instead of a grant form.
+ * Every filter and the sort go to the server and apply to the WHOLE roster. The
+ * previous version kept a "Sort by" control whose value was never sent — it
+ * looked like a capability and was not one — and filtering a page client-side
+ * would have the same shape of bug: a colleague on page 2 invisible to a filter
+ * that claims to search everyone.
+ *
+ * A record id never appears in a path segment (AB-11 r2), so the detail panel is
+ * `?user=<id>` on this screen rather than a dynamic route.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, ChevronLeft, ChevronRight, Power, Trash2, Key } from "lucide-react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
-import { ApiError, api, describeError } from "@/lib/api";
+import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Pagination, Role, User } from "@/lib/types";
+import type { Department, Pagination, Role, User } from "@/lib/types";
+
+import {
+  ASSIGNABLE_TIERS,
+  AccountStatus,
+  AdminNav,
+  TIER_ORDER,
+  dateOnly,
+  dateTime,
+} from "@/components/admin/AdminShell";
+import { UserDetail } from "@/components/admin/UserDetail";
 
 const PAGE_SIZE = 25;
-type Tab = "users" | "roles";
-type SortBy = "email" | "created_at";
-type StatusFilter = "all" | "ACTIVE" | "SUSPENDED" | "DISABLED";
 
-export default function AdminPage() {
+const SORTS = [
+  { value: "name_asc", label: "Name (A–Z)" },
+  { value: "name_desc", label: "Name (Z–A)" },
+  { value: "email_asc", label: "Email (A–Z)" },
+  { value: "created_desc", label: "Newest first" },
+  { value: "created_asc", label: "Oldest first" },
+  { value: "last_login_desc", label: "Recently signed in" },
+] as const;
+
+function UsersScreen() {
   const { can } = useSession();
-  const [tab, setTab] = useState<Tab>("users");
+  /*
+   * Selection is React state, and the URL is read ONCE to open it.
+   *
+   * Both ways of writing it back were tried and both are wrong here.
+   * `router.replace` on a query change is a soft navigation: it re-renders the
+   * route, remounts this client component and sends `users` back to `null`, so
+   * opening a row wiped the table it came from and refetched the page.
+   * `history.replaceState` is no escape either — Next patches it and re-syncs
+   * the router, which resets the state in the same gesture that set it.
+   *
+   * So an incoming `?user=<id>` link still opens that account (AB-11 r2 — a
+   * record id never appears in a path segment), and clicking a row afterwards
+   * simply does not rewrite the address bar. That costs a shareable link for a
+   * panel nobody links to, and buys a table that does not reload under the
+   * pointer.
+   */
+  const [selectedId, setSelectedId] = useState<string | null>(
+    useSearchParams().get("user"));
+
   const [users, setUsers] = useState<User[] | null>(null);
   const [roles, setRoles] = useState<Role[] | null>(null);
+  const [departments, setDepartments] = useState<Department[] | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<unknown>(null);
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<unknown>(null);
+
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("created_at");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [sort, setSort] = useState<string>("name_asc");
+
+  const [createOpen, setCreateOpen] = useState(false);
   const canGrant = can(P.ROLE_MANAGE);
   const canManageUsers = can(P.USER_MANAGE);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      if (tab === "users") {
-        const result = await api.users({
-          page,
-          page_size: PAGE_SIZE,
-          ...(statusFilter !== "all" && { status: statusFilter }),
-          ...(search && { search }),
-        });
-        setUsers(result.items);
-        setPagination(result.pagination);
-      }
-      if (canGrant && (tab === "roles" || tab === "users")) {
-        // Five canonical roles; one page is the whole vocabulary.
-        setRoles((await api.roles({ page_size: 100 })).items);
-      }
+      const result = await api.users({
+        page,
+        page_size: PAGE_SIZE,
+        sort,
+        ...(statusFilter && { status: statusFilter }),
+        ...(search && { search }),
+        ...(roleFilter && { role: roleFilter }),
+        ...(departmentFilter === "__none__"
+          ? { unassigned: "true" }
+          : departmentFilter && { department_id: departmentFilter }),
+      });
+      setUsers(result.items);
+      setPagination(result.pagination);
     } catch (cause) {
       setError(cause);
     }
-  }, [page, canGrant, tab, statusFilter, search]);
+  }, [page, sort, statusFilter, search, roleFilter, departmentFilter]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Reference data, loaded once: the department list feeds two filters and the
+  // create form; the role list names the chips. `GET /roles` needs
+  // `role.manage`, so an account holding only `user.manage` sees codes and a
+  // note instead of a grant control — the server would refuse the grant anyway.
+  useEffect(() => {
+    api.departments({ page_size: 100 }).then((r) => setDepartments(r.items)).catch(() => {});
+    if (canGrant) {
+      api.roles({ page_size: 100 }).then((r) => setRoles(r.items)).catch(() => {});
+    }
+  }, [canGrant]);
+
+  // Reset to page 1 whenever the question changes — landing on page 3 of a
+  // filter you just applied shows an empty table.
+  useEffect(() => { setPage(1); }, [search, statusFilter, roleFilter, departmentFilter, sort]);
 
   useEffect(() => {
-    setPage(1);
-  }, [statusFilter, search]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   if (!canManageUsers) {
     return (
@@ -94,471 +144,355 @@ export default function AdminPage() {
     );
   }
 
-  async function create(event: React.FormEvent) {
-    event.preventDefault();
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await api.createUser(email.trim(), name.trim());
-      setEmail("");
-      setName("");
-      await load();
-    } catch (cause) {
-      setCreateError(cause);
-    } finally {
-      setCreating(false);
-    }
-  }
-
+  const selected = users?.find((u) => u.id === selectedId) ?? null;
   const replaceUser = (next: User) =>
     setUsers((current) => current?.map((u) => (u.id === next.id ? next : u)) ?? null);
-
-  const replaceRole = (next: Role) =>
-    setRoles((current) => current?.map((r) => (r.id === next.id ? next : r)) ?? null);
+  const select = (id: string | null) => setSelectedId(id);
+  const pageCount = pagination
+    ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
+  const filtered = Boolean(search || statusFilter || roleFilter || departmentFilter);
+  const roleName = (code: string) => roles?.find((r) => r.code === code)?.name ?? code;
 
   return (
-    <>
-      <div className="ws-context">
-        <h1>Admin</h1>
-        <div className="ws-context__meta">
-          {tab === "users" && pagination ? (
-            <span className="ws-mono">{pagination.total} account{pagination.total === 1 ? "" : "s"}</span>
-          ) : null}
-          {can(P.AUDIT_VIEW) ? <Link href="/dashboard/admin/audit">Audit trail</Link> : null}
+    <div className="ws-admin">
+      <header className="ws-admin__head">
+        <div>
+          <h1>Administration</h1>
+          <p className="ws-pane__note">
+            Accounts, access and departments. Contract content is never administered here.
+          </p>
         </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="ws-tabs" role="tablist">
         <button
-          role="tab"
-          aria-selected={tab === "users"}
-          className={`ws-tab ${tab === "users" ? "ws-tab--active" : ""}`}
-          onClick={() => setTab("users")}
+          type="button"
+          className="ws-btn ws-btn--primary ws-btn--icon"
+          aria-expanded={createOpen}
+          onClick={() => setCreateOpen((open) => !open)}
         >
-          Users
+          <Plus size={16} />
+          Add account
         </button>
-        {canGrant ? (
-          <button
-            role="tab"
-            aria-selected={tab === "roles"}
-            className={`ws-tab ${tab === "roles" ? "ws-tab--active" : ""}`}
-            onClick={() => setTab("roles")}
+      </header>
+
+      <AdminNav />
+
+      {createOpen ? (
+        <CreateAccount
+          departments={departments}
+          roles={roles}
+          onCreated={async (created) => {
+            setCreateOpen(false);
+            await load();
+            select(created.id);
+          }}
+          onCancel={() => setCreateOpen(false)}
+        />
+      ) : null}
+
+      <div className="ws-filter-bar">
+        {/* The filter controls and the create form both talk about a role and a
+            department. Two controls with the same accessible name on one screen
+            is a real defect, not just an ambiguous selector: a screen reader
+            announces "Role, combo box" twice and neither one says which. The
+            visible text stays short and is a substring of the accessible name,
+            so WCAG 2.5.3 is satisfied rather than traded away. */}
+        <label className="ws-field">
+          <span className="ws-field__label">Search</span>
+          <input
+            type="search"
+            aria-label="Search accounts"
+            placeholder="Name or email"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Role</span>
+          <select aria-label="Filter by role" value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.target.value)}>
+            <option value="">All roles</option>
+            {(roles ?? [])
+              .filter((role) => ASSIGNABLE_TIERS.includes(role.tier))
+              .map((role) => (
+                <option key={role.code} value={role.code}>{role.name}</option>
+              ))}
+          </select>
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Department</span>
+          <select
+            aria-label="Filter by department"
+            value={departmentFilter}
+            onChange={(event) => setDepartmentFilter(event.target.value)}
           >
-            Roles
-          </button>
-        ) : null}
+            <option value="">All departments</option>
+            {(departments ?? []).map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+            <option value="__none__">No department</option>
+          </select>
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Status</span>
+          <select aria-label="Filter by status" value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="SUSPENDED">Suspended</option>
+            <option value="DISABLED">Disabled</option>
+          </select>
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Sort by</span>
+          <select aria-label="Sort accounts by" value={sort}
+                  onChange={(event) => setSort(event.target.value)}>
+            {SORTS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      <div className="ws-docs">
-        {/* USERS TAB */}
-        {tab === "users" ? (
-          <>
-            {/* Create User Form */}
-            <form className="ws-intake" onSubmit={create} aria-labelledby="ws-admin-create">
-              <h2 id="ws-admin-create" className="ws-intake__title">
-                Add an account
-              </h2>
-              <div className="ws-intake__fields">
-                <label className="ws-field">
-                  <span className="ws-field__label">
-                    Work email <span className="ws-field__req">(required)</span>
-                  </span>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    disabled={creating}
-                  />
-                </label>
-                <label className="ws-field ws-field--type">
-                  <span className="ws-field__label">
-                    Name <span className="ws-field__req">(required)</span>
-                  </span>
-                  <input
-                    required
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    disabled={creating}
-                  />
-                  <span className="ws-field__help">
-                    A new account holds no roles — authority is a separate, deliberate grant. Credentials are provisioned
-                    outside this screen.
-                  </span>
-                </label>
-                <button
-                  type="submit"
-                  className="ws-btn ws-btn--primary ws-btn--icon"
-                  disabled={creating || !email.trim() || !name.trim()}
-                >
-                  <Plus size={18} />
-                  {creating ? "Adding…" : "Add account"}
-                </button>
-              </div>
-              {createError ? (
-                <p className="ws-field__error" role="alert">
-                  {createError instanceof ApiError ? describeError(createError) : "The account could not be added."}
-                </p>
-              ) : null}
-            </form>
-
-            {/* Search & Filter */}
-            <div className="ws-filter-bar">
-              <label className="ws-field">
-                <span className="ws-field__label">Search</span>
-                <input
-                  type="text"
-                  placeholder="Email or name"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </label>
-              <label className="ws-field">
-                <span className="ws-field__label">Status</span>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
-                  <option value="all">All statuses</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="SUSPENDED">Suspended</option>
-                  <option value="DISABLED">Disabled</option>
-                </select>
-              </label>
-              <label className="ws-field">
-                <span className="ws-field__label">Sort by</span>
-                <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortBy)}>
-                  <option value="created_at">Newest first</option>
-                  <option value="email">Email (A–Z)</option>
-                </select>
-              </label>
+      <div className="ws-admin__body">
+        <div className="ws-admin__main">
+          {error ? (
+            <div className="ws-state ws-state--error" role="alert">
+              <h2>Accounts could not be loaded.</h2>
+              <p>{describeError(error)}</p>
             </div>
+          ) : null}
 
-            {/* Error State */}
-            {error ? (
-              <div className="ws-state ws-state--error" role="alert">
-                <h2>Accounts could not be loaded.</h2>
-                <p>{describeError(error)}</p>
-              </div>
-            ) : null}
+          {users === null && !error ? (
+            <div className="ws-docs__table" aria-busy="true">
+              <p className="ws-visually-hidden" role="status" aria-live="polite">
+                Loading accounts…
+              </p>
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="ws-docs__skel" aria-hidden="true">
+                  <span className="ws-skel ws-skel--line" style={{ width: "26%" }} />
+                  <span className="ws-skel ws-skel--line" style={{ width: "18%" }} />
+                  <span className="ws-skel ws-skel--line" style={{ width: "14%" }} />
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-            {/* Loading State */}
-            {users === null && !error ? (
-              <div className="ws-docs__table" aria-busy="true">
-                <p className="ws-visually-hidden" role="status" aria-live="polite">
-                  Loading accounts…
-                </p>
-                {[0, 1, 2].map((row) => (
-                  <div key={row} className="ws-docs__skel" aria-hidden="true">
-                    <span className="ws-skel ws-skel--line" style={{ width: "35%" }} />
-                    <span className="ws-skel ws-skel--line" style={{ width: "20%" }} />
-                    <span className="ws-skel ws-skel--line" style={{ width: "25%" }} />
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            {/* Users Table */}
-            {users !== null && users.length > 0 ? (
-              <div className="ws-docs__table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Account</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Roles</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <UserRow
-                        key={user.id}
-                        user={user}
-                        roles={roles}
-                        canGrant={canGrant}
-                        onChanged={replaceUser}
-                        onDeleted={load}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-
-            {/* Empty State */}
-            {users !== null && users.length === 0 && !error ? (
-              <div className="ws-state">
-                <h2>No accounts found</h2>
-                <p>Try adjusting your search or filters.</p>
-              </div>
-            ) : null}
-
-            {!canGrant ? (
-              <p className="ws-pane__note">Granting roles needs role administration, which this account does not include.</p>
-            ) : null}
-
-            {/* Pagination */}
-            {pagination && pagination.total > pagination.page_size ? (
-              <nav className="ws-pager" aria-label="Pagination">
-                <button
-                  type="button"
-                  className="ws-btn ws-btn--icon"
-                  disabled={pagination.page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  title="Previous page"
-                >
-                  <ChevronLeft size={18} />
-                  Previous
-                </button>
-                <span className="ws-mono">
-                  Page {pagination.page} of {Math.ceil(pagination.total / pagination.page_size)}
-                </span>
-                <button
-                  type="button"
-                  className="ws-btn ws-btn--icon"
-                  disabled={pagination.page * pagination.page_size >= pagination.total}
-                  onClick={() => setPage((p) => p + 1)}
-                  title="Next page"
-                >
-                  Next
-                  <ChevronRight size={18} />
-                </button>
-              </nav>
-            ) : null}
-          </>
-        ) : null}
-
-        {/* ROLES TAB */}
-        {tab === "roles" && canGrant ? (
-          <>
+          {users !== null && users.length === 0 && !error ? (
             <div className="ws-state">
-              <h2>Role Management</h2>
-              <p>Manage roles and their permissions. Five canonical roles cannot be deleted (User, Legal Reviewer, Legal Admin, Super Admin, Legal Decision Authority).</p>
+              <h2>{filtered ? "No accounts match." : "No accounts yet."}</h2>
+              <p>
+                {filtered
+                  ? "Try a broader filter — search matches name and email."
+                  : "Add the first account to get started. A new account holds no roles until you grant one."}
+              </p>
             </div>
+          ) : null}
 
-            {roles !== null && roles.length > 0 ? (
-              <div className="ws-docs__table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Role</th>
-                      <th scope="col">Code</th>
-                      <th scope="col">Permissions</th>
+          {users !== null && users.length > 0 ? (
+            <div className="ws-docs__table">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Role</th>
+                    <th scope="col">Department</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Last sign-in</th>
+                    <th scope="col">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr
+                      key={user.id}
+                      data-user-email={user.email}
+                      className={user.id === selectedId ? "ws-tr--selected" : undefined}
+                    >
+                      <td>
+                        <button
+                          type="button"
+                          className="ws-link ws-admin__name"
+                          onClick={() => select(user.id === selectedId ? null : user.id)}
+                        >
+                          {user.name}
+                        </button>
+                      </td>
+                      <td className="ws-mono">{user.email}</td>
+                      <td>
+                        {user.roles.length === 0 ? (
+                          <span className="ws-pane__note">no roles</span>
+                        ) : (
+                          user.roles.map((code) => (
+                            <span key={code} className="ws-chip" title={code}>
+                              {roleName(code)}
+                            </span>
+                          ))
+                        )}
+                      </td>
+                      <td>{user.department?.name ?? <span className="ws-pane__note">—</span>}</td>
+                      <td><AccountStatus status={user.status} /></td>
+                      <td className="ws-mono">
+                        {user.last_login_at ? dateTime(user.last_login_at) : "Never"}
+                      </td>
+                      <td className="ws-mono">{dateOnly(user.created_at)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {roles.map((role) => (
-                      <RoleRow key={role.id} role={role} onChanged={replaceRole} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
 
-            {roles === null ? (
-              <div className="ws-state" aria-busy="true">
-                <p className="ws-visually-hidden" role="status" aria-live="polite">
-                  Loading roles…
-                </p>
-              </div>
-            ) : null}
+          {pagination && pagination.total > pagination.page_size ? (
+            <nav className="ws-pager" aria-label="Pagination">
+              <button
+                type="button"
+                className="ws-btn"
+                disabled={pagination.page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Previous
+              </button>
+              <span className="ws-mono">
+                Page {pagination.page} of {pageCount} · {pagination.total} accounts
+              </span>
+              <button
+                type="button"
+                className="ws-btn"
+                disabled={pagination.page >= pageCount}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </nav>
+          ) : null}
+        </div>
 
-            {/* `{id}` is literal text here, not a JSX expression — braces in prose
-                have to be escaped or React reads them as a reference. */}
-            <p className="ws-pane__note">
-              Role creation and permission management is available via the API. Use{" "}
-              <code>POST /api/v1/roles</code> and{" "}
-              <code>PATCH /api/v1/roles/{"{id}"}</code>.
-            </p>
-          </>
+        {selected ? (
+          <UserDetail
+            key={selected.id}
+            user={selected}
+            roles={roles}
+            departments={departments}
+            canGrant={canGrant}
+            onChanged={replaceUser}
+            onClose={() => select(null)}
+          />
         ) : null}
       </div>
-    </>
+    </div>
   );
 }
 
-function UserRow({
-  user,
-  roles,
-  canGrant,
-  onChanged,
-  onDeleted,
+/**
+ * Create an account — and, optionally, place and empower it in the same act.
+ *
+ * The three-step version (create, then place, then grant) left the account in a
+ * state nobody chose for as long as it took to finish. The server does all
+ * three in one transaction and still runs S-8 on the role, so a refusal leaves
+ * no account behind.
+ */
+function CreateAccount({
+  departments, roles, onCreated, onCancel,
 }: {
-  user: User;
+  departments: Department[] | null;
   roles: Role[] | null;
-  canGrant: boolean;
-  onChanged: (user: User) => void;
-  onDeleted: () => Promise<void>;
+  onCreated: (user: User) => Promise<void>;
+  onCancel: () => void;
 }) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [roleCode, setRoleCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [rowError, setRowError] = useState<unknown>(null);
-  const [grantCode, setGrantCode] = useState("");
-  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
-  async function act(operation: () => Promise<User>) {
+  const assignable = (roles ?? [])
+    .filter((role) => ASSIGNABLE_TIERS.includes(role.tier))
+    .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)
+      || a.name.localeCompare(b.name));
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setBusy(true);
-    setRowError(null);
+    setError(null);
     try {
-      onChanged(await operation());
+      const created = await api.createUser(email.trim(), name.trim(), {
+        ...(departmentId && { department_id: departmentId }),
+        ...(roleCode && { role_code: roleCode }),
+      });
+      await onCreated(created);
     } catch (cause) {
-      // SEC-05's last-authority refusal (and every S-8/S-9 result) lands here,
-      // worded by the server — beside the row that caused it.
-      setRowError(cause);
+      setError(cause);
     } finally {
       setBusy(false);
     }
   }
 
-  async function deleteUser() {
-    if (!window.confirm(`Are you sure you want to delete ${user.email}? This cannot be undone.`)) {
-      return;
-    }
-    setDeleting(true);
-    setRowError(null);
-    try {
-      await api.deleteUser(user.id);
-      // The row is gone server-side, and the page count with it — reload rather
-      // than splicing locally, so pagination and the header total stay honest.
-      await onDeleted();
-    } catch (cause) {
-      setRowError(cause);
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  const active = user.status === "ACTIVE";
-  const grantable = (roles ?? []).filter((role) => !user.roles.includes(role.code));
-
   return (
-    <tr data-user-email={user.email}>
-      <td>
-        <div>{user.email}</div>
-        <div className="ws-pane__note">{user.name}</div>
-        {rowError ? (
-          <p className="ws-field__error" role="alert">
-            {describeError(rowError)}
-          </p>
-        ) : null}
-      </td>
-      <td>
-        <span className={`ws-chip${active ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>{user.status}</span>{" "}
-        <button
-          type="button"
-          className="ws-escalate__link ws-escalate__link--icon"
-          disabled={busy}
-          onClick={() => void act(() => api.updateUser(user.id, { status: active ? "DISABLED" : "ACTIVE" }))}
-          title={active ? "Disable account" : "Re-enable account"}
-        >
-          <Power size={16} />
-          {active ? "Disable" : "Restore"}
+    <form className="ws-intake" onSubmit={submit} aria-labelledby="ws-admin-create">
+      <h2 id="ws-admin-create" className="ws-intake__title">Add an account</h2>
+      <div className="ws-intake__fields">
+        <label className="ws-field">
+          <span className="ws-field__label">
+            Full name <span className="ws-field__req">(required)</span>
+          </span>
+          <input required value={name} disabled={busy}
+                 onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">
+            Work email <span className="ws-field__req">(required)</span>
+          </span>
+          <input type="email" required value={email} disabled={busy}
+                 onChange={(event) => setEmail(event.target.value)} />
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Department</span>
+          <select aria-label="Department for the new account" value={departmentId}
+                  disabled={busy}
+                  onChange={(event) => setDepartmentId(event.target.value)}>
+            <option value="">No department</option>
+            {(departments ?? []).map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Role</span>
+          <select aria-label="Role for the new account" value={roleCode} disabled={busy}
+                  onChange={(event) => setRoleCode(event.target.value)}>
+            <option value="">No role yet</option>
+            {assignable.map((role) => (
+              <option key={role.code} value={role.code}>{role.name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="ws-field__help">
+        Credentials are provisioned outside this screen: the account can sign in once an
+        identity is linked to it. Leaving the role empty is fine — the account simply cannot
+        act until you grant one.
+      </p>
+      {error ? (
+        <p className="ws-field__error" role="alert">{describeError(error)}</p>
+      ) : null}
+      <div className="ws-detail__acts">
+        <button type="button" className="ws-btn" onClick={onCancel} disabled={busy}>
+          Cancel
         </button>
-        {user.status === "DISABLED" ? (
-          <>
-            {" "}
-            <button type="button" className="ws-escalate__link ws-escalate__link--danger ws-escalate__link--icon" disabled={deleting} onClick={deleteUser} title="Delete account">
-              <Trash2 size={16} />
-              {deleting ? "Deleting…" : "Delete"}
-            </button>
-          </>
-        ) : null}
-      </td>
-      <td>
-        {user.roles.length === 0 ? <span className="ws-pane__note">no roles — cannot act yet</span> : null}
-        {user.roles.map((code) => (
-          <span key={code} className="ws-rolechip">
-            <span className="ws-chip">{code}</span>
-            <button
-              type="button"
-              className="ws-rolechip__revoke ws-rolechip__revoke--icon"
-              aria-label={`Revoke ${code} from ${user.email}`}
-              disabled={busy}
-              onClick={() => void act(() => api.revokeRole(user.id, code))}
-              title={`Revoke ${code}`}
-            >
-              <span className="ws-visually-hidden">Revoke</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </span>
-        ))}
-        {canGrant && grantable.length > 0 ? (
-          <span className="ws-grant">
-            <label className="ws-visually-hidden" htmlFor={`grant-${user.id}`}>
-              Role to grant to {user.email}
-            </label>
-            <select
-              id={`grant-${user.id}`}
-              value={grantCode}
-              disabled={busy}
-              onChange={(event) => setGrantCode(event.target.value)}
-            >
-              <option value="">Grant a role…</option>
-              {grantable.map((role) => (
-                <option key={role.code} value={role.code}>
-                  {role.name} ({role.code})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="ws-btn ws-btn--icon"
-              disabled={busy || !grantCode}
-              onClick={() =>
-                void act(async () => {
-                  const next = await api.grantRole(user.id, grantCode);
-                  setGrantCode("");
-                  return next;
-                })
-              }
-              title="Grant role"
-            >
-              <Key size={16} />
-              Grant
-            </button>
-          </span>
-        ) : null}
-      </td>
-    </tr>
+        <button type="submit" className="ws-btn ws-btn--primary"
+                disabled={busy || !email.trim() || !name.trim()}>
+          {busy ? "Creating…" : "Create account"}
+        </button>
+      </div>
+    </form>
   );
 }
 
-function RoleRow({ role, onChanged }: { role: Role; onChanged: (role: Role) => void }) {
-  const [expanding, setExpanding] = useState(false);
-
+export default function AdminUsersPage() {
   return (
-    <tr data-role-code={role.code}>
-      <td>
-        <div className="ws-role-name">{role.name}</div>
-      </td>
-      <td>
-        <code>{role.code}</code>
-      </td>
-      <td>
-        <button
-          type="button"
-          className="ws-link"
-          onClick={() => setExpanding(!expanding)}
-          aria-expanded={expanding}
-        >
-          {role.permissions.length} permission{role.permissions.length === 1 ? "" : "s"}
-        </button>
-        {expanding ? (
-          <div className="ws-role-perms">
-            {role.permissions.length === 0 ? (
-              <p className="ws-pane__note">No permissions assigned</p>
-            ) : (
-              <ul>
-                {role.permissions.map((perm) => (
-                  <li key={perm}>
-                    <code>{perm}</code>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
-      </td>
-    </tr>
+    <Suspense fallback={<div className="ws-state" aria-busy="true" />}>
+      <UsersScreen />
+    </Suspense>
   );
 }

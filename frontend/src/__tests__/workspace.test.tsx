@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
-import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { contractStatusLabel } from "@/lib/labels";
 import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   activeNavHref,
@@ -18,10 +19,11 @@ import {
   locationLabel,
   navItemsFor,
   outlineOf,
+  partLabel,
+  reviewOrder,
   readiness,
 } from "@/components/workspace/model";
 import { TranscriptTurn } from "@/components/workspace/TranscriptTurn";
-import { ResearchPlaceholder } from "@/components/workspace/ResearchPlaceholder";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 
@@ -77,14 +79,28 @@ describe("reading order", () => {
 });
 
 describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)", () => {
-  it("an ordinary user sees the three built destinations, all in the new UI — never /contracts", () => {
+  it("an ordinary user is offered only destinations that do something for them", () => {
+    /*
+     * 2026-09-04 audit. Three things changed and each removes a promise the
+     * product could not keep for THIS caller:
+     *
+     * - Reviews left the nav: for a contract owner it listed one row per
+     *   analysis run of documents the Dashboard already lists, in the same
+     *   states. It is a queue, and a queue is a destination only for someone
+     *   who works one — see the `legal.review` case below. The screen itself
+     *   still exists and a Report is still reached from it.
+     * - "Ask History" became "Ask": asking happens in a document, and naming
+     *   the nav after the archive advertised the filing cabinet while the
+     *   feature itself had no nav entry at all.
+     * - Research left the nav entirely: statute intake is an open owner
+     *   decision (C-16), so the capability does not exist, and a nav slot is a
+     *   promise. Its screen stays and says so honestly.
+     */
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/dashboard/reviews", label: "Reviews" },
-      { href: "/dashboard/ask", label: "Ask History" },
-      { href: "/dashboard/research", label: "Research" },
+      { href: "/dashboard/ask", label: "Ask" },
     ]);
   });
 
@@ -98,7 +114,9 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
-  it("legal.review adds the Legal queue — and only that permission does", () => {
+  it("legal.review is what turns Reviews into a destination, and adds the Legal queue", () => {
+    /* The queue says something the Dashboard cannot only once `legal.review`
+     * widens `GET /reviews` past the caller's own contracts (`REC-09`). */
     const counsel = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => counsel.has(p));
     expect(items.map((i) => i.href)).toEqual([
@@ -106,15 +124,23 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
       "/dashboard/reviews",
       "/dashboard/legal",
       "/dashboard/ask",
-      "/dashboard/research",
     ]);
     expect(activeNavHref("/dashboard/legal", items)).toBe("/dashboard/legal");
   });
 
-  it("a super admin sees Admin — the new-UI control plane — and nothing legacy", () => {
+  it("configuration.view offers the screen that publishes the snapshot analysis pins", () => {
+    /* It existed only at the legacy `/configuration` URL with no nav entry, so
+     * the one screen that makes analysis possible was reachable only by typing
+     * an address (2026-09-04 audit; the route is adopted, not deleted). */
+    const legalAdmin = new Set([P.CONTRACT_VIEW, P.CONFIGURATION_VIEW]);
+    const items = navItemsFor((p) => legalAdmin.has(p));
+    expect(items.map((i) => i.href)).toContain("/dashboard/configuration");
+  });
+
+  it("a platform admin sees Administration — the new-UI control plane — and nothing legacy", () => {
     const admin = new Set([P.AUDIT_VIEW, P.USER_MANAGE]);
     expect(navItemsFor((p) => admin.has(p))).toEqual([
-      { href: "/dashboard/admin", label: "Admin" },
+      { href: "/dashboard/admin", label: "Administration" },
     ]);
   });
 
@@ -200,6 +226,20 @@ describe("Step 6 document types (presentation copy)", () => {
     expect(documentTypeLabel("SLA")).toBe("Service Level Agreement");
     expect(documentTypeLabel("ZZZ")).toBe("ZZZ");
     expect(documentTypeLabel(null)).toBe("Type not declared");
+    // Step 6's second axis (2026-09-06), same presentation rule.
+    expect(documentSourceLabel("COUNTERPARTY")).toBe("Counterparty — their document");
+    expect(documentSourceLabel("ZZZ")).toBe("ZZZ");
+    expect(documentSourceLabel(null)).toBe("Source not declared");
+    // P-1 (2026-09-06): Step 2's lifecycle, in the reader's words.
+    expect(contractStatusLabel("SUPERSEDED")).toBe("Superseded");
+    expect(contractStatusLabel("ODD")).toBe("ODD");
+    expect(contractStatusLabel(null)).toBe("Status not recorded");
+    // Whose paper it is, in a reviewer's words (2026-09-06). Undeclared stays
+    // undeclared — the chip is absent, never a "Source: unknown" placeholder.
+    expect(documentSourceChip("ORGANIZATION")).toBe("Our document");
+    expect(documentSourceChip("COUNTERPARTY")).toBe("Their document");
+    expect(documentSourceChip(null)).toBeNull();
+    expect(documentSourceChip(undefined)).toBeNull();
   });
 });
 
@@ -222,7 +262,7 @@ describe("TranscriptTurn (ask history replay)", () => {
     expect(html.toLowerCase()).not.toContain("confidence");
   });
 
-  it("an ANSWERED turn's citation is a real link into the workspace highlight, and a null score renders nothing", () => {
+  it("an ANSWERED turn's citation is a real link into the workspace highlight, and no score is ever rendered", () => {
     const citation = {
       chunk_id: "ch1", evidence_id: "ev1", page_number: 4, section_ref: "17.2",
       excerpt: "Liability shall not exceed…", retrieval_score: null,
@@ -248,7 +288,7 @@ describe("TranscriptTurn (ask history replay)", () => {
         turn={{ ...base, role: "ASSISTANT", content: "The cap is…", answer_state: "ANSWERED", citations: [{ ...citation, retrieval_score: 0.8123 }] }}
       />,
     );
-    expect(scored).toContain("retrieval score 0.812");
+    expect(scored).not.toContain("retrieval score");
   });
 
   it("a user turn is the question, plainly attributed", () => {
@@ -260,16 +300,6 @@ describe("TranscriptTurn (ask history replay)", () => {
   });
 });
 
-describe("ResearchPlaceholder (the one disclosed placeholder — C-16)", () => {
-  it("discloses without teasing: no link, no button, no input, no fake search", () => {
-    const html = renderToStaticMarkup(<ResearchPlaceholder />);
-    expect(html).toContain("available yet");
-    expect(html).toContain("C-16");
-    expect(html).not.toContain("<a ");
-    expect(html).not.toContain("<button");
-    expect(html).not.toContain("<input");
-  });
-});
 
 describe("upload-first intake helpers (2026-08-31 UX correction)", () => {
   it("derives an editable name from the filename — never a demand", () => {
@@ -302,5 +332,57 @@ describe("upload-first intake helpers (2026-08-31 UX correction)", () => {
     // Attention-first, MATCH last — a fixed scan order, not object-key order.
     expect((analysed as { counts: { classification: string }[] }).counts.map((c) => c.classification))
       .toEqual(["DEVIATION", "MISSING", "MATCH"]);
+  });
+});
+
+describe("review order for the Findings list (P-4, 2026-09-06)", () => {
+  const f = (
+    id: string, requires_decision: boolean,
+    evidence: Array<[number | null, string | null]>, name = id,
+  ) => ({
+    id, requires_decision,
+    evidence: evidence.map(([page_number, section_number]) => ({ page_number, section_number })),
+    requirement: { code: id, name },
+  });
+
+  it("puts what needs a decision first, then follows the document", () => {
+    const ordered = reviewOrder([
+      f("late-ok", false, [[3, "12"]]),
+      f("early-ok", false, [[1, "2"]]),
+      f("late-decide", true, [[2, "9.1"]]),
+      f("early-decide", true, [[1, "3"]]),
+    ]).map((x) => x.id);
+    expect(ordered).toEqual(["early-decide", "late-decide", "early-ok", "late-ok"]);
+  });
+
+  it("orders by the document's own numbering, not by string", () => {
+    const ordered = reviewOrder([
+      f("b", false, [[1, "10"]]), f("a", false, [[1, "9.2"]]), f("c", false, [[1, "9"]]),
+    ]).map((x) => x.id);
+    expect(ordered).toEqual(["c", "a", "b"]);   // 9 < 9.2 < 10 — never "10" < "9"
+  });
+
+  it("uses the EARLIEST clause a finding cites, and sends unlocatable ones last", () => {
+    const ordered = reviewOrder([
+      f("nowhere", false, [[null, null]]),
+      f("spread", false, [[4, "20"], [1, "1"]]),
+      f("mid", false, [[2, "5"]]),
+    ]).map((x) => x.id);
+    expect(ordered).toEqual(["spread", "mid", "nowhere"]);
+  });
+
+  it("is deterministic — a stable tiebreak on the requirement's heading, then id", () => {
+    const a = f("a", false, [[1, "1"]], "Zeta");
+    const b = f("b", false, [[1, "1"]], "Alpha");
+    expect(reviewOrder([a, b]).map((x) => x.id)).toEqual(["b", "a"]);
+    expect(reviewOrder([b, a]).map((x) => x.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("annexed parts in the outline (44.4, 2026-09-06)", () => {
+  it("names the divider by the document's own word, never by a guess", () => {
+    expect(partLabel({ annexure: "Annexure-1" })).toBe("Annexure");
+    expect(partLabel({ annexure: "SCHEDULE 2 – Fees" })).toBe("Schedule");
+    expect(partLabel({})).toBeUndefined();
   });
 });
