@@ -965,7 +965,7 @@
    with the fourth full-width, and "UNABLE_TO_EVALUATE" ellipsized to
    "UNABLE_TO…" — a status the reader could not read. 2×2 gives every tile the
    same shape and every label the room to wrap out in full. */
-.ws-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ws-s2); }
+.ws-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s2); }
 .ws-tile {
   position: relative; display: flex; flex-direction: column; gap: 2px;
   padding: var(--ws-s3); border-radius: var(--ws-radius); border: 1px solid transparent;

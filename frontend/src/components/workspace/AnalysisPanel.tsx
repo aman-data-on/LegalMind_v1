@@ -146,8 +146,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
             </button>
           ) : null}
         </div>
-        {/* One tile per user-facing status that occurred, plus how many need a
-            legal decision. Each tile opens the Findings tab filtered to it. */}
+        {/* One tile per user-facing status that occurred — three, never more.
+            Each tile opens the Findings tab filtered to it. */}
         <div className="ws-tiles">
           {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, bucket }) => (
             <button
@@ -164,18 +164,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
               </span>
             </button>
           ))}
-          {statuses.needsDecision > 0 ? (
-            <button
-              type="button"
-              className="ws-tile ws-tile--decision"
-              aria-label={`Show the ${statuses.needsDecision} finding${statuses.needsDecision === 1 ? "" : "s"} that need a legal decision`}
-              onClick={() => sideTabs?.openFindings()}
-            >
-              <span className="ws-tile__n">{statuses.needsDecision}</span>
-              <span className="ws-tile__label">Need legal decision</span>
-              <span className="ws-status ws-status--decision"><IconAlertCircle size={18} /></span>
-            </button>
-          ) : null}
+          {/* Exactly three status tiles (owner, 2026-09-09): how many need a
+              legal decision is a LINE below, never a fourth status. */}
         </div>
         <div
           className="ws-bar"
