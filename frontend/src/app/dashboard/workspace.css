@@ -66,6 +66,16 @@
   --ws-ok: #11803a;    --ws-ok-soft: #e9f7ee;
   --ws-warn: #a85c05;  --ws-warn-soft: #fdf3e3;
   --ws-bad: #d52222;   --ws-bad-soft: #fdecec;
+  /* The three READER-STATUS tones (owner's reference design, 2026-09-09):
+     Acceptable green · Requires modification orange · Needs a decision indigo.
+     Named by tone slot (`ok`/`warn`/`bad`, see findingLanguage USER_STATUS_TONE)
+     so every status surface — tiles, bar, ring, chips, marks, badges, card
+     edge — reads ONE set. Distinct from `--ws-warn`/`--ws-bad`, which keep
+     their meanings elsewhere (an absent value's ✗, an error). Text on white:
+     orange 5.0:1, indigo 5.6:1; on their own soft tint both clear 4.5:1. */
+  --ws-tone-ok: var(--ws-ok);       --ws-tone-ok-soft: var(--ws-ok-soft);
+  --ws-tone-warn: #c2410c;          --ws-tone-warn-soft: #fff3ea;
+  --ws-tone-bad: #4f46e5;           --ws-tone-bad-soft: #eef2ff;
   --ws-card-shadow: 0 1px 2px rgba(14, 20, 32, 0.04), 0 1px 3px rgba(14, 20, 32, 0.06);
   /* Axis hues — chips only, never backgrounds (master prompt §4.2). */
   --ws-mapping: #0e7490;      --ws-mapping-soft: #e3f2f5;
@@ -453,9 +463,12 @@
    (`match`/`review`/`missing`), the three reader statuses key off their TONE
    (`ok`/`warn`/`bad`, see `findingLanguage`). Same three channels either way —
    aliases, never a second colour system. */
-.ws-status--match, .ws-status--ok { color: var(--ws-ok); }
-.ws-status--review, .ws-status--warn { color: var(--ws-warn); }
-.ws-status--missing, .ws-status--bad { color: var(--ws-bad); }
+.ws-status--match { color: var(--ws-ok); }
+.ws-status--review { color: var(--ws-warn); }
+.ws-status--missing { color: var(--ws-bad); }
+.ws-status--ok { color: var(--ws-tone-ok); }
+.ws-status--warn { color: var(--ws-tone-warn); }
+.ws-status--bad { color: var(--ws-tone-bad); }
 .ws-legend { padding: var(--ws-s3) var(--ws-s4); flex: none; }
 .ws-legend p { margin: 0 0 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-700); display: flex; align-items: center; gap: 7px; }
 .ws-legend p:last-child { margin-bottom: 0; }
@@ -992,26 +1005,29 @@
 .ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
 /* Keyed by TONE, not by the engine's old buckets (2026-09-09): green
    Acceptable, amber Requires modification, red Needs a decision. */
-.ws-tile--ok { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
-.ws-tile--warn { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
-.ws-tile--bad { background: var(--ws-bad-soft); border-color: color-mix(in srgb, var(--ws-bad) 25%, transparent); color: var(--ws-bad); }
+.ws-tile--ok { background: var(--ws-tone-ok-soft); border-color: color-mix(in srgb, var(--ws-tone-ok) 25%, transparent); color: var(--ws-tone-ok); }
+.ws-tile--warn { background: var(--ws-tone-warn-soft); border-color: color-mix(in srgb, var(--ws-tone-warn) 25%, transparent); color: var(--ws-tone-warn); }
+.ws-tile--bad { background: var(--ws-tone-bad-soft); border-color: color-mix(in srgb, var(--ws-tone-bad) 25%, transparent); color: var(--ws-tone-bad); }
+.ws-tile[disabled] { cursor: default; opacity: 0.55; }
+.ws-tile[disabled]:hover { box-shadow: none; }
+.ws-tile__sub { font-size: var(--ws-text-xs); color: inherit; opacity: 0.85; line-height: 1.3; }
 .ws-tile--decision { background: var(--ws-decision-soft); border-color: color-mix(in srgb, var(--ws-decision) 25%, transparent); color: var(--ws-decision); }
 .ws-status--decision { color: var(--ws-decision); }
 .ws-tile .ws-tile__n { color: var(--ws-ink-900); }
 
 .ws-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--ws-ink-100); }
 .ws-bar__seg { flex-basis: 0; }
-.ws-bar__seg--ok { background: var(--ws-ok); }
-.ws-bar__seg--warn { background: var(--ws-warn); }
-.ws-bar__seg--bad { background: var(--ws-bad); }
+.ws-bar__seg--ok { background: var(--ws-tone-ok); }
+.ws-bar__seg--warn { background: var(--ws-tone-warn); }
+.ws-bar__seg--bad { background: var(--ws-tone-bad); }
 
 /* The donut — real counts, raw total in the center. */
 .ws-ring { display: flex; align-items: center; gap: var(--ws-s4); }
 .ws-ring__svg { width: 96px; height: 96px; flex: none; transform: none; }
 .ws-ring__seg { fill: none; stroke-width: 12; }
-.ws-ring__seg--ok { stroke: var(--ws-ok); }
-.ws-ring__seg--warn { stroke: var(--ws-warn); }
-.ws-ring__seg--bad { stroke: var(--ws-bad); }
+.ws-ring__seg--ok { stroke: var(--ws-tone-ok); }
+.ws-ring__seg--warn { stroke: var(--ws-tone-warn); }
+.ws-ring__seg--bad { stroke: var(--ws-tone-bad); }
 .ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 650; fill: var(--ws-ink-900); }
 .ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
 .ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
@@ -1026,9 +1042,11 @@
 .ws-ring__go:hover { background: var(--ws-paper); }
 .ws-ring__go:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 .ws-ring__pct { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
-.ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-warn); }
-.ws-ring__legend li[data-tone="ok"] .ws-ring__swatch { background: var(--ws-ok); }
-.ws-ring__legend li[data-tone="bad"] .ws-ring__swatch { background: var(--ws-bad); }
+.ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-tone-warn); }
+.ws-ring__legend li[data-tone="ok"] .ws-ring__swatch { background: var(--ws-tone-ok); }
+.ws-ring__legend li[data-tone="bad"] .ws-ring__swatch { background: var(--ws-tone-bad); }
+.ws-ring__word { flex: 1; min-width: 0; }
+.ws-ring__go[disabled] { cursor: default; opacity: 0.55; }
 
 /* Findings awaiting a decision — reference-style cards: status left border,
    chip, description. (Named "Key risks" until 2026-09-01; rule 12 has no risk
@@ -1061,7 +1079,10 @@
 
 /* Key obligations — a single-open accordion (2026-09-08). Columns made the
    section as tall as its longest party and left the rest of the row empty. */
-.ws-obligations { display: flex; flex-direction: column; gap: var(--ws-s2); }
+/* Three cards side by side (owner's reference, 2026-09-09); the open one grows,
+   the others stay a header with a count. Single column below 900px. */
+.ws-obligations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s3); align-items: start; }
+@media (max-width: 900px) { .ws-obligations { grid-template-columns: 1fr; } }
 .ws-obligations__group {
   min-width: 0; background: var(--ws-surface);
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
@@ -1477,9 +1498,9 @@
   min-width: 22px; text-align: center; font-family: var(--ws-mono); font-size: 11px;
   font-weight: 650; padding: 2px 6px; border-radius: var(--ws-radius-sm);
 }
-.ws-findings-badge--ok { background: var(--ws-ok-soft); color: var(--ws-ok); }
-.ws-findings-badge--warn { background: var(--ws-warn-soft); color: var(--ws-warn); }
-.ws-findings-badge--bad { background: var(--ws-bad-soft); color: var(--ws-bad); }
+.ws-findings-badge--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); }
+.ws-findings-badge--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); }
+.ws-findings-badge--bad { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); }
 .ws-findings-badge--zero { opacity: 0.4; }
 
 .ws-doc-name { display: inline-flex; align-items: center; gap: 7px; }
@@ -2880,9 +2901,9 @@
   display: inline-flex; align-items: center; justify-content: center;
   flex: none; width: 26px; height: 26px; border-radius: 50%;
 }
-.ws-finding__mark--ok { background: var(--ws-ok-soft); color: var(--ws-ok); }
-.ws-finding__mark--warn { background: var(--ws-warn-soft); color: var(--ws-warn); }
-.ws-finding__mark--bad { background: var(--ws-bad-soft); color: var(--ws-bad); }
+.ws-finding__mark--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border: 1px solid color-mix(in srgb, var(--ws-tone-ok) 30%, transparent); }
+.ws-finding__mark--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border: 1px solid color-mix(in srgb, var(--ws-tone-warn) 30%, transparent); }
+.ws-finding__mark--bad { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border: 1px solid color-mix(in srgb, var(--ws-tone-bad) 30%, transparent); }
 
 /* The three-word status chip (owner, 2026-09-08): the same ok / warn / bad
    tokens the mark and the Summary tiles already use — one status colour system,
@@ -2897,18 +2918,15 @@
   font-family: var(--ws-sans, inherit); font-size: 10.5px; font-weight: 700;
   letter-spacing: 0.04em; text-transform: uppercase;
 }
-.ws-chip--status-acceptable { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
-.ws-chip--status-requires_modification { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
-/* "Needs a decision" is the loud one (owner, 2026-09-09): the engine could not
-   determine acceptance at all, so a person with legal authority has to rule —
-   solid chip and a red card edge, told apart from "Requires modification" at
-   arm's length. Still never colour alone: the word and the ✕ mark carry the
-   same fact. (The solid treatment sat on Requires modification until this
-   date, which had the amber and the red the wrong way round.) */
-.ws-chip--status-needs_decision { background: var(--ws-bad); color: #fff; border-color: var(--ws-bad); }
-.ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-warn); }
-.ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-bad); }
-.ws-finding[data-user-status="ACCEPTABLE"] { border-left-color: var(--ws-ok); }
+/* All three chips soft-tinted, per the owner's reference (2026-09-09): green,
+   orange, indigo — the word, the icon disc beside the title and the card's
+   left edge carry the same status, so no chip has to shout. */
+.ws-chip--status-acceptable { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border-color: color-mix(in srgb, var(--ws-tone-ok) 35%, transparent); }
+.ws-chip--status-requires_modification { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border-color: color-mix(in srgb, var(--ws-tone-warn) 35%, transparent); }
+.ws-chip--status-needs_decision { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border-color: color-mix(in srgb, var(--ws-tone-bad) 35%, transparent); }
+.ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-tone-warn); }
+.ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-tone-bad); }
+.ws-finding[data-user-status="ACCEPTABLE"] { border-left-color: var(--ws-tone-ok); }
 
 /* The Constitution citation under a Not accepted — the source is part of the
    status, so it sits with the lede, quoted, not tucked in the disclosure. */
@@ -3173,3 +3191,110 @@
   .ws-evidence__loc { min-height: 36px; }
   .ws-side__doctoggle { min-height: 44px; }
 }
+
+
+/* ==========================================================================
+ * The owner's reference design (2026-09-09): Summary hero, status explainer,
+ * filter pills, finding-card head and footer. Plain CSS on the existing tokens;
+ * the three status tones are `--ws-tone-*` (green · orange · indigo).
+ * ========================================================================== */
+.ws-hero {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); padding: var(--ws-s5); box-shadow: var(--ws-card-shadow);
+  display: flex; flex-direction: column; gap: var(--ws-s5);
+}
+.ws-hero__top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ws-s4);
+  padding-bottom: var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-hero__words { min-width: 0; }
+.ws-hero .ws-analysis__headline { font-size: var(--ws-text-lg); font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.ws-hero__sub { margin: 4px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); max-width: 60ch; }
+.ws-hero__cta {
+  flex: none; display: inline-flex; align-items: center; gap: 8px;
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 600; color: #fff;
+  background: var(--ws-tone-bad); border: 0; border-radius: var(--ws-radius);
+  padding: 9px 14px; cursor: pointer; transition: background-color var(--ws-t);
+}
+.ws-hero__cta:hover { background: color-mix(in srgb, var(--ws-tone-bad) 85%, #000); }
+.ws-hero__cta:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-hero__ctan { font-family: var(--ws-mono); background: rgba(255,255,255,0.2); border-radius: 999px; padding: 1px 7px; }
+.ws-hero__grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--ws-s5); align-items: start; }
+.ws-hero__left { display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0; }
+.ws-hero__right {
+  display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0;
+  background: var(--ws-paper); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  padding: var(--ws-s4);
+}
+.ws-hero__right .ws-ring { align-items: center; }
+.ws-hero__right .ws-ring__legend { flex: 1; }
+.ws-hero__right .ws-ring__go { width: 100%; }
+.ws-hero__total { text-align: right; margin: 0; }
+.ws-hero .ws-tile { padding: var(--ws-s4); gap: 4px; }
+.ws-hero .ws-tile__n { font-size: 1.6rem; }
+.ws-hero .ws-tile__label { font-size: var(--ws-text-sm); letter-spacing: 0; text-transform: none; padding-right: 24px; }
+@media (max-width: 1100px) {
+  .ws-hero__grid { grid-template-columns: 1fr; }
+  .ws-hero__top { flex-direction: column; }
+}
+
+/* The explainer — three quiet cards, one per word. */
+.ws-explain { border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-paper); padding: var(--ws-s3) var(--ws-s4); }
+.ws-explain__title, .ws-explain > summary { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-700); }
+.ws-explain > summary { cursor: pointer; margin: 0; }
+.ws-explain[open] > summary { margin-bottom: var(--ws-s2); }
+.ws-explain__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s2); }
+.ws-explain__card {
+  display: flex; flex-direction: column; gap: 2px; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-left-width: 3px; border-radius: var(--ws-radius-sm);
+  padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4;
+}
+.ws-explain__card b { color: var(--ws-ink-900); font-weight: 600; }
+.ws-explain__card--ok { border-left-color: var(--ws-tone-ok); }
+.ws-explain__card--warn { border-left-color: var(--ws-tone-warn); }
+.ws-explain__card--bad { border-left-color: var(--ws-tone-bad); }
+.ws-explain--collapsible { margin-bottom: var(--ws-s4); }
+@media (max-width: 720px) { .ws-explain__grid { grid-template-columns: 1fr; } }
+
+/* Filter pills: a tone dot, the word, the count. */
+.ws-filter button { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--ws-ink-700); }
+.ws-filter__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ws-ink-300); flex: none; }
+.ws-filter button[data-tone="ok"] .ws-filter__dot { background: var(--ws-tone-ok); }
+.ws-filter button[data-tone="warn"] .ws-filter__dot { background: var(--ws-tone-warn); }
+.ws-filter button[data-tone="bad"] .ws-filter__dot { background: var(--ws-tone-bad); }
+.ws-filter__n {
+  font-family: var(--ws-mono); font-size: 10px; font-weight: 650; padding: 1px 6px; border-radius: 999px;
+  background: var(--ws-paper); color: var(--ws-ink-700); border: 1px solid var(--ws-ink-100);
+}
+.ws-filter button[aria-pressed="true"] .ws-filter__n { background: rgba(255,255,255,0.15); color: #fff; border-color: transparent; }
+.ws-pane__await { font-family: var(--ws-sans); font-size: 10.5px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+/* Finding card: title with its determination beneath, the same tone as the status. */
+.ws-finding { border-radius: var(--ws-radius-card); padding: var(--ws-s5); box-shadow: var(--ws-card-shadow); }
+.ws-finding__titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ws-finding__det {
+  display: inline-flex; align-self: flex-start; font-size: 10.5px; font-weight: 600;
+  padding: 1px 7px; border-radius: var(--ws-radius-sm); border: 1px solid transparent;
+}
+.ws-finding__det--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border-color: color-mix(in srgb, var(--ws-tone-ok) 30%, transparent); }
+.ws-finding__det--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border-color: color-mix(in srgb, var(--ws-tone-warn) 30%, transparent); }
+.ws-finding__det--bad { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border-color: color-mix(in srgb, var(--ws-tone-bad) 30%, transparent); }
+
+/* The comparison as three boxed columns (Contract · Company standard · Next
+   step), the labels small and quiet above their values. Column count still
+   follows the pairs present (two without legal_position.view). */
+.ws-facts--compare {
+  grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto; gap: 4px var(--ws-s4); align-items: start;
+  padding: var(--ws-s4); border-radius: var(--ws-radius);
+}
+.ws-facts--compare dt { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ws-ink-500); }
+.ws-facts--compare dd { font-size: var(--ws-text-sm); }
+.ws-facts--compare dd + dt { border-left: 1px solid var(--ws-ink-100); }
+@media (max-width: 720px) {
+  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+}
+
+/* Footer: the way into the document first, then Ask and Escalate. */
+.ws-finding__acts { display: flex; align-items: center; gap: var(--ws-s4); flex-wrap: wrap; padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
+.ws-finding__viewdoc { margin-right: auto; color: var(--ws-accent); }

@@ -134,9 +134,13 @@ describe("the three reader words wear one tone each, in one order", () => {
     expect(tones(html, "ws-ring__seg--")).toEqual(EXPECTED);
   });
 
-  it("keeps the order when a word has no findings", () => {
+  it("keeps the order when a word has no findings — the tile stays, inert; the bar drops it", () => {
     const html = summary([FINDINGS[0]!, FINDINGS[2]!]); // no Acceptable
-    expect(tones(html, "ws-tile--")).toEqual(["warn", "bad"]);
+    // Three tiles in three fixed places (owner's reference, 2026-09-09): a zero
+    // count is shown and disabled rather than removed, so the reader always
+    // finds each word where they last saw it.
+    expect(tones(html, "ws-tile--")).toEqual(["ok", "warn", "bad"]);
+    expect(html).toMatch(/ws-tile ws-tile--ok"[^>]*disabled/);
     expect(tones(html, "ws-bar__seg--")).toEqual(["warn", "bad"]);
   });
 

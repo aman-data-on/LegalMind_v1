@@ -102,7 +102,7 @@ function filterRow(html: string): { label: string; pressed: boolean }[] {
   expect(row, "the filter row renders").toBeTruthy();
   return Array.from((row?.[1] ?? "").matchAll(/<button[^>]*>(.*?)<\/button>/gs))
     .map((m) => ({
-      label: (m[1] ?? "").replace(/<[^>]*>/g, "").replace(/&#x27;|&quot;/g, "'").trim(),
+      label: (m[1] ?? "").replace(/<[^>]*>/g, "").replace(/&#x27;|&quot;/g, "'").replace(/\s+/g, " ").trim(),
       pressed: /aria-pressed="true"/.test(m[0]),
     }));
 }
@@ -110,10 +110,10 @@ function filterRow(html: string): { label: string; pressed: boolean }[] {
 describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () => {
   it("reads All, Acceptable, Requires modification, Needs a decision — in that order", () => {
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
-      "All (6)",
-      "Acceptable (2)",
-      "Requires modification (3)",
-      "Needs a decision (1)",
+      "All 6",
+      "Acceptable 2",
+      "Requires modification 3",
+      "Needs a decision 1",
     ]);
   });
 
@@ -121,7 +121,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
     const html = pane();
     const row = filterRow(html);
     expect(row[0]?.label).toMatch(/^All /);
-    expect(row.filter((b) => b.pressed).map((b) => b.label)).toEqual(["All (6)"]);
+    expect(row.filter((b) => b.pressed).map((b) => b.label)).toEqual(["All 6"]);
     // Every finding is on screen under All, not a pre-filtered subset.
     expect(html.match(/data-finding-id=/g) ?? []).toHaveLength(6);
   });
@@ -132,7 +132,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
     // status filter: two buttons, almost one label. The legal-decision count
     // lives on the Summary as its own line instead.
     const labels = filterRow(pane()).map((b) => b.label);
-    expect(labels.filter((l) => /decision/i.test(l))).toEqual(["Needs a decision (1)"]);
+    expect(labels.filter((l) => /decision/i.test(l))).toEqual(["Needs a decision 1"]);
   });
 
   it("keeps the order when the data changes, and drops a word nothing carries", () => {
@@ -143,7 +143,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f1", "CONFLICT", "NEEDS_DECISION"),
       finding("f2", "MATCH", "ACCEPTABLE"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All (2)", "Acceptable (1)", "Needs a decision (1)"]);
+    expect(labels).toEqual(["All 2", "Acceptable 1", "Needs a decision 1"]);
   });
 
   it("counts each word off the server's own user_status, never the classification", () => {
@@ -153,6 +153,6 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f1", "DEVIATION", "NEEDS_DECISION"),
       finding("f2", "DEVIATION", "NEEDS_DECISION"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All (2)", "Needs a decision (2)"]);
+    expect(labels).toEqual(["All 2", "Needs a decision 2"]);
   });
 });

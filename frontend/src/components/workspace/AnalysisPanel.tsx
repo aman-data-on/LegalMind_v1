@@ -38,7 +38,7 @@ import { useFindingsState } from "./findingsState";
 import { classificationLabel } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
-import { IconAlertCircle, IconCheckCircle, IconRefresh, IconXCircle } from "./icons";
+import { IconAlertCircle, IconCheckCircle, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
   findingsNeedingDecision,
@@ -53,10 +53,61 @@ import { useSideTabs } from "./WorkspaceLayout";
  *  of tones `findingLanguage` declares: Acceptable · Requires modification ·
  *  Needs a decision, green · amber · red. The tiles, the bar, the ring and its
  *  legend all read THIS list, so the four cannot disagree. */
+const STATUS_SUB: Record<string, string> = {
+  ACCEPTABLE: "Constitution match",
+  REQUIRES_MODIFICATION: "Deviation or missing",
+  NEEDS_DECISION: "Unclear, conflicting or no position",
+};
+
 const STATUS_TILES = USER_STATUS_ORDER.map((status) => ({
   status,
   tone: USER_STATUS_TONE[status],
+  sub: STATUS_SUB[status] ?? "",
 }));
+
+/** One icon per tone, everywhere a tone is drawn (tiles, marks, legend):
+ *  ✓ Acceptable, ! Requires modification, ⚖ Needs a decision. */
+export function ToneIcon({ tone, size }: { tone: StatusTone; size: number }) {
+  if (tone === "ok") return <IconCheckCircle size={size} />;
+  if (tone === "warn") return <IconAlertCircle size={size} />;
+  return <IconScale size={size} />;
+}
+
+/** How the three words are decided — the same three cards on the Summary and,
+ *  collapsed, above the Findings list. Plain words, no engine vocabulary, and
+ *  no claim about who decides beyond "someone with legal authority". */
+export function StatusExplainer({ collapsible = false }: { collapsible?: boolean }) {
+  const cards = (
+    <div className="ws-explain__grid">
+      <div className="ws-explain__card ws-explain__card--ok">
+        <b>Match → Acceptable</b>
+        <span>The clause matches the company&rsquo;s approved position.</span>
+      </div>
+      <div className="ws-explain__card ws-explain__card--warn">
+        <b>Deviation or missing → Requires modification</b>
+        <span>The clause differs from the approved position, or a required clause is absent.</span>
+      </div>
+      <div className="ws-explain__card ws-explain__card--bad">
+        <b>Unclear or no position → Needs a decision</b>
+        <span>The wording is unclear or conflicting, or the company has no approved position yet.</span>
+      </div>
+    </div>
+  );
+  if (!collapsible) {
+    return (
+      <div className="ws-explain">
+        <p className="ws-explain__title">How the three statuses are decided</p>
+        {cards}
+      </div>
+    );
+  }
+  return (
+    <details className="ws-explain ws-explain--collapsible">
+      <summary>How the three statuses are decided</summary>
+      {cards}
+    </details>
+  );
+}
 
 export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
   const { state, reload } = useFindingsState();
@@ -128,98 +179,119 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
     );
   }
 
+  const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
   return (
     <>
-      <section className="ws-analysis__section" aria-label="Status summary">
-        {/* What the counts MEAN, before the counts (owner, 2026-09-08). A
-            non-lawyer opening a review needs one sentence about the state of
-            this contract, and the tiles below were the whole answer: five
-            numbers under five enum names. The sentence is built from the same
-            counts — no score, no grade, no severity ranking (rule 12), and it
-            leads with what needs a person because that is the only actionable
-            number on the panel. */}
-        <p className="ws-analysis__headline">
-          {reviewHeadline({
-            total,
-            needsDecision: summary.needsDecision,
-            missing: statuses.REQUIRES_MODIFICATION,
-            match: statuses.ACCEPTABLE,
-          })}
-        </p>
-        <div className="ws-analysis__head">
-          <h3 className="ws-analysis__title">Status summary</h3>
-          {sideTabs ? (
-            <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
-              View all
+      {/* The hero — the owner's reference layout (2026-09-09): the one sentence
+          a reader needs and the way through to what needs a person, then the
+          three tiles on the left and the ring on the right. Counts only: no
+          score, no grade, no severity ranking (rule 12). */}
+      <section className="ws-hero" aria-label="Status summary">
+        <div className="ws-hero__top">
+          <div className="ws-hero__words">
+            <p className="ws-analysis__headline">
+              {reviewHeadline({
+                total,
+                needsDecision: summary.needsDecision,
+                missing: statuses.REQUIRES_MODIFICATION,
+                match: statuses.ACCEPTABLE,
+              })}
+            </p>
+            <p className="ws-hero__sub">
+              Five determinations — match, deviation, missing, unclear or conflicting, no
+              position — shown as three statuses.
+            </p>
+          </div>
+          {sideTabs && summary.needsDecision > 0 ? (
+            <button
+              type="button"
+              className="ws-hero__cta"
+              onClick={() => sideTabs.openFindings({ status: "NEEDS_DECISION" })}
+            >
+              Review pending decisions <b className="ws-hero__ctan">{summary.needsDecision}</b>
             </button>
           ) : null}
         </div>
-        {/* One tile per user-facing status that occurred — three, never more.
-            Each tile opens the Findings tab filtered to it. */}
-        <div className="ws-tiles">
-          {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, tone }) => (
-            <button
-              key={status}
-              type="button"
-              className={`ws-tile ws-tile--${tone}`}
-              aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
-              onClick={() => sideTabs?.openFindings({ status })}
-            >
-              <span className="ws-tile__n">{statuses[status]}</span>
-              <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
-              {/* Never colour alone: the tile carries the word above and this
-                  icon beside it — ✓ green, ! amber, ✕ red. */}
-              <span className={`ws-status ws-status--${tone}`}>
-                {tone === "ok" ? <IconCheckCircle size={18} /> : tone === "bad" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
-              </span>
-            </button>
-          ))}
-          {/* Exactly three status tiles (owner, 2026-09-09): how many need a
-              legal decision is a LINE below, never a fourth status. */}
-        </div>
-        <div
-          className="ws-bar"
-          role="img"
-          aria-label={STATUS_TILES.filter(({ status }) => statuses[status] > 0)
-            .map(({ status }) => `${statuses[status]} ${USER_STATUS_LABELS[status]}`).join(", ")}
-        >
-          {STATUS_TILES.map(({ status, tone }) =>
-            statuses[status] > 0 ? (
-              <span key={status} className={`ws-bar__seg ws-bar__seg--${tone}`} style={{ flexGrow: statuses[status] }} />
-            ) : null,
-          )}
-        </div>
-        <p className="ws-pane__note">
-          Total requirements analyzed: <span className="ws-mono">{total}</span>
-        </p>
-      </section>
-
-      <section className="ws-analysis__section" aria-label="Clause status breakdown">
-        <h3 className="ws-analysis__title">At a glance</h3>
-        <div className="ws-ring">
-          <Donut
-            segments={STATUS_TILES.map(({ status, tone }) => ({
-              tone, label: USER_STATUS_LABELS[status], n: statuses[status],
-            }))}
-            total={total}
-          />
-          <ul className="ws-ring__legend">
-            {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, tone }) => (
-              <li key={status} data-tone={tone}>
+        <div className="ws-hero__grid">
+          <div className="ws-hero__left">
+            <div className="ws-analysis__head">
+              <h3 className="ws-analysis__title">Status breakdown</h3>
+              {sideTabs ? (
+                <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
+                  View all in Findings
+                </button>
+              ) : null}
+            </div>
+            {/* Exactly three tiles (owner, 2026-09-09) — how many need a legal
+                decision is the button above and the line below, never a tile.
+                A zero tile stays visible and inert, so the three words are
+                always in the same three places. */}
+            <div className="ws-tiles">
+              {STATUS_TILES.map(({ status, tone, sub }) => (
                 <button
+                  key={status}
                   type="button"
-                  className="ws-ring__go"
+                  className={`ws-tile ws-tile--${tone}`}
                   aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
                   onClick={() => sideTabs?.openFindings({ status })}
+                  disabled={statuses[status] === 0}
                 >
-                  <span className="ws-ring__swatch" aria-hidden="true" />
-                  <span className="ws-mono">{statuses[status]}</span>
-                  <span className="ws-ring__pct">({Math.round((statuses[status] / total) * 100)}%)</span>
-                  {USER_STATUS_LABELS[status]}
+                  <span className="ws-tile__n">{statuses[status]}</span>
+                  <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
+                  <span className="ws-tile__sub">{sub} ({pct(statuses[status])})</span>
+                  {/* Never colour alone: the word above, the icon beside it. */}
+                  <span className={`ws-status ws-status--${tone}`}>
+                    <ToneIcon tone={tone} size={18} />
+                  </span>
                 </button>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+            <div
+              className="ws-bar"
+              role="img"
+              aria-label={STATUS_TILES.filter(({ status }) => statuses[status] > 0)
+                .map(({ status }) => `${statuses[status]} ${USER_STATUS_LABELS[status]}`).join(", ")}
+            >
+              {STATUS_TILES.map(({ status, tone }) =>
+                statuses[status] > 0 ? (
+                  <span key={status} className={`ws-bar__seg ws-bar__seg--${tone}`} style={{ flexGrow: statuses[status] }} />
+                ) : null,
+              )}
+            </div>
+            <p className="ws-pane__note ws-hero__total">
+              Total requirements analyzed: <span className="ws-mono">{total}</span>
+            </p>
+            <StatusExplainer />
+          </div>
+          <section className="ws-hero__right" aria-label="At a glance">
+            <h3 className="ws-analysis__title">At a glance</h3>
+            <div className="ws-ring">
+              <Donut
+                segments={STATUS_TILES.map(({ status, tone }) => ({
+                  tone, label: USER_STATUS_LABELS[status], n: statuses[status],
+                }))}
+                total={total}
+              />
+              <ul className="ws-ring__legend">
+                {STATUS_TILES.map(({ status, tone }) => (
+                  <li key={status} data-tone={tone}>
+                    <button
+                      type="button"
+                      className="ws-ring__go"
+                      aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+                      onClick={() => sideTabs?.openFindings({ status })}
+                      disabled={statuses[status] === 0}
+                    >
+                      <span className="ws-ring__swatch" aria-hidden="true" />
+                      <span className="ws-ring__word">{USER_STATUS_LABELS[status]}</span>
+                      <span className="ws-mono">{statuses[status]}</span>
+                      <span className="ws-ring__pct">({pct(statuses[status])})</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
         </div>
       </section>
 

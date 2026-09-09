@@ -44,7 +44,7 @@ import { useSession } from "@/lib/session";
 import type { DocumentVersion, Evaluation, Evidence, Finding, FindingExplanation } from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
-import { ClassificationGlossary } from "./ClassificationGlossary";
+import { StatusExplainer, ToneIcon } from "./AnalysisPanel";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
@@ -52,6 +52,7 @@ import { useFindingsState } from "./findingsState";
 import {
   findingSentence,
   constitutionProhibition,
+  determinationLabel,
   evidenceLocation,
   evidenceNote,
   excerpt,
@@ -360,6 +361,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
           * rendered through `lib/labels` like everywhere else.
           */}
         <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
+        {summary.needsDecision > 0 ? (
+          <span className="ws-chip ws-chip--fill ws-chip--status-needs_decision ws-pane__await">
+            {summary.needsDecision} awaiting legal decision
+          </span>
+        ) : null}
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
         {/* Shortcuts nobody can find are shortcuts nobody uses — every tool that
             ships them ships a visible way in. Inline in the header where the
@@ -374,17 +380,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
             nothing and answers a first-time reader without asking a colleague
             (2026-09-04 audit). */}
         {findings.length > 0 ? (
-          <>
-            <ClassificationGlossary />
-            {/* 49.7 r1 / D-1.4 — the derived summary is never presented as the
-                authoritative result. Stated ONCE for the pane: it used to
-                repeat on every card, which on a 14-finding review meant the
-                same sentence fourteen times above the findings themselves. */}
-            <p className="ws-pane__note">
-              Each outcome below is a summary of the evaluations inside it, which are
-              the authoritative results.
-            </p>
-          </>
+          /* How the three words are decided (owner's reference, 2026-09-09) —
+             collapsed, so it costs a working reviewer nothing and answers a
+             first-time reader without asking a colleague. The engine's own
+             glossary stays reachable inside each card's View details. */
+          <StatusExplainer collapsible />
         ) : null}
         {findings.length === 0 ? (
           <div className="ws-state" role="note">
@@ -422,17 +422,19 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                 aria-pressed={view === "all"}
                 onClick={() => setView("all")}
               >
-                All ({findings.length})
+                All <span className="ws-filter__n">{findings.length}</span>
               </button>
               {statusCounts.map(({ status, n }) => (
                 <button
                   key={status}
                   type="button"
+                  data-tone={USER_STATUS_TONE[status]}
                   aria-pressed={typeof view === "object" && "status" in view &&
                     view.status === status}
                   onClick={() => setView({ status })}
                 >
-                  {USER_STATUS_LABELS[status]} ({n})
+                  <span className="ws-filter__dot" aria-hidden="true" />
+                  {USER_STATUS_LABELS[status]} <span className="ws-filter__n">{n}</span>
                 </button>
               ))}
               {/* A `?classification=` deep link (Summary tile, report) lands on
@@ -515,6 +517,10 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
   const status = userStatus(finding);
   const prohibition = constitutionProhibition(finding);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
+  const { point } = useHighlight();
+  // The first passage any evaluation cited — the card's way into the document.
+  const firstCited = finding.evaluations.flatMap((e) => e.evidence_refs)
+    .find((id) => evidenceById.has(id)) ?? null;
   const title = requirementTitle(finding.requirement);
   // The one sentence: the requirement's approved plain-English description
   // (owner, 2026-09-09 — what the clause means in practice, from the ratified
@@ -553,7 +559,16 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
             classification chip beside it still carries the word. */}
         <span className="ws-finding__titlewrap">
           <FindingStatusMark status={status} />
-          <h3 className="ws-finding__title">{title}</h3>
+          <span className="ws-finding__titles">
+            <h3 className="ws-finding__title">{title}</h3>
+            {/* The engine's determination in plain words (owner's reference,
+                2026-09-09): which of the five answers produced this status. */}
+            {determinationLabel(finding.classification) ? (
+              <span className={`ws-finding__det ws-finding__det--${USER_STATUS_TONE[status]}`}>
+                {determinationLabel(finding.classification)}
+              </span>
+            ) : null}
+          </span>
         </span>
         {/* The three-word status (owner, 2026-09-08): Accepted / Needs review /
             Not accepted. The engine's own classification moved into "How this
@@ -585,6 +600,15 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
         />
       ))}
       <div className="ws-finding__acts">
+        {firstCited ? (
+          <button
+            type="button"
+            className="ws-escalate__link ws-finding__viewdoc"
+            onClick={() => point(firstCited, "the cited")}
+          >
+            View in document
+          </button>
+        ) : null}
         {askIntent ? (
           <button
             type="button"
@@ -606,12 +630,9 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
  *  repeats visually. One tone per user-facing status, no fourth. */
 function FindingStatusMark({ status }: { status: UserStatus }) {
   const tone = USER_STATUS_TONE[status];
-  const Icon = tone === "ok" ? IconCheckCircle
-    : tone === "bad" ? IconXCircle
-    : IconAlertCircle;
   return (
     <span className={`ws-finding__mark ws-finding__mark--${tone}`} aria-hidden="true">
-      <Icon size={16} />
+      <ToneIcon tone={tone} size={16} />
     </span>
   );
 }
