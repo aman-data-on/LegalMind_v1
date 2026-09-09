@@ -26,7 +26,6 @@ number, and rank fusion belongs with the vector half in A3/A4 where it can be me
 from __future__ import annotations
 
 import re
-
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -313,8 +312,8 @@ def search_chunks(db: DBSession, *, document_version_id: UUID, query: str,
                    {trgm}.similarity(c.content, :q)                            AS sim,
                    (SELECT count(*)
                       FROM q, unnest(tsvector_to_array(c.content_tsv)) l
-                     WHERE l = ANY(q.lex))                                      AS matched,
-                   (c.content ILIKE '%%' || :q || '%%')                         AS literal,
+                     WHERE l = ANY(q.lex))                             AS matched,
+                   (c.content ILIKE '%%' || :q || '%%')                AS literal,
                    c.ordinal
               FROM "{schema}".chunks c
               JOIN document_evidence e ON e.id = c.evidence_id
@@ -420,7 +419,8 @@ def is_fragment(content: str) -> bool:
     """
     from legalmind.assist.chunking import _is_heading
 
-    lines = [ln.strip() for ln in content.replace("\u200b", "").splitlines() if ln.strip()]
+    cleaned = content.replace("\u200b", "")
+    lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
     body = [ln for ln in lines if not _NUMBERING.fullmatch(ln)]
     if not body:
         return True

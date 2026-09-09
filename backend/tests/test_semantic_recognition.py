@@ -14,7 +14,13 @@ from legalmind.analysis.service import run_analysis
 from legalmind.assist import embedding_runtime, generation
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import by_finding
-from tests.test_analysis import LEGAL_RULE, MAPPING, STANDARD, build, storage  # noqa: F401
+from tests.test_analysis import (  # noqa: F401
+    LEGAL_RULE,
+    MAPPING,
+    STANDARD,
+    build,
+    storage,
+)
 
 pytestmark = pytest.mark.skipif(not embedding_runtime.available(),
                                 reason="local embedding model not provisioned")

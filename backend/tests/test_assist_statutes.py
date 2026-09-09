@@ -206,9 +206,10 @@ def test_alias_expansion_only_touches_known_short_names():
 # exact section or a named Act. Planted vectors; injected embedder; no model number.
 # ==========================================================================
 def _plant_section(db, section_number: str, axis: int):
+    from sqlalchemy import text as sql_text
+
     from legalmind import config
     from legalmind.assist import store
-    from sqlalchemy import text as sql_text
     schema = config.assist_schema()
     model_id = store.register_embedding_model(db, name="planted", version="t",
                                               dimensions=384, checksum="x")

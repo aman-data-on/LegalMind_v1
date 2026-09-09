@@ -106,7 +106,11 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
 # Tests deliberately assert on broad exceptions and build long structural payloads.
 # `E702` is the `db.add(row); db.flush()` idiom used throughout the fixtures, and
 # `E501` covers long structural payload literals.
-"tests/**" = ["BLE001", "E501", "E702"]
+# `F811` is pytest's fixture contract, not a redefinition: a fixture imported by
+# name from another test module (`from tests.test_analysis import build, storage`)
+# is then taken as a test PARAMETER of the same name, which ruff reads as shadowing.
+# Renaming either half would break the fixture lookup that makes it work.
+"tests/**" = ["BLE001", "E501", "E702", "F811"]
 # Verification tooling catches and reports every failure by design — that is the
 # point of a verification pass, not a defect in it.
 "tools/**" = ["BLE001", "E501", "E702"]
@@ -115,6 +119,13 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
 # the locked table definitions they implement — the one place literal fidelity beats
 # layout. They are also append-only in practice: a migration is never reformatted.
 "alembic/**" = ["E501"]
+# `AM-54`'s two prompts are multi-line string literals in this module, and their
+# BYTES are the payload: the lock record pins a prompt version and every call is
+# audited with a hash of what was sent. Rewrapping a continuation line to satisfy a
+# column limit would change that hash silently, and a `noqa` cannot be placed inside
+# a string literal without becoming part of it. The prompt text is the reason for the
+# exemption; the code around it is still reviewed for length by eye.
+"legalmind/analysis/semantic.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

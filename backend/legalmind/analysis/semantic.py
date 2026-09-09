@@ -49,11 +49,13 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 from uuid import UUID
 
 from legalmind.assist import embedding_runtime, generation
+from legalmind.domain.enums import EvaluationKind
+from legalmind.evaluation.contracts import Cap
 from legalmind.extraction.liability import (
     FINITE,
     UNKNOWN,
@@ -61,8 +63,6 @@ from legalmind.extraction.liability import (
     _find_basis,
     number_in_text,
 )
-from legalmind.evaluation.contracts import Cap
-from legalmind.domain.enums import EvaluationKind
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.scoring import Signal, normalize
 
@@ -183,13 +183,16 @@ def build_index(clauses: list[Clause],
         return None
     return SemanticIndex(
         model=embedding_runtime.identity() or "unknown",
-        clause_vectors={c.evidence_id: v for c, v in zip(clauses, vectors)},
-        anchors={rv_id: v for rv_id, v in zip(anchor_ids, vectors[len(texts):])},
+        clause_vectors={c.evidence_id: v
+                        # `vectors` holds the anchor rows after the clause
+                        # texts, so this pairing is deliberately short.
+                        for c, v in zip(clauses, vectors, strict=False)},
+        anchors=dict(zip(anchor_ids, vectors[len(texts):], strict=True)),
     )
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
     return dot / norm if norm else 0.0
 

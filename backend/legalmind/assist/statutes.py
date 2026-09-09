@@ -181,7 +181,7 @@ def _pdf_text(path: Path) -> str:
     import pymupdf
 
     doc = pymupdf.open(str(path))
-    return "\n".join(page.get_text() for page in doc)
+    return "\n".join(page.get_text() for page in doc.pages())
 
 
 def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
@@ -428,13 +428,16 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
         fused: dict = {}
         by_id: dict = {}
         for rank, h in enumerate(vector, start=1):
-            fused[h.statute_chunk_id] = fused.get(h.statute_chunk_id, 0.0) + 1 / (60 + rank)
+            key = h.statute_chunk_id
+            fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
             by_id.setdefault(h.statute_chunk_id, h)
         for rank, h in enumerate(hits, start=1):
-            fused[h.statute_chunk_id] = fused.get(h.statute_chunk_id, 0.0) + 1 / (60 + rank)
+            key = h.statute_chunk_id
+            fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
             by_id.setdefault(h.statute_chunk_id, h)
         order = list(fused)                      # insertion order = vector first on ties
-        hits = [by_id[i] for i in sorted(order, key=lambda i: (-fused[i], order.index(i)))][:limit]
+        ranked = sorted(order, key=lambda i: (-fused[i], order.index(i)))
+        hits = [by_id[i] for i in ranked][:limit]
     log_event("assist.statutes.searched", hits=len(hits), level=logging.DEBUG)
     return hits
 

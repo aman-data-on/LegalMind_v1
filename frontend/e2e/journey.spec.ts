@@ -64,8 +64,11 @@ test("journey: upload → analysis → report → findings → ask, with finding
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
+  // The count is a `.ws-filter__n` badge beside the word since the reference-design
+  // restyle (2026-09-09), so the accessible name is "Requires modification 1" with a
+  // space, not "Requires modification (1)". The count itself is still asserted.
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Requires modification \(\d+\)$/ })).toBeVisible();
+  await expect(filters.getByRole("button", { name: /^Requires modification\s+\d+$/ })).toBeVisible();
 
   /*
    * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"

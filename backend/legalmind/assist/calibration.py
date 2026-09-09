@@ -103,7 +103,8 @@ RETRIEVAL_TOP_K = 10
 # fusion. The gate itself — its constants and its AND lexical signal — is unchanged
 # (the Tier-2 gate showed that letting OR open it answers 13/13 unanswerable
 # questions); the version string keeps records under either strategy distinguishable.
-RETRIEVAL_STRATEGY_VERSION = "hybrid-rrf-gate-2 (or-floor+prune 2026-09-09; gate 2026-08-26)"
+RETRIEVAL_STRATEGY_VERSION = (
+    "hybrid-rrf-gate-2 (or-floor+prune 2026-09-09; gate 2026-08-26)")
 assert len(RETRIEVAL_STRATEGY_VERSION) <= 64      # retrieval_runs.strategy_version
 
 

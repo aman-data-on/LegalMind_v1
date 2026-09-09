@@ -311,10 +311,12 @@ def _fuse(lexical: list[PositionHit], vector: list[PositionHit],
     fused: dict[UUID, float] = {}
     by_id: dict[UUID, PositionHit] = {}
     for rank, hit in enumerate(vector, start=1):
-        fused[hit.position_chunk_id] = fused.get(hit.position_chunk_id, 0.0) + 1 / (60 + rank)
+        key = hit.position_chunk_id
+        fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
         by_id.setdefault(hit.position_chunk_id, hit)
     for rank, hit in enumerate(lexical, start=1):
-        fused[hit.position_chunk_id] = fused.get(hit.position_chunk_id, 0.0) + 1 / (60 + rank)
+        key = hit.position_chunk_id
+        fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
         by_id.setdefault(hit.position_chunk_id, hit)
     order = list(fused)
     ordered = sorted(order, key=lambda i: (-fused[i], order.index(i)))

@@ -18,8 +18,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.evaluation.user_status import by_finding, counts as user_status_counts
 from legalmind.domain import enums as E
+from legalmind.evaluation.user_status import by_finding
+from legalmind.evaluation.user_status import counts as user_status_counts
 
 
 def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:

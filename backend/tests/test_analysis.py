@@ -1320,7 +1320,6 @@ def test_a_mixed_domain_document_still_shows_no_false_missing_flood_after_the_fi
     must not, by itself, cause other unrelated families' standards to be
     reported MISSING (AM-51 r2's correction is orthogonal to and unaffected by
     this fix)."""
-    nda = {**STANDARD, "document_type": "NDA"}
     build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
                       mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
     build.requirement("NDA-GOVLAW-STRUCT", E.EvaluatorType.PRESENCE,

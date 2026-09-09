@@ -11,8 +11,8 @@ from legalmind.assist import explanations
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import by_finding, counts, user_status, worst
-from legalmind.security.authorization import LEGAL_POSITION_FIELDS
 from legalmind.security import permissions as P
+from legalmind.security.authorization import LEGAL_POSITION_FIELDS
 from tests.conftest import (
     grant_role,
     make_evaluation,

@@ -145,7 +145,7 @@ def test_delete_route_destroys_a_contract_and_its_review(api, db, seeded):
 
 def test_delete_refuses_someone_elses_contract(api, db, seeded):
     """Owner-scoped like every other write (49.24) — a 404, existence hidden."""
-    owner = _owner(db, api)
+    _owner(db, api)          # signs in as the owner; the row itself is unused here
     other = make_user(db)
     contract = _contract(db, other, name="Someone Else's MSA")
 

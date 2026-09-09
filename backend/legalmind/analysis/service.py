@@ -38,7 +38,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis import semantic
 from legalmind.analysis.unmatched import record_unmatched_provisions
+from legalmind.assist import generation
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.document_types import is_document_type
@@ -65,15 +67,15 @@ from legalmind.evaluation.service import (
     requirement_applicability,
 )
 from legalmind.extraction.liability import (
+    ABSENT,
+    UNKNOWN,
     LiabilityExtractionConfig,
     extract_liability_facts,
+    prune_absent,
 )
 from legalmind.mapping.engine import Clause, MappingResult, map_requirement
-from legalmind.mapping.scoring import score_clause
-from legalmind.analysis import semantic
-from legalmind.assist import generation
-from legalmind.extraction.liability import ABSENT, UNKNOWN, prune_absent
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
+from legalmind.mapping.scoring import score_clause
 from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
 from legalmind.observability.logs import timed
@@ -421,11 +423,14 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
         return lexical
     # 35.5 still vetoes: a clause carrying a configured negative pattern (a
     # negative lexical score) is never offered for semantic confirmation.
-    shortlist = [(c, sim) for c, sim in index.shortlist(item.requirement_version.id, clauses)
-                 if score_clause(rules, content=c.content, section_title=c.section_title).score >= 0]
+    shortlist = [(c, sim)
+                 for c, sim in index.shortlist(item.requirement_version.id, clauses)
+                 if score_clause(rules, content=c.content,
+                                 section_title=c.section_title).score >= 0]
     if not shortlist:
         return lexical
-    terms = ", ".join([*rules.aliases, *rules.exact_phrases, *rules.section_heading_terms])
+    terms = ", ".join([*rules.aliases, *rules.exact_phrases,
+                       *rules.section_heading_terms])
     signals, diagnostics = semantic.adjudicate(
         item.requirement_version.description or "", terms, shortlist,
         rules.confirm_threshold, egress)
