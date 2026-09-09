@@ -3298,3 +3298,8 @@
 /* Footer: the way into the document first, then Ask and Escalate. */
 .ws-finding__acts { display: flex; align-items: center; gap: var(--ws-s4); flex-wrap: wrap; padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
 .ws-finding__viewdoc { margin-right: auto; color: var(--ws-accent); }
+/* The title block takes the row; the status chip sits at the right edge on the
+   same line as the title (owner's reference, 2026-09-09). */
+.ws-finding__head { justify-content: space-between; align-items: flex-start; }
+.ws-finding__titlewrap { flex: 1 1 auto; min-width: 0; }
+.ws-finding__head > .ws-chip { flex: none; margin-top: 4px; }
