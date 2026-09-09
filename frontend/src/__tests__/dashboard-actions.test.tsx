@@ -45,6 +45,7 @@ const analyzed = contract({
     review_id: "r1", review_status: "ANALYSIS_COMPLETE",
     created_at: "2026-09-01T00:00:00Z", completed_at: "2026-09-01T01:00:00Z",
     classification_counts: { MATCH: 6, DEVIATION: 5, MISSING: 4 },
+    user_status_counts: { ACCEPTED: 6, NEEDS_REVIEW: 5, NOT_ACCEPTED: 4 },
   },
 } as Partial<Contract>);
 

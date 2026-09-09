@@ -17986,3 +17986,86 @@ r5   DOMAIN A INDEXING WAS GENUINELY STALE AND IS NOW FIXED. Every
 **Approved by the owner on 2026-09-09** ("Investigate the complete path … Do NOT simply add
 another hardcoded phrase/synonym … Do NOT weaken the existing classification rules … If yes,
 fix it now rather than leaving it as a known limitation.").
+
+--------------------------------------------------------------------------------
+
+# `AM-53` — The FINAL three-status model: Accepted / Needs review / Not accepted are derived from the authoritative result, never a rename of the four classifications (Owner Instruction — 2026-09-09, FINAL product decision)
+
+**Amends:** the 2026-09-08 sixth-pass rule (recorded in `AM-49`/`AM-50` r4 as "the three
+user-facing statuses") under which NOT ACCEPTED fired ONLY on an explicit Constitution
+citation and every ruled DEVIATION showed as NEEDS REVIEW. That rule made NOT ACCEPTED and
+NEEDS REVIEW indistinguishable in practice — the reported defect. **Does not amend:** the four
+classifications, the four Rule Outcomes, D-3.5 / `UNRULED_DEVIATION_REQUIRES_DECISION`, rule
+15's fail-closed routing, the zero-tolerance Legal Rule (2026-08-19/20), `AM-33` r3, `AM-25`
+r1 (the assist lane still decides nothing), `AM-49` (the explanation is language only),
+LEGAL-02 as a redaction rule, rules 7, 12, 13, 21.
+
+The owner instructed: *"LegalMind will have ONLY 3 user-facing statuses … Do NOT simply rename
+the four backend states into three UI labels. The mapping must be determined from the
+authoritative backend result, evidence and approved Company Constitution/rules … MISSING → must
+be evaluated according to the applicable approved Company Standard. It is NOT automatically Not
+Accepted and NOT automatically Needs Review. DEVIATION → must be evaluated according to the
+approved rule … UNABLE_TO_EVALUATE → NEEDS REVIEW unless an approved rule explicitly provides
+another outcome … This is the FINAL product decision. Do not reopen the status-model
+discussion."*
+
+```text
+r1   DERIVED SERVER-SIDE, IN ONE PLACE. `legalmind/evaluation/user_status.py`
+     computes the word from (classification, rule_outcome, Constitution citation)
+     and the API carries it as `user_status` on every Evaluation and Finding
+     (the Finding takes its worst Evaluation). Never stored, never an axis
+     (DECISION_STATE_MODEL keeps five), never read by an evaluator, never fed by
+     the LLM. The UI renders it and re-derives nothing; absent, it fails closed
+     to NEEDS_REVIEW.
+
+r2   THE MAPPING.  MATCH → ACCEPTED, whatever rule_outcome rides along.
+     Constitution citation → NOT_ACCEPTED (the narrowest condition, checked first).
+     DEVIATION or MISSING carrying the approved rule's own UNACCEPTABLE →
+     NOT_ACCEPTED: evidence-supported, because the evaluator only rules a value
+     it read, and the zero-tolerance rule IS the approved disposition.
+     DEVIATION or MISSING left unruled (NOT_APPLICABLE, APPROVAL_REQUIRED) →
+     NEEDS_REVIEW.  UNABLE_TO_EVALUATE, CONFLICT and anything unknown →
+     NEEDS_REVIEW always: uncertainty is never converted into a rejection.
+
+r3   MISSING FOLLOWS THE RULE'S SILENCE HONESTLY. No approved rule disposes
+     absence today (`deviation_outcome` governs deviations; both evaluators give
+     MISSING NOT_APPLICABLE), so every MISSING reads NEEDS REVIEW — a lawyer may
+     find the missing clause acceptable as-is (owner, 2026-09-09). This is the
+     rule read as written, not a hardcoded outcome: a rule that disposes absence
+     would flow through r2 unchanged. Adding one is configuration under rule 7 —
+     the owner's approval, never an engineering default.
+
+r4   NOT A LEGAL-POSITION FIELD. `user_status` is served to every caller who can
+     see the Finding, including a USER without `legal_position.view`, while
+     `rule_outcome`, `expected_value` and the citation stay omitted for them
+     (LEGAL-02, SEC-07). The word discloses the result the reader is entitled to
+     act on, not the rule behind it — the same posture `requires_decision`
+     already had.
+
+r5   ONE VOCABULARY EVERYWHERE. Card face, Summary tiles/bar/ring, the report's
+     `user_status_counts`, the export, the Dashboard's findings badges and
+     status bucket (`needs_attention` = any non-ACCEPTED), the document pane's
+     per-clause links and the version comparison all read the server's word.
+     MATCH / DEVIATION / MISSING / CONFLICT / UNABLE_TO_EVALUATE remain in the API,
+     the audit trail, View details, the report's `classification_counts` and the
+     export's "Engine classifications (audit record)".
+
+r6   NEXT STEP BY STATUS. ACCEPTED: "No action is needed." (an escalated one still
+     names the person). NOT ACCEPTED: "This goes against an approved company
+     position. Legal review or modification is required." — the owner's own
+     words; the one status where the card may say the contract needs changing.
+     NEEDS REVIEW: "Someone with legal authority needs to review this." — one
+     sentence for every classification, never pre-deciding the outcome.
+
+r7   WORDING IS NOT DEVIATION. The authoritative lane already reads the number,
+     unit and basis out of the drafting ("six (6) months", "6 (six) months",
+     "6 months" are one cap); a genuine difference (nine months against six) is a
+     DEVIATION and only THEN does r2 make it NOT ACCEPTED. No semantic engine, no
+     second RAG pipeline and no synonym expansion was added (35.4, AI-01 stand);
+     semantic understanding lives where `AM-25`/`AM-49` already put it — Ask and
+     the explanation layer — and never decides.
+```
+
+**Approved by the owner on 2026-09-09** ("This is the FINAL product decision. Do not reopen
+the status-model discussion. Implement it, test it, visually verify it, fix issues, and
+retest.").

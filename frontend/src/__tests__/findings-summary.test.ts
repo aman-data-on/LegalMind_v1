@@ -53,15 +53,15 @@ describe("findingsSummary", () => {
 });
 
 describe("rowNeedsAttention", () => {
-  it("flags any non-MATCH count from the server", () => {
+  it("flags any non-Accepted count from the server", () => {
     expect(rowNeedsAttention({
-      latest_analysis: { classification_counts: { MATCH: 4, DEVIATION: 1 } },
+      latest_analysis: { user_status_counts: { ACCEPTED: 4, NOT_ACCEPTED: 1 } },
     })).toBe(true);
   });
 
-  it("stays calm for all-MATCH, unanalysed and empty rows", () => {
+  it("stays calm for all-Accepted, unanalysed and empty rows", () => {
     expect(rowNeedsAttention({
-      latest_analysis: { classification_counts: { MATCH: 4 } },
+      latest_analysis: { user_status_counts: { ACCEPTED: 4 } },
     })).toBe(false);
     expect(rowNeedsAttention({ latest_analysis: null })).toBe(false);
     expect(rowNeedsAttention({})).toBe(false);
@@ -152,17 +152,17 @@ describe("documentStatusBucket (Dashboard-list, mirrors the backend's own _statu
     })).toBe("analyzing");
   });
 
-  it("a completed Review with only MATCH findings is analyzed", () => {
+  it("a completed Review with only Accepted findings is analyzed", () => {
     expect(documentStatusBucket({
       latest_version: { processing_status: "COMPLETED" },
-      latest_analysis: { review_status: "ANALYSIS_COMPLETE", classification_counts: { MATCH: 3 } },
+      latest_analysis: { review_status: "ANALYSIS_COMPLETE", user_status_counts: { ACCEPTED: 3 } },
     })).toBe("analyzed");
   });
 
-  it("a completed Review with any non-MATCH finding needs review", () => {
+  it("a completed Review with any non-Accepted finding needs review", () => {
     expect(documentStatusBucket({
       latest_version: { processing_status: "COMPLETED" },
-      latest_analysis: { review_status: "LEGAL_REVIEW", classification_counts: { MATCH: 2, DEVIATION: 1 } },
+      latest_analysis: { review_status: "LEGAL_REVIEW", user_status_counts: { ACCEPTED: 2, NEEDS_REVIEW: 1 } },
     })).toBe("needs_attention");
   });
 });

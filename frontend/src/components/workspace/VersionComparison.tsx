@@ -216,9 +216,7 @@ function Result({
                   <span className="ws-compare__findlabel">The analysis of this clause:</span>
                   {clause.findings.map((finding) => (
                     <span key={finding.finding_id} className="ws-chip ws-chip--classify-fill">
-                      {/* The comparison DTO carries no evaluations, so the status
-                          is Accepted / Needs review only — never Not accepted. */}
-                      {USER_STATUS_LABELS[userStatus({ classification: finding.classification, evaluations: [] })]}
+                      {USER_STATUS_LABELS[userStatus(finding)]}
                       {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}

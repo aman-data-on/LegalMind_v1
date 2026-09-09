@@ -2893,7 +2893,13 @@
 }
 .ws-chip--status-accepted { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
 .ws-chip--status-needs_review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
-.ws-chip--status-not_accepted { background: var(--ws-bad-soft); color: var(--ws-bad); border-color: color-mix(in srgb, var(--ws-bad) 28%, transparent); }
+/* Not accepted is the loud one: solid chip and a red card edge, so it is told
+   apart from Needs review at arm's length (owner, 2026-09-09) — still never
+   colour alone: the word and the ✕ mark carry the same fact. */
+.ws-chip--status-not_accepted { background: var(--ws-bad); color: #fff; border-color: var(--ws-bad); }
+.ws-finding[data-user-status="NOT_ACCEPTED"] { border-left-color: var(--ws-bad); }
+.ws-finding[data-user-status="NEEDS_REVIEW"] { border-left-color: var(--ws-warn); }
+.ws-finding[data-user-status="ACCEPTED"] { border-left-color: var(--ws-ok); }
 
 /* The Constitution citation under a Not accepted — the source is part of the
    status, so it sits with the lede, quoted, not tucked in the disclosure. */

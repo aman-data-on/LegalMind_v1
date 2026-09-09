@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.evaluation.user_status import by_finding, counts as user_status_counts
 from legalmind.domain import enums as E
 
 
@@ -67,6 +68,11 @@ def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
             "requirements_with_findings": evaluated,
         },
         "classification_counts": dict(classifications),
+        # The reader's three words (owner, 2026-09-09) — the Summary and the
+        # report speak ACCEPTED / NEEDS_REVIEW / NOT_ACCEPTED; the engine's
+        # classifications above stay for audit.
+        "user_status_counts": user_status_counts(
+            by_finding(db, [review.id]).get(review.id, {})),
         "status_counts": dict(statuses),
         "alignment": {
             "requirements_evaluated": evaluated,

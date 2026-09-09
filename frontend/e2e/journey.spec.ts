@@ -56,15 +56,17 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await openFindingsTab(page);
   const finding = page.locator("article[data-finding-id]").first();
   await expect(finding).toBeVisible();
-  // The face says the reader's word; the engine's word is one click away.
-  await expect(finding.locator("[data-status]")).toHaveText("Needs review");
+  // The face says the reader's word; the engine's word is one click away. The
+  // fixture's zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
+  // reader sees Not accepted (owner's final status decision, 2026-09-09).
+  await expect(finding.locator("[data-status]")).toHaveText("Not accepted");
   await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Needs review \(\d+\)$/ })).toBeVisible();
-  await filters.getByRole("button", { name: /^Needs review/ }).click();
+  await expect(filters.getByRole("button", { name: /^Not accepted \(\d+\)$/ })).toBeVisible();
+  await filters.getByRole("button", { name: /^Not accepted/ }).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
   // inside "How this was determined" (seventh pass — the face is the four
@@ -110,7 +112,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await page.goto("/dashboard");
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
   await expect(row.locator(".ws-status-pill")).toContainText("Needs review");
-  await expect(row.locator(".ws-findings-badge--review")).not.toHaveClass(/ws-findings-badge--zero/);
+  // The fixture deviation is ruled UNACCEPTABLE, so it counts as Not accepted (the third badge).
+  await expect(row.locator(".ws-findings-badge--missing")).not.toHaveClass(/ws-findings-badge--zero/);
 });
 
 test("journey: a revised version is a real new analysis; v1 stays historically valid", async ({

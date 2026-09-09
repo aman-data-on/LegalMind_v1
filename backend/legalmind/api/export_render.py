@@ -88,6 +88,12 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         Block("h2", "Summary"),
     ]
 
+    for status, label in (("ACCEPTED", "Accepted"), ("NEEDS_REVIEW", "Needs review"),
+                          ("NOT_ACCEPTED", "Not accepted")):
+        n = (report.get("user_status_counts") or {}).get(status)
+        if n:
+            blocks.append(Block("kv", str(n), label=label))
+    blocks.append(Block("h3", "Engine classifications (audit record)"))
     counts = report.get("classification_counts") or {}
     for classification in _COUNT_ORDER:
         n = counts.get(classification)

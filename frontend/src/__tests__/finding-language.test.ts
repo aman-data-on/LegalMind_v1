@@ -21,6 +21,7 @@ import {
   reasoningSteps,
   requirementTitle,
   userStatus,
+  statusCounts,
   constitutionProhibition,
   findingSentence,
   reviewHeadline,
@@ -43,6 +44,7 @@ function finding(over: Partial<Finding> = {}): Finding {
     evidence: [],
     created_at: null,
     updated_at: null,
+    user_status: (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW",
     ...over,
   } as Finding;
 }
@@ -154,10 +156,9 @@ describe("what happens next", () => {
     const step = (c: string) => nextStep(finding({ classification: c, requires_decision: c !== "MATCH" }),
                                          evaluation({ classification: c, requires_decision: c !== "MATCH" }));
     expect(step("MATCH")).toBe("No action is needed.");
-    expect(step("DEVIATION")).toBe("Someone with legal authority needs to review and decide whether this difference is acceptable.");
-    expect(step("MISSING")).toBe("Someone with legal authority needs to review and decide whether this should be added.");
-    expect(step("CONFLICT")).toMatch(/which of the contradicting provisions applies/);
-    expect(step("UNABLE_TO_EVALUATE")).toMatch(/legal or business decision may be required/i);
+    for (const c of ["DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      expect(step(c), c).toBe("Someone with legal authority needs to review this.");
+    }
   });
 
   it("never pre-decides the legal outcome — no 'would make this Accepted' on any card (owner, 2026-09-09)", () => {
@@ -170,8 +171,7 @@ describe("what happens next", () => {
 
   it("routes Not accepted to a person and never suggests a self-service edit", () => {
     const step = nextStep(finding({ classification: "DEVIATION" }), evaluation({ classification: "DEVIATION" }), "NOT_ACCEPTED");
-    expect(step).toMatch(/goes against an approved company position/);
-    expect(step).toMatch(/legal authority/i);
+    expect(step).toBe("This goes against an approved company position. Legal review or modification is required.");
     expect(step).not.toMatch(/would make/);
   });
 });
@@ -418,34 +418,31 @@ describe("the Company Standard column reads as an expectation, not a search resu
   });
 });
 
-describe("the three-word user-facing status (owner, 2026-09-08)", () => {
-  const f = (classification: string, evaluations: Array<Partial<Evaluation>> = [{}]) =>
-    ({ classification, evaluations: evaluations as Evaluation[] });
-
-  it("maps the four engine classifications onto exactly two of the three words", () => {
-    expect(userStatus(f("MATCH"))).toBe("ACCEPTED");
-    expect(userStatus(f("DEVIATION"))).toBe("NEEDS_REVIEW");
-    expect(userStatus(f("MISSING"))).toBe("NEEDS_REVIEW");
-    expect(userStatus(f("UNABLE_TO_EVALUATE"))).toBe("NEEDS_REVIEW");
-    expect(userStatus(f("CONFLICT"))).toBe("NEEDS_REVIEW");
+describe("the three-word user-facing status is the server's word (owner's FINAL decision, 2026-09-09)", () => {
+  it("renders exactly what the server derived — never re-derived from classification or rule outcome", () => {
+    expect(userStatus({ user_status: "ACCEPTED" })).toBe("ACCEPTED");
+    expect(userStatus({ user_status: "NOT_ACCEPTED" })).toBe("NOT_ACCEPTED");
+    expect(userStatus({ user_status: "NEEDS_REVIEW" })).toBe("NEEDS_REVIEW");
   });
 
-  it("treats an unknown classification as needing review — the honest default", () => {
-    expect(userStatus(f("SOMETHING_NEW"))).toBe("NEEDS_REVIEW");
+  it("fails closed to Needs review when a payload carries no word", () => {
+    expect(userStatus({})).toBe("NEEDS_REVIEW");
   });
 
-  it("never reads an UNACCEPTABLE rule outcome as Not accepted", () => {
-    expect(userStatus(f("DEVIATION", [{ rule_outcome: "UNACCEPTABLE" }]))).toBe("NEEDS_REVIEW");
-    expect(userStatus(f("MISSING", [{ rule_outcome: "UNACCEPTABLE" }]))).toBe("NEEDS_REVIEW");
+  it("the Summary counts the same words as the cards", () => {
+    const counts = statusCounts([
+      { user_status: "ACCEPTED", requires_decision: false },
+      { user_status: "NOT_ACCEPTED", requires_decision: true },
+      { user_status: "NEEDS_REVIEW", requires_decision: true },
+      { user_status: "NEEDS_REVIEW", requires_decision: false },
+    ]);
+    expect(counts).toEqual({ ACCEPTED: 1, NEEDS_REVIEW: 2, NOT_ACCEPTED: 1, needsDecision: 2 });
   });
 
-  it("is Not accepted only on an explicit, complete Constitution citation", () => {
+  it("still surfaces the Constitution citation the server sent", () => {
     const cited = { section: "9", quote: "Unlimited liability is Unacceptable." };
-    expect(userStatus(f("DEVIATION", [{ constitution_prohibition: cited }]))).toBe("NOT_ACCEPTED");
-    expect(constitutionProhibition(f("DEVIATION", [{}, { constitution_prohibition: cited }]))).toEqual(cited);
-    expect(userStatus(f("DEVIATION", [{ constitution_prohibition: null }]))).toBe("NEEDS_REVIEW");
-    expect(userStatus(f("DEVIATION", [{ constitution_prohibition: { section: "9", quote: "" } }]))).toBe("NEEDS_REVIEW");
-    expect(constitutionProhibition(f("MATCH"))).toBeNull();
+    expect(constitutionProhibition({ evaluations: [{}, { constitution_prohibition: cited }] as Evaluation[] })).toEqual(cited);
+    expect(constitutionProhibition({ evaluations: [{ constitution_prohibition: { section: "9", quote: "" } }] as Evaluation[] })).toBeNull();
   });
 });
 

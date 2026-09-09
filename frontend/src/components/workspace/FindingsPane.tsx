@@ -530,6 +530,7 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
     <article
       className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}
       data-finding-id={finding.id}
+      data-user-status={status}
       tabIndex={-1}
     >
       {/*

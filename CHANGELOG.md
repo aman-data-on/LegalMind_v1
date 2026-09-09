@@ -10,6 +10,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — The FINAL three-status model: Accepted / Needs review / Not accepted, derived from the authoritative result (`AM-53`, 2026-09-09)
+
+Owner's final product decision. NOT ACCEPTED and NEEDS REVIEW had become indistinguishable
+because NOT ACCEPTED fired only on the two mechanically checkable Constitution citations,
+so every deviation the zero-tolerance rule had already ruled UNACCEPTABLE still read "Needs
+review" with a near-identical next step. The word is now **derived server-side in one
+place** — `backend/legalmind/evaluation/user_status.py` — from the classification, the
+approved rule's own `rule_outcome` and the Constitution citation, and served as
+`user_status` on every Evaluation and Finding (worst evaluation wins), in the report
+(`user_status_counts`), the Dashboard list (badges and the `needs_attention` bucket), the
+version comparison and the export. Not a rename: MATCH → Accepted; a citation or a ruled
+DEVIATION/MISSING → Not accepted; an unruled DEVIATION/MISSING → Needs review; UNABLE_TO_
+EVALUATE / CONFLICT → Needs review always. No rule disposes absence today, so MISSING is
+Needs review by the rule's silence. The frontend's `userStatus()` now renders the server's
+word and re-derives nothing (fails closed to Needs review). Next step reads by status:
+"No action is needed." / "This goes against an approved company position. Legal review or
+modification is required." / "Someone with legal authority needs to review this." Not
+accepted gets a solid red chip and a red card edge; every card carries `data-user-status`.
+The engine classifications are unchanged everywhere they are recorded and stay one click
+away in View details and in the export's audit record. Tests: `tests/test_user_status.py`
+(the owner's ten proofs, incl. the LLM cannot change the word and unsupported claims are
+rejected), four drafting-variant cases in `test_analysis.py` (same cap in three wordings
+→ Accepted; nine months against six → Not accepted), frontend card/language/summary tests
+and the journey spec updated. Backend 1439 · golden corpus 84 · Vitest 310 · browser 94+7.
+**Built and tested locally; NOT deployed.**
+
 ### Fixed — A mapped clause that states no cap keeps its evidence; UNABLE_TO_EVALUATE reads "Needs Review" (`AM-52`, 2026-09-09)
 
 Owner-directed end-to-end investigation of two MISSING liability findings on a real

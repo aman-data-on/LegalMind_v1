@@ -43,6 +43,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.evaluation.user_status import by_finding
 from legalmind.db.lookup import latest_completed_run_id
 
 #: How much of a clause the payload quotes. Long enough to read the change,
@@ -143,6 +144,7 @@ def _findings_by_section(db: DBSession, review_id: UUID | None) -> dict[str, lis
         .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
         .where(M.Finding.review_id == review_id)
     ).all()
+    statuses = by_finding(db, [review_id]).get(review_id, {})
     index: dict[str, list[dict]] = {}
     for finding, section, requirement_code in rows:
         if not section:
@@ -150,6 +152,7 @@ def _findings_by_section(db: DBSession, review_id: UUID | None) -> dict[str, lis
         entry = {
             "finding_id": str(finding.id),
             "classification": finding.classification.value,
+            "user_status": statuses.get(finding.id, "NEEDS_REVIEW"),
             "requirement_code": requirement_code,
         }
         bucket = index.setdefault(section, [])

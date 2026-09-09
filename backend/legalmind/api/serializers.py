@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.db import models as M
 from legalmind.domain.enums import FindingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
+from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
     current_decision,
     evaluation_requires_decision,
@@ -99,6 +100,11 @@ def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
     prohibition = constitution_prohibition_for(requirement_code, ev.actual_value)
     if prohibition is not None:
         payload["constitution_prohibition"] = prohibition
+    # The reader's three words (owner's final decision, 2026-09-09) — derived
+    # from the authoritative result above, never stored, never redacted: a
+    # USER sees it without seeing the rule behind it.
+    payload["user_status"] = user_status(ev.classification, ev.rule_outcome,
+                                         prohibition is not None)
     decision = current_decision(db, ev.id)
     if decision is not None:
         payload["current_decision"] = serialize_decision(decision)
@@ -128,6 +134,12 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
         .where(M.RequirementVersion.id == finding.requirement_version_id)
     ).first()
     rv, req = requirement if requirement else (None, None)
+    serialized = [
+        serialize_evaluation(db, ev, legal_position=legal_position,
+                             escalated=escalated,
+                             requirement_code=req.code if req else None)
+        for ev in evaluations
+    ]
 
     return {
         "id": str(finding.id),
@@ -150,12 +162,9 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             FindingStatus.AWAITING_CLARIFICATION,
         },
         "escalated": escalated,
-        "evaluations": [
-            serialize_evaluation(db, ev, legal_position=legal_position,
-                                 escalated=escalated,
-                                 requirement_code=req.code if req else None)
-            for ev in evaluations
-        ],
+        "user_status": worst([e["user_status"] for e in serialized],
+                             user_status(finding.classification)),
+        "evaluations": serialized,
         "evidence": finding_evidence(db, finding.id),
         "created_at": _iso(finding.created_at),
         "updated_at": _iso(finding.updated_at),

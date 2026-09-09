@@ -101,18 +101,15 @@ function StatusPill({ contract }: { contract: Contract }) {
 function FindingsCell({ contract }: { contract: Contract }) {
   const analyzed = documentStatusBucket(contract) !== "draft"
     && documentStatusBucket(contract) !== "analyzing";
-  const counts = contract.latest_analysis?.classification_counts;
+  const counts = contract.latest_analysis?.user_status_counts;
   if (!analyzed || !counts) {
     return <span className="ws-findings-cell ws-pane__note">—</span>;
   }
+  // Accepted · Needs review · Not accepted — the same three words as the card.
   const buckets: Array<{ key: "match" | "review" | "missing"; n: number }> = [
-    { key: "match", n: counts.MATCH ?? 0 },
-    {
-      key: "review",
-      n: Object.entries(counts).reduce(
-        (sum, [c, n]) => sum + (c !== "MATCH" && c !== "MISSING" ? n : 0), 0),
-    },
-    { key: "missing", n: counts.MISSING ?? 0 },
+    { key: "match", n: counts.ACCEPTED ?? 0 },
+    { key: "review", n: counts.NEEDS_REVIEW ?? 0 },
+    { key: "missing", n: counts.NOT_ACCEPTED ?? 0 },
   ];
   return (
     <span className="ws-findings-cell">

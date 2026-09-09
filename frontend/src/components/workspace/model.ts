@@ -479,13 +479,11 @@ export function outlineStatus(
  * server's own counts, never recomputed from findings.
  */
 export function rowNeedsAttention(row: {
-  latest_analysis?: { classification_counts?: Record<string, number> } | null;
+  latest_analysis?: { user_status_counts?: Record<string, number> } | null;
 }): boolean {
-  const counts = row.latest_analysis?.classification_counts;
+  const counts = row.latest_analysis?.user_status_counts;
   if (!counts) return false;
-  return Object.entries(counts).some(
-    ([classification, n]) => classification !== "MATCH" && n > 0,
-  );
+  return Object.entries(counts).some(([status, n]) => status !== "ACCEPTED" && n > 0);
 }
 
 /** Review lifecycle states that mean "a result is still coming" (Step 30) —
@@ -507,15 +505,15 @@ export function documentStatusBucket(row: {
   latest_version?: { processing_status: string } | null;
   latest_analysis?: {
     review_status: string;
-    classification_counts?: Record<string, number>;
+    user_status_counts?: Record<string, number>;
   } | null;
 }): DocumentStatusBucket {
   if (!row.latest_version || row.latest_version.processing_status !== "COMPLETED") return "draft";
   const analysis = row.latest_analysis;
   if (!analysis) return "draft";
   if (IN_FLIGHT_REVIEW_STATUSES.has(analysis.review_status)) return "analyzing";
-  const counts = analysis.classification_counts ?? {};
-  const hasIssue = Object.entries(counts).some(([classification, n]) => classification !== "MATCH" && n > 0);
+  const counts = analysis.user_status_counts ?? {};
+  const hasIssue = Object.entries(counts).some(([status, n]) => status !== "ACCEPTED" && n > 0);
   return hasIssue ? "needs_attention" : "analyzed";
 }
 

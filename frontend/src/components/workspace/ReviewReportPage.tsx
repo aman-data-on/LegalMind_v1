@@ -25,7 +25,8 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
-import { classificationLabel, findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
+import { findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
+import { USER_STATUS_LABELS } from "@/components/workspace/findingLanguage";
 
 import { ClassificationGlossary } from "./ClassificationGlossary";
 import { ExportControl } from "./ExportControl";
@@ -39,7 +40,7 @@ type Load =
 /** Visual weight only — filled chips mark states a human still owes work to.
  *  Never a severity ranking within an axis (UI master prompt), and RESOLVED
  *  stays a workflow fact, never restyled as a MATCH (rule 14). */
-const CALM_CLASSIFICATIONS = new Set(["MATCH"]);
+const USER_STATUS_ORDER = ["ACCEPTED", "NEEDS_REVIEW", "NOT_ACCEPTED"] as const;
 const CALM_STATUSES = new Set(["RESOLVED", "OPEN"]);
 
 export function ReviewReportPage({ reviewId }: { reviewId: string }) {
@@ -215,20 +216,19 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           {Object.keys(report.classification_counts).length > 0 ? (
             <section aria-label="Findings by status">
               <h2 className="ws-report__h">Findings</h2>
-              {/* The reader's words (AM-50 r4). The report's counts are per engine
-                  classification, so it can say Accepted and Needs review; Not
-                  accepted is a per-finding fact the workspace shows. Each chip
-                  opens the workspace pre-filtered — a summary never substitutes
-                  for its parts (DESIGN.md). */}
+              {/* The reader's three words, server-counted per finding (owner,
+                  2026-09-09) — the same vocabulary as every card. Each chip opens
+                  the workspace — a summary never substitutes for its parts
+                  (DESIGN.md). The engine's classifications stay in the glossary
+                  and the export's audit record. */}
               <div className="ws-chips">
-                {Object.entries(report.classification_counts).map(([value, count]) => (
+                {USER_STATUS_ORDER.filter((status) => (report.user_status_counts?.[status] ?? 0) > 0).map((status) => (
                   <Link
-                    key={value}
-                    href={`/dashboard?id=${review.contract_id}&classification=${value}`}
-                    className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? " ws-chip--status-accepted" : " ws-chip--fill ws-chip--status-needs_review"}`}
-                    title={classificationLabel(value)}
+                    key={status}
+                    href={`/dashboard?id=${review.contract_id}`}
+                    className={`ws-chip ws-chip--link ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
                   >
-                    {CALM_CLASSIFICATIONS.has(value) ? "Accepted" : "Needs review"} <b className="ws-mono">{count}</b>
+                    {USER_STATUS_LABELS[status]} <b className="ws-mono">{report.user_status_counts![status]}</b>
                   </Link>
                 ))}
               </div>

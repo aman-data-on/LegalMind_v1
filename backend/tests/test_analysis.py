@@ -1236,6 +1236,41 @@ def test_a_genuinely_valid_liability_cap_is_recognised_across_drafting_styles(
     assert outcome.classification == "MATCH", (heading, outcome.failure, outcome.mapping_state)
 
 
+ZERO_TOLERANCE = {"deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNACCEPTABLE",
+                  "rule_configuration": LEGAL_RULE["rule_configuration"]}
+
+
+@pytest.mark.parametrize("body,expected", [
+    # Owner's proof 7 (2026-09-09): the same six-month cap in three wordings is
+    # the same concept — never a deviation. Extraction reads the number, the
+    # unit and the basis, not the drafting around them.
+    ("Liability shall not exceed the fees paid in the six (6) months preceding the claim.",
+     "ACCEPTED"),
+    ("Liability shall not exceed the fees paid in the 6 (six) months preceding the claim.",
+     "ACCEPTED"),
+    ("Each party's liability is capped: it shall not exceed the total fees paid by "
+     "Customer during the 6 months immediately before the event giving rise to the claim.",
+     "ACCEPTED"),
+    # A GENUINE difference is a deviation, and only then does the approved
+    # zero-tolerance rule make it NOT ACCEPTED.
+    ("Liability shall not exceed the fees paid in the nine (9) months preceding the claim.",
+     "NOT_ACCEPTED"),
+], ids=["number-words-then-digits", "digits-then-number-words", "reworded-same-cap",
+        "genuinely-different-cap"])
+def test_wording_differences_are_not_deviations_but_real_differences_are(
+        build, db, body, expected):
+    from legalmind.evaluation.user_status import by_finding
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=ZERO_TOLERANCE)
+    review = build.review(["3. Limitation of Liability", body])
+    run = run_analysis(db, review)
+    assert run.findings_created == 1
+    outcome = run.outcomes[0]
+    assert outcome.classification == ("MATCH" if expected == "ACCEPTED" else "DEVIATION"), (
+        outcome.failure, outcome.mapping_state)
+    assert by_finding(db, [review.id])[review.id][outcome.finding_id] == expected
+
+
 def test_genuine_absence_of_any_liability_language_is_not_reported_as_a_confirmed_position(
         build, db):
     """Acceptance criterion 2, the other half: a document that never mentions

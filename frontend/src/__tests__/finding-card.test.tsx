@@ -46,6 +46,13 @@ function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
     classification: "MISSING", status: "OPEN", requires_decision: false,
     escalated: false, evaluations: [evaluation], evidence: [],
     created_at: null, updated_at: null,
+    // What the server derives for these shapes (user_status.py): a citation or
+    // a ruled DEVIATION/MISSING is Not accepted, MATCH is Accepted, else review.
+    user_status: evaluation.constitution_prohibition?.section && evaluation.constitution_prohibition?.quote
+      ? "NOT_ACCEPTED"
+      : (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTED"
+      : ["DEVIATION", "MISSING"].includes(over.classification ?? "MISSING") && evaluation.rule_outcome === "UNACCEPTABLE"
+        ? "NOT_ACCEPTED" : "NEEDS_REVIEW",
     ...over,
   } as Finding;
   return renderToStaticMarkup(
@@ -316,7 +323,8 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // "Required", not "Found" — a presence-shaped Company Standard value
     // states what the standard requires, not that the standard was "found".
     expect(before).toMatch(/Required/);
-    expect(before).toMatch(/legal authority needs to review and decide whether this should be added/i);
+    expect(before).toMatch(/data-status="NEEDS_REVIEW"/);   // absence is unruled today
+    expect(before).toMatch(/Someone with legal authority needs to review this\./);
     // Nothing technical on the visible surface: no evaluator name, no raw
     // "presence" operator word, no scope key, no raw outcome label.
     expect(before).not.toMatch(/PRESENCE-v1/);
@@ -398,7 +406,10 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(before).toMatch(/while the company standard expects/i);
     expect(before).toMatch(/30 days/);
     expect(before).toMatch(/60 days/);
-    expect(before).toMatch(/legal authority needs to review/i);
+    // The approved zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
+    // reader sees Not accepted (owner's own example, 2026-09-09: 12 vs 6 months).
+    expect(before).toMatch(/data-status="NOT_ACCEPTED"[^>]*>Not accepted</);
+    expect(before).toMatch(/Legal review or modification is required\./);
     expect(before).not.toMatch(/Not acceptable/);
     expect(before).not.toMatch(/>!=</);
     expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
@@ -477,25 +488,29 @@ describe("the three-word status on the card face", () => {
     }
   });
 
-  it("puts the Next step on every card without pre-deciding the outcome", () => {
-    const deviation = face({ classification: "DEVIATION" }, { classification: "DEVIATION" });
-    expect(deviation).toMatch(/review and decide whether this difference is acceptable\./);
-    expect(deviation).not.toMatch(/would make/);
-    const unable = face({ classification: "UNABLE_TO_EVALUATE" }, { classification: "UNABLE_TO_EVALUATE" });
-    expect(unable).toMatch(/legal or business decision may be required/i);
-    expect(unable).not.toMatch(/would make/);
+  it("puts one Next step on every Needs review card without pre-deciding the outcome", () => {
+    for (const classification of ["DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const html = face({ classification }, { classification });
+      expect(html, classification).toMatch(/Someone with legal authority needs to review this\./);
+      expect(html, classification).not.toMatch(/would make|modification/);
+    }
   });
 
-  it("never infers Not accepted from a DEVIATION, a MISSING or an UNACCEPTABLE rule outcome", () => {
+  it("shows Not accepted on a DEVIATION or MISSING the approved rule ruled UNACCEPTABLE — and Needs review when unruled", () => {
     for (const classification of ["DEVIATION", "MISSING"]) {
-      const html = face(
-        { classification, requires_decision: true },
-        { classification, rule_outcome: "UNACCEPTABLE" },
-      );
-      expect(html, classification).toMatch(/Needs review/);
-      expect(html, classification).not.toMatch(/Not accepted/);
-      // And it does not tell the reader the contract must be modified.
-      expect(html, classification).not.toMatch(/must be (modified|changed|amended)/i);
+      const ruled = face({ classification, requires_decision: true },
+                         { classification, rule_outcome: "UNACCEPTABLE" });
+      expect(ruled, classification).toMatch(/data-status="NOT_ACCEPTED"[^>]*>Not accepted</);
+      expect(ruled, classification).toMatch(/Legal review or modification is required\./);
+      const unruled = face({ classification, requires_decision: true },
+                           { classification, rule_outcome: "NOT_APPLICABLE" });
+      expect(unruled, classification).toMatch(/data-status="NEEDS_REVIEW"[^>]*>Needs review</);
+      expect(unruled, classification).not.toMatch(/Not accepted|modification/);
+    }
+    // Uncertainty is never a rejection, whatever outcome rides along.
+    for (const classification of ["UNABLE_TO_EVALUATE", "CONFLICT"]) {
+      const html = face({ classification }, { classification, rule_outcome: "UNACCEPTABLE" });
+      expect(html, classification).toMatch(/data-status="NEEDS_REVIEW"/);
     }
   });
 

@@ -110,14 +110,12 @@ export function classificationSentence(classification: string): string | null {
  * words, for a Sales user who has to know in one glance whether anything is
  * expected of them.
  *
- *   ACCEPTED      the Finding is MATCH — matches the company standard.
- *   NEEDS REVIEW  DEVIATION, MISSING, CONFLICT, UNABLE_TO_EVALUATE — a person
- *                 must look; it does NOT say the contract must change.
- *   NOT ACCEPTED  ONLY when the server sends an explicit Constitution
- *                 prohibition with its citation. Never inferred: a deviation
- *                 from the standard is not automatically legally unacceptable,
- *                 and `rule_outcome: UNACCEPTABLE` is the zero-tolerance
- *                 routing to a human, not a Constitution ruling.
+ *   ACCEPTED      MATCH — matches the company standard.
+ *   NOT ACCEPTED  a clear, evidence-supported conflict: the approved rule's
+ *                 own UNACCEPTABLE on a DEVIATION or MISSING, or an explicit
+ *                 Constitution citation (owner's FINAL decision, 2026-09-09).
+ *   NEEDS REVIEW  everything a person must judge — an unruled deviation or
+ *                 absence, CONFLICT, UNABLE_TO_EVALUATE. Never a rejection.
  *
  * Presentation only. The four classifications, the Rule Outcomes and the
  * Finding statuses stay exactly what the API sends; they render inside "How
@@ -132,21 +130,19 @@ export const USER_STATUS_LABELS: Record<UserStatus, string> = {
   NOT_ACCEPTED: "Not accepted",
 };
 
-export function userStatus(finding: Pick<Finding, "classification" | "evaluations">): UserStatus {
-  // Precedence, not overlap (owner, 2026-09-08, sixth pass): a DEVIATION or a
-  // MISSING can be EITHER outcome, never both at once, and NOT ACCEPTED is
-  // checked first because it is the narrower, server-stated condition. The
-  // engine never infers it from the classification alone — only an explicit
-  // Constitution prohibition the server sent produces it. Everything left
-  // over that is not MATCH needs a person to look, which is what NEEDS_REVIEW
-  // means; it does not by itself mean the clause is fine.
-  if (constitutionProhibition(finding)) return "NOT_ACCEPTED";
-  return finding.classification === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW";
+export function userStatus(finding: Pick<Finding, "user_status">): UserStatus {
+  // Server-derived (owner's FINAL decision, 2026-09-09): the backend maps the
+  // authoritative result — classification, the approved rule's own outcome,
+  // the Constitution citation — onto the three words in ONE place
+  // (`legalmind/evaluation/user_status.py`), so a USER without the legal
+  // position still gets the word and no screen re-derives it. Absent (an
+  // older payload) it fails closed to "a person must look".
+  return finding.user_status ?? "NEEDS_REVIEW";
 }
 
 /** The three-word counts for a whole review — the Summary's tiles (AM-50 r4). */
 export function statusCounts(
-  findings: Array<Pick<Finding, "classification" | "evaluations" | "requires_decision">>,
+  findings: Array<Pick<Finding, "user_status" | "requires_decision">>,
 ): { ACCEPTED: number; NEEDS_REVIEW: number; NOT_ACCEPTED: number; needsDecision: number } {
   const out = { ACCEPTED: 0, NEEDS_REVIEW: 0, NOT_ACCEPTED: 0, needsDecision: 0 };
   for (const f of findings) {
@@ -203,30 +199,27 @@ export function nextStep(
   if (evaluation?.current_decision) {
     return "A decision has been recorded for this. No further action is needed.";
   }
-  if (status === "NOT_ACCEPTED") {
-    return "This goes against an approved company position. Someone with legal authority must decide how to proceed.";
-  }
-  const classification = evaluation?.classification ?? finding.classification;
-  switch (classification) {
-    case "MATCH":
+  const escalated = finding.requires_decision || evaluation?.requires_decision;
+  switch (status) {
+    case "NOT_ACCEPTED":
+      // The owner's own words (2026-09-09): a clear, rule-backed conflict is
+      // the one status where the card may say the contract needs changing.
+      return "This goes against an approved company position. Legal review or modification is required.";
+    case "ACCEPTED":
       // An escalated MATCH still needs a person (workflow.py clause (d)): the
-      // server's flag wins over the classification's default.
-      return finding.requires_decision || evaluation?.requires_decision
+      // server's flag wins over the status's default.
+      return escalated
         ? "This has been escalated. Someone with legal authority needs to review it and record a decision."
         : "No action is needed.";
-    case "DEVIATION":
-      return "Someone with legal authority needs to review and decide whether this difference is acceptable.";
-    case "MISSING":
-      return "Someone with legal authority needs to review and decide whether this should be added.";
-    case "CONFLICT":
-      return "Someone with legal authority needs to decide which of the contradicting provisions applies.";
-    case "UNABLE_TO_EVALUATE":
-      return "A legal or business decision may be required. Someone with legal authority needs to review this.";
     default:
-      return finding.requires_decision || evaluation?.requires_decision
-        ? "Someone with legal authority needs to review this and record a decision."
-        : null;
+      // One sentence for every Needs review, whatever the engine recorded: it
+      // never pre-decides the outcome (owner, 2026-09-09).
+      return "Someone with legal authority needs to review this.";
   }
+}
+
+function classificationOf(finding: Finding, evaluation?: Evaluation): string {
+  return evaluation?.classification ?? finding.classification;
 }
 
 /**

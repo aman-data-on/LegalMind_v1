@@ -87,6 +87,8 @@ export interface LatestAnalysis {
   created_at: string | null;
   completed_at: string | null;
   classification_counts?: Record<string, number>;
+  /** ACCEPTED / NEEDS_REVIEW / NOT_ACCEPTED per finding — the Dashboard's counts. */
+  user_status_counts?: Record<string, number>;
 }
 
 /** Step 6's source axis — declared by the uploader, never inferred. */
@@ -270,6 +272,8 @@ export interface Decision {
   created_at: string | null;
 }
 
+export type UserStatusWord = "ACCEPTED" | "NEEDS_REVIEW" | "NOT_ACCEPTED";
+
 export interface Evaluation {
   id: string;
   finding_id: string;
@@ -287,6 +291,10 @@ export interface Evaluation {
   evaluator_version: string;
   /** Derived server-side (D-3.5). Never computed here. */
   requires_decision: boolean;
+  /** The reader's three words (owner's final decision, 2026-09-09) — derived
+   *  server-side from classification, the approved rule's outcome and the
+   *  Constitution citation. The UI renders it and never re-derives it. */
+  user_status?: UserStatusWord;
   current_decision: Decision | null;
   created_at: string | null;
 
@@ -349,6 +357,8 @@ export interface Finding {
   status: string;
   requires_decision: boolean;
   escalated: boolean;
+  /** The worst of its evaluations' `user_status`, server-derived. */
+  user_status?: UserStatusWord;
   evaluations: Evaluation[];
   evidence: Evidence[];
   created_at: string | null;
@@ -373,6 +383,7 @@ export interface ReviewReport {
     requirements_with_findings: number;
   };
   classification_counts: Record<string, number>;
+  user_status_counts?: Record<string, number>;
   status_counts: Record<string, number>;
   /** F-9 — a ratio over evaluated Requirements. Carries no legal meaning. */
   alignment: {
@@ -737,7 +748,7 @@ export interface ClauseChange {
   section_title: string | null;
   before: ClauseSide | null;
   after: ClauseSide | null;
-  findings: { finding_id: string; classification: string; requirement_code: string | null }[];
+  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; requirement_code: string | null }[];
 }
 
 export interface VersionComparison {

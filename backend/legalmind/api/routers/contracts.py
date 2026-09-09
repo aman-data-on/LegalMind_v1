@@ -47,6 +47,7 @@ from legalmind.security.authorization import (
     OWNER,
     contract_read_basis,
 )
+from legalmind.evaluation.user_status import by_finding, counts as user_status_counts
 from legalmind.security.errors import Forbidden
 from legalmind.worker.dispatch import dispatch_indexing, dispatch_ocr
 
@@ -75,8 +76,8 @@ def _status_bucket(item: dict) -> str:
         return "draft"
     if analysis.get("review_status") in _IN_FLIGHT_REVIEW_STATUSES:
         return "analyzing"
-    counts = analysis.get("classification_counts") or {}
-    if any(n > 0 for classification, n in counts.items() if classification != "MATCH"):
+    counts = analysis.get("user_status_counts") or {}
+    if any(n > 0 for status, n in counts.items() if status != "ACCEPTED"):
         return "needs_attention"
     return "analyzed"
 
@@ -275,6 +276,9 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
         ).all()
         for review_id, classification, n in grouped:
             counts.setdefault(review_id, {})[classification.value] = n
+        statuses = by_finding(guard.db, [r.id for r in latest_review.values()])
+    else:
+        statuses = {}
 
     for cid, version in latest_version.items():
         review = latest_review.get(version.id)
@@ -290,6 +294,8 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
         }
         if P.FINDING_VIEW in guard.permissions:
             analysis["classification_counts"] = counts.get(review.id, {})
+            analysis["user_status_counts"] = user_status_counts(
+                statuses.get(review.id, {}))
         out[cid]["latest_analysis"] = analysis
     return out
 
