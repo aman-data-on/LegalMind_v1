@@ -16,6 +16,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  createAnalysedReview,
   fixture,
   openFindingsTab,
   openUploadPanel,
@@ -138,3 +139,57 @@ test.describe("the three panes", () => {
     await expect(page.getByRole("button", { name: /Ask about this document/i })).toBeVisible();
   });
 });
+
+/**
+ * "The layout must adapt cleanly to laptop, desktop and smaller screens.
+ * Panels should collapse/dock intelligently rather than overlap content."
+ *
+ * Three real widths rather than a sweep: a large desktop where all three panes
+ * fit side by side, a 13" laptop, and a width below the 900px point where the
+ * workspace becomes one region at a time. The invariant at every one of them is
+ * that the page itself never scrolls sideways — the panes own their scrolling,
+ * and a horizontal page scrollbar is the signature of a pane that refused to
+ * give ground.
+ */
+for (const { label, width, height, threePane } of [
+  { label: "desktop", width: 1920, height: 1080, threePane: true },
+  { label: "laptop", width: 1280, height: 800, threePane: true },
+  { label: "small", width: 820, height: 900, threePane: false },
+]) {
+  test.describe(`${label} — ${width}×${height}`, () => {
+    test.use({ storageState: storageStatePath("owner"), viewport: { width, height } });
+
+    test("adapts without overlapping or scrolling the page sideways", async ({ page }) => {
+      const { contractId } = await createAnalysedReview(page, { analyse: false });
+      await page.goto(`/dashboard?id=${contractId}`);
+      await showDocument(page);
+      await expect(page.locator('[data-region="document"]').first()).toBeVisible();
+
+      const scrolled = await page.evaluate(() => ({
+        x: document.documentElement.scrollWidth > window.innerWidth + 1,
+        y: document.documentElement.scrollHeight > window.innerHeight + 1,
+      }));
+      expect(scrolled.x, "the page must never scroll sideways").toBeFalsy();
+      expect(scrolled.y, "the panes own the scrolling, not the page").toBeFalsy();
+
+      if (threePane) {
+        /* Both columns are on screen together, and the document is the wider of
+           the two — it is the primary reference surface. */
+        const doc = (await page.locator(".ws-pane--document").boundingBox())!;
+        const side = (await page.locator(".ws-pane--side").boundingBox())!;
+        expect(doc.x + doc.width).toBeLessThanOrEqual(side.x + 1);
+        expect(doc.width).toBeGreaterThan(side.width);
+      } else {
+        /* Below 900px there is one region at a time as top tabs, so nothing can
+           overlap: the side card is not laid out beside anything. */
+        await expect(page.locator(".ws-workspace--one")).toBeVisible();
+        await expect(page.getByRole("tab", { name: "Findings" })).toBeVisible();
+      }
+
+      await page.screenshot({
+        path: `test-results/panes-${label}.png`,
+        fullPage: false,
+      });
+    });
+  });
+}

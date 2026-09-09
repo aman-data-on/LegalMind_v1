@@ -3081,15 +3081,19 @@
    LEGAL-02's own proof (confidentiality.spec.ts reads them to assert "Company
    Standard" is absent without `legal_position.view`), so only the values and
    the presentation changed. */
+/* NOT a box (owner, 2026-09-09): "Remove unnecessary card-within-card-within-
+   card styling… Use whitespace, typography, alignment and subtle dividers for
+   hierarchy." This was a bordered, paper-filled panel inside the finding card,
+   which is itself a bordered card inside the bordered side card — three frames
+   around one comparison. The grid alignment was always what made these facts
+   readable; the frame added nothing the hairline and the spacing do not. */
 .ws-facts--compare {
   grid-template-columns: max-content 1fr;
   gap: 6px var(--ws-s4);
   align-items: baseline;
-  padding: var(--ws-s3);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-sm);
-  background: var(--ws-paper);
-  margin-bottom: var(--ws-s3);
+  padding: var(--ws-s3) 0;
+  border-top: 1px solid var(--ws-ink-100);
+  margin-bottom: var(--ws-s2);
 }
 .ws-facts--compare dt {
   font-family: var(--ws-sans);

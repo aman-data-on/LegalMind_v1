@@ -24,6 +24,13 @@ import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from
  * object, two callers, one difference.
  */
 
+/** The fact labels an Evaluation renders, lowercased — see the note at the
+ *  first call site for why case is not part of what LEGAL-02 asserts. */
+async function labelsOf(evaluation: import("@playwright/test").Locator): Promise<string[]> {
+  const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
+  return labels.map((label) => label.trim().toLowerCase());
+}
+
 const CONFIDENTIAL_KEYS = [
   "rule_outcome",
   "expected_value",
@@ -90,10 +97,16 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     // assertion is on elements, not on substrings of the page text.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
     await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
-    const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
-    expect(labels).toContain("Contract");              // the contract's own value
-    expect(labels).not.toContain("Company standard");  // an internal position
-    expect(labels).not.toContain("Comparison");
+    /* Compared case-INSENSITIVELY. `allInnerTexts()` returns rendered text, and
+       these labels are styled `text-transform: uppercase`, so a case-sensitive
+       comparison here tests the stylesheet rather than LEGAL-02. It went red on
+       2026-09-09 when the reference restyle uppercased them (4f631ed) — the
+       omission it guards was never affected, but a red security spec is one
+       nobody reads. */
+    const labels = await labelsOf(evaluation);
+    expect(labels).toContain("contract");              // the contract's own value
+    expect(labels).not.toContain("company standard");  // an internal position
+    expect(labels).not.toContain("comparison");
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
@@ -153,8 +166,8 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     // element the same way (`toHaveCount(1)`); this test now matches it rather
     // than asserting a visibility default the redesign deliberately dropped.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
-    const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
-    expect(labels).toContain("Company standard");
+    const labels = await labelsOf(evaluation);
+    expect(labels).toContain("company standard");
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

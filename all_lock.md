@@ -18355,3 +18355,79 @@ r4   THE SUMMARY SHOWS EXACTLY THREE TILES. How many Findings need a legal
 ```
 
 **Approved by the owner on 2026-09-09.**
+
+--------------------------------------------------------------------------------
+
+# AB-18 — `AM-57` — The workspace is document-primary: contents · document · findings (Owner Instruction — 2026-09-09)
+
+**Amends:** `AM-50` r5 ("FINDINGS ARE THE PRIMARY WORKSPACE… the findings keep the flexible
+column — never a narrow rail"), locked the same day. **Supersedes:** DD-15's floating Ask dock
+(a design decision, presentation-layer, amending no locked decision). **Does not amend:**
+`AM-50` r1–r4 and r6 (the intake, the Summary's words, "View details", what the reader never
+sees by default); `AM-53`/`AM-56` (the three reader statuses, their derivation and their
+wording); `AM-51` (applicability by content); `AI-01`/`AM-25` (no model in the authoritative
+path); `SEC-07`/`LEGAL-02` (an omitted confidential field stays omitted). Nothing in this
+record touches an evaluator, a classification, a Rule Outcome, the API, a permission or the
+database.
+
+The owner reviewed the shipped workspace against how a legal review is actually performed:
+*"The current UI feels like a collection of disconnected boxes and does not behave like a
+professional legal-document review workspace… For legal review, the document should be the
+primary reference surface, with navigation/index on the left."*
+
+```
+r1   THE DOCUMENT IS THE PRIMARY REFERENCE SURFACE. The wide workspace reads
+     LEFT contents index · CENTRE document · RIGHT findings/Ask. The document
+     draws the flexible centre column; the side card holding Summary, Findings
+     and Ask is the fixed right rail. This REVERSES `AM-50` r5, which gave the
+     findings the flexible column and made the document a fixed companion.
+     "Hide document" still gives the side card the whole workspace — that half
+     of r5 was never the complaint — but the document now opens WITH the
+     workspace rather than on request.
+
+r2   THE CONTENTS INDEX IS REAL, AND IT COLLAPSES. It lists the clauses the
+     document itself states, with a status marker beside a clause a Finding
+     addresses; clicking one scrolls the document to that passage and lights it.
+     It collapses completely to a rail, remembered per browser. Placeholder or
+     invented index entries are FORBIDDEN: where the document states no
+     numbering and the parser recorded none, the panel says so.
+
+r3   THE INDEX MAY BE DERIVED FROM THE ROW'S OWN TEXT, AT THE PRESENTATION
+     LAYER ONLY. Where `ingestion/parsing.py` recorded no `section_number`, the
+     workspace may read the clause number and title from the evidence row's own
+     recorded text — Word exports automatic list numbering as a run terminated
+     by U+200B, which the parser's regex does not match, and a real 20-page MSA
+     arrived with one numbered row in ninety-one. A stored value ALWAYS wins.
+     The parser is NOT retuned and evidence is NOT re-extracted: `section_number`
+     and `is_heading` feed the mapping engine and `analysis/service.py`'s
+     "too unsegmented to analyse" refusal, so changing them would change which
+     provisions map and which documents are refused — legal results, for a
+     navigation defect — and re-extraction would rewrite rows that existing
+     Findings cite (rule 17).
+
+r4   ASK IS DOCKED, NOT FLOATING. It occupies a defined area at the foot of the
+     right column, with a header, a visible close control, and a persistent
+     launcher when collapsed. It reserves space only while open and may never
+     come to rest over the document or a finding (WCAG 2.2 AA 2.4.11 names chat
+     widgets as the failure case). DD-15's concern — that Ask reserved workspace
+     height whether or not anyone was asking — survives as the rule that a
+     CLOSED Ask costs the column one launcher row and nothing more. Below the
+     one-column breakpoint it keeps DD-15's overlay sheet; no single-column
+     layout can dock it.
+
+r5   FEWER FRAMES. Hierarchy comes from whitespace, typography, alignment and
+     hairline dividers rather than nested bordered cards. Presentation only, and
+     it removes no content: a rule that would omit, grey or null a field a
+     reader is entitled to is out of scope here and `SEC-07`/`LEGAL-02` govern
+     it regardless.
+
+r6   ONE ICON FAMILY. Lucide, already a dependency (rule 19 is not engaged).
+     Every collapsible or dismissible region carries a standard, visible icon
+     affordance with an accessible name.
+```
+
+**Approved by the owner on 2026-09-09**, after `AM-50` r5 was named explicitly as the record
+this contradicts and the choice was put to them (rule 6). Recorded engineering note, per the
+`AB-8` precedent of keeping dissent with the record: none. The reviewed evidence was the live
+page, and `AM-50` r5 was one day old — the reversal reflects the owner seeing the shipped
+result of their own instruction, not a change of requirement.

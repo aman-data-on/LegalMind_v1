@@ -635,7 +635,26 @@ as DD-13.
 
 ## DD-15 — Ask is a floating secondary tool, and it asks about the version on screen (owner directive, 2026-09-02)
 
-**Status:** `DECIDED AND IMPLEMENTED`. **Supersedes DD-9 §4** ("The Ask bar becomes
+> ⚠️ **The FLOATING half of this decision is SUPERSEDED by `AM-57` r4 (owner, 2026-09-09).**
+> Ask is now DOCKED into the right column, with a header, a visible close control and a
+> persistent launcher when collapsed. The owner reviewed the floating dock in place: *"It
+> feels like a temporary popup rather than a permanent workspace panel… The Ask panel should
+> have a defined docked area, not randomly appear over content."*
+>
+> **What survives, and is still enforced:** DD-15's actual concern — that Ask must not reserve
+> workspace height whether or not anyone is asking. A CLOSED Ask now costs the side column one
+> 44px launcher row and nothing more, asserted in `e2e/ask-dock.spec.ts`. The floating overlay
+> sheet also survives below the one-column breakpoint, where no layout can dock it.
+>
+> **Also superseded:** the two WCAG 2.2 AA 2.4.11 defences a panel over the canvas needed —
+> hiding the launcher while open, and reserving 76px of scroll padding under every scrolling
+> panel. A docked panel obscures nothing, so there is nothing to compensate for. (The launcher
+> still hides while the panel is open; it is now redundant rather than load-bearing.)
+>
+> **UNTOUCHED:** the second half of this decision — Ask answers about the version on screen,
+> never redirecting to the latest. That is unaffected and still governs.
+
+**Status:** `PARTLY SUPERSEDED — see the banner above`. **Supersedes DD-9 §4** ("The Ask bar becomes
 a floating card") — the card was floating in appearance only; it was the bottom
 flex row of `.ws-workmain` and reserved workspace height unconditionally.
 Everything else in DD-9 stands.
