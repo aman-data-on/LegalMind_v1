@@ -65,11 +65,11 @@ describe("chainAnalysis and the deferred-OCR gap", () => {
   });
 });
 
-describe("chainAnalysis and an undeclared type (AM-50)", () => {
-  it("creates no Review when the contract has no type — the evaluator would only refuse it", async () => {
+describe("chainAnalysis and an undeclared type (AM-51)", () => {
+  it("still creates the Review — the engine measures the document by its content", async () => {
     const { createReview, analyze } = arrange("COMPLETED", null);
     await chainAnalysis("c1", true);
-    expect(createReview).not.toHaveBeenCalled();
-    expect(analyze).not.toHaveBeenCalled();
+    expect(createReview).toHaveBeenCalledWith("v1", "snap-1");
+    expect(analyze).toHaveBeenCalled();
   });
 });

@@ -10,6 +10,23 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Applicability by content: the document type is one optional signal, never a gate (AB-16, `AM-51`, 2026-09-09)
+
+Owner instruction: "Do not make document-type detection the gatekeeper for review or
+retrieval." `legalmind/analysis/service.py` now maps every pinned standard first and
+decides applicability from the document (`applicable_by_content`): a standard applies
+when the document confirms its clause — whatever family it belongs to, so one document
+can span several legal domains — or when it belongs to a detected family (the declared
+type, or a type with at least two confirmed standards); MISSING is asserted only inside
+a detected family; `not_applicable_to` on a standard keeps the 2026-08-20 SLA ruling in
+force (both liability standards list SLA). The `document_type_undeclared` refusal is
+gone; `detected_types` is recorded on the run and the audit event. The intake asks no
+question at all (a confident suggestion is still recorded as the signal it is); the
+analysis chain waits for no type; a type set in Edit details still re-runs analysis.
+Tests: analysis suite rewritten for the new rule (+3: undeclared analysed by content,
+content wins across families, MISSING only inside a detected family); the three intake
+browser specs assert no control is asked for.
+
 ### Changed — Upload → Review → Ask: the user never configures the workflow (AB-16, `AM-50`, 2026-09-09)
 
 Owner instruction: the user should not need to understand how LegalMind works —

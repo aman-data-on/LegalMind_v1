@@ -220,28 +220,11 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     await openUploadPanel(page);
     await page.setInputFiles('input[type="file"]', f.document.path);
 
-    // The confirm panel: name derived from the filename, editable. The upload
-    // and the type suggestion run behind the file gesture; the panel is ready
-    // when the fields re-enable.
-    const nameField = page.getByLabel(/^Name/);
-    await expect(nameField).not.toHaveValue("");
-    const select = page.getByLabel(/^What kind of document/);
-    await expect(select).toBeEnabled({ timeout: 30_000 });
-
-    // The ten locked values, and nothing else, in the select (Step 6). With no
-    // generation credential in e2e the suggestion degrades honestly, so the
-    // select stays EMPTY and the declaration is the human act it always was.
-    await expect(select).toHaveValue("");
-    const options = select.locator("option");
-    await expect(options).toHaveCount(11); // ten values + the empty prompt
-    const codes = (await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).filter(Boolean);
-    expect(codes).toEqual(["MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]);
-
-    // Without the type the document still opens for questions (owner, 2026-09-08 —
-    // the type gates analysis, never asking); with one, the same act also analyzes.
-    await expect(page.getByRole("button", { name: "Confirm & Open" })).toBeEnabled();
-    await select.selectOption("NDA");
-    await page.getByRole("button", { name: "Confirm & Analyze" }).click();
+    // AM-51 (owner, 2026-09-09): nothing to confirm and nothing to choose — no
+    // type control, no knowledge-source control. The upload runs through to the
+    // workspace; the engine measures the document by its content.
+    await expect(page.locator(".ws-intake").getByRole("combobox")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Confirm/ })).toHaveCount(0);
 
     // One act lands in the workspace with the document THERE — mounted and one
     // disclosure away, never an empty-record detour and never "No document
@@ -250,7 +233,9 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
     await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
-    await expect(page.locator(".ws-context")).toContainText("NDA");
+    // No type was declared (no generation credential in e2e, no question asked),
+    // and nothing pretends one was: the header carries no type chip (AM-51).
+    await expect(page.locator(".ws-context")).not.toContainText(/\b(MSA|NDA|TOS|SLA)\b/);
   });
 });
 

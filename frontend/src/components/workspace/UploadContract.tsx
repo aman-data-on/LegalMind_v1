@@ -33,7 +33,7 @@ import { useSession } from "@/lib/session";
 
 import { IconCheckCircle, IconUploadCloud } from "./icons";
 
-type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "confirm" | "analyzing";
+type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
 /** Mirrors the server default (`LEGALMIND_MAX_UPLOAD_BYTES`, 25 MB — owner, 2026-09-02). A
  *  convenience pre-check for an immediate, friendly message — the server's
@@ -41,7 +41,7 @@ type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "confirm" | "an
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx"];
 
-const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "confirm", "analyzing"];
+const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analyzing"];
 
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
@@ -135,69 +135,26 @@ export function UploadContract({ firstRun }: {
       /* not confident — the one question below */
     }
 
+    // AM-51 (owner, 2026-09-09): the type is one optional signal, never a gate.
+    // A confident suggestion is recorded (audited as ASSIST_SUGGESTION) so the
+    // reader sees "Reviewed as …" and the engine has the signal; without one the
+    // review still starts — the engine measures the document by its content.
     if (proposedType) {
-      /*
-       * AM-50 (owner, 2026-09-09): a confident suggestion is RECORDED by the
-       * intake and the review starts — the reader uploaded a contract and
-       * LegalMind reviewed it. The audit trail says the type came from the
-       * suggestion (`contract_type_source`), the reader can change it in
-       * "Edit details" (which re-runs the analysis), and the evaluator still
-       * refuses an undeclared type. Recording fails → the question below.
-       */
       try {
         await api.updateContract(contract_id_or_throw(contractIdRef.current), {
-          name: derivedName,
-          contract_type: proposedType,
+          name: derivedName, contract_type: proposedType,
           contract_type_source: "ASSIST_SUGGESTION",
         });
         setRecordedType(proposedType);
         setContractType(proposedType);
-        setStage("analyzing");
-        await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
-        router.push(`/dashboard?id=${contractIdRef.current}`);
-        return;
       } catch {
         setRecordedType(null);
       }
     }
-
-    // The smallest clarification, only when needed: which kind of document
-    // this is. A Step 6 code in the filename pre-fills it (AM-34 t1).
-    const fromName = typeHintFromFilename(chosen.name);
-    if (fromName) {
-      setContractType(fromName);
-      setTypeSource("filename");
-    }
-    setStage("confirm");
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!contractId) return;
-    setError(null);
     setStage("analyzing");
-    try {
-      // The human act that records the declaration — the suggestion never
-      // wrote anything.
-      // Owner requirement 2026-09-08: the type is no longer a gate. Without one the
-      // document opens for questions (Ask never needed it); the deterministic
-      // analysis still refuses an undeclared type (owner Q9 / `AM-34`, and the
-      // control that keeps a statute out of the evaluator) and the workspace says so.
-      await api.updateContract(contractId, {
-        name: name.trim(),
-        ...(contractType ? { contract_type: contractType, contract_type_source: "HUMAN" } : {}),
-      });
-    } catch (cause) {
-      setError(cause);
-      setStage("confirm");
-      return;
-    }
-    // Analysis, best-effort: resolve the latest published standards and run.
-    // Any failure here is a STATE the workspace explains, never a dead end.
-    if (contractType) await chainAnalysis(contractId, can(P.REVIEW_CREATE));
-    router.push(`/dashboard?id=${contractId}`);
+    await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
+    router.push(`/dashboard?id=${contractIdRef.current}`);
   }
-
 
   if (!file) {
     return (
@@ -250,7 +207,7 @@ export function UploadContract({ firstRun }: {
   const stageIndex = CHECKLIST_ORDER.indexOf(stage);
 
   return (
-    <form className="ws-intake" onSubmit={submit} aria-labelledby="ws-upload-title">
+    <div className="ws-intake" aria-labelledby="ws-upload-title">
       <h2 id="ws-upload-title" className="ws-intake__title">
         {file.name} <span className="ws-mono ws-intake__size">{Math.max(1, Math.round(file.size / 1024))} KB</span>
       </h2>
@@ -264,14 +221,12 @@ export function UploadContract({ firstRun }: {
         <ChecklistRow done={stageIndex >= CHECKLIST_ORDER.indexOf("extracted")} active={false}>
           Content Extracted
         </ChecklistRow>
-        <ChecklistRow done={stage === "confirm" || stage === "analyzing"} active={stage === "suggesting"}>
-          {stage === "confirm" || stage === "analyzing" ? (
+        <ChecklistRow done={stage === "analyzing"} active={stage === "suggesting"}>
+          {stage === "analyzing" ? (
             recordedType ? (
               <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — change it any time in Edit details</>
-            ) : contractType ? (
-              <>Reviewed as <strong>{documentTypeLabel(contractType)}</strong></>
             ) : (
-              "One question: what kind of document is this?"
+              "Reviewing by content — the type can be added in Edit details"
             )
           ) : (
             "Reading the document…"
@@ -282,50 +237,7 @@ export function UploadContract({ firstRun }: {
         ) : null}
       </ol>
 
-      {stage === "confirm" ? (
-        <div className="ws-intake__confirm">
-          <label className="ws-field">
-            <span className="ws-field__label">Name</span>
-            <input required value={name} onChange={(event) => setName(event.target.value)} />
-            <span className="ws-field__help">From the filename — change it if you like.</span>
-          </label>
-
-          <label className="ws-field ws-field--type">
-              <span className="ws-field__label">
-                What kind of document is this? <span className="ws-field__help">(needed to review it — you can ask questions without it)</span>
-              </span>
-              <select
-                value={contractType}
-                onChange={(event) => {
-                  setContractType(event.target.value);
-                  setTypeSource(null);
-                }}
-              >
-                <option value="">Choose the type…</option>
-                {DOCUMENT_TYPES.map((type) => (
-                  <option key={type.code} value={type.code}>
-                    {type.label} ({type.code})
-                  </option>
-                ))}
-              </select>
-              <span className="ws-field__help">
-                {typeSource === "filename"
-                  ? "Pre-filled from the filename — change it if that\u2019s wrong."
-                  : "LegalMind could not tell from the text. Counterparty and dates can be added later in Edit details."}
-              </span>
-          </label>
-
-          <button
-            type="submit"
-            className="ws-btn ws-btn--primary"
-            disabled={!name.trim()}
-          >
-            {contractType ? "Confirm & Analyze" : "Confirm & Open"}
-          </button>
-        </div>
-      ) : null}
-
-      {stage === "confirm" ? (
+      {stage !== "idle" && stage !== "analyzing" ? (
         <button
           type="button"
           className="ws-escalate__link"
@@ -347,7 +259,7 @@ export function UploadContract({ firstRun }: {
           {error instanceof ApiError ? describeError(error) : "The upload could not be completed."}
         </p>
       ) : null}
-    </form>
+    </div>
   );
 }
 

@@ -297,9 +297,8 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
         <div className="ws-state ws-state--error" role="alert">
           <h3>The analysis could not be completed.</h3>
           <p>
-            No findings were produced. The most common causes are an undeclared
-            document type or configuration this document type has no standards
-            for. Nothing was decided about this document.
+            No findings were produced. The most common cause is that no approved
+            standard matches anything in this document. Nothing was decided about it.
           </p>
         </div>
       </>

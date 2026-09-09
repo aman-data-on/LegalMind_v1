@@ -17780,3 +17780,63 @@ r6   WHAT THE READER NEVER SEES BY DEFAULT: embeddings, chunks, retrieval filter
 **Approved by the owner on 2026-09-09** ("Amend narrowly … treat this instruction as the latest
 final product decision, update/reconcile the affected lock records … preserving legal/audit
 integrity"; Summary words "Yes, reverse it"; layout "Findings flexible, document fixed").
+
+--------------------------------------------------------------------------------
+
+# AB-16 — `AM-51` — Applicability by content: the document type is one optional signal, never a gate (Owner Instruction — 2026-09-09)
+
+**Amends:** locked Step 28's Document Type scoping as implemented 2026-08-19 (a Requirement
+applies only to the declared type; an undeclared type REFUSES), `DOC-06`'s "an undeclared type —
+analysis REFUSES", `AM-45` r5's "the deterministic evaluator still refuses an undeclared type",
+and `AM-50` r1(c). **Does not amend:** `AI-01` (this is deterministic mapping, no model); Step
+28/35 mapping; the evaluators; the zero-tolerance Legal Rule; the four classifications; owner
+Q3=B (standards stay per document type — the type is now how a family is NAMED, not how the
+document is GATED); the 2026-08-20 SLA ruling (kept in force by r4); rules 7, 12, 13, 15, 21.
+
+The owner instructed: *"Do not make document-type detection the gatekeeper for review or
+retrieval. Treat document type only as one optional signal. The primary intelligence must come
+from the actual uploaded document content and the user's intent: identify the clauses/concepts
+present in the document, automatically determine which authorized Company Position … are
+relevant … analyze the document across all applicable domains — even when one uploaded
+document contains multiple legal domains. The user must never be required to select a document
+type or knowledge source merely to make this work."*
+
+```text
+r1   MAP FIRST. Every pinned Requirement is mapped against the document's clauses
+     (Steps 28/35, deterministic) before applicability is decided. Mapping is
+     computed once and reused by the evaluation.
+
+r2   WHAT APPLIES. A Requirement applies when the document CONFIRMS its clause
+     (content wins, whatever family the standard belongs to — one document may
+     span several legal domains), or when it belongs to a DETECTED family. A
+     family (Step 6 type) is detected when it is the declared type, or when at
+     least two of its standards (all of them, for a family of one) map CONFIRMED.
+
+r3   WHAT MAY BE MISSING. Absence is asserted only inside a detected family: a
+     standard whose clause is absent is MISSING only when the document has shown
+     it is that kind of paper. A standard outside every detected family whose
+     clause is absent is not applicable — no Finding, never a guess (rule 15).
+     `requirements_applicable` and `detected_types` are recorded on the run and
+     in the audit event.
+
+r4   EXCLUSIONS ARE CONFIGURATION. A standard may list `not_applicable_to`
+     document types; when the declared type is listed the standard never applies,
+     even if its clause maps. The two ratified liability standards list SLA — the
+     owner's 2026-08-20 ruling that service credits are a remedy, not a cap,
+     unchanged in force.
+
+r5   NO GATE ANYWHERE. Analysis no longer refuses an undeclared type; the intake
+     asks no question (a confident suggestion is still recorded and audited under
+     AM-50 r1, as the signal it is); the analysis chain waits for no type; Ask
+     never needed one (AM-45 r5's first half stands). A type can be declared or
+     corrected at any time in Edit details, and doing so runs a fresh analysis.
+
+r6   INTEGRITY. An untyped STANDARD in a snapshot still refuses (ENG-09); the
+     golden corpus is unchanged (every fixture declares its type, so declared-type
+     applicability is the same set as before, plus content-confirmed standards of
+     other families where a fixture contains them).
+```
+
+**Approved by the owner on 2026-09-09** ("Do not make document-type detection the gatekeeper for
+review or retrieval … The user must never be required to select a document type or knowledge
+source merely to make this work.").

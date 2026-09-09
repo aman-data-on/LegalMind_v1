@@ -42,14 +42,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // DD-4: upload is a disclosure behind the primary action, not an open form.
   await openUploadPanel(page);
   await page.setInputFiles('input[type="file"]', f.document.path);
-  // Create + upload + type suggestion run behind the file gesture; the select
-  // re-enables when the confirm panel is ready. In e2e there is no generation
-  // credential, so the suggestion honestly degrades and the human declares.
-  const typeSelect = page.getByLabel(/^What kind of document/);
-  await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
-  await typeSelect.selectOption("MSA");
-  await page.getByRole("button", { name: "Confirm & Analyze" }).click();
-  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+  // AM-51: upload → review → workspace, with no question asked. In e2e there is
+  // no generation credential, so no type is recorded and the engine measures
+  // the document by its content alone.
+  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
   const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
 
   // The workspace opens on the analysis (2026-09-08: the document no longer

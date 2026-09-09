@@ -37,8 +37,7 @@ test("a filename containing a non-ASCII character uploads without error", async 
   // panel dropped back to its empty "Upload a contract" state.
   await expect(page.locator(".ws-field__error")).toHaveCount(0);
 
-  // The upload succeeded and the flow reached the type-confirmation step —
-  // proof the request actually reached the server and came back.
-  const typeSelect = page.getByLabel(/^What kind of document/);
-  await expect(typeSelect).toBeVisible({ timeout: 15_000 });
+  // The upload succeeded and the flow carried straight through to the
+  // workspace (AM-51) — proof the request reached the server and came back.
+  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
 });

@@ -54,6 +54,7 @@
   "source_quote": "the standard 12-month liability cap applies unless a specific agreement approved by the company expressly provides otherwise. ... The cap applies mutually to both parties; there is no one-sided or party-specific cap. Indirect, incidental, and consequential damages are excluded for both parties. [Illustrative clause:] the aggregate liability of either Party ... shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
   "configuration": {
     "document_type": "MSA",
+    "not_applicable_to": ["SLA"],
     "preferred": 12,
     "unit": "MONTHS",
     "basis": "FEES_PAID",

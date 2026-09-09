@@ -116,6 +116,9 @@ class AnalysisRun:
     #: many of the pinned Requirements apply to it (locked Step 28 scoping).
     #: None / equal-to-snapshot until the scoping stage has run.
     document_type: str | None = None
+    #: AM-51 — the Step 6 families the document showed it belongs to (declared
+    #: type plus every type at least two of whose standards mapped CONFIRMED).
+    detected_types: list[str] = field(default_factory=list)
     requirements_applicable: int = 0
     outcomes: list[RequirementOutcome] = field(default_factory=list)
     #: REC-02 / D-4 (owner, 2026-09-01) — evidence rows this Review's Findings
@@ -208,37 +211,40 @@ def run_analysis(db: DBSession, review: M.Review, *,
                        "recovered; re-upload in a format that preserves structure",
                        "structure_not_extracted")
 
-    # ---- Document Type scoping — locked Step 6 + Step 28 ---------------------
-    # A Requirement applies only to the kind of paper its standard declares.
-    # Undeclared type on the Contract: REFUSE (owner decision Q9 — the type is
-    # declared by the uploader, never inferred), because the alternative is
-    # evaluating every Requirement against every document, which is precisely
-    # the defect this filter exists to close (an NDA flagged for having no
-    # liability cap). Untyped standard in the snapshot: REFUSE, because the
-    # snapshot predates the publish-time check and neither skipping nor
-    # evaluating it can be justified silently (ENG-09).
+    # ---- Applicability by CONTENT — AM-51 (owner, 2026-09-09) -----------------
+    # The document decides what applies: every pinned Requirement is MAPPED
+    # first (deterministic, Steps 28/35), and a Requirement applies when the
+    # document actually contains its clause (mapping CONFIRMED) or when it
+    # belongs to a family the document is evidently a member of — the declared
+    # type, if any, or a Step 6 type at least two of whose standards the
+    # document confirms. Only a family's standards may be MISSING: absence is
+    # asserted only where the document has shown it belongs to that family.
+    # The declared type is one optional signal, never a gate; a document with no
+    # type — or one that spans several families — is analysed across all of
+    # them. An untyped standard in the snapshot still refuses (ENG-09).
     document_type = _review_document_type(db, review)
-    if document_type is None or not is_document_type(document_type):
-        return _refuse("contract declares no valid document type",
-                       "document_type_undeclared")
+    if document_type is not None and not is_document_type(document_type):
+        document_type = None
     if untyped := _untyped_items(items):
         return _refuse(
             "snapshot predates document-type validation; untyped standard for: "
             + ", ".join(sorted(untyped)),
             "snapshot_standard_untyped")
 
-    items = _applicable_items(items, document_type)
+    mappings = {item.requirement.code: _map_item(item, clauses) for item in items}
+    items, families = applicable_by_content(items, mappings, document_type)
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
-    # state what was pinned, not what applied. The applicable count is its own
-    # field, so "2 pinned, 1 applicable to an MSA" reads as exactly that.
+    # state what was pinned, not what applied.
     run.requirements_applicable = len(items)
     run.document_type = document_type
+    run.detected_types = sorted(families)
 
     with timed("analysis.stage.evaluate", request_id=request_id,
                review_id=str(review.id)) as stage:
         for item in items:
             run.outcomes.append(
-                _analyse_requirement(db, review, item, clauses))
+                _analyse_requirement(db, review, item, clauses,
+                                     mapping=mappings[item.requirement.code]))
         stage["findings_created"] = run.findings_created
 
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
@@ -257,6 +263,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
              after={"requirements_in_snapshot": run.requirements_in_snapshot,
                     "document_type": run.document_type,
+                    "detected_types": run.detected_types,
                     "requirements_applicable": run.requirements_applicable,
                     "findings_created": run.findings_created,
                     "skipped_as_optional": run.skipped_as_optional,
@@ -327,8 +334,70 @@ class _SnapshotItem:
     legal_rule: M.LegalRuleVersion | None
 
 
+def _map_item(item: _SnapshotItem, clauses: list[Clause]) -> MappingResult | str:
+    """Map one Requirement (Steps 28, 35), or return the misconfiguration message.
+
+    D-1 defence in depth: publish already refuses unusable rules, so a message
+    here means a snapshot predates the check — still a failure, never a guess.
+    """
+    try:
+        rules = MappingRules.from_config(item.mapping_rules.rules)
+    except MappingMisconfigured as exc:
+        return f"mapping configuration unusable: {exc}"
+    return map_requirement(item.requirement_version.id, rules, clauses)
+
+
+def _standard_type(item: _SnapshotItem) -> str | None:
+    return (item.company_standard.configuration or {}).get("document_type")
+
+
+def applicable_by_content(items: list[_SnapshotItem],
+                          mappings: dict[str, MappingResult | str],
+                          declared_type: str | None,
+                          ) -> tuple[list[_SnapshotItem], set[str]]:
+    """Which pinned Requirements this document is measured against — AM-51.
+
+    A family (Step 6 type) is DETECTED when it is the declared type or when at
+    least two of its standards (or all of them, for a family of one) map
+    CONFIRMED in the document. Applicable = every standard of a detected family
+    (so its absent clauses can be MISSING) plus every standard whose clause the
+    document confirms whatever its family (content wins — one document may span
+    several domains). A standard listing the declared type under
+    `not_applicable_to` is excluded even when confirmed: that is how an owner
+    ruling such as "SLA service credits are a remedy, not a liability cap"
+    (2026-08-20) stays in force. Order preserved (ENG-11).
+    """
+    confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
+                 for code, m in mappings.items()}
+    family_size: dict[str, int] = {}
+    family_confirmed: dict[str, int] = {}
+    for item in items:
+        t = _standard_type(item)
+        if t is None:
+            continue
+        family_size[t] = family_size.get(t, 0) + 1
+        if confirmed[item.requirement.code]:
+            family_confirmed[t] = family_confirmed.get(t, 0) + 1
+    detected = {t for t, n in family_confirmed.items() if n >= min(2, family_size[t])}
+    if declared_type:
+        detected.add(declared_type)
+
+    def excluded(item: _SnapshotItem) -> bool:
+        cfg = item.company_standard.configuration or {}
+        blocked = cfg.get("not_applicable_to") or []
+        return declared_type is not None and declared_type in blocked
+
+    applicable = [
+        item for item in items
+        if not excluded(item)
+        and (_standard_type(item) in detected or confirmed[item.requirement.code])
+    ]
+    return applicable, detected
+
+
 def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
-                         clauses: list[Clause]) -> RequirementOutcome:
+                         clauses: list[Clause], *,
+                         mapping: MappingResult | str) -> RequirementOutcome:
     rv = item.requirement_version
     outcome = RequirementOutcome(
         requirement_code=item.requirement.code,
@@ -340,16 +409,10 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     if applicability_note:
         outcome.diagnostics.append(applicability_note)
 
-    # ---- mapping (Steps 28, 35) -----------------------------------------
-    try:
-        rules = MappingRules.from_config(item.mapping_rules.rules)
-    except MappingMisconfigured as exc:
-        # D-1 defence in depth: publish already refuses this, so reaching here means
-        # a snapshot predates the check. Still a failure, never a guess.
-        outcome.failure = f"mapping configuration unusable: {exc}"
+    # ---- mapping (Steps 28, 35) — computed once, for applicability and here ----
+    if isinstance(mapping, str):
+        outcome.failure = mapping
         return outcome
-
-    mapping: MappingResult = map_requirement(rv.id, rules, clauses)
     outcome.mapping_state = mapping.state.value
 
     evidence = tuple(EvidenceRef(evidence_id=eid) for eid in mapping.evidence_ids)
@@ -577,41 +640,15 @@ def _structure_not_extracted(clauses: list[Clause]) -> bool:
 def _review_document_type(db: DBSession, review: M.Review) -> str | None:
     """The declared Document Type of the paper under review — locked Step 6.
 
-    Resolved Review → DocumentVersion → Contract.contract_type, the field the
-    uploader declares (owner decision Q9, 2026-08-19: declared, never inferred
-    from content — a wrong guess would silently load the wrong baseline).
-    Returns None when undeclared; the caller refuses, it does not default.
+    Resolved Review → DocumentVersion → Contract.contract_type. Since AM-51
+    (2026-09-09) this is ONE signal to applicability, not a gate: None means the
+    document's content alone decides which families apply.
     """
     dv = db.get(M.DocumentVersion, review.document_version_id)
     if dv is None:
         return None
     contract = db.get(M.Contract, dv.contract_id)
     return contract.contract_type if contract is not None else None
-
-
-def _applicable_items(items: list[_SnapshotItem],
-                      document_type: str) -> list[_SnapshotItem]:
-    """Keep the Requirements whose standard declares this Document Type.
-
-    Locked Step 28's Requirement Model scopes every Requirement to a Document
-    Type; per owner decision Q2 (2026-08-19) the value lives in the Company
-    Standard configuration, the same JSONB route D-3 used for Required/Optional.
-
-    A plain equality test is sufficient — and safe — because publish refuses any
-    standard that omits the type or names one outside Step 6's vocabulary, so an
-    untyped item here means a snapshot that predates the check. Fail-closed
-    reading (ENG-09): such an item is REFUSED by the caller rather than either
-    silently skipped or silently evaluated; skipping could hide a Requirement
-    that should have run, evaluating could flag an NDA for having no liability
-    cap, and neither mistake should be possible to make quietly.
-
-    Input order (Requirement code) is preserved — ENG-11 determinism.
-    """
-    return [
-        item for item in items
-        if (item.company_standard.configuration or {}).get("document_type")
-        == document_type
-    ]
 
 
 def _untyped_items(items: list[_SnapshotItem]) -> list[str]:

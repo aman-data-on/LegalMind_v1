@@ -900,8 +900,11 @@ def test_an_sla_is_never_measured_against_a_liability_requirement(build, db):
     separate: an SLA's credit percentages must never be read as caps, and no
     SLA-typed liability standard may be created from them.
     """
+    # AM-51 keeps this ruling in force through the standard's own exclusion —
+    # the two ratified liability standards carry `not_applicable_to: ["SLA"]`.
     build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
-                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+                      mapping=MAPPING, standard={**STANDARD, "not_applicable_to": ["SLA"]},
+                      legal_rule=LEGAL_RULE)
     review = build.review([
         "1. Service Credits",
         "Credits are the sole and exclusive remedy and shall not exceed fifty "
@@ -935,11 +938,10 @@ def test_a_matching_document_type_still_produces_the_finding(build, db):
     assert run.findings_created == 1
 
 
-def test_an_undeclared_document_type_refuses_rather_than_evaluating(build, db):
-    """Owner Q9 — the type is declared by the uploader, never inferred, and its
-    absence is a refusal (ENG-09): the alternative is evaluating every
-    Requirement against every document, which is the defect the filter closes.
-    """
+def test_an_undeclared_document_type_is_analysed_from_its_content(build, db):
+    """AM-51 (owner, 2026-09-09) — the type is one optional signal, never a gate.
+    A document with no declared type is measured against every standard whose
+    clause it actually contains; nothing is refused for want of a label."""
     build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
                       mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
     review = build.review([
@@ -952,9 +954,71 @@ def test_an_undeclared_document_type_refuses_rather_than_evaluating(build, db):
 
     run = run_analysis(db, review)
 
-    assert run.review_status == "ANALYSIS_FAILED"
-    assert run.findings_created == 0
-    assert db.execute(select(M.Finding)).first() is None
+    assert run.review_status != "ANALYSIS_FAILED"
+    assert run.document_type is None
+    assert run.requirements_applicable == 1
+    assert run.findings_created == 1
+
+
+def test_content_wins_across_families_a_declared_nda_with_a_liability_clause_is_measured(
+        build, db):
+    """AM-51 — one document may span several legal domains. An NDA that carries a
+    liability cap is measured against the liability standard even though that
+    standard is MSA-typed: the clause is there, so the comparison is real."""
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Confidential Information",
+        "Each party shall hold Confidential Information in strict confidence.",
+        "2. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = "NDA"
+    db.flush()
+
+    run = run_analysis(db, review)
+
+    assert run.document_type == "NDA"
+    assert run.requirements_applicable == 1
+    assert run.findings_created == 1
+
+
+def test_an_absent_clause_is_missing_only_inside_a_family_the_document_belongs_to(
+        build, db):
+    """AM-51 — MISSING is asserted only where the document has shown it is that
+    kind of paper: two NDA standards confirmed make the NDA family detected, so
+    a third NDA standard whose clause is absent is MISSING; an MSA standard
+    whose clause is absent is simply not applicable (no type declared)."""
+    nda = {**STANDARD, "document_type": "NDA"}
+    build.requirement("NDA-LIAB-A-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=nda, legal_rule=LEGAL_RULE)
+    build.requirement("NDA-LIAB-B-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=nda, legal_rule=LEGAL_RULE)
+    build.requirement("NDA-GOVLAW-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING,
+                      standard={"document_type": "NDA", "applicability": "REQUIRED",
+                                "expected_presence": "PRESENT"},
+                      legal_rule=None)
+    build.requirement("MSA-GOVLAW-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING,
+                      standard={"document_type": "MSA", "applicability": "REQUIRED",
+                                "expected_presence": "PRESENT"},
+                      legal_rule=None)
+    review = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = None
+    db.flush()
+
+    run = run_analysis(db, review)
+
+    assert run.detected_types == ["NDA"]
+    codes = {o.requirement_code: o.classification for o in run.outcomes}
+    assert codes["NDA-GOVLAW-STRUCT"] == "MISSING"
+    assert "MSA-GOVLAW-STRUCT" not in codes
 
 
 def test_a_snapshot_with_an_untyped_standard_refuses(build, db):
