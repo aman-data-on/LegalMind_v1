@@ -20,13 +20,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { chainAnalysis } from "@/lib/analysisChain";
 import { api } from "@/lib/api";
 
-function arrange(processingStatus: string) {
+function arrange(processingStatus: string, contractType: string | null = "MSA") {
   vi.spyOn(api, "snapshots").mockResolvedValue({
     items: [{ id: "snap-1" }] as never,
     page: 1, page_size: 1, total: 1,
   } as never);
   vi.spyOn(api, "contract").mockResolvedValue({
     id: "c1",
+    contract_type: contractType,
     document_versions: [{ id: "v1", version_number: 1 }],
   } as never);
   vi.spyOn(api, "documentVersion").mockResolvedValue({
@@ -61,5 +62,14 @@ describe("chainAnalysis and the deferred-OCR gap", () => {
     await chainAnalysis("c1", true);
     expect(createReview).toHaveBeenCalledWith("v1", "snap-1");
     expect(analyze).toHaveBeenCalledWith("r1");
+  });
+});
+
+describe("chainAnalysis and an undeclared type (AM-51)", () => {
+  it("still creates the Review — the engine measures the document by its content", async () => {
+    const { createReview, analyze } = arrange("COMPLETED", null);
+    await chainAnalysis("c1", true);
+    expect(createReview).toHaveBeenCalledWith("v1", "snap-1");
+    expect(analyze).toHaveBeenCalled();
   });
 });

@@ -209,7 +209,10 @@ def oidc_configured() -> bool:
 # summary, `SEC-02`/`ROLE-05` (no super-role reaches `legal.decision`), and S-8.
 # So a provisioned account gets ROLE_USER — ordinary contract and review work, and
 # none of `legal.decision`, `legal_position.view`, `user.manage` or `audit.view`.
-# An identity provider must never be able to hand out legal authority.
+# An identity provider must never be able to hand out legal authority — and since
+# AB-12 r11 that is ENFORCED in `security.oidc._provision`, not merely hoped: a
+# configured JIT role carrying legal authority or platform administration
+# (`permissions.NEVER_PROVISIONED_BY_IDP`) is refused at provisioning time.
 JIT_ROLES_DEFAULT = "USER"
 
 

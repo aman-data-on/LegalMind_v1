@@ -113,7 +113,7 @@ def test_super_admin_cannot_decide(db, case):
     Admin cannot even see the Review."""
     owner, review, p = case
     sa = make_user(db)
-    grant_role(db, sa, P.ROLE_SUPER_ADMIN)
+    grant_role(db, sa, P.ROLE_PLATFORM_ADMIN)
     with pytest.raises(NotVisible):
         record_decision(db, actor_id=sa.id, evaluation_id=p.evaluations[0].id,
                         decision_type=D.ACCEPT_DEVIATION, justification="x")

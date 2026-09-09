@@ -13,14 +13,33 @@
     "CONFIDENTIALITY: the source is executed with a real counterparty. Cite the",
     "document only as above; never name the counterparty or signatories anywhere."
   ],
+  "_reconciliation": [
+    "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
+    "positions (owner ruling 2026-09-08). Constitution \u00a715: 'Obligations survive termination or",
+    "expiry for 3 years, except that obligations relating to trade secrets survive for as long as",
+    "the information remains a trade secret'; \u00a715.5: the NDA 'is not itself a lawyer-approved",
+    "standing mutual template'. Its two (2) years states the document, not the position.",
+    "Previous source and configuration preserved in `_history`.",
+    "Consequence: the executed NDA clause now evaluates as a DEVIATION (fixture CLS-CONF-SURVIVAL-NDA-001)."
+  ],
+  "_history": [
+    {
+      "reconciled": "2026-09-08",
+      "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
+      "source_clause": "9 Term and Survival",
+      "source_quote": "confidentiality obligations ... shall survive for two (2) years from the date of termination or expiry of this Agreement or of the underlying partnership relationship, whichever is later; provided ... trade secret ... for so long as such information remains a trade secret.",
+      "configuration_before": {"document_type": "NDA", "preferred": 2, "unit": "YEARS", "basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END", "scope_key": "GENERAL"}
+    }
+  ],
   "requirement_code": "CONF-SURVIVAL-NDA-001",
+  "description": "Confidentiality obligations keep applying for a set period after the NDA ends, and for trade secrets for as long as they stay secret.",
   "ratified": "2026-08-19",
-  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
-  "source_clause": "9 Term and Survival",
-  "source_quote": "confidentiality obligations ... shall survive for two (2) years from the date of termination or expiry of this Agreement or of the underlying partnership relationship, whichever is later; provided ... trade secret ... for so long as such information remains a trade secret.",
+  "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+  "source_clause": "\u00a715 Confidentiality & Intellectual Property \u2014 Company Position",
+  "source_quote": "Obligations survive termination or expiry for 3 years, except that obligations relating to trade secrets survive for as long as the information remains a trade secret.",
   "configuration": {
     "document_type": "NDA",
-    "preferred": 2,
+    "preferred": 3,
     "unit": "YEARS",
     "basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END",
     "scope_key": "GENERAL",

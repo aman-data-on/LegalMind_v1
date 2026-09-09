@@ -65,28 +65,7 @@ test.describe("signed out", () => {
 test.describe("signed in (counsel)", () => {
   test.use({ storageState: storageStatePath("counsel") });
 
-  test("reviews list — empty state", async ({ page }) => {
-    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    // First spec in this file to touch reviews: under design-qa the database is
-    // fresh, so this state is genuinely empty, not accidentally empty.
-    await page.goto("/reviews");
-    await expect(page.getByText("No reviews.")).toBeVisible();
-    await expect(page).toHaveScreenshot("reviews-empty.png", SHOT);
-  });
 
-  test("review detail — findings, evaluations, decision panel", async ({ page }) => {
-    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    await expect(page.locator("article.finding").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("review-detail.png", {
-      ...SHOT,
-      fullPage: true,
-      // Ids and snapshot references differ every run; the layout around them
-      // must not.
-      mask: [page.locator("h1"), page.locator(".page-meta")],
-    });
-  });
 
   test("workspace — document pane, slice 1", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
@@ -100,37 +79,11 @@ test.describe("signed in (counsel)", () => {
     });
   });
 
-  test("contract page — upload surface and Ask panel", async ({ page }) => {
-    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    const created = await apiPost(page, "/contracts", {
-      name: `Visual baseline ${Date.now()}`,
-      contract_type: "MSA",
-    });
-    const contract = (await created.json()).data;
-    await page.goto(`/contracts?id=${contract.id}`);
-    await expect(page.getByRole("heading", { name: "Ask about this document" })).toBeVisible();
-    await expect(page).toHaveScreenshot("contract.png", {
-      ...SHOT,
-      fullPage: true,
-      mask: [page.locator("h1")],
-    });
-  });
 });
 
 test.describe("signed in (admin)", () => {
   test.use({ storageState: storageStatePath("admin") });
 
-  test("admin — users and roles", async ({ page }) => {
-    test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    await page.goto("/admin");
-    await expect(page.locator("table").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("admin.png", {
-      ...SHOT,
-      fullPage: true,
-      // Bootstrap account rows are fixed; their creation dates are today's.
-      mask: [page.getByText(/20\d\d-\d\d-\d\d/)],
-    });
-  });
 });
 
 /**

@@ -16,10 +16,16 @@
 export const CONTRACT_VIEW = "contract.view";
 export const CONTRACT_CREATE = "contract.create";
 export const CONTRACT_UPDATE = "contract.update";
-/** Granted to ROLE_USER and scoped by ownership (owner approval 2026-09-01):
- *  a user may delete what they uploaded and nothing else. Presentation gating
- *  only, as always — the server re-resolves `owner_id` on every request. */
-export const CONTRACT_DELETE = "contract.delete";
+/** Archive and restore (AB-12 r6, replacing `contract.delete`): nothing in the
+ *  product destroys a contract. Owner-scoped — the server re-resolves `owner_id`
+ *  on every request; this constant only decides whether to render the action. */
+export const CONTRACT_ARCHIVE = "contract.archive";
+/** Move a deal to a colleague in the same department (AB-12 r5). Held by the
+ *  Department Lead; the server checks the department boundary regardless. */
+export const CONTRACT_TRANSFER = "contract.transfer";
+/** Read scope widened to the caller's whole department (AB-12 r3). Gates the
+ *  "Department deals" view; the server scopes every query on its own. */
+export const DEPARTMENT_VIEW = "department.view";
 export const DOCUMENT_UPLOAD = "document.upload";
 export const DOCUMENT_VIEW = "document.view";
 export const DOCUMENT_DOWNLOAD = "document.download";
@@ -34,7 +40,8 @@ export const LEGAL_REVIEW = "legal.review";
 export const LEGAL_DECISION = "legal.decision";
 export const LEGAL_APPROVE_CUSTOMIZATION = "legal.approve_customization";
 
-/** LEGAL-02 — gates rule outcomes, thresholds and explanations (49.7 r4). */
+/** LEGAL-02 — gates rule outcomes, thresholds and explanations (49.7 r4). Every
+ *  Department User holds it for their own deals since AB-12 r7. */
 export const LEGAL_POSITION_VIEW = "legal_position.view";
 
 export const CONFIGURATION_VIEW = "configuration.view";

@@ -40,6 +40,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.assist import store
 from legalmind.assist.chunking import CHUNKING_ALGORITHM_VERSION, chunk_evidence
 from legalmind.db import models as M
+from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
 
@@ -78,7 +79,11 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
 
     rows = db.execute(
         select(M.DocumentEvidence)
-        .where(M.DocumentEvidence.document_version_id == document_version_id)
+        .where(M.DocumentEvidence.document_version_id == document_version_id,
+               # One run IS the document (P-8, 2026-09-06): a re-read version must
+               # never be chunked as two segmentations merged.
+               M.DocumentEvidence.processing_run_id
+               == latest_completed_run_id(db, document_version_id))
         # Ordered so chunk ordinals are stable across runs. `id` is the tiebreaker
         # rather than nothing at all: without it two evidence rows sharing a page and
         # offset could come back in either order, and the chunk sequence would depend
@@ -148,7 +153,8 @@ def _embed_chunks(db: DBSession, document_version_id: UUID) -> int:
                                   vectors=vectors, embedding_model_id=model_id)
 
 
-def index_safely(db: DBSession, document_version_id: UUID) -> IndexResult:
+def index_safely(db: DBSession, document_version_id: UUID, *,
+                 reindex: bool = False) -> IndexResult:
     """Index, but never let a failure reach the caller.
 
     For the ingestion path. A derived index is not permitted to fail an upload whose
@@ -156,7 +162,7 @@ def index_safely(db: DBSession, document_version_id: UUID) -> IndexResult:
     operational one so it is visible and countable, not swallowed into silence.
     """
     try:
-        return index_document_version(db, document_version_id)
+        return index_document_version(db, document_version_id, reindex=reindex)
     except Exception as exc:
         log_event("assist.index.failed", level=logging.WARNING,
                   document_version_id=str(document_version_id),

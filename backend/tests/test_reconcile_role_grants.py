@@ -40,9 +40,9 @@ from tools.reconcile_role_grants import (
 # The two grants stranded on the development instance, exactly as found there.
 STRANDED = (
     ("USER", P.EXPORT_GENERATE),
-    ("USER", P.CONTRACT_DELETE),
+    ("USER", P.CONTRACT_ARCHIVE),
     ("LEGAL_REVIEWER", P.EXPORT_GENERATE),
-    ("LEGAL_ADMIN", P.EXPORT_GENERATE),
+    ("DEPARTMENT_LEAD", P.EXPORT_GENERATE),
 )
 
 
@@ -74,7 +74,7 @@ def test_a_drifted_database_is_repaired_and_the_user_regains_the_decided_grants(
     grant_role(db, user, "USER")
     before = effective_permissions(db, user.id)
     assert P.EXPORT_GENERATE not in before, "the drift fixture must reproduce the defect"
-    assert P.CONTRACT_DELETE not in before
+    assert P.CONTRACT_ARCHIVE not in before
 
     drift, added = reconcile(db, apply=True)
     assert added == len(STRANDED)
@@ -82,16 +82,17 @@ def test_a_drifted_database_is_repaired_and_the_user_regains_the_decided_grants(
 
     after = effective_permissions(db, user.id)
     assert P.EXPORT_GENERATE in after     # decision #232
-    assert P.CONTRACT_DELETE in after     # locked AB-10 r6
+    assert P.CONTRACT_ARCHIVE in after     # locked AB-10 r6
     # Nothing beyond the decided defaults arrived with it.
     assert after == set(P.DEFAULT_ROLE_GRANTS["USER"])
     assert compute_drift(db) == []
 
 
 def test_the_deliberate_exclusions_stay_excluded(drifted, db):
-    """AB-10 r6 grants contract.delete to ROLE_USER and the code deliberately
-    withholds it from Legal Admin and Super Admin (Step 24 r8/r9); export stays
-    off SUPER_ADMIN for the same separation. Reconciliation must not blur that."""
+    """Step 24 r8/r9: contract content and platform administration stay
+    separate, so the Platform Admin holds no contract, export or legal grant —
+    and (AB-12 r3) the Department Lead holds no `legal.review`, the GLOBAL
+    legal scope. Reconciliation must not blur either line."""
     reconcile(db, apply=True)
     matrix = {}
     for code, name in db.execute(
@@ -99,9 +100,11 @@ def test_the_deliberate_exclusions_stay_excluded(drifted, db):
             .join(M.RolePermission, M.RolePermission.role_id == M.Role.id)
             .join(M.Permission, M.Permission.id == M.RolePermission.permission_id)):
         matrix.setdefault(code, set()).add(name)
-    assert P.CONTRACT_DELETE not in matrix["LEGAL_ADMIN"]
-    assert P.CONTRACT_DELETE not in matrix["SUPER_ADMIN"]
-    assert P.EXPORT_GENERATE not in matrix["SUPER_ADMIN"]
+    assert P.CONTRACT_ARCHIVE not in matrix["PLATFORM_ADMIN"]
+    assert P.EXPORT_GENERATE not in matrix["PLATFORM_ADMIN"]
+    assert not matrix["PLATFORM_ADMIN"] & P.LEGAL_AUTHORITY_PERMISSIONS
+    assert P.LEGAL_REVIEW not in matrix["DEPARTMENT_LEAD"]
+    assert not matrix["DEVELOPER"] & P.LEGAL_AUTHORITY_PERMISSIONS
 
 
 # =====================================================================

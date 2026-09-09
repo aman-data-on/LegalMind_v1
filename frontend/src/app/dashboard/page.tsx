@@ -33,14 +33,22 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { api, describeError } from "@/lib/api";
-import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import { api, describeError, type ContractScope } from "@/lib/api";
+import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import { CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
+import { chainAnalysis } from "@/lib/analysisChain";
+import {
+  USER_STATUS_LABELS,
+  USER_STATUS_ORDER,
+  USER_STATUS_TONE,
+} from "@/components/workspace/findingLanguage";
 import { useSession } from "@/lib/session";
-import type { Contract, ContractsSummary, Pagination } from "@/lib/types";
+import type { Contract, ContractsSummary, Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
 
 import {
   documentStatusBucket,
+  knownCounterparties,
   relativeTime,
   STATUS_BUCKET_LABEL,
   type DocumentStatusBucket,
@@ -60,6 +68,21 @@ import {
 
 const PAGE_SIZE = 25;
 
+/** The seven columns, in one place — the table renders them and so does the
+ *  loading skeleton, which must reserve the header's height or the whole body
+ *  jumps down the instant data lands. */
+const COLUMNS = [
+  "Document", "Type", "Status", "Findings", "Last Analyzed", "Added", "Action",
+] as const;
+
+function TableHead() {
+  return (
+    <tr>
+      {COLUMNS.map((column) => <th key={column} scope="col">{column}</th>)}
+    </tr>
+  );
+}
+
 const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
   draft: <IconClock size={13} />,
   analyzing: <span className="ws-spin" aria-hidden="true" />,
@@ -76,33 +99,32 @@ function StatusPill({ contract }: { contract: Contract }) {
   );
 }
 
-/** The four real classification buckets, always in the same order, dashes
- *  when nothing has been analyzed yet — never a zero standing in for "not
- *  checked". Each populated badge is a real link, pre-filtered exactly like
- *  the workspace's own classification chips. */
+/** The reader's three status counts, always in the same order and wearing the
+ *  same three tones as the workspace (`findingLanguage`), dashes when nothing
+ *  has been analyzed yet — never a zero standing in for "not checked". */
 function FindingsCell({ contract }: { contract: Contract }) {
   const analyzed = documentStatusBucket(contract) !== "draft"
     && documentStatusBucket(contract) !== "analyzing";
-  const counts = contract.latest_analysis?.classification_counts;
+  const counts = contract.latest_analysis?.user_status_counts;
   if (!analyzed || !counts) {
     return <span className="ws-findings-cell ws-pane__note">—</span>;
   }
-  const buckets: Array<{ key: "match" | "review" | "missing"; n: number }> = [
-    { key: "match", n: counts.MATCH ?? 0 },
-    {
-      key: "review",
-      n: Object.entries(counts).reduce(
-        (sum, [c, n]) => sum + (c !== "MATCH" && c !== "MISSING" ? n : 0), 0),
-    },
-    { key: "missing", n: counts.MISSING ?? 0 },
-  ];
+  // Acceptable · Requires modification · Needs a decision — the one order and
+  // the one set of tones every other surface uses (`findingLanguage`).
   return (
     <span className="ws-findings-cell">
-      {buckets.map(({ key, n }) => (
-        <span key={key} className={`ws-findings-badge ws-findings-badge--${key}${n === 0 ? " ws-findings-badge--zero" : ""}`}>
-          {n}
-        </span>
-      ))}
+      {USER_STATUS_ORDER.map((status) => {
+        const n = counts[status] ?? 0;
+        return (
+          <span
+            key={status}
+            className={`ws-findings-badge ws-findings-badge--${USER_STATUS_TONE[status]}${n === 0 ? " ws-findings-badge--zero" : ""}`}
+            title={`${n} ${USER_STATUS_LABELS[status]}`}
+          >
+            {n}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -116,6 +138,9 @@ function StatTile({
   icon: React.ReactNode; n: number; label: string;
   bucket?: DocumentStatusBucket; onSelect?: () => void;
 }) {
+  /* `--act` is what carries the hover lift and the pointer: a tile without an
+     `onSelect` is a plain count, and giving all four the same hover response
+     advertised three controls that do nothing (2026-09-08 audit). */
   const className = `ws-doctile${bucket ? ` ws-doctile--${bucket}` : ""}`
     + (onSelect ? " ws-doctile--act" : "");
   const body = (
@@ -137,7 +162,7 @@ function StatTile({
 }
 
 function DocumentsListView() {
-  const { can } = useSession();
+  const { can, identity } = useSession();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [summary, setSummary] = useState<ContractsSummary | null>(null);
@@ -147,6 +172,12 @@ function DocumentsListView() {
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "">("");
   const [sort, setSort] = useState("created_desc");
+  /** AB-12 r3 — "My deals" is every account's default; "Department deals" exists
+   *  only for a holder of `department.view`, and the server scopes the query on
+   *  its own either way. */
+  const [scope, setScope] = useState<ContractScope>("own");
+  /** AB-12 r6 — the shelf, kept apart from the working list. */
+  const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   /** The row whose action menu is open, and the row being edited or deleted.
@@ -165,11 +196,48 @@ function DocumentsListView() {
     top?: number; bottom?: number; right: number; minWidth: number;
   } | null>(null);
   const [editing, setEditing] = useState<Contract | null>(null);
+  /** AB-13 r6 — the companies THIS caller deals with; the server scopes it. */
+  const [companies, setCompanies] = useState<Counterparty[]>([]);
+  const [archiving, setArchiving] = useState<Contract | null>(null);
   const [deleting, setDeleting] = useState<Contract | null>(null);
+  const [transferring, setTransferring] = useState<Contract | null>(null);
+  /** The open menu's own node, and the toggle that opened it — a menu is not
+   *  part of the page's tab ring, so it has to move focus in itself and hand
+   *  focus back when it closes. Before this, opening the menu with the keyboard
+   *  left focus on the toggle and the next Tab went to the FOLLOWING ROW's
+   *  document link (measured 2026-09-08): every item in it was unreachable
+   *  without a pointer. */
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuToggleRef = useRef<HTMLElement | null>(null);
+  /** Which list request is the current one — see `load` below. */
+  const loadSeq = useRef(0);
 
-  function closeMenu() {
+  function closeMenu(restoreFocus = false) {
     setMenuFor(null);
     setMenuPos(null);
+    if (restoreFocus) menuToggleRef.current?.focus();
+  }
+
+  /** Arrows move within the menu and wrap; Tab and Escape close it and return
+   *  focus to the toggle, which is the WAI-ARIA menu-button behaviour. (No
+   *  Home/End: the menu holds three items at most, where both keys are one
+   *  arrow press.) */
+  function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [],
+    );
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "Tab" || event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    const to = event.key === "ArrowDown" ? (at + 1) % items.length
+      : event.key === "ArrowUp" ? (at - 1 + items.length) % items.length
+      : -1;
+    if (to < 0) return;
+    event.preventDefault();
+    items[to]?.focus();
   }
 
   /** Where the portal renders (2026-09-03 fix, owner-reported against the
@@ -206,9 +274,10 @@ function DocumentsListView() {
    *  THIS row's cell width and right edge guarantees full coverage of
    *  whichever row's Action cell the menu ends up floating over. */
   function openMenu(id: string, toggle: HTMLElement) {
+    menuToggleRef.current = toggle;
     const rect = toggle.getBoundingClientRect();
     const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
-    const estimatedHeight = 96; // up to two items (Edit, Delete) plus padding
+    const estimatedHeight = 176; // up to four items (Edit, Transfer, Archive, Delete) plus padding
     const opensAbove = window.innerHeight - rect.bottom < estimatedHeight + 8;
     setMenuPos({
       right: window.innerWidth - rect.right,
@@ -221,6 +290,17 @@ function DocumentsListView() {
   }
 
   const load = useCallback(async () => {
+    // Only the NEWEST request may write to the table (2026-09-08). Every filter,
+    // sort, page and scope change fires a request and none of them cancels the
+    // last, so two were routinely in flight while someone worked the toolbar —
+    // and nothing said they had to come back in order. A slower earlier response
+    // landing second repainted the table with the PREVIOUS filter's rows while
+    // every control still read the new one: a table that quietly disagrees with
+    // the toolbar above it, which on this page means disagreeing about which
+    // contracts need attention.
+    const seq = loadSeq.current + 1;
+    loadSeq.current = seq;
+    const current = () => seq === loadSeq.current;
     setError(null);
     try {
       const result = await api.contracts(page, PAGE_SIZE, {
@@ -228,13 +308,27 @@ function DocumentsListView() {
         contract_type: typeFilter || undefined,
         status: statusFilter || undefined,
         sort,
+        scope,
+        archived: showArchived || undefined,
       });
+      if (!current()) return;
       setContracts(result.items);
       setPagination(result.pagination);
+      // The companies this caller deals with, for the edit dialog's picker.
+      // Best-effort: the list is a convenience, and failing to load it must not
+      // take the whole Dashboard down.
+      try {
+        const companyList = await api.counterparties();
+        if (current()) setCompanies(companyList);
+      } catch {
+        if (current()) setCompanies([]);
+      }
     } catch (cause) {
-      setError(cause);
+      // A superseded request's failure is not this view's failure either: it
+      // would otherwise raise a banner over rows that loaded perfectly well.
+      if (current()) setError(cause);
     }
-  }, [page, q, typeFilter, statusFilter, sort]);
+  }, [page, q, typeFilter, statusFilter, sort, scope, showArchived]);
 
   useEffect(() => {
     void load();
@@ -245,7 +339,7 @@ function DocumentsListView() {
   // the list itself reloads (e.g. right after an upload lands).
   useEffect(() => {
     let cancelled = false;
-    api.contractsSummary().then((s) => {
+    api.contractsSummary(scope).then((s) => {
       if (!cancelled) setSummary(s);
     }).catch(() => {
       // The stat row is a convenience; the table still works without it.
@@ -253,7 +347,7 @@ function DocumentsListView() {
     return () => {
       cancelled = true;
     };
-  }, [contracts]);
+  }, [contracts, scope]);
 
   // Debounce the search box so every keystroke doesn't fire a request.
   useEffect(() => {
@@ -277,6 +371,20 @@ function DocumentsListView() {
   // so a scroll closes it instead of rendering it stale.
   useEffect(() => {
     if (!menuFor) return;
+    // Focus lands on the first item, so the menu is operable by the keyboard
+    // that opened it. Pointer users never notice: the ring is `:focus-visible`.
+    //
+    // `preventScroll` is load-bearing, not tidiness. A plain `focus()` asks the
+    // browser to bring the element into view, and the scroll EVENT that request
+    // produces is dispatched a frame later — by which time the `scroll` listener
+    // below is attached, so the menu closed itself the instant it opened
+    // (caught by `dashboard-list.spec.ts`, whose second case does not
+    // pre-scroll the row). `openMenu` has already placed the menu inside the
+    // viewport, flipping it above the toggle when it would not fit, so there is
+    // nothing to scroll to in the first place.
+    menuRef.current
+      ?.querySelector<HTMLElement>("[role='menuitem']")
+      ?.focus({ preventScroll: true });
     function onPointerDown(event: MouseEvent) {
       if (!(event.target instanceof Element)
           || !event.target.closest(".ws-menu, .ws-menu__list")) {
@@ -284,7 +392,7 @@ function DocumentsListView() {
       }
     }
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") closeMenu();
+      if (event.key === "Escape") closeMenu(true);
     }
     function onScroll(event: Event) {
       if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
@@ -311,9 +419,25 @@ function DocumentsListView() {
 
   const canUpload = can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD);
   const canEdit = can(P.CONTRACT_UPDATE);
-  const canDelete = can(P.CONTRACT_DELETE);
+  const canArchive = can(P.CONTRACT_ARCHIVE);
+  const canTransfer = can(P.CONTRACT_TRANSFER);
+  const canSeeDepartment = can(P.DEPARTMENT_VIEW);
+  /** Writes are owner-only server-side (AB-12): a Lead reading a colleague's
+   *  deal is not offered Edit/Archive on it — Transfer is how they take it on. */
+  const isMine = (contract: Contract) => contract.owner_id === identity?.user_id;
+  /** A genuinely empty ACCOUNT — the only state that may invite a first upload.
+   *
+   *  `showArchived` and `scope` belong in this test and were missing until the
+   *  2026-09-08 audit measured the consequence: switching "Show:" to Archived
+   *  with nothing archived rendered "No contracts yet · Upload your first
+   *  contract" plus the whole five-step explainer to an account holding forty
+   *  contracts. An empty shelf is not an empty account, and neither is a
+   *  department view for someone with no department. */
+  const noFilters = !q && !typeFilter && !statusFilter;
+  /** Rows are already on screen, so whatever just failed was a REFRESH. */
+  const stale = !!contracts && contracts.length > 0;
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
-    && !q && !typeFilter && !statusFilter;
+    && noFilters && !showArchived && scope === "own";
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
 
   /** Send the table to one bucket. Every entry point resets the page — landing
@@ -323,9 +447,9 @@ function DocumentsListView() {
     setPage(1);
   }
 
-  /** Both mutations refetch rather than editing local state: the server owns
-   *  the row, and a soft delete in particular changes what the summary counts
-   *  say. A spliced array would drift from both. */
+  /** Every mutation refetches rather than editing local state: the server owns
+   *  the row, and an archive or a transfer in particular changes what the
+   *  summary counts say. A spliced array would drift from both. */
   async function refresh() {
     closeMenu();
     await load();
@@ -333,11 +457,33 @@ function DocumentsListView() {
 
   return (
     <>
-      <div className="ws-context">
+      <div className="ws-context ws-context--dash">
         <span className="ws-context__icon" aria-hidden="true"><IconFile size={18} /></span>
         <h1>Dashboard</h1>
         {pagination ? (
           <span className="ws-context__meta ws-mono">{pagination.total} total contracts</span>
+        ) : null}
+        {/* The page's primary action, in the page header where the workspace
+            already puts its own (`.ws-context__acts`) — 2026-09-08. It used to
+            hold a row of its own below the header, which spent ~60px of every
+            viewport on one right-aligned button and pushed the table further
+            below the fold on exactly the short laptop (1366×768) where only
+            five rows were visible to begin with. */}
+        {canUpload ? (
+          <>
+            <span className="ws-context__spacer" />
+            <div className="ws-context__acts">
+              <button
+                type="button"
+                className="ws-btn ws-btn--primary"
+                aria-expanded={uploadOpen}
+                aria-controls="ws-upload-panel"
+                onClick={() => setUploadOpen((open) => !open)}
+              >
+                {uploadOpen ? "Close" : "+ Upload Contract"}
+              </button>
+            </div>
+          </>
         ) : null}
       </div>
       <div className="ws-docs ws-docs--index">
@@ -365,24 +511,37 @@ function DocumentsListView() {
           same human-declared type on confirm (owner Q9). Only where it lives
           changed.
         */}
-        {canUpload ? (
-          <div className="ws-dash__act">
-            <button
-              type="button"
-              className="ws-btn ws-btn--primary"
-              aria-expanded={uploadOpen}
-              aria-controls="ws-upload-panel"
-              onClick={() => setUploadOpen((open) => !open)}
-            >
-              {uploadOpen ? "Close" : "+ Upload Contract"}
+        {uploadOpen ? (
+          <section id="ws-upload-panel" className="ws-dash__upload">
+            <UploadContract firstRun={!!firstRun} counterparties={knownCounterparties(contracts)} />
+          </section>
+        ) : null}
+
+        {/* A scope FILTER, not a tablist (2026-09-08). `role="tablist"` promises
+            a `tabpanel` for each tab and arrow-key traversal between them — the
+            workspace's real tabs (Document/Summary/Findings) provide both, and
+            these two never did: they re-query the server and re-render the same
+            one region. Two pressed-state buttons in a labelled group say what
+            this actually is, and stop assistive technology announcing a tab
+            whose panel does not exist. */}
+        {canSeeDepartment ? (
+          <div className="ws-tabs" role="group" aria-label="Which deals">
+            <button type="button" aria-pressed={scope === "own"}
+                    className={`ws-tab ${scope === "own" ? "ws-tab--active" : ""}`}
+                    onClick={() => { setScope("own"); setPage(1); }}>
+              My deals
+            </button>
+            <button type="button" aria-pressed={scope === "department"}
+                    className={`ws-tab ${scope === "department" ? "ws-tab--active" : ""}`}
+                    onClick={() => { setScope("department"); setPage(1); }}>
+              Department deals{identity?.department ? ` · ${identity.department.name}` : ""}
             </button>
           </div>
         ) : null}
-
-        {uploadOpen ? (
-          <section id="ws-upload-panel" className="ws-dash__upload">
-            <UploadContract firstRun={!!firstRun} />
-          </section>
+        {canSeeDepartment && scope === "department" && !identity?.department ? (
+          <p className="ws-pane__note" role="note">
+            Your account is not in a department yet, so this view is empty until an administrator places you in one.
+          </p>
         ) : null}
 
         {summary ? (
@@ -421,10 +580,26 @@ function DocumentsListView() {
           filter. Nothing that was reachable before is unreachable now.
         */}
 
+        {/* Two different failures, and they were telling the same story
+            (2026-09-08 audit measured "Documents could not be loaded" sitting
+            above twenty-five perfectly good rows). If rows are already on
+            screen, the request that failed was a REFRESH: the table is real,
+            just not current, and saying otherwise teaches the reader to
+            distrust a correct table. With no rows to show, the original
+            message is the right one. */}
         {error ? (
-          <div className="ws-state ws-state--error" role="alert">
-            <h2>Documents could not be loaded.</h2>
-            <p>{describeError(error)}</p>
+          <div className={`ws-state ws-state--${stale ? "warn" : "error"}`} role="alert">
+            <h2>
+              {stale ? "These results could not be refreshed."
+                : "Documents could not be loaded."}
+            </h2>
+            <p>
+              {describeError(error)}
+              {stale ? " The rows below are the last ones loaded successfully." : ""}
+            </p>
+            <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
+              Try again
+            </button>
           </div>
         ) : null}
 
@@ -467,6 +642,14 @@ function DocumentsListView() {
             </select>
           </label>
           <label className="ws-doctoolbar__select">
+            <span className="ws-visually-hidden">Active or archived</span>
+            <select value={showArchived ? "archived" : "active"}
+                    onChange={(event) => { setShowArchived(event.target.value === "archived"); setPage(1); }}>
+              <option value="active">Show: Active</option>
+              <option value="archived">Show: Archived</option>
+            </select>
+          </label>
+          <label className="ws-doctoolbar__select">
             <span className="ws-visually-hidden">Sort</span>
             <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
               <option value="created_desc">Sort: Recently Added</option>
@@ -482,7 +665,14 @@ function DocumentsListView() {
             <p className="ws-visually-hidden" role="status" aria-live="polite">
               Loading documents…
             </p>
-            {[0, 1, 2].map((row) => (
+            {/* The column header is part of the loading state, not something
+                that appears afterwards (2026-09-08): rendering the skeleton
+                without it moved every row down by the header's height the
+                instant data landed — a layout shift on the page's first paint,
+                every visit. Six skeleton rows also hold roughly the height a
+                full page of results occupies, so the card does not jump size. */}
+            <table aria-hidden="true"><thead><TableHead /></thead></table>
+            {[0, 1, 2, 3, 4, 5].map((row) => (
               <div key={row} className="ws-docs__skel" aria-hidden="true">
                 <span className="ws-skel ws-skel--line" style={{ width: "40%" }} />
                 <span className="ws-skel ws-skel--line" style={{ width: "12%" }} />
@@ -495,20 +685,15 @@ function DocumentsListView() {
         {contracts ? (
           <div className="ws-docs__table">
             <table>
-              <thead>
-                <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Findings</th>
-                  <th scope="col">Last Analyzed</th>
-                  <th scope="col">Added</th>
-                  <th scope="col">Action</th>
-                </tr>
-              </thead>
+              <thead><TableHead /></thead>
               <tbody>
                 {contracts.map((contract) => {
                   const bucket = documentStatusBucket(contract);
+                  // One word, used as both the visible label and the head of the
+                  // accessible name — written twice, they drifted immediately.
+                  const verb = contract.archived_at ? "View"
+                    : bucket === "draft" ? "Analyze"
+                    : bucket === "analyzing" ? "View Progress" : "Review";
                   return (
                     <tr key={contract.id} className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
                       <td>
@@ -524,8 +709,23 @@ function DocumentsListView() {
                           <IconFile size={15} />
                           <span className="ws-doc-name__text">{contract.name}</span>
                         </Link>
+                        {scope === "department" && contract.owner_name ? (
+                          <div className="ws-pane__note">{contract.owner_name}</div>
+                        ) : null}
+                        {contract.archived_at ? (
+                          <div className="ws-pane__note">Archived {contract.archived_at.slice(0, 10)}</div>
+                        ) : null}
                       </td>
-                      <td>
+                      {/* `data-label` is what the narrow-viewport card layout
+                          renders as each value's own label (see `ws-docs--index`
+                          under 900px in workspace.css). Below that width the
+                          seven-column row cannot hold its columns — measured
+                          777px of table inside a 320px viewport, which put the
+                          row's own "Review" link and ⋯ menu at x=657–778, off
+                          screen behind a nested scroller nobody discovers. The
+                          same cells, labelled, stack into a card instead: every
+                          value still present, every control reachable. */}
+                      <td data-label="Type">
                         {contract.contract_type ? (
                           <span className="ws-chip ws-chip--type" title={documentTypeLabel(contract.contract_type)}>
                             {contract.contract_type}
@@ -534,22 +734,36 @@ function DocumentsListView() {
                           <span className="ws-chip">not declared</span>
                         )}
                       </td>
-                      <td><StatusPill contract={contract} /></td>
-                      <td><FindingsCell contract={contract} /></td>
-                      <td className="ws-mono">
+                      <td data-label="Status"><StatusPill contract={contract} /></td>
+                      <td data-label="Findings"><FindingsCell contract={contract} /></td>
+                      <td className="ws-mono" data-label="Last analyzed">
                         {bucket === "analyzing" ? "In progress"
                           : relativeTime(contract.latest_analysis?.completed_at ?? null)}
                       </td>
-                      <td className="ws-mono">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
+                      <td className="ws-mono" data-label="Added">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
                       <td>
                         <div className="ws-rowact">
                           {/* A per-row action reads better as a link than a
                               repeated solid button (2026-09-02) — the page's
                               one true `.btn--primary` stays "+ Upload
                               Contract" in the header above. */}
-                          <Link href={`/dashboard?id=${contract.id}`} className="ws-btn ws-btn--sm ws-btn--link">
-                            {bucket === "draft" ? "Analyze"
-                              : bucket === "analyzing" ? "View Progress" : "Review"}
+                          {/* The visible word stays short; the ACCESSIBLE name
+                              carries the contract (2026-09-08). Twenty-five
+                              links all announcing "Review, link" gave a screen
+                              reader no way to tell one row's action from
+                              another's — the same reason the ⋯ toggle already
+                              names its contract.
+
+                              An archived contract reads "View": it is
+                              read-only server-side (AB-12 r6), so offering
+                              "Analyze" on it advertised an operation the
+                              server refuses. */}
+                          <Link
+                            href={`/dashboard?id=${contract.id}`}
+                            className="ws-btn ws-btn--sm ws-btn--link"
+                            aria-label={`${verb} ${contract.name}`}
+                          >
+                            {verb}
                             <IconChevronRight size={13} aria-hidden="true" />
                           </Link>
                           {/* Only the operations this caller actually has. An
@@ -557,7 +771,9 @@ function DocumentsListView() {
                               the account does not carry; hiding it says the
                               truth. The server re-checks regardless — this
                               gating is presentation only (47.6). */}
-                          {canEdit || canDelete ? (
+                          {(canEdit && isMine(contract)) || (canArchive && isMine(contract)) || canTransfer ? (
+                            // canArchive also gates Delete below (AM-55): the
+                            // same owner-scoped write capability covers both.
                             <div className="ws-menu">
                               <button
                                 type="button"
@@ -574,8 +790,11 @@ function DocumentsListView() {
                               {menuFor === contract.id && menuPos
                                 ? createPortal(
                                   <div
+                                    ref={menuRef}
                                     className="ws-menu__list"
                                     role="menu"
+                                    aria-orientation="vertical"
+                                    onKeyDown={onMenuKeyDown}
                                     style={{
                                       position: "fixed",
                                       right: menuPos.right,
@@ -584,7 +803,7 @@ function DocumentsListView() {
                                       minWidth: menuPos.minWidth,
                                     }}
                                   >
-                                    {canEdit ? (
+                                    {canEdit && isMine(contract) && !contract.archived_at ? (
                                       <button type="button" role="menuitem"
                                               className="ws-menu__item"
                                               onClick={() => {
@@ -594,14 +813,44 @@ function DocumentsListView() {
                                         Edit details
                                       </button>
                                     ) : null}
-                                    {canDelete ? (
+                                    {canTransfer && !contract.archived_at ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item"
+                                              onClick={() => {
+                                                closeMenu();
+                                                setTransferring(contract);
+                                              }}>
+                                        Transfer ownership
+                                      </button>
+                                    ) : null}
+                                    {canArchive && isMine(contract) && !contract.archived_at ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item ws-menu__item--bad"
+                                              onClick={() => {
+                                                closeMenu();
+                                                setArchiving(contract);
+                                              }}>
+                                        Archive
+                                      </button>
+                                    ) : null}
+                                    {canArchive && isMine(contract) && contract.archived_at ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item"
+                                              onClick={() => {
+                                                closeMenu();
+                                                void api.restoreContract(contract.id).then(refresh).catch(setError);
+                                              }}>
+                                        Restore
+                                      </button>
+                                    ) : null}
+                                    {canArchive && isMine(contract) ? (
                                       <button type="button" role="menuitem"
                                               className="ws-menu__item ws-menu__item--bad"
                                               onClick={() => {
                                                 closeMenu();
                                                 setDeleting(contract);
                                               }}>
-                                        Delete
+                                        Delete permanently
                                       </button>
                                     ) : null}
                                   </div>,
@@ -640,6 +889,31 @@ function DocumentsListView() {
                       onClick={() => setUploadOpen(true)}
                     >
                       Upload your first contract
+                    </button>
+                  ) : null}
+                </div>
+              ) : noFilters ? (
+                /* An empty VIEW, not an empty account (2026-09-08): the shelf
+                   holds nothing, or this department's members own nothing yet.
+                   Either way the reader has contracts, so neither the first-run
+                   invitation nor a "clear your filters" dead end is true. */
+                <div className="ws-docempty">
+                  <span className="ws-docempty__mark" aria-hidden="true">
+                    <IconFile size={22} />
+                  </span>
+                  <h2>{showArchived ? "Nothing archived" : "No deals in this view yet"}</h2>
+                  <p>
+                    {showArchived
+                      ? "A contract you archive is kept here — read-only, with its versions, findings and history — and can be restored at any time."
+                      : "Deals owned by the other people in your department appear here as they are added."}
+                  </p>
+                  {showArchived ? (
+                    <button
+                      type="button"
+                      className="ws-btn"
+                      onClick={() => { setShowArchived(false); setPage(1); }}
+                    >
+                      Back to active contracts
                     </button>
                   ) : null}
                 </div>
@@ -683,7 +957,10 @@ function DocumentsListView() {
 
         {pagination && pagination.total > 0 ? (
           <nav className="ws-pager" aria-label="Pagination">
-            <span className="ws-pane__note">
+            {/* Announced (2026-09-08): paging is a keyboard-and-screen-reader
+                operation whose only feedback was the table's own contents
+                changing silently below the fold. */}
+            <span className="ws-pane__note" role="status" aria-live="polite">
               Showing {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.page_size + 1}
               {" "}to {Math.min(pagination.page * pagination.page_size, pagination.total)} of {pagination.total} contracts
             </span>
@@ -738,16 +1015,32 @@ function DocumentsListView() {
       {editing ? (
         <EditContractDialog
           contract={editing}
+          counterparties={knownCounterparties(contracts)}
+          companies={companies}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void refresh(); }}
         />
       ) : null}
 
+      {archiving ? (
+        <ArchiveContractDialog
+          contract={archiving}
+          onClose={() => setArchiving(null)}
+          onArchived={() => { setArchiving(null); void refresh(); }}
+        />
+      ) : null}
       {deleting ? (
         <DeleteContractDialog
           contract={deleting}
           onClose={() => setDeleting(null)}
           onDeleted={() => { setDeleting(null); void refresh(); }}
+        />
+      ) : null}
+      {transferring ? (
+        <TransferContractDialog
+          contract={transferring}
+          onClose={() => setTransferring(null)}
+          onTransferred={() => { setTransferring(null); void refresh(); }}
         />
       ) : null}
     </>
@@ -765,12 +1058,31 @@ function DocumentsListView() {
  * Company Standard the contract is measured against.
  */
 function EditContractDialog({
-  contract, onClose, onSaved,
-}: { contract: Contract; onClose: () => void; onSaved: () => void }) {
+  contract, counterparties, companies, onClose, onSaved,
+}: {
+  contract: Contract; counterparties: string[]; companies: Counterparty[];
+  onClose: () => void; onSaved: () => void;
+}) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const [name, setName] = useState(contract.name);
   const [type, setType] = useState(contract.contract_type ?? "");
+  // P-1 (2026-09-06): Step 2's Draft / Active / Superseded, declared here and
+  // nowhere else — never inferred from a date or a version.
+  const [status, setStatus] = useState(contract.status);
+  // AB-13 r2 — who this deal is WITH. "" is unlinked; NEW opens a name field.
+  // This is the identity; the per-version free text below stays the frozen
+  // declaration (r7) and the two answer different questions.
+  const [companyId, setCompanyId] = useState(contract.counterparty_id ?? "");
+  const [newCompany, setNewCompany] = useState("");
+  // The latest version's declared facts (2026-09-06). `frozen` is PRESENTATION
+  // only (rule 18): the server refuses the write once a Review exists whatever
+  // the client shows; disabling the fields just says so before the attempt.
+  const latest = contract.latest_version ?? null;
+  const frozen = !!contract.latest_analysis;
+  const [source, setSource] = useState(latest?.source ?? "");
+  const [counterparty, setCounterparty] = useState(latest?.counterparty ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(latest?.effective_date ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -786,10 +1098,40 @@ function EditContractDialog({
     setSaving(true);
     setError(null);
     try {
+      // A brand-new company is created first, then linked in the same save —
+      // one gesture for the reader, two calls because identity must exist
+      // before anything can point at it.
+      let linkId: string | null | undefined;
+      if (companyId === "NEW" && newCompany.trim()) {
+        linkId = (await api.createCounterparty({ name: newCompany.trim() })).id;
+      } else if (companyId !== "NEW") {
+        linkId = companyId || null;
+      }
+      const typeChanged = (type || null) !== (contract.contract_type ?? null);
       await api.updateContract(contract.id, {
         name: name.trim(),
         contract_type: type || null,
+        ...(status !== contract.status ? { status } : {}),
+        ...(linkId !== undefined && linkId !== (contract.counterparty_id ?? null)
+          ? { counterparty_id: linkId }
+          : {}),
       });
+      // Only what changed, and only while the server will take it. A field
+      // emptied by the reader is sent as null so it is cleared, not kept.
+      if (latest && !frozen) {
+        const declared: Record<string, string | null> = {};
+        if ((latest.source ?? "") !== source) declared.source = source || null;
+        if ((latest.counterparty ?? "") !== counterparty.trim()) {
+          declared.counterparty = counterparty.trim() || null;
+        }
+        if ((latest.effective_date ?? "") !== effectiveDate) {
+          declared.effective_date = effectiveDate || null;
+        }
+        if (Object.keys(declared).length > 0) await api.declareVersion(latest.id, declared);
+      }
+      // A newly declared type is the human act analysis was waiting for (AM-50):
+      // run it now, best-effort, rather than telling the reader it will not.
+      if (typeChanged && type) await chainAnalysis(contract.id, true);
       onSaved();
     } catch (cause) {
       setError(cause);
@@ -797,10 +1139,13 @@ function EditContractDialog({
     }
   }
 
+  /* No scrim-click dismissal on THIS dialog (2026-09-08), unlike the two
+     confirmations below. It is a form: a stray click beside it discarded a
+     half-typed name, a corrected document type and three declared version
+     facts with no warning and no undo. Escape and Cancel are both still here,
+     and both are deliberate gestures. */
   return (
-    <div className="ws-modal" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
+    <div className="ws-modal">
       <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
            aria-labelledby="ws-edit-title" tabIndex={-1}
            onKeyDown={(e) => {
@@ -823,9 +1168,78 @@ function EditContractDialog({
             </select>
             <span className="ws-field__help">
               The type selects which approved standard this contract is measured
-              against. Changing it does not re-run an analysis already on record.
+              against. Changing it runs a fresh analysis; earlier ones stay on record.
             </span>
           </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Status</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              {CONTRACT_STATUSES.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <span className="ws-field__help">
+              Where this contract stands — being negotiated, in force, or replaced.
+              Declared by you; recorded on the audit trail.
+            </span>
+          </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Company (counterparty)</span>
+            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <option value="">Not linked</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              <option value="NEW">+ Add a new company…</option>
+            </select>
+            {companyId === "NEW" ? (
+              <input
+                aria-label="New company name"
+                placeholder="Company name"
+                maxLength={500}
+                value={newCompany}
+                onChange={(e) => setNewCompany(e.target.value)}
+              />
+            ) : null}
+            <span className="ws-field__help">
+              Linking a deal to a company is what groups its documents together —
+              the NDA, the MSA and their revisions in one place.
+            </span>
+          </label>
+          {latest ? (
+            <>
+              <label className="ws-field">
+                <span className="ws-field__label">Source</span>
+                <select value={source} disabled={frozen}
+                        onChange={(e) => setSource(e.target.value)}>
+                  <option value="">Not declared</option>
+                  {DOCUMENT_SOURCES.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="ws-field">
+                <span className="ws-field__label">Counterparty</span>
+                <input list="ws-counterparties-edit" maxLength={500} value={counterparty}
+                       disabled={frozen} onChange={(e) => setCounterparty(e.target.value)} />
+                <datalist id="ws-counterparties-edit">
+                  {counterparties.map((known) => <option key={known} value={known} />)}
+                </datalist>
+              </label>
+              <label className="ws-field">
+                <span className="ws-field__label">Effective date</span>
+                <input type="date" value={effectiveDate} disabled={frozen}
+                       onChange={(e) => setEffectiveDate(e.target.value)} />
+                <span className="ws-field__help">
+                  {frozen
+                    ? <>These describe version {latest.version_number}, which has been
+                        analysed, so they are fixed. Upload a new version to change them.</>
+                    : <>These describe version {latest.version_number}. Declared by you,
+                        never read from the document.</>}
+                </span>
+              </label>
+            </>
+          ) : null}
           {error ? (
             <p className="ws-field__error" role="alert">{describeError(error)}</p>
           ) : null}
@@ -843,14 +1257,79 @@ function EditContractDialog({
 }
 
 /**
- * Delete confirmation — the one modal shape DESIGN.md names outright, because a
- * destructive act is a genuine interruption.
+ * Archive confirmation — the one modal shape DESIGN.md names outright, because
+ * taking a deal off the working list is a genuine interruption.
  *
- * The copy differs by whether the contract has been analyzed, because the
- * server's behaviour differs: an unanalyzed contract is destroyed, an analyzed
- * one is withdrawn from view while its findings and audit trail are kept
- * (rule 17). Saying "permanently deleted" in both cases would be a lie in one
- * of them, and it is the case involving legal records.
+ * One message, always true (AB-12 r6): nothing is destroyed. The document, its
+ * versions, findings and audit trail stay; the contract becomes read-only and
+ * leaves the active list, and can be restored. There is no branch on whether
+ * the contract was analysed, because the server no longer has one either.
+ */
+function ArchiveContractDialog({
+  contract, onClose, onArchived,
+}: { contract: Contract; onClose: () => void; onArchived: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, []);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.archiveContract(contract.id);
+      onArchived();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-arc-title" tabIndex={-1}
+           onKeyDown={(e) => {
+             if (e.key === "Escape") onClose();
+             e.stopPropagation();
+           }}>
+        <h2 id="ws-arc-title">Archive this contract?</h2>
+        <p className="ws-modal__body">
+          <strong>{contract.name}</strong>
+        </p>
+        <p className="ws-modal__body">
+          It leaves your active deals and becomes read-only. The document, every version, the findings and
+          the history are kept, and you can restore it from the archived view at any time.
+        </p>
+        {error ? (
+          <p className="ws-field__error" role="alert">{describeError(error)}</p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="ws-btn ws-btn--bad"
+                  disabled={busy} onClick={() => void confirm()}>
+            {busy ? "Archiving…" : "Archive"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Delete confirmation — AM-55. Same modal shape as Archive, deliberately: the
+ * interruption is the same weight, the consequence is not. Unlike Archive,
+ * this destroys the document, every version, its Reviews, Findings,
+ * Evaluations and Legal Decisions, with no restore surface.
  */
 function DeleteContractDialog({
   contract, onClose, onDeleted,
@@ -866,11 +1345,6 @@ function DeleteContractDialog({
     dialogRef.current?.focus();
     return () => restoreRef.current?.focus();
   }, []);
-
-  // Analyzed exactly as the row's own status reports it — not a second opinion
-  // computed here (52.7). Whether the server hard- or soft-deletes follows the
-  // same fact, so the warning and the outcome cannot disagree.
-  const analyzed = contract.latest_analysis != null;
 
   async function confirm() {
     setBusy(true);
@@ -894,14 +1368,13 @@ function DeleteContractDialog({
              if (e.key === "Escape") onClose();
              e.stopPropagation();
            }}>
-        <h2 id="ws-del-title">Delete this contract?</h2>
+        <h2 id="ws-del-title">Delete this contract permanently?</h2>
         <p className="ws-modal__body">
           <strong>{contract.name}</strong>
         </p>
         <p className="ws-modal__body">
-          {analyzed
-            ? "It has an analysis on record, so it will be removed from your workspace while its findings, decisions and audit history are retained."
-            : "It has not been analyzed, so the contract and the file you uploaded will be permanently removed."}
+          This cannot be undone. The document, every version, and any findings, evaluations and
+          legal decisions on it are destroyed. If you may want this back, archive it instead.
         </p>
         {error ? (
           <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -910,7 +1383,112 @@ function DeleteContractDialog({
           <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
           <button type="button" className="ws-btn ws-btn--bad"
                   disabled={busy} onClick={() => void confirm()}>
-            {busy ? "Deleting…" : "Delete"}
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ownership transfer — AB-12 r5. The Department Lead's coverage tool: a deal
+ * moves to a colleague in the same department, with a reason the audit trail
+ * keeps. The server decides who is eligible (`/departments/mine/members`) and
+ * enforces the boundary again on submit; this dialog only collects the choice.
+ */
+function TransferContractDialog({
+  contract, onClose, onTransferred,
+}: { contract: Contract; onClose: () => void; onTransferred: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const [members, setMembers] = useState<DepartmentMembers | null>(null);
+  const [newOwnerId, setNewOwnerId] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    api.departmentMembers().then(setMembers).catch(setError);
+  }, []);
+
+  const eligible = (members?.members ?? []).filter((m) => m.id !== contract.owner_id);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.transferContract(contract.id, newOwnerId, reason.trim());
+      onTransferred();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-xfer-title" tabIndex={-1}
+           onKeyDown={(e) => {
+             if (e.key === "Escape") onClose();
+             e.stopPropagation();
+           }}>
+        <h2 id="ws-xfer-title">Transfer this contract?</h2>
+        <p className="ws-modal__body">
+          <strong>{contract.name}</strong>
+          {contract.owner_name ? <> — currently with {contract.owner_name}</> : null}
+        </p>
+        <p className="ws-modal__body">
+          The new owner takes over the document, its versions, findings and history. Private questions the
+          previous owner asked stay theirs.
+        </p>
+        {members && members.department === null ? (
+          <p className="ws-field__error" role="alert">
+            Your account is not in a department, so there is nobody to transfer to.
+          </p>
+        ) : null}
+        {/* A department of one (2026-09-08). Without this the reader got a
+            select holding nothing but its own placeholder and a permanently
+            disabled Transfer button, with no statement of why. */}
+        {members && members.department !== null && eligible.length === 0 ? (
+          <p className="ws-field__error" role="alert">
+            You are the only member of {members.department.name}, so there is nobody
+            to transfer this to yet.
+          </p>
+        ) : null}
+        <label className="ws-field">
+          <span className="ws-field__label">New owner</span>
+          <select value={newOwnerId} onChange={(e) => setNewOwnerId(e.target.value)}
+                  disabled={busy || !members}>
+            <option value="">Choose a colleague…</option>
+            {eligible.map((m) => (
+              <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+            ))}
+          </select>
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Reason <span className="ws-field__req">(required)</span></span>
+          <input value={reason} onChange={(e) => setReason(e.target.value)}
+                 placeholder="e.g. Aman is on leave for two weeks" disabled={busy} />
+        </label>
+        {error ? (
+          <p className="ws-field__error" role="alert">{describeError(error)}</p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="ws-btn ws-btn--primary"
+                  disabled={busy || !newOwnerId || !reason.trim()} onClick={() => void confirm()}>
+            {busy ? "Transferring…" : "Transfer"}
           </button>
         </div>
       </div>

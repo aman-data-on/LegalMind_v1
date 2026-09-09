@@ -26,6 +26,7 @@ from tests.conftest import (
     make_review_for,
     make_user,
     sign_in,
+    without_legal_position,
 )
 
 V1 = "/api/v1"
@@ -100,11 +101,13 @@ def test_export_rejects_an_unknown_format(api, db, seeded, requirement_version):
 
 def test_export_omits_legal_position_fields_without_the_permission(
         api, db, seeded, requirement_version):
-    """LEGAL-02 in the file exactly as on the wire: a plain USER (no
-    ``legal_position.view``) exports a file with the Company Standard value and
-    rule outcome ABSENT — not blanked, not placeholdered."""
+    """LEGAL-02 in the file exactly as on the wire: an account without
+    ``legal_position.view`` exports a file with the Company Standard value and
+    rule outcome ABSENT — not blanked, not placeholdered. (A Department User
+    holds the grant since AB-12 r7, so it is removed here to exercise the gate.)"""
     owner = make_user(db)
     grant_role(db, owner, P.ROLE_USER)
+    without_legal_position(db, owner)
     review = _analysed_review(db, owner, requirement_version)
     sign_in(api, db, owner)
     text = _docx_text(api.post(f"{V1}/reviews/{review.id}/export",

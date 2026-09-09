@@ -138,14 +138,29 @@ def test_search_finds_a_position_by_its_own_words(db, user, ratified_dir):
     assert hits[0].score > 0
 
 
-def test_without_configuration_view_the_result_is_an_empty_corpus(db, user,
-                                                                  ratified_dir):
+def test_without_a_position_permission_the_result_is_an_empty_corpus(db, user,
+                                                                     ratified_dir):
+    """`AM-32` r5 as amended by `AM-44`: assist.ask AND (configuration.view OR
+    legal_position.view). Anything less is an empty corpus."""
     _indexed(db, user, ratified_dir)
     for perms in (frozenset({P.ASSIST_ASK}),
                   frozenset({P.CONFIGURATION_VIEW}),
+                  frozenset({P.LEGAL_POSITION_VIEW}),
                   frozenset()):
         assert positions.search_positions(db, query="widget handling care",
                                           permissions=perms) == []
+
+
+def test_a_department_user_with_legal_position_view_reaches_positions(db, user,
+                                                                       ratified_dir):
+    """AB-12 r7 grants a Department User legal_position.view so they can see WHY a
+    Finding is what it is — the standard. `AM-44` lets them retrieve that same
+    published standard by asking for it."""
+    _indexed(db, user, ratified_dir)
+    hits = positions.search_positions(
+        db, query="widget handling care",
+        permissions=frozenset({P.ASSIST_ASK, P.LEGAL_POSITION_VIEW}))
+    assert hits and hits[0].standard_code == "TESTPOS-MSA-001"
 
 
 def test_the_refusal_shape_is_byte_identical_to_a_genuine_miss(db, user,

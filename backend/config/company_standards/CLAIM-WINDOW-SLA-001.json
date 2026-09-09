@@ -6,14 +6,32 @@
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
+  "_reconciliation": [
+    "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
+    "positions (owner ruling 2026-09-08). Constitution \u00a711: 'Credit claims must be submitted",
+    "within 30 days of the incident'; Acceptable Position: 'the 10/25/50 schedule, sole-remedy",
+    "language, and 30-day claim window'. The live SLA's sixty (60) days states the document, not",
+    "the position. Previous source and configuration preserved in `_history`.",
+    "Consequence: the live SLA clause now evaluates as a DEVIATION (fixture CLS-CLAIM-WINDOW-SLA-001)."
+  ],
+  "_history": [
+    {
+      "reconciled": "2026-09-08",
+      "source_document": "Leapswitch Service Level Agreement (dedicated server) \u2014 SLA-leapswitch.pdf",
+      "source_clause": "How to Request a Service Credit, paragraph 1",
+      "source_quote": "you must submit a support request within sixty (60) calendar days following the incident you believe warrants such a credit",
+      "configuration_before": {"document_type": "SLA", "preferred": 60, "unit": "DAYS", "basis": "SERVICE_CREDIT_CLAIM_WINDOW", "scope_key": "GENERAL"}
+    }
+  ],
   "requirement_code": "CLAIM-WINDOW-SLA-001",
+  "description": "A customer must submit a service-credit claim within a set number of days after the incident.",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Service Level Agreement (dedicated server) \u2014 SLA-leapswitch.pdf",
-  "source_clause": "How to Request a Service Credit, paragraph 1",
-  "source_quote": "you must submit a support request within sixty (60) calendar days following the incident you believe warrants such a credit",
+  "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+  "source_clause": "\u00a711 SLA / Service Levels \u2014 Company Position",
+  "source_quote": "Credit claims must be submitted within 30 days of the incident.",
   "configuration": {
     "document_type": "SLA",
-    "preferred": 60,
+    "preferred": 30,
     "unit": "DAYS",
     "basis": "SERVICE_CREDIT_CLAIM_WINDOW",
     "scope_key": "GENERAL",

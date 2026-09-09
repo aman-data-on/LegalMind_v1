@@ -62,11 +62,13 @@
  * exactly that (`AI-03` item 16, rule 12).
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
+import { classificationLabel } from "@/lib/labels";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import type { AskResult, ConversationTurn } from "@/lib/types";
+import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, ConversationTurn } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
 import { useHighlight } from "./highlight";
@@ -102,9 +104,11 @@ export function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
         answer_state: message.answer_state ?? "ANSWERED",
         text: message.content,
         routed_to_evaluator: message.routed_to_evaluator,
-        document_version_id: message.document_version_id ?? "",
-        version_number: message.version_number ?? 0,
+        document_version_id: message.document_version_id ?? null,
+        version_number: message.version_number ?? null,
         citations: message.citations,
+        positions: message.positions ?? [],
+        statutes: message.statutes ?? null,
       };
       last.versionNumber = message.version_number;
       last.documentVersionId = message.document_version_id;
@@ -120,10 +124,12 @@ export function AskDock({
   isLatest,
   onOpenVersion,
 }: {
-  contractId: string;
+  /** Null on the Research surface: a document-less conversation answered from the
+   *  approved statute corpus and positions (2026-09-08). */
+  contractId: string | null;
   /** The version on screen — what a question is about. */
-  documentVersionId: string;
-  versionNumber: number;
+  documentVersionId: string | null;
+  versionNumber: number | null;
   /** Whether the open version is the newest; used for the header's wording only. */
   isLatest: boolean;
   /** Open another version — for a citation belonging to a different one. */
@@ -149,6 +155,7 @@ export function AskDock({
     let cancelled = false;
     (async () => {
       try {
+        if (!contractId) return;
         const { items } = await api.conversations({ contract_id: contractId, page_size: 1 });
         const latest = items[0];
         if (!latest || cancelled) return;
@@ -238,7 +245,7 @@ export function AskDock({
       }
       // The version on screen is the version asked about — never "whichever is
       // newest". This is the fix; everything else here is presentation.
-      const result = await api.ask(conversationRef.current, asked, documentVersionId);
+      const result = await api.ask(conversationRef.current, asked, documentVersionId ?? undefined);
       setTurns((previous) => [...previous, {
         question: asked,
         result,
@@ -313,8 +320,14 @@ export function AskDock({
         {/* Which document a question will be answered about — stated, never
             assumed. Naming the version is what replaced disabling the input. */}
         <p className="ws-dock__scope">
-          Answers are about <strong>Version {versionNumber}</strong>
-          {isLatest ? " (latest)" : ", the version you are reading"}.
+          {contractId ? (
+            <>
+              Answers are about <strong>Version {versionNumber}</strong>
+              {isLatest ? " (latest)" : ", the version you are reading"}.
+            </>
+          ) : (
+            <>Answers come from the <strong>approved statute corpus</strong> and the organization&rsquo;s approved positions — cited by Act and section.</>
+          )}
         </p>
 
         <div className="ws-dock__log" ref={logRef} tabIndex={-1}>
@@ -337,7 +350,8 @@ export function AskDock({
                     ) : null}
                     <WsAnswerView
                       result={turn.result}
-                      openVersionNumber={versionNumber}
+                      contractId={contractId ?? undefined}
+                      openVersionNumber={versionNumber ?? undefined}
                       onOpenVersion={onOpenVersion}
                     />
                   </>
@@ -351,7 +365,7 @@ export function AskDock({
                 </p>
                 <div className="ws-ask__answer" aria-busy="true">
                   <p className="ws-pane__note" role="status" aria-live="polite">
-                    Searching the document and checking citations…
+                    Looking this up and checking citations…
                   </p>
                   <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
                   <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
@@ -442,8 +456,11 @@ export function WsAnswerView({
   result,
   openVersionNumber,
   onOpenVersion,
+  contractId,
 }: {
   result: AskResult;
+  /** Lets the comparison handoff link to the Findings — a control, not prose. */
+  contractId?: string | undefined;
   /** The version the document pane is showing, if the caller knows it. */
   openVersionNumber?: number | undefined;
   onOpenVersion?: ((documentVersionId: string) => void) | undefined;
@@ -453,8 +470,11 @@ export function WsAnswerView({
   if (result.routed_to_evaluator) {
     return (
       <div className="ws-ask__answer ws-ask__answer--routed" data-state={result.answer_state}>
-        <p className="ws-ask__routed-label">Not answered here</p>
+        <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
         <p>{result.text}</p>
+        <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
+        <PositionsSection positions={result.positions ?? []} />
+        <StatutesSection statutes={result.statutes ?? null} />
       </div>
     );
   }
@@ -474,6 +494,7 @@ export function WsAnswerView({
    * open the version the answer actually read — instead. */
   const elsewhere =
     openVersionNumber !== undefined &&
+    result.version_number !== null &&
     result.version_number > 0 &&
     result.version_number !== openVersionNumber;
 
@@ -488,7 +509,7 @@ export function WsAnswerView({
                 <button
                   type="button"
                   className="ws-ask__cite"
-                  onClick={() => onOpenVersion?.(result.document_version_id)}
+                  onClick={() => result.document_version_id && onOpenVersion?.(result.document_version_id)}
                   disabled={!onOpenVersion}
                   data-evidence-id={citation.evidence_id}
                   data-other-version={result.version_number}
@@ -513,12 +534,100 @@ export function WsAnswerView({
                 </button>
               )}
               <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>
-              {citation.retrieval_score != null ? (
-                <span className="ws-ask__score ws-mono">retrieval score {citation.retrieval_score.toFixed(3)}</span>
-              ) : null}
             </li>
           ))}
         </ol>
+      ) : null}
+      <PositionsSection positions={result.positions ?? []} />
+      <StatutesSection statutes={result.statutes ?? null} />
+    </div>
+  );
+}
+
+/** Domain C — the statute answer, generated over statute evidence only and cited
+ *  Act + section (`AM-32` r7). Its own section, never merged with document text. */
+export function StatutesSection({ statutes }: { statutes: AssistStatuteAnswer | null }) {
+  if (!statutes || statutes.citations.length === 0) return null;
+  return (
+    <section className="ws-ask__statutes" aria-label="From the approved statute corpus">
+      <p className="ws-ask__routed-label">Applicable law — from the approved statute corpus</p>
+      {statutes.text ? <p className="ws-ask__text">{statutes.text}</p> : null}
+      <ol className="ws-ask__citations">
+        {statutes.citations.map((c, index) => (
+          <li key={c.statute_chunk_id} className="ws-ask__citation">
+            <span className="ws-ask__cite ws-ask__cite--static">
+              <span className="ws-mono">[{index + 1}]</span> {c.citation}
+              {c.marginal_note ? ` — ${c.marginal_note}` : ""}
+            </span>
+            <blockquote className="ws-ask__excerpt">{c.excerpt}</blockquote>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** Domain A — the organization's ratified position, quoted verbatim with its own
+ *  citation grammar (standard code · source clause), in its own section so it is
+ *  never mistaken for document evidence (`AM-32` r1/r4). Says what it is, in words. */
+export function PositionsSection({ positions }: { positions: AssistPosition[] }) {
+  if (positions.length === 0) return null;
+  return (
+    <section className="ws-ask__positions" aria-label="Approved position">
+      <p className="ws-ask__routed-label">Approved position — quoted from the ratified standard</p>
+      <ol className="ws-ask__citations">
+        {positions.map((position) => (
+          <li key={position.position_chunk_id} className="ws-ask__citation">
+            <span className="ws-ask__cite ws-ask__cite--static">
+              <span className="ws-mono">{position.standard_code}</span>
+              {position.source_clause ? ` · ${position.source_clause}` : ""}
+              {` · ${position.document_type}`}
+            </span>
+            <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** The evaluator handoff: the Review that holds the deterministic comparison, with
+ *  its Finding counts labelled in words (never colour alone), and a real link. */
+export function ComparisonHandoff({
+  comparison,
+  contractId,
+}: {
+  comparison: AssistComparison | null;
+  contractId?: string | undefined;
+}) {
+  if (!comparison) {
+    return contractId ? (
+      <p className="ws-ask__handoff">
+        <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contractId}`}>
+          Open the document to run analysis
+        </Link>
+      </p>
+    ) : null;
+  }
+  const entries = Object.entries(comparison.findings_by_classification).sort();
+  return (
+    <div className="ws-ask__handoff">
+      <ul className="ws-ask__counts" aria-label="Findings by classification">
+        {entries.length === 0 ? <li>No Findings recorded on this Review.</li> : null}
+        {entries.map(([classification, count]) => (
+          <li key={classification}>
+            <span className="ws-mono">{count}</span> {classificationLabel(classification)}
+          </li>
+        ))}
+      </ul>
+      {contractId ? (
+        <Link
+          className="ws-btn ws-btn--sm ws-btn--primary"
+          href={`/dashboard?id=${contractId}`}
+          data-review-id={comparison.review_id}
+        >
+          Open the Findings
+        </Link>
       ) : null}
     </div>
   );

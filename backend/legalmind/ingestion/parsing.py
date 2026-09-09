@@ -94,6 +94,22 @@ MIN_WORDS_TO_JUDGE_LEGIBILITY = 200
 #: quality, so it is reported as unjudgeable and left exactly as extracted.
 MIN_ASCII_SHARE_TO_JUDGE = 0.85
 
+#: Longest single line still read as a HEADING rather than a clause with a body.
+#: A heading is a label; past this it is prose that happens to start with a
+#: number, and calling it a heading would put body text in a table of contents.
+#: 80 rather than 120 since 2026-09-05: every genuine heading in the owner's MSA
+#: is under 40 characters, and the one false positive was 104.
+HEADING_MAX_CHARS = 80
+
+#: A heading is a few words. Sixteen words is a sentence.
+HEADING_MAX_WORDS = 10
+
+#: How long the NEXT line must be for a short title-like line to count as an
+#: unnumbered heading — i.e. for prose to be following it rather than another
+#: list item. Separates "Cancellations" above a paragraph from "Kubernetes" in a
+#: navigation menu.
+HEADING_PROSE_CHARS = 60
+
 
 @dataclass
 class Segment:
@@ -165,6 +181,13 @@ def normalize_text(raw: str) -> str:
 # Clause numbering as documents actually write it: "8.", "8.2", "12.3.4",
 # "Section 8", "ARTICLE IV", "(a)". Recognition only — never invention.
 _CLAUSE_PATTERNS = (
+    # A clause number ALONE on its line, with its text on the next — a common
+    # PDF layout artifact, and 4 clauses of the owner's own MSA (17.1, 17.2,
+    # 14.3) were lost to it. At least one sub-level is REQUIRED: that is what
+    # keeps a bare year ("1999.") and a bare page number ("12") out, because
+    # neither carries an interior dot. A top-level "17." alone stays unmatched
+    # for the same reason — conservative in the direction that cannot invent.
+    re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?$(?P<title>)"),
     re.compile(r"^(?P<num>\d+(?:\.\d+)*)\.?\s+(?P<title>[A-Z][^\n]{0,120})?"),
     re.compile(r"^(?:Section|SECTION|Clause|CLAUSE)\s+(?P<num>\d+(?:\.\d+)*)"
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
@@ -191,6 +214,214 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _split_at_clause_lines(block: str) -> list[tuple[int, str]]:
+    """Cut one blank-line block at the lines that state a clause number.
+
+    WHY THIS EXISTS. Blank lines are a property of whoever produced the PDF, not
+    of the document. A DOCX exported through one converter separates paragraphs
+    with a blank line and segments perfectly; the same contract exported through
+    another emits one newline per visual line and no blank line at all, so an
+    entire page arrives as a single block. Measured on the real corpus: the same
+    MSA gave 356 segments as .docx and 32 as .docx.pdf — 28 pages, one segment
+    per page, 3,000+ characters each. Clause numbering was still there in the
+    text; it simply never began a block, and only a block's FIRST line was read.
+
+    So the document's own numbering is used as a second boundary. This invents
+    nothing (34.12): a line is a boundary only when `detect_clause_number` — the
+    same detector that already labels segments — recognises it. Deterministic,
+    text in / offsets out, so ENG-11 holds.
+
+    Returns (offset within the block, text) so the caller can keep every
+    segment's absolute offsets exact (34.13 traceability).
+    """
+    lines = block.split("\n")
+    cuts: list[tuple[int, str]] = []
+    current: list[str] = []
+    start = 0
+    offset = 0
+    after_number = False
+    for index, line in enumerate(lines):
+        number, _ = detect_clause_number(line)
+        following = lines[index + 1] if index + 1 < len(lines) else None
+        boundary = bool(number) or _is_unnumbered_heading(line, following,
+                                                          after_number)
+        after_number = bool(number)
+        if boundary and current:
+            cuts.append((start, "\n".join(current)))
+            start = offset
+            current = [line]
+        else:
+            current.append(line)
+        offset += len(line) + 1          # +1 for the newline that split removed
+    if current:
+        cuts.append((start, "\n".join(current)))
+    return cuts
+
+
+def _looks_like_a_heading(line: str) -> bool:
+    """Whether one line reads as a section HEADING rather than prose.
+
+    Three tests, each closing a real failure seen on the owner's documents:
+
+    * **Length and word count.** A heading is a label. "3.1 Customers shall
+      raise purchase orders on Leapswitch for the provision of Services. Subject
+      to Clause" is 16 words of a sentence the PDF broke mid-line, and it was
+      being promoted to a heading because the truncated title it produced
+      happened not to end in a full stop.
+    * **No sentence punctuation, at the end OR inside.** The interior test is
+      what catches that same line: it contains ". " long before it ends.
+    * **Starts like a title.** A letter, not a bullet, a date or a page number.
+
+    Deliberately conservative in one direction: a heading that breaks one of
+    these is missed rather than prose being promoted. An outline short one entry
+    is a smaller failure than an outline full of body text — which is the defect
+    this whole change exists to fix.
+    """
+    stripped = line.strip()
+    if not (2 < len(stripped) <= HEADING_MAX_CHARS):
+        return False
+    if len(stripped.split()) > HEADING_MAX_WORDS:
+        return False
+    if stripped.rstrip().endswith((".", ";", ":", ",")):
+        return False
+    # A trailing hyphen is a WORD the PDF broke across lines — "…by self-" /
+    # "registration via…". It is the middle of a sentence, never a label, and it
+    # was the reason a clause body was promoted to a heading and left the
+    # clause's own number orphaned above it (measured on MSA.pdf, 61 segments).
+    if stripped.rstrip().endswith(("-", "\u2010", "\u2011", "\u2013")):
+        return False
+    if ". " in stripped or "," in stripped:
+        return False
+    return stripped[0].isalpha() or stripped[0].isdigit()
+
+
+def _second_line(normalized: str) -> str | None:
+    parts = normalized.split("\n", 1)
+    return parts[1].split("\n", 1)[0] if len(parts) > 1 else None
+
+
+def _is_title_line(line: str) -> bool:
+    """A short, capitalised, punctuation-free line — heading SHAPE, no context."""
+    return _looks_like_a_heading(line) and line.strip()[:1].isupper()
+
+
+def _is_unnumbered_heading(line: str, following: str | None,
+                           after_number: bool = False) -> bool:
+    """A heading that carries no clause number — and the reason CloudPe blocked.
+
+    Measured 2026-09-05: the CloudPe terms of service and privacy policy carry
+    NO clause numbering anywhere, but they are not unstructured. They are
+    organised by prose headings — "Copyright", "Cancellations", "Late Fees",
+    "Governing Law and Jurisdiction" — and because only numbered headings were
+    recognised, the entire document arrived as one block per page and the
+    structural gate refused it. The structure was there; we could not see it.
+
+    The `following` line is what separates a heading from a LIST. A printed web
+    page ends in navigation chrome — "VPS", "Kubernetes", "Storage", "Careers" —
+    every line of which is short and title-like. A heading is followed by the
+    prose it introduces; a navigation item is followed by another short line.
+    """
+    if after_number:
+        # The previous line stated a clause number, so THIS line is that
+        # clause's text by definition — however label-like it looks. Without
+        # this, a layout that puts the number on its own line ("5.1.1." then
+        # "The Customer may initiate…") cut twice and left the number stranded
+        # as a segment containing nothing but "5.1.1.".
+        return False
+    if not _is_title_line(line):
+        return False
+    if following is None or len(following.strip()) < HEADING_PROSE_CHARS:
+        return False
+    # A heading INTRODUCES a sentence; a wrapped line is continued by its own
+    # lowercase remainder. That single test separates the two, and it is what
+    # the earlier length/punctuation rules could not: "Government organisations
+    # shall mandatorily enable logs of all their ICT" is 10 words, 70 characters,
+    # capitalised and unpunctuated — indistinguishable from a heading until you
+    # notice the next line begins "systems and maintain them securely".
+    #
+    # Deliberately "not lowercase" rather than "is uppercase": a real heading is
+    # often followed by a bullet list, and requiring a capital would have dropped
+    # "Hardware SLA" and "SLA Credit" from the annexure of the owner's own MSA,
+    # both of which open with "•".
+    return not following.strip()[:1].islower()
+
+
+def _is_heading(normalized: str, number: str | None, title: str | None) -> bool:
+    """Whether a finished segment is a heading rather than a clause with a body.
+
+    A numbered heading labels the clause beneath it — "13. LIMITATION ON
+    DAMAGES" — where "13.1 The total liability shall not exceed the fees paid."
+    IS the clause. `detect_clause_number` reports a "title" for both, because it
+    reads whatever follows the number, so the discrimination happens here.
+
+    ponytail: punctuation, length and word-count heuristics, no case analysis
+    and no style information. Upgrade to the document's own heading styles
+    (DOCX) if the outline measurably misses headings on real files.
+    """
+    if "\n" in normalized:
+        return False
+    if number:
+        # Judge the TITLE, not the whole line: the clause number carries its own
+        # full stop ("13. LIMITATION ON DAMAGES"), which would trip the interior
+        # sentence-punctuation test on every properly numbered heading.
+        # A number with no title is a bare "17.1" boundary line, not a heading.
+        # The terminal-punctuation test must read the CONTENT, not the title:
+        # `detect_clause_number` strips trailing ".:-" from the title, so a
+        # one-line clause body would otherwise look unpunctuated and pass.
+        return (title is not None and _looks_like_a_heading(title)
+                and not normalized.rstrip().endswith((".", ";", ":", ",")))
+    return False
+
+
+# 44.4 — "annexures/schedules where detectable" (2026-09-06). Detectable means the
+# document SAYS so: a title line that is the word and the label the document gives
+# it ("Annexure-1", "Appendix-3B", "Schedule 2 – Fees", "Exhibit A"), optionally a
+# short title, never a sentence. The label is the document's own text, kept
+# verbatim (34.12 — numbering is preserved, never generated). A bare "Schedule"
+# is not claimed: without a label the word may be a heading about timetables.
+_ANNEXURE_TITLE = re.compile(
+    r"^(?:annexure|annex|schedule|exhibit|appendix|attachment)"
+    r"\s*[-\u2013:.]?\s*(?:no\.?\s*)?"
+    r"(?:[0-9]{1,3}[a-z]?|[a-z]|[ivxl]{1,5})"
+    r"(?:\s*[-\u2013:]\s*[^.\n]{1,60})?\s*$",
+    re.IGNORECASE,
+)
+
+
+def annexure_title(line: str) -> str | None:
+    """The line itself when it is an annexure/schedule/appendix title; else None."""
+    stripped = line.strip()
+    if not stripped or len(stripped) > HEADING_MAX_CHARS:
+        return None
+    return stripped if _ANNEXURE_TITLE.match(stripped) else None
+
+
+def _structure_markers(normalized: str, first_line: str, number: str | None,
+                       title: str | None,
+                       following: str | None) -> tuple[str | None, dict]:
+    """The ONE place a segment's structural markers are decided (2026-09-06).
+
+    Used by both the paragraph segmenter (PDF text) and `parse_docx`. Until
+    today the DOCX path built its Segments directly and so carried NEITHER the
+    heading marker P1 added (2026-09-05) nor the annexure marker of 44.4 — a
+    Word upload got only the outline's numbered-row fallback, while the same
+    text as a PDF got the real outline. Found by the post-deploy smoke test on
+    the live site, not by the corpus proof: all 13 corpus documents are PDFs.
+
+    Returns the (possibly promoted) section title and the marker metadata.
+    Boundaries and content are never touched here — markers only.
+    """
+    annexure = annexure_title(first_line) if number is None else None
+    if number is None and (annexure or _is_title_line(first_line)):
+        title = first_line.strip()
+    if annexure:
+        return title, {"heading": True, "annexure": annexure}
+    if _is_heading(normalized, number, title) or (
+            number is None and _is_unnumbered_heading(first_line, following)):
+        return title, {"heading": True}
+    return title, {}
+
+
 def segment_paragraphs(text: str, *, page_number: int | None,
                        source_type: EvidenceSourceType,
                        base_offset: int = 0) -> list[Segment]:
@@ -198,26 +429,61 @@ def segment_paragraphs(text: str, *, page_number: int | None,
     segments: list[Segment] = []
     cursor = 0
     for block in re.split(r"\n\s*\n", text):
-        raw = block
-        start = text.find(raw, cursor)
-        if start < 0:                          # pragma: no cover - defensive
-            start = cursor
-        cursor = start + len(raw)
-        normalized = normalize_text(raw)
-        if not normalized:
+        raw_block = block
+        block_start = text.find(raw_block, cursor)
+        if block_start < 0:                    # pragma: no cover - defensive
+            block_start = cursor
+        cursor = block_start + len(raw_block)
+        if not normalize_text(raw_block):
             continue
-        first_line = normalized.split("\n", 1)[0]
-        number, title = detect_clause_number(first_line)
-        segments.append(Segment(
-            content=normalized,
-            original_content=raw,
-            source_type=source_type,
-            page_number=page_number,
-            section_number=number,
-            section_title=title,
-            start_offset=base_offset + start,
-            end_offset=base_offset + cursor,
-        ))
+        for inner_offset, raw in _split_at_clause_lines(raw_block):
+            normalized = normalize_text(raw)
+            if not normalized:
+                continue
+            start = block_start + inner_offset
+            first_line = normalized.split("\n", 1)[0]
+            number, title = detect_clause_number(first_line)
+            title, markers = _structure_markers(
+                normalized, first_line, number, title, _second_line(normalized))
+            # An UNNUMBERED heading keeps the prose it introduces in the same
+            # segment — unlike a numbered one, whose following sub-clause starts
+            # its own boundary. So the heading line becomes this segment's
+            # title rather than a row of its own. That is the better outcome
+            # anyway: the outline entry then points AT the text it labels
+            # instead of at an empty label above it.
+            segments.append(Segment(
+                content=normalized,
+                original_content=raw,
+                source_type=source_type,
+                page_number=page_number,
+                section_number=number,
+                section_title=title,
+                start_offset=base_offset + start,
+                end_offset=base_offset + start + len(raw),
+                # A heading is a numbered line that carries a title and no body
+                # of its own — "13. LIMITATION ON DAMAGES" as against "13.1 The
+                # total liability...". Recorded at segmentation because evidence
+                # rows are effectively immutable: a row cited by an Evaluation
+                # can never be rewritten (rule 17), so a marker not written here
+                # can never be added to it later.
+                # A segment is a heading when it is a single line that reads as
+                # one — numbered ("13. LIMITATION ON DAMAGES") or not
+                # ("Cancellations"). The "prose follows" test belongs to the
+                # BOUNDARY decision above, not here: by this point the split has
+                # already happened, and a navigation list never reaches this
+                # branch because it was never cut into single-line segments.
+                # "This row BEGINS a section" — a numbered heading standing
+                # alone, or any row whose first line reads as a heading. It is
+                # not a claim that the row contains nothing else.
+                # The unnumbered case reuses the BOUNDARY test, against this
+                # segment's own second line: a heading is followed by the prose
+                # it introduces. Without that, a printed web page's navigation
+                # footer — "VPS", "Kubernetes", "Storage" — reads as a heading
+                # because its first line is short and capitalised.
+                # An annexure title is a heading the document declares outright
+                # (44.4); the boundary decision above is untouched by it.
+                metadata=markers,
+            ))
     return segments
 
 
@@ -668,14 +934,22 @@ def parse_docx(data: bytes) -> ParseResult:
         if not normalized:
             offset += len(raw)
             continue
-        number, title = detect_clause_number(normalized.split("\n", 1)[0])
+        first_line = normalized.split("\n", 1)[0]
+        number, title = detect_clause_number(first_line)
+        # The same markers the PDF path gets (see _structure_markers). Word puts
+        # each paragraph in its own segment, so "the prose that follows" is the
+        # next non-empty paragraph rather than the segment's own second line.
+        following = next((normalize_text(q.text or "") for q in paragraphs[index + 1:]
+                          if normalize_text(q.text or "")), None)
+        title, markers = _structure_markers(
+            normalized, first_line, number, title, following)
         segments.append(Segment(
             content=normalized, original_content=raw,
             source_type=EvidenceSourceType.NATIVE_TEXT,
             page_number=paragraph_pages[index] if paragraph_pages else None,
             section_number=number, section_title=title,
             start_offset=offset, end_offset=offset + len(raw),
-            metadata={"style": para.style.name if para.style else None},
+            metadata={"style": para.style.name if para.style else None, **markers},
         ))
         offset += len(raw)
 

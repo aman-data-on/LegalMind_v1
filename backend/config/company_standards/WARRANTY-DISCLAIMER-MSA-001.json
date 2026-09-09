@@ -10,6 +10,7 @@
     "Reads whether a warranty disclaimer exists. Its breadth is content for Legal."
   ],
   "requirement_code": "WARRANTY-DISCLAIMER-MSA-001",
+  "description": "Leapswitch gives no warranty about the reliability, accuracy, completeness or usefulness of information, data, third-party applications or services.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "14.3",

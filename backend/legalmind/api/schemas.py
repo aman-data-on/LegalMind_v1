@@ -12,12 +12,13 @@ admin believe they had configured something they had not.
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import date
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from legalmind.domain.document_types import is_document_type
+from legalmind.domain.document_types import is_document_source, is_document_type
 from legalmind.domain.enums import (
     ContractStatus,
     DecisionType,
@@ -91,9 +92,77 @@ class ContractCreate(Body):
 class ContractUpdate(Body):
     name: str | None = Field(default=None, min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
+    #: AM-50 (2026-09-09): who determined `contract_type` — "HUMAN" (the default,
+    #: an explicit choice) or "ASSIST_SUGGESTION" (the intake applied a confident
+    #: suggestion so the reader did not have to). Audit-only; never a column.
+    contract_type_source: Literal["HUMAN", "ASSIST_SUGGESTION"] | None = None
     status: ContractStatus | None = None
+    #: Who this deal is with — AB-13 r2. Sent as null to unlink; left out,
+    #: untouched. `model_fields_set` tells the two apart.
+    counterparty_id: UUID | None = None
 
     _contract_type = field_validator("contract_type")(_validate_contract_type)
+
+
+class CounterpartyCreate(Body):
+    """AB-13 r1 — the profile, and nothing more.
+
+    `industry` and `relationship_notes` are optional and stay empty unless a
+    human types them: rule 21 forbids inventing company or industry
+    information, and "not known yet" is the normal state of a counterparty.
+    """
+    name: str = Field(min_length=1, max_length=500)
+    industry: str | None = Field(default=None, max_length=200)
+    relationship_notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("name", "industry", "relationship_notes")
+    @classmethod
+    def _trim(cls, value: str | None) -> str | None:
+        stripped = value.strip() if value is not None else None
+        return stripped or None
+
+
+class CounterpartyUpdate(Body):
+    """Every field optional; a field left out is untouched, and one sent as
+    null is cleared. `name` cannot be cleared — a company with no name is not
+    an identity anyone can use."""
+    name: str | None = Field(default=None, min_length=1, max_length=500)
+    industry: str | None = Field(default=None, max_length=200)
+    relationship_notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("name", "industry", "relationship_notes")
+    @classmethod
+    def _trim(cls, value: str | None) -> str | None:
+        stripped = value.strip() if value is not None else None
+        return stripped or None
+
+
+class DocumentVersionDeclare(Body):
+    """Declared facts about one Document Version — Step 2's "should store"
+    metadata (Counterparty, Effective date) and Step 6's source axis, kept in
+    locked 42.4's `metadata` JSONB. All optional (owner, 2026-09-06). A field
+    that is SENT changes the value; sent as null it clears it; a field left out
+    is untouched — `model_fields_set` tells the two apart. Declared, never
+    inferred: no date is ever read out of the document text."""
+    source: str | None = None
+    counterparty: str | None = Field(default=None, max_length=500)
+    effective_date: date | None = None
+
+    @field_validator("source")
+    @classmethod
+    def _source(cls, value: str | None) -> str | None:
+        if value is not None and not is_document_source(value):
+            raise ValueError(
+                f"unknown document source {value!r}; locked Step 6 names "
+                "ORGANIZATION or COUNTERPARTY")
+        return value
+
+    @field_validator("counterparty")
+    @classmethod
+    def _counterparty(cls, value: str | None) -> str | None:
+        # Whitespace-only is "nothing declared", not a counterparty called " ".
+        stripped = value.strip() if value is not None else None
+        return stripped or None
 
 
 # --------------------------------------------------------------- reviews
@@ -193,15 +262,48 @@ class ConfigurationPublish(Body):
 class UserCreate(Body):
     """47.1.3 account resolution r3 — LegalMind does not self-provision. An
     account exists only because an authorized administrator created it, so its
-    roles are always assigned deliberately and never inferred from a login."""
+    roles are always assigned deliberately and never inferred from a login.
+
+    ``department_id`` and ``role_code`` are optional and change nothing about
+    that: naming a role here still runs S-8, so an administrator can only start
+    an account with authority they already hold themselves.
+    """
 
     email: str = Field(min_length=3, max_length=320)
     name: str = Field(min_length=1, max_length=200)
+    department_id: UUID | None = None
+    role_code: str | None = Field(default=None, max_length=100)
 
 
 class UserUpdate(Body):
+    """`department_id` (AB-12 r3): present-and-null clears the department,
+    absent leaves it alone — the router reads `model_fields_set` to tell the
+    two apart, because both arrive here as ``None``."""
+
     name: str | None = Field(default=None, min_length=1, max_length=200)
     status: UserStatus | None = None
+    department_id: UUID | None = None
+
+
+class DepartmentCreate(Body):
+    code: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+
+
+class DepartmentUpdate(Body):
+    """The name only — the code identifies the boundary in an append-only audit
+    trail and does not change."""
+
+    name: str = Field(min_length=1, max_length=200)
+
+
+class ContractTransfer(Body):
+    """AB-12 r5 — move a contract to a colleague in the same department. The
+    reason is mandatory: a transfer is a custody change and the audit row
+    should say why without anyone having to ask."""
+
+    new_owner_id: UUID
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class RoleGrant(Body):

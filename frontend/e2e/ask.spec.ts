@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, storageStatePath } from "./support";
+import { createAnalysedReview, openAsk, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -41,13 +41,15 @@ test.describe("Ask about this document", () => {
     // A contract with an uploaded, inline-indexed document is all the panel needs —
     // no Review and no analysis (`AM-25` r1: asking is not judging).
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/contracts?id=${contractId}`);
-    await expect(
-      page.getByRole("heading", { name: "Ask about this document" }),
-    ).toBeVisible();
-
-    const question = page.getByLabel("Question");
-    const ask = page.getByRole("button", { name: "Ask" });
+    await page.goto(`/dashboard?id=${contractId}`);
+    /*
+     * Ported 2026-09-04. Ask is no longer a panel that occupies the page: it is
+     * the workspace's floating dock (DD-15), so the spec opens it the way a
+     * reader does. What is under test is unchanged — both refusal causes render
+     * the identical quiet sentence and no confidence figure appears anywhere.
+     */
+    const question = await openAsk(page);
+    const ask = page.getByRole("button", { name: /Send question|Searching/ });
 
     // Cause 1 — retrieval finds the fixture's liability sentence, but no generator
     // credential exists, so the server refuses with EVIDENCE_INSUFFICIENT.
@@ -61,7 +63,7 @@ test.describe("Ask about this document", () => {
     // first version passed locally on vectors and failed in CI).
     await question.fill("liability shall not exceed fees paid");
     await ask.click();
-    const first = page.locator(".ask-answer--refusal").first();
+    const first = page.locator(".ws-ask__answer--refusal").first();
     await expect(first).toHaveText(REFUSAL_TEXT, { timeout: 20_000 });
     await expect(first).toHaveAttribute("data-state", "EVIDENCE_INSUFFICIENT");
 
@@ -69,7 +71,7 @@ test.describe("Ask about this document", () => {
     // the gate never opens (NO_EVIDENCE_RETRIEVED).
     await question.fill("Explain the zorbulated quixotic framblewitz stipulations");
     await ask.click();
-    const refusals = page.locator(".ask-answer--refusal");
+    const refusals = page.locator(".ws-ask__answer--refusal");
     await expect(refusals).toHaveCount(2, { timeout: 20_000 });
     await expect(refusals.nth(1)).toHaveText(REFUSAL_TEXT);
     await expect(refusals.nth(1)).toHaveAttribute("data-state", "NO_EVIDENCE_RETRIEVED");

@@ -10,6 +10,7 @@
     "Reads whether a supplier IP-ownership clause exists. Which party it vests rights in is content and goes to Legal — a counterparty draft reversing the direction still maps PRESENT here, and the evidence carries the reversal."
   ],
   "requirement_code": "IP-OWNERSHIP-MSA-001",
+  "description": "Leapswitch remains the sole owner of all intellectual property in the services.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "13 Intellectual Property Rights in Services (13.1)",

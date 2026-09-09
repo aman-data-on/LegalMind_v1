@@ -24,7 +24,7 @@ const render = (r: AskResult) =>
   renderToStaticMarkup(<HighlightProvider><WsAnswerView result={r} /></HighlightProvider>);
 
 describe("WsAnswerView", () => {
-  it("an answer's citation is a button that points at its EVIDENCE row, with a labelled retrieval score", () => {
+  it("an answer's citation is a button that points at its EVIDENCE row, and shows no retrieval score", () => {
     const html = render(result({
       text: "Ninety days written notice is required [1].",
       citations: [{ chunk_id: "ch-1", evidence_id: "ev-9", page_number: 7, section_ref: "22",
@@ -33,7 +33,7 @@ describe("WsAnswerView", () => {
     expect(html).toContain('data-evidence-id="ev-9"');
     expect(html).toContain("§22");
     expect(html).toContain("p.7");
-    expect(html).toContain("retrieval score 0.621");
+    expect(html).not.toContain("retrieval score");
     expect(html.toLowerCase()).not.toContain("confidence");
   });
 
@@ -56,7 +56,47 @@ describe("WsAnswerView", () => {
   it("an evaluator-routed reply is a third type — labelled as not answered here, not a refusal", () => {
     const html = render(result({ routed_to_evaluator: true, text: "This asks whether the document meets the standard — see Findings." }));
     expect(html).toContain("ws-ask__answer--routed");
-    expect(html).toContain("Not answered here");
+    expect(html).toContain("Compared by the evaluator, not the assistant");
     expect(html).not.toContain("ws-ask__answer--refusal");
+  });
+});
+
+
+const renderWithContract = (r: AskResult) =>
+  renderToStaticMarkup(
+    <HighlightProvider>
+      <WsAnswerView result={r} contractId="c-1" />
+    </HighlightProvider>,
+  );
+
+describe("multi-source answers (2026-09-08)", () => {
+  it("quotes an approved position in its own labelled section with its own citation grammar", () => {
+    const html = render(result({
+      text: "The document says ninety days [1].",
+      positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
+        source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.", retrieval_score: 0.5 }],
+    }));
+    expect(html).toContain("Approved position");
+    expect(html).toContain("TESTPOS-MSA-001");
+    expect(html).toContain("9.9 Widget Handling");
+    expect(html).toContain("Widgets shall be handled with care.");
+    expect(html).not.toContain("confidence");
+  });
+
+  it("a comparison handoff shows the Findings by classification in words and links to them — no dead end", () => {
+    const html = renderWithContract(result({
+      routed_to_evaluator: true, text: "Compared by the evaluator.",
+      comparison: { review_id: "r-1", review_status: "ANALYSIS_COMPLETE",
+        findings_by_classification: { MATCH: 3, DEVIATION: 1, MISSING: 2 } },
+    }));
+    expect(html).toContain("ws-ask__answer--routed");
+    expect(html).toContain("Open the Findings");
+    expect(html).toContain("DEVIATION");
+    expect(html).toContain("MISSING");
+  });
+
+  it("with no Review yet, the handoff offers to open the document rather than a sentence of prose", () => {
+    const html = renderWithContract(result({ routed_to_evaluator: true, text: "No analysis yet.", comparison: null }));
+    expect(html).toContain("Open the document to run analysis");
   });
 });

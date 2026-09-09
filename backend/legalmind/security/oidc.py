@@ -69,7 +69,9 @@ from legalmind import config
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
+from legalmind.security import permissions as P
 from legalmind.security.errors import Unauthenticated
+from legalmind.security.resolver import role_permissions
 
 # The minimum that identifies a person, and no more. `profile` is requested for
 # ONE claim: `name`, which `serialize_session_identity` returns and the app chrome
@@ -389,6 +391,16 @@ def _provision(db: DBSession, claims: Claims) -> M.User:
             raise OidcFailure(
                 f"cannot provision: configured JIT role(s) {missing} are not "
                 "seeded in this database")
+        # AB-12 r11 — an identity provider never hands out legal authority or
+        # platform administration, whatever `LEGALMIND_OIDC_JIT_ROLES` says.
+        # SEC-01: "the authentication mechanism never confers Legal Decision
+        # authority" — enforced here rather than trusted to configuration.
+        for role in roles.values():
+            forbidden = role_permissions(db, role.id) & P.NEVER_PROVISIONED_BY_IDP
+            if forbidden:
+                raise OidcFailure(
+                    f"cannot provision: JIT role {role.code!r} carries "
+                    f"{sorted(forbidden)}, which an identity provider may never grant")
 
     user = M.User(email=claims.email, name=claims.name,
                   status=E.UserStatus.ACTIVE)

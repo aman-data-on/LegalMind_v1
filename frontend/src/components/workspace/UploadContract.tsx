@@ -9,17 +9,12 @@
  * exactly the same sequential calls the previous version already made, never
  * a new backend capability.
  *
- * Q9 / `AM-34` stand exactly as locked: the type is HUMAN-DECLARED. What
- * changed on 2026-09-01: the type select is now ALWAYS shown, and is pre-filled
- * when there is anything to pre-fill it with — the assist lane's proposal first,
- * then a Step 6 code named in the filename (`AM-34` t1 authorises both inputs and
- * says the proposal "pre-fills the intake select"). The help text names which
- * source produced the value, so a guess never reads as a determination.
- *
- * Owner Q9 is unchanged and this is why it holds: pre-filling a control is not
- * recording a type. `contract_type` is written only by the submit — an explicit
- * human act — and the field says so directly above the button.
- * behaviour changed there, only the surrounding frame.
+ * AM-50 (owner, 2026-09-09) amends Q9 / AM-34 / DOC-06: a CONFIDENT suggestion
+ * is recorded by the intake and the review starts — "I uploaded my contract and
+ * LegalMind reviewed it." The audit trail records that the type came from the
+ * suggestion; the reader can change it in Edit details, which re-runs the
+ * analysis; the evaluator still refuses an undeclared type. Only when the
+ * document's text does not say what it is does the intake ask its one question.
  *
  * Best-effort chaining, honest degradation: a missing published snapshot or a
  * missing review.create permission never blocks the upload — the workspace's
@@ -35,11 +30,10 @@ import { ApiError, api, describeError } from "@/lib/api";
 import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { TypeSuggestion } from "@/lib/types";
 
 import { IconCheckCircle, IconUploadCloud } from "./icons";
 
-type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "confirm" | "analyzing";
+type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
 /** Mirrors the server default (`LEGALMIND_MAX_UPLOAD_BYTES`, 25 MB — owner, 2026-09-02). A
  *  convenience pre-check for an immediate, friendly message — the server's
@@ -47,7 +41,7 @@ type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "confirm" | "an
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx"];
 
-const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "confirm", "analyzing"];
+const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analyzing"];
 
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
@@ -63,7 +57,12 @@ function preflightProblem(file: File): string | null {
   return null;
 }
 
-export function UploadContract({ firstRun }: { firstRun: boolean }) {
+export function UploadContract({ firstRun }: {
+  firstRun: boolean;
+  /** Kept for callers; the intake no longer asks for declared facts — they
+   *  live in "Edit details", where they always were too (AM-50). */
+  counterparties?: string[];
+}) {
   const { can } = useSession();
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -77,7 +76,11 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
   const [error, setError] = useState<unknown>(null);
   const [dragging, setDragging] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
-  const [suggestion, setSuggestion] = useState<TypeSuggestion | null>(null);
+  const contractIdRef = useRef<string | null>(null);
+  const [versionId, setVersionId] = useState<string | null>(null);
+  /** The type the intake recorded on the reader's behalf (AM-50) — shown as
+   *  "Reviewed as …" while the analysis starts. */
+  const [recordedType, setRecordedType] = useState<string | null>(null);
 
   if (!can(P.CONTRACT_CREATE) || !can(P.DOCUMENT_UPLOAD)) {
     return firstRun ? (
@@ -97,7 +100,6 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
     setFile(chosen);
     setName(derivedName);
     setContractType("");
-    setSuggestion(null);
     setError(null);
     setStage("uploading");
 
@@ -107,11 +109,14 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
     try {
       const contract = await api.createContract(derivedName);
       setContractId(contract.id);
+      contractIdRef.current = contract.id;
       const uploaded = await api.uploadDocument(contract.id, chosen);
       versionId = uploaded.document_version.id;
+      setVersionId(versionId);
     } catch (cause) {
       setFile(null);
       setContractId(null);
+      contractIdRef.current = null;
       setError(cause);
       setStage("idle");
       return;
@@ -119,69 +124,37 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
     setStage("extracted");
 
     // The assist lane proposes a type from the document's own opening text.
-    // Every failure shape is the same honest "not confident" — the picker
-    // then appears exactly as it did before this feature existed.
     setStage("suggesting");
     let proposedType: string | null = null;
     try {
       const proposed = await api.suggestType(versionId);
-      setSuggestion(proposed);
       if (proposed.confident && proposed.suggested_type) {
         proposedType = proposed.suggested_type;
-        setContractType(proposedType);
-        setTypeSource("assist");
       }
     } catch {
-      setSuggestion(null);
+      /* not confident — the one question below */
     }
 
-    if (!proposedType) {
-      /*
-       * `AM-34` t1 (AB-7) — the proposal may be drawn from "the document version's
-       * own committed evidence **plus its original filename**", and "the proposal
-       * pre-fills the intake select". So when the assist lane cannot answer, a
-       * filename that names a Step 6 code still pre-fills it.
-       *
-       * Owner Q9 is untouched and this is the reason it is safe: pre-filling a
-       * select is not recording a type. `contract_type` is written only by the
-       * submit below — an explicit human act — and the help text says so. Before
-       * this, the filename hint sat behind a link the reader had to notice and
-       * click, which is why a document plainly named "…MSA…" still arrived with an
-       * empty picker (owner, 2026-09-01: "pehle toh automatically kar leta tha").
-       */
-      const fromName = typeHintFromFilename(chosen.name);
-      if (fromName) {
-        setContractType(fromName);
-        setTypeSource("filename");
+    // AM-51 (owner, 2026-09-09): the type is one optional signal, never a gate.
+    // A confident suggestion is recorded (audited as ASSIST_SUGGESTION) so the
+    // reader sees "Reviewed as …" and the engine has the signal; without one the
+    // review still starts — the engine measures the document by its content.
+    if (proposedType) {
+      try {
+        await api.updateContract(contract_id_or_throw(contractIdRef.current), {
+          name: derivedName, contract_type: proposedType,
+          contract_type_source: "ASSIST_SUGGESTION",
+        });
+        setRecordedType(proposedType);
+        setContractType(proposedType);
+      } catch {
+        setRecordedType(null);
       }
     }
-    setStage("confirm");
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!contractId || !contractType) return;
-    setError(null);
     setStage("analyzing");
-    try {
-      // The human act that records the declaration — the suggestion never
-      // wrote anything.
-      await api.updateContract(contractId, {
-        name: name.trim(),
-        contract_type: contractType,
-      });
-    } catch (cause) {
-      setError(cause);
-      setStage("confirm");
-      return;
-    }
-    // Analysis, best-effort: resolve the latest published standards and run.
-    // Any failure here is a STATE the workspace explains, never a dead end.
-    await chainAnalysis(contractId, can(P.REVIEW_CREATE));
-    router.push(`/dashboard?id=${contractId}`);
+    await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
+    router.push(`/dashboard?id=${contractIdRef.current}`);
   }
-
-  const confident = suggestion?.confident === true && !!suggestion.suggested_type;
 
   if (!file) {
     return (
@@ -234,7 +207,7 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
   const stageIndex = CHECKLIST_ORDER.indexOf(stage);
 
   return (
-    <form className="ws-intake" onSubmit={submit} aria-labelledby="ws-upload-title">
+    <div className="ws-intake" aria-labelledby="ws-upload-title">
       <h2 id="ws-upload-title" className="ws-intake__title">
         {file.name} <span className="ws-mono ws-intake__size">{Math.max(1, Math.round(file.size / 1024))} KB</span>
       </h2>
@@ -248,98 +221,32 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
         <ChecklistRow done={stageIndex >= CHECKLIST_ORDER.indexOf("extracted")} active={false}>
           Content Extracted
         </ChecklistRow>
-        <ChecklistRow done={stage === "confirm" || stage === "analyzing"} active={stage === "suggesting"}>
-          {stage === "confirm" || stage === "analyzing" ? (
-            confident ? (
-              <>Type Detected: <strong>{documentTypeLabel(suggestion!.suggested_type)}</strong></>
+        <ChecklistRow done={stage === "analyzing"} active={stage === "suggesting"}>
+          {stage === "analyzing" ? (
+            recordedType ? (
+              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — change it any time in Edit details</>
             ) : (
-              "Type needs your confirmation"
+              "Reviewing by content — the type can be added in Edit details"
             )
           ) : (
-            "Detecting document type…"
+            "Reading the document…"
           )}
         </ChecklistRow>
         {stage === "analyzing" ? (
-          <>
-            <ChecklistRow done active={false}>Relevant Standard Identified</ChecklistRow>
-            <ChecklistRow done={false} active spinner>Analyzing…</ChecklistRow>
-          </>
+          <ChecklistRow done={false} active spinner>Reviewing against the company standards…</ChecklistRow>
         ) : null}
       </ol>
 
-      {stage === "confirm" ? (
-        <div className="ws-intake__confirm">
-          <label className="ws-field">
-            <span className="ws-field__label">Name</span>
-            <input required value={name} onChange={(event) => setName(event.target.value)} />
-            <span className="ws-field__help">From the filename — change it if you like.</span>
-          </label>
-
-          {/*
-            One presentation, always. This used to branch: a confident suggestion
-            showed a prose line ("LegalMind identified this as a …") with a "Not
-            right? Change it" link, and the select appeared only if you clicked it.
-            Two problems — the reader had to act to see the field they were about to
-            be judged on, and the prose asserted an identification more firmly than
-            a suggestion warrants. A pre-selected select says the same thing in a
-            control the reader can already change, which is also the shape `AM-34`
-            t1 describes ("the proposal pre-fills the intake select").
-          */}
-          <label className="ws-field ws-field--type">
-              <span className="ws-field__label">
-                Document type <span className="ws-field__req">(required)</span>
-              </span>
-              <select
-                required
-                value={contractType}
-                onChange={(event) => {
-                  setContractType(event.target.value);
-                  setTypeSource(null);   // it is the reader's choice now, not a guess
-                }}
-              >
-                <option value="">Choose the type…</option>
-                {DOCUMENT_TYPES.map((type) => (
-                  <option key={type.code} value={type.code}>
-                    {type.label} ({type.code})
-                  </option>
-                ))}
-              </select>
-              {/*
-                Three cases, and each says where the value came from. Naming the
-                source is what keeps a pre-filled select honest under owner Q9: the
-                reader can see this was a guess from a filename or from the
-                document's text, not a determination.
-              */}
-              <span className="ws-field__help">
-                {typeSource === "filename" ? (
-                  <>Pre-filled from the filename. Change it if that&rsquo;s wrong. </>
-                ) : typeSource === "assist" ? (
-                  <>Suggested from the document&rsquo;s opening text. Change it if that&rsquo;s wrong. </>
-                ) : !contractType ? (
-                  <>Couldn&rsquo;t identify the type from the filename or the text — please choose it. </>
-                ) : null}
-                Nothing is recorded until you confirm.
-              </span>
-          </label>
-
-          <button
-            type="submit"
-            className="ws-btn ws-btn--primary"
-            disabled={!name.trim() || !contractType}
-          >
-            Confirm &amp; Analyze
-          </button>
-        </div>
-      ) : null}
-
-      {stage === "confirm" ? (
+      {stage !== "idle" && stage !== "analyzing" ? (
         <button
           type="button"
           className="ws-escalate__link"
           onClick={() => {
             setFile(null);
             setContractId(null);
-            setSuggestion(null);
+            setVersionId(null);
+            contractIdRef.current = null;
+            setRecordedType(null);
             setContractType("");
                     setStage("idle");
           }}
@@ -352,8 +259,13 @@ export function UploadContract({ firstRun }: { firstRun: boolean }) {
           {error instanceof ApiError ? describeError(error) : "The upload could not be completed."}
         </p>
       ) : null}
-    </form>
+    </div>
   );
+}
+
+function contract_id_or_throw(id: string | null): string {
+  if (!id) throw new Error("no contract");
+  return id;
 }
 
 function ChecklistRow({

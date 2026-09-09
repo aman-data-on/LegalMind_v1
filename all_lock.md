@@ -16927,3 +16927,1431 @@ r2  This is a presentation change only. The fixed-pathname convention is
 r3  Nothing in the domain vocabulary is renamed. Contract, Document Version,
     Review, Finding, Evaluation and the five state axes are untouched — this
     record names a screen, not a concept.
+
+---
+
+## AB-12 — RBAC Redesign Around the Real Workflow (Owner Instruction — 2026-09-05)
+
+**Owner instruction, 2026-09-05.** After a six-question interview about who actually
+uses LegalMind, the owner issued a written brief — *"LEGALMIND — RBAC RE-DESIGN,
+ARCHITECTURE AUDIT & IMPLEMENTATION"* — with explicit implementation authority:
+*"You have senior engineering autonomy… If a locked decision is genuinely obsolete
+because the confirmed business process has changed, do not blindly preserve it. But
+document the conflict and make the smallest principled amendment."* This record is
+that documentation. The interview answers it rests on, verbatim in substance:
+
+```text
+Q1  3–5 users in one department run a negotiation round-trip: profile the client,
+    upload our draft, read the report, send it, receive an Annexure, see what
+    changed, ask the AI about it.
+Q2  Who accepts a deviation?            "Nobody — just flag it."
+Q3  Who sees whose deals?               "Only my own deals."
+Q4  Who changes the standards?          "One senior person, via a screen."
+Q5  Coverage when someone is away?      "A dept lead sees all deals."
+Q6  Lead = standards owner?             "Lead wears both hats; I create logins."
+```
+
+### The four personas (amends ROLE-06 and AB-9)
+
+```text
+Department User   USER               own deals: create, upload, analyse, read
+                                     findings AND why (r7), ask, archive own
+Department Lead   DEPARTMENT_LEAD    a Department User, plus every deal in THEIR
+                                     department (read), transfer, standards
+Platform Admin    PLATFORM_ADMIN     accounts, roles, departments, audit —
+                                     never contract content (Step 24 r8/r9)
+Developer         DEVELOPER          break-glass; never legal authority (r12)
+```
+
+**Terms:**
+
+r1  **Roles.** The canonical role set is amended in place. `LEGAL_ADMIN` is renamed
+    `DEPARTMENT_LEAD` and `SUPER_ADMIN` is renamed `PLATFORM_ADMIN` — the SAME database
+    rows, so every existing assignment survives; only `roles.code`/`roles.name`
+    change. `USER` is displayed as "Department User". `LEGAL_REVIEWER` and
+    `LEGAL_DECISION_AUTHORITY` are **retained for a future legal workflow**: seeded,
+    hidden from the everyday grant picker (r10), granted to nobody by the initial
+    workflow. No role is deleted.
+
+r2  **Tiers (presentation).** Every role carries a tier — `department`, `platform`,
+    `break_glass`, `future_legal`, `custom` — served on `GET /roles`, so a screen
+    speaks business language and never asks an administrator to decode a code.
+
+r3  **The department boundary.** NEW TABLE `departments` (`id`, `code` unique,
+    `name`, `created_at`) and NEW COLUMN `users.department_id` (nullable, FK, RESTRICT).
+    NEW PERMISSION `department.view` widens READ scope from "my contracts" to "every
+    contract owned by someone in my department" — contract, versions, evidence,
+    reviews, findings, evaluations, reports, comparisons. Two rules bound it: the
+    permission AND a department are both required (an account with
+    `department_id IS NULL` is widened to nothing — there is no "everyone"
+    department and no global scope); and it never widens a write (r4) or a
+    conversation (r8). Departments are account administration (`user.manage`),
+    created empty; membership is set per user, one audited act each.
+
+r4  **Writes are OWNER-only.** Upload, update, archive, review creation and analysis
+    resolve through `require_contract_owned`. Department scope and Legal scope are
+    read scopes and never a way to alter someone else's paper (Step 24 r16/r17
+    reaffirmed). A Lead who needs to act on a colleague's deal takes ownership first.
+
+r5  **Ownership transfer.** NEW PERMISSION `contract.transfer`, held by the Lead.
+    `POST /contracts/{id}/transfer {new_owner_id, reason}` moves a contract to an
+    ACTIVE account in the caller's OWN department; the caller must hold the contract
+    as owner or through DEPARTMENT scope (Legal scope is never custody); an
+    out-of-department or nonexistent target is refused with one message; an archived
+    contract is refused. Audited as `contract.ownership_transferred` with previous
+    owner, new owner, actor, reason, contract and time. **Visibility is rooted in the
+    Contract:** Reviews, Findings and Evaluations follow the contract to its new
+    owner (Step 24 r2 "unless explicitly transferred" — realized), and the previous
+    owner loses them; `reviews.created_by` stays as history and is no longer a basis
+    for visibility. Amends ROLE-07's ownership model to that extent.
+
+r6  **Archive replaces deletion — supersedes AM-37.** `contract.delete` is renamed
+    `contract.archive` (same permission row); `contracts.deleted_at` is renamed
+    `archived_at` (same column; AM-37's 4 soft-deleted rows on the development
+    instance are simply archived contracts now). `DELETE /contracts/{id}` is REMOVED —
+    the application has no verb that destroys a contract, and AM-37 r2's hard-delete
+    branch is withdrawn. `POST /contracts/{id}/archive` and `.../restore` exist,
+    owner-scoped, audited as `contract.archived` / `contract.restored`. An archived
+    contract leaves every default list and summary, refuses every write with 409,
+    and stays READABLE by its owner and department lead (`?archived=true` lists the
+    shelf). Nothing — document, versions, evidence, reviews, findings, decisions,
+    Ask citations, audit trail — is removed; assist-lane chunks stay because archive
+    is not deletion (`AM-27` r5 is about deletion, which no longer exists for a
+    Contract). AM-37 r9 ("no restore surface") is superseded.
+
+r7  **LEGAL-02's audience is named.** `legal_position.view` is granted to every
+    Department User for their own deals: a user must be able to understand WHY a
+    finding is MATCH, DEVIATION or MISSING — the standard, the comparison, the
+    explanation. "Ordinary users" in LEGAL-02 means counterparties and accounts
+    without the grant; the omission gate itself is unchanged and still bites for a
+    Platform Admin or any custom role. Users do NOT receive `configuration.view`:
+    historical standard versions stay with the Lead.
+
+r8  **Ask history is the asker's.** A conversation is visible to its creator only,
+    unchanged. Asking about a contract requires READ scope (so a Lead may ask about
+    a department deal); department scope never reaches another person's
+    conversation; a transfer never moves one. No sharing feature exists or is
+    implied.
+
+r9  **No approval workflow is imposed.** Nobody in the initial workflow decides a
+    deviation inside LegalMind. `legal.decision` / `legal.approve_customization`
+    stay in the catalogue and on `LEGAL_DECISION_AUTHORITY`, which nobody holds;
+    the decision endpoints, SEC-02, SEC-05 (as the change-rule the code already
+    implements) and the S-8/S-9 guards are untouched. **Accepted consequence,
+    recorded:** a Review holding a deviation reaches `LEGAL_REVIEW` (Step 30 — "one
+    or more Findings require an authorized decision") and stays there; that is the
+    flag the owner asked for, and `decision.outstanding_age` (53.5) will report it.
+    The engineering recommendation to give the Lead decision authority so Reviews
+    can close was put to the owner and not taken; granting `LEGAL_DECISION_AUTHORITY`
+    later needs no further amendment.
+
+r10 **Retained roles** are hidden from the everyday grant picker by tier and remain
+    grantable through the audited API under S-8.
+
+r11 **The identity provider whitelist is enforced.** A JIT-provisioned role that
+    carries legal authority or `user.manage` / `role.manage` / `platform.manage`
+    (`NEVER_PROVISIONED_BY_IDP`) is refused at provisioning, whatever
+    `LEGALMIND_OIDC_JIT_ROLES` says — SEC-01 made enforceable, closing a hole in
+    which the configuration alone stood between an IdP and an administrator.
+
+r12 **DEVELOPER holds no legal authority — amends AB-9 r2.** The role grants every
+    catalogue permission EXCEPT `legal.decision` and `legal.approve_customization`.
+    Break-glass reads of another person's deal go through the same scope rules and
+    land in the same audited cross-owner read events as anyone else's.
+
+r13 **Audit vocabulary.** Added: `contract.archived`, `contract.restored`,
+    `contract.ownership_transferred`, `contract.read_via_department_scope`,
+    `admin.department_created`. Withdrawn: `contract.soft_deleted`,
+    `contract.hard_deleted` (rows already written keep their strings — AUD-01).
+
+r14 **Schema.** Migration `b7c3d9e1f2a4`: the table, the column, the rename, the
+    role/permission renames, the grant reconciliation (adds every default; removes
+    exactly three grants — `legal.review` from the Lead, the two legal-authority
+    permissions from DEVELOPER). **30 application tables, 201 columns.** The count
+    now coincides with `AM-27` r2's "30" for a different reason; **C-14 is not
+    resolved by that coincidence.** `ContractStatus` is NOT amended.
+
+### What AB-12 does NOT amend
+
+SEC-01, SEC-02, SEC-03 (legal authority still travels as an additional role),
+SEC-05 (as implemented: a change may not leave zero holders), SEC-06, SEC-07 (404 for
+out-of-scope), SEC-08's S-1–S-10, SEC-09, `REC-09` (retained for the future legal
+workflow), `AM-25`–`AM-29` (conversation privacy unchanged), `AM-36`, `AM-38`, rule
+17, the five-axis state model, the deterministic engine, any evaluator, any Company
+Standard, the zero-tolerance Legal Rule, the golden corpus, and the decision
+endpoints. Step 30's lifecycle is unchanged (r9 records its consequence, not a
+change).
+
+### Engineering notes recorded with this batch
+
+* The live `legalmind-api.service` runs from the shared working tree
+  (`WorkingDirectory=/root/Legalmind.v1/backend`) against `legalmind_v1_dev`, which is
+  the live database. This batch was implemented and verified LOCALLY only — the
+  migration was exercised on a `pg_dump` clone (`legalmind_v1_rbac_scratch`), never
+  on the live database. **Deployment order is fixed by the column rename:** migrate
+  the live database, THEN restart the API, THEN deploy the frontend. A restart before
+  the migration loads `archived_at` against a schema that lacks it.
+* No department exists after the migration. Until an administrator creates one and
+  places the Lead and the users in it, every account — the Lead included — sees
+  exactly its own deals. That is the safe direction, and it is deliberate.
+
+---
+
+# AB-13 — The Counterparty as an Entity (Owner Instruction — 2026-09-06)
+
+## Why this batch exists
+
+Management's product-coherence review (2026-09-05) asked, in its own words:
+
+```text
+Counterparty/company profile ka concept missing hai — company name, industry,
+relationship etc. ko properly maintain kaise karenge?
+
+Related documents ko connect karna hai — same counterparty ke NDA → MSA → PO →
+Annexure → revisions ko isolated documents ki tarah nahi rakhna chahiye.
+```
+
+Phase 3 (2026-09-06) recorded a counterparty as **declared free text** on
+`document_versions.metadata`. That satisfies the *declaration* — what the
+uploader said this version was with — and it cannot satisfy either sentence
+above, for one reason: **it carries no identity.** `"Acme Ltd"` on one version
+and `"Acme Limited"` on another are two unrelated strings. Nothing can be
+grouped by them, no attribute can hang off them, and no history can accumulate
+against them. A convergence datalist narrows the typo problem and does not
+remove it.
+
+The owner instructed (2026-09-06): *"Do not create a half-solution just to mark
+the manager requirement DONE"*, and, where a locked decision is insufficient,
+*"blindly preserve mat karo … decision ko update karo, but first document the
+conflict and rationale."* This record is that documentation.
+
+## The three things, kept apart
+
+```text
+Counterparty METADATA      a NAME declared on ONE version, frozen once
+(Phase 3, unchanged)       reviewed. A historical record of what was said.
+
+Counterparty PROFILE       an ENTITY: stable id + attributes. Identity is
+(this record, r1)          the thing that was missing.
+
+RELATED DOCUMENTS          a QUERY over contracts sharing a counterparty id.
+(this record, r3)          NOT a relationship graph.
+```
+
+## What is decided
+
+```text
+r1  NEW TABLE `counterparties` — `id` (UUID PK), `name` (NOT NULL),
+    `industry` (nullable), `relationship_notes` (nullable), `created_by`
+    (FK → users.id), `created_at`, `updated_at`. The profile the manager asked
+    for, and nothing more: no address book, no contacts, no CRM pipeline.
+    `industry` and `relationship_notes` are NULLABLE and stay empty unless a
+    human types them — rule 21 forbids inventing company or industry
+    information, and an unknown industry is a fact, not a gap to fill. This
+    directly answers the manager's seventh point ("metadata when the
+    counterparty is not fully known yet"): partial is the normal state.
+
+r2  NEW COLUMN `contracts.counterparty_id` — nullable FK → counterparties.id,
+    ON DELETE RESTRICT. Amends locked 42.3's column list. Nullable because
+    every existing contract has no counterparty and inventing one would be
+    inventing data; a contract without a counterparty stays exactly as legible
+    as it is today. Application tables become 31.
+
+r3  RELATEDNESS IS DERIVED, NOT STORED. "Every document for this company —
+    NDA, MSA, PO, annexures, revisions" is `WHERE counterparty_id = ?` over
+    contracts the caller may already see. NO document-to-document relationship
+    table is created, and none is needed: once identity exists, relatedness is
+    a query. A join table would add a second, divergeable source of truth for
+    something the FK already states.
+
+r4  NO deal/matter entity. The manager's chain reads "company → deal/matter →
+    documents → versions → annexures". `AM-25` puts purchase orders and the
+    commercial transaction lifecycle OUT of V1 scope and is NOT amended here,
+    so in V1 the chain is honestly "company → contracts → versions → evidence",
+    and the PO link the manager drew cannot be completed by any V1 structure.
+    Stating that is preferable to modelling a matter nothing populates.
+
+r5  NO NEW PERMISSION. `contract.view` governs reading a counterparty and
+    `contract.update` governs creating or editing one — naming who a contract
+    is with is part of maintaining that contract, and every holder of
+    `contract.update` already renames contracts and declares their type. The
+    existing model expresses this requirement, so `IMPL-01`'s bar for a new
+    permission is not met.
+
+r6  VISIBILITY IS ROOTED IN THE CONTRACT, exactly as AB-12 r5 roots Reviews.
+    A counterparty is visible when the caller can see at least one contract
+    linked to it, under the scope AB-12 already defines (own, or department for
+    a holder of `department.view`) — OR when the caller created it. The second
+    clause is not a widening: without it a company is invisible to its own
+    author until a contract points at it, so linking the FIRST deal to a new
+    company is impossible, and you already know about the row you just made.
+    **There is no global counterparty list.**
+    A company the organisation is negotiating with is disclosive — "we have a
+    deal with X" is exactly the class of fact `SEC-07`/`LEGAL-02` keep inside
+    its scope — so an endpoint listing every counterparty regardless of scope
+    is forbidden by this record, not merely unbuilt.
+
+r7  THE DECLARATION IS NOT REPLACED. `document_versions.metadata.counterparty`
+    stays what it is: the frozen, per-version record of what the uploader
+    declared, immutable once a Review exists (owner ruling, 2026-09-06). The
+    link in r2 is the live identity. They answer different questions and the
+    UI prefers the linked profile, falling back to the declared text where no
+    link exists. Nothing is migrated or rewritten: rule 17 forbids rewriting a
+    version's declared history, and a name typed in July is a fact about July.
+
+r8  AUDITED. `counterparty.created`, `counterparty.updated` and
+    `contract.counterparty_linked` (before/after, actor, request id) join the
+    existing append-only trail. A shared profile that several people may edit
+    is exactly the case AUD-01 exists for.
+
+r9  NOT AMENDED by this batch: `AM-25` (PO/commercial lifecycle stays out of
+    V1) · `AI-01` (no AI reaches any of this; a counterparty is declared, never
+    inferred from document text, the same line Q9/`DOC-06` draw for Document
+    Type) · `AM-30` t4 (a counterparty identifier still never egresses to the
+    generation provider) · `LEGAL-02`/`SEC-07` (r6 applies them, does not relax
+    them) · AB-12's persona and scope model (r6 reuses it unchanged) · Step 6's
+    Document Types · `AM-27` r2's assist-schema separation (this is a locked-
+    schema table, not an assist one) · the 42.4 declared metadata of Phase 3.
+
+r10 C-14 IS NOT RESOLVED by the count changing to 31. The locked-count
+    discrepancy AB-12 r14 recorded stays open and stays registered.
+```
+
+## Migration
+
+One forward migration adds the table and the column. It backfills NOTHING: no
+existing contract is linked to a counterparty, because the only honest source
+for that link is a human saying so. The free-text declarations already on
+`document_versions.metadata` are deliberately NOT converted into rows — they
+are per-version historical declarations, several of them are placeholders from
+tests, and promoting a string into an identity is precisely the invention rule
+21 forbids.
+
+## The conflict this record resolves
+
+Locked 42.3 fixes the `contracts` table's columns and `IMPL-01` reserves any
+new table or column to an approved amendment. `all_lock.md` carried no
+counterparty table and no counterparty column anywhere — the area was
+UNSPECIFIED, not decided against. Under rule 8 an unspecified area is a valid
+state to preserve; the owner has now decided it, and this record is that
+decision. The precedent for the mechanism is AB-12 r3, which added
+`departments` and `users.department_id` on 2026-09-05.
+
+--------------------------------------------------------------------------------
+
+# AB-14 — The Legal Constitution Becomes the Governing Source; the Question Picks the Sources (Owner Instruction — 2026-09-08)
+
+**Records: `AM-43` – `AM-46`.** Append-only, per rule 22. Nothing above this line is
+altered. Where a term below supersedes an earlier term, the earlier text stays where it
+is and is annotated as superseded in `docs/00-project/LOCKED_DECISIONS.md`.
+
+## Why this batch exists
+
+The owner instructed on 2026-09-08, in writing and twice:
+
+```text
+The following document is the CANONICAL LEGAL SOURCE OF TRUTH for LegalMind:
+/root/Legalmind.v1/LegalMind_Legal_Constitution_Lawyer_Review_fv.docx
+... If the Constitution says X but existing LegalMind code/config/lock/documentation
+says Y: DO NOT assume Y is still correct. Treat X as the effective legal position.
+... Constitution wins. Update the lock/decision record with an append-only amendment.
+```
+
+and, of the product:
+
+```text
+A user should be able to upload ANY legal document and ask a normal natural-language
+legal question. The user should NOT have to tell LegalMind ... "use Constitution",
+"use Company Standards", "use Statute", "compare against company position", "select
+legal knowledge". The system should determine the relevant authorized knowledge
+automatically.
+```
+
+An adversarial audit against the RUNNING system the same day (as a Department User, over
+the real HTTP API, on a real MSA) found the assist lane refusing the manager's own
+comparison question as "Information not found in the selected document", refusing three
+descriptive questions the document answered (a chunker that emitted headings as
+retrieval units — 29% of the live index under 60 characters), a `AM-25` r4 screen that
+passed every natural phrasing of the compliance question, Domain A built and wired to
+nothing, Domain C absent, and a permission basis (`AM-32` r5) under which the manager's
+"normal user" could never reach a Company Standard by asking. This batch records the
+decisions those findings required; the code and tests landing with it realize them.
+
+## What the Constitution is, and is not, after this batch
+
+The document's own cover reads *Company/Stakeholder Position APPROVED — Legal Status
+PENDING LEGAL VALIDATION AND APPROVAL — Effective Date NOT YET EFFECTIVE*. The owner has
+ruled that its **company/stakeholder positions govern engineering now**, ahead of
+Counsel's sign-off, and that Counsel's later changes propagate by the same mechanism.
+Nothing in this batch asserts that any position is legally validated; the Constitution's
+own §1.3, §6.3 and §29.1.1 distinction 5 — *enforceability is Counsel's determination,
+never asserted by Legal Mind* — is preserved verbatim and now surfaces in product copy.
+
+The canonical engineering representation is `docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md`,
+a verbatim heading-and-table conversion of the DOCX (2026-09-08); the DOCX stays the
+document of record and is gitignored like every other legal document (54.6).
+
+--------------------------------------------------------------------------------
+
+# `AM-43` — The Legal Constitution L1.5 is admitted as source material and governs company positions
+
+**Amends:** the source-material ruling of 2026-08-18 ("the six documents below are the
+ONLY source material for this project") — by adding a seventh: the Legal Constitution,
+Lawyer Review Version L1.5. **Amends** the Company Standard configuration files named in
+r4 (configuration, not specification — no earlier lock record fixed their values).
+**Does not amend:** `AI-01`, `AM-25` r1–r3, r5–r9, the zero-tolerance Legal Rule
+(manager 2026-08-19, owner 2026-08-20), `AM-33`, 36.10, rule 12, or the Step 6 vocabulary.
+
+```text
+r1   SOURCE PRIORITY. Where sources disagree on a company legal position, in order:
+     (1) the current lawyer-review Constitution; (2) amendments the Constitution itself
+     incorporates or confirms; (3) ratified Company Standards consistent with it;
+     (4) locked decisions and implementation records; (5) code, configuration, tests.
+     A lower source never overrides a higher one. Applicable LAW (Constitution §7
+     Level 2) constrains every company position and is not a company position.
+
+r2   THE CONSTITUTION IS CONFIGURATION SOURCE, NOT RUNTIME CORPUS. It is not chunked,
+     indexed or retrieved. Its positions enter the system the way every position does:
+     as a ratified Company Standard file citing the Constitution section as its source,
+     published as a company_standard_version, chunked into Domain A by `AM-32` r3.
+     Rule 21 is satisfied — the material is supplied, never manufactured — and rule 7
+     is satisfied because no value is authored here that the Constitution does not
+     state.
+
+r3   WHAT THE CONSTITUTION DOES NOT RESOLVE STAYS UNRESOLVED. Its §24.1 Risk Level
+     names a scale and defines no assignment rule; under its own §23.4 an undefined
+     boundary is never inferred. Locked 36.10 / rule 12 (no risk score) therefore
+     stands, and this is recorded as a Constitution-side gap for Counsel, not a
+     conflict resolved in code. Its §24 Negotiability attribute ("Negotiable —
+     Approval Required") describes a HUMAN approval path (§25); the zero-tolerance
+     Legal Rule already routes every DEVIATION to a human Legal Decision and
+     auto-approves nothing. The two agree on outcome and differ on label; the label
+     is presentational and no `RuleOutcome` value changes (45B.26). No approval
+     workflow is introduced (AB-12).
+
+r4   SIX POSITIONS RECONCILED — the Constitution's stated value replaces the value the
+     live LeapSwitch paper states. Each standard file keeps its history and cites the
+     Constitution section as its source from this date:
+
+       LIABILITY-MSA-001        6 months, FEES_PAID_FOR_AFFECTED_SERVICES (MSA §17.2)
+                             -> 12 months, FEES_PAID                     (Const. §9:
+                                "the standard 12-month liability cap applies ...
+                                entity-wide ... identically to Leapswitch- and
+                                CloudPe-branded agreements"; MSA is "reference/
+                                template — not yet formally adopted", §8)
+       LATE-FEE-TOS-001         5 % per month (TOS §7)  -> 2 % per month   (Const. §16)
+       CLAIM-WINDOW-SLA-001     60 days (SLA)           -> 30 days         (Const. §11)
+       DATA-RETRIEVAL-TOS-001   7 days (TOS §16)        -> 30 days         (Const. §13)
+       DATA-PURGE-MSA-001       15 days (MSA §7.6.6)    -> 30 days         (Const. §13:
+                                deletion only after the 30-day retrieval window)
+       CONF-SURVIVAL-NDA-001    2 years (NDA §9)        -> 3 years         (Const. §15)
+
+     Consequence, accepted deliberately: LeapSwitch's OWN live TOS, SLA, NDA and MSA
+     template now DEVIATE from the organization's stated position on these six points
+     and, under the zero-tolerance rule, evaluate UNACCEPTABLE → Legal Decision. That
+     is the truthful state — the Constitution itself says drafting corrections to the
+     live documents are "in progress" — and the golden corpus records it as such.
+     The engine was RIGHT to follow the live paper until the owner ruled otherwise;
+     this record is that ruling.
+
+r5   NOT RECONCILED — no explicit Constitution basis, left as-is and flagged:
+     LIAB-CARVEOUTS-MSA-001 (the Constitution's "no multiplier or super-cap" concerns
+     caps on LeapSwitch's exposure, not the MSA §17.3 exclusions for the Customer's
+     obligations — different subject); the six standards with no Constitution
+     counterpart (AUTORENEW-*, FORCE-MAJEURE-*, WARRANTY-DISCLAIMER-MSA-001,
+     COMPELLED-DISCLOSURE-NDA-001, RETURN-DESTRUCTION-*, TERM-NOTICE-NDA-001) — each
+     traces to a real LeapSwitch clause and is reported to Counsel as a Constitution
+     gap, not removed.
+
+r6   NOT AUTHORED — Constitution positions with no standard yet (payment due 21 days,
+     dispute window 15 days, price-change notice 30 days, convenience-termination
+     notice 30 days, uptime tiers, the 10/25/50 credit schedule, CERT-In/retention/
+     residency, AUP takedowns, mutuality of the cap, the two-part confidentiality
+     test) require calibrated mapping rules (locked 35.10) before a standard is
+     trusted. They are authorized by r1–r2 and remain to be built; none is invented.
+
+r7   ENTITY / BRAND. Constitution §4–§5.2 make Entity → Brand → Product/Service →
+     Document Type the applicability chain and forbid substituting a Leapswitch rule
+     for a CloudPe one. The data model carries Document Type only. This is the most
+     serious remaining gap and is NOT resolved here: adding an axis is a schema change
+     with owner-visible consequences for every standard's scope, and it needs its own
+     record. Registered as C-18.
+
+r8   COUNSEL. Whatever Counsel changes on sign-off propagates by a further record of
+     this shape; nothing here pre-empts Counsel.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-44` — Domain A retrieval is permitted with `legal_position.view`
+
+**Amends:** `AM-32` r5, whose text read *"Domain A retrieval requires assist.ask AND
+configuration.view"*. **Does not amend:** `AM-32` r1–r4, r6–r10; `AM-25` r6/r7; `LEGAL-02`;
+`SEC-07`; AB-12 r7.
+
+```text
+r1   Domain A retrieval requires assist.ask AND (configuration.view OR
+     legal_position.view), applied inside the query before retrieval (AM-25 r6).
+     To a caller with neither, Domain A results are indistinguishable from an empty
+     corpus and the route's refusal wording is rendered (AM-25 r7, AM-46).
+
+r2   WHY. AB-12 r7 grants every Department User legal_position.view so they can see
+     WHY their Finding is a MATCH, DEVIATION or MISSING — the standard, the comparison,
+     the explanation. Constitution §3.2B lets users ask about "the company's legal
+     position"; §25.1 lets a normal user compare and view. Retrieving a PUBLISHED
+     standard by asking for it is the same disclosure by another door; refusing it
+     while showing it on the Findings pane was an inconsistency, not a boundary.
+
+r3   Only PUBLISHED standard versions are ever chunked (AM-32 r3 unchanged), so
+     configuration.draft confers nothing here and drafts stay invisible to Ask.
+
+r4   AM-32 r4 stands in full: Domain A output is extractive — quoted verbatim with
+     standard code, source clause and document type — and never enters a generation
+     payload. The service passes document chunks only to the model; the test suite
+     asserts no position text reaches the payload.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-45` — The assist lane routes by question shape; `AM-25` r4 is enforced by a tested classifier and a structured handoff
+
+**Amends:** `AM-25` r4's ENFORCEMENT (the rule itself is reaffirmed word for word).
+**Adds** the routing layer `AM-32` anticipated. **Does not amend:** `AM-25` r1–r3, r5–r9;
+`AM-32` r1; Step 38 rule 21.
+
+```text
+r1   NO SOURCE SELECTOR. The user never chooses a domain, mode, corpus or document
+     type to ask a question. `assist.routing.plan` derives the candidate domains from
+     (a) the caller's resolved permission set — first, so a domain the caller may not
+     read is never a candidate — and (b) the question's shape. The plan is
+     deterministic in its inputs and is recorded on retrieval_runs.filters.domains.
+
+r2   DOMAINS STAY SEPARATE (AM-32 r1). A document answer is generated and cited by
+     page/section; a position is quoted verbatim and cited by standard code/clause;
+     a statute (when Domain C exists) is cited by Act/section. Each arrives in its own
+     response field. Nothing merges them into one body of text, and disagreement
+     between them is shown, never adjudicated (rule 5, AM-25 r1).
+
+r3   THE COMPARISON QUESTION. AM-25 r4 stands: it is never answered generatively.
+     Detection is `assist.intent.is_comparison_question` — a deterministic two-signal
+     stem classifier (an organization reference AND a distinct comparison verb or
+     outcome noun), pinned by a phrase matrix that includes every phrasing the
+     2026-09-08 audit found leaking. It replaces a regex that matched "compliant" but
+     not "comply" and was defeated by any adjective between "our" and "position".
+
+r4   THE HANDOFF IS STRUCTURED. A routed question returns the latest Review of the
+     asked version and its Finding counts by classification — READ from the
+     authoritative tables (AM-25 r2: the assist lane writes nothing there and produces
+     no classification) — plus the relevant ratified position quoted under AM-44, and
+     the UI renders a control to open the Findings. Where no Review exists the
+     response says so and offers to open the document. Prose that named no action is
+     retired.
+
+r5   DOCUMENT TYPE IS NOT AN ASK PREREQUISITE. Owner Q9 / AM-34 stand for ANALYSIS:
+     the deterministic evaluator still refuses an undeclared type, because the
+     declared type is the control that keeps a statute or non-contract out of the
+     evaluator. The intake no longer blocks on it; a document opens for questions
+     without one and the workspace says analysis needs it.
+
+r6   RETRIEVAL UNIT. clause-aware-3: a one-line, non-sentence heading is folded into
+     the clause it introduces; U+200B/NBSP after a clause number are blanks. Chunk
+     boundaries are an implementation detail (no lock governs them); the algorithm
+     version on every chunk row changes so earlier citations are not reinterpreted.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-46` — Refusal wording names the route, never the object
+
+**Amends:** `AM-29` r4 ("every refusal a user sees carries the identical wording,
+whatever its cause"). **Does not amend:** `AM-25` r5–r7; `AM-29` r1–r3.
+
+```text
+r1   ONE WORDING PER CANDIDATE SET. The refusal sentence depends only on which
+     authorized domains were candidates for the question and on whether the
+     conversation has a document — facts the caller already holds (their own /me,
+     their own conversation). Within a candidate set every cause (gate closed,
+     evidence insufficient, generation unavailable, claim unsupported) renders the
+     identical sentence.
+
+r2   NEVER THE OBJECT. No wording depends on whether a particular chunk, standard,
+     statute or document exists, so an authorization exclusion and a genuine miss
+     remain byte-identical (AM-25 r6/r7) and no refusal is an existence oracle.
+
+r3   THE LAW IS A GLOBAL FACT. When the question is about the law itself and no
+     approved statute corpus is ratified, the refusal says so — "Statutory text is
+     not yet part of this installation's approved sources" — identically for every
+     caller. Whether the installation has a statute corpus discloses nothing about
+     any user's documents.
+
+r4   The internal answer states (NO_EVIDENCE_RETRIEVED, EVIDENCE_INSUFFICIENT,
+     CLAIM_UNSUPPORTED) are unchanged and stay reconstructable from retrieval_runs.
+```
+
+--------------------------------------------------------------------------------
+
+## Conflicts this batch registers, resolves, or leaves
+
+```text
+RESOLVED   the six value divergences in AM-43 r4        (were: unregistered; now C-17, closed)
+RESOLVED   AM-32 r5 vs AB-12 r7 permission inconsistency (AM-44)
+RESOLVED   AM-25 r4 enforcement gap                     (AM-45 r3)
+OPEN       C-16  statute corpus never ratified — NI Act and Evidence Act/BSA not supplied.
+                 Domain C cannot be built from material that is not on disk (AM-32 r6,
+                 rule 21). "What does Section 138 say?" refuses under AM-46 r3 until the
+                 owner supplies the statutes with provenance.
+OPEN       C-18  Entity/Brand axis absent (AM-43 r7).
+OPEN       Constitution §24.1 Risk Level has no assignment rule (AM-43 r3) — for Counsel.
+OPEN       Constitution §9/§10/§15 mutuality — no party-symmetry evaluator exists.
+```
+
+**Approved by the owner on 2026-09-08** ("You have my explicit GO for the FULL task ...
+If a locked decision conflicts with the Constitution: Constitution wins. Update the
+lock/decision record with an append-only amendment.").
+
+--------------------------------------------------------------------------------
+
+# AB-14 — Correction and one further record (appended 2026-09-08, same session)
+
+**Correction, append-only (rule 22).** The AB-14 preface above registers the six value
+divergences as "C-17" and the Entity/Brand gap as "C-18". `C-17` was already taken
+(2026-09-01, the OIDC egress tension). The identifiers are **C-18** (the six values,
+resolved) and **C-19** (Entity/Brand, open), as `docs/00-project/CONFLICTS.md` records.
+The text above is left exactly as written.
+
+# `AM-47` — Domain C is built over the seven supplied statutes, with their provenance stated as it is
+
+**Amends:** the "Until decided: Domain C is not built" posture recorded under C-16 in
+`docs/00-project/CONFLICTS.md` (2026-08-25) — a working posture, not a lock record.
+**Does not amend:** `AM-32` r6–r8 (provenance record required; section-based chunking;
+statutes never enter the evaluator; Domain C may egress under the `AM-31` gate); rule 21.
+
+```text
+r1   The seven statutes the owner supplied on 2026-08-18 (Contract Act 1872 · IT Act
+     2000 · SPDI Rules 2011 · Companies Act 2013 (supplied excerpt) · CERT-In Directions
+     2022 · DPDP Act 2023 · IT Rules 2021 as updated 10.02.2026) may be ingested as
+     Domain C. Constitution §6.1 names every one of them as applicable law.
+
+r2   Each registry row states its provenance AS IT IS: official title and act number/
+     year as the supplied file itself states them; jurisdiction IN; `source` =
+     "owner-supplied 2026-08-18 (Drive tranche); India Code re-verification PENDING
+     (C-16 item 2)"; `source_ref` = the notification/act reference the file itself
+     carries; the file's SHA-256; supplier and date. A field the file does not state is
+     recorded as "NOT STATED IN SUPPLIED FILE", never guessed. AM-32 r6's requirement
+     that a statute without a provenance record cannot be ingested is met; the quality
+     caveat is IN the record, not hidden by it.
+
+r3   NOT ingested, because not supplied: the Negotiable Instruments Act 1881 and the
+     Evidence Act 1872 / Bharatiya Sakshya Adhiniyam 2023. "What does Section 138 say?"
+     therefore refuses with the corpus's actual holdings named. Rule 21: the
+     application fetches nothing; the owner supplies.
+
+r4   Statute output enters generation (AM-32 r8) as its own evidence set, cited Act +
+     section (r7), in its own response field — never merged with document or position
+     text (AM-45 r2). No Requirement, Standard, Rule, threshold or acceptance position
+     is derived from it (AM-32 r7; source-material ruling 2026-08-18).
+
+r5   AM-32 r9: the ratified 77-question evaluation set already holds 23 statute
+     questions over these seven files; they are the Domain C evaluation material.
+```
+
+**Approved by the owner on 2026-09-08** ("If the Constitution provides a way to add the
+source and the required source material exists locally, implement it.").
+
+--------------------------------------------------------------------------------
+
+# `AM-48` — Statutes are obtained from India Code by an operator; the §6.1 corpus is completed (Owner Instruction — 2026-09-08, evening)
+
+**Amends:** `AM-32` r6's clause *"statute material is supplied, never authored, never
+fetched by the application"* — by defining who may supply: the owner, or an operator
+acting on the owner's written instruction, from an official Government of India source
+(India Code first; the issuing ministry where India Code does not hold the instrument).
+**Amends** `AM-47` r3 (the NI Act and BSA are now present). **Does not amend:** `AM-32`
+r6's provenance record requirement, r7 (section-based, Act + section citations, statutes
+never enter the evaluator), r8, r9; rule 21's bar on authoring or rewriting law; the
+Constitution's authority over company positions.
+
+The owner instructed: *"For genuinely missing statutes, fetch the authoritative/current
+text from official Indian Government sources (prefer India Code / Gazette / official
+ministry source) … Preserve source provenance, Act name, year, section/chapter structure
+and source URL. Do not hallucinate, summarize, or rewrite the law."*
+
+```text
+r1   WHO FETCHES. The application never fetches (AM-32 r6 stands). An operator may,
+     on the owner's instruction, obtain a statute from an official source and place
+     it at LEGALMIND_SOURCE_MATERIAL_DIR with a registry entry. Precedence: India
+     Code (indiacode.gov.in — the product vision's hard rule) → the issuing ministry
+     or the Gazette → nothing else. No aggregator, no commercial site, no summary.
+
+r2   WHAT THE RECORD SAYS. Every registry entry carries the source host, the India
+     Code handle and file name (or the ministry URL), the "as on" date the file
+     itself states (or NOT STATED IN SUPPLIED FILE), and the SHA-256 of the file as
+     obtained. Where the only official copy is deficient, the deficiency is in the
+     record — the Income-tax Act, 1961 is held only as a Department of Revenue-hosted
+     2011 Taxmann edition and is marked NOT current and REPEALED w.e.f. 1 April 2026.
+
+r3   THE EVIDENCE ACT QUESTION IS ANSWERED BY THE CONSTITUTION. §6.1 and §28.4.3 name
+     the Bharatiya Sakshya Adhiniyam, 2023 as the successor to the Indian Evidence
+     Act, 1872 w.e.f. 1 July 2024. The BSA is ingested; the Evidence Act is
+     deliberately not. C-16's "owner must choose" is closed by the Constitution.
+
+r4   CANONICAL TEXT PREFERRED. Where India Code holds an Act the owner had supplied
+     from another source, the India Code "as on" text is the corpus text and the
+     owner's file is retained on disk with its SHA recorded — the three central Acts
+     (Contract Act 1872, IT Act 2000, DPDP Act 2023) and the Companies Act 2013
+     (full Act replaces the supplied 4-page excerpt).
+
+r5   CORPUS AFTER THIS RECORD (17 instruments): Contract Act 1872 · IT Act 2000 ·
+     SPDI Rules 2011 · CERT-In Directions 2022 · IT Rules 2021 (upd. 10.02.2026) ·
+     DPDP Act 2023 · DPDP Rules 2025 · Negotiable Instruments Act 1881 · Arbitration
+     and Conciliation Act 1996 · Code of Civil Procedure 1908 · Copyright Act 1957 ·
+     Bharatiya Sakshya Adhiniyam 2023 · CGST Act 2017 · IGST Act 2017 · Companies Act
+     2013 · Companies Act 1956 (repealed; historical incorporation) · Income-tax Act
+     1961 (repealed; 2011 edition — see r2). NOT obtained: the Income-tax Act, 2025
+     (30 of 2025) — official copies (incometaxindia.gov.in, egazette.gov.in) were
+     unreachable from the operator's host; recorded as STILL MISSING, never
+     substituted from an unofficial source.
+
+r6   RANKING. A statute question that names an Act ranks that Act's sections before
+     every other Act's section of the same number (eighteen Acts hold a section 138).
+     Retrieval remains lexical-first with exact-section ranking; statutes never
+     produce a Requirement, Standard, Rule or acceptance position (AM-32 r7).
+```
+
+**Approved by the owner on 2026-09-08** ("Do NOT stop after discovering a missing file.
+If it can legally/technically be obtained from an authoritative public source, obtain
+it, ingest it, test it and continue.").
+
+--------------------------------------------------------------------------------
+
+# AB-15 — `AM-49` — The grounded explanation layer for a Finding (Owner Instruction — 2026-09-09)
+
+**Amends:** `AM-30` t3 and `AM-32` r4 **for exactly one payload shape** — the Finding
+explanation payload defined in r1 below — and `AM-27`'s authorized assist-schema table set
+(as extended by `AM-32` and `AM-35`) by **one additive table**, `finding_explanations`.
+**Does not amend:** `AM-25` r1–r9 (the lane still produces no Finding, Evaluation,
+Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition and
+never answers "does this meet our standard?"); `AM-30` t1, t2, t4–t10 (single seam, hash-only
+audit, pinned model, allow-list, no identifiers); `AM-30` t3 for every other payload; `AM-32`
+r4 for every Domain A retrieval result; `AM-35`; the four classifications; the three
+user-facing statuses (Accepted / Needs review / Not accepted, owner 2026-09-08); LEGAL-02
+as a display and egress rule; rule 7, rule 12, rule 13, rule 21.
+
+The owner instructed: *"Build a GROUNDED LLM EXPLANATION LAYER for the Finding UI … The
+deterministic backend remains the source of truth. The LLM is ONLY a language/explanation
+layer … Never invent legal meaning. Never decide whether something is legally acceptable.
+Never change MATCH/MISSING/DEVIATION/UNABLE_TO_EVALUATE or any backend result."* Asked
+whether to amend `AM-30` t3 / `AM-32` r4 narrowly or forgo the model, the owner chose
+**"Amend narrowly"**, and approved the one additive table in the same record.
+
+```text
+r1   THE ONLY PERMITTED PAYLOAD. A Finding explanation call sends exactly: the
+     requirement's title in words (never its code); the requirement's approved
+     plain-English `description` (the presentation line the owner instructed on
+     2026-09-09 — never the Company Standard's value, `source_quote` or
+     `source_clause`); the classification as a plain phrase (MATCH / DEVIATION /
+     MISSING / CONFLICT / UNABLE_TO_EVALUATE — never the Rule Outcome, never an
+     Evaluation payload, never `expected_value` or `actual_value`); and the contract
+     passages the Evaluation cited (already permitted by AM-30 t2), marked as data,
+     not instructions. Nothing else. AM-30 t3 stands for everything this list does
+     not name, and AM-30 t4 stands in full — no identifier of any kind.
+
+r2   MECHANICAL VALIDATION BEFORE ANY READER SEES IT (AM-25 r5's principle, AM-35 t2's
+     method). The reply is accepted only if it is exactly one sentence within a fixed
+     length; carries no judgment, advice, consequence or acceptability vocabulary
+     (the AM-35 screen, widened); contains no number the supplied material did not
+     contain; and grounds every content word in the supplied material or a fixed
+     frame vocabulary. A reply that fails any check — or that declares the material
+     insufficient — is recorded as FALLBACK and the card shows the approved
+     description. The screen is code, not prompt (AM-28 r2's spirit).
+
+r3   STABLE AND INVALIDATED BY SOURCE. The accepted sentence is stored against the
+     Finding and a hash of (requirement version, description, classification, cited
+     evidence, prompt version). The same Finding reads the same on every visit; a
+     changed source yields a new hash and a fresh generation, the old row staying as
+     history. A provider failure (FAILED) is not stored, so the next visit retries.
+
+r4   ONE ADDITIVE TABLE. `finding_explanations` in the assist schema (migration
+     f3a9c2d7e1b4): finding_id (FK findings, CASCADE), requirement_version_id (FK,
+     CASCADE), source_hash, status ∈ {ACCEPTED, FALLBACK, FAILED}, explanation,
+     rejection_reason, model_identity, prompt_version, payload_sha256, created_at;
+     UNIQUE (finding_id, source_hash). AM-27 r1–r3 apply: separate schema, derived
+     store, recomputable, never a source of legal truth, no locked table touched.
+     Its status vocabulary shares no value with the five axes or AM-29's answer state.
+
+r5   LANGUAGE ONLY. The explanation is generated after the authoritative result exists
+     and reads it only to choose the phrase in r1. It never writes to findings,
+     evaluations or any legal or configuration table; it never determines or alters
+     the classification, the Rule Outcome, requires_decision, or the user-facing
+     status; a test asserts the Finding and Evaluation rows are byte-identical across
+     an explanation. The card shows it under the status, never as the status.
+
+r6   PERMISSION AND AUDIT. `POST /findings/{id}/explain` behind the Guard chain with
+     `finding.view` (AM-35 t5's reasoning: built only from material the caller already
+     sees — LEGAL-02's stricter gate does not apply, so the reply is identical for
+     every caller who can see the Finding). Every call writes an `audit_events` row
+     with model identity, prompt version `finding-explanation-1` and the payload hash,
+     never the payload (AM-30 t5). Rate-limited as deployment configuration.
+
+r7   SOURCE ATTRIBUTION ON THE CARD. "How this was determined" names where the
+     sentence came from — the grounded generation (with passage count and prompt
+     version), the approved description, or the data-built fallback.
+```
+
+**Approved by the owner on 2026-09-09** ("Amend narrowly … Yes, same record").
+
+--------------------------------------------------------------------------------
+
+# AB-16 — `AM-50` — Upload → Review → Ask: the user never configures the workflow (Owner Instruction — 2026-09-09)
+
+**Amends:** `DOC-06` (Document Type is declared, never inferred; automatic detection out of
+V1 scope) and `AM-34` t1 (only the human's confirmation records the type) — **for the intake
+only, as r1 below**; `AM-45` (routing by question shape) — **extended by r2**; the owner's
+2026-09-01 correction that the Summary tiles name the engine's classifications — **reversed
+by r4**; the fifth-pass document layout (2026-09-08) — **superseded by r5**. **Does not
+amend:** Q9's substance that the evaluator refuses an undeclared type (`AM-45` r5 stands);
+`AI-01`; `AM-25` r1–r9; `AM-30`; `AM-32`; `AM-46` (one refusal wording per candidate set);
+`AM-49`; the four classifications; the three user-facing statuses; LEGAL-02; rules 7, 12, 13,
+21. **Legal and audit integrity are preserved by construction:** nothing here changes what
+the evaluator does, what it refuses, or what the audit trail records — it changes who has to
+click, and what the reader is shown.
+
+The owner instructed: *"THE USER SHOULD NOT NEED TO UNDERSTAND HOW LEGALMIND WORKS
+INTERNALLY … UPLOAD → REVIEW → ASK QUESTIONS → GET SIMPLE ANSWERS … The user should NOT
+normally select Document Type, Knowledge Base, Standard, Clause list, Retrieval source … If
+any existing locked decision conflicts with this new product direction, do not stop — treat
+this instruction as the latest final product decision, update/reconcile the affected lock
+records and implementation accordingly, while preserving legal/audit integrity."*
+
+```text
+r1   THE INTAKE RECORDS A CONFIDENT SUGGESTION. When the assist lane's type
+     suggestion (AM-34) is confident, the intake records it as the contract's
+     type through the ordinary contract update and starts the review — the reader
+     uploads and LegalMind reviews. Integrity: (a) the audit trail records the
+     declaration with its source, `contract.type_declared` {contract_type, source ∈
+     HUMAN | ASSIST_SUGGESTION}; (b) the reader can change the type at any time in
+     Edit details, and a changed type runs a fresh analysis while earlier Reviews
+     stay on record (rule 16/17); (c) the evaluator still refuses an undeclared
+     type (AM-45 r5) — the suggestion never enters the evaluator, it only chooses
+     which human-approved standards the evaluator is offered; (d) "confident" is
+     AM-34 t3's exact-code parse, never a score, and a suggestion that is not
+     confident asks the smallest clarification: one select, pre-filled from the
+     filename where a Step 6 code appears. The intake asks nothing else; declared
+     version facts (source, counterparty, effective date) live in Edit details.
+
+r2   THE DOCUMENT IS NEVER A HARD FILTER. AM-45 stands and is extended: when the
+     router sent a question to the document only and the document does not answer
+     (retrieval gate closed or evidence insufficient), the other authorized sources
+     the caller may see — the statute corpus, the organization's positions — are
+     consulted before any refusal, exactly as they are when the router names them:
+     positions extractive-only (AM-32 r4), statutes answered over their own
+     evidence and cited Act + section (AM-47 r4), the AM-46 wording for the
+     candidate set. A question none of them answers gets the one safe refusal.
+     `retrieval_runs.filters.domains` records the fall-through.
+
+r3   THE EVALUATOR'S QUESTION IN MORE OF ITS PHRASINGS. "follow / adhere / honour"
+     join the comparison signals as exact words ("Does this NDA follow our
+     standards?" routes to the evaluator; "our follow-up obligations" does not).
+     A question that names an Act by a common short name (DPDP, NI Act, CPC, BSA,
+     CGST, IGST, IT Act) is answered from that Act even when no section repeats
+     the question's words — names only, no law is authored.
+
+r4   THE SUMMARY SPEAKS THE READER'S WORDS. Tiles, bar, ring legend and the report
+     count Accepted / Needs review / Not accepted and how many need a legal
+     decision — the same `userStatus()` the card uses, never a second vocabulary.
+     MATCH / DEVIATION / MISSING / CONFLICT / UNABLE_TO_EVALUATE are unchanged in
+     the API, the audit trail and the card's View details. The 2026-09-01 owner
+     correction ("never an invented catch-all like Needs review" on the tiles) is
+     reversed by this record; the dashboard pill reads "Needs review" too.
+
+r5   FINDINGS ARE THE PRIMARY WORKSPACE. Closed, the findings fill the workspace;
+     "Show document" opens the document beside them at a fixed, reader-resizable
+     width, and the findings keep the flexible column — never a narrow rail. The
+     card's technical disclosure is a deliberate secondary action, "View details",
+     collapsed by default; its contents (evidence, chain, engine record,
+     identifiers) are unchanged.
+
+r6   WHAT THE READER NEVER SEES BY DEFAULT: embeddings, chunks, retrieval filters,
+     routing, knowledge-base or source selection, prompt construction, evaluator
+     names, rule ids, comparison operators, evidence counts, engine records. All of
+     it remains one click away for legal and audit readers.
+```
+
+**Approved by the owner on 2026-09-09** ("Amend narrowly … treat this instruction as the latest
+final product decision, update/reconcile the affected lock records … preserving legal/audit
+integrity"; Summary words "Yes, reverse it"; layout "Findings flexible, document fixed").
+
+--------------------------------------------------------------------------------
+
+# AB-16 — `AM-51` — Applicability by content: the document type is one optional signal, never a gate (Owner Instruction — 2026-09-09)
+
+**Amends:** locked Step 28's Document Type scoping as implemented 2026-08-19 (a Requirement
+applies only to the declared type; an undeclared type REFUSES), `DOC-06`'s "an undeclared type —
+analysis REFUSES", `AM-45` r5's "the deterministic evaluator still refuses an undeclared type",
+and `AM-50` r1(c). **Does not amend:** `AI-01` (this is deterministic mapping, no model); Step
+28/35 mapping; the evaluators; the zero-tolerance Legal Rule; the four classifications; owner
+Q3=B (standards stay per document type — the type is now how a family is NAMED, not how the
+document is GATED); the 2026-08-20 SLA ruling (kept in force by r4); rules 7, 12, 13, 15, 21.
+
+The owner instructed: *"Do not make document-type detection the gatekeeper for review or
+retrieval. Treat document type only as one optional signal. The primary intelligence must come
+from the actual uploaded document content and the user's intent: identify the clauses/concepts
+present in the document, automatically determine which authorized Company Position … are
+relevant … analyze the document across all applicable domains — even when one uploaded
+document contains multiple legal domains. The user must never be required to select a document
+type or knowledge source merely to make this work."*
+
+```text
+r1   MAP FIRST. Every pinned Requirement is mapped against the document's clauses
+     (Steps 28/35, deterministic) before applicability is decided. Mapping is
+     computed once and reused by the evaluation.
+
+r2   WHAT APPLIES. A Requirement applies when the document CONFIRMS its clause
+     (content wins, whatever family the standard belongs to — one document may
+     span several legal domains), or when it belongs to a DETECTED family. A
+     family (Step 6 type) is detected when it is the declared type, or when at
+     least two of its standards (all of them, for a family of one) map CONFIRMED.
+
+r3   WHAT MAY BE MISSING. Absence is asserted only inside a detected family: a
+     standard whose clause is absent is MISSING only when the document has shown
+     it is that kind of paper. A standard outside every detected family whose
+     clause is absent is not applicable — no Finding, never a guess (rule 15).
+     `requirements_applicable` and `detected_types` are recorded on the run and
+     in the audit event.
+
+r4   EXCLUSIONS ARE CONFIGURATION. A standard may list `not_applicable_to`
+     document types; when the declared type is listed the standard never applies,
+     even if its clause maps. The two ratified liability standards list SLA — the
+     owner's 2026-08-20 ruling that service credits are a remedy, not a cap,
+     unchanged in force.
+
+r5   NO GATE ANYWHERE. Analysis no longer refuses an undeclared type; the intake
+     asks no question (a confident suggestion is still recorded and audited under
+     AM-50 r1, as the signal it is); the analysis chain waits for no type; Ask
+     never needed one (AM-45 r5's first half stands). A type can be declared or
+     corrected at any time in Edit details, and doing so runs a fresh analysis.
+
+r6   INTEGRITY. An untyped STANDARD in a snapshot still refuses (ENG-09); the
+     golden corpus is unchanged (every fixture declares its type, so declared-type
+     applicability is the same set as before, plus content-confirmed standards of
+     other families where a fixture contains them).
+```
+
+**Approved by the owner on 2026-09-09** ("Do not make document-type detection the gatekeeper for
+review or retrieval … The user must never be required to select a document type or knowledge
+source merely to make this work.").
+
+--------------------------------------------------------------------------------
+
+# `AM-51` correction (r2) — family detection is the declared type only, never inferred from confirmed clauses (Owner-authorized engineering correction — 2026-09-09, pre-deployment live verification)
+
+**Amends:** `AM-51` r2 as first recorded, same day, before any deployment relying on it.
+**Does not amend:** `AM-51` r1, r3, r4, r5, r6, which stood correctly. Not a new owner
+decision — an engineering threshold `AM-51` r2 itself named as uncalibrated ("a family is
+DETECTED when it is the declared type OR when at least two of its standards map
+CONFIRMED"), corrected under the owner's standing authorization to resolve a deployment
+issue found during pre-deployment live verification, per the owner's instruction of
+2026-09-09 ("resolve any deployment issue you can safely resolve, then retest").
+
+**What live verification found.** A real mixed document (confidentiality, residuals,
+liability, termination, governing law, DPDP/IT Act references, AUP) with no declared type,
+run through `run_analysis` against the live 32-standard snapshot, produced 24 Findings —
+nearly every standard in the MSA, TOS and NDA families, most of them MISSING. Cause: three
+ordinary boilerplate clauses (a governing-law statement, a liability cap) mapped CONFIRMED
+against one standard each in the MSA, TOS and NDA families, and each family's independent
+"≥2 confirmed" count was satisfied by nothing more than that — because Governing Law and a
+liability cap are near-universal in commercial contracts, this heuristic would have
+"detected" nearly every family for nearly every document, which is precisely the false-
+MISSING flood the owner's instruction and rule 15 forbid.
+
+```text
+r2'  A family (Step 6 type) is DETECTED only when it is the DECLARED type — the
+     one fact a human, or a confident assist-lane suggestion (AM-50), actually
+     asserted about the document. Content still wins independently of family or
+     declaration: a Requirement whose own clause the document confirms applies
+     regardless of which family its standard belongs to (an NDA with a
+     liability clause is still measured against the liability standard) — but
+     an absent clause is MISSING only inside the DECLARED family, never
+     inferred from other confirmed clauses. `AM-51` r3's rule ("MISSING only
+     inside a detected family") is unchanged; only what counts as detection is
+     narrower.
+```
+
+Code: `legalmind/analysis/service.py::applicable_by_content`. Tests: `test_analysis.py`
+rewritten to assert the corrected behaviour (one confirmed clause alone detects nothing;
+a declared type still gates MISSING as designed). Verified: `run_analysis` on the same
+mixed document now returns Findings only for confirmed clauses (Governing Law × 3 variants
+match, Residuals match, MSA/TOS liability match) and zero MISSING findings, since no type
+was declared and no family was.
+
+--------------------------------------------------------------------------------
+
+# `AM-50` r3 correction — statute title-ranking uses a lexeme RATIO, and only india/indian are excluded (Owner-authorized engineering correction — 2026-09-09, pre-deployment live verification)
+
+**Amends:** `AM-50` r3's title-match mechanism as first implemented, same day, before any
+deployment relying on it. **Does not amend:** `AM-50` r3's rule that a title match alone
+admits an Act's opening sections, `AM-32` r7 (statutes never enter the evaluator), rule 21.
+
+**What live verification found, in two steps.** (1) "What does Section 43A of the IT Act
+mean?" refused, despite the IT Act being in the corpus: a raw COUNT of matching title
+lexemes let CERT-In's Directions — whose own long title happens to embed the phrase
+"Information Technology Act, 2000" — outscore the Act's own short title purely by having
+more incidental overlapping words. (2) After changing the count to a ratio (matched ÷ total
+non-stopword title lexemes), "What is the DPDP Act?" still answered from the DPDP RULES
+instead of the DPDP Act: excluding the words "act" and "rule" from the ratio (originally
+excluded as generic, alongside "india"/"indian") made the DPDP Act's and DPDP Rules'
+titles nearly indistinguishable, so the tiebreak picked the Rules — discarding the one word
+the question used to tell them apart.
+
+```text
+r3'  Title matching is a RATIO of matched to total non-stopword title lexemes,
+     never a raw count — a long title cannot outrank a short one merely for
+     containing more incidental words. Only "india"/"indian" are excluded from
+     that computation; "act" and "rule" are kept as real, discriminating
+     lexemes, because an Act and a same-named Rules instrument are told apart
+     by exactly that word.
+```
+
+Code: `legalmind/assist/statutes.py::search_statutes`. Tests: `test_assist_statutes.py`,
+`test_assist_intent.py` unchanged and green (45 passed). Verified live, post-fix, through
+the real API: "Section 43A of the IT Act" → IT Act §43A; "What is the DPDP Act?" → DPDP
+Act §§3/44; "Section 138 of the Negotiable Instruments Act" → NI Act §138 — all cited
+Act + section, none regressed.
+
+--------------------------------------------------------------------------------
+
+# `AM-52` — A mapped clause that states no cap keeps its evidence; `UNABLE_TO_EVALUATE` reads "Needs Review" (Owner Instruction — 2026-09-09, post-deployment investigation)
+
+**Amends:** nothing locked in substance. `45C.15`'s classification outcome is UNCHANGED
+(a mapped clause stating no cap is still established absence → MISSING); what changes is
+that the clause the mapping layer already confirmed is no longer DISCARDED — it is
+retained as that Finding's evidence, which `45C.14`'s own worked example (DOC-LIAB-08:
+"the clause was found and mapped, so it must remain attached") and rule 11 already
+required. The `UNABLE_TO_EVALUATE` **display label** becomes "Needs Review" (was
+"NEEDS A PERSON") — presentation only, no enum, audit value or evaluator path touched.
+**Does not amend:** rule 15's fail-closed routing, `45B.7`, `44.24`, Step 20 r4, the four
+classifications, the three user-facing statuses, `35.4` (terminology stays configuration —
+no phrase, synonym or fuzzy match was added anywhere).
+
+**What the investigation found.** The owner reported two MISSING liability findings on a
+real mixed contract. Traced end to end (extraction → clause detection → chunking →
+applicability → mapping → evidence assembly → evaluation → classification → summary):
+
+```text
+r1   THE REPORTED FINDING WAS CORRECT, THE FIXTURE WAS NOT. The clause read
+     "...aggregate liability ... shall exceed the total fees paid ..." — the word
+     "not" was absent, so as literal text it states no bounded cap and matches no
+     configured cap phrase. MISSING was the right fail-closed answer (44.24: never
+     a guess). Re-verified live with the same clause correctly drafted ("shall not
+     exceed the total fees paid ... twelve (12) months"): LIABILITY-MSA-001 and
+     LIABILITY-TOS-001 both MATCH, cited to the clause. No phrase was added.
+
+r2   THE REAL DEFECT WAS EVIDENCE LOSS, NOT RECALL. `_extract_from_clause`
+     returned `[]` for any mapped clause containing neither a configured cap nor
+     unlimited phrase, so the clause the mapping layer had ALREADY confirmed as
+     relevant was dropped and the MISSING Finding carried ZERO evidence —
+     indistinguishable from a document that never mentioned the subject, and a
+     rule-11 traceability break. It now emits an explicit ABSENT cap carrying that
+     clause's evidence. Classification is unchanged; only the citation is added.
+
+r3   A BARE HEADING IS NOT EVIDENCE. `section_heading_terms` lets mapping confirm a
+     heading line on its own ("3. Limitation of Liability"); attaching that as
+     evidence of an absence would mislead. A heading-shaped fragment (one line,
+     under 80 characters, not a sentence) is excluded — the same narrow judgment
+     `assist/chunking.py::_is_heading` makes, reimplemented locally rather than
+     imported, because the authoritative path does not depend on the assist lane
+     (`AM-25` r2).
+
+r4   LABEL ONLY. `UNABLE_TO_EVALUATE` renders as "Needs Review". The owner also
+     narrowed what that state should MEAN ("only when the content is genuinely
+     unclear, never a default or fallback"). That is a change to the evaluator's
+     fail-closed ROUTING — rule 15 currently makes this state the destination for
+     insufficient extraction, incomparable scope, undeterminable scope, unresolved
+     mapping and multi-limb formulas — and is deliberately NOT implemented here.
+     It requires naming which of those paths should classify differently, and to
+     what; a blanket narrowing would either weaken rule 15 or convert genuine
+     ambiguity into asserted absence. Recorded as the owner's open item.
+
+r5   DOMAIN A INDEXING WAS GENUINELY STALE AND IS NOW FIXED. Every
+     `position_chunks` row referenced a superseded `company_standard_versions`
+     row (LIABILITY-MSA-001 pointed at 4f99da3e…, the published version being
+     0558e85a…). Content text was already current (chunks are built from the
+     ratified FILE's verbatim fields, not the database's configuration values),
+     so no stale position was ever quoted to a user — but the provenance link was
+     broken. Rechunked: 32 chunks, every one now on the published version.
+     `position_chunk_embeddings` remains empty by design — Domain A search is
+     lexical (`search_positions` uses tsvector only), so this affects nothing.
+```
+
+**Approved by the owner on 2026-09-09** ("Investigate the complete path … Do NOT simply add
+another hardcoded phrase/synonym … Do NOT weaken the existing classification rules … If yes,
+fix it now rather than leaving it as a known limitation.").
+
+--------------------------------------------------------------------------------
+
+# `AM-53` — The FINAL three-status model: Accepted / Needs review / Not accepted are derived from the authoritative result, never a rename of the four classifications (Owner Instruction — 2026-09-09, FINAL product decision)
+
+**Amends:** the 2026-09-08 sixth-pass rule (recorded in `AM-49`/`AM-50` r4 as "the three
+user-facing statuses") under which NOT ACCEPTED fired ONLY on an explicit Constitution
+citation and every ruled DEVIATION showed as NEEDS REVIEW. That rule made NOT ACCEPTED and
+NEEDS REVIEW indistinguishable in practice — the reported defect. **Does not amend:** the four
+classifications, the four Rule Outcomes, D-3.5 / `UNRULED_DEVIATION_REQUIRES_DECISION`, rule
+15's fail-closed routing, the zero-tolerance Legal Rule (2026-08-19/20), `AM-33` r3, `AM-25`
+r1 (the assist lane still decides nothing), `AM-49` (the explanation is language only),
+LEGAL-02 as a redaction rule, rules 7, 12, 13, 21.
+
+The owner instructed: *"LegalMind will have ONLY 3 user-facing statuses … Do NOT simply rename
+the four backend states into three UI labels. The mapping must be determined from the
+authoritative backend result, evidence and approved Company Constitution/rules … MISSING → must
+be evaluated according to the applicable approved Company Standard. It is NOT automatically Not
+Accepted and NOT automatically Needs Review. DEVIATION → must be evaluated according to the
+approved rule … UNABLE_TO_EVALUATE → NEEDS REVIEW unless an approved rule explicitly provides
+another outcome … This is the FINAL product decision. Do not reopen the status-model
+discussion."*
+
+```text
+r1   DERIVED SERVER-SIDE, IN ONE PLACE. `legalmind/evaluation/user_status.py`
+     computes the word from (classification, rule_outcome, Constitution citation)
+     and the API carries it as `user_status` on every Evaluation and Finding
+     (the Finding takes its worst Evaluation). Never stored, never an axis
+     (DECISION_STATE_MODEL keeps five), never read by an evaluator, never fed by
+     the LLM. The UI renders it and re-derives nothing; absent, it fails closed
+     to NEEDS_REVIEW.
+
+r2   THE MAPPING.  MATCH → ACCEPTED, whatever rule_outcome rides along.
+     Constitution citation → NOT_ACCEPTED (the narrowest condition, checked first).
+     DEVIATION or MISSING carrying the approved rule's own UNACCEPTABLE →
+     NOT_ACCEPTED: evidence-supported, because the evaluator only rules a value
+     it read, and the zero-tolerance rule IS the approved disposition.
+     DEVIATION or MISSING left unruled (NOT_APPLICABLE, APPROVAL_REQUIRED) →
+     NEEDS_REVIEW.  UNABLE_TO_EVALUATE, CONFLICT and anything unknown →
+     NEEDS_REVIEW always: uncertainty is never converted into a rejection.
+
+r3   MISSING FOLLOWS THE RULE'S SILENCE HONESTLY. No approved rule disposes
+     absence today (`deviation_outcome` governs deviations; both evaluators give
+     MISSING NOT_APPLICABLE), so every MISSING reads NEEDS REVIEW — a lawyer may
+     find the missing clause acceptable as-is (owner, 2026-09-09). This is the
+     rule read as written, not a hardcoded outcome: a rule that disposes absence
+     would flow through r2 unchanged. Adding one is configuration under rule 7 —
+     the owner's approval, never an engineering default.
+
+r4   NOT A LEGAL-POSITION FIELD. `user_status` is served to every caller who can
+     see the Finding, including a USER without `legal_position.view`, while
+     `rule_outcome`, `expected_value` and the citation stay omitted for them
+     (LEGAL-02, SEC-07). The word discloses the result the reader is entitled to
+     act on, not the rule behind it — the same posture `requires_decision`
+     already had.
+
+r5   ONE VOCABULARY EVERYWHERE. Card face, Summary tiles/bar/ring, the report's
+     `user_status_counts`, the export, the Dashboard's findings badges and
+     status bucket (`needs_attention` = any non-ACCEPTED), the document pane's
+     per-clause links and the version comparison all read the server's word.
+     MATCH / DEVIATION / MISSING / CONFLICT / UNABLE_TO_EVALUATE remain in the API,
+     the audit trail, View details, the report's `classification_counts` and the
+     export's "Engine classifications (audit record)".
+
+r6   NEXT STEP BY STATUS. ACCEPTED: "No action is needed." (an escalated one still
+     names the person). NOT ACCEPTED: "This goes against an approved company
+     position. Legal review or modification is required." — the owner's own
+     words; the one status where the card may say the contract needs changing.
+     NEEDS REVIEW: "Someone with legal authority needs to review this." — one
+     sentence for every classification, never pre-deciding the outcome.
+
+r7   WORDING IS NOT DEVIATION. The authoritative lane already reads the number,
+     unit and basis out of the drafting ("six (6) months", "6 (six) months",
+     "6 months" are one cap); a genuine difference (nine months against six) is a
+     DEVIATION and only THEN does r2 make it NOT ACCEPTED. No semantic engine, no
+     second RAG pipeline and no synonym expansion was added (35.4, AI-01 stand);
+     semantic understanding lives where `AM-25`/`AM-49` already put it — Ask and
+     the explanation layer — and never decides.
+```
+
+**Approved by the owner on 2026-09-09** ("This is the FINAL product decision. Do not reopen
+the status-model discussion. Implement it, test it, visually verify it, fix issues, and
+retest.").
+
+--------------------------------------------------------------------------------
+
+# `AM-54` — Grounded semantic recognition in the authoritative lane: meaning is recognised, classification stays deterministic (Owner Instruction — 2026-09-09)
+
+**Amends:** `AI-01` and Step 35's `35.1`/`35.2` ("no LLM, RAG, vector database or semantic
+AI" in the authoritative analysis path) and `AM-25` r2's boundary — for the RECOGNITION step
+only: which clause addresses which Requirement, and what quantity a mapped clause states.
+Amends rule 9's determinism claim to the form stated in r6. **Does not amend:** the four
+classifications, the four Rule Outcomes, the comparison semantics (`44.29`, `45B.4`, `45C.*`),
+rule 15, `35.4` (terminology stays configuration — no synonym list was added anywhere),
+`35.5` (negative patterns still veto), `35.18`/`35.19` (every confirmation carries its
+explanation; no opaque score is ever the basis of a conclusion), `AM-30` t1–t10 (one egress
+seam, hash-only audit, no company position in any payload), `AM-51`, `AM-53`, rules 7, 12, 13,
+21.
+
+The owner instructed: *"Do not interpret the existing deterministic architecture as a
+requirement for exact-word or phrase matching. LegalMind must be semantically intelligent.
+Preserve deterministic backend authority for the final legal classification, but introduce
+grounded semantic understanding where needed … The LLM/RAG may help identify semantic
+equivalence and retrieve relevant standards, but it must never invent legal meaning or
+override the approved Company Position/rules. If semantic equivalence cannot be established
+with sufficient grounded evidence, fail safely to Needs Review rather than guessing. R&D and
+test this against materially different drafting styles before considering this capability
+complete."*
+
+```text
+r1   WHERE MEANING ENTERS, AND WHERE IT STOPS. `analysis/semantic.py` runs after
+     the lexical mapper and before the evaluator, in two stages. Stage 1 (mapping):
+     when configured terminology confirmed nothing for an IN-FAMILY Requirement,
+     the local embedding model (AM-26, all-MiniLM-L6-v2, self-hosted) shortlists
+     the clauses closest to the Requirement's approved wording (the ratified
+     description plus its mapping terminology — nothing authored), and the
+     generative model is asked ONE question per clause: does it address the
+     Requirement's subject? Stage 2 (facts): when a mapped clause states no
+     configured cap phrase, the model is asked whether the clause states the
+     quantity the Requirement is about and what it is, as written. Nothing after
+     that changed: the comparison, the classification and the Rule Outcome are the
+     deterministic evaluators' alone, and the model is never asked whether anything
+     is acceptable.
+
+r2   NOTHING IS ACCEPTED WITHOUT VERBATIM TEXT. A stage-1 YES counts only with a
+     span copied verbatim from the clause (≥ 20 characters); it then scores the
+     confirm threshold — the same threshold, the same explanation trail, as one
+     configured exact phrase. A stage-2 value counts only when the span is
+     verbatim and CONTAINS the value (digits or number word) together with a
+     CONFIGURED unit term; the basis is still read only from configured basis
+     phrases (45B.4 — bases are never assumed equivalent, so "12 months of fees"
+     with no recognised basis fails closed to a person); a clause carrying a
+     configured composite phrase ("greater of") is never reduced to one limb;
+     an "unlimited" claim is never taken from the model. Verified live: 69/69
+     near-topic non-matches answered NO; an instruction planted in a clause was
+     answered "no cap"; the multi-limb formula and the unconfigured unit
+     ("one year's fees") both fell to UNKNOWN.
+
+r3   UNCERTAINTY GOES TO A PERSON, NEVER TO A NUMBER OR AN ABSENCE. UNCLEAR, a YES
+     without a verifiable span, or an unverifiable quantity → the mapping is
+     UNRESOLVED or the cap UNKNOWN → UNABLE_TO_EVALUATE → Needs review. A NO is an
+     adjudicated non-match, so the lexical result (MISSING inside the family)
+     stands. No model reached → no semantic evidence either way: the lexical
+     result stands untouched and the gap is recorded — a bare similarity score
+     moves nothing in either direction (35.19).
+
+r4   ONLY INSIDE THE DECLARED FAMILY. Semantic recognition widens recall where an
+     absent clause would otherwise be asserted MISSING; it never widens
+     applicability across families, which stays lexical (AM-51). Live R&D showed
+     every cross-family semantic confirmation to be a topically adjacent clause of
+     a different family (a confidentiality return clause read as a data-export
+     window) — so the stage is silent for out-of-family Requirements and for an
+     untyped document. A configured negative pattern (35.5) vetoes a clause before
+     the model sees it: `LIABILITY-*-001` gained "service credit(s)", the owner's
+     L-13 ruling (2026-08-20) stated as terminology.
+
+r5   NUMBER WORDS ARE NUMERALS. "six months", "twenty-four months", "thirty (30)
+     days" and "30 (thirty) days" read as the quantity they state, in the
+     deterministic extractor, with no model involved. A numeral is not legal
+     terminology (35.4 untouched); GUESSING a number the text does not state is
+     still forbidden (44.24 untouched).
+
+r6   DETERMINISM, RESTATED HONESTLY. Same recognised facts + same configuration
+     snapshot + same engine version → same classification, always. Recognition
+     itself is model-dependent: the embedding model is pinned and local, the
+     generative model is pinned (AM-30 t7) at temperature 0, and the SAME clause
+     may still be adjudicated differently across runs (observed once in 30 live
+     cases). Every recognition therefore records the model identity, the prompt
+     version, the payload hash and the verbatim span with the Evaluation
+     (REC-07), and a Review's persisted Findings remain reproducible from what was
+     recorded. The assist lane's "no determinism claim" (AM-28) now also describes
+     this recognition step; the evaluators keep the full claim.
+
+r7   ONE SEAM, HASH-ONLY AUDIT, NO POSITION IN THE PAYLOAD. Every call goes through
+     `generation.generate_raw` (AM-30 t1) under the environment gate, is written to
+     the audit trail as ASSIST_GENERATION_CALLED with purpose, model and payload
+     sha256 (AM-30 t5), and carries clause text, the approved description and
+     configured unit/basis TERMS — never a preferred value, a rule, an outcome or
+     a threshold (AM-30 t3, screened by `_forbidden_payload_check`). ABSENT caps
+     beside a stated cap of the same scope are dropped (an exclusions clause is
+     not a contradicting position — 45C.2 is about incompatible positions), which
+     also makes any over-mapping harmless to a clean cap.
+
+r8   CALIBRATION IS RECORDED, NOT ASSUMED. Measured 2026-09-09 over the 12 supplied
+     documents (25,812 clause/anchor pairs): lexically-confirmed pairs median
+     cosine 0.60, p10 0.35; paraphrases of the same clause 0.43–0.48; unrelated
+     clauses 0.05–0.30. The shortlist floor is a RECALL floor at the p10 (0.35),
+     five clauses per Requirement; cost is one call per in-family Requirement the
+     words did not confirm (measured 1–15 calls per document). Three materially
+     different drafting styles of five MSA positions (formal-numbered,
+     plain-language, table-style): 14 of 15 recognised on a verbatim span, 1 left
+     UNRESOLVED (Needs review), 0 false confirmations; quantities read: 12
+     months, 90 days; unrecognised bases and unconfigured units fell to a person.
+```
+
+**Approved by the owner on 2026-09-09** ("LegalMind must be semantically intelligent … If
+semantic equivalence cannot be established with sufficient grounded evidence, fail safely to
+Needs Review rather than guessing.").
+
+---
+
+## AM-55 (AB-17) — A real DELETE beside Archive, owner's explicit choice (2026-09-09)
+
+**Amends `AM-40` (AB-12, 2026-09-05) narrowly.** AM-40 removed `DELETE /contracts/{id}`
+outright ("no verb destroys a contract") and replaced it with Archive/Restore, because
+AM-37's original hard-delete branch was unreachable for any analyzed contract anyway
+(a Review always exists once analysis has run) and because rule 17 (audit trail
+append-only, historical Reviews stay reproducible) argued against reaching further.
+
+The owner asked for the archive/delete distinction to be reviewed, was shown the exact
+tradeoff — Option A (hard delete only when unanalyzed, restoring AM-37 as-is, which
+would not reach any already-analyzed contract) versus Option B (hard delete always,
+including analyzed contracts, breaking rule 17's reproducibility guarantee for what
+gets deleted) — and chose **Option B explicitly**, informed that it overrides rule 17
+for the deleted contract's own Review.
+
+r1  `DELETE /contracts/{id}` is restored, unconditionally — no branch on whether a
+    Review exists. Same permission as Archive (`contract.archive`), same owner scope
+    (`guard.contract(..., allow_archived=True)`), so an archived contract can also be
+    deleted outright.
+
+r2  Deletion cascades at the DATABASE level, not in application code: every FK on the
+    Contract's subtree (`document_versions`, `document_processing_runs`,
+    `document_evidence`, `reviews`, `findings`, `evaluations`, `finding_evidence`,
+    `evaluation_evidence`, `legal_decisions` incl. its composite FK, `unmatched_
+    provisions`) gained `ON DELETE CASCADE` — migration `a1b2c3d4e5f6`. The assist
+    schema (`chunks`, `chunk_embeddings`, `finding_explanations`, etc.) already
+    cascaded from `contracts`/`document_versions`/`findings` per `AM-27`/`AM-49` and
+    needed no change.
+
+r3  Rule 17 no longer holds for a contract reached this way: its Findings, Evaluations
+    and Legal Decisions are destroyed, not merely hidden. Rule 17 continues to govern
+    Archive, which is unchanged and remains the reversible option — the two now sit
+    side by side rather than one superseding the other.
+
+r4  What survives: the `contract.deleted` audit event. `audit_events.entity_id` is
+    polymorphic, no FK to `contracts`, so "a contract existed and was deleted by X at
+    T" stays answerable even though the contract's own content does not (same posture
+    AM-37 r5 used for its withdrawn hard-delete branch).
+
+r5  `test_the_locked_schema_has_no_delete_path_for_a_document_version` — the pinning
+    test AM-40's era relied on to force this exact revisit — is replaced by
+    `test_deleting_the_contract_cascades_to_its_document_version_and_runs`, asserting
+    the new behavior positively. `test_contract_archive.py`'s stale
+    `test_no_route_destroys_a_contract` is replaced by
+    `test_delete_route_destroys_a_contract_and_its_review` and
+    `test_delete_refuses_someone_elses_contract`. Two RBAC persona tests that pinned
+    405 on `DELETE /contracts/{id}` are updated: a non-owner now correctly gets 404
+    (existence hidden, 47.7), and the owner's-own-contract assertion was removed as
+    out of that test's scope (delete-of-own-contract is now a real capability, covered
+    in `test_contract_archive.py`, not a boundary refusal).
+
+Live DB NOT migrated as of this record; nothing deployed.
+
+--------------------------------------------------------------------------------
+
+# `AM-54` — correction appended after the live labelled-corpus evaluation (2026-09-09, same day)
+
+**Amends:** `AM-54` r2, r3 and r8 as recorded above — tightened, never loosened. Every
+prior line stands as written; this record states what the evaluation changed.
+
+```text
+r9   TWO CLAIMS, NOT ONE. A stage-1 confirmation now needs the model to answer
+     BOTH that the clause addresses the Requirement's subject AND that it states
+     the SAME kind of position as the approved wording (numbers and periods may
+     differ) — plus the verbatim span. The first corpus run confirmed two
+     adjacent clauses of a DIFFERENT position: a warranty GIVEN was read as the
+     warranty disclaimer, a carve-out from the liability limit as the exclusion
+     of consequential damages. A "DIFFERENT" or "UNCLEAR" position leaves the
+     mapping UNRESOLVED — a person looks. Second and third runs: 0 semantic
+     false positives on 38 hard negatives.
+
+r10  SEMANTIC MAPPING NEVER ESTABLISHES ABSENCE. Where no configured word
+     confirmed the clause and the model did, a quantity the text then fails to
+     yield is UNCERTAINTY (UNKNOWN → Needs review), never an ABSENT cap (MISSING).
+     Absence is asserted only where configured terminology confirmed the clause,
+     deterministically, exactly as before. Found when a late-fee table row was
+     recognised and then recorded MISSING.
+
+r11  A TABLE ROW IS NOT A HEADING. `AM-52` r3's heading guard swallowed
+     "LIABILITY CAP | 12 months of total fees" and "CONFIDENTIALITY SURVIVAL |
+     3 (three) years after termination" as headings, minting evidence-free
+     MISSINGs on both engines. A line carrying a pipe or a digit outside its
+     section number is a position and keeps its evidence.
+
+r12  THE RECALL FLOOR IS 0.30. A paraphrased disclaimer ("We do not promise that
+     anything you access … will be accurate") measured 0.305 against its
+     approved wording and was never shortlisted. Cost is unchanged: one call per
+     in-family Requirement the words did not confirm.
+
+r13  THE LABELLED CORPUS IS THE ACCEPTANCE RECORD. `tests/test_rd_semantic_corpus.py`
+     — 104 variants for 19 standards across MSA, TOS and NDA and every finding
+     type (presence and numeric): synonyms, reordered sentences, equivalent unit
+     expressions, cross-references, table rows, sub-clauses, contextual wording,
+     genuine differences, and 38 hard negatives sharing the vocabulary. Run live
+     against the pinned model, each variant twice (semantic; lexical-only):
+
+       recognition          66/66 positives confirmed
+       classification       47 correct · 15 fail-safe (Needs review) · 0 wrong
+       negatives            0 semantic false positives · 1 lexical (pre-existing:
+                            a force-majeure DEFINITION carries the alias and the
+                            heading term) · 5 fail-safe · 32 correctly unmapped
+       lexical baseline     10 correct → 37 recovered by the semantic stage
+       changed-a-correct-result   0
+
+     The 15 fail-safes are configuration, not recognition: the clause was found
+     and its quantity read, but the Company Standard's basis phrases ("cured",
+     "late fee", "terminated") or phrase-shaped unit terms ("days after receipt
+     of written notice") were absent from the paraphrase, so 45B.4 sent the
+     comparison to a person. Widening that terminology is the owner's
+     configuration decision (35.4), not an engine change.
+```
+
+--------------------------------------------------------------------------------
+
+# `AM-56` — The three reader-facing words are Acceptable / Requires Modification / Needs a Decision, mapped from the engine's five determinations by classification (Owner Instruction — 2026-09-09)
+
+**Amends:** `AM-53` r2 (the mapping) and its vocabulary (Accepted / Needs review / Not
+accepted), and `AM-50` r4's wording of the Summary. **Does not amend:** `AM-53` r1 (derived
+server-side in one place, never stored, never an axis), r4 (not a legal-position field), r5
+(one vocabulary on every surface; the classifications stay for audit); the four
+classifications and CONFLICT; the Rule Outcomes; D-3.5; the zero-tolerance rule; `AM-54`;
+rules 7, 12, 13, 15, 21.
+
+The owner instructed: *"The UI should have only 3 statuses: Acceptable, Requires Modification,
+and Needs a Decision. However, the backend should not rely on only these 3 categories. The
+backend/LLM should first determine: Does the clause match the Constitution? Does it deviate
+from a defined Constitution position? Is a required clause missing? Does the Constitution have
+no position on this topic? Is the clause/Constitution unclear or conflicting? Then map those
+results to the 3 UI statuses: Match → Acceptable; Deviation or required Missing → Requires
+Modification; No Constitution position / unclear / conflicting → Needs a Decision."*
+
+```text
+r1   THE FIVE DETERMINATIONS STAY. MATCH, DEVIATION, MISSING, UNABLE_TO_EVALUATE
+     and CONFLICT remain the engine's recorded result on every Evaluation and
+     Finding, in the API, the audit trail, View details and the export's audit
+     record. "The Constitution has no position on this topic" is the sixth
+     answer and is not a Finding: a clause with no Requirement to compare
+     against is an UNMATCHED PROVISION (REC-02), listed on the report and
+     routed to a person — the same destination as Needs a Decision.
+
+r2   THE MAPPING, BY CLASSIFICATION.
+       MATCH                          -> ACCEPTABLE
+       DEVIATION                      -> REQUIRES_MODIFICATION
+       MISSING                        -> REQUIRES_MODIFICATION (every MISSING
+                                         Finding is a required one — an optional
+                                         absence produces no Finding, F-1)
+       UNABLE_TO_EVALUATE, CONFLICT   -> NEEDS_DECISION
+     The Rule Outcome and any Constitution citation still travel with the
+     Evaluation for the reader entitled to them; since this record they no
+     longer move the word. A Finding takes its worst Evaluation
+     (REQUIRES_MODIFICATION over NEEDS_DECISION over ACCEPTABLE).
+
+r3   THE WORDS. "Acceptable" · "Requires modification" · "Needs a decision" —
+     on the card chip, the Summary's three tiles, bar and ring, the Findings
+     filters, the report, the export, the Dashboard's per-document badges and
+     the version comparison. Next step by word: Acceptable "No action is
+     needed." (an escalated one still names the person); Requires modification
+     "This does not match the company standard. The clause needs to be modified,
+     or someone with legal authority must decide."; Needs a decision "Someone
+     with legal authority needs to decide this." The Dashboard's document-level
+     bucket reads "Needs attention" so it is never mistaken for a Finding word.
+
+r4   THE SUMMARY SHOWS EXACTLY THREE TILES. How many Findings need a legal
+     decision is a line beneath them, never a fourth status (owner, 2026-09-09,
+     after a fourth tile was shipped and corrected the same day).
+```
+
+**Approved by the owner on 2026-09-09.**

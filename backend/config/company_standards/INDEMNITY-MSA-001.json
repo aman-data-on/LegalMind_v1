@@ -10,6 +10,7 @@
     "The clause is entirely one-directional: the Customer indemnifies LeapSwitch, not the reverse. Presence only — DIRECTION and scope are content, and go to Legal with the evidence rather than being compared here."
   ],
   "requirement_code": "INDEMNITY-MSA-001",
+  "description": "The customer must defend, indemnify and hold harmless Leapswitch and its related parties, at its own cost.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "16 Indemnification (16.1, 16.2)",

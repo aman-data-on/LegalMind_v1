@@ -356,3 +356,276 @@ def test_normalization_never_alters_numbers_or_words(db):
     this layer cannot establish that, so it only touches whitespace."""
     raw = "Liability shall not exceed 6 m0nths of fees"
     assert parsing.normalize_text(raw) == raw     # '6 m0nths' left untouched
+
+
+# --------------------------------------------------------------------------
+# Structural segmentation — 2026-09-05.
+#
+# The defect these pin, measured on the owner's own file: the SAME MSA gave 356
+# segments as .docx and 32 as .docx.pdf. The PDF converter emits one newline per
+# visual line and never a blank line, so a 28-page contract arrived as 28 blocks
+# of 3,000+ characters — and since only a block's first line was read for a
+# clause number, §10.2 appeared in the outline while §10 and §10.1, plainly
+# present in the text, did not.
+# --------------------------------------------------------------------------
+_NO_BLANK_LINES = (
+    "13. LIMITATION ON DAMAGES\n"
+    "13.1 The total liability of Leapswitch shall not exceed the fees paid.\n"
+    "13.2 In no event shall Leapswitch be liable for indirect damages.\n"
+    "14. CONFIDENTIALITY\n"
+    "14.1 Each Party shall keep the other's information confidential.\n"
+)
+
+
+def test_a_page_without_blank_lines_is_still_split_into_clauses():
+    """The GRP case. One block in, one segment per clause out."""
+    segments = parsing.segment_paragraphs(
+        _NO_BLANK_LINES, page_number=1,
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)
+
+    assert [s.section_number for s in segments] == ["13", "13.1", "13.2", "14", "14.1"]
+    # And the clause that used to vanish is now its own row with its own text.
+    body = next(s for s in segments if s.section_number == "13.1")
+    assert "shall not exceed the fees paid" in body.content
+
+
+def test_blank_line_documents_segment_exactly_as_before():
+    """The other half of the guard: no regression on files that already worked."""
+    text = "1. TERM\n\nThe term is twelve months.\n\n2. FEES\n\nFees are payable monthly."
+    numbers = [s.section_number for s in parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)]
+    assert numbers == ["1", None, "2", None]
+
+
+def test_a_number_inside_a_sentence_is_not_a_clause_boundary():
+    """`detect_clause_number` anchors at the start of a line, so prose that
+    merely CONTAINS a decimal is one segment, not three."""
+    text = ("5.1 The cap is limited to 13.2 million rupees in aggregate\n"
+            "and no more than 4.5 million per claim under this Agreement.\n")
+    segments = parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    assert len(segments) == 1
+    assert segments[0].section_number == "5.1"
+
+
+def test_offsets_still_resolve_back_to_the_source_text():
+    """34.13 — every segment must be locatable in the document it came from.
+    Splitting inside a block is where that would quietly break."""
+    for segment in parsing.segment_paragraphs(
+            _NO_BLANK_LINES, page_number=1,
+            source_type=E.EvidenceSourceType.NATIVE_TEXT):
+        assert segment.start_offset is not None and segment.end_offset is not None
+        window = _NO_BLANK_LINES[segment.start_offset:segment.end_offset]
+        assert parsing.normalize_text(window) == segment.content
+
+
+def test_segmentation_is_deterministic():
+    """ENG-11. Same text twice, byte-identical segments."""
+    kwargs = {"page_number": 1, "source_type": E.EvidenceSourceType.NATIVE_TEXT}
+    first = parsing.segment_paragraphs(_NO_BLANK_LINES, **kwargs)
+    second = parsing.segment_paragraphs(_NO_BLANK_LINES, **kwargs)
+    assert [(s.content, s.start_offset, s.end_offset) for s in first] == \
+           [(s.content, s.start_offset, s.end_offset) for s in second]
+
+
+def test_a_heading_is_marked_and_a_clause_body_is_not():
+    """The marker rides in the metadata dict the Segment already had, which
+    `ingest` already merges into `evidence_metadata` — no column, no plumbing."""
+    segments = {s.section_number: s for s in parsing.segment_paragraphs(
+        _NO_BLANK_LINES, page_number=1,
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)}
+
+    assert segments["13"].metadata.get("heading") is True
+    assert segments["14"].metadata.get("heading") is True
+    # Body text that happens to carry a number is NOT a heading — putting it in
+    # an outline is exactly what made the Clauses panel unreadable.
+    assert "heading" not in segments["13.1"].metadata
+    assert "heading" not in segments["13.2"].metadata
+
+
+# --------------------------------------------------------------------------
+# Unnumbered headings and bare clause numbers — 2026-09-05.
+#
+# Measured on the supplied corpus: the CloudPe terms of service and privacy
+# policy carry NO clause numbering at all, but they are not unstructured — they
+# are organised by prose headings. Recognising only numbered headings meant the
+# whole document arrived as one block per page and the structural gate refused
+# it. The structure was there; we could not see it.
+# --------------------------------------------------------------------------
+def test_an_unnumbered_heading_starts_a_section_and_names_it():
+    text = ("Cancellations\n"
+            "Cancellation requests need to be submitted via our Client Area and "
+            "cannot be accepted by support ticket.\n"
+            "Late Fees\n"
+            "Invoices overdue for over 5 days will be charged a late fee of up to "
+            "5% per month on the outstanding amount.\n")
+    segments = parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+
+    assert [s.section_title for s in segments] == ["Cancellations", "Late Fees"]
+    assert all(s.metadata.get("heading") for s in segments)
+    assert all(s.section_number is None for s in segments)   # nothing invented
+    # The heading keeps the prose it introduces, so the outline entry points at
+    # the text it labels rather than at an empty label above it.
+    assert "Client Area" in segments[0].content
+
+
+def test_a_navigation_list_is_not_a_run_of_headings():
+    """The page footer of a printed web page: every line is short and
+    title-like. A heading is followed by the prose it introduces; a menu item is
+    followed by another menu item."""
+    text = "VPS\nKubernetes\nStorage\nNetworking\nGPU Cloud\nCareers\nBlog\n"
+    segments = parsing.segment_paragraphs(
+        text, page_number=4, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+
+    assert len(segments) == 1
+    assert not segments[0].metadata.get("heading")
+
+
+def test_a_bare_clause_number_on_its_own_line_is_a_boundary():
+    """PDF layouts routinely put the number on one line and its text on the
+    next. Four clauses of the owner's own MSA were lost to this."""
+    text = ("17. DATA PRIVACY\n"
+            "17.1\n"
+            "The Customer acknowledges that Leapswitch may disclose information.\n"
+            "17.2\n"
+            "Leapswitch shall protect the confidentiality of Personal Data.\n")
+    numbers = [s.section_number for s in parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)]
+    assert numbers == ["17", "17.1", "17.2"]
+
+
+def test_a_bare_year_or_page_number_is_still_not_a_clause():
+    """The other half. `1999.` and `12` carry no interior dot, which is exactly
+    what the bare-number pattern requires — so neither is ever a clause."""
+    assert parsing.detect_clause_number("1999.") == (None, None)
+    assert parsing.detect_clause_number("12") == (None, None)
+    assert parsing.detect_clause_number("17.") == (None, None)
+    assert parsing.detect_clause_number("17.1") == ("17.1", None)
+
+
+def test_a_broken_sentence_is_not_promoted_to_a_heading():
+    """The false positive found in validation: a PDF broke this line mid-
+    sentence, so the truncated title lost its full stop and read as a label.
+    Word count and the interior full stop both catch it now."""
+    text = ("3.1 Customers shall raise purchase orders on Leapswitch for the "
+            "provision of Services. Subject to Clause\n")
+    segment = parsing.segment_paragraphs(
+        text, page_number=3, source_type=E.EvidenceSourceType.NATIVE_TEXT)[0]
+
+    assert segment.section_number == "3.1"
+    assert not segment.metadata.get("heading")
+
+
+# =====================================================================
+# P-8 — one processing run IS the document (2026-09-06)
+# =====================================================================
+def test_latest_completed_run_is_the_one_every_reader_uses(db):
+    """FAILED and STARTED attempts are history (42.5), never content; of two
+    COMPLETED runs the later `started_at` wins; none yet → None, so a version
+    still processing shows nothing rather than a stale reading."""
+    from datetime import UTC, datetime, timedelta
+
+    from legalmind.db import models as M
+    from legalmind.db.lookup import latest_completed_run_id
+    from legalmind.domain import enums as E
+    from tests.conftest import make_user
+
+    owner = make_user(db)
+    contract = M.Contract(owner_id=owner.id, name="ACME MSA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract); db.flush()
+    version = M.DocumentVersion(
+        contract_id=contract.id, version_number=1, original_filename="a.pdf",
+        mime_type="application/pdf", file_size_bytes=1, file_hash="h",
+        storage_key="k", processing_status=E.ProcessingStatus.COMPLETED,
+        uploaded_by=owner.id)
+    db.add(version); db.flush()
+    assert latest_completed_run_id(db, version.id) is None
+
+    t0 = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+
+    def run(status, minutes, run_type=E.ProcessingRunType.PARSE):
+        r = M.DocumentProcessingRun(
+            document_version_id=version.id, run_type=run_type, status=status,
+            processor_version="t", started_at=t0 + timedelta(minutes=minutes))
+        db.add(r); db.flush()
+        return r
+
+    first = run(E.ProcessingRunStatus.COMPLETED, 0)
+    assert latest_completed_run_id(db, version.id) == first.id
+    run(E.ProcessingRunStatus.FAILED, 1)        # a failed retry changes nothing
+    run(E.ProcessingRunStatus.STARTED, 2)       # nor one still in flight
+    assert latest_completed_run_id(db, version.id) == first.id
+    second = run(E.ProcessingRunStatus.COMPLETED, 3, E.ProcessingRunType.REPROCESS)
+    assert latest_completed_run_id(db, version.id) == second.id
+
+
+# =====================================================================
+# 44.4 — annexures/schedules where detectable (2026-09-06)
+# =====================================================================
+def test_annexure_titles_are_detected_where_the_document_declares_them():
+    """Detectable means the document says so, in a title line of its own; the
+    label is the document's text verbatim (34.12). Prose that mentions a
+    schedule is not one, and a bare "Schedule" with no label is not claimed.
+    Segmentation itself is untouched: the title becomes a marked heading, the
+    boundaries and content are what they were."""
+    from legalmind.domain.enums import EvidenceSourceType
+    from legalmind.ingestion.parsing import annexure_title, segment_paragraphs
+
+    for line in ("Annexure-1", "Annexure-3A ", "Appendix-3B", "Schedule 2 – Fees",  # noqa: RUF001 - en dash is the point
+                 "Exhibit A", "ANNEX II"):
+        assert annexure_title(line) == line.strip(), line
+    for line in ("Schedule", "Annexure 1 forms part of this Agreement.",
+                 "The Schedule 2 fees apply.", "13. LIMITATION ON DAMAGES"):
+        assert annexure_title(line) is None, line
+
+    text = ("Annexure-1\n\nScope of Services\n\n"
+            "The Provider shall deliver the services described below to the Customer.")
+    segments = segment_paragraphs(text, page_number=18,
+                                  source_type=EvidenceSourceType.NATIVE_TEXT)
+    first = segments[0]
+    assert first.content == "Annexure-1"
+    assert first.metadata == {"heading": True, "annexure": "Annexure-1"}
+    assert first.section_title == "Annexure-1" and first.section_number is None
+    assert all("annexure" not in s.metadata for s in segments[1:])
+
+
+def test_docx_paragraphs_carry_the_same_structure_markers_as_pdf_text():
+    """Found by the post-deploy smoke test (2026-09-06): `parse_docx` built its
+    Segments directly and skipped every marker `segment_paragraphs` applies, so a
+    Word upload had NO heading and NO annexure markers — only the outline's
+    fallback — while the same text as a PDF had both. One shared helper now
+    decides the markers for both paths. Boundaries and content are unchanged:
+    one paragraph is still one segment."""
+    import io
+
+    import docx
+
+    d = docx.Document()
+    for text in ("1. Definitions",
+                 "Capitalized terms have the meanings given below in this document.",
+                 "13. LIMITATION ON DAMAGES",
+                 "13.1 The total liability of either party shall not exceed the fees paid.",
+                 "Annexure-1",
+                 "Scope of Services",
+                 "The Provider shall deliver the services described in this annexure to the Customer."):
+        d.add_paragraph(text)
+    buf = io.BytesIO(); d.save(buf)
+    from legalmind.ingestion import parsing
+    segments = parsing.parse(
+        buf.getvalue(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document").segments
+    by_first = {s.content.splitlines()[0]: s for s in segments}
+
+    assert len(segments) == 7                                  # one paragraph, one segment
+    assert by_first["13. LIMITATION ON DAMAGES"].metadata.get("heading") is True
+    assert "heading" not in by_first["13.1 The total liability of either party shall not exceed the fees paid."].metadata
+    annex = by_first["Annexure-1"]
+    assert annex.metadata.get("heading") is True and annex.metadata.get("annexure") == "Annexure-1"
+    assert annex.section_title == "Annexure-1"
+    # An unnumbered prose heading followed by its prose — the same rule as PDF text,
+    # with "following" read from the next paragraph.
+    assert by_first["Scope of Services"].metadata.get("heading") is True
+    # The DOCX-specific style key is kept alongside the shared markers.
+    assert "style" in annex.metadata

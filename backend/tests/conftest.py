@@ -362,6 +362,28 @@ def grant(db, user, role):
     db.flush()
 
 
+
+def without_legal_position(db, user):
+    """An account holding everything a Department User holds EXCEPT
+    `legal_position.view`.
+
+    AB-12 r7 grants the position to every Department User, so the LEGAL-02
+    omission gate is no longer exercised by `ROLE_USER` itself. It still bites for
+    any account without the grant — a platform administrator, a custom role — and
+    these tests pin that the gate is intact by removing exactly one grant from an
+    otherwise ordinary user. Rolled back with the test transaction.
+    """
+    from sqlalchemy import delete, select
+
+    from legalmind.security import permissions as P
+    role_ids = select(M.UserRole.role_id).where(M.UserRole.user_id == user.id)
+    perm_id = select(M.Permission.id).where(M.Permission.name == P.LEGAL_POSITION_VIEW)
+    db.execute(delete(M.RolePermission).where(
+        M.RolePermission.role_id.in_(role_ids),
+        M.RolePermission.permission_id.in_(perm_id)))
+    db.flush()
+    return user
+
 def make_review_for(db, owner):
     contract = M.Contract(owner_id=owner.id, name="ACME MSA",
                           status=E.ContractStatus.ACTIVE)

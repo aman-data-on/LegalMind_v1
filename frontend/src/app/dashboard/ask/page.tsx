@@ -1,10 +1,16 @@
 "use client";
 
 /**
- * Ask history — P1 (PRODUCT_UX_ROADMAP §E screen 9). The caller's OWN
- * conversations, scoped by the server to `user_id` (`AM-25` r7: the list can
- * never enumerate anyone else's questions). Asking happens in each document's
- * workspace; this screen is for rereading.
+ * Ask — P1 (PRODUCT_UX_ROADMAP §E screen 9). The caller's OWN conversations,
+ * scoped by the server to `user_id` (`AM-25` r7: the list can never enumerate
+ * anyone else's questions).
+ *
+ * Renamed from "Ask history" 2026-09-04. Ask and its record are ONE capability:
+ * asking happens in a document (the workspace dock), and this is where the
+ * record of it lives. The nav used to advertise the archive ("Ask History")
+ * while the feature itself had no nav presence at all, so the page now names the
+ * capability and says plainly where asking happens — rather than reading like a
+ * separate product with no way in.
  *
  * The list and one recorded conversation both live at the fixed pathname
  * `/dashboard/ask`; which one renders is decided by `?id=` rather than a path
@@ -27,7 +33,6 @@ const PAGE_SIZE = 25;
 function AskHistoryListView() {
   const { can } = useSession();
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
-  const [names, setNames] = useState<Record<string, string>>({});
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<unknown>(null);
@@ -35,17 +40,13 @@ function AskHistoryListView() {
   const load = useCallback(async () => {
     setError(null);
     try {
+      // The document name arrives WITH each conversation (2026-09-04). This
+      // used to fetch `GET /contracts/{id}` per row, which 404s for a
+      // soft-deleted contract — so a row about a deleted document rendered a
+      // raw UUID prefix, which is what the live audit found.
       const result = await api.conversations({ page, page_size: PAGE_SIZE });
       setConversations(result.items);
       setPagination(result.pagination);
-      const ids = [...new Set(result.items.map((c) => c.contract_id).filter((id): id is string => id !== null))];
-      const settled = await Promise.allSettled(ids.map((id) => api.contract(id)));
-      const found: Record<string, string> = {};
-      ids.forEach((id, index) => {
-        const outcome = settled[index];
-        if (outcome?.status === "fulfilled") found[id] = outcome.value.name;
-      });
-      setNames(found);
     } catch (cause) {
       setError(cause);
     }
@@ -67,15 +68,22 @@ function AskHistoryListView() {
   return (
     <>
       <div className="ws-context">
-        <h1>Ask history</h1>
+        <h1>Ask</h1>
         {pagination ? (
           <span className="ws-context__meta ws-mono">{pagination.total} total</span>
         ) : null}
       </div>
       <div className="ws-docs">
+        {/* Where the capability actually lives. Without this the screen reads as
+            a dead archive: a list of past questions and no way to ask one. */}
+        <p className="ws-pane__note">
+          Questions are asked inside a document — open one from the{" "}
+          <Link href="/dashboard">Dashboard</Link> and use <b>Ask</b> in the
+          corner of its workspace. Every conversation you have had is kept here.
+        </p>
         {error ? (
           <div className="ws-state ws-state--error" role="alert">
-            <h2>Ask history could not be loaded.</h2>
+            <h2>Your questions could not be loaded.</h2>
             <p>{describeError(error)}</p>
           </div>
         ) : null}
@@ -126,12 +134,17 @@ function AskHistoryListView() {
                     </td>
                     <td className="ws-mono">{conversation.message_count}</td>
                     <td>
-                      {conversation.contract_id ? (
+                      {!conversation.contract_id ? (
+                        "—"
+                      ) : conversation.document_accessible ? (
                         <Link href={`/dashboard?id=${conversation.contract_id}`}>
-                          {names[conversation.contract_id] ?? conversation.contract_id.slice(0, 8)}
+                          {conversation.document_name ?? conversation.contract_id.slice(0, 8)}
                         </Link>
                       ) : (
-                        "—"
+                        <span className="ws-docs__name"
+                              title="That document is no longer open to your account — the conversation is still here">
+                          {conversation.document_name ?? conversation.contract_id.slice(0, 8)}
+                        </span>
                       )}
                     </td>
                     <td className="ws-mono">

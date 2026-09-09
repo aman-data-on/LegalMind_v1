@@ -507,3 +507,41 @@ def test_the_preflight_fails_an_inline_production_deployment(monkeypatch):
 
     monkeypatch.setenv("LEGALMIND_BROKER_URL", BROKER)
     assert {c.name: c for c in run_preflight()}["analysis_worker"].status == PASS
+
+
+def test_the_ocr_advisory_lock_is_released_when_the_job_finishes():
+    """Regression, 2026-09-06: the lock used to leak for the life of the process.
+
+    `engine().connect()` draws from a QueuePool, so closing the connection
+    returns it to the pool WITHOUT ending its PostgreSQL session — and a
+    session-level advisory lock survives that (and survives the rollback the
+    pool issues). The job's own comment claimed the `with` released it; it did
+    not, so every later attempt on that version — the retry `OCR_MAX_ATTEMPTS`
+    exists for, and now `/reprocess`, which shares the key — silently stepped
+    aside forever. `dispatch` now unlocks in a `finally`; this pins that.
+    """
+    import uuid
+
+    from sqlalchemy import text
+
+    from legalmind.db.session import engine
+    from legalmind.worker.dispatch import version_lock_key
+
+    key = version_lock_key(uuid.uuid4())
+
+    def held() -> int:
+        with engine().connect() as probe:
+            return probe.execute(text(
+                "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
+                "AND ((classid::bigint << 32) | objid::bigint) = :k"
+            ), {"k": key}).scalar_one()
+
+    with engine().connect() as conn:
+        assert conn.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                            {"k": key}).scalar() is True
+        assert held() == 1
+        # What the job's `finally` now does.
+        conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
+        conn.commit()
+
+    assert held() == 0, "the advisory lock outlived its holder — the leak is back"

@@ -24,6 +24,7 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.api.context import SESSION_COOKIE, request_id_of
+from legalmind.api.errors import Conflict
 from legalmind.db import models as M
 from legalmind.db.session import new_session
 from legalmind.domain import enums as E
@@ -32,7 +33,13 @@ from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security import tokens
 from legalmind.security.authorization import (
-    require_contract_visible,
+    DEPARTMENT,
+    LEGAL_SCOPE,
+    OWNER,
+    contract_read_basis,
+    department_of,
+    require_contract_owned,
+    require_contract_readable,
     require_evaluation_visible,
     require_finding_visible,
     require_review_visible,
@@ -145,6 +152,18 @@ class Guard:
         """LEGAL-02 / 49.7 r4 — gates omission, not nulling."""
         return P.LEGAL_POSITION_VIEW in self.permissions
 
+    @cached_property
+    def department_id(self) -> UUID | None:
+        """The caller's department (AB-12 r3) — the boundary `department.view`
+        widens to. ``None`` means no department, and therefore no widening."""
+        return department_of(self.db, self.user_id)
+
+    @property
+    def sees_department(self) -> bool:
+        """Whether department scope applies to this caller at all: the permission
+        AND a department to be scoped to. Either alone widens nothing."""
+        return P.DEPARTMENT_VIEW in self.permissions and self.department_id is not None
+
     # ------------------------------------------------- permission, no object
     def permission(self, permission: str) -> None:
         """For collection and non-object endpoints, where there is nothing to
@@ -178,22 +197,95 @@ class Guard:
         self._require(permission, "evaluation", evaluation_id)
         return ev
 
-    def contract(self, contract_id: UUID, permission: str) -> M.Contract:
-        contract = self._visible(require_contract_visible, contract_id, "contract")
+    def contract(self, contract_id: UUID, permission: str, *,
+                 allow_archived: bool = False) -> M.Contract:
+        """OWNER-scoped resolution — for anything that CHANGES a contract.
+
+        Upload, update, archive, review creation and analysis keep this rule:
+        department scope and Legal scope are READ scopes (Step 24 r16/r17), so
+        neither becomes a way to alter someone else's paper. Reads use
+        `contract_readable`.
+
+        An archived contract refuses every write with 409 (AB-12 r6). Visibility
+        and permission are settled first, so the 409 can only ever reach the
+        owner — for everyone else the contract is still a 404.
+        """
+        contract = self._visible(require_contract_owned, contract_id, "contract")
         self._require(permission, "contract", contract_id)
+        if not allow_archived:          # only `restore` passes True
+            self._refuse_archived(contract)
+        return contract
+
+    def contract_readable(self, contract_id: UUID, permission: str) -> M.Contract:
+        """READ-scoped resolution — owner, department scope, or Legal scope.
+
+        Archived contracts resolve here too: archive hides a contract from the
+        working lists, it does not erase it (AB-12 r6).
+        """
+        contract = self._visible(require_contract_readable, contract_id, "contract")
+        self._require(permission, "contract", contract_id)
+        self._audit_cross_owner_read(contract)
         return contract
 
     def document_version(self, document_version_id: UUID,
                          permission: str) -> M.DocumentVersion:
-        """Traverses to the owning Contract — locked 47.6: a Document Version is
-        reachable only through a Contract the caller can see."""
+        """Traverses to the owning Contract for WRITING — locked 47.6: a Document
+        Version is reachable only through a Contract the caller can see."""
         version = self.db.get(M.DocumentVersion, document_version_id)
         if version is None:
             self._audit_not_visible("document_version", document_version_id)
             raise NotVisible("document version not found")
-        self._visible(require_contract_visible, version.contract_id, "contract")
+        contract = self._visible(require_contract_owned, version.contract_id, "contract")
         self._require(permission, "document_version", document_version_id)
+        self._refuse_archived(contract)
         return version
+
+    def document_version_readable(self, document_version_id: UUID,
+                                  permission: str) -> M.DocumentVersion:
+        """The same 47.6 traversal, resolving the Contract for READING.
+
+        This is what the document surfaces use — version metadata, evidence, and
+        the preserved original bytes — so a Legal reviewer can follow a Finding
+        to the clause it is about. Writes keep `document_version` above.
+        """
+        version = self.db.get(M.DocumentVersion, document_version_id)
+        if version is None:
+            self._audit_not_visible("document_version", document_version_id)
+            raise NotVisible("document version not found")
+        contract = self._visible(require_contract_readable, version.contract_id,
+                                 "contract")
+        self._require(permission, "document_version", document_version_id)
+        self._audit_cross_owner_read(contract)
+        return version
+
+    def _refuse_archived(self, contract: M.Contract) -> None:
+        """AB-12 r6 — an archived contract is read-only. 409, not 404: the caller
+        has already been established as the owner, so existence is not the
+        secret; the state is the reason."""
+        if contract.archived_at is not None:
+            raise Conflict("this contract is archived; restore it to make changes")
+
+    def _audit_cross_owner_read(self, contract: M.Contract) -> None:
+        """Record a cross-owner read — one user's document shown to another.
+
+        Only when the reader is NOT the owner: an owner reading their own
+        contract is not a disclosure, and recording every such GET would bury
+        the events an auditor actually wants (AUD-01's trail is append-only, so
+        noise is permanent). The action names the basis, so an auditor can
+        answer "which rule let them in" — and a break-glass (Developer) read of
+        a department deal lands here like any other (AB-12 r12).
+        """
+        basis = contract_read_basis(self.db, self.user_id, contract)
+        if basis is None or basis == OWNER:
+            # None cannot happen after `require_contract_readable` succeeded; it
+            # is handled so a future caller cannot turn it into a KeyError.
+            return
+        action = {DEPARTMENT: A.CONTRACT_READ_VIA_DEPARTMENT_SCOPE,
+                  LEGAL_SCOPE: A.CONTRACT_READ_VIA_LEGAL_SCOPE}[basis]
+        A.record(self.db, action=action,
+                 entity_type="contract", entity_id=contract.id,
+                 actor_id=self.user_id, request_id=self.request_id,
+                 after={"owner_id": str(contract.owner_id), "basis": basis})
 
     # ---------------------------------------------------------------- internals
     def _visible(self, resolver: Any, object_id: UUID, entity_type: str) -> Any:

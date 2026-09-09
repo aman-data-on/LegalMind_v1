@@ -33,6 +33,7 @@ from legalmind.api.routers import (
     audit,
     configuration,
     contracts,
+    counterparties,
     decisions,
     documents,
     export,
@@ -105,6 +106,7 @@ def create_app() -> FastAPI:
     v1 = APIRouter(prefix=API_PREFIX)
     v1.include_router(auth_router.router)
     v1.include_router(contracts.router)
+    v1.include_router(counterparties.router)
     v1.include_router(documents.router)
     v1.include_router(reviews.router)
     v1.include_router(export.router)

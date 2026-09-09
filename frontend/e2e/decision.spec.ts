@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, storageStatePath } from "./support";
+import { createAnalysedReview, fixture, storageStatePath, openFindingsTab } from "./support";
 
 // `counsel` holds LEGAL_REVIEWER + LEGAL_DECISION_AUTHORITY (+ USER, see `F-6`).
 test.use({ storageState: storageStatePath("counsel") });
@@ -31,10 +31,11 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     page,
   }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
 
-    await page.goto(`/reviews?id=${reviewId}`);
-    const evaluation = page.locator("li.evaluation").first();
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
     // AB-1 / 52.5 — a Finding is a derived summary; a decision belongs to one scoped
@@ -45,14 +46,15 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     expect(
       await page.getByRole("button", { name: "Record decision" }).count(),
       "one decision control per Evaluation requiring one, and none elsewhere",
-    ).toBe(await page.locator("li.evaluation .decision__form").count());
+    ).toBe(await page.locator(".ws-evaluation .ws-decision__form").count());
   });
 
   test("the rendered result comes from a server re-read", async ({ page }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    const evaluation = page.locator("li.evaluation").first();
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
     // Watch the network, not the DOM: "no optimistic UI" means a GET follows the POST
@@ -78,12 +80,12 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // "Current decision" is rendered from the Evaluation payload the re-read
     // returned — not from local state, so it cannot drift from what was recorded.
-    await expect(page.locator(".decision__current").first()).toContainText("version 1");
+    await expect(page.locator(".ws-decision").locator("p", { hasText: /^Current:/ }).first()).toContainText("version 1");
   });
 
   test("a stale version is refused and reported, never absorbed", async ({ page }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
+    const { reviewId, contractId } = await createAnalysedReview(page);
 
     const findings = await (
       await page.request.get(`/api/v1/reviews/${reviewId}/findings`)
@@ -91,8 +93,9 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     const evaluationId = findings.data[0].evaluations[0].id;
 
     // Decide once through the API, so the browser's copy is now stale.
-    await page.goto(`/reviews?id=${reviewId}`);
-    const evaluation = page.locator("li.evaluation").first();
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const evaluation = page.locator(".ws-evaluation").first();
     await expect(evaluation).toBeVisible();
 
     const csrf = decodeURIComponent(
@@ -117,8 +120,8 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // 49.7 / N-1 Option C — a collision is a 409, surfaced as its own state. The
     // screen must say it was NOT recorded; an optimistic UI would have shown success.
-    await expect(page.locator(".decision__conflict")).toContainText("Not recorded");
-    await expect(page.locator(".decision__conflict")).toContainText(
+    await expect(page.locator(".ws-decision__conflict")).toContainText("Not recorded");
+    await expect(page.locator(".ws-decision__conflict")).toContainText(
       "already updated by another user",
     );
 
@@ -133,7 +136,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
       .click();
 
     // The refresh re-reads from the server; what renders is what actually won.
-    await expect(page.locator(".decision__current").first()).toContainText("version 1");
+    await expect(page.locator(".ws-decision").locator("p", { hasText: /^Current:/ }).first()).toContainText("version 1");
     await expect(
       evaluation.getByRole("button", { name: "Record decision" }),
     ).toBeEnabled();
@@ -141,9 +144,10 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
   test("a Finding cannot be resolved from the screen", async ({ page }) => {
     const f = fixture();
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    await expect(page.locator("li.evaluation").first()).toBeVisible();
+    const { reviewId, contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    await expect(page.locator(".ws-evaluation").first()).toBeVisible();
 
     // D-3.6 / Step 30 r3, r16 — resolution is DERIVED server-side. No resolve control
     // exists and no endpoint backs one, which is what makes the "hidden carve-out"

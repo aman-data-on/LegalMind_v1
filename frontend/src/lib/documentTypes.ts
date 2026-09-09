@@ -73,3 +73,31 @@ export function sectionRef(sectionNumber: string | null | undefined): string | n
   if (!trimmed) return null;
   return /^[§¶]/.test(trimmed) ? trimmed : `§${trimmed}`;
 }
+
+/**
+ * Step 6's second axis — "A document **can** be classified by source:
+ * Organization / Counterparty" (all_lock.md:535). Optional, and declared by the
+ * uploader, never inferred (the same reasoning as Q9 for Type). Presentation
+ * copy of `DOCUMENT_SOURCES` in the backend's `document_types.py`;
+ * `test_frontend_vocabulary.py` asserts the two agree. Keyed `value`, not
+ * `code`, so the Step 6 TYPE sync regex never picks these up by mistake.
+ */
+export const DOCUMENT_SOURCES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "ORGANIZATION", label: "Organization — our document" },
+  { value: "COUNTERPARTY", label: "Counterparty — their document" },
+];
+
+export function documentSourceLabel(value: string | null | undefined): string {
+  return DOCUMENT_SOURCES.find((s) => s.value === value)?.label ?? value ?? "Source not declared";
+}
+
+/**
+ * The source axis in a reviewer's words, for a chip (2026-09-06). The manager's
+ * question is "whose paper is this?" — "Organization"/"Counterparty" answers it
+ * in the vocabulary Step 6 uses, but not in the words a reviewer thinks in.
+ */
+export function documentSourceChip(value: string | null | undefined): string | null {
+  if (value === "ORGANIZATION") return "Our document";
+  if (value === "COUNTERPARTY") return "Their document";
+  return null;
+}

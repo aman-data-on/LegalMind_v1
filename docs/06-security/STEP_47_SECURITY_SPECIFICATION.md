@@ -1,5 +1,13 @@
 # Step 47 — Security / Authentication / Authorization
 
+> ⚠️ **Superseded in part by AB-12 (2026-09-05).** The role set below (`LEGAL_ADMIN`,
+> `SUPER_ADMIN`) is renamed `DEPARTMENT_LEAD` / `PLATFORM_ADMIN`; the department read
+> scope, owner-only writes, ownership transfer and archive semantics are added; and
+> the legal roles are retained for a future workflow. This text stays as the record
+> of what was locked earlier (rule 22). Read
+> [RBAC_MODEL.md](RBAC_MODEL.md) and the AB-12 record first.
+
+
 **Status: 🔒 LOCKED (2026-08-17).** Lock record in [`all_lock.md`](../../all_lock.md) under "Step 47 — LOCK RECORD". No locked decision amended.
 
 Prepared 2026-08-17. External MoS material used as **reference architecture only**, per its audited classification — adapted, never copied. See [EXTERNAL_REFERENCE_AUDIT.md](../00-project/EXTERNAL_REFERENCE_AUDIT.md).

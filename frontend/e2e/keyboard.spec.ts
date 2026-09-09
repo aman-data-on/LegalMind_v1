@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, storageStatePath } from "./support";
+import { createAnalysedReview, storageStatePath, openFindingsTab } from "./support";
 
 test.use({ storageState: storageStatePath("counsel") });
 
@@ -13,19 +13,30 @@ test.use({ storageState: storageStatePath("counsel") });
  * that can prove a key press does not become a network request.
  */
 
-test.describe("review keyboard shortcuts", () => {
+/*
+ * Ported to the workspace 2026-09-04, together with the FEATURE itself: the
+ * shortcut layer existed only in the legacy Review screen, so this spec was the
+ * one that could not be retargeted by changing a URL. `useWorkspaceShortcuts`
+ * now owns the global keys and the finding card owns the decision keys, on the
+ * bindings other professional tools use (j/k with n/p kept as aliases).
+ *
+ * The property that matters is unchanged and asserted below: no keystroke
+ * records a Legal Decision.
+ */
+test.describe("workspace keyboard shortcuts", () => {
   test("? opens the help dialog; Escape closes it and returns focus", async ({
     page,
   }) => {
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    await expect(page.locator("article.finding[data-finding-id]").first()).toBeVisible();
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    await expect(page.locator("article[data-finding-id]").first()).toBeVisible();
 
     await page.keyboard.press("?");
     const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
     await expect(dialog).toBeVisible();
     // The help renders from the same table the handlers use.
-    await expect(dialog).toContainText("none of them records a decision");
+    await expect(dialog).toContainText("never submits");
 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
@@ -34,23 +45,24 @@ test.describe("review keyboard shortcuts", () => {
   test("n focuses the current finding; d jumps to its decision form", async ({
     page,
   }) => {
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    const card = page.locator("article.finding[data-finding-id]").first();
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const card = page.locator("article[data-finding-id]").first();
     await expect(card).toBeVisible();
 
     await page.keyboard.press("n");
     await expect(card).toBeFocused();
-    await expect(card).toHaveClass(/finding--current/);
 
     await page.keyboard.press("d");
-    await expect(card.locator(".decision__form select")).toBeFocused();
+    await expect(card.locator(".ws-decision__form select")).toBeFocused();
   });
 
   test("a and r prepare a decision and never record one", async ({ page }) => {
-    const { reviewId } = await createAnalysedReview(page);
-    await page.goto(`/reviews?id=${reviewId}`);
-    const card = page.locator("article.finding[data-finding-id]").first();
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const card = page.locator("article[data-finding-id]").first();
     await expect(card).toBeVisible();
 
     let decisionPosts = 0;
@@ -60,7 +72,7 @@ test.describe("review keyboard shortcuts", () => {
       }
     });
 
-    const select = card.locator(".decision__form select");
+    const select = card.locator(".ws-decision__form select");
     const justification = card.getByLabel("Justification (required)");
 
     // Prepare ACCEPT_DEVIATION: type preselected, justification focused.
@@ -82,6 +94,6 @@ test.describe("review keyboard shortcuts", () => {
 
     // The negative that matters: nothing was recorded by any of the above.
     expect(decisionPosts, "no keyboard path may POST a decision").toBe(0);
-    await expect(page.locator(".decision__current")).toHaveCount(0);
+    await expect(page.locator(".ws-decision").locator("p", { hasText: /^Current:/ })).toHaveCount(0);
   });
 });

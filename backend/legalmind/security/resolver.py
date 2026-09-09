@@ -12,7 +12,7 @@ Two rules govern this module:
 
    Step 47/SEC-02 permits a bypass for administrative permissions provided it
    excludes ``legal.*``. V1 implements NO bypass at all: every permission is an
-   explicit grant. With a 27-permission catalogue the convenience a bypass buys
+   explicit grant. With a 30-permission catalogue the convenience a bypass buys
    is negligible, and removing it eliminates the single most dangerous control
    path — the one the external MoS reference got wrong (its ``is_super``
    "returns true immediately without consulting grants at all").
@@ -42,6 +42,17 @@ def effective_permissions(db: DBSession, user_id: UUID) -> frozenset[str]:
         .join(M.RolePermission, M.RolePermission.permission_id == M.Permission.id)
         .join(M.UserRole, M.UserRole.role_id == M.RolePermission.role_id)
         .where(M.UserRole.user_id == user_id)
+    ).scalars().all()
+    return frozenset(rows)
+
+
+def role_permissions(db: DBSession, role_id: UUID) -> frozenset[str]:
+    """Every permission one role grants — what S-8 compares and what the OIDC
+    provisioning whitelist inspects (AB-12 r11)."""
+    rows = db.execute(
+        select(M.Permission.name)
+        .join(M.RolePermission, M.RolePermission.permission_id == M.Permission.id)
+        .where(M.RolePermission.role_id == role_id)
     ).scalars().all()
     return frozenset(rows)
 

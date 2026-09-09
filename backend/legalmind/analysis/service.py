@@ -32,7 +32,7 @@ Three fail-closed paths are worth naming because they look like errors and are n
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -69,6 +69,10 @@ from legalmind.extraction.liability import (
     extract_liability_facts,
 )
 from legalmind.mapping.engine import Clause, MappingResult, map_requirement
+from legalmind.mapping.scoring import score_clause
+from legalmind.analysis import semantic
+from legalmind.assist import generation
+from legalmind.extraction.liability import ABSENT, UNKNOWN, prune_absent
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
@@ -116,6 +120,9 @@ class AnalysisRun:
     #: many of the pinned Requirements apply to it (locked Step 28 scoping).
     #: None / equal-to-snapshot until the scoping stage has run.
     document_type: str | None = None
+    #: AM-51 — the Step 6 families the document showed it belongs to (declared
+    #: type plus every type at least two of whose standards mapped CONFIRMED).
+    detected_types: list[str] = field(default_factory=list)
     requirements_applicable: int = 0
     outcomes: list[RequirementOutcome] = field(default_factory=list)
     #: REC-02 / D-4 (owner, 2026-09-01) — evidence rows this Review's Findings
@@ -194,37 +201,71 @@ def run_analysis(db: DBSession, review: M.Review, *,
         # Finding is invented.
         return _refuse("no extracted clauses available", "no_extracted_clauses")
 
-    # ---- Document Type scoping — locked Step 6 + Step 28 ---------------------
-    # A Requirement applies only to the kind of paper its standard declares.
-    # Undeclared type on the Contract: REFUSE (owner decision Q9 — the type is
-    # declared by the uploader, never inferred), because the alternative is
-    # evaluating every Requirement against every document, which is precisely
-    # the defect this filter exists to close (an NDA flagged for having no
-    # liability cap). Untyped standard in the snapshot: REFUSE, because the
-    # snapshot predates the publish-time check and neither skipping nor
-    # evaluating it can be justified silently (ENG-09).
+    if _structure_not_extracted(clauses):
+        # Owner decision 2026-09-05: structurally-failed extraction BLOCKS
+        # analysis rather than warning. The sibling of the 34.9 refusal above,
+        # and of the 2026-09-03 incident where a document whose text was
+        # unreadable still produced three MATCH findings: there, characters
+        # arrived but were not language; here, text arrives but is not
+        # SEGMENTED, so a "clause" is a whole page. Evaluating that yields
+        # findings whose evidence is a page and whose citations cannot point at
+        # a provision — a legal conclusion drawn from a unit nobody can check.
+        return _refuse("document structure could not be extracted — no clause "
+                       "numbering, no headings and no paragraph breaks were "
+                       "recovered; re-upload in a format that preserves structure",
+                       "structure_not_extracted")
+
+    # ---- Applicability by CONTENT — AM-51 (owner, 2026-09-09) -----------------
+    # The document decides what applies: every pinned Requirement is MAPPED
+    # first (deterministic, Steps 28/35), and a Requirement applies when the
+    # document actually contains its clause (mapping CONFIRMED) or when it
+    # belongs to a family the document is evidently a member of — the declared
+    # type, if any, or a Step 6 type at least two of whose standards the
+    # document confirms. Only a family's standards may be MISSING: absence is
+    # asserted only where the document has shown it belongs to that family.
+    # The declared type is one optional signal, never a gate; a document with no
+    # type — or one that spans several families — is analysed across all of
+    # them. An untyped standard in the snapshot still refuses (ENG-09).
     document_type = _review_document_type(db, review)
-    if document_type is None or not is_document_type(document_type):
-        return _refuse("contract declares no valid document type",
-                       "document_type_undeclared")
+    if document_type is not None and not is_document_type(document_type):
+        document_type = None
     if untyped := _untyped_items(items):
         return _refuse(
             "snapshot predates document-type validation; untyped standard for: "
             + ", ".join(sorted(untyped)),
             "snapshot_standard_untyped")
 
-    items = _applicable_items(items, document_type)
+    # ---- Grounded semantic recognition — AM-54 (owner, 2026-09-09) --------------
+    # One embedding pass over the clauses and the requirements' approved wording;
+    # the generative model is consulted only where configured terminology
+    # confirmed nothing, through the single egress seam, with every call hashed
+    # into the audit trail (AM-30 t5). Absent model → lexical only, recorded.
+    index = semantic.build_index(clauses, {
+        item.requirement_version.id: semantic.anchor_text(
+            item.requirement_version.description, item.mapping_rules.rules)
+        for item in items})
+    egress = _egress_for(db, review, actor_id=actor_id, request_id=request_id)
+    if index is None:
+        log_event("analysis.semantic.unavailable", request_id=request_id,
+                  review_id=str(review.id))
+
+    mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
+                                                 declared_type=document_type)
+                for item in items}
+    items, families = applicable_by_content(items, mappings, document_type)
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
-    # state what was pinned, not what applied. The applicable count is its own
-    # field, so "2 pinned, 1 applicable to an MSA" reads as exactly that.
+    # state what was pinned, not what applied.
     run.requirements_applicable = len(items)
     run.document_type = document_type
+    run.detected_types = sorted(families)
 
     with timed("analysis.stage.evaluate", request_id=request_id,
                review_id=str(review.id)) as stage:
         for item in items:
             run.outcomes.append(
-                _analyse_requirement(db, review, item, clauses))
+                _analyse_requirement(db, review, item, clauses,
+                                     mapping=mappings[item.requirement.code],
+                                     egress=egress))
         stage["findings_created"] = run.findings_created
 
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
@@ -243,6 +284,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
              after={"requirements_in_snapshot": run.requirements_in_snapshot,
                     "document_type": run.document_type,
+                    "detected_types": run.detected_types,
                     "requirements_applicable": run.requirements_applicable,
                     "findings_created": run.findings_created,
                     "skipped_as_optional": run.skipped_as_optional,
@@ -313,8 +355,139 @@ class _SnapshotItem:
     legal_rule: M.LegalRuleVersion | None
 
 
+def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
+                request_id: str | None) -> semantic.Egress:
+    """The analysis run's one door to the generative model: the single seam
+    (AM-30 t1), the environment gate, and a hash-only audit row per call."""
+    from legalmind import config
+
+    def egress(prompt: str, prompt_version: str):
+        import time
+        try:
+            try:
+                result = generation.generate_raw(
+                    prompt, prompt_version=prompt_version,
+                    environment=config.environment(), request_id=request_id,
+                    max_output_tokens=400)
+            except generation.GenerationUnavailable:
+                # One retry after a short pause: a transient provider error (a
+                # 503 seen live, 2026-09-09) must not silently degrade a whole
+                # requirement to "no model reached". A refusal is never retried.
+                time.sleep(1.5)
+                result = generation.generate_raw(
+                    prompt, prompt_version=prompt_version,
+                    environment=config.environment(), request_id=request_id,
+                    max_output_tokens=400)
+        except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
+            log_event("analysis.semantic.no_model", request_id=request_id,
+                      review_id=str(review.id), cause=type(exc).__name__)
+            return None
+        A.record(db, action=A.ASSIST_GENERATION_CALLED, entity_type="review",
+                 entity_id=review.id, actor_id=actor_id, request_id=request_id,
+                 after={"purpose": prompt_version, "model": result.model,
+                        "payload_sha256": result.payload_sha256})
+        return result
+    return egress
+
+
+def _map_item(item: _SnapshotItem, clauses: list[Clause],
+              index: semantic.SemanticIndex | None = None,
+              egress: semantic.Egress | None = None,
+              declared_type: str | None = None) -> MappingResult | str:
+    """Map one Requirement (Steps 28, 35), or return the misconfiguration message.
+
+    D-1 defence in depth: publish already refuses unusable rules, so a message
+    here means a snapshot predates the check — still a failure, never a guess.
+
+    AM-54: when configured terminology confirms nothing, the semantic stage
+    shortlists the clauses closest in meaning to the approved wording and has
+    each adjudicated on a verbatim span. Its signals then go through the SAME
+    threshold as a configured phrase. Lexical confirmation is never widened
+    semantically — the stage only speaks where the words were silent — and it
+    speaks only INSIDE the document's declared family: that is where an absent
+    clause would otherwise be asserted MISSING (the false-MISSING this exists to
+    prevent), and live R&D showed every cross-family semantic confirmation to
+    be a topically adjacent clause of a different family (a confidentiality
+    return clause read as data export). Applicability across families stays
+    lexical (AM-51).
+    """
+    try:
+        rules = MappingRules.from_config(item.mapping_rules.rules)
+    except MappingMisconfigured as exc:
+        return f"mapping configuration unusable: {exc}"
+    lexical = map_requirement(item.requirement_version.id, rules, clauses)
+    if (index is None or egress is None or lexical.state is MappingState.CONFIRMED
+            or declared_type is None or _standard_type(item) != declared_type):
+        return lexical
+    # 35.5 still vetoes: a clause carrying a configured negative pattern (a
+    # negative lexical score) is never offered for semantic confirmation.
+    shortlist = [(c, sim) for c, sim in index.shortlist(item.requirement_version.id, clauses)
+                 if score_clause(rules, content=c.content, section_title=c.section_title).score >= 0]
+    if not shortlist:
+        return lexical
+    terms = ", ".join([*rules.aliases, *rules.exact_phrases, *rules.section_heading_terms])
+    signals, diagnostics = semantic.adjudicate(
+        item.requirement_version.description or "", terms, shortlist,
+        rules.confirm_threshold, egress)
+    result = map_requirement(item.requirement_version.id, rules, clauses,
+                             extra_signals=signals)
+    return replace(result, explanation=result.explanation + tuple(diagnostics))
+
+
+def _standard_type(item: _SnapshotItem) -> str | None:
+    return (item.company_standard.configuration or {}).get("document_type")
+
+
+def applicable_by_content(items: list[_SnapshotItem],
+                          mappings: dict[str, MappingResult | str],
+                          declared_type: str | None,
+                          ) -> tuple[list[_SnapshotItem], set[str]]:
+    """Which pinned Requirements this document is measured against — AM-51
+    (r2 corrected same-day, 2026-09-09, after live verification before
+    deployment — see the AM-51 correction appended to all_lock.md).
+
+    A family (Step 6 type) is DETECTED only when it is the DECLARED type — the
+    one fact a human or a confident suggestion actually asserted about this
+    document (AM-50). An earlier draft of this rule also detected a family from
+    ANY two of its standards mapping CONFIRMED; live testing on a real mixed
+    document showed that fails exactly the guarantee this record exists to
+    keep: boilerplate clauses common to nearly every commercial contract
+    (Governing Law, a liability cap) confirmed against MSA, TOS and NDA
+    standards alike, "detecting" every family from one ordinary document and
+    flooding it with MISSING findings for clauses it was never shown to lack —
+    the false-positive flood rule 15 and the owner's instruction both forbid.
+    Detection now requires the one signal that is actually evidence of KIND:
+    a declared type. Content still wins independently of any family: a
+    Requirement whose own clause the document confirms applies regardless of
+    which family its standard belongs to or whether any type is declared — an
+    NDA with a liability clause is still measured against the liability
+    standard — but an absent clause is MISSING only inside the declared
+    family, never inferred from other clauses' presence. A standard listing
+    the declared type under `not_applicable_to` is excluded even when
+    confirmed: how the owner's SLA ruling (2026-08-20) stays in force. Order
+    preserved (ENG-11).
+    """
+    confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
+                 for code, m in mappings.items()}
+    detected = {declared_type} if declared_type else set()
+
+    def excluded(item: _SnapshotItem) -> bool:
+        cfg = item.company_standard.configuration or {}
+        blocked = cfg.get("not_applicable_to") or []
+        return declared_type is not None and declared_type in blocked
+
+    applicable = [
+        item for item in items
+        if not excluded(item)
+        and (_standard_type(item) in detected or confirmed[item.requirement.code])
+    ]
+    return applicable, detected
+
+
 def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
-                         clauses: list[Clause]) -> RequirementOutcome:
+                         clauses: list[Clause], *,
+                         mapping: MappingResult | str,
+                         egress: semantic.Egress | None = None) -> RequirementOutcome:
     rv = item.requirement_version
     outcome = RequirementOutcome(
         requirement_code=item.requirement.code,
@@ -326,17 +499,14 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     if applicability_note:
         outcome.diagnostics.append(applicability_note)
 
-    # ---- mapping (Steps 28, 35) -----------------------------------------
-    try:
-        rules = MappingRules.from_config(item.mapping_rules.rules)
-    except MappingMisconfigured as exc:
-        # D-1 defence in depth: publish already refuses this, so reaching here means
-        # a snapshot predates the check. Still a failure, never a guess.
-        outcome.failure = f"mapping configuration unusable: {exc}"
+    # ---- mapping (Steps 28, 35) — computed once, for applicability and here ----
+    if isinstance(mapping, str):
+        outcome.failure = mapping
         return outcome
-
-    mapping: MappingResult = map_requirement(rv.id, rules, clauses)
     outcome.mapping_state = mapping.state.value
+    # AM-54 — the semantic stage's record travels with the evaluation (REC-07).
+    outcome.diagnostics.extend(line for line in mapping.explanation
+                               if line.startswith("semantic mapping:"))
 
     evidence = tuple(EvidenceRef(evidence_id=eid) for eid in mapping.evidence_ids)
 
@@ -368,7 +538,8 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         # D-2 — supplied for BOTH evaluator types so the Mapping State is recorded
         # on every Evaluation, not only on presence ones.
         mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence),
-        facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome),
+        facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
+                         egress=egress),
         legal_rule=legal_rule,
     )
 
@@ -408,7 +579,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
 
 def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                mapping: MappingResult, clauses: list[Clause],
-               outcome: RequirementOutcome):
+               outcome: RequirementOutcome, egress: semantic.Egress | None = None):
     """Requirement-specific fact extraction — locked 44.11.
 
     `PRESENCE` takes no facts at all: presence is established by the mapping layer
@@ -437,11 +608,42 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     if not mapped:
         return None
 
-    facts = extract_liability_facts(
-        mapped, LiabilityExtractionConfig.from_config(standard_configuration))
+    config = LiabilityExtractionConfig.from_config(standard_configuration)
+    facts = extract_liability_facts(mapped, config)
     # REC-07 — extraction diagnostics travel with the evaluation for auditability.
     # They are diagnostic metadata only and cannot alter a legal finding.
     outcome.diagnostics.extend(facts.extraction_diagnostics)
+
+    # AM-54 stage 2 — a mapped clause the configured phrases could not read is
+    # offered to the model ONCE, and only a magnitude written in the clause is
+    # accepted (semantic.extract_cap verifies it); the comparison that follows
+    # is the same deterministic one. No model → the configured reading stands.
+    if egress is not None and any(c.cap_status == ABSENT for c in facts.caps):
+        by_id = {c.evidence_id: c for c in mapped}
+        # A mapping the configured words never confirmed (semantic only): the
+        # clause was judged to address the requirement, so a quantity the text
+        # does not yield is UNCERTAINTY, never established absence — UNKNOWN,
+        # and a person looks. Absence is asserted only where configured
+        # terminology confirmed the clause (deterministic, as before).
+        semantic_only = any("confirmed on a verbatim span" in line
+                            for line in mapping.explanation)
+        diagnostics: list[str] = []
+        caps = []
+        for cap in facts.caps:
+            clause = by_id.get(cap.evidence_refs[0]) if cap.evidence_refs else None
+            if cap.cap_status == ABSENT and clause is not None:
+                read = semantic.extract_cap(clause, config, egress, diagnostics,
+                                            description=rv.description or "")
+                if read is None and semantic_only:
+                    diagnostics.append(
+                        "semantic extraction: no quantity read from a semantically "
+                        "mapped clause; recorded UNKNOWN rather than absence (AM-54)")
+                    read = replace(cap, cap_status=UNKNOWN)
+                caps.append(read if read is not None else cap)
+            else:
+                caps.append(cap)
+        outcome.diagnostics.extend(diagnostics)
+        facts = replace(facts, caps=prune_absent(caps))
     return facts
 
 
@@ -506,44 +708,72 @@ def _to_processing(db: DBSession, review: M.Review, *, actor_id: UUID | None,
             f"a Review in {review.status.value} cannot enter PROCESSING")
 
 
+#: Mean characters per clause above which a document's text is treated as never
+#: having been cut into paragraphs at all. This is NOT "the document has no
+#: headings" — it is "the segmenter found no boundary of any kind", which on a
+#: real contract means the extraction produced blobs.
+#:
+#: MEASURED, not chosen (rule 7's discipline applied to a product parameter): on
+#: 2026-09-05 the segmentation was run over every supplied document. Every one
+#: that segmented landed between 158 and 913 mean characters per clause; the two
+#: that did not sat at 1,828 and 2,043.
+UNSEGMENTED_MEAN_CHARS = 1200
+
+#: Below this total, one block is a plausible WHOLE document (a one-page letter,
+#: a short order form), so the ratio says nothing and the check does not run.
+UNSEGMENTED_MIN_DOCUMENT_CHARS = 4000
+
+
+def _structure_not_extracted(clauses: list[Clause]) -> bool:
+    """Whether this document's STRUCTURE FAILED TO EXTRACT.
+
+    Owner instruction, 2026-09-05: *"genuinely has no structure"* and *"our
+    extraction failed"* must never be treated as the same condition. The first
+    is a property of the paper and may be analysed honestly; the second is a
+    processing failure and blocks.
+
+    They are separated by two INDEPENDENT signals rather than one ratio:
+
+    ```text
+    any clause carries a section number, or any row is a heading
+        -> structure was found                     -> analyse
+    no structure found, but the text IS cut into
+    ordinary paragraphs
+        -> the document genuinely has none          -> analyse
+    no structure found AND the text arrives in
+    page-sized blobs
+        -> nothing was recovered, not even a
+           paragraph break                          -> REFUSE
+    ```
+
+    The middle row is the case this rewrite exists for. The first version of
+    this gate had only the ratio, and it refused a terms of service that is
+    organised by prose headings — real structure our extractor could not see.
+    Now that unnumbered headings are recognised, that document reports structure
+    and passes; a document with genuinely nothing passes too, on paragraphs
+    alone; and only a document where extraction recovered no boundary at all is
+    refused.
+    """
+    if any(c.section_number for c in clauses) or any(c.is_heading for c in clauses):
+        return False
+    total = sum(len(clause.content) for clause in clauses)
+    if total < UNSEGMENTED_MIN_DOCUMENT_CHARS:
+        return False
+    return total / len(clauses) > UNSEGMENTED_MEAN_CHARS
+
+
 def _review_document_type(db: DBSession, review: M.Review) -> str | None:
     """The declared Document Type of the paper under review — locked Step 6.
 
-    Resolved Review → DocumentVersion → Contract.contract_type, the field the
-    uploader declares (owner decision Q9, 2026-08-19: declared, never inferred
-    from content — a wrong guess would silently load the wrong baseline).
-    Returns None when undeclared; the caller refuses, it does not default.
+    Resolved Review → DocumentVersion → Contract.contract_type. Since AM-51
+    (2026-09-09) this is ONE signal to applicability, not a gate: None means the
+    document's content alone decides which families apply.
     """
     dv = db.get(M.DocumentVersion, review.document_version_id)
     if dv is None:
         return None
     contract = db.get(M.Contract, dv.contract_id)
     return contract.contract_type if contract is not None else None
-
-
-def _applicable_items(items: list[_SnapshotItem],
-                      document_type: str) -> list[_SnapshotItem]:
-    """Keep the Requirements whose standard declares this Document Type.
-
-    Locked Step 28's Requirement Model scopes every Requirement to a Document
-    Type; per owner decision Q2 (2026-08-19) the value lives in the Company
-    Standard configuration, the same JSONB route D-3 used for Required/Optional.
-
-    A plain equality test is sufficient — and safe — because publish refuses any
-    standard that omits the type or names one outside Step 6's vocabulary, so an
-    untyped item here means a snapshot that predates the check. Fail-closed
-    reading (ENG-09): such an item is REFUSED by the caller rather than either
-    silently skipped or silently evaluated; skipping could hide a Requirement
-    that should have run, evaluating could flag an NDA for having no liability
-    cap, and neither mistake should be possible to make quietly.
-
-    Input order (Requirement code) is preserved — ENG-11 determinism.
-    """
-    return [
-        item for item in items
-        if (item.company_standard.configuration or {}).get("document_type")
-        == document_type
-    ]
 
 
 def _untyped_items(items: list[_SnapshotItem]) -> list[str]:

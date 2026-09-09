@@ -10,7 +10,7 @@
  * under a decision-maker mid-read).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import { DECISION_TYPES, submittableDecisionTypes } from "@/lib/permissions";
@@ -27,14 +27,20 @@ type Outcome =
 export function DecisionControl({
   evaluation,
   onRecorded,
+  prepared,
 }: {
   evaluation: Evaluation;
   onRecorded: () => void;
+  /** A keyboard request to PREPARE a decision — preselect the type and focus the
+   *  justification. Carries a `seq` so pressing the same key twice re-applies.
+   *  Never submits: recording stays an explicit act (Step 31 r11). */
+  prepared?: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
 }) {
   const { identity } = useSession();
   const available = submittableDecisionTypes(identity?.permissions ?? []);
   const [decisionType, setDecisionType] = useState<string>(available[0] ?? DECISION_TYPES[0]);
   const [justification, setJustification] = useState("");
+  const justificationRef = useRef<HTMLTextAreaElement | null>(null);
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
 
   const [refreshing, setRefreshing] = useState(false);
@@ -43,6 +49,25 @@ export function DecisionControl({
   // legal.decision regardless of whether this branch ran (SEC-02).
   if (available.length === 0) return null;
   const frozen = outcome.kind === "conflict";
+
+  /*
+   * A keyboard PREPARE request (the `a` / `r` shortcuts). It sets this form's
+   * own React state and moves focus — it never submits, which is the whole
+   * point of calling it "prepare": Step 31 r11 keeps recording an explicit act,
+   * and 52.7's no-optimistic-UI posture applies to input as much as output.
+   *
+   * Keyed on `seq` rather than the type, so pressing the same key twice
+   * re-applies instead of silently doing nothing.
+   */
+  useEffect(() => {
+    if (!prepared) return;
+    if (!available.includes(prepared.decisionType)) return;
+    setDecisionType(prepared.decisionType);
+    justificationRef.current?.focus();
+    // Keyed on `seq` ALONE, deliberately: `available` is rebuilt every render, so
+    // including it re-ran this effect continuously and stole focus back into the
+    // justification on every keystroke elsewhere on the page.
+  }, [prepared?.seq]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   async function refreshAfterConflict() {
     setRefreshing(true);
@@ -102,6 +127,7 @@ export function DecisionControl({
         <label>
           Justification (required)
           <textarea
+            ref={justificationRef}
             required
             rows={3}
             value={justification}

@@ -7,6 +7,7 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "requirement_code": "CONF-SURVIVAL-MSA-001",
+  "description": "Confidentiality obligations keep applying for a set period after the agreement ends.",
   "ratified": "2026-08-19",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "12.3 Confidentiality \u2014 survival",

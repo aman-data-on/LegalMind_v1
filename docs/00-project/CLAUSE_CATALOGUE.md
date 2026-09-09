@@ -7,6 +7,14 @@ rule — *whatever is stated in our approved LeapSwitch legal documents is the f
 position* — every standard below is **extracted from a LeapSwitch document, cited to its
 clause**, never invented. Rule 7/21 satisfied: the positions are the documents' own.
 
+> **⚠️ Reconciled 2026-09-08 — AB-14 / `AM-43` r4.** The owner ruled that the Legal
+> Constitution L1.5 ([LEGAL_CONSTITUTION_L1.5.md](../02-legal-domain/LEGAL_CONSTITUTION_L1.5.md))
+> governs company positions. **Six standards now state the Constitution's value, not the live
+> document's**, and are marked ⚖️ below with both values; the live LeapSwitch clause on each
+> point evaluates as a **DEVIATION** from the organization's stated position (the Constitution
+> records the drafting corrections as "in progress"). The previous source clause and value are
+> preserved in each standard file's `_history`. Every other row is unchanged.
+
 Register note: the owner's conflict register was located at
 `/root/LegalMind/docs/CONFLICT_GAP_ANALYSIS.md` (owner authorized that location,
 2026-08-19). Its own tracker marks C-01/C-04/C-05/C-07/C-23 "Needs owner decision" and
@@ -37,12 +45,12 @@ goes to Legal with the evidence.
 
 | Code | Clause | Standard | Source | Evaluator |
 |---|---|---|---|---|
-| LIABILITY-MSA-001 ✅existing | Limitation of liability | 6 months, affected-service fees | §17.2 | NUMERIC |
+| LIABILITY-MSA-001 ⚖️2026-09-08 | Limitation of liability | **12 months, total fees** (Constitution §9; was 6 months, affected-service fees from §17.2 — now a DEVIATION/fails closed on basis) | Constitution §9 | NUMERIC |
 | CONF-SURVIVAL-MSA-001 | Confidentiality survival | **3 years** post-termination | §12.3 | NUMERIC |
 | FORCE-MAJEURE-MSA-001 | FM termination trigger | **60 consecutive days** | §18.3 | NUMERIC |
 | CURE-PERIOD-MSA-001 | Breach cure period | **30 days** | §7.4 | NUMERIC |
 | AUTORENEW-MSA-001 | Auto-renewal term | **6 months** | §7.3 | NUMERIC |
-| DATA-PURGE-MSA-001 | Post-termination data purge | **15 days** | §7.6.6 | NUMERIC |
+| DATA-PURGE-MSA-001 ⚖️2026-09-08 | Post-termination data purge | **30 days** (Constitution §13: deletion only after the 30-day retrieval window; was 15 days from §7.6.6 — now a DEVIATION) | Constitution §13 | NUMERIC |
 | GOVLAW-MSA-001 | Governing law clause | present (laws of India) | §19.1 | PRESENCE |
 | ARBITRATION-MSA-001 | Arbitration clause | present (Mumbai, ACA 1996) | §19.3–19.4 | PRESENCE |
 | LIAB-EXCLUSIONS-MSA-001 ⊕2026-08-20 | Indirect/consequential damages exclusion | present | §17.1 (restated §17.6) | PRESENCE |
@@ -72,8 +80,8 @@ Requirement reads presence and the formula goes to Legal as evidence.
 | Code | Clause | Standard | Source | Evaluator |
 |---|---|---|---|---|
 | LIABILITY-TOS-001 ✅existing | Limitation of liability | 12 months, total fees | §13 | NUMERIC |
-| LATE-FEE-TOS-001 | Late-payment interest | **5 % per month** | §7 | NUMERIC |
-| DATA-RETRIEVAL-TOS-001 | Post-termination retrieval | **7 days** | §16 | NUMERIC |
+| LATE-FEE-TOS-001 ⚖️2026-09-08 | Late-payment interest | **2 % per month** (Constitution §16; was 5 % from §7 — now a DEVIATION) | Constitution §16 | NUMERIC |
+| DATA-RETRIEVAL-TOS-001 ⚖️2026-09-08 | Post-termination retrieval | **30 days, free of charge** (Constitution §13; was 7 days from §16 — now a DEVIATION) | Constitution §13 | NUMERIC |
 | KYC-RETENTION-TOS-001 | KYC record retention | **5 years** | §8 | NUMERIC |
 | FORCE-MAJEURE-TOS-001 | FM termination trigger | **60 consecutive days** | §15 | NUMERIC |
 | GOVLAW-TOS-001 | Governing law clause | present (laws of India) | §22 | PRESENCE |
@@ -94,7 +102,7 @@ period is a different question on a different document type (45B.4).
 
 | Code | Clause | Standard | Source | Evaluator |
 |---|---|---|---|---|
-| CLAIM-WINDOW-SLA-001 | Service-credit claim window | **60 calendar days** | "How to Request a Service Credit" ¶1 | NUMERIC |
+| CLAIM-WINDOW-SLA-001 ⚖️2026-09-08 | Service-credit claim window | **30 days** (Constitution §11; was 60 calendar days from "How to Request a Service Credit" ¶1 — now a DEVIATION) | Constitution §11 | NUMERIC |
 
 Liability remains **not applicable** to SLA — **RULED 2026-08-20 (closes L-13)**: service credits are a remedy, not a liability cap; credit percentages are never read as caps, and no SLA-typed liability standard may be created from them.
 
@@ -109,7 +117,7 @@ in this repository.
 
 | Code | Clause | Standard | Source | Evaluator |
 |---|---|---|---|---|
-| CONF-SURVIVAL-NDA-001 | Confidentiality survival | **2 years** (trade secrets: perpetual) | §9 | NUMERIC |
+| CONF-SURVIVAL-NDA-001 ⚖️2026-09-08 | Confidentiality survival | **3 years** (trade secrets: perpetual) (Constitution §15; was 2 years from §9 — now a DEVIATION) | Constitution §15 | NUMERIC |
 | NON-SOLICIT-NDA-001 | Non-solicitation period | **2 years** | §10 | NUMERIC |
 | TERM-NOTICE-NDA-001 | Termination notice | **30 days** | §9 | NUMERIC |
 | GOVLAW-NDA-001 | Governing law clause | present (laws of India) | §14 | PRESENCE |

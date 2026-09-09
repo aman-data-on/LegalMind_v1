@@ -1,9 +1,14 @@
 """Deterministic candidate scoring — locked Step 35.8.
 
-Locked 35.1/35.2: mapping is deterministic; no LLM, RAG, vector database or
-semantic AI. Locked 35.19: no opaque confidence score may be the basis of a V1
-legal conclusion — which is why every score here carries the exact list of
-signals that produced it (35.18, "every confirmed mapping records its
+Locked 35.1/35.2: mapping is deterministic; this module's own scoring uses no
+LLM, RAG, vector database or semantic AI. `AM-54` (owner, 2026-09-09) adds ONE
+further signal source — `analysis/semantic.py`, a grounded semantic
+confirmation verified on a verbatim span of the clause — which enters through
+`map_requirement`'s `extra_signals` and is scored, thresholded and explained
+exactly like a configured phrase. Locked 35.19 still holds: no opaque confidence
+score is ever the basis of a legal conclusion — a similarity score only
+shortlists, and a confirmation carries the model identity, the payload hash
+and the span that justifies it (35.18, "every confirmed mapping records its
 deterministic explanation/evidence").
 
 Same inputs + same rule version => same score, always (ENG-11).

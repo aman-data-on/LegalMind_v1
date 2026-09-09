@@ -25,6 +25,10 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
+import { findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
+import { USER_STATUS_LABELS, USER_STATUS_ORDER } from "@/components/workspace/findingLanguage";
+
+import { ClassificationGlossary } from "./ClassificationGlossary";
 import { ExportControl } from "./ExportControl";
 import { IconArrowLeft } from "./icons";
 
@@ -36,7 +40,7 @@ type Load =
 /** Visual weight only — filled chips mark states a human still owes work to.
  *  Never a severity ranking within an axis (UI master prompt), and RESOLVED
  *  stays a workflow fact, never restyled as a MATCH (rule 14). */
-const CALM_CLASSIFICATIONS = new Set(["MATCH"]);
+
 const CALM_STATUSES = new Set(["RESOLVED", "OPEN"]);
 
 export function ReviewReportPage({ reviewId }: { reviewId: string }) {
@@ -119,8 +123,9 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           {review.document_type ? (
             <span className="ws-chip ws-chip--type">{review.document_type}</span>
           ) : null}
-          <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
-            {review.status}
+          <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                title={review.status}>
+            {reviewStatusLabel(review.status)}
           </span>
           <span className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : ""}</span>
           <span className="ws-mono" title="Configuration snapshot — what makes this Review reproducible (AUD-04)">
@@ -209,22 +214,25 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           </p>
 
           {Object.keys(report.classification_counts).length > 0 ? (
-            <section aria-label="Findings by classification">
-              <h2 className="ws-report__h">Findings by classification</h2>
+            <section aria-label="Findings by status">
+              <h2 className="ws-report__h">Findings</h2>
+              {/* The reader's three words, server-counted per finding (owner,
+                  2026-09-09) — the same vocabulary as every card. Each chip opens
+                  the workspace — a summary never substitutes for its parts
+                  (DESIGN.md). The engine's classifications stay in the glossary
+                  and the export's audit record. */}
               <div className="ws-chips">
-                {/* Each count opens the workspace's findings, pre-filtered to
-                    exactly the findings it counts — a summary never substitutes
-                    for its parts (DESIGN.md). */}
-                {Object.entries(report.classification_counts).map(([value, count]) => (
+                {USER_STATUS_ORDER.filter((status) => (report.user_status_counts?.[status] ?? 0) > 0).map((status) => (
                   <Link
-                    key={value}
-                    href={`/dashboard?id=${review.contract_id}&classification=${value}`}
-                    className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
+                    key={status}
+                    href={`/dashboard?id=${review.contract_id}`}
+                    className={`ws-chip ws-chip--link ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
                   >
-                    {value} <b className="ws-mono">{count}</b>
+                    {USER_STATUS_LABELS[status]} <b className="ws-mono">{report.user_status_counts![status]}</b>
                   </Link>
                 ))}
               </div>
+              <details className="ws-determined"><summary>View details</summary><ClassificationGlossary /></details>
             </section>
           ) : null}
 
@@ -265,7 +273,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                     key={value}
                     className={`ws-chip${CALM_STATUSES.has(value) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}
                   >
-                    {value} <b className="ws-mono">{count}</b>
+                    {findingStatusLabel(value)} <b className="ws-mono">{count}</b>
                   </span>
                 ))}
               </div>

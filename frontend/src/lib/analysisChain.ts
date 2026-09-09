@@ -5,7 +5,7 @@
  * One implementation for both entrances to the loop: the first upload and a
  * revised version. Best-effort by design: any failure here is a STATE the
  * workspace's findings pane explains honestly (no published snapshot, no
- * `review.create`, type undeclared → the engine's own refusal) — never a dead
+ * `review.create`) — never a dead
  * end and never a thrown error that would abandon the upload the user already
  * completed.
  */
@@ -22,6 +22,8 @@ export async function chainAnalysis(
     const snapshot = snapshots.items[0];
     if (!snapshot) return;
     const detail = await api.contract(contractId);
+    // AM-51 (owner, 2026-09-09): the type is one optional signal — the engine
+    // measures the document by its content, so the chain never waits for one.
     const versionId = detail.document_versions?.[0]?.id;
     if (!versionId) return;
     // A document still being processed (the deferred-OCR path) has no evidence
