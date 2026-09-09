@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import { FindingCard } from "@/components/workspace/FindingsPane";
 import { HighlightProvider } from "@/components/workspace/highlight";
-import type { Evaluation, Evidence, Finding } from "@/lib/types";
+import type { Evaluation, Evidence, Finding, FindingExplanation } from "@/lib/types";
 
 function evidence(over: Partial<Evidence> = {}): Evidence {
   return {
@@ -27,7 +27,8 @@ function evidence(over: Partial<Evidence> = {}): Evidence {
   };
 }
 
-function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {}): string {
+function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
+              explanation: FindingExplanation | null = null): string {
   const evaluation = {
     id: "e1", finding_id: "f1", scope_key: "GENERAL", scope_label: null,
     evaluation_kind: "PRIMARY", classification: over.classification ?? "MISSING",
@@ -49,7 +50,7 @@ function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {}): 
   } as Finding;
   return renderToStaticMarkup(
     <HighlightProvider>
-      <FindingCard finding={finding} onChanged={() => {}} prepared={null} />
+      <FindingCard finding={finding} onChanged={() => {}} prepared={null} explanation={explanation} />
     </HighlightProvider>,
   );
 }
@@ -631,6 +632,41 @@ describe("the approved plain-English description (owner, 2026-09-09)", () => {
         { classification: "MISSING" },
       );
       expect(splitAtDetails(html).before).toMatch(/The document does not include residuals/);
+    }
+  });
+});
+
+describe("the grounded explanation (AM-49, owner 2026-09-09) — language only", () => {
+  const accepted = {
+    status: "ACCEPTED" as const, text: "This NDA has no residuals wording, so nothing in it lets staff use remembered confidential information.",
+    reason: null, prompt_version: "finding-explanation-1", passages: 0, cached: true,
+  };
+  const req = { code: "RESIDUALS-NDA-001", name: "RESIDUALS-NDA-001", version_id: "v1", version_number: 1,
+    description: "The receiving party's staff may use confidential information they happen to remember, in their ordinary work." };
+
+  it("is the card's sentence when ACCEPTED, and names its source inside the disclosure", () => {
+    const html = card({ classification: "MISSING", requirement: req }, { classification: "MISSING" }, accepted);
+    const { before, inside } = splitAtDetails(html);
+    expect(before).toContain(accepted.text);
+    expect(before).not.toContain("happen to remember, in their ordinary work");
+    expect(inside).toMatch(/Generated from the approved description, checked word by word against them · finding-explanation-1/);
+  });
+
+  it("falls back to the approved description on FALLBACK and FAILED, and says so", () => {
+    for (const status of ["FALLBACK", "FAILED"] as const) {
+      const html = card({ classification: "MISSING", requirement: req }, { classification: "MISSING" },
+        { status, text: null, reason: "judgment vocabulary", prompt_version: "finding-explanation-1", passages: 0, cached: false });
+      const { before, inside } = splitAtDetails(html);
+      expect(before, status).toContain("happen to remember, in their ordinary work");
+      expect(inside, status).toContain("The requirement&#x27;s approved description");
+    }
+  });
+
+  it("never decides the status — the same sentence sits under every status", () => {
+    for (const [classification, status] of [["MATCH", "ACCEPTED"], ["DEVIATION", "NEEDS_REVIEW"], ["MISSING", "NEEDS_REVIEW"]] as const) {
+      const html = card({ classification, requirement: req }, { classification }, accepted);
+      expect(html, classification).toMatch(new RegExp(`data-status="${status}"`));
+      expect(html, classification).toContain(accepted.text);
     }
   });
 });

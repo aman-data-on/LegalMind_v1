@@ -32,6 +32,7 @@ import type {
   Escalation,
   Evaluation,
   Finding,
+  FindingExplanation,
   ObligationsResult,
   PaginatedEnvelope,
   Pagination,
@@ -396,6 +397,8 @@ export const api = {
     }),
   /** Key Obligations (assist lane): descriptive facts about the document's own
    *  text, grouped by its own role labels — never a Finding or a judgment. */
+  explainFinding: (findingId: string) =>
+    request<FindingExplanation>(`/findings/${findingId}/explain`, { method: "POST" }),
   obligations: (documentVersionId: string) =>
     request<ObligationsResult>(`/document-versions/${documentVersionId}/obligations`),
   extractObligations: (documentVersionId: string) =>

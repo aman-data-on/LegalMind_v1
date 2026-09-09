@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { describeError } from "@/lib/api";
+import { api, describeError } from "@/lib/api";
 import {
   classificationLabel,
   findingStatusLabel,
@@ -39,7 +39,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import { DECISION_TYPES } from "@/lib/permissions";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { DocumentVersion, Evaluation, Evidence, Finding } from "@/lib/types";
+import type { DocumentVersion, Evaluation, Evidence, Finding, FindingExplanation } from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
 import { ClassificationGlossary } from "./ClassificationGlossary";
@@ -474,13 +474,37 @@ function askQuestionFor(finding: Finding): string {
 /** Exported for `finding-card.test.tsx`, which renders one card per
  *  classification and per evidence shape — the §10 edge-case matrix — with
  *  `renderToStaticMarkup`, the harness this project already uses. */
-export function FindingCard({ finding, onChanged, prepared }: {
+/** The grounded sentences already fetched this session, by finding id — a
+ *  filter change remounts every card, and the wording must not flicker or
+ *  refetch. The server caches too (AM-49 r3); this only saves the round trip. */
+const explanationCache = new Map<string, FindingExplanation>();
+
+export function FindingCard({ finding, onChanged, prepared, explanation: given }: {
   finding: Finding;
   onChanged: () => void;
   /** A keyboard PREPARE request the pane routed to THIS finding (`a` / `r`). */
   prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
+  /** A known explanation, for tests and static renders; the card fetches its
+   *  own when this is omitted. */
+  explanation?: FindingExplanation | null;
 }) {
   const askIntent = useAskIntent();
+  const [explanation, setExplanation] = useState<FindingExplanation | null>(
+    given ?? explanationCache.get(finding.id) ?? null,
+  );
+  useEffect(() => {
+    if (given !== undefined || explanationCache.has(finding.id)) return;
+    let cancelled = false;
+    api.explainFinding(finding.id)
+      .then((result) => {
+        // FAILED is transient (provider unavailable): not cached, so the next
+        // mount tries again. ACCEPTED and FALLBACK are the server's settled word.
+        if (result.status !== "FAILED") explanationCache.set(finding.id, result);
+        if (!cancelled) setExplanation(result);
+      })
+      .catch(() => { /* the approved description stays on the card */ });
+    return () => { cancelled = true; };
+  }, [finding.id, given]);
   const status = userStatus(finding);
   const prohibition = constitutionProhibition(finding);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
@@ -492,7 +516,12 @@ export function FindingCard({ finding, onChanged, prepared }: {
   // columns below it come from the evaluation, never from this text.
   const lead = finding.evaluations.find((e) => e.classification === finding.classification)
     ?? finding.evaluations[0];
-  const meaning = finding.requirement.description?.trim() || findingSentence(finding, lead);
+  // The grounded sentence when the server accepted one (AM-49), else the
+  // approved description, else a sentence built from the data. All three are
+  // language only — the status above and the columns below never read them.
+  const meaning = (explanation?.status === "ACCEPTED" && explanation.text)
+    || finding.requirement.description?.trim()
+    || findingSentence(finding, lead);
   return (
     <article
       className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}
@@ -540,6 +569,7 @@ export function FindingCard({ finding, onChanged, prepared }: {
           key={evaluation.id}
           finding={finding}
           status={status}
+          grounded={explanation}
           evaluation={evaluation}
           evidenceById={evidenceById}
           onChanged={onChanged}
@@ -603,12 +633,15 @@ function EvaluationCard({
   prepared,
   finding,
   status,
+  grounded,
   evaluation,
   evidenceById,
   onChanged,
 }: {
   finding: Finding;
   status: UserStatus;
+  /** The grounded sentence the card shows, for the attribution row below. */
+  grounded: FindingExplanation | null;
   evaluation: Evaluation;
   evidenceById: Map<string, Evidence>;
   onChanged: () => void;
@@ -793,6 +826,18 @@ function EvaluationCard({
             LEGAL-02 test (which asserts by count/text, never by position on
             the page) holds exactly as it did. */}
         <dl className="ws-determined__tech">
+          {/* Where the card's one sentence came from (AM-49 — source attribution
+              stays with the reader): the grounded generation, the approved
+              description, or the data-built fallback. */}
+          <dt>Explanation</dt>
+          <dd>
+            {grounded?.status === "ACCEPTED" && grounded.text
+              ? `Generated from the approved description${grounded.passages > 0
+                  ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
+              : finding.requirement.description?.trim()
+                ? "The requirement's approved description"
+                : "Built from the finding's own values"}
+          </dd>
           {finding.requirement.code ? (
             <>
               <dt>Requirement</dt>

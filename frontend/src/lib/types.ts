@@ -316,6 +316,18 @@ export interface Evaluation {
   constitution_prohibition?: { section: string; quote: string } | null;
 }
 
+/** `POST /findings/{id}/explain` — the grounded one-sentence explanation
+ *  (owner, 2026-09-09; AM-49). Language only: it never carries or changes the
+ *  classification or the status. `text` is null unless `status` is ACCEPTED. */
+export interface FindingExplanation {
+  status: "ACCEPTED" | "FALLBACK" | "FAILED";
+  text: string | null;
+  reason: string | null;
+  prompt_version: string;
+  passages: number;
+  cached: boolean;
+}
+
 export interface Finding {
   id: string;
   review_id: string;

@@ -50,6 +50,8 @@ EXPECTED_TABLES = frozenset({
     # posture; recorded in CHANGELOG and AUTO_MODE_DECISIONS.
     "obligation_extraction_runs",
     "obligation_extractions",
+    # The grounded explanation layer — AM-49 (AB-15), owner 2026-09-09.
+    "finding_explanations",
 })
 
 # The nine values `AM-29` r2 forbids an assist-lane state from reusing.

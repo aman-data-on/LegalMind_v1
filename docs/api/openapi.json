@@ -3268,6 +3268,52 @@
     ]
    }
   },
+  "/api/v1/findings/{finding_id}/explain": {
+   "post": {
+    "description": "The grounded plain-English sentence under a Finding's status (owner,\n2026-09-09; `AM-49`). Language only: the deterministic result is read, never\nwritten. Cached against the Finding and a hash of its approved sources, so\nthe wording is stable until a source changes; a rejected or unavailable\ngeneration returns FALLBACK/FAILED and the card shows the approved\ndescription instead.\n\nPermission is `finding.view` (the `AM-35` t5 reasoning): the sentence is\nbuilt only from material the caller already sees \u2014 the requirement's\napproved description and the cited passages \u2014 never from a Company\nStandard value or a Rule Outcome, so LEGAL-02's stricter gate does not\napply and the reply is identical for every caller who can see the Finding.",
+    "operationId": "explain_finding_api_v1_findings__finding_id__explain_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Explain Finding Api V1 Findings  Finding Id  Explain Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Explain Finding",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
   "/api/v1/permissions": {
    "get": {
     "description": "The permission catalogue, grouped \u2014 SEC-04's eleven groups as the\nadministrator sees them.\n\n`permissions.permission_group` has been stored since the catalogue was seeded\nand served nowhere, so the Roles screen had to render bare dotted strings and\nan administrator had to know that `legal.decision` is not like `report.view`.\nThis is a read projection of data that already exists: no new permission, no\nnew grant, and nothing that changes what any role may do.\n\n`confers_legal_authority` marks the two SEC-02/ROLE-05 permissions no bypass\nmay ever reach, so a screen can separate them without hardcoding their names.\nUnpaginated by design: the catalogue is a fixed 30 rows, not a collection.",

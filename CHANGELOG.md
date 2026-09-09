@@ -10,6 +10,49 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — The grounded explanation layer under every Finding (AB-15, `AM-49`, 2026-09-09)
+
+Owner instruction: a Sales reader must understand a Finding in five seconds, so the
+card's one sentence is now generated — from authorized material only — and
+validated before anyone sees it. `AM-30` t3 and `AM-32` r4 forbade the payload;
+asked, the owner chose to **amend narrowly** and approved one additive table in the
+same record (`all_lock.md` 17,623 → **17,701** lines).
+
+* **Payload (`AM-49` r1)** — exactly: the requirement's title in words, its approved
+  `description`, the classification as a plain phrase, and the cited contract
+  passages marked as data. Never a Company Standard value, `source_quote`, Rule
+  Outcome, Evaluation payload, requirement code or identifier — a test asserts the
+  prompt's contents.
+* **Validation (r2)** — `assist/explanations.validate`: one sentence within a fixed
+  length; the `AM-35` judgment screen widened (advice, consequence, acceptability,
+  instruction-echo vocabulary); no number the material did not contain; every
+  content word grounded in the material or a fixed frame vocabulary. A rejected or
+  `INSUFFICIENT` reply is stored as FALLBACK and the card shows the approved
+  description. Insufficient source never calls the model.
+* **Stability (r3)** — stored against Finding + sha256(requirement version,
+  description, classification, cited evidence, prompt version); the same Finding
+  reads the same on every visit; a changed description regenerates; FAILED
+  (provider) is not stored so the next visit retries.
+* **Storage (r4)** — `assist.finding_explanations`, migration `f3a9c2d7e1b4`.
+* **Language only (r5)** — a test asserts the Finding and Evaluation rows are
+  byte-identical across an explanation; the card shows the sentence under the
+  three-word status, never as it.
+* **API (r6)** — `POST /findings/{id}/explain` behind `finding.view`, rate-limited,
+  hash-only `audit_events` row per call (`assist.generation_called`, purpose
+  `finding_explanation`); OpenAPI snapshot regenerated (71 operations).
+* **UI (r7)** — the card fetches once per Finding (session cache), shows the
+  grounded sentence when ACCEPTED, else the approved description, else the
+  data-built sentence; "How this was determined" names the source and prompt
+  version.
+
+Tests: +23 backend (`test_assist_explanations.py`: supported sentence, payload
+contents, insufficient source, eight rejected-reply shapes, injected passage,
+five classifications, cache, invalidation, provider failure, byte-identical rows,
+both callers, 404 out of scope) — 1404 passed, the one failure being
+`test_migrations_must_be_at_head` against the deliberately unmigrated live DB;
++3 frontend (accepted/fallback/status independence) — 309 Vitest. Verified
+visually on four finding types with grounded sentences and one fallback.
+
 ### Added — An approved plain-English description for every ratified requirement (2026-09-09)
 
 Owner instruction: one short sentence per requirement, drafted from ONLY that

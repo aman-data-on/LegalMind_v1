@@ -24,7 +24,7 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.schemas import AskRequest, ConversationCreate
-from legalmind.assist import obligations, service, type_suggestion
+from legalmind.assist import explanations, obligations, service, type_suggestion
 from legalmind.assist.chunking import leading_section_ref
 from legalmind.db import models as M
 from legalmind.security import permissions as P
@@ -151,6 +151,29 @@ def extract_obligations(document_version_id: UUID,
         request_id=guard.request_id)
     return data({"extracted": result.extracted,
                  "error_code": result.error_code})
+
+
+@router.post("/findings/{finding_id}/explain")
+def explain_finding(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The grounded plain-English sentence under a Finding's status (owner,
+    2026-09-09; `AM-49`). Language only: the deterministic result is read, never
+    written. Cached against the Finding and a hash of its approved sources, so
+    the wording is stable until a source changes; a rejected or unavailable
+    generation returns FALLBACK/FAILED and the card shows the approved
+    description instead.
+
+    Permission is `finding.view` (the `AM-35` t5 reasoning): the sentence is
+    built only from material the caller already sees — the requirement's
+    approved description and the cited passages — never from a Company
+    Standard value or a Rule Outcome, so LEGAL-02's stricter gate does not
+    apply and the reply is identical for every caller who can see the Finding.
+    """
+    finding = guard.finding(finding_id, P.FINDING_VIEW)
+    _limiter.check(f"explain:{guard.user_id}", ratelimit.SUGGEST_TYPE)
+    result = explanations.explain(guard.db, finding, request_id=guard.request_id)
+    return data({"status": result.status, "text": result.text,
+                 "reason": result.reason, "prompt_version": result.prompt_version,
+                 "passages": result.passages, "cached": result.cached})
 
 
 @router.get("/document-versions/{document_version_id}/obligations")

@@ -171,6 +171,10 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
         P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/obligations"):
         P.FINDING_VIEW,
+    # The grounded explanation layer (owner, 2026-09-09; AM-49): one plain-English
+    # sentence built from the requirement's approved description and the cited
+    # passages — material the findings-viewer already sees; LEGAL-02 does not apply.
+    ("POST", f"{API_PREFIX}/findings/{{finding_id}}/explain"): P.FINDING_VIEW,
 }
 ENDPOINT_PERMISSIONS.update(ASSIST_ENDPOINTS)
 

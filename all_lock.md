@@ -17621,3 +17621,81 @@ r6   RANKING. A statute question that names an Act ranks that Act's sections bef
 **Approved by the owner on 2026-09-08** ("Do NOT stop after discovering a missing file.
 If it can legally/technically be obtained from an authoritative public source, obtain
 it, ingest it, test it and continue.").
+
+--------------------------------------------------------------------------------
+
+# AB-15 — `AM-49` — The grounded explanation layer for a Finding (Owner Instruction — 2026-09-09)
+
+**Amends:** `AM-30` t3 and `AM-32` r4 **for exactly one payload shape** — the Finding
+explanation payload defined in r1 below — and `AM-27`'s authorized assist-schema table set
+(as extended by `AM-32` and `AM-35`) by **one additive table**, `finding_explanations`.
+**Does not amend:** `AM-25` r1–r9 (the lane still produces no Finding, Evaluation,
+Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition and
+never answers "does this meet our standard?"); `AM-30` t1, t2, t4–t10 (single seam, hash-only
+audit, pinned model, allow-list, no identifiers); `AM-30` t3 for every other payload; `AM-32`
+r4 for every Domain A retrieval result; `AM-35`; the four classifications; the three
+user-facing statuses (Accepted / Needs review / Not accepted, owner 2026-09-08); LEGAL-02
+as a display and egress rule; rule 7, rule 12, rule 13, rule 21.
+
+The owner instructed: *"Build a GROUNDED LLM EXPLANATION LAYER for the Finding UI … The
+deterministic backend remains the source of truth. The LLM is ONLY a language/explanation
+layer … Never invent legal meaning. Never decide whether something is legally acceptable.
+Never change MATCH/MISSING/DEVIATION/UNABLE_TO_EVALUATE or any backend result."* Asked
+whether to amend `AM-30` t3 / `AM-32` r4 narrowly or forgo the model, the owner chose
+**"Amend narrowly"**, and approved the one additive table in the same record.
+
+```text
+r1   THE ONLY PERMITTED PAYLOAD. A Finding explanation call sends exactly: the
+     requirement's title in words (never its code); the requirement's approved
+     plain-English `description` (the presentation line the owner instructed on
+     2026-09-09 — never the Company Standard's value, `source_quote` or
+     `source_clause`); the classification as a plain phrase (MATCH / DEVIATION /
+     MISSING / CONFLICT / UNABLE_TO_EVALUATE — never the Rule Outcome, never an
+     Evaluation payload, never `expected_value` or `actual_value`); and the contract
+     passages the Evaluation cited (already permitted by AM-30 t2), marked as data,
+     not instructions. Nothing else. AM-30 t3 stands for everything this list does
+     not name, and AM-30 t4 stands in full — no identifier of any kind.
+
+r2   MECHANICAL VALIDATION BEFORE ANY READER SEES IT (AM-25 r5's principle, AM-35 t2's
+     method). The reply is accepted only if it is exactly one sentence within a fixed
+     length; carries no judgment, advice, consequence or acceptability vocabulary
+     (the AM-35 screen, widened); contains no number the supplied material did not
+     contain; and grounds every content word in the supplied material or a fixed
+     frame vocabulary. A reply that fails any check — or that declares the material
+     insufficient — is recorded as FALLBACK and the card shows the approved
+     description. The screen is code, not prompt (AM-28 r2's spirit).
+
+r3   STABLE AND INVALIDATED BY SOURCE. The accepted sentence is stored against the
+     Finding and a hash of (requirement version, description, classification, cited
+     evidence, prompt version). The same Finding reads the same on every visit; a
+     changed source yields a new hash and a fresh generation, the old row staying as
+     history. A provider failure (FAILED) is not stored, so the next visit retries.
+
+r4   ONE ADDITIVE TABLE. `finding_explanations` in the assist schema (migration
+     f3a9c2d7e1b4): finding_id (FK findings, CASCADE), requirement_version_id (FK,
+     CASCADE), source_hash, status ∈ {ACCEPTED, FALLBACK, FAILED}, explanation,
+     rejection_reason, model_identity, prompt_version, payload_sha256, created_at;
+     UNIQUE (finding_id, source_hash). AM-27 r1–r3 apply: separate schema, derived
+     store, recomputable, never a source of legal truth, no locked table touched.
+     Its status vocabulary shares no value with the five axes or AM-29's answer state.
+
+r5   LANGUAGE ONLY. The explanation is generated after the authoritative result exists
+     and reads it only to choose the phrase in r1. It never writes to findings,
+     evaluations or any legal or configuration table; it never determines or alters
+     the classification, the Rule Outcome, requires_decision, or the user-facing
+     status; a test asserts the Finding and Evaluation rows are byte-identical across
+     an explanation. The card shows it under the status, never as the status.
+
+r6   PERMISSION AND AUDIT. `POST /findings/{id}/explain` behind the Guard chain with
+     `finding.view` (AM-35 t5's reasoning: built only from material the caller already
+     sees — LEGAL-02's stricter gate does not apply, so the reply is identical for
+     every caller who can see the Finding). Every call writes an `audit_events` row
+     with model identity, prompt version `finding-explanation-1` and the payload hash,
+     never the payload (AM-30 t5). Rate-limited as deployment configuration.
+
+r7   SOURCE ATTRIBUTION ON THE CARD. "How this was determined" names where the
+     sentence came from — the grounded generation (with passage count and prompt
+     version), the approved description, or the data-built fallback.
+```
+
+**Approved by the owner on 2026-09-09** ("Amend narrowly … Yes, same record").
