@@ -181,7 +181,7 @@ def _pdf_text(path: Path) -> str:
     import pymupdf
 
     doc = pymupdf.open(str(path))
-    return "\n".join(page.get_text() for page in doc)
+    return "\n".join(page.get_text() for page in doc.pages())
 
 
 def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:

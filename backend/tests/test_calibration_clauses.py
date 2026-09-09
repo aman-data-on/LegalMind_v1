@@ -31,7 +31,6 @@ from uuid import uuid4
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 from legalmind.extraction.liability import (
     FINITE,
-    UNKNOWN,
     LiabilityExtractionConfig,
     extract_liability_facts,
 )

@@ -38,6 +38,8 @@ from legalmind.api.storage import get_storage
 from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.evaluation.user_status import by_finding
+from legalmind.evaluation.user_status import counts as user_status_counts
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
@@ -47,7 +49,6 @@ from legalmind.security.authorization import (
     OWNER,
     contract_read_basis,
 )
-from legalmind.evaluation.user_status import by_finding, counts as user_status_counts
 from legalmind.security.errors import Forbidden
 from legalmind.worker.dispatch import dispatch_indexing, dispatch_ocr
 

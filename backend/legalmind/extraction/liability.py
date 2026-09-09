@@ -237,9 +237,11 @@ def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
     — otherwise a mapped exclusions clause would turn a clean cap into a
     same-scope CONFLICT (45C.2 is about incompatible POSITIONS). Alone, ABSENT
     stands, with its evidence (AM-52)."""
-    stated = {(c.cap_kind, c.scope, c.scope_label) for c in caps if c.cap_status != ABSENT}
+    stated = {(c.cap_kind, c.scope, c.scope_label)
+              for c in caps if c.cap_status != ABSENT}
     return tuple(c for c in caps
-                 if c.cap_status != ABSENT or (c.cap_kind, c.scope, c.scope_label) not in stated)
+                 if c.cap_status != ABSENT
+                 or (c.cap_kind, c.scope, c.scope_label) not in stated)
 
 
 # --------------------------------------------------------------------------
@@ -419,7 +421,8 @@ _UNITS_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
 _TENS_WORDS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
                "seventy": 70, "eighty": 80, "ninety": 90}
 _NUMBER_WORD = (r"(?:(?:" + "|".join(_TENS_WORDS) + r")(?:[- ](?:" + "|".join(
-    k for k, v in _UNITS_WORDS.items() if v < 10) + r"))?|" + "|".join(_UNITS_WORDS) + r")")
+    k for k, v in _UNITS_WORDS.items() if v < 10) + r"))?|"
+                + "|".join(_UNITS_WORDS) + r")")
 
 
 def parse_number(token: str) -> float | None:

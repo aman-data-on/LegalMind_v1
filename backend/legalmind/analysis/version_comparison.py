@@ -43,8 +43,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.evaluation.user_status import by_finding
 from legalmind.db.lookup import latest_completed_run_id
+from legalmind.evaluation.user_status import by_finding
 
 #: How much of a clause the payload quotes. Long enough to read the change,
 #: short enough that a comparison is not a second copy of the document; matches

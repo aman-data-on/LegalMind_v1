@@ -24,7 +24,8 @@ for the reader who may see them; they no longer move the word.
 """
 from __future__ import annotations
 
-from legalmind.domain.enums import FindingClassification as C, RuleOutcome as R
+from legalmind.domain.enums import FindingClassification as C
+from legalmind.domain.enums import RuleOutcome as R
 
 ACCEPTABLE = "ACCEPTABLE"
 REQUIRES_MODIFICATION = "REQUIRES_MODIFICATION"
@@ -54,6 +55,7 @@ def by_finding(db, review_ids) -> dict:
     report, the dashboard list and the version comparison all use this so a
     count never disagrees with the card it summarises."""
     from sqlalchemy import select
+
     from legalmind.db import models as M
     from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
     ids = list(review_ids)

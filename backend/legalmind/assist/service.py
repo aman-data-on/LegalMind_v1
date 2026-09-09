@@ -338,7 +338,8 @@ POSITIONS_BESIDE_TEXT = (
 POSITION_LIMIT = 3
 
 
-def _latest_review_summary(db: DBSession, document_version_id: UUID) -> dict | None:
+def _latest_review_summary(db: DBSession,
+                           document_version_id: UUID | None) -> dict | None:
     """The newest Review of this version with its Finding counts by classification.
 
     Counts only — no Finding text, no evidence — because the caller has already been
@@ -346,15 +347,18 @@ def _latest_review_summary(db: DBSession, document_version_id: UUID) -> dict | N
     which the Review screen enforces on open. Pointing at a Review the caller can then
     open is the same disclosure the Documents list already makes.
     """
+    if document_version_id is None:      # a document-less conversation
+        return None
     row = db.execute(text("""
         SELECT r.id, r.status::text FROM reviews r
          WHERE r.document_version_id = :d
          ORDER BY r.created_at DESC LIMIT 1"""), {"d": document_version_id}).first()
     if row is None:
         return None
-    counts = dict(db.execute(text("""
+    counts: dict[str, int] = {
+        str(k): int(n) for k, n in db.execute(text("""
         SELECT classification::text, count(*) FROM findings
-         WHERE review_id = :r GROUP BY classification"""), {"r": row[0]}).all())
+         WHERE review_id = :r GROUP BY classification"""), {"r": row[0]}).all()}
     return {"review_id": str(row[0]), "review_status": row[1],
             "findings_by_classification": {k: int(v) for k, v in counts.items()}}
 
@@ -422,7 +426,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                           comparison=comparison, positions=_position_views(position_hits),
                           domains=domains)
 
-    if not route.has(routing.Domain.DOCUMENT):
+    if document_version_id is None or not route.has(routing.Domain.DOCUMENT):
         # No document in scope: statutes and/or positions are what can answer.
         run_id = None
         if statute_hits:
@@ -553,7 +557,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if statute_hits:
         statute_section = _answer_statutes(db, conversation_id, question, statute_hits,
                                            request_id=request_id)
-        _persist_statute_citations(db, answer_id, statute_hits,
+        _persist_statute_citations(db, answer_id, statute_hits or [],
                                    statute_section.pop("_cited", []))
         statute_section = {k: v for k, v in statute_section.items()
                            if not k.startswith("_")}
@@ -600,7 +604,9 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     if statute_hits:
         statute_section = _answer_statutes(db, conversation_id, question, statute_hits,
                                            request_id=request_id)
-    statute_answered = bool(statute_section and statute_section.get("text"))
+    answered_section = (statute_section
+                        if statute_section and statute_section.get("text") else None)
+    statute_answered = answered_section is not None
     if not position_hits and not statute_answered:
         return _refusal(db, conversation_id, message_id, run_id, state, route)
     if statute_answered:
@@ -613,12 +619,12 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
     answer_id = _persist_answer(
         db, reply_id, run_id, AssistAnswerState.ANSWERED,
-        model=statute_section.get("_model") if statute_answered else None,
+        model=answered_section.get("_model") if answered_section else None,
         prompt_version_id=_prompt_version_id(db) if statute_answered else None,
-        latency_ms=statute_section.get("_latency_ms") if statute_answered else None)
+        latency_ms=answered_section.get("_latency_ms") if answered_section else None)
     _persist_position_citations(db, answer_id, position_hits)
     if statute_section is not None:
-        _persist_statute_citations(db, answer_id, statute_hits,
+        _persist_statute_citations(db, answer_id, statute_hits or [],
                                    statute_section.pop("_cited", []))
         statute_section = {k: v for k, v in statute_section.items()
                            if not k.startswith("_")}

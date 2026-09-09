@@ -90,10 +90,18 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     // assertion is on elements, not on substrings of the page text.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
     await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
-    const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
-    expect(labels).toContain("Contract");              // the contract's own value
-    expect(labels).not.toContain("Company standard");  // an internal position
-    expect(labels).not.toContain("Comparison");
+    // Case-normalised deliberately. `.ws-facts--compare dt` is rendered
+    // `text-transform: uppercase` by the reference-design restyle (2026-09-09) and
+    // `allInnerTexts()` returns RENDERED text, so an exact-case comparison silently
+    // stopped matching — which made the two `not.toContain` assertions below pass
+    // vacuously, proving nothing about LEGAL-02. The labels themselves are still
+    // not free to rename (see FindingsPane); only their casing is presentation.
+    const labels = (await evaluation.locator(".ws-facts dt").allInnerTexts()).map((t) =>
+      t.trim().toLowerCase(),
+    );
+    expect(labels).toContain("contract");              // the contract's own value
+    expect(labels).not.toContain("company standard");  // an internal position
+    expect(labels).not.toContain("comparison");
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
@@ -153,8 +161,16 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     // element the same way (`toHaveCount(1)`); this test now matches it rather
     // than asserting a visibility default the redesign deliberately dropped.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
-    const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
-    expect(labels).toContain("Company standard");
+    // Case-normalised deliberately. `.ws-facts--compare dt` is rendered
+    // `text-transform: uppercase` by the reference-design restyle (2026-09-09) and
+    // `allInnerTexts()` returns RENDERED text, so an exact-case comparison silently
+    // stopped matching — which made the two `not.toContain` assertions below pass
+    // vacuously, proving nothing about LEGAL-02. The labels themselves are still
+    // not free to rename (see FindingsPane); only their casing is presentation.
+    const labels = (await evaluation.locator(".ws-facts dt").allInnerTexts()).map((t) =>
+      t.trim().toLowerCase(),
+    );
+    expect(labels).toContain("company standard");
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.
