@@ -52,6 +52,13 @@ operator, scope, and the engine's own record.
   ("The analysis of this clause: DEVIATION · …") and the version comparison's
   finding chip now read the same three words as the card (the comparison DTO
   carries no evaluations, so it can say Accepted / Needs review only).
+* **Owner ruling 2026-09-09 — Next step never pre-decides the outcome.** "Adding
+  it would make this Accepted" / "Matching the company standard would make it
+  Accepted" are withdrawn: a lawyer may find the missing clause acceptable as-is
+  or require a different provision. DEVIATION now reads "Someone with legal
+  authority needs to review and decide whether this difference is acceptable.";
+  MISSING "… whether this should be added." This supersedes the sixth pass's
+  alignment wording.
 * **Peer review fixes (legalmind-v1-2e):** an escalated MATCH no longer reads
   "No action is needed." beside a decision flag — the server's
   `requires_decision` wins; acronyms in titles keep their case (`IP ownership`,

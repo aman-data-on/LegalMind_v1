@@ -315,7 +315,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // "Required", not "Found" — a presence-shaped Company Standard value
     // states what the standard requires, not that the standard was "found".
     expect(before).toMatch(/Required/);
-    expect(before).toMatch(/legal authority needs to decide whether this must be added/i);
+    expect(before).toMatch(/legal authority needs to review and decide whether this should be added/i);
     // Nothing technical on the visible surface: no evaluator name, no raw
     // "presence" operator word, no scope key, no raw outcome label.
     expect(before).not.toMatch(/PRESENCE-v1/);
@@ -476,9 +476,10 @@ describe("the three-word status on the card face", () => {
     }
   });
 
-  it("puts the Next step on every card, conditional about what would make it Accepted", () => {
+  it("puts the Next step on every card without pre-deciding the outcome", () => {
     const deviation = face({ classification: "DEVIATION" }, { classification: "DEVIATION" });
-    expect(deviation).toMatch(/Matching the company standard would make it Accepted\./);
+    expect(deviation).toMatch(/review and decide whether this difference is acceptable\./);
+    expect(deviation).not.toMatch(/would make/);
     const unable = face({ classification: "UNABLE_TO_EVALUATE" }, { classification: "UNABLE_TO_EVALUATE" });
     expect(unable).toMatch(/legal or business decision may be required/i);
     expect(unable).not.toMatch(/would make/);

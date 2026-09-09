@@ -175,13 +175,13 @@ export function sameAsTitle(scope: string, title: string): boolean {
  *
  * The engine never produces a Legal Decision (rule 13) and under the
  * zero-tolerance rule essentially every non-MATCH routes to a person, so
- * every non-MATCH step names that person. A DEVIATION or MISSING also says,
- * conditionally, what would make it Accepted — the owner's sixth-pass
- * instruction — worded as what WOULD happen, never as an instruction to amend
- * the contract, which would be a legal position the standard does not carry.
- * Not accepted routes to a person and says why; it never suggests a
- * self-service edit. Never null for a real classification: "Next step" is one
- * of the four questions the card exists to answer.
+ * every non-MATCH step names that person and stops there. It never says what
+ * the outcome would be — owner ruling 2026-09-09, withdrawing the sixth pass's
+ * "adding it would make this Accepted": a lawyer may decide the missing clause
+ * is acceptable as-is or require a different provision, and the card must not
+ * pre-decide that (rule 13). Not accepted routes to a person and says why.
+ * Never null for a real classification: "Next step" is one of the four
+ * questions the card exists to answer.
  */
 export function nextStep(
   finding: Finding,
@@ -203,9 +203,9 @@ export function nextStep(
         ? "This has been escalated. Someone with legal authority needs to review it and record a decision."
         : "No action is needed.";
     case "DEVIATION":
-      return "Someone with legal authority needs to review this difference. Matching the company standard would make it Accepted.";
+      return "Someone with legal authority needs to review and decide whether this difference is acceptable.";
     case "MISSING":
-      return "Someone with legal authority needs to decide whether this must be added. Adding it would make this Accepted.";
+      return "Someone with legal authority needs to review and decide whether this should be added.";
     case "CONFLICT":
       return "Someone with legal authority needs to decide which of the contradicting provisions applies.";
     case "UNABLE_TO_EVALUATE":

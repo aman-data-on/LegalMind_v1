@@ -154,20 +154,18 @@ describe("what happens next", () => {
     const step = (c: string) => nextStep(finding({ classification: c, requires_decision: c !== "MATCH" }),
                                          evaluation({ classification: c, requires_decision: c !== "MATCH" }));
     expect(step("MATCH")).toBe("No action is needed.");
-    expect(step("DEVIATION")).toMatch(/review this difference/);
-    expect(step("MISSING")).toMatch(/decide whether this must be added/);
+    expect(step("DEVIATION")).toBe("Someone with legal authority needs to review and decide whether this difference is acceptable.");
+    expect(step("MISSING")).toBe("Someone with legal authority needs to review and decide whether this should be added.");
     expect(step("CONFLICT")).toMatch(/which of the contradicting provisions applies/);
     expect(step("UNABLE_TO_EVALUATE")).toMatch(/legal or business decision may be required/i);
   });
 
-  it("says what WOULD make a deviation or an absence Accepted — conditionally, never as an instruction to amend", () => {
-    for (const c of ["DEVIATION", "MISSING"]) {
+  it("never pre-decides the legal outcome — no 'would make this Accepted' on any card (owner, 2026-09-09)", () => {
+    for (const c of ["DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const step = nextStep(finding({ classification: c }), evaluation({ classification: c }))!;
-      expect(step).toMatch(/would make (it|this) Accepted/);
-      expect(step).not.toMatch(/must be (modified|changed|amended)/i);
+      expect(step, c).toMatch(/legal authority/i);
+      expect(step, c).not.toMatch(/Accepted|would make|must be (modified|changed|amended)/i);
     }
-    expect(nextStep(finding({ classification: "UNABLE_TO_EVALUATE" }), evaluation({ classification: "UNABLE_TO_EVALUATE" })))
-      .not.toMatch(/would make/);
   });
 
   it("routes Not accepted to a person and never suggests a self-service edit", () => {
