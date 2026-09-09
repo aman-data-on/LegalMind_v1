@@ -10,6 +10,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — the Findings filter row is one fixed order, "All" first and selected (owner, 2026-09-09)
+
+Owner instruction. The row reads `All` · `Acceptable` · `Requires modification` · `Needs a
+decision`, with "All" first and pressed when the workspace opens, then `AM-56`'s three reader
+words in that fixed order — nothing reorders on the counts, so the row a reader learns on one
+contract is the row the next contract gives them. It had opened *pre-filtered*, on a separate
+requires_decision filter ("Needs decision (n)") that pushed "All" into second place. That
+filter is gone: once `AM-56` renamed the third status, it was two buttons reading almost the
+same label, and the legal-decision count already has its own line on the Summary (same-day,
+`7275d1f`). The `?classification=` deep-link chip moved to the end of the row so it never
+displaces the four positions.
+
+Presentation only, and `FindingsPane.tsx` alone: the filter predicate, the counts' source
+(`user_status`, server-derived — the row groups server values, it never re-derives one), the
+evaluators, the API and the database are untouched. No locked decision is amended;
+[docs/design/UI_UX_MASTER_PROMPT.md](docs/design/UI_UX_MASTER_PROMPT.md) §3's "default filter:
+needs a decision" is annotated as superseded, as is DESIGN.md's *bias toward the task* line for
+this row. Tests: `frontend/src/__tests__/findings-filter.test.tsx` (new — the order, the
+labels, the counts, the default, and that a word nothing carries drops out without disturbing
+the rest) and a filter walk added to `frontend/e2e/journey.spec.ts`, which clicks each button
+in a browser and asserts the subset and count behind it.
+
+⚠️ **Coordination note.** The `FindingsPane.tsx` change itself is inside commit `2c93eef` (the
+`AM-56` rename): it sat unstaged in the shared working tree while a concurrent session
+committed that batch by path. Nothing was lost and the result is coherent, but this entry and
+the two test files are the record of *why* that file changed shape, since the AM-56 commit
+message does not mention it.
+
 ### Changed — Acceptable / Requires modification / Needs a decision (`AM-56`, 2026-09-09)
 
 Owner instruction, superseding the `AM-53` vocabulary and mapping. The backend keeps its

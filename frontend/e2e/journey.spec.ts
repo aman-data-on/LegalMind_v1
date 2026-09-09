@@ -66,6 +66,46 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // filters — category → finding → evidence without leaving the pane.
   const filters = page.locator(".ws-filter");
   await expect(filters.getByRole("button", { name: /^Requires modification \(\d+\)$/ })).toBeVisible();
+
+  /*
+   * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"
+   * first and pressed on arrival, then `AM-56`'s three words in their own fixed
+   * order. It used to open pre-filtered, on a requires_decision filter that
+   * pushed "All" into second place — so the row a reader learned on one
+   * contract was not the row the next contract gave them.
+   *
+   * Asserted in a browser because a click is the one thing the static suite
+   * cannot make: `src/__tests__/findings-filter.test.tsx` pins the order, the
+   * labels, the counts and the default; only here can the subset each filter
+   * actually shows be checked.
+   */
+  const labels = await filters.getByRole("button").allTextContents();
+  const total = Number(labels[0]!.match(/^All \((\d+)\)$/)![1]);
+  const words = labels.slice(1).map((l) => l.replace(/ \(\d+\)$/, ""));
+  // A subsequence of the fixed order — a word with no findings renders no
+  // button, and the words that remain keep their places.
+  expect(words).toEqual(
+    ["Acceptable", "Requires modification", "Needs a decision"].filter((w) => words.includes(w)));
+  await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
+  const cards = page.locator("article[data-finding-id]");
+  await expect(cards).toHaveCount(total);
+
+  for (const word of words) {
+    const button = filters.getByRole("button", { name: new RegExp(`^${word} \\(\\d+\\)$`) });
+    const n = Number((await button.textContent())!.match(/\((\d+)\)$/)![1]);
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    // Its own count, and nothing but its own findings.
+    await expect(cards).toHaveCount(n);
+    for (let i = 0; i < n; i += 1) {
+      await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(word);
+    }
+  }
+
+  // "All" comes back to every finding, which is what makes the filters undoable.
+  await filters.getByRole("button", { name: /^All \(\d+\)$/ }).click();
+  await expect(cards).toHaveCount(total);
+
   await filters.getByRole("button", { name: /^Requires modification/ }).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
