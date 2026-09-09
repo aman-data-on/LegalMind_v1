@@ -10,6 +10,59 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Ask: the uploaded document is context, not the knowledge boundary (owner, 2026-09-09; landed 2026-09-10)
+
+Owner report: "What is the termination notice period?" over an MSA returned "Information not
+found in the selected document" while the ratified positions held the answer. Traced end to end
+on the live retrieval record. **Precise cause, three layers:** (1) `routing.plan` made the
+positions a candidate only when the question named the organization and the statutes only when
+it named the law, so a plain contract question routed to DOCUMENT alone; (2) the AM-50 r2
+fall-through to the other sources lived in the closed-gate branch only — when the document
+mentioned the topic (gate open) and the model then said NOT FOUND, or verification failed, or
+the model was unavailable, the refusal skipped every other source; (3) the model's document
+answer, when it did come back grounded and verified, was discarded as a "compliance verdict"
+because the verdict screen reused the question router's stems — a party name ("Leapswitch")
+plus the document word "breach" fired it. Underneath, retrieval itself under-served the
+question: the lexical AND matched one survival clause, the clause stating the notice lacked
+the word "period" and sat under the vector floor, and heading fragments ("7.", "TERM AND
+TERMINATION", "7.6. Effect of Termination:") filled the top ten.
+
+**General fix, no second pipeline, existing seams only:** `RoutePlan.fallback` — every
+authorized source the primary route did not pick, recorded and deterministic in (permissions,
+document, corpus availability); one convergence point (`_positions_or_refusal` →
+`_consult_fallbacks`) that every non-answer reaches before it may become a refusal; source
+priority document → position → statutes, statutes for a question about the law or when the
+position is silent, and for a non-law question only on semantic evidence (measured: two shared
+lexemes put a Copyright Act licence-termination section under a contract question); the refusal
+names every source consulted (`AM-46` preserved — a function of facts the caller already
+holds); `retrieval_runs.filters.domains` updated after fall-through. **Retrieval:** OR-with-
+two-lexeme-floor lexical CANDIDATES join the evidence once the gate has opened, the gate's own
+lexical signal stays the calibrated AND (the Tier-2 gate measured OR-as-gate at 13/13
+unanswerable questions answered — so it never opens the gate); heading fragments are pruned
+from both branches (`store.is_fragment`); strategy version `hybrid-rrf-gate-2`. **Semantic
+increment across domains (`AM-32` r9's shared machinery):** `position_chunk_embeddings` filled
+(32 live rows, `positions.embed_positions`, re-embedded on every re-chunk) and Domain A search
+is hybrid through the same calibrated gate; Domain C uses its existing section vectors —
+lexical-first stands for a named Act or section (`AM-47`), rank-fused for an unnamed
+question. **Verdict screen:** `intent.is_verdict_statement` for generated text (position
+reference + compliance signal; real verdicts still caught, descriptive sentences naming a
+party pass). **Measured:** AM-28 Tier-2 gate SHIPPABLE — wrongly answered 1/13 (held), recall@10
+0.625 (was 0.469), retained 43, faithfulness 1.0, citation precision 1.0. Live, in-process
+against the production DB with the real model: the owner's question is answered from the
+document with four citations (FM 60 days; breach 30-day cure notice; non-payment 30 days;
+5-day suspension notice); a paraphrase falls to the positions; the same question with no
+document attached answers from the positions alone; an unsupported question is refused once
+naming all three sources; a caller without `legal_position.view` never sees a position. 24
+new backend tests across routing, ask, positions, statutes and intent; full suite 1489 passed.
+Not amended: `AM-45` (routing by question shape — the fallback is authorization-derived, not a
+selector), `AM-46`, `AM-47`. `AM-52` r5's factual note that Domain A vectors were "empty by
+design" is superseded by this entry. Observed and left: statute generation for a statute-
+shaped question is model-variable (one live DPDP consent run refused, the reproduction passed);
+the ORG-mention primary route can attach loosely related positions beside a good document
+answer. Files: `assist/{routing,service,positions,statutes,store,intent,calibration}.py`.
+Live DB: 32 additive embedding rows only, no schema change; API not restarted from this
+session.
+
 ### Changed — one colour system and one order for the three reader statuses (owner, 2026-09-09)
 
 Owner instruction, presentation only. **Order**, everywhere the three words appear as a

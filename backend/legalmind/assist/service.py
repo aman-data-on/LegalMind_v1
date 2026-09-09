@@ -237,7 +237,8 @@ def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
              route: routing.RoutePlan) -> AskOutcome:
     """Every refusal path converges here — one wording per candidate set, whatever
     the cause (`AM-29` r4 as amended by `AM-46`; see `routing.refusal_text`)."""
-    held = tuple(statutes.holdings(db)) if route.has(routing.Domain.STATUTES) else ()
+    held = (tuple(statutes.holdings(db))
+            if routing.Domain.STATUTES in route.searched else ())
     wording = routing.refusal_text(route, statute_holdings=held)
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
@@ -245,7 +246,7 @@ def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
                     model=None, prompt_version_id=None, latency_ms=None)
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=state, text=wording,
-                      domains=tuple(d.value for d in route.domains))
+                      domains=tuple(d.value for d in route.searched))
 
 
 def _persist_position_citations(db: DBSession, answer_id: UUID,
@@ -423,21 +424,14 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                           domains=domains)
 
     if not route.has(routing.Domain.DOCUMENT):
-        # No document in scope: statutes and/or positions are what can answer.
-        run_id = None
-        if statute_hits:
-            run_id = _persist_retrieval(
-                db, user_message_id, question,
-                store.RetrievalOutcome(hits=[], gate_open=True, lexical_hit=True,
-                                       vector_top_score=None, vector_peak_gap=None,
-                                       strategy_version="statutes-lexical-1",
-                                       embedding_model=None),
-                document_version_id=None, domains=domains, statute_hits=statute_hits)
-        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
+        # No document in scope: statutes and/or positions are what can answer. The
+        # retrieval record is written by the convergence point, after the fallback
+        # sources have been consulted, so it names everything that was searched.
+        return _positions_or_refusal(db, conversation_id, user_message_id, None,
                                      position_hits, route, domains,
                                      AssistAnswerState.NO_EVIDENCE_RETRIEVED,
                                      request_id, statute_hits=statute_hits,
-                                     question=question)
+                                     question=question, permissions=permissions)
 
     retrieval = store.search_hybrid(
         db, document_version_id=document_version_id, query=question,
@@ -448,37 +442,21 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
 
     chunk_texts = [h.content for h in retrieval.hits]
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
-        # The document does not answer. AM-50 r2: before refusing, the other
-        # authorized sources are consulted for a question the router did not
-        # already send to them — a general legal question over an NDA is asked of
-        # the statute corpus and the organization's positions, extractive and
-        # cited exactly as when the router chose them. The uploaded document is
-        # never a hard filter on what may be answered.
+        # The document does not answer. AM-50 r2: the other authorized sources are
+        # consulted before any refusal — inside `_positions_or_refusal`, where
+        # EVERY non-answer converges (2026-09-09), so a document whose retrieval
+        # gate opened but whose evidence the model judged non-responsive falls
+        # through exactly like one whose gate never opened. The uploaded document
+        # is never a hard filter on what may be answered.
         cause = "gate_closed" if not retrieval.gate_open else "insufficient"
         state = (AssistAnswerState.NO_EVIDENCE_RETRIEVED if not retrieval.gate_open
                  else AssistAnswerState.EVIDENCE_INSUFFICIENT)
-        fell_through: list[str] = []
-        if not statute_hits and not route.has(routing.Domain.STATUTES) \
-                and statutes.available(db):
-            statute_hits = statutes.search_statutes(db, query=question,
-                                                    permissions=permissions)
-            if statute_hits:
-                fell_through.append(routing.Domain.STATUTES.value)
-        if not position_hits and not route.has(routing.Domain.POSITIONS) \
-                and routing.positions_permitted(permissions):
-            position_hits = positions.search_positions(
-                db, query=question, permissions=permissions, limit=POSITION_LIMIT)
-            if position_hits:
-                fell_through.append(routing.Domain.POSITIONS.value)
-        if fell_through:
-            domains = (*domains, *fell_through)
-            log_event("assist.ask.fell_through", request_id=request_id,
-                      conversation_id=str(conversation_id), to=",".join(fell_through))
         log_event("assist.ask.refused", request_id=request_id, cause=cause,
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains, state, request_id,
-                                     statute_hits=statute_hits, question=question)
+                                     statute_hits=statute_hits, question=question,
+                                     permissions=permissions)
 
     try:
         # Document chunks ONLY reach the model. Position text never does (AM-32 r4).
@@ -494,7 +472,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
                                      AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
-                                     statute_hits=statute_hits, question=question)
+                                     statute_hits=statute_hits, question=question,
+                                     permissions=permissions)
     except generation.GenerationUnavailable:
         log_event("assist.ask.refused", request_id=request_id,
                   cause="generation_unavailable", level=logging.WARNING,
@@ -502,7 +481,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
                                      AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
-                                     statute_hits=statute_hits, question=question)
+                                     statute_hits=statute_hits, question=question,
+                                     permissions=permissions)
 
     # AM-30 t5 — the audit record of the egress: model, prompt version, payload
     # hash. Recorded whether or not verification later rejects the text, because the
@@ -518,7 +498,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                "evidence_chunks": len(chunk_texts)})
 
     verification = guardrails.verify_answer(result.text, chunk_texts)
-    if verification.passed and intent.is_comparison_question(result.text):
+    if verification.passed and intent.is_verdict_statement(result.text):
         # A grounded sentence can still be a VERDICT — a document that says "this
         # clause complies with our approved standard" is grounded and is exactly
         # the statement the assistant may never make (AM-25 r1/r4; Constitution
@@ -528,7 +508,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains,
                                      AssistAnswerState.CLAIM_UNSUPPORTED, request_id,
-                                     statute_hits=statute_hits, question=question)
+                                     statute_hits=statute_hits, question=question,
+                                     permissions=permissions)
     if not verification.passed:
         # CLAIM_UNSUPPORTED or the model's own NOT FOUND — either way the generated
         # text never reaches the user (AM-25 r5).
@@ -539,7 +520,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
                                      position_hits, route, domains, state, request_id,
-                                     statute_hits=statute_hits, question=question)
+                                     statute_hits=statute_hits, question=question,
+                                     permissions=permissions)
 
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", result.text)
@@ -587,15 +569,95 @@ STATUTES_BESIDE_TEXT = (
     "below, cited by Act and section.")
 
 
+def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
+                       route: routing.RoutePlan, domains: tuple[str, ...],
+                       position_hits: list, statute_hits: list,
+                       permissions: frozenset[str], request_id: str | None):
+    """Search every authorized source the primary route did not already search.
+
+    The one place the "document as knowledge boundary" defect was fixed (2026-09-09).
+    Every non-answer — gate closed, evidence too thin, the model's own NOT FOUND, a
+    failed citation check, an unavailable model — arrives here before it can become
+    a refusal, and each fallback domain the caller may read is consulted with the
+    same authorization-inside-the-query retrieval the primary route uses. The
+    fallback set is fixed by the route (permissions, document, corpus availability),
+    never by what was found, so the recorded `domains` and the refusal wording stay
+    a function of facts the caller already holds (`AM-46`).
+    """
+    searched = set(domains)
+    consulted: list[str] = []
+    for domain in route.fallback:
+        if domain.value in searched:
+            continue
+        if domain is routing.Domain.POSITIONS and not position_hits:
+            position_hits = positions.search_positions(
+                db, query=question, permissions=permissions, limit=POSITION_LIMIT)
+        elif domain is routing.Domain.STATUTES and not statute_hits:
+            # Source priority, not a fixed sweep: the statute corpus is a fallback
+            # for a question about the law (statute-shaped) or for one nothing
+            # closer could answer. A contract question the organization's own
+            # position already answers is NOT also put to 5,000 statute sections —
+            # measured live, that produced a grounded Copyright Act answer about
+            # licence termination beside the relevant position on notice periods.
+            if position_hits and not route.statute_shaped:
+                continue
+            statute_hits = statutes.search_statutes(
+                db, query=question, permissions=permissions,
+                require_semantic=not route.statute_shaped)
+        consulted.append(domain.value)
+    if consulted:
+        domains = routing.ordered((*domains, *consulted))
+        log_event("assist.ask.fell_through", request_id=request_id,
+                  conversation_id=str(conversation_id), to=",".join(consulted),
+                  positions=str(len(position_hits)), statutes=str(len(statute_hits)))
+    return domains, position_hits, statute_hits
+
+
+def _record_fallthrough(db: DBSession, message_id: UUID, run_id: UUID | None,
+                        question: str, domains: tuple[str, ...],
+                        statute_hits: list) -> UUID | None:
+    """Keep the retrieval record honest about what was searched: the run row names
+    every consulted domain and the statute hits (ids + scores only, `AM-27` r6)."""
+    import json as _json
+
+    schema = config.assist_schema()
+    if run_id is None:
+        if not statute_hits and not domains:
+            return None
+        return _persist_retrieval(
+            db, message_id, question,
+            store.RetrievalOutcome(hits=[], gate_open=True, lexical_hit=True,
+                                   vector_top_score=None, vector_peak_gap=None,
+                                   strategy_version="sources-fallback-1",
+                                   embedding_model=None),
+            document_version_id=None, domains=domains, statute_hits=statute_hits)
+    db.execute(text(f"""
+        UPDATE "{schema}".retrieval_runs
+           SET filters = jsonb_set(filters, '{{domains}}', CAST(:d AS jsonb)),
+               results = jsonb_set(results, '{{statute_hits}}', CAST(:s AS jsonb))
+         WHERE id = :i
+    """), {"i": run_id, "d": _json.dumps(list(domains)),
+           "s": _json.dumps([{"statute_chunk_id": str(h.statute_chunk_id),
+                              "score": round(h.score, 6)} for h in statute_hits])})
+    return run_id
+
+
 def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
                           run_id: UUID | None, position_hits: list, route, domains,
                           state: AssistAnswerState, request_id: str | None, *,
                           statute_hits: list | None = None,
-                          question: str = "") -> AskOutcome:
+                          question: str = "",
+                          permissions: frozenset[str] = frozenset()) -> AskOutcome:
     """The document did not answer (or there was none). The other authorized
     sources may still: the organization's position is quoted extractively (`AM-32`
     r4), the statute corpus is answered over its own evidence (r8). Otherwise the
-    one refusal for this route."""
+    one refusal for this route — issued only after every authorized source has
+    been consulted."""
+    statute_hits = list(statute_hits or [])
+    domains, position_hits, statute_hits = _consult_fallbacks(
+        db, conversation_id, question, route, tuple(domains), position_hits,
+        statute_hits, permissions, request_id)
+    run_id = _record_fallthrough(db, message_id, run_id, question, domains, statute_hits)
     statute_section = None
     if statute_hits:
         statute_section = _answer_statutes(db, conversation_id, question, statute_hits,

@@ -198,3 +198,79 @@ def test_alias_expansion_only_touches_known_short_names():
     from legalmind.assist.statutes import expand_aliases
     assert "digital personal data protection" in expand_aliases("what is the dpdp act")
     assert expand_aliases("what does section 138 say") == "what does section 138 say"
+
+
+# ==========================================================================
+# The vector increment (2026-09-09): stored section vectors fill the slots the
+# lexical ranking leaves empty, through the calibrated gate — never displacing an
+# exact section or a named Act. Planted vectors; injected embedder; no model number.
+# ==========================================================================
+def _plant_section(db, section_number: str, axis: int):
+    from legalmind import config
+    from legalmind.assist import store
+    from sqlalchemy import text as sql_text
+    schema = config.assist_schema()
+    model_id = store.register_embedding_model(db, name="planted", version="t",
+                                              dimensions=384, checksum="x")
+    vec = [0.0] * 384
+    vec[axis] = 1.0
+    db.execute(sql_text(f"""
+        INSERT INTO "{schema}".statute_chunk_embeddings
+            (id, statute_chunk_id, embedding_model_id, embedding)
+        SELECT gen_random_uuid(), sc.id, :m, CAST(:v AS {store.vector_type(db)})
+          FROM "{schema}".statute_chunks sc WHERE sc.section_number = :s
+    """), {"m": model_id, "v": "[" + ",".join(map(str, vec)) + "]", "s": section_number})
+
+
+def _axis(n):
+    vec = [0.0] * 384
+    vec[n] = 1.0
+    return lambda _q: (vec, "planted@t")
+
+
+def test_a_paraphrase_naming_no_act_or_section_reaches_a_section_through_its_vector(
+        db, tmp_path):
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    _plant_section(db, "3", 0)
+    question = "gently please, gizmos"                    # no two lexemes in any section
+    assert search_statutes(db, query=question, permissions=ASK,
+                           embed_query=lambda q: None) == []
+    hits = search_statutes(db, query=question, permissions=ASK, embed_query=_axis(0))
+    assert [h.section_number for h in hits] == ["3"]
+    assert hits[0].citation == "The Synthetic Widgets Act, 2099, s. 3"
+
+
+def test_a_far_vector_keeps_the_statute_gate_shut(db, tmp_path):
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    _plant_section(db, "3", 0)
+    assert search_statutes(db, query="gently please, gizmos", permissions=ASK,
+                           embed_query=_axis(5)) == []
+
+
+def test_vector_neighbours_never_displace_a_named_section(db, tmp_path):
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    _plant_section(db, "3", 0)                              # the vector points at s. 3
+    hits = search_statutes(db, query="What does section 2 say?", permissions=ASK,
+                           embed_query=_axis(0))
+    assert hits[0].section_number == "2"                    # lexical-first stands (AM-47)
+
+
+def test_the_statute_vector_increment_respects_assist_ask(db, tmp_path):
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    _plant_section(db, "3", 0)
+    assert search_statutes(db, query="gently please, gizmos", permissions=frozenset(),
+                           embed_query=_axis(0)) == []
+
+
+def test_for_an_unnamed_question_a_gated_vector_hit_outranks_a_weak_lexical_match(db, tmp_path):
+    """Two shared lexemes reach a section; the vector points at another. Nothing is
+    named, so the two rankings fuse and the vector side wins the tie."""
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    _plant_section(db, "3", 0)
+    lexical_only = search_statutes(db, query="extends whole", permissions=ASK,
+                                   embed_query=lambda q: None)
+    assert lexical_only and lexical_only[0].section_number == "1"
+    fused = search_statutes(db, query="extends whole", permissions=ASK,
+                            embed_query=_axis(0))
+    assert fused[0].section_number == "3"
+    assert {h.section_number for h in fused} >= {h.section_number for h in lexical_only}

@@ -25,6 +25,8 @@ number, and rank fusion belongs with the vector half in A3/A4 where it can be me
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -213,28 +215,10 @@ def delete_chunks(db: DBSession, document_version_id: UUID) -> int:
     return len(removed)
 
 
-def search_chunks(db: DBSession, *, document_version_id: UUID, query: str,
-                  limit: int = 20) -> list[SearchHit]:
-    """Lexical search within ONE authorized document version.
-
-    **`AM-25` r6 — authorization before retrieval, inside the query.** The scope is a
-    `document_version_id` the caller has already authorized through the existing
-    `Guard`, and it is applied as a `WHERE` clause on the candidate set rather than as a
-    filter over results. That ordering is the point: post-filtering would let result
-    counts, ranking or latency reveal the existence of a chunk in a document the
-    requester may not read, which is precisely the enumeration oracle r7 forbids and
-    which `API-10`'s byte-identical-404 discipline exists to close.
-
-    The signature takes a single authorized id rather than an open query plus a filter
-    for the same reason — a caller cannot forget to scope this.
-
-    Provenance is joined from `document_evidence` rather than read from the chunk row:
-    `AM-27` r4 keeps the chunk free of independent provenance, so the page and section a
-    citation displays come from the authoritative evidence row every time.
-    """
-    if not query or not query.strip():
-        return []
-
+def _search_chunks_all(db: DBSession, *, document_version_id: UUID, query: str,
+                       limit: int) -> list[SearchHit]:
+    """The calibrated lexical signal, byte-for-byte the query the gate was measured
+    with (2026-08-26): every lexeme, or the literal phrase."""
     schema = config.assist_schema()
     trgm = _trgm_schema(db)
     rows = db.execute(text(f"""
@@ -253,6 +237,95 @@ def search_chunks(db: DBSession, *, document_version_id: UUID, query: str,
            AND (c.content_tsv @@ websearch_to_tsquery('english', :q)
                 OR c.content ILIKE '%%' || :q || '%%')
          ORDER BY rank DESC, sim DESC, c.ordinal ASC
+         LIMIT :lim
+    """), {"dv": document_version_id, "q": query.strip(), "lim": limit}).all()
+    return [
+        SearchHit(
+            chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
+            section_number=r[4], section_title=r[5],
+            source_type=str(r[6]), retrieval_score=float(r[7]),
+        )
+        for r in rows
+    ]
+
+
+def search_chunks(db: DBSession, *, document_version_id: UUID, query: str,
+                  limit: int = 20, match: str = "any") -> list[SearchHit]:
+    """Lexical search within ONE authorized document version.
+
+    **`AM-25` r6 — authorization before retrieval, inside the query.** The scope is a
+    `document_version_id` the caller has already authorized through the existing
+    `Guard`, and it is applied as a `WHERE` clause on the candidate set rather than as a
+    filter over results. That ordering is the point: post-filtering would let result
+    counts, ranking or latency reveal the existence of a chunk in a document the
+    requester may not read, which is precisely the enumeration oracle r7 forbids and
+    which `API-10`'s byte-identical-404 discipline exists to close.
+
+    The signature takes a single authorized id rather than an open query plus a filter
+    for the same reason — a caller cannot forget to scope this.
+
+    Provenance is joined from `document_evidence` rather than read from the chunk row:
+    `AM-27` r4 keeps the chunk free of independent provenance, so the page and section a
+    citation displays come from the authoritative evidence row every time.
+
+    ``match`` (2026-09-09): ``"all"`` is the original `websearch_to_tsquery` AND —
+    every lexeme of the question — and is what the calibrated gate trusts as "a
+    lexical hit" (`calibration.gate_is_open`; measured: refuses 13/13 unanswerable
+    questions on its own). ``"any"`` is OR with a two-lexeme floor, ranked by how many
+    lexemes a chunk shares: the wider CANDIDATE set that `search_hybrid` admits as
+    evidence once the gate has opened. The Tier-2 gate measured what happens if
+    "any" is allowed to open the gate: every unanswerable question answered (13/13
+    against a baseline of 1) — so it never does.
+    """
+    if not query or not query.strip():
+        return []
+    if match == "all":
+        return _search_chunks_all(db, document_version_id=document_version_id,
+                                  query=query, limit=limit)
+
+    schema = config.assist_schema()
+    trgm = _trgm_schema(db)
+    # OR-semantics with a match floor (2026-09-09), the same rule Domain A and C
+    # use. `websearch_to_tsquery` ANDs every lexeme, so "what is the termination
+    # notice period?" matched only a clause that carried all three words — one
+    # survival clause on a live MSA — while the clause that actually states the
+    # notice ("not cured within thirty (30) days after receipt of written notice")
+    # lacked "period" and never became a candidate. A chunk must share at least two
+    # of the question's lexemes (one, for a one-word question); it ranks by how many
+    # it shares, then ts_rank, then trigram similarity, then position. A chunk
+    # matching every lexeme therefore still ranks first — AND is the top of this
+    # ordering, not a different query. The literal ILIKE keeps an exact phrase
+    # findable when stemming would split it.
+    rows = db.execute(text(f"""
+        WITH q AS (
+            SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
+        ), scored AS (
+            SELECT c.id,
+                   c.evidence_id,
+                   c.content,
+                   e.page_number,
+                   e.section_number,
+                   e.section_title,
+                   e.source_type,
+                   ts_rank(c.content_tsv,
+                           to_tsquery('english', (SELECT array_to_string(lex, ' | ')
+                                                    FROM q)))                  AS rank,
+                   {trgm}.similarity(c.content, :q)                            AS sim,
+                   (SELECT count(*)
+                      FROM q, unnest(tsvector_to_array(c.content_tsv)) l
+                     WHERE l = ANY(q.lex))                                      AS matched,
+                   (c.content ILIKE '%%' || :q || '%%')                         AS literal,
+                   c.ordinal
+              FROM "{schema}".chunks c
+              JOIN document_evidence e ON e.id = c.evidence_id
+             WHERE c.document_version_id = :dv
+               AND (SELECT cardinality(lex) FROM q) > 0
+        )
+        SELECT id, evidence_id, content, page_number, section_number, section_title,
+               source_type, rank, sim
+          FROM scored
+         WHERE matched >= LEAST(2, (SELECT cardinality(lex) FROM q)) OR literal
+         ORDER BY matched DESC, rank DESC, sim DESC, ordinal ASC
          LIMIT :lim
     """), {"dv": document_version_id, "q": query.strip(), "lim": limit}).all()
 
@@ -332,6 +405,28 @@ def count_embeddings(db: DBSession, document_version_id: UUID) -> int:
     """), {"dv": document_version_id}).scalar_one()
 
 
+_NUMBERING = re.compile(r"\d+(\.\d+)*\.?")
+
+
+def is_fragment(content: str) -> bool:
+    """A chunk that is only a clause heading — never evidence on its own.
+
+    The parser emits the numbering and the heading of a clause as their own
+    evidence rows, in the shape ``"7.6.\u200b\nEffect of Termination:"``: a
+    numbering line, a zero-width space, a newline, then a heading with no terminal
+    punctuation. `chunking._is_heading` recognises the heading alone; this strips
+    the numbering lines and the zero-width characters first, so the whole row is
+    judged. Anything with a sentence in it is not a fragment.
+    """
+    from legalmind.assist.chunking import _is_heading
+
+    lines = [ln.strip() for ln in content.replace("\u200b", "").splitlines() if ln.strip()]
+    body = [ln for ln in lines if not _NUMBERING.fullmatch(ln)]
+    if not body:
+        return True
+    return len(body) == 1 and _is_heading(body[0])
+
+
 # ==========================================================================
 # Hybrid retrieval with the calibrated refusal gate
 # ==========================================================================
@@ -379,8 +474,33 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     )
 
     limit = limit or RETRIEVAL_TOP_K
-    lexical_hits = search_chunks(db, document_version_id=document_version_id,
-                                 query=query, limit=limit)
+    # Heading fragments (2026-09-09): the parser emits a clause heading — "7.",
+    # "TERM AND TERMINATION", "7.6. Effect of Termination:" — as its own evidence
+    # row, so it becomes its own chunk, and a short chunk that repeats the
+    # question's word ranks HIGH on both branches (dense lexical rank; a short text
+    # embeds close to a short question). Measured live on an MSA: the top ten for
+    # "termination notice period" were mostly such fragments while the clause
+    # stating "thirty (30) days after receipt of written notice" never reached the
+    # model. Candidates are fetched two deep and heading fragments are pruned from
+    # BOTH branches before fusion — the gate below still decides on the raw
+    # scores, exactly as calibrated. A fragment can never answer on its own
+    # (`evidence_is_sufficient` already says so); this stops it displacing what can.
+    # The GATE's lexical signal is the calibrated AND match, unchanged. The wider
+    # OR-floor candidates join the evidence only after the gate has opened —
+    # strict matches first, then the rest by shared-lexeme count.
+    strict = search_chunks(db, document_version_id=document_version_id, query=query,
+                           limit=limit, match="all")
+    lexical_hit = bool(strict)
+    broad = search_chunks(db, document_version_id=document_version_id, query=query,
+                          limit=limit * 2, match="any")
+    seen: set[UUID] = set()
+    lexical_hits: list[SearchHit] = []
+    for h in [*strict, *broad]:
+        if h.chunk_id in seen or is_fragment(h.content):
+            continue
+        seen.add(h.chunk_id)
+        lexical_hits.append(h)
+    lexical_hits = lexical_hits[:limit]
 
     vector_rows: list = []
     model_identity: str | None = None
@@ -405,16 +525,18 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
              WHERE c.document_version_id = :dv
              ORDER BY ce.embedding {op} CAST(:q AS {vtype})
              LIMIT :lim
-        """), {"q": literal, "dv": document_version_id, "lim": limit}).all())
+        """), {"q": literal, "dv": document_version_id, "lim": limit * 2}).all())
 
-    scores = [float(r[7]) for r in vector_rows]
+    # Gate features come from the raw, unpruned top-K — the calibration's input.
+    scores = [float(r[7]) for r in vector_rows[:limit]]
+    vector_rows = [r for r in vector_rows if not is_fragment(r[2])][:limit]
     top = scores[0] if scores else None
     gap = (scores[0] - sum(scores[1:]) / len(scores[1:])) if len(scores) > 1 else None
-    open_ = gate_is_open(bool(lexical_hits), scores)
+    open_ = gate_is_open(lexical_hit, scores)
 
     if not open_:
         return RetrievalOutcome(hits=[], gate_open=False,
-                                lexical_hit=bool(lexical_hits),
+                                lexical_hit=lexical_hit,
                                 vector_top_score=top, vector_peak_gap=gap,
                                 strategy_version=RETRIEVAL_STRATEGY_VERSION,
                                 embedding_model=model_identity)
@@ -444,7 +566,7 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     ordered = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:limit]
 
     return RetrievalOutcome(hits=[by_id[cid] for cid in ordered], gate_open=True,
-                            lexical_hit=bool(lexical_hits),
+                            lexical_hit=lexical_hit,
                             vector_top_score=top, vector_peak_gap=gap,
                             strategy_version=RETRIEVAL_STRATEGY_VERSION,
                             embedding_model=model_identity)
