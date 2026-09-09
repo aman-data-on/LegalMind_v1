@@ -135,6 +135,10 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
         "requirement": {
             "code": req.code if req else None,
             "name": rv.name if rv else None,
+            # Explanatory text only (owner, 2026-09-09): what this requirement
+            # checks, in plain words, from the ratified standard's own clause.
+            # Never read by an evaluator; never a legal position (no value).
+            "description": rv.description if rv else None,
             "version_id": str(finding.requirement_version_id),
             "version_number": rv.version_number if rv else None,
         },

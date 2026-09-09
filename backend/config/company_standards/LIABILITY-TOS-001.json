@@ -30,6 +30,7 @@
     "  legalmind/evaluation/workflow.py."
   ],
   "requirement_code": "LIABILITY-TOS-001",
+  "description": "Leapswitch's total liability is capped at the fees paid over a set period before the claim.",
   "ratified": "2026-08-18",
   "source_document": "Leapswitch Networks Terms of Service (26 February 2026)",
   "source_clause": "13 Limitation of Liability, second bullet",

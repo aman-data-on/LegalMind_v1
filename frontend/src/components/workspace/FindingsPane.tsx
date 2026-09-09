@@ -485,11 +485,14 @@ export function FindingCard({ finding, onChanged, prepared }: {
   const prohibition = constitutionProhibition(finding);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   const title = requirementTitle(finding.requirement);
-  // The one sentence, from the evaluation that carries the Finding's own
-  // classification (the derived summary follows its worst scope), else the first.
+  // The one sentence: the requirement's approved plain-English description
+  // (owner, 2026-09-09 — what the clause means in practice, from the ratified
+  // standard's own source quote), else a sentence built from the finding's
+  // data. The description is explanatory only; the status above it and the
+  // columns below it come from the evaluation, never from this text.
   const lead = finding.evaluations.find((e) => e.classification === finding.classification)
     ?? finding.evaluations[0];
-  const meaning = findingSentence(finding, lead);
+  const meaning = finding.requirement.description?.trim() || findingSentence(finding, lead);
   return (
     <article
       className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}

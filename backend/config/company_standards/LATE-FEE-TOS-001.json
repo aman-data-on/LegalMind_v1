@@ -23,6 +23,7 @@
     }
   ],
   "requirement_code": "LATE-FEE-TOS-001",
+  "description": "Late payments accrue monthly interest at a set rate, subject to applicable law.",
   "ratified": "2026-08-19",
   "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
   "source_clause": "\u00a716 Payment Terms & Taxes \u2014 Company Position",

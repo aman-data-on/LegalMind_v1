@@ -10,6 +10,7 @@
     "DIRECTION CAVEAT, restated: this document states LeapSwitch's RECEIVING-party positions (owner designation 2026-08-19). If a review ever concerns LeapSwitch DISCLOSING its own information, this standard does not state that position. Never name the counterparty or its signatories anywhere. Recorded specifically for this standard: a residuals clause is a GIVEBACK from the disclosing party, so its presence is favourable to LeapSwitch as receiving party and unfavourable in the reverse direction. Presence only; the clause's scope goes to Legal with the evidence."
   ],
   "requirement_code": "RESIDUALS-NDA-001",
+  "description": "The receiving party's staff may use confidential information they happen to remember, in their ordinary work.",
   "ratified": "2026-08-20",
   "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 — NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
   "source_clause": "11 Residuals",

@@ -354,3 +354,50 @@ def test_the_constitution_citation_is_omitted_without_legal_position_view(
     payload = resp.json()["data"]["evaluations"][0]
     assert "constitution_prohibition" not in payload
     assert "constitution_prohibition" in LEGAL_POSITION_FIELDS
+
+
+# ==========================================================================
+# The requirement's plain-English description (owner, 2026-09-09): served on
+# the Finding, explanatory only, never read by an evaluator.
+# ==========================================================================
+def test_the_finding_carries_the_requirement_description(api, db, owner):
+    req = M.Requirement(code="TERM-NOTICE-NDA-001", status=E.ConfigStatus.ACTIVE)
+    db.add(req); db.flush()
+    rv = M.RequirementVersion(
+        requirement_id=req.id, version_number=1, name="TERM-NOTICE-NDA-001",
+        description="Either party may end the NDA early by giving a set period of written notice.",
+        evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON, created_by=owner.id)
+    db.add(rv); db.flush()
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, rv, classification=E.FindingClassification.MISSING)
+    make_evaluation(db, finding, classification=E.FindingClassification.MISSING,
+                    rule_outcome=E.RuleOutcome.NOT_APPLICABLE)
+    db.commit()
+
+    sign_in(api, db, owner)
+    body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
+    assert body["requirement"]["description"] == (
+        "Either party may end the NDA early by giving a set period of written notice.")
+    # Served to a caller WITHOUT legal_position.view too — it carries no value.
+    restricted = without_legal_position(db, owner)
+    sign_in(api, db, restricted)
+    body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
+    assert body["requirement"]["description"].startswith("Either party may end the NDA")
+    assert "expected_value" not in body["evaluations"][0]
+
+
+def test_description_never_reaches_an_evaluator():
+    """No module on the authoritative analysis path reads `description`."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1] / "legalmind"
+    offenders = []
+    for package in ("evaluation", "analysis", "mapping", "extraction"):
+        for path in (root / package).rglob("*.py"):
+            # corpus.py loads golden-corpus FIXTURES, whose own `description`
+            # field names the test case — not a RequirementVersion's text.
+            if path.name == "corpus.py":
+                continue
+            for n, line in enumerate(path.read_text().splitlines(), 1):
+                if "description" in line and not line.lstrip().startswith("#"):
+                    offenders.append(f"{path.relative_to(root)}:{n}")
+    assert offenders == [], offenders

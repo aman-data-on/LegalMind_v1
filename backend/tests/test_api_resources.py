@@ -822,8 +822,10 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
     ).scalars().one()
     assert cs.configuration["preferred"] == 12       # Constitution §9 (AM-43 r4, 2026-09-08)
     assert cs.configuration["document_type"] == "MSA"
-    assert ("Legal Constitution" in versions[0].description   # AM-43 r4: the MSA standard is sourced from the Constitution since 2026-09-08
-            or "Master Services" in versions[0].description)
+    # The plain-English description (owner, 2026-09-09) comes from the file.
+    assert versions[0].description == (
+        "Each party's total liability is capped at the fees paid over a set "
+        "period before the claim.")
 
     # The terminology of 2026-08-19 makes the Requirement publishable: mapping
     # rules with a usable confirm_threshold (D-1) and an evaluation rule version.
@@ -1601,3 +1603,34 @@ def test_a_lead_sees_a_companys_documents_across_the_department_and_the_shelf(
     assert {c["id"] for c in listed} == {live, shelved}, (
         "the Lead must see the department's deals for this company, archived included")
     assert [c["archived_at"] is not None for c in listed].count(True) == 1
+
+
+def test_import_tool_refreshes_a_changed_description_in_place(db, seeded, tmp_path, monkeypatch):
+    """A description is presentation, not configuration (owner, 2026-09-09):
+    changing only that line updates the current version — no new version, no
+    new snapshot — while a changed configuration still appends one."""
+    import json
+    import shutil
+
+    from tests.conftest import make_user
+    from tools import import_ratified_standards as tool
+
+    src = tool.RATIFIED_STANDARDS_DIR
+    work = tmp_path / "standards"; work.mkdir()
+    shutil.copy(src / "TERM-NOTICE-NDA-001.json", work / "TERM-NOTICE-NDA-001.json")
+    monkeypatch.setattr(tool, "RATIFIED_STANDARDS_DIR", work)
+    actor = make_user(db)
+
+    tool.import_standards(db, actor_email=actor.email)
+    path = work / "TERM-NOTICE-NDA-001.json"
+    payload = json.loads(path.read_text())
+    payload["description"] = "Either side can end the NDA early with the agreed written notice."
+    path.write_text(json.dumps(payload))
+    report = tool.import_standards(db, actor_email=actor.email)
+    assert any("TERM-NOTICE-NDA-001: description updated (version 1)" in line for line in report)
+
+    req = db.execute(select(M.Requirement).where(M.Requirement.code == "TERM-NOTICE-NDA-001")).scalars().one()
+    versions = db.execute(select(M.RequirementVersion)
+                          .where(M.RequirementVersion.requirement_id == req.id)).scalars().all()
+    assert len(versions) == 1
+    assert versions[0].description == "Either side can end the NDA early with the agreed written notice."

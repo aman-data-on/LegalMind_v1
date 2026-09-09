@@ -590,3 +590,47 @@ describe("the face is only the four answers; the proof is one click away (owner,
     }
   });
 });
+
+describe("the approved plain-English description (owner, 2026-09-09)", () => {
+  const withDescription = (classification: string, description: string, evalOver: Partial<Evaluation> = {}) => card(
+    { classification, requirement: { code: "TERM-NOTICE-NDA-001", name: "TERM-NOTICE-NDA-001", description, version_id: "v1", version_number: 1 } },
+    { classification, ...evalOver },
+  );
+
+  it("is the card's one sentence whenever the requirement carries one, for every classification", () => {
+    const text = "Either party may end the NDA early by giving a set period of written notice.";
+    for (const c of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      const { before } = splitAtDetails(withDescription(c, text, { classification: c }));
+      expect(before, c).toContain(text);
+      // …and the data-built sentence is not ALSO rendered — nothing said twice.
+      expect(before, c).not.toMatch(/The document (does not include|sets|includes|contains)/);
+    }
+  });
+
+  it("never determines the status — the same description sits under Accepted, Needs review and Not accepted", () => {
+    const text = "Late payments accrue monthly interest at a set rate, subject to applicable law.";
+    const accepted = withDescription("MATCH", text, { classification: "MATCH" });
+    const review = withDescription("DEVIATION", text, { classification: "DEVIATION" });
+    const notAccepted = withDescription("DEVIATION", text, {
+      classification: "DEVIATION",
+      constitution_prohibition: { section: "9", quote: "An uncapped/unlimited liability term […]" },
+    });
+    expect(accepted).toMatch(/data-status="ACCEPTED"/);
+    expect(review).toMatch(/data-status="NEEDS_REVIEW"/);
+    expect(notAccepted).toMatch(/data-status="NOT_ACCEPTED"/);
+    for (const html of [accepted, review, notAccepted]) expect(html).toContain(text);
+  });
+
+  it("falls back to the data-built sentence when the requirement has no description, or a blank one", () => {
+    // The default fixture carries no `description` key at all; then null and blanks.
+    expect(splitAtDetails(card({ classification: "MISSING" }, { classification: "MISSING" })).before)
+      .toMatch(/The document does not include residuals/);
+    for (const description of [null, "", "   "]) {
+      const html = card(
+        { classification: "MISSING", requirement: { code: "RESIDUALS-NDA-001", name: "RESIDUALS-NDA-001", description, version_id: "v1", version_number: 1 } },
+        { classification: "MISSING" },
+      );
+      expect(splitAtDetails(html).before).toMatch(/The document does not include residuals/);
+    }
+  });
+});

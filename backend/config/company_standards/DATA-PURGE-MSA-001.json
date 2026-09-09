@@ -24,6 +24,7 @@
     }
   ],
   "requirement_code": "DATA-PURGE-MSA-001",
+  "description": "After termination, the customer has a set period to retrieve or export its data before it is deleted.",
   "ratified": "2026-08-19",
   "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
   "source_clause": "\u00a713 Termination & Suspension \u2014 Company Position",

@@ -157,7 +157,18 @@ def import_standards(db: Session, *, actor_email: str | None = None,
                     and current_lr.configuration == legal_rule["configuration"]))
             if (current is not None and current.configuration == cfg
                     and lr_unchanged):
-                report.append(f"{code}: unchanged (version {latest.version_number})")
+                # The plain-English `description` (owner, 2026-09-09) is
+                # presentation, not configuration: it is never snapshotted and
+                # no evaluator reads it, so a changed line updates the current
+                # version in place rather than appending one (rule 16 governs
+                # configuration values; this is not one).
+                wanted = payload.get("description")
+                if wanted and latest.description != wanted:
+                    latest.description = wanted
+                    report.append(f"{code}: description updated "
+                                  f"(version {latest.version_number})")
+                else:
+                    report.append(f"{code}: unchanged (version {latest.version_number})")
                 if mapping_rules and evaluation_rules:
                     publishable.append(code)
                 continue
@@ -166,10 +177,11 @@ def import_standards(db: Session, *, actor_email: str | None = None,
             requirement_id=req.id,
             version_number=(latest.version_number + 1) if latest else 1,
             name=payload.get("name") or code,
-            description=f"Imported from ratified {path.name} "
-                        f"(ratified {payload['ratified']}; "
-                        f"source: {payload['source_document']}, "
-                        f"{payload['source_clause']})",
+            description=payload.get("description")
+                or (f"Imported from ratified {path.name} "
+                    f"(ratified {payload['ratified']}; "
+                    f"source: {payload['source_document']}, "
+                    f"{payload['source_clause']})"),
             evaluator_type=E.EvaluatorType(
                 payload.get("evaluator_type", "NUMERIC_COMPARISON")),
             created_by=actor.id)

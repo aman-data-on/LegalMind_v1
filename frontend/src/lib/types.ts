@@ -322,6 +322,10 @@ export interface Finding {
   requirement: {
     code: string | null;
     name: string | null;
+    /** What this requirement checks, in plain words — from the ratified
+     *  standard's `description` (owner, 2026-09-09). Explanatory only: it
+     *  never determines the classification or the user-facing status. */
+    description?: string | null;
     version_id: string;
     version_number: number | null;
   };

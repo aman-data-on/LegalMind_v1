@@ -10,6 +10,7 @@
     "Reads whether the cap carries CARVE-OUTS at all. A counterparty cap with no carve-out list is unbounded in exactly the cases LeapSwitch deliberately excludes from its own cap, which LIABILITY-MSA-001's value comparison cannot see."
   ],
   "requirement_code": "LIAB-CARVEOUTS-MSA-001",
+  "description": "The liability limits do not apply to the customer's indemnity, unpaid fees, fraud, wilful misconduct or gross negligence.",
   "ratified": "2026-08-20",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "17.3 Exclusions from Limitation",

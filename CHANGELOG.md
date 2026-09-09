@@ -10,6 +10,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — An approved plain-English description for every ratified requirement (2026-09-09)
+
+Owner instruction: one short sentence per requirement, drafted from ONLY that
+standard's `source_clause` and `source_quote`, saying what the approved clause
+means in practice for a non-legal reader; explanatory only, never a rule.
+**32 descriptions** written into the standard files as `description`; review
+file `docs/02-legal-domain/REQUIREMENT_DESCRIPTIONS_2026-09-09.md` (requirement →
+clause → quote → line). None marked insufficient; three notes for Counsel there.
+No line states a number from a standard ("a set period", "a set rate") because
+the value is the LEGAL-02 position and the description is served to every reader
+of the Finding.
+
+Pipeline: `tools.import_ratified_standards` writes the file's `description` to
+`requirement_versions.description` and, when only that line changed, updates the
+current version in place (presentation, not configuration — no new version, no
+snapshot); `GET /findings/{id}` serves it on `requirement.description` to every
+caller; the card uses it as its one sentence, falling back to `findingSentence()`
+when a requirement has none. `test_description_never_reaches_an_evaluator`
+asserts no module on the analysis path reads it; the four classifications and the
+three user-facing statuses are untouched. **Live database not yet imported** (a
+live write — owner's step or explicit go).
+
+Tests: backend +5 (served to both callers, never on the analysis path, present
+and value-free in all 32 files, import + in-place refresh) — 1378 passed;
+frontend +3 (description is the sentence for every classification, never decides
+the status, blank falls back) — 306 Vitest; browser journey/workspace/analysis/
+confidentiality/legal-access green. Verified visually on six requirement types.
+
 ### Changed — The Finding card is the four answers and nothing else (2026-09-09, seventh pass)
 
 Owner instruction: the card still read as engineering; a Sales user must get it in

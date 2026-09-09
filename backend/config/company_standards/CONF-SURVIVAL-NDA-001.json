@@ -32,6 +32,7 @@
     }
   ],
   "requirement_code": "CONF-SURVIVAL-NDA-001",
+  "description": "Confidentiality obligations keep applying for a set period after the NDA ends, and for trade secrets for as long as they stay secret.",
   "ratified": "2026-08-19",
   "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
   "source_clause": "\u00a715 Confidentiality & Intellectual Property \u2014 Company Position",

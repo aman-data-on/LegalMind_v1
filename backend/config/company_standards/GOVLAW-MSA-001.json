@@ -8,6 +8,7 @@
     "PRESENCE Requirement: verifies a governing-law clause EXISTS; the clause's VALUE (India vs elsewhere) goes to Legal with the evidence — categorical comparison is a V2 evaluator."
   ],
   "requirement_code": "GOVLAW-MSA-001",
+  "description": "The agreement is governed by the laws of India.",
   "ratified": "2026-08-19",
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "19.1 Governing Law and Arbitration",

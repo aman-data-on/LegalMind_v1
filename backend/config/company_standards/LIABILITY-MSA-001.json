@@ -47,6 +47,7 @@
     }
   ],
   "requirement_code": "LIABILITY-MSA-001",
+  "description": "Each party's total liability is capped at the fees paid over a set period before the claim.",
   "ratified": "2026-08-19",
   "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
   "source_clause": "\u00a79 Liability \u2014 Company Position (final, closed)",
