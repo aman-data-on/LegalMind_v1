@@ -445,6 +445,33 @@ def restore_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> di
     return data(serialize_contract(contract))
 
 
+@router.delete("/contracts/{contract_id}", status_code=204)
+def delete_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> None:
+    """Genuinely destroy a contract — AM-55, beside Archive, not instead of it.
+
+    Owner's explicit choice, made after the tradeoff was named: unlike Archive,
+    this reaches an analyzed contract too, and its Reviews, Findings,
+    Evaluations, Legal Decisions and evidence go with it (DB-level
+    `ON DELETE CASCADE` on the whole subtree — see migration
+    a1b2c3d4e5f6). Rule 17 (historical Reviews stay reproducible) no longer
+    holds for what gets deleted here; Archive is what rule 17 protects.
+
+    What survives: this audit row. `audit_events` has no FK to `contracts`
+    (entity_id is polymorphic), so "a contract existed and was deleted by X at
+    T" stays answerable even though the contract's content does not.
+    """
+    contract = guard.contract(contract_id, P.CONTRACT_ARCHIVE, allow_archived=True)
+    before = serialize_contract(contract)
+    guard.db.delete(contract)
+    guard.db.flush()
+    audit.record(
+        guard.db, action=audit.CONTRACT_DELETED,
+        entity_type="contract", entity_id=contract_id,
+        actor_id=guard.user_id, request_id=guard.request_id, before=before,
+        after=None,
+    )
+
+
 @router.post("/contracts/{contract_id}/transfer")
 def transfer_contract(contract_id: UUID, body: ContractTransfer,
                       guard: Guard = Depends(get_guard)) -> dict:

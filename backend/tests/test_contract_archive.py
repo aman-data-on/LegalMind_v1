@@ -1,15 +1,15 @@
-"""Contract archive — AB-12 r6 (2026-09-05), replacing AM-37's two-mode delete.
+"""Contract archive and delete — AB-12 r6 (2026-09-05) plus AM-55 (2026-09-09).
 
-Under AM-37 a contract that had never been analysed was HARD-deleted: row,
-versions, evidence and the stored bytes destroyed. AB-12 withdraws that path
-entirely. There is no DELETE verb on a contract any more; there is `archive`, its
-mirror `restore`, and the rule that an archived contract is read-only.
+Two ways to remove a contract from the working list, deliberately different
+weights. `archive`/`restore` destroy nothing — the tests that matter most here
+assert what SURVIVES an archive, for a contract that was never analysed, which
+is exactly the case AM-37's original hard-delete used to destroy. A regression
+that quietly reintroduces a destructive branch under Archive would pass every
+"it disappeared from the list" test and fail these.
 
-The tests that matter most here are the ones asserting what SURVIVES an archive
-— every one of them, for a contract that was never analysed, which is exactly
-the case the old code destroyed. A regression that quietly reintroduces a
-destructive branch would pass every "it disappeared from the list" test and fail
-these.
+`DELETE /contracts/{id}` (AM-55) is the other one: genuinely destructive,
+reaching an analyzed contract's Review and Findings too, by owner's explicit
+choice. See `test_delete_route_destroys_a_contract_and_its_review`.
 """
 
 from __future__ import annotations
@@ -119,14 +119,37 @@ def test_archive_is_an_audited_event(api, db, seeded):
     assert event.after_state["archived_at"]
 
 
-def test_no_route_destroys_a_contract(api, db, seeded):
-    """There is no DELETE verb on a contract in the permission map, and the
-    server answers one with 405 — not 404, not 200. The row is untouched."""
-    assert ("DELETE", f"{V1}/contracts/{{contract_id}}") not in ENDPOINT_PERMISSIONS
+def test_delete_route_destroys_a_contract_and_its_review(api, db, seeded):
+    """AM-55 (2026-09-09): DELETE is back, beside Archive, and reaches an
+    analyzed contract too — unlike AM-37's withdrawn branch. The row, its
+    Review and the audit event's survival are the three things that matter."""
+    assert ("DELETE", f"{V1}/contracts/{{contract_id}}") in ENDPOINT_PERMISSIONS
     owner = _owner(db, api)
     contract = _contract(db, owner)
+    version = _version(db, contract, owner)
+    review = _review_on(db, contract, version, owner)
+    contract_id, review_id = contract.id, review.id
 
-    assert api.delete(f"{V1}/contracts/{contract.id}").status_code == 405
+    response = api.delete(f"{V1}/contracts/{contract_id}")
+    assert response.status_code == 204
+    db.expire_all()
+
+    assert db.get(M.Contract, contract_id) is None
+    assert db.get(M.Review, review_id) is None
+
+    event = db.query(M.AuditEvent).filter_by(action=audit.CONTRACT_DELETED).one()
+    assert event.entity_id == contract_id
+    assert event.actor_id == owner.id
+    assert event.before_state["id"] == str(contract_id)
+
+
+def test_delete_refuses_someone_elses_contract(api, db, seeded):
+    """Owner-scoped like every other write (49.24) — a 404, existence hidden."""
+    owner = _owner(db, api)
+    other = make_user(db)
+    contract = _contract(db, other, name="Someone Else's MSA")
+
+    assert api.delete(f"{V1}/contracts/{contract.id}").status_code == 404
     assert db.get(M.Contract, contract.id) is not None
 
 

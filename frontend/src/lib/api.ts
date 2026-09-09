@@ -358,6 +358,13 @@ export const api = {
   restoreContract: (id: string) =>
     request<Contract>(`/contracts/${id}/restore`, { method: "POST" }),
   /**
+   * Genuinely destroy a contract — AM-55, beside Archive. Unlike Archive this
+   * reaches an analyzed contract too and its Findings/Evaluations/Legal
+   * Decisions/evidence go with it (server-side cascade). Irreversible.
+   */
+  deleteContract: (id: string) =>
+    request<void>(`/contracts/${id}`, { method: "DELETE" }),
+  /**
    * Move a deal to a colleague in the same department — AB-12 r5. The server
    * checks the boundary and records previous owner, new owner, actor and reason.
    */

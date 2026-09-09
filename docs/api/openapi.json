@@ -1599,6 +1599,41 @@
    }
   },
   "/api/v1/contracts/{contract_id}": {
+   "delete": {
+    "description": "Genuinely destroy a contract \u2014 AM-55, beside Archive, not instead of it.\n\nOwner's explicit choice, made after the tradeoff was named: unlike Archive,\nthis reaches an analyzed contract too, and its Reviews, Findings,\nEvaluations, Legal Decisions and evidence go with it (DB-level\n`ON DELETE CASCADE` on the whole subtree \u2014 see migration\na1b2c3d4e5f6). Rule 17 (historical Reviews stay reproducible) no longer\nholds for what gets deleted here; Archive is what rule 17 protects.\n\nWhat survives: this audit row. `audit_events` has no FK to `contracts`\n(entity_id is polymorphic), so \"a contract existed and was deleted by X at\nT\" stays answerable even though the contract's content does not.",
+    "operationId": "delete_contract_api_v1_contracts__contract_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Contract",
+    "tags": [
+     "contracts"
+    ]
+   },
    "get": {
     "description": "The contract with its document versions, newest first.\n\n`document_versions` is an implementation addition (2026-08-30, UI phase): a\ndocument-anchored workspace opened on a contract must be able to find its\ndocument through the API, and nothing listed versions \u2014 the legacy screen only\never showed the version it had just uploaded. Additive, same permission the\ncontract already required (a version is reachable only through a contract the\ncaller can see \u2014 47.6 one level down), and the summary is the existing\n`serialize_document_version` shape, so nothing new is disclosed. Recorded in\nStep 49's implementation-additions section.",
     "operationId": "get_contract_api_v1_contracts__contract_id__get",

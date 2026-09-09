@@ -268,7 +268,8 @@ class DocumentVersion(Base):
     __tablename__ = "document_versions"
 
     id = pk_uuid()
-    contract_id = fk_uuid("contracts.id")
+    # CASCADE — AM-55: deleting the Contract deletes every version with it.
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE")
     version_number = mapped_column(Integer, nullable=False)
     original_filename = _str()
     mime_type = _str()
@@ -299,7 +300,7 @@ class DocumentProcessingRun(Base):
     __tablename__ = "document_processing_runs"
 
     id = pk_uuid()
-    document_version_id = fk_uuid("document_versions.id")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
     run_type = mapped_column(_enum(E.ProcessingRunType, "processing_run_type"),
                              nullable=False)
     status = mapped_column(_enum(E.ProcessingRunStatus, "processing_run_status"),
@@ -325,8 +326,8 @@ class DocumentEvidence(Base):
     __tablename__ = "document_evidence"
 
     id = pk_uuid()
-    document_version_id = fk_uuid("document_versions.id")
-    processing_run_id = fk_uuid("document_processing_runs.id")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
+    processing_run_id = fk_uuid("document_processing_runs.id", ondelete="CASCADE")
     page_number = mapped_column(Integer, nullable=True)
     section_number = _str(nullable=True)
     section_title = _text()
@@ -496,8 +497,8 @@ class Review(Base):
     __tablename__ = "reviews"
 
     id = pk_uuid()
-    contract_id = fk_uuid("contracts.id")
-    document_version_id = fk_uuid("document_versions.id")
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
     configuration_snapshot_id = fk_uuid("configuration_snapshots.id")
     status = mapped_column(_enum(E.ReviewStatus, "review_status"), nullable=False)
     created_by = fk_uuid("users.id")
@@ -528,7 +529,7 @@ class Finding(Base):
     __tablename__ = "findings"
 
     id = pk_uuid()
-    review_id = fk_uuid("reviews.id")
+    review_id = fk_uuid("reviews.id", ondelete="CASCADE")
     requirement_version_id = fk_uuid("requirement_versions.id")
     classification = mapped_column(
         _enum(E.FindingClassification, "finding_classification"), nullable=False)
@@ -558,7 +559,7 @@ class Evaluation(Base):
     __tablename__ = "evaluations"
 
     id = pk_uuid()
-    finding_id = fk_uuid("findings.id")
+    finding_id = fk_uuid("findings.id", ondelete="CASCADE")
     evaluator_type = mapped_column(_enum(E.EvaluatorType, "evaluator_type"),
                                    nullable=False)
     evaluator_version = _str()                       # AM-19 (locked 45B.10)
@@ -589,8 +590,8 @@ class FindingEvidence(Base):
 
     __tablename__ = "finding_evidence"
 
-    finding_id = fk_uuid("findings.id", primary_key=True)
-    evidence_id = fk_uuid("document_evidence.id", primary_key=True)
+    finding_id = fk_uuid("findings.id", primary_key=True, ondelete="CASCADE")
+    evidence_id = fk_uuid("document_evidence.id", primary_key=True, ondelete="CASCADE")
     relationship_type = mapped_column(
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
 
@@ -605,8 +606,8 @@ class EvaluationEvidence(Base):
 
     __tablename__ = "evaluation_evidence"
 
-    evaluation_id = fk_uuid("evaluations.id", primary_key=True)
-    evidence_id = fk_uuid("document_evidence.id", primary_key=True)
+    evaluation_id = fk_uuid("evaluations.id", primary_key=True, ondelete="CASCADE")
+    evidence_id = fk_uuid("document_evidence.id", primary_key=True, ondelete="CASCADE")
     relationship_type = mapped_column(
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
 
@@ -625,8 +626,8 @@ class LegalDecision(Base):
     __tablename__ = "legal_decisions"
 
     id = pk_uuid()
-    finding_id = fk_uuid("findings.id")
-    evaluation_id = fk_uuid("evaluations.id")
+    finding_id = fk_uuid("findings.id", ondelete="CASCADE")
+    evaluation_id = fk_uuid("evaluations.id", ondelete="CASCADE")
     decision_type = mapped_column(_enum(E.DecisionType, "decision_type"), nullable=False)
     justification = mapped_column(Text, nullable=False)     # AM-15 (Step 31 r11)
     decided_by = fk_uuid("users.id")
@@ -640,6 +641,7 @@ class LegalDecision(Base):
             ["finding_id", "evaluation_id"],
             ["evaluations.finding_id", "evaluations.id"],
             name="fk_legal_decisions_evaluation_same_finding",
+            ondelete="CASCADE",
         ),
         Index("ix_legal_decisions_evaluation_version",
               "evaluation_id", "version_number"),
@@ -655,8 +657,8 @@ class UnmatchedProvision(Base):
     __tablename__ = "unmatched_provisions"
 
     id = pk_uuid()
-    review_id = fk_uuid("reviews.id")
-    evidence_id = fk_uuid("document_evidence.id")
+    review_id = fk_uuid("reviews.id", ondelete="CASCADE")
+    evidence_id = fk_uuid("document_evidence.id", ondelete="CASCADE")
     created_at = ts_created()
 
     __table_args__ = (

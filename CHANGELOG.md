@@ -10,6 +10,24 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — a real `DELETE /contracts/{id}` beside Archive (`AM-55`, 2026-09-09)
+
+Owner instruction, after the tradeoff was named explicitly: restores a genuine, unconditional
+delete alongside AB-12's Archive, reaching an analyzed contract too (unlike AM-37's withdrawn
+branch, which never reached one). New migration `backend/alembic/versions/
+a1b2c3d4e5f6_contract_hard_delete_cascade.py` adds `ON DELETE CASCADE` to every FK on the
+Contract subtree so one `DELETE FROM contracts` cascades at the database level — no hand-rolled
+cascade code. New `DELETE /contracts/{contract_id}` (`legalmind/api/routers/contracts.py`),
+same permission and owner scope as Archive; new `contract.deleted` audit action. Frontend: a
+"Delete permanently" item beside Archive/Restore in the Dashboard's row menu, same modal shape
+as the Archive confirmation, `api.deleteContract`. Rule 17 (audit trail append-only, historical
+Reviews reproducible) no longer holds for a contract removed this way — it continues to govern
+Archive, which is unchanged. Touched tests: `test_contract_archive.py`, `test_assist_schema.py`
+(the pinning test that predicted this exact revisit is replaced with a positive assertion),
+`test_rbac_personas.py`. OpenAPI snapshot regenerated. Coordinate before touching
+`contracts.py`, `models.py`, `audit.py`, `permission_map.py` or the Dashboard row menu. Live DB
+NOT migrated; nothing deployed. See `AM-55` in `all_lock.md`.
+
 ### Added — Grounded semantic recognition in the authoritative lane (`AM-54`, 2026-09-09)
 
 Owner instruction: the deterministic architecture is not a requirement for exact-word

@@ -162,9 +162,9 @@ def test_a_department_user_cannot_transfer_change_standards_or_destroy(api, db, 
     # Standards: no `configuration.*` at all.
     assert api.get(f"{V1}/requirements").status_code == 403
     assert api.post(f"{V1}/requirements", json={"code": "X-1"}).status_code == 403
-    # Destroy: no such verb exists for anyone.
-    assert api.delete(f"{V1}/contracts/{org['contract_id']}").status_code == 405
-    assert db.get(M.Contract, org["contract_id"]) is not None
+    # Destroy: Aman OWNS this contract, so DELETE is his to use (AM-55) — that
+    # capability, and its refusal for a non-owner, are covered in
+    # test_contract_archive.py, not a permission boundary this test asserts.
     # Accounts: not theirs either.
     assert api.get(f"{V1}/users").status_code == 403
     assert api.get(f"{V1}/departments/mine/members").status_code == 403
@@ -234,7 +234,9 @@ def test_the_lead_cannot_write_to_a_colleagues_deal(api, db, org):
                              "x-filename": "x.pdf"}).status_code == 404
     assert api.post(f"{V1}/contracts/{cid}/archive").status_code == 404
     assert api.post(f"{V1}/reviews/{org['review'].id}/analyze").status_code == 404
-    assert api.delete(f"{V1}/contracts/{cid}").status_code == 405
+    # Existence hidden, not merely refused (47.7) — 404, same as every other
+    # write above, not a 405: the route exists, this caller just can't see it.
+    assert api.delete(f"{V1}/contracts/{cid}").status_code == 404
     db.expire_all()
     assert db.get(M.Contract, cid).name != "renamed"
 

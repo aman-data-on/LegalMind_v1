@@ -73,6 +73,10 @@ ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
 # are — AUD-01, append-only.
 CONTRACT_ARCHIVED = "contract.archived"
 CONTRACT_RESTORED = "contract.restored"
+#: AM-55 (2026-09-09): a real, unconditional DELETE beside Archive — owner's
+#: explicit choice, accepting that an analyzed contract's Findings and
+#: Evaluations go with it (DB cascade). This row is what survives the row.
+CONTRACT_DELETED = "contract.deleted"
 # P-1 (2026-09-06): the owner DECLARES Draft / Active / Superseded (Step 2); trailed.
 CONTRACT_STATUS_CHANGED = "contract.status_changed"
 #: AM-50 (2026-09-09): the document type was recorded, and by whom — a human's

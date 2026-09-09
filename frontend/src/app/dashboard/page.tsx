@@ -192,6 +192,7 @@ function DocumentsListView() {
   /** AB-13 r6 — the companies THIS caller deals with; the server scopes it. */
   const [companies, setCompanies] = useState<Counterparty[]>([]);
   const [archiving, setArchiving] = useState<Contract | null>(null);
+  const [deleting, setDeleting] = useState<Contract | null>(null);
   const [transferring, setTransferring] = useState<Contract | null>(null);
   /** The open menu's own node, and the toggle that opened it — a menu is not
    *  part of the page's tab ring, so it has to move focus in itself and hand
@@ -269,7 +270,7 @@ function DocumentsListView() {
     menuToggleRef.current = toggle;
     const rect = toggle.getBoundingClientRect();
     const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
-    const estimatedHeight = 132; // up to three items (Edit, Transfer, Archive) plus padding
+    const estimatedHeight = 176; // up to four items (Edit, Transfer, Archive, Delete) plus padding
     const opensAbove = window.innerHeight - rect.bottom < estimatedHeight + 8;
     setMenuPos({
       right: window.innerWidth - rect.right,
@@ -764,6 +765,8 @@ function DocumentsListView() {
                               truth. The server re-checks regardless — this
                               gating is presentation only (47.6). */}
                           {(canEdit && isMine(contract)) || (canArchive && isMine(contract)) || canTransfer ? (
+                            // canArchive also gates Delete below (AM-55): the
+                            // same owner-scoped write capability covers both.
                             <div className="ws-menu">
                               <button
                                 type="button"
@@ -831,6 +834,16 @@ function DocumentsListView() {
                                                 void api.restoreContract(contract.id).then(refresh).catch(setError);
                                               }}>
                                         Restore
+                                      </button>
+                                    ) : null}
+                                    {canArchive && isMine(contract) ? (
+                                      <button type="button" role="menuitem"
+                                              className="ws-menu__item ws-menu__item--bad"
+                                              onClick={() => {
+                                                closeMenu();
+                                                setDeleting(contract);
+                                              }}>
+                                        Delete permanently
                                       </button>
                                     ) : null}
                                   </div>,
@@ -1007,6 +1020,13 @@ function DocumentsListView() {
           contract={archiving}
           onClose={() => setArchiving(null)}
           onArchived={() => { setArchiving(null); void refresh(); }}
+        />
+      ) : null}
+      {deleting ? (
+        <DeleteContractDialog
+          contract={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => { setDeleting(null); void refresh(); }}
         />
       ) : null}
       {transferring ? (
@@ -1291,6 +1311,72 @@ function ArchiveContractDialog({
           <button type="button" className="ws-btn ws-btn--bad"
                   disabled={busy} onClick={() => void confirm()}>
             {busy ? "Archiving…" : "Archive"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Delete confirmation — AM-55. Same modal shape as Archive, deliberately: the
+ * interruption is the same weight, the consequence is not. Unlike Archive,
+ * this destroys the document, every version, its Reviews, Findings,
+ * Evaluations and Legal Decisions, with no restore surface.
+ */
+function DeleteContractDialog({
+  contract, onClose, onDeleted,
+}: { contract: Contract; onClose: () => void; onDeleted: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, []);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteContract(contract.id);
+      onDeleted();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ws-modal" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
+           aria-labelledby="ws-del-title" tabIndex={-1}
+           onKeyDown={(e) => {
+             if (e.key === "Escape") onClose();
+             e.stopPropagation();
+           }}>
+        <h2 id="ws-del-title">Delete this contract permanently?</h2>
+        <p className="ws-modal__body">
+          <strong>{contract.name}</strong>
+        </p>
+        <p className="ws-modal__body">
+          This cannot be undone. The document, every version, and any findings, evaluations and
+          legal decisions on it are destroyed. If you may want this back, archive it instead.
+        </p>
+        {error ? (
+          <p className="ws-field__error" role="alert">{describeError(error)}</p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="ws-btn ws-btn--bad"
+                  disabled={busy} onClick={() => void confirm()}>
+            {busy ? "Deleting…" : "Delete permanently"}
           </button>
         </div>
       </div>

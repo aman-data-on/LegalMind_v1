@@ -414,20 +414,18 @@ def test_deleting_a_document_version_hard_deletes_its_chunks(db, assist, user):
         "the chunk survived its evidence row — AM-27 r5 requires a hard delete")
 
 
-def test_the_locked_schema_has_no_delete_path_for_a_document_version(db, user):
-    """`AM-27` r5's premise cannot currently arise, and that is worth pinning.
+def test_deleting_the_contract_cascades_to_its_document_version_and_runs(db, user):
+    """AM-55 (2026-09-09) resolves what this test used to pin as undecided.
 
-    r5 says *"Deleting a document hard-deletes its chunks and embeddings."* The assist
-    cascade that implements it is verified above. But the locked schema has no path
-    that deletes a document version in the first place: every child references it
-    without a cascade, so the delete is refused outright.
-
-    This is not a defect to fix here — a Review must stay reproducible, so a document
-    version a Review points at should be hard to remove. It is recorded because the
-    retention and deletion policy is genuinely undecided, and because **if someone
-    later adds cascades to the locked schema, this test fails** and forces them to
-    revisit what r5 then implies about legal records. A silent change here would be a
-    change to whether historical Reviews remain reproducible.
+    The predecessor test asserted the opposite of this and named the exact
+    condition that would flip it: "if someone later adds cascades to the
+    locked schema, this test fails and forces them to revisit what r5 then
+    implies about legal records." That revisit happened — the owner chose a
+    real, unconditional `DELETE /contracts/{id}` over Archive-only, explicitly
+    accepting that an analyzed contract's document version, and everything
+    under it (processing runs, evidence, and per AM-27 r5 the assist chunks),
+    is destroyed with it. See `backend/legalmind/api/routers/contracts.py`
+    `delete_contract` and migration `a1b2c3d4e5f6`.
     """
     contract = M.Contract(name="delete probe", owner_id=user.id,
                           contract_type="MSA", status=E.ContractStatus.DRAFT)
@@ -440,14 +438,18 @@ def test_the_locked_schema_has_no_delete_path_for_a_document_version(db, user):
         processing_status=E.ProcessingStatus.COMPLETED, uploaded_by=user.id)
     db.add(dv)
     db.flush()
-    db.add(M.DocumentProcessingRun(
+    run = M.DocumentProcessingRun(
         document_version_id=dv.id, run_type=E.ProcessingRunType.PARSE,
-        status=E.ProcessingRunStatus.COMPLETED))
+        status=E.ProcessingRunStatus.COMPLETED)
+    db.add(run)
     db.flush()
+    dv_id, run_id = dv.id, run.id
 
-    from sqlalchemy.exc import IntegrityError
-    with pytest.raises(IntegrityError):
-        db.execute(text("DELETE FROM document_versions WHERE id = :i"), {"i": dv.id})
+    db.execute(text("DELETE FROM contracts WHERE id = :i"), {"i": contract.id})
+    db.expire_all()
+
+    assert db.get(M.DocumentVersion, dv_id) is None
+    assert db.get(M.DocumentProcessingRun, run_id) is None
 
 
 def test_the_generated_tsvector_cannot_disagree_with_the_content(db, assist, review):

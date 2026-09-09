@@ -18184,3 +18184,58 @@ r8   CALIBRATION IS RECORDED, NOT ASSUMED. Measured 2026-09-09 over the 12 suppl
 **Approved by the owner on 2026-09-09** ("LegalMind must be semantically intelligent … If
 semantic equivalence cannot be established with sufficient grounded evidence, fail safely to
 Needs Review rather than guessing.").
+
+---
+
+## AM-55 (AB-17) — A real DELETE beside Archive, owner's explicit choice (2026-09-09)
+
+**Amends `AM-40` (AB-12, 2026-09-05) narrowly.** AM-40 removed `DELETE /contracts/{id}`
+outright ("no verb destroys a contract") and replaced it with Archive/Restore, because
+AM-37's original hard-delete branch was unreachable for any analyzed contract anyway
+(a Review always exists once analysis has run) and because rule 17 (audit trail
+append-only, historical Reviews stay reproducible) argued against reaching further.
+
+The owner asked for the archive/delete distinction to be reviewed, was shown the exact
+tradeoff — Option A (hard delete only when unanalyzed, restoring AM-37 as-is, which
+would not reach any already-analyzed contract) versus Option B (hard delete always,
+including analyzed contracts, breaking rule 17's reproducibility guarantee for what
+gets deleted) — and chose **Option B explicitly**, informed that it overrides rule 17
+for the deleted contract's own Review.
+
+r1  `DELETE /contracts/{id}` is restored, unconditionally — no branch on whether a
+    Review exists. Same permission as Archive (`contract.archive`), same owner scope
+    (`guard.contract(..., allow_archived=True)`), so an archived contract can also be
+    deleted outright.
+
+r2  Deletion cascades at the DATABASE level, not in application code: every FK on the
+    Contract's subtree (`document_versions`, `document_processing_runs`,
+    `document_evidence`, `reviews`, `findings`, `evaluations`, `finding_evidence`,
+    `evaluation_evidence`, `legal_decisions` incl. its composite FK, `unmatched_
+    provisions`) gained `ON DELETE CASCADE` — migration `a1b2c3d4e5f6`. The assist
+    schema (`chunks`, `chunk_embeddings`, `finding_explanations`, etc.) already
+    cascaded from `contracts`/`document_versions`/`findings` per `AM-27`/`AM-49` and
+    needed no change.
+
+r3  Rule 17 no longer holds for a contract reached this way: its Findings, Evaluations
+    and Legal Decisions are destroyed, not merely hidden. Rule 17 continues to govern
+    Archive, which is unchanged and remains the reversible option — the two now sit
+    side by side rather than one superseding the other.
+
+r4  What survives: the `contract.deleted` audit event. `audit_events.entity_id` is
+    polymorphic, no FK to `contracts`, so "a contract existed and was deleted by X at
+    T" stays answerable even though the contract's own content does not (same posture
+    AM-37 r5 used for its withdrawn hard-delete branch).
+
+r5  `test_the_locked_schema_has_no_delete_path_for_a_document_version` — the pinning
+    test AM-40's era relied on to force this exact revisit — is replaced by
+    `test_deleting_the_contract_cascades_to_its_document_version_and_runs`, asserting
+    the new behavior positively. `test_contract_archive.py`'s stale
+    `test_no_route_destroys_a_contract` is replaced by
+    `test_delete_route_destroys_a_contract_and_its_review` and
+    `test_delete_refuses_someone_elses_contract`. Two RBAC persona tests that pinned
+    405 on `DELETE /contracts/{id}` are updated: a non-owner now correctly gets 404
+    (existence hidden, 47.7), and the owner's-own-contract assertion was removed as
+    out of that test's scope (delete-of-own-contract is now a real capability, covered
+    in `test_contract_archive.py`, not a boundary refusal).
+
+Live DB NOT migrated as of this record; nothing deployed.
