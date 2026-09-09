@@ -91,8 +91,20 @@ describe("archive is a server operation", () => {
     spy.mockRestore();
   });
 
-  it("the client exposes no delete call for a contract at all", () => {
-    expect((api as unknown as Record<string, unknown>)["deleteContract"]).toBeUndefined();
+  /* Was "the client exposes no delete call for a contract at all" until
+     `AM-55` (AB-17, 2026-09-09) restored a real, unconditional
+     `DELETE /contracts/{id}` beside Archive on the owner's explicit choice.
+     That amendment replaced the backend twin of this pin
+     (`test_assist_schema.py`) and missed this one, so it failed from then until
+     2026-09-09. Rule 17 no longer holds for a contract removed this way; it
+     still governs Archive, asserted above. */
+  it("exposes the delete call AM-55 restored", async () => {
+    const spy = vi.spyOn(api, "deleteContract").mockResolvedValue(undefined);
+
+    await api.deleteContract("c3");
+
+    expect(spy).toHaveBeenCalledWith("c3");
+    spy.mockRestore();
   });
 
   it("edits go through the same PATCH the intake confirm already used", async () => {

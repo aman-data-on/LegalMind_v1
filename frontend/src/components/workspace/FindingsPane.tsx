@@ -51,8 +51,10 @@ import { EscalateControl } from "./EscalateControl";
 import { useFindingsState } from "./findingsState";
 import {
   findingSentence,
+  collidingTitles,
   constitutionProhibition,
   determinationLabel,
+  requirementFamily,
   evidenceLocation,
   evidenceNote,
   excerpt,
@@ -339,6 +341,10 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
       : "status" in view
         ? findings.filter((f) => userStatus(f) === view.status)
         : findings.filter((f) => f.classification === view.classification));
+  /* Computed over the WHOLE finding set, not the filtered view: a title is
+     ambiguous because the contract has two of them, and the qualifier must not
+     appear and vanish as the reader changes filter. */
+  const collisions = collidingTitles(findings);
   // The filter row speaks the reader's three-word vocabulary; the classification
   // view survives only for the `?classification=` deep links from the Summary
   // tiles and the report, which still name the engine's own words.
@@ -454,6 +460,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                 <FindingCard
                   key={finding.id}
                   finding={finding}
+                  /* Two standards in different families reduce to one title
+                     (AM-51 measures both against one document), so the card
+                     names its family when — and only when — another card on
+                     screen shares its heading. */
+                  qualify={collisions.has(requirementTitle(finding.requirement))}
                   onChanged={reload}
                   prepared={prepared?.findingId === finding.id
                     ? { decisionType: prepared.decisionType, seq: prepared.seq }
@@ -488,9 +499,12 @@ function askQuestionFor(finding: Finding): string {
  *  refetch. The server caches too (AM-49 r3); this only saves the round trip. */
 const explanationCache = new Map<string, FindingExplanation>();
 
-export function FindingCard({ finding, onChanged, prepared, explanation: given }: {
+export function FindingCard({ finding, onChanged, prepared, qualify, explanation: given }: {
   finding: Finding;
   onChanged: () => void;
+  /** Another finding on screen carries this same title — name the standard's
+   *  family beside it so the two read as the two requirements they are. */
+  qualify?: boolean;
   /** A keyboard PREPARE request the pane routed to THIS finding (`a` / `r`). */
   prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
   /** A known explanation, for tests and static renders; the card fetches its
@@ -522,6 +536,7 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
   const firstCited = finding.evaluations.flatMap((e) => e.evidence_refs)
     .find((id) => evidenceById.has(id)) ?? null;
   const title = requirementTitle(finding.requirement);
+  const family = requirementFamily(finding.requirement);
   // The one sentence: the requirement's approved plain-English description
   // (owner, 2026-09-09 — what the clause means in practice, from the ratified
   // standard's own source quote), else a sentence built from the finding's
@@ -560,7 +575,12 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
         <span className="ws-finding__titlewrap">
           <FindingStatusMark status={status} />
           <span className="ws-finding__titles">
-            <h3 className="ws-finding__title">{title}</h3>
+            <h3 className="ws-finding__title">
+              {title}
+              {qualify && family ? (
+                <span className="ws-finding__family"> · {family} standard</span>
+              ) : null}
+            </h3>
             {/* The engine's determination in plain words (owner's reference,
                 2026-09-09): which of the five answers produced this status. */}
             {determinationLabel(finding.classification) ? (

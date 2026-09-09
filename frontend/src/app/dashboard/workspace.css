@@ -2434,6 +2434,9 @@
    out one letter per line (2026-09-05, reported from the live site). `min-width:
    0` lets the item shrink below its content without that. */
 .ws-finding__title { overflow-wrap: break-word; min-width: 0; }
+/* Shown only when another card on screen carries the same title — the family
+   of the standard this finding was measured against, not a second heading. */
+.ws-finding__family { font-weight: 500; color: var(--ws-ink-500); white-space: nowrap; }
 .ws-finding__code {
   font-size: var(--ws-text-xs); color: var(--ws-ink-500);
   overflow-wrap: break-word; min-width: 0;

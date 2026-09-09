@@ -87,6 +87,47 @@ export function requirementTitle(
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
 
+/**
+ * The document-type family a requirement's code declares — "MSA", "TOS", "NDA".
+ *
+ * `requirementTitle` strips this token deliberately: it is addressing, not
+ * meaning, and a reader does not want "Auto renewal MSA" on every card. But two
+ * standards in DIFFERENT families reduce to the SAME title, and since `AM-51`
+ * (applicability by CONTENT) both are measured against one document — so the
+ * MSA in the owner's screenshot carried two cards both headed "Auto-renewal":
+ * `AUTORENEW-MSA-001`, a 6-month renewal-term comparison, and
+ * `AUTORENEW-TOS-001`, a presence check. Two real requirements, one title,
+ * which reads as a duplicate.
+ *
+ * This is the honest distinguisher, used ONLY where titles actually collide
+ * (see `collidingTitles`), so the 2026-09-08 decision to keep requirement codes
+ * out of the card header stands everywhere else.
+ */
+export function requirementFamily(
+  requirement: { code?: string | null } | null | undefined,
+): string | null {
+  const parts = requirement?.code?.trim().split(/[-_\s]+/) ?? [];
+  return parts.map((part) => part.toUpperCase()).find((part) => TYPE_CODES.has(part)) ?? null;
+}
+
+/**
+ * Titles carried by more than one of the findings on screen. A card qualifies
+ * its heading only when it is in this set — a distinction is worth showing
+ * exactly when there is something to distinguish it from.
+ */
+export function collidingTitles(
+  findings: Array<{ requirement: { code?: string | null; name?: string | null } }>,
+): Set<string> {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  for (const finding of findings) {
+    const title = requirementTitle(finding.requirement);
+    if (seen.has(title)) twice.add(title);
+    seen.add(title);
+  }
+  return twice;
+}
+
 /** What the outcome means for the reader, in one sentence. The chip beside it
  *  still carries the canonical word. */
 const CLASSIFICATION_SENTENCES: Record<string, string> = {
