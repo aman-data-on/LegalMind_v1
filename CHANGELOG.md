@@ -10,6 +10,53 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — `main` catches up with the product-coherence work, and the CI gate it never ran against (2026-09-09)
+
+Owner instruction: *"merge to main deploy also."* `feat/product-coherence-phase1` had
+accumulated **72 commits without ever being pushed**, so no CI job had seen any of them.
+Merged to `main` frozen at `5483f55`, on its own branch, because two other sessions were
+actively landing owner-approved work on that branch at the time — the `AM-57`
+document-primary workspace and an Ask retrieval fix. Both are deliberately **outside**
+this scope and reach `main` on their own schedule.
+
+**The colour question is closed by owner ruling.** Two passes disagreed on two hues (the
+conflict recorded in the entry below). The owner ruled: take the latest decision, and
+follow what the live site shows. The later pass — green Acceptable, **amber `#c2410c`**
+Requires modification, **indigo `#4f46e5`** Needs a decision — is what `HEAD` carried, and
+deploying it makes it what the live site shows, so both halves of the instruction agree on
+one answer. DD-12's audited hues, reassigned; no new colour, and never colour alone.
+
+**What the gate found, once it finally ran.** 56 ruff findings and 8 mypy errors, both
+clean on `main` beforehand. Fixed in `97f5c4c` with no intended behaviour change. Two
+configuration decisions were taken rather than papered over: `tests/**` ignores `F811`,
+because a pytest fixture imported by name and then taken as a parameter of that name is
+the fixture contract and not a redefinition; and `legalmind/analysis/semantic.py` is
+exempt from `E501`, because `AM-54`'s prompts are multi-line string literals whose BYTES
+are the audited payload — rewrapping one changes the recorded hash silently, and a `noqa`
+placed inside a string literal becomes part of the string.
+
+⚠️ **One of the two red e2e specs was a security spec that had stopped testing anything.**
+`confidentiality.spec.ts` compares the `.ws-facts dt` labels; `4f631ed` restyled them
+`text-transform: uppercase`, and Playwright's `allInnerTexts()` returns RENDERED text. The
+visible failure was the positive assertion, but the consequence was the two
+`not.toContain` assertions, which had been passing **vacuously** ever since — LEGAL-02's
+omission property was no longer being proved by the spec that exists to prove it. The
+labels are now case-normalised, which restores the negative assertions. (A concurrent
+session found the same thing independently and fixed it on its own branch; coordinated,
+one implementation kept.) `journey.spec.ts` expected `Requires modification (n)` where the
+count had moved into a `.ws-filter__n` badge — stale assertion, no defect.
+
+**Migrations**: none pending. The live database was already at `a1b2c3d4e5f6`, so both
+`f3a9c2d7e1b4` (`AM-49`'s `finding_explanations`) and `a1b2c3d4e5f6` (`AM-55`'s cascade)
+were applied before this merge; earlier notes saying a migration was owed are stale.
+
+**Not fixed here, and not from this branch**: job 14 flags 4 npm advisories (1 critical)
+published since `main`'s last green run, and its pip-audit and npm-audit steps also hit
+network errors; job 15's visual baselines are stale **by design** after the tone swap (that
+spec regenerates from CI, never locally); job 13 failed on a `PermissionError` reading
+`legal-docs/` on the runner, which is a file permission on the host, not a code fault.
+
+
 ### Changed — one colour system and one order for the three reader statuses (owner, 2026-09-09)
 
 Owner instruction, presentation only. **Order**, everywhere the three words appear as a

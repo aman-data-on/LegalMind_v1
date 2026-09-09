@@ -894,7 +894,18 @@ def test_an_injected_compliance_verdict_never_reaches_the_user(db, user, storage
     out = service.ask(db, conversation_id=_conversation(db, user, contract),
                       document_version_id=result.document_version.id,
                       permissions=frozenset({"assist.ask"}),
-                      question="What does this say about the liability clause and our standard?")
+                      # Every lexeme of this question appears in the poisoned
+                      # sentence itself, so the LEXICAL side of the gate retrieves
+                      # it with or without a provisioned embedding model. The
+                      # previous wording ("what does this SAY about...") leaned on
+                      # vector retrieval to cover the words the chunk lacks, and
+                      # `websearch_to_tsquery` ANDs them — so on CI, which
+                      # provisions no model, this test reached
+                      # NO_EVIDENCE_RETRIEVED and never exercised the guardrail it
+                      # exists to prove.
+                      question="Is this liability clause acceptable?")
+    # CLAIM_UNSUPPORTED rather than NO_EVIDENCE_RETRIEVED is itself the proof that
+    # the evidence WAS retrieved and the screen then rejected the verdict.
     assert out.answer_state.value == "CLAIM_UNSUPPORTED"
     assert "complies" not in out.text
 
