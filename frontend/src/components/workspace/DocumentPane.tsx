@@ -41,6 +41,7 @@ import {
 import {
   READINESS_TEXT,
   clauseStatusByEvidenceId,
+  clauseOf,
   documentTextState,
   groupByPage,
   locationLabel,
@@ -360,10 +361,12 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const outline = rows ? outlineOf(rows) : [];
   const breaks = sequenceBreaks(outline);
   const shownOutline = clauseQuery.trim()
-    ? outline.filter((row) =>
-        `${row.section_number ?? ""} ${row.section_title ?? ""}`
+    ? outline.filter((row) => {
+        const clause = clauseOf(row);
+        return `${clause.number ?? ""} ${clause.title}`
           .toLowerCase()
-          .includes(clauseQuery.trim().toLowerCase()))
+          .includes(clauseQuery.trim().toLowerCase());
+      })
     : outline;
 
   if (error) {
@@ -490,9 +493,10 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             <div className="ws-outline__list">
               {shownOutline.map((row) => {
                 const status = clauseStatus.get(row.id);
+                const clause = clauseOf(row);
                 // §4.3.1 indents under §4.3 under §4 — depth is the section
                 // number's own dot count (capped; deeper than 3 reads as 3).
-                const depth = Math.min(3, row.section_number?.match(/\./g)?.length ?? 0);
+                const depth = Math.min(3, clause.number?.match(/\./g)?.length ?? 0);
                 return (
                   <Fragment key={row.id}>
                   {/* A new part of the document. When the file DECLARES it —
@@ -509,11 +513,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     type="button"
                     data-depth={depth > 0 ? depth : undefined}
                     aria-current={target === row.id ? "true" : undefined}
-                    onClick={() => point(row.id, row.section_number ? `clause ${row.section_number}` : "the selected")}
+                    onClick={() => point(row.id, clause.number ? `clause ${clause.number}` : "the selected")}
                   >
                     <span className="ws-outline__label">
-                      {sectionRef(row.section_number) ? <span className="ws-mono">{sectionRef(row.section_number)}</span> : null}
-                      {row.section_title ?? (row.section_number ? "" : "Untitled clause")}
+                      {sectionRef(clause.number) ? <span className="ws-mono">{sectionRef(clause.number)}</span> : null}
+                      {clause.title || (clause.number ? "" : "Untitled clause")}
                     </span>
                     {status ? <StatusIcon bucket={status.bucket} /> : null}
                   </button>

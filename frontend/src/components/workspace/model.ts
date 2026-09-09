@@ -78,7 +78,84 @@ export function outlineOf(rows: EvidenceRow[]): EvidenceRow[] {
   // parser promoted. A numbered row is admitted regardless: a clause reference
   // is a navigation target whether or not the row is a heading.
   return rows.filter((row) =>
-    row.section_number || (row.section_title && isHeadingLine(row)));
+    row.section_number
+    || clauseFromText(row)
+    || (row.section_title && isHeadingLine(row)));
+}
+
+/**
+ * The clause number and title a row DECLARES in its own text, for rows the
+ * parser numbered as `null`.
+ *
+ * THE DEFECT (owner's screenshot, 2026-09-09): the Contents of a real 20-page
+ * MSA was empty. Measured on the live rows — 91 evidence rows, ONE with a
+ * `section_number`. The numbers are all there in the text; they are separated
+ * from their titles by U+200B:
+ *
+ *     "1.​\nDEFINITIONS \n1.1.​“Affiliate” shall mean…"
+ *     "7.​\nTERM AND TERMINATION"
+ *     "17.​\nLIMITATION OF LIABILITY"
+ *
+ * That is how Word exports automatic list numbering: the generated number is
+ * its own run, terminated by a zero-width space, and the paragraph text follows
+ * on the next line. `ingestion/parsing.py`'s number regex sees U+200B as a
+ * non-space and matches nothing, so the whole document arrives unnumbered and
+ * the outline has nothing to list.
+ *
+ * The SAME trap was fixed once already, on 2026-09-08, in `assist/chunking.py`
+ * ("U+200B/NBSP are blanks") — the parser was never given the same treatment.
+ *
+ * The fix is HERE and not in the parser, for the reason `isHeadingLine` above
+ * records: `section_number` and `is_heading` are not presentation fields.
+ * `mapping/service.py` feeds them to the mapping engine and `analysis/service.py`
+ * reads them to decide whether a document is too unsegmented to analyse at all,
+ * so re-tuning the parser would change which provisions map and which documents
+ * are refused — legal results, for a navigation defect. Re-extracting instead
+ * would rewrite evidence rows that existing Findings already cite (rule 17).
+ * So this reads the row's own recorded text and derives nothing else.
+ *
+ * Measured against every document in the live database: it fires only on rows
+ * the parser left unnumbered, and every number it recovers is one the document
+ * states — 31 on the MSA above, 49 on the executed GRP MSA, 74 on a partner
+ * agreement, 0 on all six documents the parser already numbers completely.
+ */
+const CLAUSE_ALONE = /^(\d+(?:\.\d+)*)\.$/;
+const CLAUSE_INLINE = /^(\d+(?:\.\d+)*)\.?\s+(\S.*)$/;
+
+export function clauseFromText(
+  row: { content: string },
+): { number: string; title: string } | null {
+  const lines = row.content
+    // U+200B (Word's list-number terminator) and NBSP are blanks, exactly as
+    // the assist chunker treats them.
+    .replace(/[​ ]/g, " ")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter((line) => line.length > 0);
+  const first = lines[0];
+  if (!first) return null;
+  // The number alone on its line MUST carry its trailing dot: "3." is a clause
+  // label, a bare "3" is a page-footer row and there are two of them in the
+  // document above.
+  const alone = CLAUSE_ALONE.exec(first);
+  if (alone) return { number: alone[1]!, title: lines[1] ?? "" };
+  const inline = CLAUSE_INLINE.exec(first);
+  if (inline) return { number: inline[1]!, title: inline[2]! };
+  return null;
+}
+
+/**
+ * The number and title to SHOW for an outline row: what the parser recorded,
+ * else what the row's own text states. Stored values always win — a document
+ * the parser reads correctly is never reinterpreted here.
+ */
+export function clauseOf(row: EvidenceRow): { number: string | null; title: string } {
+  if (row.section_number) {
+    return { number: row.section_number, title: row.section_title ?? "" };
+  }
+  const derived = clauseFromText(row);
+  if (derived) return derived;
+  return { number: null, title: row.section_title ?? "" };
 }
 
 /**
@@ -182,7 +259,7 @@ export function sequenceBreaks(rows: EvidenceRow[]): Set<string> {
   const breaks = new Set<string>();
   let previous: number | null = null;
   for (const row of rows) {
-    const top = Number.parseInt(row.section_number?.split(".")[0] ?? "", 10);
+    const top = Number.parseInt(clauseOf(row).number?.split(".")[0] ?? "", 10);
     if (Number.isNaN(top)) continue;
     if (previous !== null && top < previous) breaks.add(row.id);
     previous = top;
