@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { apiPost, createAnalysedReview, storageStatePath } from "./support";
+import { apiPost, createAnalysedReview, showDocument, storageStatePath } from "./support";
 
 /**
  * Design QA — visual regression baselines (Phase 4/7 hardening, 2026-08-27).
@@ -71,6 +71,12 @@ test.describe("signed in (counsel)", () => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page);
     await page.goto(`/dashboard?id=${contractId}`);
+    // The workspace has opened on the ANALYSIS since 2026-09-08, so the document
+    // pane is hidden until it is disclosed. This shot is of the document pane, so
+    // it has to ask for it — the same way journey.spec.ts does. Without this the
+    // test failed on its own precondition and never took a screenshot at all,
+    // which is why no `-actual.png` for it appears in the CI diff artifact.
+    await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     await expect(page).toHaveScreenshot("workspace.png", {
       ...SHOT,
