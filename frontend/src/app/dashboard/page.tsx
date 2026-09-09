@@ -37,6 +37,7 @@ import { api, describeError, type ContractScope } from "@/lib/api";
 import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
 import { CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
+import { chainAnalysis } from "@/lib/analysisChain";
 import { useSession } from "@/lib/session";
 import type { Contract, ContractsSummary, Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
 
@@ -1082,6 +1083,7 @@ function EditContractDialog({
       } else if (companyId !== "NEW") {
         linkId = companyId || null;
       }
+      const typeChanged = (type || null) !== (contract.contract_type ?? null);
       await api.updateContract(contract.id, {
         name: name.trim(),
         contract_type: type || null,
@@ -1103,6 +1105,9 @@ function EditContractDialog({
         }
         if (Object.keys(declared).length > 0) await api.declareVersion(latest.id, declared);
       }
+      // A newly declared type is the human act analysis was waiting for (AM-50):
+      // run it now, best-effort, rather than telling the reader it will not.
+      if (typeChanged && type) await chainAnalysis(contract.id, true);
       onSaved();
     } catch (cause) {
       setError(cause);
@@ -1139,7 +1144,7 @@ function EditContractDialog({
             </select>
             <span className="ws-field__help">
               The type selects which approved standard this contract is measured
-              against. Changing it does not re-run an analysis already on record.
+              against. Changing it runs a fresh analysis; earlier ones stay on record.
             </span>
           </label>
           <label className="ws-field">

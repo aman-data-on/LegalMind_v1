@@ -225,7 +225,7 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // when the fields re-enable.
     const nameField = page.getByLabel(/^Name/);
     await expect(nameField).not.toHaveValue("");
-    const select = page.getByLabel(/^Document type/);
+    const select = page.getByLabel(/^What kind of document/);
     await expect(select).toBeEnabled({ timeout: 30_000 });
 
     // The ten locked values, and nothing else, in the select (Step 6). With no
@@ -404,18 +404,16 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const panel = page.locator('[data-region="analysis"]');
     await expect(panel.locator(".ws-tiles")).toBeVisible();
 
-    // Every stat tile names ONE real Step 19 classification — never an invented
-    // catch-all like "Needs review" that would merge distinct outcomes (owner
-    // correction, 2026-09-01, and the property still holds). Since 2026-09-04
-    // the tiles render through `lib/labels`, so `UNABLE_TO_EVALUATE` reads
-    // "NEEDS A PERSON" here and on the report — the same state, the same words
-    // in both places. The locked trio is unchanged.
-    const REAL_CLASSIFICATIONS = ["MATCH", "DEVIATION", "MISSING", "CONFLICT",
-      "NEEDS A PERSON", "AMBIGUOUS", "UNRESOLVED"];
+    // The Summary speaks the reader's three words (owner, 2026-09-09, AM-50 r4 —
+    // reversing the 2026-09-01 correction that pinned the engine's words here).
+    // The engine vocabulary is unchanged underneath and lives in View details.
+    const USER_WORDS = ["Accepted", "Needs review", "Not accepted", "Need legal decision"];
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);
-    for (const label of tileLabels) expect(REAL_CLASSIFICATIONS).toContain(label);
-    expect(await panel.innerText()).not.toContain("Needs review");
+    for (const label of tileLabels) expect(USER_WORDS).toContain(label);
+    for (const engineWord of ["DEVIATION", "MISSING", "UNABLE_TO_EVALUATE", "NEEDS A PERSON"]) {
+      expect(await panel.innerText()).not.toContain(engineWord);
+    }
 
     // The ring is real counts — a raw total in the center; the legend's
     // percentages are shares of those counts, never a grade or confidence.

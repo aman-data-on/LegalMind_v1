@@ -13,7 +13,7 @@ admin believe they had configured something they had not.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -92,6 +92,10 @@ class ContractCreate(Body):
 class ContractUpdate(Body):
     name: str | None = Field(default=None, min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
+    #: AM-50 (2026-09-09): who determined `contract_type` — "HUMAN" (the default,
+    #: an explicit choice) or "ASSIST_SUGGESTION" (the intake applied a confident
+    #: suggestion so the reader did not have to). Audit-only; never a column.
+    contract_type_source: Literal["HUMAN", "ASSIST_SUGGESTION"] | None = None
     status: ContractStatus | None = None
     #: Who this deal is with — AB-13 r2. Sent as null to unlink; left out,
     #: untouched. `model_fields_set` tells the two apart.

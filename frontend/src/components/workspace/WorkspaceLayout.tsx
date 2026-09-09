@@ -86,6 +86,8 @@ const LABEL: Record<Region, string> = {
  */
 export interface FindingsPoint {
   classification?: string;
+  /** The reader's three-word status (AM-50 r4) — what the Summary tiles point with. */
+  status?: "ACCEPTED" | "NEEDS_REVIEW" | "NOT_ACCEPTED";
   findingId?: string;
   seq: number;
 }
@@ -251,32 +253,12 @@ export function WorkspaceLayout({
         * a keyboard affordance rather than dead code.
         */}
       <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-      {/* The document is FIRST in the DOM again (2026-09-08, fifth pass,
-          reverting the fourth's order): with `grid-template-columns:
-          minmax(0, 1fr) var(--ws-side-w)` unchanged below, whichever region is
-          FIRST draws the wide `1fr` track and whichever is second draws the
-          fixed rail — so restoring document-first is what makes it the wide
-          one again when open, with no change to the grid rule itself needed.
-          DOM order still drives visual order and keyboard tab order together
-          (no CSS `order` trick to leave them disagreeing): document controls,
-          then — only if open — nothing follows, since the side card's own
-          tabs and toggle come after it in the markup below. */}
+      {/* Findings/analysis FIRST (AM-50 r5, owner 2026-09-09): they are the
+          primary workspace and draw the flexible column whether or not the
+          document is shown. The document is second — a fixed, reader-resizable
+          companion when open, display:none when closed — so findings never
+          drop to a narrow rail. DOM order drives visual and tab order together. */}
       <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}>
-        <section
-          className="ws-pane ws-pane--document"
-          id="ws-pane-document"
-          aria-label="Document"
-          data-region="document"
-          /* `inert`, not unmounted: the pane keeps its scroll position, its
-             Original/Text choice and its outline state, so revealing it returns
-             the reader to where they were. `hidden` would take it out of the
-             accessibility tree AND stop the scroll-to-evidence gesture from
-             finding its rows, so the CSS hides it and `inert` keeps it out of
-             the tab order while it is not shown. */
-          inert={docOpen ? undefined : true}
-        >
-          {document}
-        </section>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
           <div className="ws-side__tabs">
             <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
@@ -330,6 +312,21 @@ export function WorkspaceLayout({
           >
             {findings}
           </div>
+        </section>
+        <section
+          className="ws-pane ws-pane--document"
+          id="ws-pane-document"
+          aria-label="Document"
+          data-region="document"
+          /* `inert`, not unmounted: the pane keeps its scroll position, its
+             Original/Text choice and its outline state, so revealing it returns
+             the reader to where they were. `hidden` would take it out of the
+             accessibility tree AND stop the scroll-to-evidence gesture from
+             finding its rows, so the CSS hides it and `inert` keeps it out of
+             the tab order while it is not shown. */
+          inert={docOpen ? undefined : true}
+        >
+          {document}
         </section>
       </div>
     </SideTabCtx.Provider>

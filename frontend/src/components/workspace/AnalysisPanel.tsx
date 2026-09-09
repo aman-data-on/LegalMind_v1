@@ -26,7 +26,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import { describeError } from "@/lib/api";
 import type { Finding } from "@/lib/types";
 
-import { reviewHeadline } from "./findingLanguage";
+import { USER_STATUS_LABELS, reviewHeadline, statusCounts, type UserStatus } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
 import { classificationLabel } from "@/lib/labels";
 
@@ -42,11 +42,13 @@ import {
 import { ObligationsPanel } from "./ObligationsPanel";
 import { useSideTabs } from "./WorkspaceLayout";
 
-const BUCKET_LABEL: Record<StatusBucket, string> = {
-  match: "Match",
-  review: "Needs review",
-  missing: "Missing",
-};
+/** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
+ *  the 2026-09-01 tile correction; AM-50 r4). Engine words stay in View details. */
+const STATUS_TILES: Array<{ status: UserStatus; bucket: StatusBucket }> = [
+  { status: "ACCEPTED", bucket: "match" },
+  { status: "NEEDS_REVIEW", bucket: "review" },
+  { status: "NOT_ACCEPTED", bucket: "missing" },
+];
 
 export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
   const { state, reload } = useFindingsState();
@@ -104,14 +106,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
   const summary = findingsSummary(findings);
   const risks = findingsNeedingDecision(findings);
 
-  const buckets = useMemo(() => {
-    const totals: Record<StatusBucket, number> = { match: 0, review: 0, missing: 0 };
-    for (const { classification, n } of summary.counts) {
-      totals[classificationBucket(classification)] += n;
-    }
-    return totals;
-  }, [summary]);
   const total = findings.length;
+  const statuses = statusCounts(findings);
 
   if (total === 0) {
     return (
@@ -138,8 +134,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
           {reviewHeadline({
             total,
             needsDecision: summary.needsDecision,
-            missing: buckets.missing,
-            match: buckets.match,
+            missing: statuses.NOT_ACCEPTED,
+            match: statuses.ACCEPTED,
           })}
         </p>
         <div className="ws-analysis__head">
@@ -150,44 +146,46 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
             </button>
           ) : null}
         </div>
-        {/* One tile per classification that ACTUALLY occurred — the real Step 19
-            vocabulary, never an invented catch-all label. "Needs review" is not
-            a status in this system; DEVIATION and UNABLE_TO_EVALUATE are
-            different facts and stay named as themselves (rule 7/12/14).
-            Each tile is a real control (DD-14): it opens the Findings tab
-            filtered to exactly that classification. */}
+        {/* One tile per user-facing status that occurred, plus how many need a
+            legal decision. Each tile opens the Findings tab filtered to it. */}
         <div className="ws-tiles">
-          {summary.counts.map(({ classification, n }) => {
-            const bucket = classificationBucket(classification);
-            return (
-              <button
-                key={classification}
-                type="button"
-                className={`ws-tile ws-tile--${bucket}`}
-                aria-label={`Show the ${n} ${classificationLabel(classification)} finding${n === 1 ? "" : "s"}`}
-                onClick={() => sideTabs?.openFindings({ classification })}
-              >
-                <span className="ws-tile__n">{n}</span>
-                <span className="ws-tile__label ws-mono">{classificationLabel(classification)}</span>
-                <span className={`ws-status ws-status--${bucket}`}>
-                  {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
-                </span>
-              </button>
-            );
-          })}
+          {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, bucket }) => (
+            <button
+              key={status}
+              type="button"
+              className={`ws-tile ws-tile--${bucket}`}
+              aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+              onClick={() => sideTabs?.openFindings({ status })}
+            >
+              <span className="ws-tile__n">{statuses[status]}</span>
+              <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
+              <span className={`ws-status ws-status--${bucket}`}>
+                {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
+              </span>
+            </button>
+          ))}
+          {statuses.needsDecision > 0 ? (
+            <button
+              type="button"
+              className="ws-tile ws-tile--decision"
+              aria-label={`Show the ${statuses.needsDecision} finding${statuses.needsDecision === 1 ? "" : "s"} that need a legal decision`}
+              onClick={() => sideTabs?.openFindings()}
+            >
+              <span className="ws-tile__n">{statuses.needsDecision}</span>
+              <span className="ws-tile__label">Need legal decision</span>
+              <span className="ws-status ws-status--decision"><IconAlertCircle size={18} /></span>
+            </button>
+          ) : null}
         </div>
         <div
           className="ws-bar"
           role="img"
-          aria-label={summary.counts.map(({ classification, n }) => `${n} ${classificationLabel(classification)}`).join(", ")}
+          aria-label={STATUS_TILES.filter(({ status }) => statuses[status] > 0)
+            .map(({ status }) => `${statuses[status]} ${USER_STATUS_LABELS[status]}`).join(", ")}
         >
-          {summary.counts.map(({ classification, n }) =>
-            n > 0 ? (
-              <span
-                key={classification}
-                className={`ws-bar__seg ws-bar__seg--${classificationBucket(classification)}`}
-                style={{ flexGrow: n }}
-              />
+          {STATUS_TILES.map(({ status, bucket }) =>
+            statuses[status] > 0 ? (
+              <span key={status} className={`ws-bar__seg ws-bar__seg--${bucket}`} style={{ flexGrow: statuses[status] }} />
             ) : null,
           )}
         </div>
@@ -197,23 +195,22 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
       </section>
 
       <section className="ws-analysis__section" aria-label="Clause status breakdown">
-        <h3 className="ws-analysis__title">Clause status breakdown</h3>
+        <h3 className="ws-analysis__title">At a glance</h3>
         <div className="ws-ring">
-          <Donut match={buckets.match} review={buckets.review} missing={buckets.missing} total={total} />
+          <Donut match={statuses.ACCEPTED} review={statuses.NEEDS_REVIEW} missing={statuses.NOT_ACCEPTED} total={total} />
           <ul className="ws-ring__legend">
-            {summary.counts.map(({ classification, n }) => (
-              <li key={classification} data-bucket={classificationBucket(classification)}>
-                {/* The legend row is the same control as its tile (DD-14). */}
+            {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, bucket }) => (
+              <li key={status} data-bucket={bucket}>
                 <button
                   type="button"
                   className="ws-ring__go"
-                  aria-label={`Show the ${n} ${classificationLabel(classification)} finding${n === 1 ? "" : "s"}`}
-                  onClick={() => sideTabs?.openFindings({ classification })}
+                  aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+                  onClick={() => sideTabs?.openFindings({ status })}
                 >
                   <span className="ws-ring__swatch" aria-hidden="true" />
-                  <span className="ws-mono">{n}</span>
-                  <span className="ws-ring__pct">({Math.round((n / total) * 100)}%)</span>
-                  {classificationLabel(classification)}
+                  <span className="ws-mono">{statuses[status]}</span>
+                  <span className="ws-ring__pct">({Math.round((statuses[status] / total) * 100)}%)</span>
+                  {USER_STATUS_LABELS[status]}
                 </button>
               </li>
             ))}

@@ -304,6 +304,29 @@ class StatuteHit:
         return f"{self.official_title}, s. {self.section_number}{sub}"
 
 
+# Short names people actually type for Acts in the corpus, expanded to the words
+# the official title uses so the title match can see them. Names only — no law.
+_ACT_ALIASES = {
+    "dpdp": "digital personal data protection",
+    "dpdpa": "digital personal data protection",
+    "it act": "information technology act",
+    "ni act": "negotiable instruments act",
+    "cpc": "code of civil procedure",
+    "bsa": "bharatiya sakshya adhiniyam",
+    "cgst": "central goods and services tax",
+    "igst": "integrated goods and services tax",
+    "cert-in": "cert-in",
+}
+
+
+def expand_aliases(query: str) -> str:
+    lowered = f" {(query or '').lower()} "
+    for short, full in _ACT_ALIASES.items():
+        if f" {short} " in lowered:
+            lowered = lowered.replace(f" {short} ", f" {short} {full} ")
+    return lowered.strip()
+
+
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                     limit: int = 6) -> list[StatuteHit]:
     """Lexical retrieval over the statute corpus, authorized inside the function.
@@ -320,6 +343,7 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
         return []
     schema = config.assist_schema()
     wanted = [m.group("num").upper() for m in _SECTION_IN_QUESTION.finditer(query or "")]
+    query = expand_aliases(query)
     rows = db.execute(sql_text(f"""
         WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex)
         SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
@@ -343,8 +367,12 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
          LIMIT :limit
     """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
     floor = 2 if len((query or "").split()) > 1 else 1
+    # A question that names the Act ("What is the DPDP Act?") is answered from
+    # that Act even when no section's text repeats the question's words: the
+    # title match alone admits its opening sections (AM-50 r3).
     hits = [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
                        r.sub_section, r.marginal_note, r.content, float(r.score))
-            for r in rows if r.exact_section or r.matched >= floor][:limit]
+            for r in rows
+            if r.exact_section or r.matched >= floor or r.act_match >= 2][:limit]
     log_event("assist.statutes.searched", hits=len(hits), level=logging.DEBUG)
     return hits

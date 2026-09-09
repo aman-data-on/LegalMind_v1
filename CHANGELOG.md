@@ -10,6 +10,48 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Upload → Review → Ask: the user never configures the workflow (AB-16, `AM-50`, 2026-09-09)
+
+Owner instruction: the user should not need to understand how LegalMind works —
+upload, review, ask, get simple answers. R&D first (intake, type suggestion,
+routing, Domain A/C, grounding, Summary, layout, tests), then the smallest changes
+to what already existed; no second RAG, no second classifier, no second status
+vocabulary. Where a locked decision collided, the owner chose to amend it; record
+appended to `all_lock.md` (17,701 → **17,782** lines).
+
+* **Intake (r1)** — a confident type suggestion is recorded by the intake and the
+  review starts ("Reviewed as Master Services Agreement — change it any time in
+  Edit details"); not confident → one question, one select, pre-filled from the
+  filename. Audit: `contract.type_declared` with `source` HUMAN /
+  ASSIST_SUGGESTION (`ContractUpdate.contract_type_source`, audit-only, no
+  column). `chainAnalysis` refuses to create a Review for an undeclared type at
+  its one entry point (the deferred-OCR path produced a guaranteed
+  ANALYSIS_FAILED); a type declared later in Edit details now runs the analysis.
+  Declared version facts left the intake — they live in Edit details.
+* **Ask (r2, r3)** — a document-only question the document cannot answer falls
+  through to the statute corpus and the positions before refusing
+  (`assist.ask.fell_through`, domains recorded); "follow / adhere / honour" are
+  comparison signals so "Does this NDA follow our standards?" reaches the
+  evaluator; DPDP / NI Act / CPC / BSA / CGST / IGST / IT Act short names resolve
+  to their titles and a title match alone admits an Act's opening sections
+  ("What is the DPDP Act?" answered, not refused). Research loading copy no
+  longer names a document.
+* **Summary (r4)** — tiles, bar, ring legend and the report speak Accepted /
+  Needs review / Not accepted plus "Need legal decision" (`statusCounts()` over
+  `userStatus()`), each a control into the Findings filtered by status; the
+  dashboard pill reads "Needs review". Engine words unchanged in the API, the
+  audit trail and View details. `workspace.spec.ts`'s 2026-09-01 assertion
+  reversed on the owner's ruling.
+* **Layout (r5)** — findings first in the DOM and always the flexible column; the
+  document opens beside them at `clamp(440px, 42vw, 760px)`, native
+  `resize: horizontal`; the stacked-rail comparison variant is gone. The card's
+  disclosure reads **View details**.
+
+Tests: backend +6 (follow-family stems, alias expansion, bare-Act match,
+fall-through answered from statutes, safe refusal when nothing answers,
+type-declaration audit with source); frontend +1 (chain guard) and the Summary /
+vocabulary assertions updated; OpenAPI snapshot regenerated (optional field).
+
 ### Added — The grounded explanation layer under every Finding (AB-15, `AM-49`, 2026-09-09)
 
 Owner instruction: a Sales reader must understand a Finding in five seconds, so the

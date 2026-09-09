@@ -39,6 +39,6 @@ test("a filename containing a non-ASCII character uploads without error", async 
 
   // The upload succeeded and the flow reached the type-confirmation step —
   // proof the request actually reached the server and came back.
-  const typeSelect = page.getByLabel(/^Document type/);
+  const typeSelect = page.getByLabel(/^What kind of document/);
   await expect(typeSelect).toBeVisible({ timeout: 15_000 });
 });

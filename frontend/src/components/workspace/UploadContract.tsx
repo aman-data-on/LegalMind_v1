@@ -9,17 +9,12 @@
  * exactly the same sequential calls the previous version already made, never
  * a new backend capability.
  *
- * Q9 / `AM-34` stand exactly as locked: the type is HUMAN-DECLARED. What
- * changed on 2026-09-01: the type select is now ALWAYS shown, and is pre-filled
- * when there is anything to pre-fill it with — the assist lane's proposal first,
- * then a Step 6 code named in the filename (`AM-34` t1 authorises both inputs and
- * says the proposal "pre-fills the intake select"). The help text names which
- * source produced the value, so a guess never reads as a determination.
- *
- * Owner Q9 is unchanged and this is why it holds: pre-filling a control is not
- * recording a type. `contract_type` is written only by the submit — an explicit
- * human act — and the field says so directly above the button.
- * behaviour changed there, only the surrounding frame.
+ * AM-50 (owner, 2026-09-09) amends Q9 / AM-34 / DOC-06: a CONFIDENT suggestion
+ * is recorded by the intake and the review starts — "I uploaded my contract and
+ * LegalMind reviewed it." The audit trail records that the type came from the
+ * suggestion; the reader can change it in Edit details, which re-runs the
+ * analysis; the evaluator still refuses an undeclared type. Only when the
+ * document's text does not say what it is does the intake ask its one question.
  *
  * Best-effort chaining, honest degradation: a missing published snapshot or a
  * missing review.create permission never blocks the upload — the workspace's
@@ -32,10 +27,9 @@ import { useRouter } from "next/navigation";
 
 import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
-import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { TypeSuggestion } from "@/lib/types";
 
 import { IconCheckCircle, IconUploadCloud } from "./icons";
 
@@ -63,9 +57,10 @@ function preflightProblem(file: File): string | null {
   return null;
 }
 
-export function UploadContract({ firstRun, counterparties = [] }: {
+export function UploadContract({ firstRun }: {
   firstRun: boolean;
-  /** Names already on the reader's own list — the datalist's whole world. */
+  /** Kept for callers; the intake no longer asks for declared facts — they
+   *  live in "Edit details", where they always were too (AM-50). */
   counterparties?: string[];
 }) {
   const { can } = useSession();
@@ -81,12 +76,11 @@ export function UploadContract({ firstRun, counterparties = [] }: {
   const [error, setError] = useState<unknown>(null);
   const [dragging, setDragging] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
+  const contractIdRef = useRef<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
-  // Declared facts about THIS version (2026-09-06) — all optional.
-  const [source, setSource] = useState("");
-  const [counterparty, setCounterparty] = useState("");
-  const [effectiveDate, setEffectiveDate] = useState("");
-  const [suggestion, setSuggestion] = useState<TypeSuggestion | null>(null);
+  /** The type the intake recorded on the reader's behalf (AM-50) — shown as
+   *  "Reviewed as …" while the analysis starts. */
+  const [recordedType, setRecordedType] = useState<string | null>(null);
 
   if (!can(P.CONTRACT_CREATE) || !can(P.DOCUMENT_UPLOAD)) {
     return firstRun ? (
@@ -106,7 +100,6 @@ export function UploadContract({ firstRun, counterparties = [] }: {
     setFile(chosen);
     setName(derivedName);
     setContractType("");
-    setSuggestion(null);
     setError(null);
     setStage("uploading");
 
@@ -116,12 +109,14 @@ export function UploadContract({ firstRun, counterparties = [] }: {
     try {
       const contract = await api.createContract(derivedName);
       setContractId(contract.id);
+      contractIdRef.current = contract.id;
       const uploaded = await api.uploadDocument(contract.id, chosen);
       versionId = uploaded.document_version.id;
       setVersionId(versionId);
     } catch (cause) {
       setFile(null);
       setContractId(null);
+      contractIdRef.current = null;
       setError(cause);
       setStage("idle");
       return;
@@ -129,41 +124,49 @@ export function UploadContract({ firstRun, counterparties = [] }: {
     setStage("extracted");
 
     // The assist lane proposes a type from the document's own opening text.
-    // Every failure shape is the same honest "not confident" — the picker
-    // then appears exactly as it did before this feature existed.
     setStage("suggesting");
     let proposedType: string | null = null;
     try {
       const proposed = await api.suggestType(versionId);
-      setSuggestion(proposed);
       if (proposed.confident && proposed.suggested_type) {
         proposedType = proposed.suggested_type;
-        setContractType(proposedType);
-        setTypeSource("assist");
       }
     } catch {
-      setSuggestion(null);
+      /* not confident — the one question below */
     }
 
-    if (!proposedType) {
+    if (proposedType) {
       /*
-       * `AM-34` t1 (AB-7) — the proposal may be drawn from "the document version's
-       * own committed evidence **plus its original filename**", and "the proposal
-       * pre-fills the intake select". So when the assist lane cannot answer, a
-       * filename that names a Step 6 code still pre-fills it.
-       *
-       * Owner Q9 is untouched and this is the reason it is safe: pre-filling a
-       * select is not recording a type. `contract_type` is written only by the
-       * submit below — an explicit human act — and the help text says so. Before
-       * this, the filename hint sat behind a link the reader had to notice and
-       * click, which is why a document plainly named "…MSA…" still arrived with an
-       * empty picker (owner, 2026-09-01: "pehle toh automatically kar leta tha").
+       * AM-50 (owner, 2026-09-09): a confident suggestion is RECORDED by the
+       * intake and the review starts — the reader uploaded a contract and
+       * LegalMind reviewed it. The audit trail says the type came from the
+       * suggestion (`contract_type_source`), the reader can change it in
+       * "Edit details" (which re-runs the analysis), and the evaluator still
+       * refuses an undeclared type. Recording fails → the question below.
        */
-      const fromName = typeHintFromFilename(chosen.name);
-      if (fromName) {
-        setContractType(fromName);
-        setTypeSource("filename");
+      try {
+        await api.updateContract(contract_id_or_throw(contractIdRef.current), {
+          name: derivedName,
+          contract_type: proposedType,
+          contract_type_source: "ASSIST_SUGGESTION",
+        });
+        setRecordedType(proposedType);
+        setContractType(proposedType);
+        setStage("analyzing");
+        await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
+        router.push(`/dashboard?id=${contractIdRef.current}`);
+        return;
+      } catch {
+        setRecordedType(null);
       }
+    }
+
+    // The smallest clarification, only when needed: which kind of document
+    // this is. A Step 6 code in the filename pre-fills it (AM-34 t1).
+    const fromName = typeHintFromFilename(chosen.name);
+    if (fromName) {
+      setContractType(fromName);
+      setTypeSource("filename");
     }
     setStage("confirm");
   }
@@ -182,18 +185,8 @@ export function UploadContract({ firstRun, counterparties = [] }: {
       // control that keeps a statute out of the evaluator) and the workspace says so.
       await api.updateContract(contractId, {
         name: name.trim(),
-        ...(contractType ? { contract_type: contractType } : {}),
+        ...(contractType ? { contract_type: contractType, contract_type_source: "HUMAN" } : {}),
       });
-      // The declared facts about THIS version (2026-09-06), recorded by the same
-      // confirm — and only what was actually said. Nothing is read from the file.
-      const declared: Record<string, string | null> = {
-        ...(source ? { source } : {}),
-        ...(counterparty.trim() ? { counterparty: counterparty.trim() } : {}),
-        ...(effectiveDate ? { effective_date: effectiveDate } : {}),
-      };
-      if (versionId && Object.keys(declared).length > 0) {
-        await api.declareVersion(versionId, declared);
-      }
     } catch (cause) {
       setError(cause);
       setStage("confirm");
@@ -205,7 +198,6 @@ export function UploadContract({ firstRun, counterparties = [] }: {
     router.push(`/dashboard?id=${contractId}`);
   }
 
-  const confident = suggestion?.confident === true && !!suggestion.suggested_type;
 
   if (!file) {
     return (
@@ -274,20 +266,19 @@ export function UploadContract({ firstRun, counterparties = [] }: {
         </ChecklistRow>
         <ChecklistRow done={stage === "confirm" || stage === "analyzing"} active={stage === "suggesting"}>
           {stage === "confirm" || stage === "analyzing" ? (
-            confident ? (
-              <>Type Detected: <strong>{documentTypeLabel(suggestion!.suggested_type)}</strong></>
+            recordedType ? (
+              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — change it any time in Edit details</>
+            ) : contractType ? (
+              <>Reviewed as <strong>{documentTypeLabel(contractType)}</strong></>
             ) : (
-              "Type needs your confirmation"
+              "One question: what kind of document is this?"
             )
           ) : (
-            "Detecting document type…"
+            "Reading the document…"
           )}
         </ChecklistRow>
         {stage === "analyzing" ? (
-          <>
-            <ChecklistRow done active={false}>Relevant Standard Identified</ChecklistRow>
-            <ChecklistRow done={false} active spinner>Analyzing…</ChecklistRow>
-          </>
+          <ChecklistRow done={false} active spinner>Reviewing against the company standards…</ChecklistRow>
         ) : null}
       </ol>
 
@@ -299,26 +290,15 @@ export function UploadContract({ firstRun, counterparties = [] }: {
             <span className="ws-field__help">From the filename — change it if you like.</span>
           </label>
 
-          {/*
-            One presentation, always. This used to branch: a confident suggestion
-            showed a prose line ("LegalMind identified this as a …") with a "Not
-            right? Change it" link, and the select appeared only if you clicked it.
-            Two problems — the reader had to act to see the field they were about to
-            be judged on, and the prose asserted an identification more firmly than
-            a suggestion warrants. A pre-selected select says the same thing in a
-            control the reader can already change, which is also the shape `AM-34`
-            t1 describes ("the proposal pre-fills the intake select").
-          */}
           <label className="ws-field ws-field--type">
               <span className="ws-field__label">
-                Document type <span className="ws-field__help">(needed to run analysis — you can ask questions without it)</span>
+                What kind of document is this? <span className="ws-field__help">(needed to review it — you can ask questions without it)</span>
               </span>
               <select
-                required
                 value={contractType}
                 onChange={(event) => {
                   setContractType(event.target.value);
-                  setTypeSource(null);   // it is the reader's choice now, not a guess
+                  setTypeSource(null);
                 }}
               >
                 <option value="">Choose the type…</option>
@@ -328,66 +308,11 @@ export function UploadContract({ firstRun, counterparties = [] }: {
                   </option>
                 ))}
               </select>
-              {/*
-                Three cases, and each says where the value came from. Naming the
-                source is what keeps a pre-filled select honest under owner Q9: the
-                reader can see this was a guess from a filename or from the
-                document's text, not a determination.
-              */}
               <span className="ws-field__help">
-                {typeSource === "filename" ? (
-                  <>Pre-filled from the filename. Change it if that&rsquo;s wrong. </>
-                ) : typeSource === "assist" ? (
-                  <>Suggested from the document&rsquo;s opening text. Change it if that&rsquo;s wrong. </>
-                ) : !contractType ? (
-                  <>Couldn&rsquo;t identify the type from the filename or the text — please choose it. </>
-                ) : null}
-                Nothing is recorded until you confirm.
+                {typeSource === "filename"
+                  ? "Pre-filled from the filename — change it if that\u2019s wrong."
+                  : "LegalMind could not tell from the text. Counterparty and dates can be added later in Edit details."}
               </span>
-          </label>
-
-          {/*
-            Declared facts about this version (2026-09-06). Optional, every one:
-            Step 6 says a document CAN be classified by source, Step 2 stores the
-            effective date "if available", and nothing here is read out of the
-            document — declared, never inferred, the same line Q9 draws for Type.
-            Native controls only: a select, a text input with a datalist of names
-            already on this reader's list, and the browser's own date input.
-          */}
-          <label className="ws-field">
-            <span className="ws-field__label">Source</span>
-            <select value={source} onChange={(event) => setSource(event.target.value)}>
-              <option value="">Not declared</option>
-              {DOCUMENT_SOURCES.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            <span className="ws-field__help">
-              Whose paper this version is — ours, or the other side&rsquo;s.
-            </span>
-          </label>
-          <label className="ws-field">
-            <span className="ws-field__label">Counterparty</span>
-            <input
-              list="ws-counterparties-intake"
-              maxLength={500}
-              value={counterparty}
-              onChange={(event) => setCounterparty(event.target.value)}
-            />
-            <datalist id="ws-counterparties-intake">
-              {counterparties.map((known) => <option key={known} value={known} />)}
-            </datalist>
-          </label>
-          <label className="ws-field">
-            <span className="ws-field__label">Effective date</span>
-            <input
-              type="date"
-              value={effectiveDate}
-              onChange={(event) => setEffectiveDate(event.target.value)}
-            />
-            <span className="ws-field__help">
-              As stated in the document, if you know it. Leave it empty otherwise.
-            </span>
           </label>
 
           <button
@@ -408,10 +333,8 @@ export function UploadContract({ firstRun, counterparties = [] }: {
             setFile(null);
             setContractId(null);
             setVersionId(null);
-            setSource("");
-            setCounterparty("");
-            setEffectiveDate("");
-            setSuggestion(null);
+            contractIdRef.current = null;
+            setRecordedType(null);
             setContractType("");
                     setStage("idle");
           }}
@@ -426,6 +349,11 @@ export function UploadContract({ firstRun, counterparties = [] }: {
       ) : null}
     </form>
   );
+}
+
+function contract_id_or_throw(id: string | null): string {
+  if (!id) throw new Error("no contract");
+  return id;
 }
 
 function ChecklistRow({

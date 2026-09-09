@@ -365,7 +365,7 @@ export function AskDock({
                 </p>
                 <div className="ws-ask__answer" aria-busy="true">
                   <p className="ws-pane__note" role="status" aria-live="polite">
-                    Searching the document and checking citations…
+                    Looking this up and checking citations…
                   </p>
                   <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
                   <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />

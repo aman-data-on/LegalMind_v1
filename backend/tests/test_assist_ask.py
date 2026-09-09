@@ -897,3 +897,49 @@ def test_an_injected_compliance_verdict_never_reaches_the_user(db, user, storage
                       question="What does this say about the liability clause and our standard?")
     assert out.answer_state.value == "CLAIM_UNSUPPORTED"
     assert "complies" not in out.text
+
+
+# ==========================================================================
+# AM-50 r2 (owner, 2026-09-09): the uploaded document is never a hard filter.
+# A general question the router sent only to the document falls through to the
+# statute corpus (and the positions) before any refusal.
+# ==========================================================================
+def test_a_general_question_the_document_cannot_answer_falls_through_to_the_statutes(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _synthetic_statute(db, tmp_path)
+    sent = []
+
+    def fake(question, chunks, **k):
+        sent.append(chunks)
+        return generation.GenerationResult(
+            text="Every handler shall handle every widget with synthetic care [1].",
+            model="fake", prompt_version="grounded-answer-1", payload_sha256="0" * 64,
+            latency_ms=1)
+    monkeypatch.setattr(generation, "generate", fake)
+    # Not statute-shaped, not about the organization: the router picks DOCUMENT only.
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="How must a handler treat every widget?")
+    assert "DOCUMENT" in out.domains and "STATUTES" in out.domains
+    assert out.answer_state.value == "ANSWERED"
+    assert out.statutes and out.statutes["citations"][0]["citation"].startswith(
+        "The Synthetic Widgets Act, 2099, s. 3")
+    assert out.text.startswith("No answer was found in the selected document.")
+    # Only statute text reached the model — the document had nothing to offer.
+    assert all("widget" in c.lower() for chunks in sent for c in chunks)
+
+
+def test_a_question_nothing_can_answer_is_still_one_safe_refusal(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _synthetic_statute(db, tmp_path)
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("the model must not be called with nothing to ground in")))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="What is the boiling point of zorbulated framblewitz?")
+    assert out.answer_state.value != "ANSWERED"
+    assert out.text.startswith("Information not found in the selected document")

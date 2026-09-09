@@ -213,23 +213,26 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           </p>
 
           {Object.keys(report.classification_counts).length > 0 ? (
-            <section aria-label="Findings by classification">
-              <h2 className="ws-report__h">Findings by classification</h2>
-              <ClassificationGlossary />
+            <section aria-label="Findings by status">
+              <h2 className="ws-report__h">Findings</h2>
+              {/* The reader's words (AM-50 r4). The report's counts are per engine
+                  classification, so it can say Accepted and Needs review; Not
+                  accepted is a per-finding fact the workspace shows. Each chip
+                  opens the workspace pre-filtered — a summary never substitutes
+                  for its parts (DESIGN.md). */}
               <div className="ws-chips">
-                {/* Each count opens the workspace's findings, pre-filtered to
-                    exactly the findings it counts — a summary never substitutes
-                    for its parts (DESIGN.md). */}
                 {Object.entries(report.classification_counts).map(([value, count]) => (
                   <Link
                     key={value}
                     href={`/dashboard?id=${review.contract_id}&classification=${value}`}
-                    className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? "" : " ws-chip--fill ws-chip--classify-fill"}`}
+                    className={`ws-chip ws-chip--link${CALM_CLASSIFICATIONS.has(value) ? " ws-chip--status-accepted" : " ws-chip--fill ws-chip--status-needs_review"}`}
+                    title={classificationLabel(value)}
                   >
-                    {classificationLabel(value)} <b className="ws-mono">{count}</b>
+                    {CALM_CLASSIFICATIONS.has(value) ? "Accepted" : "Needs review"} <b className="ws-mono">{count}</b>
                   </Link>
                 ))}
               </div>
+              <details className="ws-determined"><summary>View details</summary><ClassificationGlossary /></details>
             </section>
           ) : null}
 

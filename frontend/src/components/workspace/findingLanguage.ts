@@ -144,6 +144,18 @@ export function userStatus(finding: Pick<Finding, "classification" | "evaluation
   return finding.classification === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW";
 }
 
+/** The three-word counts for a whole review — the Summary's tiles (AM-50 r4). */
+export function statusCounts(
+  findings: Array<Pick<Finding, "classification" | "evaluations" | "requires_decision">>,
+): { ACCEPTED: number; NEEDS_REVIEW: number; NOT_ACCEPTED: number; needsDecision: number } {
+  const out = { ACCEPTED: 0, NEEDS_REVIEW: 0, NOT_ACCEPTED: 0, needsDecision: 0 };
+  for (const f of findings) {
+    out[userStatus(f)] += 1;
+    if (f.requires_decision) out.needsDecision += 1;
+  }
+  return out;
+}
+
 /** The Constitution citation behind a NOT ACCEPTED, or null.
  *  ponytail: finding-level — the first cited evaluation colours the whole card
  *  and the citation renders under the lede. Findings carry one evaluation

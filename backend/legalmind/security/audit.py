@@ -75,6 +75,10 @@ CONTRACT_ARCHIVED = "contract.archived"
 CONTRACT_RESTORED = "contract.restored"
 # P-1 (2026-09-06): the owner DECLARES Draft / Active / Superseded (Step 2); trailed.
 CONTRACT_STATUS_CHANGED = "contract.status_changed"
+#: AM-50 (2026-09-09): the document type was recorded, and by whom — a human's
+#: explicit choice, or the assist lane's confident suggestion applied at intake.
+#: The `after` payload carries `source` so the trail says which.
+CONTRACT_TYPE_DECLARED = "contract.type_declared"
 # AB-13 r8 — a profile several people may edit is exactly what AUD-01 is for.
 COUNTERPARTY_CREATED = "counterparty.created"
 COUNTERPARTY_UPDATED = "counterparty.updated"

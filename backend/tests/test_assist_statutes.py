@@ -180,3 +180,21 @@ def test_a_section_number_with_no_space_after_the_dot_still_starts_a_section():
             "been broken, the party who suffers is entitled to receive compensation, in this equally "
             "synthetic paraphrase that binds nobody and is used only to exercise a parser.\n")
     assert [c.section_number for c in chunk_statute_text(text)] == ["72", "73"]
+
+
+def test_a_bare_act_name_question_finds_the_act(db, seeded):
+    """AM-50 r3: 'What is the DPDP Act?' is answered from that Act even when no
+    section repeats the question's words — the title match alone admits it."""
+    from legalmind.assist import statutes
+    if not statutes.available(db):
+        pytest.skip("no statute corpus in this database")
+    hits = statutes.search_statutes(db, query="What is the DPDP Act?",
+                                    permissions=frozenset({"assist.ask"}))
+    assert hits, "the alias expansion plus the title match must admit the Act"
+    assert all("Digital Personal Data Protection" in h.official_title for h in hits[:3])
+
+
+def test_alias_expansion_only_touches_known_short_names():
+    from legalmind.assist.statutes import expand_aliases
+    assert "digital personal data protection" in expand_aliases("what is the dpdp act")
+    assert expand_aliases("what does section 138 say") == "what does section 138 say"

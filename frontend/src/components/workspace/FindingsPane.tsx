@@ -180,6 +180,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const point = sideTabs?.findingsPoint ?? null;
   useEffect(() => {
     if (!point || point.seq === pointSeqDone.current) return;
+    if (point.status) {
+      pointSeqDone.current = point.seq;
+      setView({ status: point.status });
+      return;
+    }
     if (point.classification) {
       pointSeqDone.current = point.seq;
       setView({ classification: point.classification });
@@ -752,7 +757,9 @@ function EvaluationCard({
         * simply no longer the whole answer.
         */}
       <details className="ws-determined">
-        <summary>How this was determined</summary>
+        {/* A deliberate secondary action, not a section (owner, 2026-09-09):
+            the evidence and the audit chain for a legal or audit reader. */}
+        <summary>View details</summary>
         {/* The evidence first — verbatim passages and the location button that
             lights the passage in the document (rule 11). Off the face since the
             seventh pass (owner, 2026-09-08): the face answers four questions,

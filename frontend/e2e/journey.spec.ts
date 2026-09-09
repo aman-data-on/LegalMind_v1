@@ -45,7 +45,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // Create + upload + type suggestion run behind the file gesture; the select
   // re-enables when the confirm panel is ready. In e2e there is no generation
   // credential, so the suggestion honestly degrades and the human declares.
-  const typeSelect = page.getByLabel(/^Document type/);
+  const typeSelect = page.getByLabel(/^What kind of document/);
   await expect(typeSelect).toBeEnabled({ timeout: 30_000 });
   await typeSelect.selectOption("MSA");
   await page.getByRole("button", { name: "Confirm & Analyze" }).click();
@@ -113,7 +113,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // badges — the underlying fact is the same).
   await page.goto("/dashboard");
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
-  await expect(row.locator(".ws-status-pill")).toContainText("Needs Review");
+  await expect(row.locator(".ws-status-pill")).toContainText("Needs review");
   await expect(row.locator(".ws-findings-badge--review")).not.toHaveClass(/ws-findings-badge--zero/);
 });
 

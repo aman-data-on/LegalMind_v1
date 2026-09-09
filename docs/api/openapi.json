@@ -162,6 +162,21 @@
       ],
       "title": "Contract Type"
      },
+     "contract_type_source": {
+      "anyOf": [
+       {
+        "enum": [
+         "HUMAN",
+         "ASSIST_SUGGESTION"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Type Source"
+     },
      "counterparty_id": {
       "anyOf": [
        {

@@ -379,6 +379,13 @@
    clipped to the row instead of overlapping past it; see `.ws-doc__clauses`
    above for the clipping half of this fix. */
 @media (max-width: 1100px) { .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 45%) 1fr; } }
+/* AM-50 r5: the document is a fixed-width companion beside the findings, so its
+   own two-card split has to answer to the PANE's width, not the viewport's —
+   under ~900px of pane the contents card sits above the paper. */
+.ws-pane--document { container-type: inline-size; }
+@container (max-width: 900px) {
+  .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 32%) 1fr; }
+}
 /* `overflow: hidden` (2026-09-08, fourth pass) — found stacking the layout
    into the new fixed-width document panel: this column's two children
    (outline + legend) can together want more height than the grid row
@@ -982,6 +989,8 @@
 .ws-tile--match { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
 .ws-tile--review { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
 .ws-tile--missing { background: var(--ws-bad-soft); border-color: color-mix(in srgb, var(--ws-bad) 25%, transparent); color: var(--ws-bad); }
+.ws-tile--decision { background: var(--ws-decision-soft); border-color: color-mix(in srgb, var(--ws-decision) 25%, transparent); color: var(--ws-decision); }
+.ws-status--decision { color: var(--ws-decision); }
 .ws-tile .ws-tile__n { color: var(--ws-ink-900); }
 
 .ws-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--ws-ink-100); }
@@ -3049,12 +3058,16 @@
  * ========================================================================== */
 .ws-workspace--wide { grid-template-columns: minmax(0, 1fr); }
 .ws-workspace--wide .ws-pane--document { display: none; }
-.ws-workspace--wide[data-doc-open="true"] {
-  /* Document (first in the DOM) draws this wide track; the side card (second)
-     draws the fixed `var(--ws-side-w)` one that follows it. */
-  grid-template-columns: minmax(0, 1fr) var(--ws-side-w);
+/* AM-50 r5 (owner, 2026-09-09): findings keep the flexible column; the document
+   opens beside them at a readable fixed width the reader can drag wider or
+   narrower (native `resize`), never the other way round. */
+.ws-workspace--wide[data-doc-open="true"] { grid-template-columns: minmax(0, 1fr) auto; }
+.ws-workspace--wide[data-doc-open="true"] .ws-pane--document {
+  display: flex;
+  width: clamp(440px, 42vw, 760px);
+  min-width: 380px; max-width: 62vw;
+  resize: horizontal; overflow: hidden;
 }
-.ws-workspace--wide[data-doc-open="true"] .ws-pane--document { display: flex; }
 /* `.ws-doc`'s own clauses+viewer 2-column layout is UNCHANGED from before the
    fourth pass: it switches to stacked on the pre-existing `max-width: 1100px`
    viewport media query below (see `.ws-doc`'s own rule), which is once again
@@ -3095,7 +3108,7 @@
    comparison to cramp into "24 / months" in the third pass, so it stacks
    there instead — see the rail block below, restored from the third pass. */
 @media (min-width: 900px) {
-  .ws-workspace--wide:not([data-doc-open="true"]) .ws-facts--compare {
+  .ws-workspace--wide .ws-facts--compare {
     grid-template-columns: none; grid-auto-flow: column; grid-template-rows: auto auto;
     grid-auto-columns: minmax(150px, 1fr); align-items: start; column-gap: var(--ws-s5);
   }
@@ -3106,9 +3119,7 @@
    baseline once they stack into a column instead. Scoped to the CLOSED state
    only now, matching the rule above it. */
 @media (min-width: 900px) {
-  .ws-workspace--wide:not([data-doc-open="true"]) .ws-facts--compare dt {
-    margin-bottom: 2px;
-  }
+  .ws-workspace--wide .ws-facts--compare dt { margin-bottom: 2px; }
 }
 
 /* --- The comparison in the 380px rail (open state, restored) ------------- */
@@ -3119,12 +3130,7 @@
    column and wrong for a controlled-vocabulary token that must stay readable
    as one word. So in the rail the facts stack — label above value — and the
    value keeps its words whole, wrapping onto its own line instead. */
-.ws-workspace--wide[data-doc-open="true"] .ws-facts--compare {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
-}
-.ws-workspace--wide[data-doc-open="true"] .ws-facts--compare dt { margin-top: 4px; }
-.ws-workspace--wide[data-doc-open="true"] .ws-facts--compare dt:first-child { margin-top: 0; }
+/* (The stacked rail variant is gone with the rail — findings keep their width.) */
 .ws-facts--compare dd { overflow-wrap: normal; }
 .ws-side { flex-wrap: wrap; }
 /* A long token still has to fit SOMETHING: allowed to break only when it alone

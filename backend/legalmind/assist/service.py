@@ -446,22 +446,38 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                                 document_version_id=document_version_id, domains=domains,
                                 statute_hits=statute_hits)
 
-    if not retrieval.gate_open:
-        log_event("assist.ask.refused", request_id=request_id, cause="gate_closed",
-                  conversation_id=str(conversation_id))
-        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains,
-                                     AssistAnswerState.NO_EVIDENCE_RETRIEVED, request_id,
-                                     statute_hits=statute_hits, question=question)
-
     chunk_texts = [h.content for h in retrieval.hits]
-    if not guardrails.evidence_is_sufficient(chunk_texts):
-        # The model is NOT called at all — AM-29 r3's second outcome, verbatim.
-        log_event("assist.ask.refused", request_id=request_id, cause="insufficient",
+    if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
+        # The document does not answer. AM-50 r2: before refusing, the other
+        # authorized sources are consulted for a question the router did not
+        # already send to them — a general legal question over an NDA is asked of
+        # the statute corpus and the organization's positions, extractive and
+        # cited exactly as when the router chose them. The uploaded document is
+        # never a hard filter on what may be answered.
+        cause = "gate_closed" if not retrieval.gate_open else "insufficient"
+        state = (AssistAnswerState.NO_EVIDENCE_RETRIEVED if not retrieval.gate_open
+                 else AssistAnswerState.EVIDENCE_INSUFFICIENT)
+        fell_through: list[str] = []
+        if not statute_hits and not route.has(routing.Domain.STATUTES) \
+                and statutes.available(db):
+            statute_hits = statutes.search_statutes(db, query=question,
+                                                    permissions=permissions)
+            if statute_hits:
+                fell_through.append(routing.Domain.STATUTES.value)
+        if not position_hits and not route.has(routing.Domain.POSITIONS) \
+                and routing.positions_permitted(permissions):
+            position_hits = positions.search_positions(
+                db, query=question, permissions=permissions, limit=POSITION_LIMIT)
+            if position_hits:
+                fell_through.append(routing.Domain.POSITIONS.value)
+        if fell_through:
+            domains = (*domains, *fell_through)
+            log_event("assist.ask.fell_through", request_id=request_id,
+                      conversation_id=str(conversation_id), to=",".join(fell_through))
+        log_event("assist.ask.refused", request_id=request_id, cause=cause,
                   conversation_id=str(conversation_id))
         return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains,
-                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
+                                     position_hits, route, domains, state, request_id,
                                      statute_hits=statute_hits, question=question)
 
     try:

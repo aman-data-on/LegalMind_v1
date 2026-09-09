@@ -22,6 +22,10 @@ export async function chainAnalysis(
     const snapshot = snapshots.items[0];
     if (!snapshot) return;
     const detail = await api.contract(contractId);
+    // The evaluator refuses an undeclared type (Q9 / AM-34 / AM-50 — the type is
+    // the control that keeps a statute out of the evaluator). Creating a Review
+    // that can only fail helps nobody; the workspace says analysis needs a type.
+    if (!detail.contract_type) return;
     const versionId = detail.document_versions?.[0]?.id;
     if (!versionId) return;
     // A document still being processed (the deferred-OCR path) has no evidence

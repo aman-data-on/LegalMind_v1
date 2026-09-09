@@ -338,8 +338,21 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
     contract = guard.contract(contract_id, P.CONTRACT_UPDATE)
     if body.name is not None:
         contract.name = body.name
-    if body.contract_type is not None:
+    if body.contract_type is not None and body.contract_type != contract.contract_type:
+        # AM-50 (2026-09-09): the type is still recorded only through this
+        # ordinary update, and the trail now says WHO determined it — the reader,
+        # or the intake applying a confident suggestion. Analysis still refuses
+        # an undeclared type; nothing here changes what the evaluator does.
+        before_type = {"contract_type": contract.contract_type}
         contract.contract_type = body.contract_type
+        audit.record(
+            guard.db, action=audit.CONTRACT_TYPE_DECLARED,
+            entity_type="contract", entity_id=contract_id,
+            actor_id=guard.user_id, request_id=guard.request_id,
+            before=before_type,
+            after={"contract_type": body.contract_type,
+                   "source": body.contract_type_source or "HUMAN"},
+        )
     if body.status is not None and body.status != contract.status:
         # P-1 (2026-09-06): the lifecycle state is DECLARED by the owner — Step 2's
         # Draft / Active / Superseded — never inferred from a date or a version,

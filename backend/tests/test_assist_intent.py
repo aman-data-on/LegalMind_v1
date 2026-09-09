@@ -48,3 +48,12 @@ def test_a_comparison_question_is_detected(q):
 @pytest.mark.parametrize("q", DESCRIPTIVE)
 def test_a_descriptive_question_is_not(q):
     assert not is_comparison_question(q), q
+
+
+def test_follow_family_is_a_comparison_signal_but_follow_up_is_not():
+    """AM-50 r1: 'Does this NDA follow our standards?' is the evaluator's question."""
+    from legalmind.assist.intent import is_comparison_question
+    assert is_comparison_question("Does this NDA follow our standards?")
+    assert is_comparison_question("Does the contract adhere to our approved position?")
+    assert not is_comparison_question("What are our follow-up obligations under this contract?")
+    assert not is_comparison_question("Following our call, what does the NDA say about notice?")

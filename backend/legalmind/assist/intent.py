@@ -36,6 +36,8 @@ _WORD = re.compile(r"[a-z]+")
 # Stems, not words: prefix-matched against each normalized token.
 # Exact matches — a prefix would let "use" and "were" through.
 _ORG_PRONOUNS = frozenset({"our", "ours", "us", "we"})
+# Exact words, not stems: "follow-up" and "following our call" are not comparisons.
+_VERB_WORDS = frozenset({"follow", "follows", "adhere", "adheres", "honour", "honor"})
 _ORG_STEMS = ("compan", "approv", "standard", "position", "polic",
               "constitution", "baseline", "playbook", "template", "leapswitch", "cloudpe")
 _VERB_STEMS = ("compar", "against", "compl", "conform", "align", "meet", "meets",
@@ -64,6 +66,7 @@ def is_comparison_question(question: str) -> bool:
     org = _hits(tokens, _ORG_STEMS)
     org |= {i for i, t in enumerate(tokens) if t in _ORG_PRONOUNS}
     signal = _hits(tokens, _VERB_STEMS) | _hits(tokens, _NOUN_STEMS)
+    signal |= {i for i, t in enumerate(tokens) if t in _VERB_WORDS}
     # A signal token that is NOT itself an organization token is required: "our
     # approved position" is a position LOOKUP (Domain A), not a comparison, even
     # though "approved" is also a verb stem. "match our approved position" has one.

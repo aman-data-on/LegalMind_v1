@@ -522,7 +522,7 @@ export function documentStatusBucket(row: {
 export const STATUS_BUCKET_LABEL: Record<DocumentStatusBucket, string> = {
   draft: "Draft",
   analyzing: "Analyzing",
-  needs_attention: "Needs Review",
+  needs_attention: "Needs review",
   analyzed: "Analyzed",
 };
 

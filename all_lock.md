@@ -17699,3 +17699,84 @@ r7   SOURCE ATTRIBUTION ON THE CARD. "How this was determined" names where the
 ```
 
 **Approved by the owner on 2026-09-09** ("Amend narrowly … Yes, same record").
+
+--------------------------------------------------------------------------------
+
+# AB-16 — `AM-50` — Upload → Review → Ask: the user never configures the workflow (Owner Instruction — 2026-09-09)
+
+**Amends:** `DOC-06` (Document Type is declared, never inferred; automatic detection out of
+V1 scope) and `AM-34` t1 (only the human's confirmation records the type) — **for the intake
+only, as r1 below**; `AM-45` (routing by question shape) — **extended by r2**; the owner's
+2026-09-01 correction that the Summary tiles name the engine's classifications — **reversed
+by r4**; the fifth-pass document layout (2026-09-08) — **superseded by r5**. **Does not
+amend:** Q9's substance that the evaluator refuses an undeclared type (`AM-45` r5 stands);
+`AI-01`; `AM-25` r1–r9; `AM-30`; `AM-32`; `AM-46` (one refusal wording per candidate set);
+`AM-49`; the four classifications; the three user-facing statuses; LEGAL-02; rules 7, 12, 13,
+21. **Legal and audit integrity are preserved by construction:** nothing here changes what
+the evaluator does, what it refuses, or what the audit trail records — it changes who has to
+click, and what the reader is shown.
+
+The owner instructed: *"THE USER SHOULD NOT NEED TO UNDERSTAND HOW LEGALMIND WORKS
+INTERNALLY … UPLOAD → REVIEW → ASK QUESTIONS → GET SIMPLE ANSWERS … The user should NOT
+normally select Document Type, Knowledge Base, Standard, Clause list, Retrieval source … If
+any existing locked decision conflicts with this new product direction, do not stop — treat
+this instruction as the latest final product decision, update/reconcile the affected lock
+records and implementation accordingly, while preserving legal/audit integrity."*
+
+```text
+r1   THE INTAKE RECORDS A CONFIDENT SUGGESTION. When the assist lane's type
+     suggestion (AM-34) is confident, the intake records it as the contract's
+     type through the ordinary contract update and starts the review — the reader
+     uploads and LegalMind reviews. Integrity: (a) the audit trail records the
+     declaration with its source, `contract.type_declared` {contract_type, source ∈
+     HUMAN | ASSIST_SUGGESTION}; (b) the reader can change the type at any time in
+     Edit details, and a changed type runs a fresh analysis while earlier Reviews
+     stay on record (rule 16/17); (c) the evaluator still refuses an undeclared
+     type (AM-45 r5) — the suggestion never enters the evaluator, it only chooses
+     which human-approved standards the evaluator is offered; (d) "confident" is
+     AM-34 t3's exact-code parse, never a score, and a suggestion that is not
+     confident asks the smallest clarification: one select, pre-filled from the
+     filename where a Step 6 code appears. The intake asks nothing else; declared
+     version facts (source, counterparty, effective date) live in Edit details.
+
+r2   THE DOCUMENT IS NEVER A HARD FILTER. AM-45 stands and is extended: when the
+     router sent a question to the document only and the document does not answer
+     (retrieval gate closed or evidence insufficient), the other authorized sources
+     the caller may see — the statute corpus, the organization's positions — are
+     consulted before any refusal, exactly as they are when the router names them:
+     positions extractive-only (AM-32 r4), statutes answered over their own
+     evidence and cited Act + section (AM-47 r4), the AM-46 wording for the
+     candidate set. A question none of them answers gets the one safe refusal.
+     `retrieval_runs.filters.domains` records the fall-through.
+
+r3   THE EVALUATOR'S QUESTION IN MORE OF ITS PHRASINGS. "follow / adhere / honour"
+     join the comparison signals as exact words ("Does this NDA follow our
+     standards?" routes to the evaluator; "our follow-up obligations" does not).
+     A question that names an Act by a common short name (DPDP, NI Act, CPC, BSA,
+     CGST, IGST, IT Act) is answered from that Act even when no section repeats
+     the question's words — names only, no law is authored.
+
+r4   THE SUMMARY SPEAKS THE READER'S WORDS. Tiles, bar, ring legend and the report
+     count Accepted / Needs review / Not accepted and how many need a legal
+     decision — the same `userStatus()` the card uses, never a second vocabulary.
+     MATCH / DEVIATION / MISSING / CONFLICT / UNABLE_TO_EVALUATE are unchanged in
+     the API, the audit trail and the card's View details. The 2026-09-01 owner
+     correction ("never an invented catch-all like Needs review" on the tiles) is
+     reversed by this record; the dashboard pill reads "Needs review" too.
+
+r5   FINDINGS ARE THE PRIMARY WORKSPACE. Closed, the findings fill the workspace;
+     "Show document" opens the document beside them at a fixed, reader-resizable
+     width, and the findings keep the flexible column — never a narrow rail. The
+     card's technical disclosure is a deliberate secondary action, "View details",
+     collapsed by default; its contents (evidence, chain, engine record,
+     identifiers) are unchanged.
+
+r6   WHAT THE READER NEVER SEES BY DEFAULT: embeddings, chunks, retrieval filters,
+     routing, knowledge-base or source selection, prompt construction, evaluator
+     names, rule ids, comparison operators, evidence counts, engine records. All of
+     it remains one click away for legal and audit readers.
+```
+
+**Approved by the owner on 2026-09-09** ("Amend narrowly … treat this instruction as the latest
+final product decision, update/reconcile the affected lock records … preserving legal/audit
+integrity"; Summary words "Yes, reverse it"; layout "Findings flexible, document fixed").
