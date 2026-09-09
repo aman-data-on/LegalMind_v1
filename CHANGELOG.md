@@ -30,6 +30,29 @@ NOT migrated; nothing deployed. See `AM-55` in `all_lock.md`.
 
 ### Added — Grounded semantic recognition in the authoritative lane (`AM-54`, 2026-09-09)
 
+**Proof, appended the same day (`AM-54` r9–r13).** A labelled corpus —
+`backend/tests/test_rd_semantic_corpus.py`, 104 drafting variants for 19 standards across
+MSA, TOS and NDA and every finding type (synonyms, reordered sentences, equivalent unit
+expressions, cross-references, table rows, sub-clauses, contextual wording, genuine
+differences, 38 hard negatives sharing the vocabulary) — run live against the pinned
+model, each variant twice (semantic; lexical-only). Result: 66/66 positives recognised;
+47 correct classifications, 15 fail-safe to Needs review (configured basis or unit
+terminology absent from the paraphrase — a configuration limit, not recognition), 0
+wrong; 0 semantic false positives (1 lexical, pre-existing); 37 results recovered over the
+lexical baseline; 0 correct results changed. The first run exposed three defects, all
+fixed before the record: two adjacent clauses of a different position were confirmed
+(now a confirmation also requires the model to say the clause states the SAME kind of
+position as the approved wording); a semantically mapped clause with no readable quantity
+fell to MISSING (now UNKNOWN → Needs review: semantic mapping never establishes absence);
+and the `AM-52` heading guard swallowed table rows (a line with a pipe or a digit outside
+its section number is not a heading). Recall floor lowered to 0.30 after a paraphrased
+disclaimer measured 0.305. Live in production the stage will use the existing generation
+credential the API service already loads; analysis runs inline in the API process, so no
+worker change is needed. *Coordination note:* another session's `AM-55` record (a real
+DELETE beside Archive) landed in `all_lock.md` between the two `AM-54` records; both are
+pure appends and neither touches the other.
+
+
 Owner instruction: the deterministic architecture is not a requirement for exact-word
 matching. New `backend/legalmind/analysis/semantic.py`, wired into the analysis service.
 **Stage 1 (mapping):** where configured terminology confirms nothing for a Requirement of

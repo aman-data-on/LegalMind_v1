@@ -424,3 +424,20 @@ def test_dict_units_are_read_from_the_extraction_block():
         }
     })
     assert config.units == {"DAYS": ("calendar days", "days")}
+
+
+def test_a_table_row_or_a_short_line_stating_a_quantity_is_not_a_heading():
+    """AM-54 live corpus: "CAP | 12 months of fees" and "Cure period: 30 days" were
+    swallowed by the heading guard and produced evidence-free MISSINGs. A row or a
+    line that states a quantity is a position; only the section number may carry
+    digits."""
+    from legalmind.extraction.liability import _looks_like_heading
+    assert _looks_like_heading("3. Limitation of Liability")
+    assert _looks_like_heading("ARTICLE IX — LIABILITY")
+    assert not _looks_like_heading("LIABILITY CAP | total fees paid in the 12 months preceding the claim")
+    assert not _looks_like_heading("Cure period: 30 days after receipt of written notice")
+    assert not _looks_like_heading("CONFIDENTIALITY SURVIVAL | 3 (three) years after termination")
+    # …and such a row keeps its evidence as an ABSENT cap when no cap phrase is configured for it.
+    facts = extract_liability_facts(
+        [clause("LIABILITY CEILING | fees paid in the 12 months preceding the claim")], CONFIG)
+    assert facts.caps and facts.caps[0].evidence_refs

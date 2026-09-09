@@ -67,8 +67,14 @@ _HEADING_MAX_CHARS = 80
 
 def _looks_like_heading(text: str) -> bool:
     stripped = (text or "").strip()
+    # A table row ("CAP | 12 months of fees") or a short line stating a quantity
+    # ("Cure period: 30 days") is a position, not a heading — AM-54's live corpus
+    # showed the guard swallowing both and minting evidence-free MISSINGs. Only
+    # the section number itself may carry digits ("3. Limitation of Liability").
+    body = re.sub(r"^\d+(?:\.\d+)*\.?\s*", "", stripped)
     return ("\n" not in stripped and len(stripped) < _HEADING_MAX_CHARS
-            and not stripped.endswith((".", ";", ")")))
+            and not stripped.endswith((".", ";", ")"))
+            and "|" not in body and not re.search(r"\d", body))
 
 
 @dataclass(frozen=True)

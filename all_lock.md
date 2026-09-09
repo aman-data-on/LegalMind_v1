@@ -18239,3 +18239,62 @@ r5  `test_the_locked_schema_has_no_delete_path_for_a_document_version` — the p
     in `test_contract_archive.py`, not a boundary refusal).
 
 Live DB NOT migrated as of this record; nothing deployed.
+
+--------------------------------------------------------------------------------
+
+# `AM-54` — correction appended after the live labelled-corpus evaluation (2026-09-09, same day)
+
+**Amends:** `AM-54` r2, r3 and r8 as recorded above — tightened, never loosened. Every
+prior line stands as written; this record states what the evaluation changed.
+
+```text
+r9   TWO CLAIMS, NOT ONE. A stage-1 confirmation now needs the model to answer
+     BOTH that the clause addresses the Requirement's subject AND that it states
+     the SAME kind of position as the approved wording (numbers and periods may
+     differ) — plus the verbatim span. The first corpus run confirmed two
+     adjacent clauses of a DIFFERENT position: a warranty GIVEN was read as the
+     warranty disclaimer, a carve-out from the liability limit as the exclusion
+     of consequential damages. A "DIFFERENT" or "UNCLEAR" position leaves the
+     mapping UNRESOLVED — a person looks. Second and third runs: 0 semantic
+     false positives on 38 hard negatives.
+
+r10  SEMANTIC MAPPING NEVER ESTABLISHES ABSENCE. Where no configured word
+     confirmed the clause and the model did, a quantity the text then fails to
+     yield is UNCERTAINTY (UNKNOWN → Needs review), never an ABSENT cap (MISSING).
+     Absence is asserted only where configured terminology confirmed the clause,
+     deterministically, exactly as before. Found when a late-fee table row was
+     recognised and then recorded MISSING.
+
+r11  A TABLE ROW IS NOT A HEADING. `AM-52` r3's heading guard swallowed
+     "LIABILITY CAP | 12 months of total fees" and "CONFIDENTIALITY SURVIVAL |
+     3 (three) years after termination" as headings, minting evidence-free
+     MISSINGs on both engines. A line carrying a pipe or a digit outside its
+     section number is a position and keeps its evidence.
+
+r12  THE RECALL FLOOR IS 0.30. A paraphrased disclaimer ("We do not promise that
+     anything you access … will be accurate") measured 0.305 against its
+     approved wording and was never shortlisted. Cost is unchanged: one call per
+     in-family Requirement the words did not confirm.
+
+r13  THE LABELLED CORPUS IS THE ACCEPTANCE RECORD. `tests/test_rd_semantic_corpus.py`
+     — 104 variants for 19 standards across MSA, TOS and NDA and every finding
+     type (presence and numeric): synonyms, reordered sentences, equivalent unit
+     expressions, cross-references, table rows, sub-clauses, contextual wording,
+     genuine differences, and 38 hard negatives sharing the vocabulary. Run live
+     against the pinned model, each variant twice (semantic; lexical-only):
+
+       recognition          66/66 positives confirmed
+       classification       47 correct · 15 fail-safe (Needs review) · 0 wrong
+       negatives            0 semantic false positives · 1 lexical (pre-existing:
+                            a force-majeure DEFINITION carries the alias and the
+                            heading term) · 5 fail-safe · 32 correctly unmapped
+       lexical baseline     10 correct → 37 recovered by the semantic stage
+       changed-a-correct-result   0
+
+     The 15 fail-safes are configuration, not recognition: the clause was found
+     and its quantity read, but the Company Standard's basis phrases ("cured",
+     "late fee", "terminated") or phrase-shaped unit terms ("days after receipt
+     of written notice") were absent from the paraphrase, so 45B.4 sent the
+     comparison to a person. Widening that terminology is the owner's
+     configuration decision (35.4), not an engine change.
+```

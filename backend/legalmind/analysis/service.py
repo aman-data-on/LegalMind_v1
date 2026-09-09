@@ -72,7 +72,7 @@ from legalmind.mapping.engine import Clause, MappingResult, map_requirement
 from legalmind.mapping.scoring import score_clause
 from legalmind.analysis import semantic
 from legalmind.assist import generation
-from legalmind.extraction.liability import ABSENT, prune_absent
+from legalmind.extraction.liability import ABSENT, UNKNOWN, prune_absent
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
@@ -609,6 +609,13 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     # is the same deterministic one. No model → the configured reading stands.
     if egress is not None and any(c.cap_status == ABSENT for c in facts.caps):
         by_id = {c.evidence_id: c for c in mapped}
+        # A mapping the configured words never confirmed (semantic only): the
+        # clause was judged to address the requirement, so a quantity the text
+        # does not yield is UNCERTAINTY, never established absence — UNKNOWN,
+        # and a person looks. Absence is asserted only where configured
+        # terminology confirmed the clause (deterministic, as before).
+        semantic_only = any("confirmed on a verbatim span" in line
+                            for line in mapping.explanation)
         diagnostics: list[str] = []
         caps = []
         for cap in facts.caps:
@@ -616,6 +623,11 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
             if cap.cap_status == ABSENT and clause is not None:
                 read = semantic.extract_cap(clause, config, egress, diagnostics,
                                             description=rv.description or "")
+                if read is None and semantic_only:
+                    diagnostics.append(
+                        "semantic extraction: no quantity read from a semantically "
+                        "mapped clause; recorded UNKNOWN rather than absence (AM-54)")
+                    read = replace(cap, cap_status=UNKNOWN)
                 caps.append(read if read is not None else cap)
             else:
                 caps.append(cap)

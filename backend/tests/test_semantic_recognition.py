@@ -62,8 +62,9 @@ def _refuse(monkeypatch, calls: list[str]):
     monkeypatch.setattr(generation, "generate_raw", fake)
 
 
-def _yes(span: str) -> str:
-    return json.dumps({"verdicts": [{"clause": 1, "addresses": "YES", "span": span}]})
+def _yes(span: str, position: str = "SAME") -> str:
+    return json.dumps({"verdicts": [{"clause": 1, "addresses": "YES",
+                                     "position": position, "span": span}]})
 
 
 def _residuals(build, description=RESIDUALS_DESCRIPTION):
@@ -104,6 +105,17 @@ def test_an_unverifiable_yes_leaves_the_mapping_unresolved(build, db, monkeypatc
     assert outcome.mapping_state == "UNRESOLVED"
     assert outcome.classification == "UNABLE_TO_EVALUATE"
     assert by_finding(db, [review.id])[review.id][outcome.finding_id] == "NEEDS_REVIEW"
+
+
+# 2b — a clause ON the subject that states a DIFFERENT position is a person's call
+def test_a_different_position_on_the_subject_is_never_confirmed(build, db, monkeypatch):
+    _residuals(build)
+    review = build.review(["11. Confidential Information — Use", PARAPHRASES[0]])
+    _fake(monkeypatch, [_yes(PARAPHRASES[0][:80], position="DIFFERENT")], [])
+    run = run_analysis(db, review)
+    assert run.outcomes[0].mapping_state == "UNRESOLVED"
+    assert run.outcomes[0].classification == "UNABLE_TO_EVALUATE"
+    assert any("different position" in d for d in run.outcomes[0].diagnostics)
 
 
 # 3 — no model reached: no semantic evidence either way, so the deterministic
@@ -228,12 +240,27 @@ def test_an_unlimited_claim_is_never_taken_from_the_model(build, db, monkeypatch
 
 
 def test_no_cap_stated_keeps_the_absence_with_its_evidence(build, db, monkeypatch):
+    """Lexically confirmed clause (the heading term maps it), no quantity: absence
+    is the deterministic, established answer — as before AM-54."""
     _liability(build)
     review = build.review(["3. Limitation of Liability",
                            "Neither party is liable for indirect or consequential loss."])
     _fake(monkeypatch, [_cap_reply(None, None, "", states_cap=False)], [])
     run = run_analysis(db, review)
     assert run.outcomes[0].classification == "MISSING"
+
+
+def test_a_semantically_mapped_clause_with_no_readable_quantity_needs_review(build, db, monkeypatch):
+    """No configured word confirmed this clause; the model did. A quantity the text
+    then does not yield is uncertainty, never absence: Needs review, not MISSING."""
+    _liability(build)
+    clause = ("Cap on Damages. The most either side can be made to pay the other under "
+              "this contract is one year of total fees paid.")
+    review = build.review(["9. Cap on Damages", clause])
+    _fake(monkeypatch, [_yes(clause[:70]), _cap_reply(None, None, "", states_cap=False)], [])
+    run = run_analysis(db, review)
+    assert run.outcomes[0].mapping_state == "CONFIRMED"
+    assert run.outcomes[0].classification == "UNABLE_TO_EVALUATE"
 
 
 # 8 — the pure mechanics, without a document
@@ -244,6 +271,7 @@ def test_a_verbatim_span_must_be_long_enough_and_present():
 
 
 def test_fenced_or_broken_json_is_tolerated_as_unclear():
-    assert semantic._parse_verdicts('```json\n{"verdicts":[{"clause":1,"addresses":"yes","span":"x"}]}\n```', 1) == {1: ("YES", "x")}
+    assert semantic._parse_verdicts('```json\n{"verdicts":[{"clause":1,"addresses":"yes","position":"same","span":"x"}]}\n```', 1) == {1: ("YES", "SAME", "x")}
+    assert semantic._parse_verdicts('{"verdicts":[{"clause":1,"addresses":"YES","span":"x"}]}', 1) == {1: ("YES", "UNCLEAR", "x")}
     assert semantic._parse_verdicts("not json", 1) == {}
     assert semantic._parse_verdicts('{"verdicts":[{"clause":7,"addresses":"YES","span":"x"}]}', 1) == {}
