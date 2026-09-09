@@ -32,7 +32,7 @@ Three fail-closed paths are worth naming because they look like errors and are n
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -69,6 +69,10 @@ from legalmind.extraction.liability import (
     extract_liability_facts,
 )
 from legalmind.mapping.engine import Clause, MappingResult, map_requirement
+from legalmind.mapping.scoring import score_clause
+from legalmind.analysis import semantic
+from legalmind.assist import generation
+from legalmind.extraction.liability import ABSENT, prune_absent
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
@@ -231,7 +235,23 @@ def run_analysis(db: DBSession, review: M.Review, *,
             + ", ".join(sorted(untyped)),
             "snapshot_standard_untyped")
 
-    mappings = {item.requirement.code: _map_item(item, clauses) for item in items}
+    # ---- Grounded semantic recognition — AM-54 (owner, 2026-09-09) --------------
+    # One embedding pass over the clauses and the requirements' approved wording;
+    # the generative model is consulted only where configured terminology
+    # confirmed nothing, through the single egress seam, with every call hashed
+    # into the audit trail (AM-30 t5). Absent model → lexical only, recorded.
+    index = semantic.build_index(clauses, {
+        item.requirement_version.id: semantic.anchor_text(
+            item.requirement_version.description, item.mapping_rules.rules)
+        for item in items})
+    egress = _egress_for(db, review, actor_id=actor_id, request_id=request_id)
+    if index is None:
+        log_event("analysis.semantic.unavailable", request_id=request_id,
+                  review_id=str(review.id))
+
+    mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
+                                                 declared_type=document_type)
+                for item in items}
     items, families = applicable_by_content(items, mappings, document_type)
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
     # state what was pinned, not what applied.
@@ -244,7 +264,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
         for item in items:
             run.outcomes.append(
                 _analyse_requirement(db, review, item, clauses,
-                                     mapping=mappings[item.requirement.code]))
+                                     mapping=mappings[item.requirement.code],
+                                     egress=egress))
         stage["findings_created"] = run.findings_created
 
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
@@ -334,17 +355,72 @@ class _SnapshotItem:
     legal_rule: M.LegalRuleVersion | None
 
 
-def _map_item(item: _SnapshotItem, clauses: list[Clause]) -> MappingResult | str:
+def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
+                request_id: str | None) -> semantic.Egress:
+    """The analysis run's one door to the generative model: the single seam
+    (AM-30 t1), the environment gate, and a hash-only audit row per call."""
+    from legalmind import config
+
+    def egress(prompt: str, prompt_version: str):
+        try:
+            result = generation.generate_raw(
+                prompt, prompt_version=prompt_version,
+                environment=config.environment(), request_id=request_id,
+                max_output_tokens=400)
+        except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
+            log_event("analysis.semantic.no_model", request_id=request_id,
+                      review_id=str(review.id), cause=type(exc).__name__)
+            return None
+        A.record(db, action=A.ASSIST_GENERATION_CALLED, entity_type="review",
+                 entity_id=review.id, actor_id=actor_id, request_id=request_id,
+                 after={"purpose": prompt_version, "model": result.model,
+                        "payload_sha256": result.payload_sha256})
+        return result
+    return egress
+
+
+def _map_item(item: _SnapshotItem, clauses: list[Clause],
+              index: semantic.SemanticIndex | None = None,
+              egress: semantic.Egress | None = None,
+              declared_type: str | None = None) -> MappingResult | str:
     """Map one Requirement (Steps 28, 35), or return the misconfiguration message.
 
     D-1 defence in depth: publish already refuses unusable rules, so a message
     here means a snapshot predates the check — still a failure, never a guess.
+
+    AM-54: when configured terminology confirms nothing, the semantic stage
+    shortlists the clauses closest in meaning to the approved wording and has
+    each adjudicated on a verbatim span. Its signals then go through the SAME
+    threshold as a configured phrase. Lexical confirmation is never widened
+    semantically — the stage only speaks where the words were silent — and it
+    speaks only INSIDE the document's declared family: that is where an absent
+    clause would otherwise be asserted MISSING (the false-MISSING this exists to
+    prevent), and live R&D showed every cross-family semantic confirmation to
+    be a topically adjacent clause of a different family (a confidentiality
+    return clause read as data export). Applicability across families stays
+    lexical (AM-51).
     """
     try:
         rules = MappingRules.from_config(item.mapping_rules.rules)
     except MappingMisconfigured as exc:
         return f"mapping configuration unusable: {exc}"
-    return map_requirement(item.requirement_version.id, rules, clauses)
+    lexical = map_requirement(item.requirement_version.id, rules, clauses)
+    if (index is None or egress is None or lexical.state is MappingState.CONFIRMED
+            or declared_type is None or _standard_type(item) != declared_type):
+        return lexical
+    # 35.5 still vetoes: a clause carrying a configured negative pattern (a
+    # negative lexical score) is never offered for semantic confirmation.
+    shortlist = [(c, sim) for c, sim in index.shortlist(item.requirement_version.id, clauses)
+                 if score_clause(rules, content=c.content, section_title=c.section_title).score >= 0]
+    if not shortlist:
+        return lexical
+    terms = ", ".join([*rules.aliases, *rules.exact_phrases, *rules.section_heading_terms])
+    signals, diagnostics = semantic.adjudicate(
+        item.requirement_version.description or "", terms, shortlist,
+        rules.confirm_threshold, egress)
+    result = map_requirement(item.requirement_version.id, rules, clauses,
+                             extra_signals=signals)
+    return replace(result, explanation=result.explanation + tuple(diagnostics))
 
 
 def _standard_type(item: _SnapshotItem) -> str | None:
@@ -399,7 +475,8 @@ def applicable_by_content(items: list[_SnapshotItem],
 
 def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          clauses: list[Clause], *,
-                         mapping: MappingResult | str) -> RequirementOutcome:
+                         mapping: MappingResult | str,
+                         egress: semantic.Egress | None = None) -> RequirementOutcome:
     rv = item.requirement_version
     outcome = RequirementOutcome(
         requirement_code=item.requirement.code,
@@ -416,6 +493,9 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         outcome.failure = mapping
         return outcome
     outcome.mapping_state = mapping.state.value
+    # AM-54 — the semantic stage's record travels with the evaluation (REC-07).
+    outcome.diagnostics.extend(line for line in mapping.explanation
+                               if line.startswith("semantic mapping:"))
 
     evidence = tuple(EvidenceRef(evidence_id=eid) for eid in mapping.evidence_ids)
 
@@ -447,7 +527,8 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         # D-2 — supplied for BOTH evaluator types so the Mapping State is recorded
         # on every Evaluation, not only on presence ones.
         mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence),
-        facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome),
+        facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
+                         egress=egress),
         legal_rule=legal_rule,
     )
 
@@ -487,7 +568,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
 
 def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                mapping: MappingResult, clauses: list[Clause],
-               outcome: RequirementOutcome):
+               outcome: RequirementOutcome, egress: semantic.Egress | None = None):
     """Requirement-specific fact extraction — locked 44.11.
 
     `PRESENCE` takes no facts at all: presence is established by the mapping layer
@@ -516,11 +597,30 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     if not mapped:
         return None
 
-    facts = extract_liability_facts(
-        mapped, LiabilityExtractionConfig.from_config(standard_configuration))
+    config = LiabilityExtractionConfig.from_config(standard_configuration)
+    facts = extract_liability_facts(mapped, config)
     # REC-07 — extraction diagnostics travel with the evaluation for auditability.
     # They are diagnostic metadata only and cannot alter a legal finding.
     outcome.diagnostics.extend(facts.extraction_diagnostics)
+
+    # AM-54 stage 2 — a mapped clause the configured phrases could not read is
+    # offered to the model ONCE, and only a magnitude written in the clause is
+    # accepted (semantic.extract_cap verifies it); the comparison that follows
+    # is the same deterministic one. No model → the configured reading stands.
+    if egress is not None and any(c.cap_status == ABSENT for c in facts.caps):
+        by_id = {c.evidence_id: c for c in mapped}
+        diagnostics: list[str] = []
+        caps = []
+        for cap in facts.caps:
+            clause = by_id.get(cap.evidence_refs[0]) if cap.evidence_refs else None
+            if cap.cap_status == ABSENT and clause is not None:
+                read = semantic.extract_cap(clause, config, egress, diagnostics,
+                                            description=rv.description or "")
+                caps.append(read if read is not None else cap)
+            else:
+                caps.append(cap)
+        outcome.diagnostics.extend(diagnostics)
+        facts = replace(facts, caps=prune_absent(caps))
     return facts
 
 

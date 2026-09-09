@@ -18069,3 +18069,118 @@ r7   WORDING IS NOT DEVIATION. The authoritative lane already reads the number,
 **Approved by the owner on 2026-09-09** ("This is the FINAL product decision. Do not reopen
 the status-model discussion. Implement it, test it, visually verify it, fix issues, and
 retest.").
+
+--------------------------------------------------------------------------------
+
+# `AM-54` — Grounded semantic recognition in the authoritative lane: meaning is recognised, classification stays deterministic (Owner Instruction — 2026-09-09)
+
+**Amends:** `AI-01` and Step 35's `35.1`/`35.2` ("no LLM, RAG, vector database or semantic
+AI" in the authoritative analysis path) and `AM-25` r2's boundary — for the RECOGNITION step
+only: which clause addresses which Requirement, and what quantity a mapped clause states.
+Amends rule 9's determinism claim to the form stated in r6. **Does not amend:** the four
+classifications, the four Rule Outcomes, the comparison semantics (`44.29`, `45B.4`, `45C.*`),
+rule 15, `35.4` (terminology stays configuration — no synonym list was added anywhere),
+`35.5` (negative patterns still veto), `35.18`/`35.19` (every confirmation carries its
+explanation; no opaque score is ever the basis of a conclusion), `AM-30` t1–t10 (one egress
+seam, hash-only audit, no company position in any payload), `AM-51`, `AM-53`, rules 7, 12, 13,
+21.
+
+The owner instructed: *"Do not interpret the existing deterministic architecture as a
+requirement for exact-word or phrase matching. LegalMind must be semantically intelligent.
+Preserve deterministic backend authority for the final legal classification, but introduce
+grounded semantic understanding where needed … The LLM/RAG may help identify semantic
+equivalence and retrieve relevant standards, but it must never invent legal meaning or
+override the approved Company Position/rules. If semantic equivalence cannot be established
+with sufficient grounded evidence, fail safely to Needs Review rather than guessing. R&D and
+test this against materially different drafting styles before considering this capability
+complete."*
+
+```text
+r1   WHERE MEANING ENTERS, AND WHERE IT STOPS. `analysis/semantic.py` runs after
+     the lexical mapper and before the evaluator, in two stages. Stage 1 (mapping):
+     when configured terminology confirmed nothing for an IN-FAMILY Requirement,
+     the local embedding model (AM-26, all-MiniLM-L6-v2, self-hosted) shortlists
+     the clauses closest to the Requirement's approved wording (the ratified
+     description plus its mapping terminology — nothing authored), and the
+     generative model is asked ONE question per clause: does it address the
+     Requirement's subject? Stage 2 (facts): when a mapped clause states no
+     configured cap phrase, the model is asked whether the clause states the
+     quantity the Requirement is about and what it is, as written. Nothing after
+     that changed: the comparison, the classification and the Rule Outcome are the
+     deterministic evaluators' alone, and the model is never asked whether anything
+     is acceptable.
+
+r2   NOTHING IS ACCEPTED WITHOUT VERBATIM TEXT. A stage-1 YES counts only with a
+     span copied verbatim from the clause (≥ 20 characters); it then scores the
+     confirm threshold — the same threshold, the same explanation trail, as one
+     configured exact phrase. A stage-2 value counts only when the span is
+     verbatim and CONTAINS the value (digits or number word) together with a
+     CONFIGURED unit term; the basis is still read only from configured basis
+     phrases (45B.4 — bases are never assumed equivalent, so "12 months of fees"
+     with no recognised basis fails closed to a person); a clause carrying a
+     configured composite phrase ("greater of") is never reduced to one limb;
+     an "unlimited" claim is never taken from the model. Verified live: 69/69
+     near-topic non-matches answered NO; an instruction planted in a clause was
+     answered "no cap"; the multi-limb formula and the unconfigured unit
+     ("one year's fees") both fell to UNKNOWN.
+
+r3   UNCERTAINTY GOES TO A PERSON, NEVER TO A NUMBER OR AN ABSENCE. UNCLEAR, a YES
+     without a verifiable span, or an unverifiable quantity → the mapping is
+     UNRESOLVED or the cap UNKNOWN → UNABLE_TO_EVALUATE → Needs review. A NO is an
+     adjudicated non-match, so the lexical result (MISSING inside the family)
+     stands. No model reached → no semantic evidence either way: the lexical
+     result stands untouched and the gap is recorded — a bare similarity score
+     moves nothing in either direction (35.19).
+
+r4   ONLY INSIDE THE DECLARED FAMILY. Semantic recognition widens recall where an
+     absent clause would otherwise be asserted MISSING; it never widens
+     applicability across families, which stays lexical (AM-51). Live R&D showed
+     every cross-family semantic confirmation to be a topically adjacent clause of
+     a different family (a confidentiality return clause read as a data-export
+     window) — so the stage is silent for out-of-family Requirements and for an
+     untyped document. A configured negative pattern (35.5) vetoes a clause before
+     the model sees it: `LIABILITY-*-001` gained "service credit(s)", the owner's
+     L-13 ruling (2026-08-20) stated as terminology.
+
+r5   NUMBER WORDS ARE NUMERALS. "six months", "twenty-four months", "thirty (30)
+     days" and "30 (thirty) days" read as the quantity they state, in the
+     deterministic extractor, with no model involved. A numeral is not legal
+     terminology (35.4 untouched); GUESSING a number the text does not state is
+     still forbidden (44.24 untouched).
+
+r6   DETERMINISM, RESTATED HONESTLY. Same recognised facts + same configuration
+     snapshot + same engine version → same classification, always. Recognition
+     itself is model-dependent: the embedding model is pinned and local, the
+     generative model is pinned (AM-30 t7) at temperature 0, and the SAME clause
+     may still be adjudicated differently across runs (observed once in 30 live
+     cases). Every recognition therefore records the model identity, the prompt
+     version, the payload hash and the verbatim span with the Evaluation
+     (REC-07), and a Review's persisted Findings remain reproducible from what was
+     recorded. The assist lane's "no determinism claim" (AM-28) now also describes
+     this recognition step; the evaluators keep the full claim.
+
+r7   ONE SEAM, HASH-ONLY AUDIT, NO POSITION IN THE PAYLOAD. Every call goes through
+     `generation.generate_raw` (AM-30 t1) under the environment gate, is written to
+     the audit trail as ASSIST_GENERATION_CALLED with purpose, model and payload
+     sha256 (AM-30 t5), and carries clause text, the approved description and
+     configured unit/basis TERMS — never a preferred value, a rule, an outcome or
+     a threshold (AM-30 t3, screened by `_forbidden_payload_check`). ABSENT caps
+     beside a stated cap of the same scope are dropped (an exclusions clause is
+     not a contradicting position — 45C.2 is about incompatible positions), which
+     also makes any over-mapping harmless to a clean cap.
+
+r8   CALIBRATION IS RECORDED, NOT ASSUMED. Measured 2026-09-09 over the 12 supplied
+     documents (25,812 clause/anchor pairs): lexically-confirmed pairs median
+     cosine 0.60, p10 0.35; paraphrases of the same clause 0.43–0.48; unrelated
+     clauses 0.05–0.30. The shortlist floor is a RECALL floor at the p10 (0.35),
+     five clauses per Requirement; cost is one call per in-family Requirement the
+     words did not confirm (measured 1–15 calls per document). Three materially
+     different drafting styles of five MSA positions (formal-numbered,
+     plain-language, table-style): 14 of 15 recognised on a verbatim span, 1 left
+     UNRESOLVED (Needs review), 0 false confirmations; quantities read: 12
+     months, 90 days; unrecognised bases and unconfigured units fell to a person.
+```
+
+**Approved by the owner on 2026-09-09** ("LegalMind must be semantically intelligent … If
+semantic equivalence cannot be established with sufficient grounded evidence, fail safely to
+Needs Review rather than guessing.").

@@ -148,13 +148,21 @@ def test_a_composite_formula_is_never_reduced_to_one_readable_limb():
     assert facts.caps[0].cap_status == FINITE
 
 
-def test_word_only_magnitudes_stay_unrecognised():
-    """The convention above changes nothing for digitless text: "six months"
-    still yields UNKNOWN, never a value (44.24)."""
+def test_word_only_magnitudes_are_read_as_numerals():
+    """AM-54 (owner, 2026-09-09): "six months" states the same quantity as
+    "6 months". A number word is a numeral, not terminology — reading it is
+    arithmetic, and 44.24's rule against GUESSING a number is untouched: the
+    number is written."""
     facts = extract_liability_facts(
         [clause("Liability shall not exceed six months of fees paid.")], CONFIG)
-    assert facts.caps[0].cap_status == UNKNOWN
-    assert facts.caps[0].cap_value is None
+    assert facts.caps[0].cap_status == FINITE
+    assert facts.caps[0].cap_value == 6.0
+    for text, value in [("twenty-four months", 24.0), ("twenty four months", 24.0),
+                        ("thirty (30) days", 30.0), ("30 (thirty) days", 30.0),
+                        ("ninety days", 90.0)]:
+        facts = extract_liability_facts(
+            [clause(f"Liability shall not exceed {text} of fees paid.")], CONFIG)
+        assert (facts.caps[0].cap_status, facts.caps[0].cap_value) == (FINITE, value), text
 
 
 # =====================================================================
@@ -217,11 +225,10 @@ def test_one_clause_may_state_several_carveouts():
 # 44.24 / 45B.7 — uncertainty is recorded, never resolved
 # =====================================================================
 def test_cap_language_without_a_recognisable_magnitude_is_unknown():
-    """Locked 44.24 — deterministic uncertainty. A number must never be guessed,
-    and "six" is not interpreted because word-number vocabulary would be
-    terminology the engine invented (35.4, 44.29)."""
+    """Locked 44.24 — deterministic uncertainty. A number must never be guessed:
+    cap language with no magnitude in a configured unit stays UNKNOWN."""
     facts = extract_liability_facts(
-        [clause("Liability shall not exceed six months.", number="11.2")], CONFIG)
+        [clause("Liability shall not exceed a reasonable amount.", number="11.2")], CONFIG)
 
     assert facts.caps[0].cap_status == UNKNOWN
     assert facts.caps[0].cap_value is None

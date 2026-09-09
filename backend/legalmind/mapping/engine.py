@@ -77,7 +77,7 @@ from uuid import UUID
 
 from legalmind.domain.enums import MappingState
 from legalmind.mapping.rules import MappingRules
-from legalmind.mapping.scoring import CandidateScore, score_clause
+from legalmind.mapping.scoring import CandidateScore, Signal, score_clause
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,7 @@ def map_requirement(
     requirement_version_id: UUID,
     rules: MappingRules,
     clauses: list[Clause],
+    extra_signals: dict[UUID, tuple[Signal, ...]] | None = None,
 ) -> MappingResult:
     """Map one Requirement against a document's clauses.
 
@@ -138,9 +139,13 @@ def map_requirement(
     Locked 35.17: a clause may remain unmapped when evidence is insufficient;
     nothing is forced.
     """
+    # AM-54: grounded semantic signals (analysis/semantic.py) add to the lexical
+    # score exactly like a configured phrase would — same threshold, same
+    # explanation trail, nothing bypassed.
     scored = [
-        Candidate(clause=c, score=score_clause(
-            rules, content=c.content, section_title=c.section_title))
+        Candidate(clause=c, score=_with(
+            score_clause(rules, content=c.content, section_title=c.section_title),
+            (extra_signals or {}).get(c.evidence_id, ())))
         for c in clauses
     ]
     # Deterministic ordering: score descending, then evidence id, so equal
@@ -197,6 +202,13 @@ def map_requirement(
             for c in qualifying
         ),
     )
+
+
+def _with(score: CandidateScore, more: tuple[Signal, ...]) -> CandidateScore:
+    if not more:
+        return score
+    return CandidateScore(score=score.score + sum(s.delta for s in more),
+                          signals=score.signals + tuple(more))
 
 
 def map_document(

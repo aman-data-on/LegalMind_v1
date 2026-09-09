@@ -1,20 +1,20 @@
 {
   "_about": [
-    "RATIFIED Company Standard for LIABILITY-MSA-001 \u2014 the MASTER SERVICES AGREEMENT",
+    "RATIFIED Company Standard for LIABILITY-MSA-001 — the MASTER SERVICES AGREEMENT",
     "liability position. Owner decisions of 2026-08-19: Q3=B (per-type standards) and",
-    "'MSA standard = 6 months from MSA.pdf \u00a717.2'. It is CONFIGURATION, not",
+    "'MSA standard = 6 months from MSA.pdf §17.2'. It is CONFIGURATION, not",
     "specification: no all_lock.md entry, no locked decision amended.",
     "",
     "Single source of truth: corpus fixtures reference it by `company_standard_ref`",
     "rather than repeating the values, so the standard cannot drift between cases.",
     "",
-    "\u26a0\ufe0f THE SOURCE TEMPLATE CONTRADICTS ITSELF, and the owner chose the operative",
-    "clause. MSA.pdf \u00a717.2 caps at six months of fees for the specific Services",
-    "giving rise to the claim; \u00a717.7 caps at total fees over a BLANK number of",
+    "⚠️ THE SOURCE TEMPLATE CONTRADICTS ITSELF, and the owner chose the operative",
+    "clause. MSA.pdf §17.2 caps at six months of fees for the specific Services",
+    "giving rise to the claim; §17.7 caps at total fees over a BLANK number of",
     "months. The owner ruled on 2026-08-18 that the two clauses govern one scope and",
     "contradict (fixture DOC-LIAB-04 pins CONFLICT for the document read as a",
-    "whole), and on 2026-08-19 that \u00a717.2 is the standard's source. A blank period",
-    "cannot state a position, so \u00a717.7 could not serve. The contradiction remains a",
+    "whole), and on 2026-08-19 that §17.2 is the standard's source. A blank period",
+    "cannot state a position, so §17.7 could not serve. The contradiction remains a",
     "defect in the outbound template, reported to the owner for fixing on paper.",
     "",
     "WHAT THIS FILE DOES NOT CONTAIN, deliberately:",
@@ -27,34 +27,42 @@
   ],
   "_reconciliation": [
     "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
-    "positions (owner ruling 2026-09-08). Constitution \u00a79: 'the standard 12-month liability cap",
+    "positions (owner ruling 2026-09-08). Constitution §9: 'the standard 12-month liability cap",
     "applies unless a specific agreement approved by the company expressly provides otherwise';",
     "Applicability 'Entity-wide ... applies identically to Leapswitch- and CloudPe-branded",
-    "agreements'; \u00a78: the MSA is 'Reference/template document \u2014 not yet formally adopted as",
+    "agreements'; §8: the MSA is 'Reference/template document — not yet formally adopted as",
     "Source of Truth'. The template's six months of affected-service fees therefore states the",
     "TEMPLATE, not the position. Previous source and configuration preserved in `_history`.",
-    "Consequence: MSA \u00a717.2 now fails closed against this standard (basis incomparable, 45B.4;",
-    "fixture STD-LIAB-02) \u2014 the organization's own template no longer matches its stated",
+    "Consequence: MSA §17.2 now fails closed against this standard (basis incomparable, 45B.4;",
+    "fixture STD-LIAB-02) — the organization's own template no longer matches its stated",
     "position, which the Constitution records as 'drafting corrections in progress'."
   ],
   "_history": [
     {
       "reconciled": "2026-09-08",
-      "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+      "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
       "source_clause": "17.2 Monetary Cap on Liability",
       "source_quote": "Notwithstanding anything to the contrary contained in this Agreement, the total aggregate liability of Leapswitch and its affiliates, whether in contract, tort (including negligence), strict liability, or otherwise, shall not exceed the total amount actually paid by the Customer to Leapswitch for the specific Services giving rise to the claim during the six (6) month period immediately preceding the event giving rise to such liability.",
-      "configuration_before": {"document_type": "MSA", "preferred": 6, "unit": "MONTHS", "basis": "FEES_PAID_FOR_AFFECTED_SERVICES", "scope_key": "AGGREGATE"}
+      "configuration_before": {
+        "document_type": "MSA",
+        "preferred": 6,
+        "unit": "MONTHS",
+        "basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+        "scope_key": "AGGREGATE"
+      }
     }
   ],
   "requirement_code": "LIABILITY-MSA-001",
   "description": "Each party's total liability is capped at the fees paid over a set period before the claim.",
   "ratified": "2026-08-19",
-  "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
-  "source_clause": "\u00a79 Liability \u2014 Company Position (final, closed)",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+  "source_clause": "§9 Liability — Company Position (final, closed)",
   "source_quote": "the standard 12-month liability cap applies unless a specific agreement approved by the company expressly provides otherwise. ... The cap applies mutually to both parties; there is no one-sided or party-specific cap. Indirect, incidental, and consequential damages are excluded for both parties. [Illustrative clause:] the aggregate liability of either Party ... shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
   "configuration": {
     "document_type": "MSA",
-    "not_applicable_to": ["SLA"],
+    "not_applicable_to": [
+      "SLA"
+    ],
     "preferred": 12,
     "unit": "MONTHS",
     "basis": "FEES_PAID",
@@ -109,7 +117,7 @@
     "reading as the ToS standard, reported to the owner on 2026-08-18.",
     "",
     "basis FEES_PAID_FOR_AFFECTED_SERVICES means fees paid for the specific Services",
-    "giving rise to the claim \u2014 the clause's own seven-word restriction. It is",
+    "giving rise to the claim — the clause's own seven-word restriction. It is",
     "deliberately DISTINCT from FEES_PAID (total fees, the ToS basis): the owner",
     "ruling of 2026-08-18 keeps the two incomparable, so a counterparty cap measured",
     "on total fees fails closed against this standard rather than being compared",
@@ -140,7 +148,10 @@
         "shall not exceed"
       ]
     ],
-    "negative_patterns": [],
+    "negative_patterns": [
+      "service credit",
+      "service credits"
+    ],
     "section_heading_terms": [
       "liability"
     ],
@@ -155,7 +166,8 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "NEGATIVE PATTERNS 2026-09-09 (AM-54): 'service credit(s)' — the owner's L-13 ruling (2026-08-20) that service credits are a remedy, not a liability cap, stated as mapping terminology so neither the configured phrases nor the semantic stage can map a credits clause to this Requirement. No position, threshold or tolerance changed."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

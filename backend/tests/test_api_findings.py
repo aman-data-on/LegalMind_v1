@@ -387,15 +387,26 @@ def test_the_finding_carries_the_requirement_description(api, db, owner):
 
 
 def test_description_never_reaches_an_evaluator():
-    """No module on the authoritative analysis path reads `description`."""
+    """No module that CLASSIFIES reads `description`.
+
+    The evaluators, the extractor and the lexical mapper never see it. Since
+    `AM-54` (owner, 2026-09-09) the approved description IS read by the semantic
+    RECOGNITION stage — `analysis/semantic.py`, wired in `analysis/service.py` —
+    as the requirement's own wording for "does this clause address this
+    requirement?". That decides what is compared, never how the comparison comes
+    out: the classification still flows from the evaluators, which stay blind to it.
+    """
     import pathlib
     root = pathlib.Path(__file__).resolve().parents[1] / "legalmind"
     offenders = []
+    recognition_only = {"semantic.py", "service.py"}
     for package in ("evaluation", "analysis", "mapping", "extraction"):
         for path in (root / package).rglob("*.py"):
             # corpus.py loads golden-corpus FIXTURES, whose own `description`
             # field names the test case — not a RequirementVersion's text.
             if path.name == "corpus.py":
+                continue
+            if package == "analysis" and path.name in recognition_only:
                 continue
             for n, line in enumerate(path.read_text().splitlines(), 1):
                 if "description" in line and not line.lstrip().startswith("#"):

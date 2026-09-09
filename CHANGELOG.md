@@ -10,6 +10,41 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Grounded semantic recognition in the authoritative lane (`AM-54`, 2026-09-09)
+
+Owner instruction: the deterministic architecture is not a requirement for exact-word
+matching. New `backend/legalmind/analysis/semantic.py`, wired into the analysis service.
+**Stage 1 (mapping):** where configured terminology confirms nothing for a Requirement of
+the document's declared family, the local embedding model (all-MiniLM-L6-v2, self-hosted)
+shortlists the clauses closest to the Requirement's approved wording (description plus
+ratified mapping terms) and the generative model is asked, through the single egress seam,
+whether each clause addresses the Requirement's subject. A YES counts only with a span
+copied verbatim from the clause and then scores exactly like one configured exact phrase
+(same threshold, same explanation trail). **Stage 2 (facts):** a mapped clause that states
+no configured cap phrase is asked for the quantity the Requirement is about; a value is
+accepted only when the verbatim span contains it (digits or number word) together with a
+configured unit term; the basis still comes only from configured basis phrases (45B.4), a
+multi-limb formula is never reduced to one limb, an "unlimited" claim is never taken from
+the model. UNCLEAR or unverifiable → UNRESOLVED / UNKNOWN → Needs review; NO → the lexical
+result stands; no model → untouched and the gap recorded (a similarity score decides
+nothing). Out-of-family Requirements and untyped documents never reach the model; a
+configured negative pattern vetoes a clause first. Number words ("six months",
+"twenty-four months") are read as numerals in the deterministic extractor. An ABSENT cap
+beside a stated cap of the same scope is dropped. Every call is one `generate_raw`
+under the environment gate, recorded as `assist.generation_called` with purpose, model
+and payload sha256; payloads carry clause text, the approved description and configured
+unit/basis TERMS only. `LIABILITY-MSA-001`/`LIABILITY-TOS-001` gained
+`negative_patterns: ["service credit", "service credits"]` (the owner's L-13 ruling as
+terminology) — **re-import and publish required** for the live DB. Calibration over the 12
+supplied documents and live R&D with the real model recorded in the lock record: three
+materially different drafting styles of five MSA positions → 14/15 recognised on a
+verbatim span, 1 Needs review, 0 false confirmations; 69/69 near-topic non-matches
+answered NO; an injected instruction, a multi-limb formula and an unconfigured unit all
+fell to a person. Tests: `tests/test_semantic_recognition.py` (model faked, embeddings
+real; skipped where the model is not provisioned), extraction number-word cases, the
+description guard narrowed to the classifying modules, the analysis→assist import edge
+declared. **Built and tested locally; NOT deployed.**
+
 ### Changed — The FINAL three-status model: Accepted / Needs review / Not accepted, derived from the authoritative result (`AM-53`, 2026-09-09)
 
 Owner's final product decision. NOT ACCEPTED and NEEDS REVIEW had become indistinguishable
