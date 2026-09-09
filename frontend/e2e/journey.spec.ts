@@ -64,9 +64,21 @@ test("journey: upload → analysis → report → findings → ask, with finding
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
-  // The count is a `.ws-filter__n` badge beside the word since the reference-design
-  // restyle (2026-09-09), so the accessible name is "Requires modification 1" with a
-  // space, not "Requires modification (1)". The count itself is still asserted.
+  /*
+   * The count is a `.ws-filter__n` badge beside the word since the reference-design
+   * restyle (2026-09-09), so a pill reads "Requires modification 1" — the count
+   * separated by whitespace, not wrapped in parentheses as it was before.
+   *
+   * The shape is written ONCE here rather than spelled out at each of the four
+   * places below that need it. Three of them were still matching `(n)` after the
+   * restyle: one failed loudly, and `labels[0].match(...)![1]` failed as a
+   * TypeError on a null match, which reads like a broken page rather than a
+   * renamed label.
+   */
+  const PILL = /^(.*?)\s+(\d+)$/;               // [, word, count]
+  const countOf = (label: string) => Number(label.match(PILL)![2]);
+  const wordOf = (label: string) => label.match(PILL)![1];
+
   const filters = page.locator(".ws-filter");
   await expect(filters.getByRole("button", { name: /^Requires modification\s+\d+$/ })).toBeVisible();
 
@@ -83,8 +95,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
    * actually shows be checked.
    */
   const labels = await filters.getByRole("button").allTextContents();
-  const total = Number(labels[0]!.match(/^All \((\d+)\)$/)![1]);
-  const words = labels.slice(1).map((l) => l.replace(/ \(\d+\)$/, ""));
+  expect(wordOf(labels[0]!)).toBe("All");
+  const total = countOf(labels[0]!);
+  const words = labels.slice(1).map(wordOf);
   // A subsequence of the fixed order — a word with no findings renders no
   // button, and the words that remain keep their places.
   expect(words).toEqual(
@@ -94,8 +107,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(cards).toHaveCount(total);
 
   for (const word of words) {
-    const button = filters.getByRole("button", { name: new RegExp(`^${word} \\(\\d+\\)$`) });
-    const n = Number((await button.textContent())!.match(/\((\d+)\)$/)![1]);
+    const button = filters.getByRole("button", { name: new RegExp(`^${word}\\s+\\d+$`) });
+    const n = countOf((await button.textContent())!);
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
     // Its own count, and nothing but its own findings.
@@ -106,7 +119,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   }
 
   // "All" comes back to every finding, which is what makes the filters undoable.
-  await filters.getByRole("button", { name: /^All \(\d+\)$/ }).click();
+  await filters.getByRole("button", { name: /^All\s+\d+$/ }).click();
   await expect(cards).toHaveCount(total);
 
   await filters.getByRole("button", { name: /^Requires modification/ }).click();
