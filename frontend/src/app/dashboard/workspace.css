@@ -146,6 +146,21 @@
   flex-direction: column;
 }
 .ws * { box-sizing: border-box; }
+/* EVERY icon keeps the size it states.
+ *
+ * `flex-shrink` defaults to 1, and an inline SVG's automatic minimum size is 0,
+ * so an icon inside a flex row is free to be squashed to nothing. This codebase
+ * had been answering that one selector at a time — six separate `svg { flex:
+ * none }` rules — and two icon-only controls were missed: the Ask panel's close
+ * button and, when it was added, the contents collapse. The owner's screenshot
+ * shows the result and item 1 of the instruction that replaced it reads "There
+ * is no obvious close/collapse icon"; the browser suite measured that X at
+ * 4.4px against the 16 it declares.
+ *
+ * One rule at the root instead, so the next icon-only control cannot repeat it.
+ * The one SVG here that is not an icon (`.ws-ring__svg`) sets its own fixed
+ * width and height and wants exactly this behaviour too. */
+.ws svg { flex: none; }
 /* The font-variable carrier the route-group layout wraps the shell in — it must
    not participate in layout, only pass CSS variables down. */
 .ws-fonts { display: contents; }
@@ -244,7 +259,6 @@
 .ws-context__spacer { flex: 1; }
 .ws-context__acts { display: flex; align-items: center; gap: var(--ws-s2); }
 .ws-context__acts .ws-btn { display: inline-flex; align-items: center; gap: 7px; }
-.ws-btn--share svg { flex: none; }
 .ws-export { display: inline-flex; align-items: center; gap: var(--ws-s2); }
 .ws-context__meta { display: flex; gap: var(--ws-s3); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-500); flex-wrap: wrap; }
 .ws-chip {
@@ -383,18 +397,35 @@
   display: grid; grid-template-columns: var(--ws-clauses-w) minmax(0, 1fr);
   gap: var(--ws-s4); min-height: 0; flex: 1;
 }
-/* `minmax(260px, 45%)`, not `minmax(120px, 30%)` (2026-09-08, fourth pass) —
-   120px/30% left no room for even one visible outline entry once the status
-   legend (a fixed ~92px) and the outline's own title/search rows are properly
-   clipped to the row instead of overlapping past it; see `.ws-doc__clauses`
-   above for the clipping half of this fix. */
-@media (max-width: 1100px) { .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 45%) 1fr; } }
-/* AM-50 r5: the document is a fixed-width companion beside the findings, so its
-   own two-card split has to answer to the PANE's width, not the viewport's —
-   under ~900px of pane the contents card sits above the paper. */
+/* WHEN THE INDEX STACKS ABOVE THE PAPER — ONE rule, and it measures the PANE.
+ *
+ * THE DEFECT (owner, 2026-09-09): "Current Contents panel is weak. It is
+ * basically an empty box with Search contents + page selector." The list was
+ * not empty of content — it was 200px tall. Two rules used to stack this grid,
+ * a `max-width: 1100px` VIEWPORT query and a `max-width: 900px` CONTAINER query,
+ * and the container one fired on the owner's 1863px screen because the document
+ * pane was then a `clamp(440px, 42vw, 760px)` companion — 760px, under 900. So
+ * the index was stacked into a 200px row, of which the title, the search field
+ * and the foot took ~145px, leaving room for barely one entry.
+ *
+ * The viewport rule is gone: the pane's own width is the only thing that
+ * decides whether two columns fit, and two rules with different thresholds for
+ * one decision is how the 200px row went unnoticed. The threshold is now 620px
+ * — the index wants `--ws-clauses-w` (236px) and the paper needs ~360px to read
+ * — instead of 900px, which was calibrated for a pane that no longer exists now
+ * that the document draws the flexible centre column.
+ *
+ * `minmax(240px, 34%)` when it does stack: enough for the title, the search
+ * field, several entries and the foot. The foot is smaller than the 2026-09-08
+ * fourth pass measured (~92px of legend), because the legend moved INTO this
+ * card instead of sitting in its own beneath it. */
 .ws-pane--document { container-type: inline-size; }
-@container (max-width: 900px) {
-  .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 32%) 1fr; }
+@container (max-width: 620px) {
+  .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 34%) 1fr; }
+  /* Stacked, the rail would be a 40px strip above the paper doing nothing
+     useful; the index reopens from a full-width row instead. */
+  .ws-doc[data-contents="closed"] { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .ws-doc__rail { align-items: center; min-height: 40px; }
 }
 /* `overflow: hidden` (2026-09-08, fourth pass) — found stacking the layout
    into the new fixed-width document panel: this column's two children
@@ -406,6 +437,11 @@
    internally; this is what makes that scrolling the thing that happens
    instead of an overflow no container was catching. */
 .ws-doc__clauses { display: flex; flex-direction: column; gap: var(--ws-s3); min-height: 0; overflow: hidden; }
+/* `display: flex` above out-specifies the UA stylesheet's `[hidden]` rule, so
+   without this the collapsed index stayed VISIBLE while claiming to be hidden —
+   the same trap `.ws-dock__launcher[hidden]` records. Caught by the browser
+   suite; no static test would see it. */
+.ws-doc__clauses[hidden] { display: none; }
 /* Collapsed (owner, 2026-09-09): the index gives up its column entirely and
    leaves a rail. `[hidden]` on `.ws-doc__clauses` takes it out of flow and out
    of the accessibility tree; this reclaims the track it was holding. */
@@ -926,7 +962,7 @@
   display: flex; align-items: center; gap: 7px;
   font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
 }
-.ws-dock__title svg { color: var(--ws-accent); flex: none; }
+.ws-dock__title svg { color: var(--ws-accent); }
 .ws-dock__close {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 32px; height: 32px; border-radius: var(--ws-radius);
@@ -1013,9 +1049,14 @@
   border-top: 1px solid var(--ws-ink-100);
 }
 .ws-pane--side > .ws-dock[data-open="true"] {
-  /* A share of the column, never all of it: the findings above stay readable,
-     and the log inside is what scrolls. */
-  flex: 0 1 auto; max-height: 62%;
+  /* A MINORITY share of the column: the findings above stay readable and the
+     log inside is what scrolls. 62% was the first attempt and the browser suite
+     measured the result — findings 241px against Ask's 458px, with the first
+     finding's title cut in half, which is the "don't obscure important findings"
+     complaint arriving by a different route. The 400px ceiling matters on a tall
+     monitor, where a percentage alone would hand Ask hundreds of pixels of empty
+     panel it has nothing to put in. */
+  flex: 0 1 auto; max-height: min(52%, 400px);
 }
 .ws-pane--side > .ws-dock .ws-dock__launcher {
   /* The persistent way back in — full-width and flush in the column rather
@@ -1108,7 +1149,7 @@
 
 /* The donut — real counts, raw total in the center. */
 .ws-ring { display: flex; align-items: center; gap: var(--ws-s4); }
-.ws-ring__svg { width: 96px; height: 96px; flex: none; transform: none; }
+.ws-ring__svg { width: 96px; height: 96px; transform: none; }
 .ws-ring__seg { fill: none; stroke-width: 12; }
 .ws-ring__seg--ok { stroke: var(--ws-tone-ok); }
 .ws-ring__seg--warn { stroke: var(--ws-tone-warn); }
@@ -1589,7 +1630,7 @@
 .ws-findings-badge--zero { opacity: 0.4; }
 
 .ws-doc-name { display: inline-flex; align-items: center; gap: 7px; }
-.ws-doc-name svg { color: var(--ws-ink-300); flex: none; }
+.ws-doc-name svg { color: var(--ws-ink-300); }
 
 /* Toolbar — search + filters + sort, one row. */
 .ws-doctoolbar { display: flex; gap: var(--ws-s2); flex-wrap: wrap; align-items: center; }
@@ -1801,7 +1842,6 @@
   text-align: center;
 }
 
-.ws-pipe__note svg { flex: none; }
 
 /* --- Stat tiles: the reference's icon-left arrangement ------------------- */
 /* Reads left-to-right as one line — icon, then label, then the number — where
@@ -2117,7 +2157,6 @@
     display: inline-flex; align-items: center; gap: 7px;
     max-width: 100%; min-width: 0;
   }
-  .ws-docs--index .ws-docs__table td:nth-child(1) .ws-doc-name > svg { flex: none; }
   .ws-doc-name__text {
     min-width: 0;
     overflow: hidden;
@@ -2140,7 +2179,6 @@
 
 /* Icon button styling */
 .ws-btn--icon { display: flex; align-items: center; gap: 0.5rem; justify-content: center; }
-.ws-btn--icon svg { flex-shrink: 0; }
 .ws-escalate__link--icon { display: inline-flex; align-items: center; gap: 0.35rem; }
 .ws-rolechip__revoke--icon { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .ws-pager .ws-btn--icon { gap: 0.35rem; }
