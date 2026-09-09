@@ -97,16 +97,22 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     // assertion is on elements, not on substrings of the page text.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
     await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
-    /* Compared case-INSENSITIVELY. `allInnerTexts()` returns rendered text, and
-       these labels are styled `text-transform: uppercase`, so a case-sensitive
-       comparison here tests the stylesheet rather than LEGAL-02. It went red on
-       2026-09-09 when the reference restyle uppercased them (4f631ed) — the
-       omission it guards was never affected, but a red security spec is one
-       nobody reads. */
-    const labels = await labelsOf(evaluation);
-    expect(labels).toContain("contract");              // the contract's own value
-    expect(labels).not.toContain("company standard");  // an internal position
-    expect(labels).not.toContain("comparison");
+    /* The EXACT label set, not a list of `toContain`/`not.toContain` probes.
+     *
+     * A negative probe here can pass for the wrong reason, and did: these labels
+     * are styled `text-transform: uppercase`, so from 4f631ed until 2026-09-09
+     * `not.toContain("Company standard")` was compared against a rendered
+     * "COMPANY STANDARD" and asserted NOTHING — it would have passed just as
+     * happily if the internal position had leaked. Case-normalising the actual
+     * labels (see `labelsOf`) restores the teeth; asserting the whole set
+     * removes the failure mode instead, because a renamed, added or leaked
+     * label all fail it, and none of them can fail silently.
+     *
+     * The pair matters as much as the assertion: the with-permission test below
+     * asserts the SAME set plus "company standard", from the same code path. So
+     * the two together prove this screen discriminates on the permission rather
+     * than never rendering the field at all. */
+    expect(await labelsOf(evaluation)).toEqual(["contract", "next step"]);
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
@@ -166,8 +172,10 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     // element the same way (`toHaveCount(1)`); this test now matches it rather
     // than asserting a visibility default the redesign deliberately dropped.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
-    const labels = await labelsOf(evaluation);
-    expect(labels).toContain("company standard");
+    /* The same exact set as the without-permission test, plus the one label the
+       permission adds. Asserted as a set for the same reason: it is what makes
+       that test's absence meaningful rather than vacuous. */
+    expect(await labelsOf(evaluation)).toEqual(["contract", "company standard", "next step"]);
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.
