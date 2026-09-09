@@ -45,9 +45,9 @@ import { useSideTabs } from "./WorkspaceLayout";
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
  *  the 2026-09-01 tile correction; AM-50 r4). Engine words stay in View details. */
 const STATUS_TILES: Array<{ status: UserStatus; bucket: StatusBucket }> = [
-  { status: "ACCEPTED", bucket: "match" },
-  { status: "NEEDS_REVIEW", bucket: "review" },
-  { status: "NOT_ACCEPTED", bucket: "missing" },
+  { status: "ACCEPTABLE", bucket: "match" },
+  { status: "NEEDS_DECISION", bucket: "review" },
+  { status: "REQUIRES_MODIFICATION", bucket: "missing" },
 ];
 
 export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
@@ -134,8 +134,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
           {reviewHeadline({
             total,
             needsDecision: summary.needsDecision,
-            missing: statuses.NOT_ACCEPTED,
-            match: statuses.ACCEPTED,
+            missing: statuses.REQUIRES_MODIFICATION,
+            match: statuses.ACCEPTABLE,
           })}
         </p>
         <div className="ws-analysis__head">
@@ -187,7 +187,7 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
       <section className="ws-analysis__section" aria-label="Clause status breakdown">
         <h3 className="ws-analysis__title">At a glance</h3>
         <div className="ws-ring">
-          <Donut match={statuses.ACCEPTED} review={statuses.NEEDS_REVIEW} missing={statuses.NOT_ACCEPTED} total={total} />
+          <Donut match={statuses.ACCEPTABLE} review={statuses.NEEDS_DECISION} missing={statuses.REQUIRES_MODIFICATION} total={total} />
           <ul className="ws-ring__legend">
             {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, bucket }) => (
               <li key={status} data-bucket={bucket}>

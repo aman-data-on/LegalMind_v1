@@ -1245,16 +1245,16 @@ ZERO_TOLERANCE = {"deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNA
     # the same concept — never a deviation. Extraction reads the number, the
     # unit and the basis, not the drafting around them.
     ("Liability shall not exceed the fees paid in the six (6) months preceding the claim.",
-     "ACCEPTED"),
+     "ACCEPTABLE"),
     ("Liability shall not exceed the fees paid in the 6 (six) months preceding the claim.",
-     "ACCEPTED"),
+     "ACCEPTABLE"),
     ("Each party's liability is capped: it shall not exceed the total fees paid by "
      "Customer during the 6 months immediately before the event giving rise to the claim.",
-     "ACCEPTED"),
+     "ACCEPTABLE"),
     # A GENUINE difference is a deviation, and only then does the approved
     # zero-tolerance rule make it NOT ACCEPTED.
     ("Liability shall not exceed the fees paid in the nine (9) months preceding the claim.",
-     "NOT_ACCEPTED"),
+     "REQUIRES_MODIFICATION"),
 ], ids=["number-words-then-digits", "digits-then-number-words", "reworded-same-cap",
         "genuinely-different-cap"])
 def test_wording_differences_are_not_deviations_but_real_differences_are(
@@ -1266,7 +1266,7 @@ def test_wording_differences_are_not_deviations_but_real_differences_are(
     run = run_analysis(db, review)
     assert run.findings_created == 1
     outcome = run.outcomes[0]
-    assert outcome.classification == ("MATCH" if expected == "ACCEPTED" else "DEVIATION"), (
+    assert outcome.classification == ("MATCH" if expected == "ACCEPTABLE" else "DEVIATION"), (
         outcome.failure, outcome.mapping_state)
     assert by_finding(db, [review.id])[review.id][outcome.finding_id] == expected
 

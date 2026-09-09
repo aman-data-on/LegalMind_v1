@@ -18298,3 +18298,60 @@ r13  THE LABELLED CORPUS IS THE ACCEPTANCE RECORD. `tests/test_rd_semantic_corpu
      comparison to a person. Widening that terminology is the owner's
      configuration decision (35.4), not an engine change.
 ```
+
+--------------------------------------------------------------------------------
+
+# `AM-56` — The three reader-facing words are Acceptable / Requires Modification / Needs a Decision, mapped from the engine's five determinations by classification (Owner Instruction — 2026-09-09)
+
+**Amends:** `AM-53` r2 (the mapping) and its vocabulary (Accepted / Needs review / Not
+accepted), and `AM-50` r4's wording of the Summary. **Does not amend:** `AM-53` r1 (derived
+server-side in one place, never stored, never an axis), r4 (not a legal-position field), r5
+(one vocabulary on every surface; the classifications stay for audit); the four
+classifications and CONFLICT; the Rule Outcomes; D-3.5; the zero-tolerance rule; `AM-54`;
+rules 7, 12, 13, 15, 21.
+
+The owner instructed: *"The UI should have only 3 statuses: Acceptable, Requires Modification,
+and Needs a Decision. However, the backend should not rely on only these 3 categories. The
+backend/LLM should first determine: Does the clause match the Constitution? Does it deviate
+from a defined Constitution position? Is a required clause missing? Does the Constitution have
+no position on this topic? Is the clause/Constitution unclear or conflicting? Then map those
+results to the 3 UI statuses: Match → Acceptable; Deviation or required Missing → Requires
+Modification; No Constitution position / unclear / conflicting → Needs a Decision."*
+
+```text
+r1   THE FIVE DETERMINATIONS STAY. MATCH, DEVIATION, MISSING, UNABLE_TO_EVALUATE
+     and CONFLICT remain the engine's recorded result on every Evaluation and
+     Finding, in the API, the audit trail, View details and the export's audit
+     record. "The Constitution has no position on this topic" is the sixth
+     answer and is not a Finding: a clause with no Requirement to compare
+     against is an UNMATCHED PROVISION (REC-02), listed on the report and
+     routed to a person — the same destination as Needs a Decision.
+
+r2   THE MAPPING, BY CLASSIFICATION.
+       MATCH                          -> ACCEPTABLE
+       DEVIATION                      -> REQUIRES_MODIFICATION
+       MISSING                        -> REQUIRES_MODIFICATION (every MISSING
+                                         Finding is a required one — an optional
+                                         absence produces no Finding, F-1)
+       UNABLE_TO_EVALUATE, CONFLICT   -> NEEDS_DECISION
+     The Rule Outcome and any Constitution citation still travel with the
+     Evaluation for the reader entitled to them; since this record they no
+     longer move the word. A Finding takes its worst Evaluation
+     (REQUIRES_MODIFICATION over NEEDS_DECISION over ACCEPTABLE).
+
+r3   THE WORDS. "Acceptable" · "Requires modification" · "Needs a decision" —
+     on the card chip, the Summary's three tiles, bar and ring, the Findings
+     filters, the report, the export, the Dashboard's per-document badges and
+     the version comparison. Next step by word: Acceptable "No action is
+     needed." (an escalated one still names the person); Requires modification
+     "This does not match the company standard. The clause needs to be modified,
+     or someone with legal authority must decide."; Needs a decision "Someone
+     with legal authority needs to decide this." The Dashboard's document-level
+     bucket reads "Needs attention" so it is never mistaken for a Finding word.
+
+r4   THE SUMMARY SHOWS EXACTLY THREE TILES. How many Findings need a legal
+     decision is a line beneath them, never a fourth status (owner, 2026-09-09,
+     after a fourth tile was shipped and corrected the same day).
+```
+
+**Approved by the owner on 2026-09-09.**

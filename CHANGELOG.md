@@ -10,6 +10,20 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Acceptable / Requires modification / Needs a decision (`AM-56`, 2026-09-09)
+
+Owner instruction, superseding the `AM-53` vocabulary and mapping. The backend keeps its
+five determinations (MATCH, DEVIATION, MISSING, UNABLE_TO_EVALUATE, CONFLICT; a clause the
+Constitution has no position on stays an unmatched provision routed to a person). The
+reader's word is now mapped by classification in `evaluation/user_status.py`: MATCH →
+Acceptable; DEVIATION or MISSING → Requires modification; UNABLE_TO_EVALUATE or CONFLICT →
+Needs a decision. The Rule Outcome and any Constitution citation still travel with the
+Evaluation but no longer move the word. Same field (`user_status`, `user_status_counts`),
+new values; every surface renamed (card, Summary tiles/bar/ring, filters, report, export,
+Dashboard badges, comparison); next-step sentences by word; the Dashboard's document-level
+bucket reads "Needs attention". The Summary shows exactly three tiles (the fourth,
+"Need legal decision", was removed the same day — the count stays as a line).
+
 ### Added — a real `DELETE /contracts/{id}` beside Archive (`AM-55`, 2026-09-09)
 
 Owner instruction, after the tradeoff was named explicitly: restores a genuine, unconditional

@@ -483,7 +483,7 @@ export function rowNeedsAttention(row: {
 }): boolean {
   const counts = row.latest_analysis?.user_status_counts;
   if (!counts) return false;
-  return Object.entries(counts).some(([status, n]) => status !== "ACCEPTED" && n > 0);
+  return Object.entries(counts).some(([status, n]) => status !== "ACCEPTABLE" && n > 0);
 }
 
 /** Review lifecycle states that mean "a result is still coming" (Step 30) —
@@ -513,14 +513,14 @@ export function documentStatusBucket(row: {
   if (!analysis) return "draft";
   if (IN_FLIGHT_REVIEW_STATUSES.has(analysis.review_status)) return "analyzing";
   const counts = analysis.user_status_counts ?? {};
-  const hasIssue = Object.entries(counts).some(([status, n]) => status !== "ACCEPTED" && n > 0);
+  const hasIssue = Object.entries(counts).some(([status, n]) => status !== "ACCEPTABLE" && n > 0);
   return hasIssue ? "needs_attention" : "analyzed";
 }
 
 export const STATUS_BUCKET_LABEL: Record<DocumentStatusBucket, string> = {
   draft: "Draft",
   analyzing: "Analyzing",
-  needs_attention: "Needs review",
+  needs_attention: "Needs attention",
   analyzed: "Analyzed",
 };
 

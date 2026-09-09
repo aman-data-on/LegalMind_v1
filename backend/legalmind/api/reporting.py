@@ -69,7 +69,7 @@ def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         },
         "classification_counts": dict(classifications),
         # The reader's three words (owner, 2026-09-09) — the Summary and the
-        # report speak ACCEPTED / NEEDS_REVIEW / NOT_ACCEPTED; the engine's
+        # report speak ACCEPTABLE / REQUIRES_MODIFICATION / NEEDS_DECISION; the engine's
         # classifications above stay for audit.
         "user_status_counts": user_status_counts(
             by_finding(db, [review.id]).get(review.id, {})),

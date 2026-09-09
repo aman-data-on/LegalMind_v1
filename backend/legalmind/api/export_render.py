@@ -88,8 +88,8 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         Block("h2", "Summary"),
     ]
 
-    for status, label in (("ACCEPTED", "Accepted"), ("NEEDS_REVIEW", "Needs review"),
-                          ("NOT_ACCEPTED", "Not accepted")):
+    for status, label in (("ACCEPTABLE", "Acceptable"), ("REQUIRES_MODIFICATION", "Requires modification"),
+                          ("NEEDS_DECISION", "Needs a decision")):
         n = (report.get("user_status_counts") or {}).get(status)
         if n:
             blocks.append(Block("kv", str(n), label=label))

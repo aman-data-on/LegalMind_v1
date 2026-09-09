@@ -19,7 +19,7 @@ Two stages, each one bounded and mechanically verified:
      candidate, recorded with the model identity, the payload hash and the
      span. NO → nothing. UNCLEAR or an unverifiable span → the clause is a
      weak candidate, so the mapping is UNRESOLVED and the evaluator fails
-     closed to UNABLE_TO_EVALUATE — Needs review, never a guess. No model
+     closed to UNABLE_TO_EVALUATE — Needs a decision, never a guess. No model
      reached → no semantic evidence either way: the lexical result stands and
      the gap is recorded (a bare similarity score decides nothing, 35.19).
 
@@ -29,7 +29,7 @@ Two stages, each one bounded and mechanically verified:
      span (as digits or as a number word) together with a CONFIGURED unit term;
      the basis is still read only from configured basis phrases (45B.4 stands —
      bases are never assumed equivalent). Anything the text does not verify is
-     UNKNOWN — Needs review — never a number, never a MATCH.
+     UNKNOWN — Needs a decision — never a number, never a MATCH.
 
 The model never sees a company position (no preferred value, no rule, no
 outcome — AM-30 t3), and it is never asked whether anything is acceptable.

@@ -2882,24 +2882,24 @@
    tokens the mark and the Summary tiles already use — one status colour system,
    and never colour alone: the word is in the chip, the icon in the mark. Sentence
    case and the sans face: this is the one chip written for a non-lawyer. */
-.ws-chip--status-accepted,
-.ws-chip--status-needs_review,
-.ws-chip--status-not_accepted {
+.ws-chip--status-acceptable,
+.ws-chip--status-needs_decision,
+.ws-chip--status-requires_modification {
   /* Set in capitals per the owner's reference (ACCEPTED · NEEDS REVIEW ·
      NOT ACCEPTED); the text node stays sentence case so it reads the same
      to a screen reader and to the tests. */
   font-family: var(--ws-sans, inherit); font-size: 10.5px; font-weight: 700;
   letter-spacing: 0.04em; text-transform: uppercase;
 }
-.ws-chip--status-accepted { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
-.ws-chip--status-needs_review { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
+.ws-chip--status-acceptable { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
+.ws-chip--status-needs_decision { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
 /* Not accepted is the loud one: solid chip and a red card edge, so it is told
    apart from Needs review at arm's length (owner, 2026-09-09) — still never
    colour alone: the word and the ✕ mark carry the same fact. */
-.ws-chip--status-not_accepted { background: var(--ws-bad); color: #fff; border-color: var(--ws-bad); }
-.ws-finding[data-user-status="NOT_ACCEPTED"] { border-left-color: var(--ws-bad); }
-.ws-finding[data-user-status="NEEDS_REVIEW"] { border-left-color: var(--ws-warn); }
-.ws-finding[data-user-status="ACCEPTED"] { border-left-color: var(--ws-ok); }
+.ws-chip--status-requires_modification { background: var(--ws-bad); color: #fff; border-color: var(--ws-bad); }
+.ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-bad); }
+.ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-warn); }
+.ws-finding[data-user-status="ACCEPTABLE"] { border-left-color: var(--ws-ok); }
 
 /* The Constitution citation under a Not accepted — the source is part of the
    status, so it sits with the lede, quoted, not tucked in the disclosure. */

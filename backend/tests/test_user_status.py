@@ -34,42 +34,32 @@ def owner(db, seeded):
     return user
 
 
-# 1 — MATCH displays ACCEPTED
-def test_match_is_accepted_whatever_the_rule_outcome_says():
-    assert user_status(C.MATCH, R.ACCEPTABLE) == "ACCEPTED"
-    assert user_status(C.MATCH, R.NOT_APPLICABLE) == "ACCEPTED"   # numeric MATCH
+# 1 — MATCH displays Acceptable
+def test_match_is_acceptable_whatever_the_rule_outcome_says():
+    assert user_status(C.MATCH, R.ACCEPTABLE) == "ACCEPTABLE"
+    assert user_status(C.MATCH, R.NOT_APPLICABLE) == "ACCEPTABLE"   # numeric MATCH
 
 
-# 2 — a clear, approved-standard conflict displays NOT ACCEPTED
-def test_a_ruled_deviation_and_a_cited_prohibition_are_not_accepted():
-    assert user_status(C.DEVIATION, R.UNACCEPTABLE) == "NOT_ACCEPTED"
-    assert user_status(C.DEVIATION, R.NOT_APPLICABLE, prohibited=True) == "NOT_ACCEPTED"
+# 2 — a deviation from a defined position, or a required clause missing,
+#     requires modification — by classification, whatever the outcome says
+@pytest.mark.parametrize("outcome", [R.UNACCEPTABLE, R.NOT_APPLICABLE, R.APPROVAL_REQUIRED])
+def test_deviation_and_missing_require_modification(outcome):
+    assert user_status(C.DEVIATION, outcome) == "REQUIRES_MODIFICATION"
+    assert user_status(C.MISSING, outcome) == "REQUIRES_MODIFICATION"
+    assert user_status(C.DEVIATION, outcome, prohibited=True) == "REQUIRES_MODIFICATION"
 
 
-# 3 — genuine uncertainty displays NEEDS REVIEW, and is never a rejection
+# 3 — unclear or conflicting needs a decision, and is never a rejection
 @pytest.mark.parametrize("classification", [C.UNABLE_TO_EVALUATE, C.CONFLICT])
-def test_uncertainty_is_needs_review_even_if_an_outcome_were_attached(classification):
-    assert user_status(classification, R.NOT_APPLICABLE) == "NEEDS_REVIEW"
-    assert user_status(classification, R.UNACCEPTABLE) == "NEEDS_REVIEW"
-
-
-# 4 — MISSING is not blindly one status
-def test_missing_follows_the_approved_rule_not_a_default():
-    assert user_status(C.MISSING, R.NOT_APPLICABLE) == "NEEDS_REVIEW"   # unruled today
-    assert user_status(C.MISSING, R.UNACCEPTABLE) == "NOT_ACCEPTED"     # a rule for absence
-
-
-# 5 — DEVIATION is not blindly one status
-def test_deviation_follows_the_approved_rule_not_a_default():
-    assert user_status(C.DEVIATION, R.NOT_APPLICABLE) == "NEEDS_REVIEW"
-    assert user_status(C.DEVIATION, R.APPROVAL_REQUIRED) == "NEEDS_REVIEW"
-    assert user_status(C.DEVIATION, R.UNACCEPTABLE) == "NOT_ACCEPTED"
+def test_uncertainty_needs_a_decision(classification):
+    assert user_status(classification, R.NOT_APPLICABLE) == "NEEDS_DECISION"
+    assert user_status(classification, R.UNACCEPTABLE) == "NEEDS_DECISION"
 
 
 def test_a_finding_takes_its_worst_evaluation():
-    assert worst(["ACCEPTED", "NOT_ACCEPTED", "NEEDS_REVIEW"], "ACCEPTED") == "NOT_ACCEPTED"
-    assert worst(["ACCEPTED", "NEEDS_REVIEW"], "ACCEPTED") == "NEEDS_REVIEW"
-    assert worst([], "NEEDS_REVIEW") == "NEEDS_REVIEW"
+    assert worst(["ACCEPTABLE", "REQUIRES_MODIFICATION", "NEEDS_DECISION"], "ACCEPTABLE") == "REQUIRES_MODIFICATION"
+    assert worst(["ACCEPTABLE", "NEEDS_DECISION"], "ACCEPTABLE") == "NEEDS_DECISION"
+    assert worst([], "NEEDS_DECISION") == "NEEDS_DECISION"
 
 
 def _finding(db, owner, code, classification, outcome, actual=None):
@@ -94,8 +84,8 @@ def test_the_api_carries_the_word_and_keeps_the_classification(api, db, owner):
     _, finding = _finding(db, owner, "LIABILITY-MSA-001", C.DEVIATION, R.UNACCEPTABLE)
     sign_in(api, db, owner)
     body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
-    assert body["user_status"] == "NOT_ACCEPTED"
-    assert body["evaluations"][0]["user_status"] == "NOT_ACCEPTED"
+    assert body["user_status"] == "REQUIRES_MODIFICATION"
+    assert body["evaluations"][0]["user_status"] == "REQUIRES_MODIFICATION"
     assert body["classification"] == "DEVIATION"
     assert body["evaluations"][0]["classification"] == "DEVIATION"
     assert body["evaluations"][0]["rule_outcome"] == "UNACCEPTABLE"
@@ -103,7 +93,7 @@ def test_the_api_carries_the_word_and_keeps_the_classification(api, db, owner):
     restricted = without_legal_position(db, owner)
     sign_in(api, db, restricted)
     body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
-    assert body["user_status"] == "NOT_ACCEPTED"
+    assert body["user_status"] == "REQUIRES_MODIFICATION"
     assert "rule_outcome" not in body["evaluations"][0]
     assert "user_status" not in LEGAL_POSITION_FIELDS
 
@@ -113,7 +103,7 @@ def test_the_unlimited_cap_is_not_accepted_by_citation_even_when_unruled(api, db
                           actual={"cap_status": "UNLIMITED"})
     sign_in(api, db, owner)
     body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
-    assert body["user_status"] == "NOT_ACCEPTED"
+    assert body["user_status"] == "REQUIRES_MODIFICATION"
     assert body["evaluations"][0]["constitution_prohibition"]["section"] == "9"
 
 
@@ -121,15 +111,15 @@ def test_the_unlimited_cap_is_not_accepted_by_citation_even_when_unruled(api, db
 def test_report_counts_use_the_same_vocabulary_as_the_findings(api, db, owner):
     review, finding = _finding(db, owner, "LIABILITY-MSA-001", C.DEVIATION, R.UNACCEPTABLE)
     statuses = by_finding(db, [review.id])[review.id]
-    assert statuses == {finding.id: "NOT_ACCEPTED"}
-    assert counts(statuses) == {"ACCEPTED": 0, "NEEDS_REVIEW": 0, "NOT_ACCEPTED": 1}
+    assert statuses == {finding.id: "REQUIRES_MODIFICATION"}
+    assert counts(statuses) == {"ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
     sign_in(api, db, owner)
     report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
-    assert report["user_status_counts"] == {"ACCEPTED": 0, "NEEDS_REVIEW": 0, "NOT_ACCEPTED": 1}
+    assert report["user_status_counts"] == {"ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
     assert report["classification_counts"] == {"DEVIATION": 1}   # audit record kept
     rows = api.get(f"{V1}/contracts").json()["data"]
     row = next(r for r in rows if r["id"] == str(review.contract_id))
-    assert row["latest_analysis"]["user_status_counts"]["NOT_ACCEPTED"] == 1
+    assert row["latest_analysis"]["user_status_counts"]["REQUIRES_MODIFICATION"] == 1
 
 
 # 6 — the LLM cannot override the authoritative result
@@ -148,7 +138,7 @@ def test_an_explanation_never_changes_the_status(db, owner, monkeypatch):
     result = explanations.explain(db, finding)
     after = serialize_finding(db, finding, legal_position=True)
     assert result.status != "ACCEPTED"          # 8 — the claim was rejected
-    assert before["user_status"] == after["user_status"] == "NOT_ACCEPTED"
+    assert before["user_status"] == after["user_status"] == "REQUIRES_MODIFICATION"
     assert before["classification"] == after["classification"] == "DEVIATION"
 
 

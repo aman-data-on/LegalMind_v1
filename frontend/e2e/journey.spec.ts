@@ -59,14 +59,14 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // The face says the reader's word; the engine's word is one click away. The
   // fixture's zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
   // reader sees Not accepted (owner's final status decision, 2026-09-09).
-  await expect(finding.locator("[data-status]")).toHaveText("Not accepted");
+  await expect(finding.locator("[data-status]")).toHaveText("Requires modification");
   await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Not accepted \(\d+\)$/ })).toBeVisible();
-  await filters.getByRole("button", { name: /^Not accepted/ }).click();
+  await expect(filters.getByRole("button", { name: /^Requires modification \(\d+\)$/ })).toBeVisible();
+  await filters.getByRole("button", { name: /^Requires modification/ }).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
   // inside "How this was determined" (seventh pass — the face is the four
@@ -111,7 +111,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // badges — the underlying fact is the same).
   await page.goto("/dashboard");
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
-  await expect(row.locator(".ws-status-pill")).toContainText("Needs review");
+  await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
   // The fixture deviation is ruled UNACCEPTABLE, so it counts as Not accepted (the third badge).
   await expect(row.locator(".ws-findings-badge--missing")).not.toHaveClass(/ws-findings-badge--zero/);
 });

@@ -8,9 +8,11 @@
  * controls attach to the Evaluation, never the Finding (AB-1).
  *
  * The summary strip renders the loaded findings' three-word status counts
- * (Accepted / Needs review / Not accepted) as pressable filters — presentational grouping of server values, never a
- * client-side re-derivation (52.7). "Needs decision" stays the default view
- * when anything needs one. When every finding is a MATCH, that is a designed
+ * (Acceptable / Requires modification / Needs a decision) as pressable filters
+ * — presentational grouping of server values, never a client-side
+ * re-derivation (52.7). The row is a FIXED order a reader can learn (owner,
+ * 2026-09-09): "All" first and selected by default, then the three status
+ * words in their own fixed order. When every finding is a MATCH, that is a designed
  * success state, not an empty table (§29) — built from real fields only, no
  * grade, no percentage.
  *
@@ -70,15 +72,18 @@ import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
-type View = "attention" | "all" | { classification: string } | { status: UserStatus };
+type View = "all" | { classification: string } | { status: UserStatus };
 
 const ATTENTION_OUTCOMES = new Set(["APPROVAL_REQUIRED", "UNACCEPTABLE"]);
 const CALM_OUTCOMES = new Set(["ACCEPTABLE", "NOT_APPLICABLE"]);
 
+// "All" opens selected (owner, 2026-09-09): the reader lands on every finding,
+// never on a pre-filtered subset they did not choose. A `?classification=`
+// deep link still lands on its own subset.
 function initialView(): View {
-  if (typeof window === "undefined") return "attention";
+  if (typeof window === "undefined") return "all";
   const pointed = new URLSearchParams(window.location.search).get("classification");
-  return pointed ? { classification: pointed } : "attention";
+  return pointed ? { classification: pointed } : "all";
 }
 
 export function FindingsPane({ version }: { version: DocumentVersion }) {
@@ -323,22 +328,18 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
 
 
   const summary = findingsSummary(findings);
-  const effectiveView: View =
-    view === "attention" && summary.needsDecision === 0 ? "all" : view;
   // Review order, not engine order (P-4, 2026-09-06): what needs a decision
   // first, then the document's own order. Presentation only — see `reviewOrder`.
   const shown = reviewOrder(
-    effectiveView === "all"
+    view === "all"
       ? findings
-      : effectiveView === "attention"
-        ? findings.filter((f) => f.requires_decision)
-        : "status" in effectiveView
-          ? findings.filter((f) => userStatus(f) === effectiveView.status)
-          : findings.filter((f) => f.classification === effectiveView.classification));
+      : "status" in view
+        ? findings.filter((f) => userStatus(f) === view.status)
+        : findings.filter((f) => f.classification === view.classification));
   // The filter row speaks the reader's three-word vocabulary; the classification
   // view survives only for the `?classification=` deep links from the Summary
   // tiles and the report, which still name the engine's own words.
-  const statusCounts = (["ACCEPTED", "NEEDS_REVIEW", "NOT_ACCEPTED"] as UserStatus[])
+  const statusCounts = (["ACCEPTABLE", "REQUIRES_MODIFICATION", "NEEDS_DECISION"] as UserStatus[])
     .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
     .filter(({ n }) => n > 0);
 
@@ -406,41 +407,41 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               </div>
             ) : null}
             <div className="ws-filter" role="group" aria-label="Filter findings">
-              {summary.needsDecision > 0 ? (
-                <button
-                  type="button"
-                  aria-pressed={effectiveView === "attention"}
-                  onClick={() => setView("attention")}
-                >
-                  Needs decision ({summary.needsDecision})
-                </button>
-              ) : null}
+              {/* One fixed order, whatever the data says (owner, 2026-09-09):
+                  "All" first, then the three status words in `statusCounts`
+                  order. Nothing here sorts on the counts, so the row a reader
+                  learns on one contract is the row the next contract gives
+                  them. The separate requires_decision filter is gone — with
+                  "Needs a decision" now one of the three words, it was two
+                  buttons reading almost the same thing; the legal-decision
+                  count stays on the Summary as its own line. */}
               <button
                 type="button"
-                aria-pressed={effectiveView === "all"}
+                aria-pressed={view === "all"}
                 onClick={() => setView("all")}
               >
                 All ({findings.length})
               </button>
-              {/* A `?classification=` deep link (Summary tile, report) lands on
-                  the engine's own subset; show that filter pressed so the
-                  reader can see it and clear it with "All". */}
-              {typeof effectiveView === "object" && "classification" in effectiveView ? (
-                <button type="button" aria-pressed onClick={() => setView("all")}>
-                  {classificationLabel(effectiveView.classification)} ({shown.length})
-                </button>
-              ) : null}
               {statusCounts.map(({ status, n }) => (
                 <button
                   key={status}
                   type="button"
-                  aria-pressed={typeof effectiveView === "object" && "status" in effectiveView &&
-                    effectiveView.status === status}
+                  aria-pressed={typeof view === "object" && "status" in view &&
+                    view.status === status}
                   onClick={() => setView({ status })}
                 >
                   {USER_STATUS_LABELS[status]} ({n})
                 </button>
               ))}
+              {/* A `?classification=` deep link (Summary tile, report) lands on
+                  the engine's own subset; show that filter pressed so the
+                  reader can see it and clear it with "All". Last in the row, so
+                  it never displaces the four positions above it. */}
+              {typeof view === "object" && "classification" in view ? (
+                <button type="button" aria-pressed onClick={() => setView("all")}>
+                  {classificationLabel(view.classification)} ({shown.length})
+                </button>
+              ) : null}
             </div>
             {shown.length === 0 ? (
               <p role="status">No findings in this view.</p>
@@ -602,7 +603,7 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
  *  the status chip right beside it already carries the word this icon
  *  repeats visually. One tone per user-facing status, no fourth. */
 function FindingStatusMark({ status }: { status: UserStatus }) {
-  const tone = status === "ACCEPTED" ? "ok" : status === "NOT_ACCEPTED" ? "bad" : "warn";
+  const tone = status === "ACCEPTABLE" ? "ok" : status === "REQUIRES_MODIFICATION" ? "bad" : "warn";
   const Icon = tone === "ok" ? IconCheckCircle
     : tone === "bad" ? IconXCircle
     : IconAlertCircle;

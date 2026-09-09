@@ -105,11 +105,11 @@ function FindingsCell({ contract }: { contract: Contract }) {
   if (!analyzed || !counts) {
     return <span className="ws-findings-cell ws-pane__note">—</span>;
   }
-  // Accepted · Needs review · Not accepted — the same three words as the card.
+  // Acceptable · Needs a decision · Requires modification — the same three words as the card.
   const buckets: Array<{ key: "match" | "review" | "missing"; n: number }> = [
-    { key: "match", n: counts.ACCEPTED ?? 0 },
-    { key: "review", n: counts.NEEDS_REVIEW ?? 0 },
-    { key: "missing", n: counts.NOT_ACCEPTED ?? 0 },
+    { key: "match", n: counts.ACCEPTABLE ?? 0 },
+    { key: "review", n: counts.NEEDS_DECISION ?? 0 },
+    { key: "missing", n: counts.REQUIRES_MODIFICATION ?? 0 },
   ];
   return (
     <span className="ws-findings-cell">

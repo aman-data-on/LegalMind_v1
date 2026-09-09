@@ -77,7 +77,7 @@ def _status_bucket(item: dict) -> str:
     if analysis.get("review_status") in _IN_FLIGHT_REVIEW_STATUSES:
         return "analyzing"
     counts = analysis.get("user_status_counts") or {}
-    if any(n > 0 for status, n in counts.items() if status != "ACCEPTED"):
+    if any(n > 0 for status, n in counts.items() if status != "ACCEPTABLE"):
         return "needs_attention"
     return "analyzed"
 

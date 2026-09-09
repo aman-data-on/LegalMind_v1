@@ -44,7 +44,7 @@ function finding(over: Partial<Finding> = {}): Finding {
     evidence: [],
     created_at: null,
     updated_at: null,
-    user_status: (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTED" : "NEEDS_REVIEW",
+    user_status: (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTABLE" : ["DEVIATION", "MISSING"].includes(over.classification ?? "MISSING") ? "REQUIRES_MODIFICATION" : "NEEDS_DECISION",
     ...over,
   } as Finding;
 }
@@ -156,8 +156,11 @@ describe("what happens next", () => {
     const step = (c: string) => nextStep(finding({ classification: c, requires_decision: c !== "MATCH" }),
                                          evaluation({ classification: c, requires_decision: c !== "MATCH" }));
     expect(step("MATCH")).toBe("No action is needed.");
-    for (const c of ["DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
-      expect(step(c), c).toBe("Someone with legal authority needs to review this.");
+    for (const c of ["DEVIATION", "MISSING"]) {
+      expect(step(c), c).toMatch(/needs to be modified, or someone with legal authority must decide/);
+    }
+    for (const c of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
+      expect(step(c), c).toBe("Someone with legal authority needs to decide this.");
     }
   });
 
@@ -170,8 +173,8 @@ describe("what happens next", () => {
   });
 
   it("routes Not accepted to a person and never suggests a self-service edit", () => {
-    const step = nextStep(finding({ classification: "DEVIATION" }), evaluation({ classification: "DEVIATION" }), "NOT_ACCEPTED");
-    expect(step).toBe("This goes against an approved company position. Legal review or modification is required.");
+    const step = nextStep(finding({ classification: "DEVIATION" }), evaluation({ classification: "DEVIATION" }), "REQUIRES_MODIFICATION");
+    expect(step).toBe("This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide.");
     expect(step).not.toMatch(/would make/);
   });
 });
@@ -420,23 +423,23 @@ describe("the Company Standard column reads as an expectation, not a search resu
 
 describe("the three-word user-facing status is the server's word (owner's FINAL decision, 2026-09-09)", () => {
   it("renders exactly what the server derived — never re-derived from classification or rule outcome", () => {
-    expect(userStatus({ user_status: "ACCEPTED" })).toBe("ACCEPTED");
-    expect(userStatus({ user_status: "NOT_ACCEPTED" })).toBe("NOT_ACCEPTED");
-    expect(userStatus({ user_status: "NEEDS_REVIEW" })).toBe("NEEDS_REVIEW");
+    expect(userStatus({ user_status: "ACCEPTABLE" })).toBe("ACCEPTABLE");
+    expect(userStatus({ user_status: "REQUIRES_MODIFICATION" })).toBe("REQUIRES_MODIFICATION");
+    expect(userStatus({ user_status: "NEEDS_DECISION" })).toBe("NEEDS_DECISION");
   });
 
   it("fails closed to Needs review when a payload carries no word", () => {
-    expect(userStatus({})).toBe("NEEDS_REVIEW");
+    expect(userStatus({})).toBe("NEEDS_DECISION");
   });
 
   it("the Summary counts the same words as the cards", () => {
     const counts = statusCounts([
-      { user_status: "ACCEPTED", requires_decision: false },
-      { user_status: "NOT_ACCEPTED", requires_decision: true },
-      { user_status: "NEEDS_REVIEW", requires_decision: true },
-      { user_status: "NEEDS_REVIEW", requires_decision: false },
+      { user_status: "ACCEPTABLE", requires_decision: false },
+      { user_status: "REQUIRES_MODIFICATION", requires_decision: true },
+      { user_status: "NEEDS_DECISION", requires_decision: true },
+      { user_status: "NEEDS_DECISION", requires_decision: false },
     ]);
-    expect(counts).toEqual({ ACCEPTED: 1, NEEDS_REVIEW: 2, NOT_ACCEPTED: 1, needsDecision: 2 });
+    expect(counts).toEqual({ ACCEPTABLE: 1, REQUIRES_MODIFICATION: 1, NEEDS_DECISION: 2, needsDecision: 2 });
   });
 
   it("still surfaces the Constitution citation the server sent", () => {

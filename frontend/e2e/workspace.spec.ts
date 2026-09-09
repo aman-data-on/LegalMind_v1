@@ -392,7 +392,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // The Summary speaks the reader's three words (owner, 2026-09-09, AM-50 r4 —
     // reversing the 2026-09-01 correction that pinned the engine's words here).
     // The engine vocabulary is unchanged underneath and lives in View details.
-    const USER_WORDS = ["Accepted", "Needs review", "Not accepted"];
+    const USER_WORDS = ["Acceptable", "Requires modification", "Needs a decision"];
     expect(await panel.locator(".ws-tile").count()).toBeLessThanOrEqual(3);
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);

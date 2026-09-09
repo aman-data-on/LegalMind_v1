@@ -40,7 +40,7 @@ type Load =
 /** Visual weight only — filled chips mark states a human still owes work to.
  *  Never a severity ranking within an axis (UI master prompt), and RESOLVED
  *  stays a workflow fact, never restyled as a MATCH (rule 14). */
-const USER_STATUS_ORDER = ["ACCEPTED", "NEEDS_REVIEW", "NOT_ACCEPTED"] as const;
+const USER_STATUS_ORDER = ["ACCEPTABLE", "REQUIRES_MODIFICATION", "NEEDS_DECISION"] as const;
 const CALM_STATUSES = new Set(["RESOLVED", "OPEN"]);
 
 export function ReviewReportPage({ reviewId }: { reviewId: string }) {

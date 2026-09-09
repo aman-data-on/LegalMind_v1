@@ -553,7 +553,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           </nav>
           <div className="ws-card ws-legend" role="note" aria-label="Status legend">
             <p><StatusIcon bucket="match" /> Match (aligned)</p>
-            <p><StatusIcon bucket="review" /> Needs review</p>
+            <p><StatusIcon bucket="review" /> Needs a decision</p>
             <p><StatusIcon bucket="missing" /> Missing (not present)</p>
           </div>
         </div>

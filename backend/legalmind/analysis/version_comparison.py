@@ -152,7 +152,7 @@ def _findings_by_section(db: DBSession, review_id: UUID | None) -> dict[str, lis
         entry = {
             "finding_id": str(finding.id),
             "classification": finding.classification.value,
-            "user_status": statuses.get(finding.id, "NEEDS_REVIEW"),
+            "user_status": statuses.get(finding.id, "NEEDS_DECISION"),
             "requirement_code": requirement_code,
         }
         bucket = index.setdefault(section, [])

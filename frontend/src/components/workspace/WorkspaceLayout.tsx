@@ -87,7 +87,7 @@ const LABEL: Record<Region, string> = {
 export interface FindingsPoint {
   classification?: string;
   /** The reader's three-word status (AM-50 r4) — what the Summary tiles point with. */
-  status?: "ACCEPTED" | "NEEDS_REVIEW" | "NOT_ACCEPTED";
+  status?: "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
   findingId?: string;
   seq: number;
 }

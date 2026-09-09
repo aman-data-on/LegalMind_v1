@@ -122,12 +122,12 @@ export function classificationSentence(classification: string): string | null {
  * this was determined". Every surface that shows a Finding's status goes
  * through this function — one vocabulary (rule 12), never a second one.
  */
-export type UserStatus = "ACCEPTED" | "NEEDS_REVIEW" | "NOT_ACCEPTED";
+export type UserStatus = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
 
 export const USER_STATUS_LABELS: Record<UserStatus, string> = {
-  ACCEPTED: "Accepted",
-  NEEDS_REVIEW: "Needs review",
-  NOT_ACCEPTED: "Not accepted",
+  ACCEPTABLE: "Acceptable",
+  REQUIRES_MODIFICATION: "Requires modification",
+  NEEDS_DECISION: "Needs a decision",
 };
 
 export function userStatus(finding: Pick<Finding, "user_status">): UserStatus {
@@ -137,14 +137,14 @@ export function userStatus(finding: Pick<Finding, "user_status">): UserStatus {
   // (`legalmind/evaluation/user_status.py`), so a USER without the legal
   // position still gets the word and no screen re-derives it. Absent (an
   // older payload) it fails closed to "a person must look".
-  return finding.user_status ?? "NEEDS_REVIEW";
+  return finding.user_status ?? "NEEDS_DECISION";
 }
 
 /** The three-word counts for a whole review — the Summary's tiles (AM-50 r4). */
 export function statusCounts(
   findings: Array<Pick<Finding, "user_status" | "requires_decision">>,
-): { ACCEPTED: number; NEEDS_REVIEW: number; NOT_ACCEPTED: number; needsDecision: number } {
-  const out = { ACCEPTED: 0, NEEDS_REVIEW: 0, NOT_ACCEPTED: 0, needsDecision: 0 };
+): { ACCEPTABLE: number; REQUIRES_MODIFICATION: number; NEEDS_DECISION: number; needsDecision: number } {
+  const out = { ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 0, needsDecision: 0 };
   for (const f of findings) {
     out[userStatus(f)] += 1;
     if (f.requires_decision) out.needsDecision += 1;
@@ -201,11 +201,11 @@ export function nextStep(
   }
   const escalated = finding.requires_decision || evaluation?.requires_decision;
   switch (status) {
-    case "NOT_ACCEPTED":
+    case "REQUIRES_MODIFICATION":
       // The owner's own words (2026-09-09): a clear, rule-backed conflict is
       // the one status where the card may say the contract needs changing.
-      return "This goes against an approved company position. Legal review or modification is required.";
-    case "ACCEPTED":
+      return "This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide.";
+    case "ACCEPTABLE":
       // An escalated MATCH still needs a person (workflow.py clause (d)): the
       // server's flag wins over the status's default.
       return escalated
@@ -214,7 +214,7 @@ export function nextStep(
     default:
       // One sentence for every Needs review, whatever the engine recorded: it
       // never pre-decides the outcome (owner, 2026-09-09).
-      return "Someone with legal authority needs to review this.";
+      return "Someone with legal authority needs to decide this.";
   }
 }
 

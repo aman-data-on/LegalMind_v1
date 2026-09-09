@@ -87,7 +87,7 @@ export interface LatestAnalysis {
   created_at: string | null;
   completed_at: string | null;
   classification_counts?: Record<string, number>;
-  /** ACCEPTED / NEEDS_REVIEW / NOT_ACCEPTED per finding — the Dashboard's counts. */
+  /** ACCEPTABLE / REQUIRES_MODIFICATION / NEEDS_DECISION per finding — the Dashboard's counts. */
   user_status_counts?: Record<string, number>;
 }
 
@@ -272,7 +272,7 @@ export interface Decision {
   created_at: string | null;
 }
 
-export type UserStatusWord = "ACCEPTED" | "NEEDS_REVIEW" | "NOT_ACCEPTED";
+export type UserStatusWord = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
 
 export interface Evaluation {
   id: string;

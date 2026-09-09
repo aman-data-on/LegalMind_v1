@@ -104,7 +104,7 @@ def test_an_unverifiable_yes_leaves_the_mapping_unresolved(build, db, monkeypatc
     outcome = run.outcomes[0]
     assert outcome.mapping_state == "UNRESOLVED"
     assert outcome.classification == "UNABLE_TO_EVALUATE"
-    assert by_finding(db, [review.id])[review.id][outcome.finding_id] == "NEEDS_REVIEW"
+    assert by_finding(db, [review.id])[review.id][outcome.finding_id] == "NEEDS_DECISION"
 
 
 # 2b — a clause ON the subject that states a DIFFERENT position is a person's call
