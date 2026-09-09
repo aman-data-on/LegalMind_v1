@@ -396,7 +396,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);
     for (const label of tileLabels) expect(USER_WORDS).toContain(label);
-    for (const engineWord of ["DEVIATION", "MISSING", "UNABLE_TO_EVALUATE", "NEEDS A PERSON"]) {
+    for (const engineWord of ["DEVIATION", "MISSING", "UNABLE_TO_EVALUATE"]) {
       expect(await panel.innerText()).not.toContain(engineWord);
     }
 

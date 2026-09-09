@@ -70,9 +70,9 @@ describe("every classification renders a card a reader can act on", () => {
       expect(html).toMatch(sentence);
       // The canonical word survives — inside "How this was determined", never
       // on the card face (owner, 2026-09-08: three user-facing statuses).
-      // UNABLE_TO_EVALUATE renders as its locked label "NEEDS A PERSON".
+      // UNABLE_TO_EVALUATE renders as "Needs Review" (owner, 2026-09-09).
       const { before, inside } = splitAtDetails(html);
-      const word = classification === "UNABLE_TO_EVALUATE" ? /NEEDS A PERSON/ : new RegExp(classification);
+      const word = classification === "UNABLE_TO_EVALUATE" ? /Needs Review/ : new RegExp(classification);
       expect(inside).toMatch(word);
       expect(before).not.toMatch(word);
       // The title is words, never the identifier repeated as one.
@@ -329,7 +329,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(inside).toContain("RESIDUALS-NDA-001");
   });
 
-  it("CONF-SURVIVAL-NDA-001 — UNABLE_TO_EVALUATE (\"NEEDS A PERSON\"): nothing extracted on either side", () => {
+  it("CONF-SURVIVAL-NDA-001 — UNABLE_TO_EVALUATE (\"Needs Review\"): nothing extracted on either side", () => {
     const html = card(
       { requirement: { code: "CONF-SURVIVAL-NDA-001", name: "CONF-SURVIVAL-NDA-001", version_id: "v1", version_number: 1 },
         classification: "UNABLE_TO_EVALUATE", status: "DECISION_REQUIRED", requires_decision: true,
@@ -345,7 +345,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(before).toMatch(/does not say enough about confidentiality survival|no approved company standard recorded for confidentiality survival/i);
     // The locked word lives in the disclosure now; the face says "Needs review".
     expect(before).toMatch(/Needs review/);
-    expect(inside).toMatch(/NEEDS A PERSON/);
+    expect(inside).toMatch(/Needs Review/);
     expect(before).toMatch(/legal authority needs to review/i);
     // Honest about having nothing to compare — never a guess, never silence.
     expect(before).toMatch(/Not recorded/);
@@ -585,7 +585,7 @@ describe("the face is only the four answers; the proof is one click away (owner,
         { classification: c, operator: "!=", evidence_refs: ["ev1"], rule_outcome: "NOT_APPLICABLE" },
       ));
       for (const leak of ["evidence reference", "PRESENCE-v1", "RESIDUALS-NDA-001", ">!=<", "No rule covers this",
-                          "Decision required", ">GENERAL<", "mapping", "NEEDS A PERSON", `>${c}<`]) {
+                          "Decision required", ">GENERAL<", "mapping", `>${c}<`]) {
         expect(before, `${c}: ${leak}`).not.toContain(leak);
       }
     }

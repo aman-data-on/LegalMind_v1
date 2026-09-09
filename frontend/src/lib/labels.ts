@@ -56,14 +56,23 @@ const FINDING_STATUS_LABELS: Record<string, string> = {
  * Finding classification. The locked trio is untouched; only the engine's
  * "I could not judge this" state is put into words, because `UNABLE_TO_EVALUATE`
  * describes the engine's inability and a reader needs to know what it means FOR THEM:
- * a person has to look. Same chip weight, so the set still reads as one vocabulary.
+ * a person has to look.
+ *
+ * Owner instruction, 2026-09-09: that state reads "Needs Review" (it was "NEEDS A
+ * PERSON"). The enum, the audit trail and every evaluator path are untouched —
+ * this is the label only. The owner also narrowed what the state should MEAN
+ * ("only when the content is genuinely unclear, never a default or fallback"),
+ * which is a change to the evaluator's fail-closed routing, NOT to this label,
+ * and is deliberately not implemented here: rule 15 currently makes this state
+ * the fail-closed destination for insufficient extraction, so narrowing it is a
+ * separate, scoped change to those code paths.
  */
 const CLASSIFICATION_LABELS: Record<string, string> = {
   MATCH: "MATCH",
   DEVIATION: "DEVIATION",
   MISSING: "MISSING",
   CONFLICT: "CONFLICT",
-  UNABLE_TO_EVALUATE: "NEEDS A PERSON",
+  UNABLE_TO_EVALUATE: "Needs Review",
 };
 
 /**
@@ -150,8 +159,8 @@ export const CLASSIFICATION_HELP: { value: string; label: string; help: string }
   },
   {
     value: "UNABLE_TO_EVALUATE",
-    label: "NEEDS A PERSON",
-    help: "The engine could not reach a comparable answer — for example the document states a basis the standard cannot be measured against. It never guesses; it hands the question to you.",
+    label: "Needs Review",
+    help: "Something in the document is not clear enough to compare — for example it states a basis the standard cannot be measured against. The engine never guesses; it hands the question to you.",
   },
 ];
 

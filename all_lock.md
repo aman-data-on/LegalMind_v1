@@ -17917,3 +17917,72 @@ Code: `legalmind/assist/statutes.py::search_statutes`. Tests: `test_assist_statu
 the real API: "Section 43A of the IT Act" → IT Act §43A; "What is the DPDP Act?" → DPDP
 Act §§3/44; "Section 138 of the Negotiable Instruments Act" → NI Act §138 — all cited
 Act + section, none regressed.
+
+--------------------------------------------------------------------------------
+
+# `AM-52` — A mapped clause that states no cap keeps its evidence; `UNABLE_TO_EVALUATE` reads "Needs Review" (Owner Instruction — 2026-09-09, post-deployment investigation)
+
+**Amends:** nothing locked in substance. `45C.15`'s classification outcome is UNCHANGED
+(a mapped clause stating no cap is still established absence → MISSING); what changes is
+that the clause the mapping layer already confirmed is no longer DISCARDED — it is
+retained as that Finding's evidence, which `45C.14`'s own worked example (DOC-LIAB-08:
+"the clause was found and mapped, so it must remain attached") and rule 11 already
+required. The `UNABLE_TO_EVALUATE` **display label** becomes "Needs Review" (was
+"NEEDS A PERSON") — presentation only, no enum, audit value or evaluator path touched.
+**Does not amend:** rule 15's fail-closed routing, `45B.7`, `44.24`, Step 20 r4, the four
+classifications, the three user-facing statuses, `35.4` (terminology stays configuration —
+no phrase, synonym or fuzzy match was added anywhere).
+
+**What the investigation found.** The owner reported two MISSING liability findings on a
+real mixed contract. Traced end to end (extraction → clause detection → chunking →
+applicability → mapping → evidence assembly → evaluation → classification → summary):
+
+```text
+r1   THE REPORTED FINDING WAS CORRECT, THE FIXTURE WAS NOT. The clause read
+     "...aggregate liability ... shall exceed the total fees paid ..." — the word
+     "not" was absent, so as literal text it states no bounded cap and matches no
+     configured cap phrase. MISSING was the right fail-closed answer (44.24: never
+     a guess). Re-verified live with the same clause correctly drafted ("shall not
+     exceed the total fees paid ... twelve (12) months"): LIABILITY-MSA-001 and
+     LIABILITY-TOS-001 both MATCH, cited to the clause. No phrase was added.
+
+r2   THE REAL DEFECT WAS EVIDENCE LOSS, NOT RECALL. `_extract_from_clause`
+     returned `[]` for any mapped clause containing neither a configured cap nor
+     unlimited phrase, so the clause the mapping layer had ALREADY confirmed as
+     relevant was dropped and the MISSING Finding carried ZERO evidence —
+     indistinguishable from a document that never mentioned the subject, and a
+     rule-11 traceability break. It now emits an explicit ABSENT cap carrying that
+     clause's evidence. Classification is unchanged; only the citation is added.
+
+r3   A BARE HEADING IS NOT EVIDENCE. `section_heading_terms` lets mapping confirm a
+     heading line on its own ("3. Limitation of Liability"); attaching that as
+     evidence of an absence would mislead. A heading-shaped fragment (one line,
+     under 80 characters, not a sentence) is excluded — the same narrow judgment
+     `assist/chunking.py::_is_heading` makes, reimplemented locally rather than
+     imported, because the authoritative path does not depend on the assist lane
+     (`AM-25` r2).
+
+r4   LABEL ONLY. `UNABLE_TO_EVALUATE` renders as "Needs Review". The owner also
+     narrowed what that state should MEAN ("only when the content is genuinely
+     unclear, never a default or fallback"). That is a change to the evaluator's
+     fail-closed ROUTING — rule 15 currently makes this state the destination for
+     insufficient extraction, incomparable scope, undeterminable scope, unresolved
+     mapping and multi-limb formulas — and is deliberately NOT implemented here.
+     It requires naming which of those paths should classify differently, and to
+     what; a blanket narrowing would either weaken rule 15 or convert genuine
+     ambiguity into asserted absence. Recorded as the owner's open item.
+
+r5   DOMAIN A INDEXING WAS GENUINELY STALE AND IS NOW FIXED. Every
+     `position_chunks` row referenced a superseded `company_standard_versions`
+     row (LIABILITY-MSA-001 pointed at 4f99da3e…, the published version being
+     0558e85a…). Content text was already current (chunks are built from the
+     ratified FILE's verbatim fields, not the database's configuration values),
+     so no stale position was ever quoted to a user — but the provenance link was
+     broken. Rechunked: 32 chunks, every one now on the published version.
+     `position_chunk_embeddings` remains empty by design — Domain A search is
+     lexical (`search_positions` uses tsvector only), so this affects nothing.
+```
+
+**Approved by the owner on 2026-09-09** ("Investigate the complete path … Do NOT simply add
+another hardcoded phrase/synonym … Do NOT weaken the existing classification rules … If yes,
+fix it now rather than leaving it as a known limitation.").

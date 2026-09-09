@@ -1155,3 +1155,156 @@ def test_a_short_document_is_never_judged_unsegmented(build, db):
     review = build.review(["Liability shall not exceed 6 months of fees paid."])
 
     assert run_analysis(db, review).review_status != E.ReviewStatus.ANALYSIS_FAILED.value
+
+
+# =====================================================================
+# Regression — liability evidence retention + drafting-style variety
+# (owner, 2026-09-09: the 2 false-MISSING findings on a real mixed contract
+# investigated end to end. Root cause: a mapped, CONFIRMED liability clause
+# that states neither a cap phrase nor an unlimited phrase was silently
+# dropped with ZERO evidence — indistinguishable from "no clause at all" and
+# a rule-11 evidence-traceability defect, not a phrase-list narrowness one.
+# No new phrase was added anywhere; the fix (extraction/liability.py) only
+# keeps the clause the mapping layer already confirmed as evidence.)
+# =====================================================================
+def test_the_investigated_failure_is_missing_WITH_its_evidence_retained(build, db):
+    """The exact shape of the live failure: a clause under a Limitation of
+    Liability heading, confirmed by mapping, that never actually states a
+    bounded cap (here: malformed drafting — 'shall exceed' rather than 'shall
+    not exceed', which literally asserts no limit at all). MISSING is the
+    correct classification (no configured cap or unlimited phrase is present);
+    what was wrong is that it carried zero evidence. It must now carry the
+    clause itself."""
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "3. Limitation of Liability. Neither party's aggregate liability under "
+        "this Agreement shall exceed the total fees paid by Customer in the "
+        "twelve (12) months immediately preceding the event giving rise to the "
+        "claim.",
+    ])
+    run = run_analysis(db, review)
+    assert run.findings_created == 1
+    outcome = run.outcomes[0]
+    assert outcome.classification == "MISSING"
+    assert outcome.evaluation_count == 1
+    finding = db.execute(select(M.Finding).where(M.Finding.id == outcome.finding_id)).scalar_one()
+    evaluation = db.execute(select(M.Evaluation).where(M.Evaluation.finding_id == finding.id)).scalar_one()
+    evidence_rows = db.execute(
+        select(M.EvaluationEvidence).where(M.EvaluationEvidence.evaluation_id == evaluation.id)
+    ).scalars().all()
+    assert len(evidence_rows) == 1, "the clause that WAS found must remain attached (rule 11)"
+
+
+@pytest.mark.parametrize("heading,body", [
+    ("3. Limitation of Liability",
+     "Neither party's aggregate liability under this Agreement shall not "
+     "exceed the total fees paid by Customer in the six (6) months "
+     "immediately preceding the event giving rise to the claim."),
+    ("ARTICLE IX — LIABILITY",
+     "In no event shall the aggregate liability of either party arising out "
+     "of or relating to this Agreement, whether in contract, tort or "
+     "otherwise, shall not exceed an amount equal to the fees paid over the "
+     "preceding 6 months."),
+    ("9.1 Limitation of Liability",
+     "Except as set out in Section 9.2, each party's total liability to the "
+     "other under this Agreement shall not exceed the fees paid during the 6 "
+     "months preceding the claim, regardless of the form of action, whether "
+     "in contract, tort (including negligence) or otherwise."),
+    (None,  # no heading at all — a single unnumbered paragraph
+     "LIABILITY. The parties agree that liability under this Agreement shall "
+     "not exceed the fees paid over a period of 6 months preceding the event "
+     "giving rise to the claim, and this limitation applies to the fullest "
+     "extent permitted by applicable law."),
+], ids=["baseline-numbered", "article-style-heading", "cross-referenced-subsection",
+        "no-separate-heading-inline-label"])
+def test_a_genuinely_valid_liability_cap_is_recognised_across_drafting_styles(
+        build, db, heading, body):
+    """Acceptance criterion 1: different valid drafting styles — different
+    heading conventions, article/section numbering, a cross-reference to a
+    carve-out subsection, and a clause with no separate heading line at all —
+    all recognised, because mapping and extraction key on the CONFIGURED
+    terminology and structure (confirm_threshold, keyword_groups, cap_phrases),
+    never on a specific heading's exact wording."""
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    paragraphs = [p for p in (heading, body) if p is not None]
+    review = build.review(paragraphs)
+    run = run_analysis(db, review)
+    assert run.findings_created == 1
+    outcome = run.outcomes[0]
+    assert outcome.classification == "MATCH", (heading, outcome.failure, outcome.mapping_state)
+
+
+def test_genuine_absence_of_any_liability_language_is_not_reported_as_a_confirmed_position(
+        build, db):
+    """Acceptance criterion 2, the other half: a document that never mentions
+    liability at all must never be told apart from one that mentions it but
+    states no cap — by construction it cannot reach the fix above (mapping
+    never confirms a clause, so `extract_liability_facts` is never even
+    called; `_facts_for` returns None) — and it must never surface as MATCH or
+    DEVIATION. Confirms the fix did not create a false-positive path."""
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "4. Termination for Convenience",
+        "Either party may terminate this Agreement for convenience upon "
+        "thirty (30) days prior written notice to the other party.",
+        "1. Confidentiality",
+        "Each party shall protect the other party's Confidential Information.",
+    ])
+    run = run_analysis(db, review)
+    outcome = run.outcomes[0]
+    assert outcome.mapping_state == "NONE"
+    assert outcome.classification != "MATCH" and outcome.classification != "DEVIATION"
+
+
+def test_an_unrelated_clause_is_never_cited_as_liability_evidence(build, db):
+    """Acceptance criterion 3: the mapping layer's own specificity is what
+    prevents an unrelated clause from ever reaching the liability extractor in
+    the first place — confirmed here by construction rather than by re-testing
+    the mapping engine's own suite."""
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review([
+        "1. Confidentiality",
+        "Each party shall protect the other party's Confidential Information "
+        "and shall not disclose it to any third party.",
+    ])
+    run = run_analysis(db, review)
+    outcome = run.outcomes[0]
+    assert outcome.mapping_state == "NONE"
+    if outcome.finding_id:
+        finding = db.execute(select(M.Finding).where(M.Finding.id == outcome.finding_id)).scalar_one()
+        assert finding.classification.value != "MATCH"
+
+
+def test_a_mixed_domain_document_still_shows_no_false_missing_flood_after_the_fix(build, db):
+    """Acceptance criterion 5, re-verified after the extraction fix: a
+    liability-adjacent clause that states no cap (now correctly evidenced)
+    must not, by itself, cause other unrelated families' standards to be
+    reported MISSING (AM-51 r2's correction is orthogonal to and unaffected by
+    this fix)."""
+    nda = {**STANDARD, "document_type": "NDA"}
+    build.requirement("LIABILITY-MSA-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    build.requirement("NDA-GOVLAW-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING,
+                      standard={"document_type": "NDA", "applicability": "REQUIRED",
+                                "expected_presence": "PRESENT"},
+                      legal_rule=None)
+    review = build.review([
+        "1. Confidentiality",
+        "Each party shall protect the other party's Confidential Information.",
+        "3. Limitation of Liability",
+        "In no event shall either party be liable for indirect or "
+        "consequential damages of any kind.",
+    ])
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = None
+    db.flush()
+    run = run_analysis(db, review)
+    assert run.detected_types == []
+    codes = {o.requirement_code: o.classification for o in run.outcomes}
+    assert codes["LIABILITY-MSA-STRUCT"] == "MISSING"
+    assert "NDA-GOVLAW-STRUCT" not in codes, "one liability clause must not detect the NDA family"

@@ -10,6 +10,45 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — A mapped clause that states no cap keeps its evidence; UNABLE_TO_EVALUATE reads "Needs Review" (`AM-52`, 2026-09-09)
+
+Owner-directed end-to-end investigation of two MISSING liability findings on a real
+mixed contract. **The findings were correct**: the clause read "...shall exceed the
+total fees paid..." — no "not" — so it stated no bounded cap and matched no configured
+cap phrase; MISSING was the right fail-closed answer. Re-verified live with the clause
+correctly drafted: `LIABILITY-MSA-001` and `LIABILITY-TOS-001` both **MATCH**, cited to
+the clause. **No phrase, synonym or fuzzy match was added anywhere** (locked 35.4 keeps
+terminology in configuration).
+
+The investigation did surface a real, general defect: `extraction/liability.py`
+discarded any mapped clause containing neither a cap nor an unlimited phrase, so a
+MISSING Finding carried **zero evidence** — indistinguishable from a document that never
+mentioned the subject, and a rule-11 traceability break contradicting `45C.14`'s own
+worked example (a damages-exclusion clause: "the clause was found and mapped, so it must
+remain attached"). It now emits an explicit ABSENT cap carrying that clause's evidence;
+the classification is unchanged. A bare heading fragment is excluded — mapping can
+confirm a heading line on its own via `section_heading_terms`, and citing one as evidence
+of absence would mislead.
+
+`UNABLE_TO_EVALUATE`'s **display label** is now "Needs Review" (was "NEEDS A PERSON") —
+label only; the enum, the audit trail and every evaluator path are untouched. The owner
+also narrowed what that state should mean ("only when genuinely unclear, never a default
+or fallback"); that is a change to rule 15's fail-closed routing and is recorded as an
+open item, not implemented.
+
+**Domain A indexing was genuinely stale and is fixed**: every `position_chunks` row
+referenced a superseded `company_standard_versions` row. Chunk TEXT was already current
+(chunks are built from the ratified file's verbatim fields, never the database's
+configuration values), so no stale position was ever quoted — but the provenance link
+was broken. Rechunked: 32 chunks on the published version. `position_chunk_embeddings`
+stays empty by design; `search_positions` is lexical only.
+
+Tests: +7 (evidence retained on a capless mapped clause; a bare heading excluded; four
+parametrised valid drafting styles — numbered, ARTICLE-style, cross-referenced
+subsection, no separate heading — all MATCH; genuine absence still never MATCH/DEVIATION;
+an unrelated clause never cited as liability evidence; mixed-domain no-flood re-verified).
+1421 backend, 165 golden corpus, 310 Vitest, 35 browser, `AM-28` gate SHIPPABLE.
+
 ### Fixed — AM-50 r3 corrected before deployment: statute title-ranking is a ratio, and only india/indian are excluded
 
 Pre-deployment live verification found "Section 43A of the IT Act" refused (CERT-In

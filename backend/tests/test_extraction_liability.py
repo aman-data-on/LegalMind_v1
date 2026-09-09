@@ -256,14 +256,38 @@ def test_an_unrecognised_basis_is_none_not_assumed():
     assert facts.caps[0].cap_basis is None
 
 
-def test_a_clause_with_no_cap_language_yields_nothing():
-    """45C.15 — absence never manufactures a position, and a mapped clause need not
-    contain a cap."""
-    facts = extract_liability_facts(
-        [clause("This Agreement is governed by the laws of Ruritania.")], CONFIG)
-    assert facts.caps == ()
+def test_a_mapped_clause_with_no_cap_language_is_absent_WITH_its_evidence_retained():
+    """45C.15 — absence never manufactures a position, and a mapped clause need
+    not contain a cap — but 45C.14's own worked example (a damages-exclusion
+    clause with no monetary cap) and rule 11 both require the clause that WAS
+    found and mapped to remain attached as evidence. Corrected 2026-09-09,
+    pre-deployment live verification: this clause used to vanish with zero
+    evidence, indistinguishable from a document that never mentioned liability
+    at all — exactly the loss of traceability rule 11 forbids."""
+    c = clause("In no event shall either party be liable for indirect, "
+              "incidental or consequential damages of any kind.")
+    facts = extract_liability_facts([c], CONFIG)
+    assert len(facts.caps) == 1
+    cap = facts.caps[0]
+    assert cap.cap_status == "ABSENT"
+    assert cap.cap_value is None and cap.cap_unit is None and cap.cap_basis is None
+    assert cap.evidence_refs == (c.evidence_id,)
     assert facts.extraction_status is ExtractionStatus.COMPLETE
     assert facts.extraction_diagnostics == ()
+
+
+def test_a_clause_entirely_unrelated_to_liability_still_yields_an_absent_cap_because_mapping_already_confirmed_it():
+    """The extractor trusts the mapping layer's own confirm_threshold (35.x): by
+    the time a clause reaches here it was ALREADY judged relevant to this
+    Requirement. A clause about something else entirely reaching this function
+    would be a MAPPING defect, not an extraction one (out of scope here, tested
+    against the mapping engine's own suite) — this only confirms the extractor
+    does not additionally filter what mapping already decided."""
+    c = clause("This Agreement is governed by the laws of Ruritania.")
+    facts = extract_liability_facts([c], CONFIG)
+    assert len(facts.caps) == 1
+    assert facts.caps[0].cap_status == "ABSENT"
+    assert facts.caps[0].evidence_refs == (c.evidence_id,)
 
 
 # =====================================================================

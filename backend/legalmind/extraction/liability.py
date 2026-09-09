@@ -59,6 +59,17 @@ UNKNOWN = "UNKNOWN"
 # because it names "the general rule" rather than any legal category.
 SCOPE_GENERAL = "GENERAL"
 
+# A bare heading is not a clause — mirrors `assist/chunking.py::_is_heading`'s
+# narrow judgment (one line, short, not a sentence) without importing across
+# the authoritative/assist boundary (AM-25 r2).
+_HEADING_MAX_CHARS = 80
+
+
+def _looks_like_heading(text: str) -> bool:
+    stripped = (text or "").strip()
+    return ("\n" not in stripped and len(stripped) < _HEADING_MAX_CHARS
+            and not stripped.endswith((".", ";", ")")))
+
 
 @dataclass(frozen=True)
 class ExceptionPattern:
@@ -184,10 +195,6 @@ def extract_liability_facts(
             continue
 
         found = _extract_from_clause(clause, body, config, diagnostics)
-        if not found:
-            # Not a diagnostic: a mapped clause need not contain a cap. Locked
-            # 45C.15 — absence never manufactures a position.
-            continue
         caps.extend(found)
 
     if not caps:
@@ -244,7 +251,29 @@ def _extract_from_clause(
         contains_phrase(body, phrase) for phrase in config.cap_phrases)
 
     if not (states_unlimited or states_cap):
-        return []
+        # The mapping layer already confirmed this clause is relevant to THIS
+        # Requirement (`confirmed_clauses` — 35.x's own confirm_threshold), so
+        # a mapped clause stating neither a cap nor unlimited-liability phrase
+        # is an established ABSENCE, not a missing observation: rule 11 requires
+        # every Finding to trace to its evidence, and 45C.14's own worked
+        # example (a damages-exclusion clause with no monetary cap) requires
+        # exactly this — "the clause was found and mapped, so it must remain
+        # attached" — MISSING, but never with the supporting text discarded.
+        # No new phrase is added and no clause is reclassified: this only
+        # keeps the clause the mapping layer already confirmed as its evidence.
+        #
+        # EXCEPT a bare heading fragment ("1. Limitation of Liability" with no
+        # body) — `section_heading_terms` lets mapping confirm a heading on its
+        # own, and a heading is not a legal position to attach as evidence of
+        # absence. `_looks_like_heading` mirrors the same narrow, deliberate
+        # judgment `assist/chunking.py::_is_heading` already makes (a separate
+        # copy, not an import: the authoritative path does not depend on the
+        # assist lane, AM-25 r2) — one line, short, not a sentence.
+        if _looks_like_heading(clause.content):
+            return []
+        return [Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
+                    scope_label=None, cap_status=ABSENT, cap_value=None,
+                    cap_unit=None, cap_basis=None, evidence_refs=evidence)]
 
     states_composite = any(
         contains_phrase(body, phrase) for phrase in config.composite_phrases)
