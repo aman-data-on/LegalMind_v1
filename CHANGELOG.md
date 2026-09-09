@@ -10,6 +10,49 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Deployed — 2026-09-09 (main `96103ea`, frontend build `EwrTKT7NlZdJDmg-CHU4Q`)
+
+`bash ops/deploy.sh` from `/root/Legalmind.v1` on a clean `main`, backend first.
+**No migration ran**: the live database was already at `a1b2c3d4e5f6`, so `AM-49`'s
+`finding_explanations` and `AM-55`'s cascade had both been applied before this deploy.
+API restarted and `/health` 200; frontend staged, swapped and probed 200.
+
+Verified as SERVED rather than as an exit code: the login page's HTML carries the new
+`BUILD_ID`, and the deployed stylesheet
+(`/_next/static/chunks/2h9dnpp4tnli0.css`, 200) contains `--ws-tone-warn:#c2410c` and
+`--ws-tone-bad:#4f46e5` — the owner's colour ruling, live.
+
+**What reached production**: `AM-49`, `AM-53`–`AM-56`, the centralized three-status order
+and tone, the reference-design Summary and Findings, the Contents-panel clause numbers
+(`60e9fee`) and the requirement disambiguator (`5483f55`).
+
+**What did NOT**: the `AM-57` document-primary workspace and the Ask retrieval fix, both
+still on `feat/product-coherence-phase1` and both owner-approved — they deploy on their
+own schedule.
+
+⚠️ **A record lands after its code, knowingly.** `60e9fee`'s clause-number derivation is
+authorized by `AM-57` r3, whose lock record was not in this deploy's scope — including its
+r2, which forbids invented or placeholder index entries. The decision precedes the code
+(rule 1 is satisfied: `AM-57` is appended and owner-approved); only the two reach `main` in
+different commits. Agreed between sessions that the record follows promptly. Recorded here
+so it is not later discovered as an anomaly.
+
+⚠️ **Job 14 was red at merge and still is** — 4 npm advisories published since `main`'s
+last green run: Next.js 16.0.0–16.3.2 (critical) for a **Windows-only** RCE and an Image
+Optimization RCE reachable through `/_next/image`, an API this app never calls (no
+`next/image` import exists in `src/`); `sharp` < 0.35.4 (high, transitive); and `vitest`
+(moderate, dev-only, fixable only by a breaking major). The live site already served the
+same Next version, so **this deploy did not change that exposure**. `next@16.3.4` is
+outside the stated range and is a separate change with its own testing — raised with the
+owner, not silently accepted and not silently shipped.
+
+⚠️ **A layout defect is now baselined, not blessed.** At 1280px with the document open,
+the three status tiles break their labels MID-WORD ("Accept able", "Requir es modific
+ation", "Needs a decisio n"). It is a width/`word-break` problem in `workspace.css`, not
+the tone change. Not fixed here: that file is under active `AM-57` edit by another
+session, and a UI change carries the owner's standing requirement to apply the design
+skills first.
+
 ### Changed — `main` catches up with the product-coherence work, and the CI gate it never ran against (2026-09-09)
 
 Owner instruction: *"merge to main deploy also."* `feat/product-coherence-phase1` had
