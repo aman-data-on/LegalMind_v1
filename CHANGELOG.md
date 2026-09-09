@@ -28,6 +28,29 @@ Archive, which is unchanged. Touched tests: `test_contract_archive.py`, `test_as
 `contracts.py`, `models.py`, `audit.py`, `permission_map.py` or the Dashboard row menu. Live DB
 NOT migrated; nothing deployed. See `AM-55` in `all_lock.md`.
 
+### Deployed — AM-53 (three-status model) and AM-54 (grounded semantic recognition), 2026-09-09
+
+Final validation before deploy: golden corpus 165 passed; backend suite 1459 passed (the
+one red test, the migration-head preflight, was another session's then-unapplied `AM-55`
+migration and is green after the deploy applied it); the live labelled corpus once more
+(65/66 recognised, the one miss a fail-safe Needs review; 0 semantic false positives; 0
+wrong classifications; 0 correct results changed). Deployed by the standard sequence
+(`ops/deploy.sh`: import check, `alembic upgrade head` → `a1b2c3d4e5f6`, API restart,
+health 200, staged frontend build `SNZfKgUQCnzqvohtgOIYv`, atomic swap). Then a real
+review through the live API as the owner's session on a synthetic MSA whose seven
+clauses were all paraphrased: liability (12 months of total fees), governing law, cure
+period (30 days), force majeure (60 days) and return/destruction were recognised and
+**Accepted** with evidence attached; a warranty *given* was held to **Needs review** as a
+different position from the disclaimer; nothing was Not accepted without a rule-backed
+deviation. The test contract was archived and the session revoked. Two deploy-path
+defects found and fixed on the way: the import tool reported a Requirement "unchanged"
+when only its mapping rules had changed (so the new `service credit` negative patterns
+never reached the live database — it now versions mapping and evaluation rule changes;
+`LIABILITY-*-001` are at version 3 and a new snapshot is published), and a transient
+provider 503 degraded one requirement to "no model reached" (the analysis egress now
+retries a transient failure once; a refusal is never retried). Inline analysis of a
+14-requirement MSA took 39 s against a 300 s proxy read timeout.
+
 ### Added — Grounded semantic recognition in the authoritative lane (`AM-54`, 2026-09-09)
 
 **Proof, appended the same day (`AM-54` r9–r13).** A labelled corpus —

@@ -362,11 +362,22 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     from legalmind import config
 
     def egress(prompt: str, prompt_version: str):
+        import time
         try:
-            result = generation.generate_raw(
-                prompt, prompt_version=prompt_version,
-                environment=config.environment(), request_id=request_id,
-                max_output_tokens=400)
+            try:
+                result = generation.generate_raw(
+                    prompt, prompt_version=prompt_version,
+                    environment=config.environment(), request_id=request_id,
+                    max_output_tokens=400)
+            except generation.GenerationUnavailable:
+                # One retry after a short pause: a transient provider error (a
+                # 503 seen live, 2026-09-09) must not silently degrade a whole
+                # requirement to "no model reached". A refusal is never retried.
+                time.sleep(1.5)
+                result = generation.generate_raw(
+                    prompt, prompt_version=prompt_version,
+                    environment=config.environment(), request_id=request_id,
+                    max_output_tokens=400)
         except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
             log_event("analysis.semantic.no_model", request_id=request_id,
                       review_id=str(review.id), cause=type(exc).__name__)

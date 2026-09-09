@@ -134,6 +134,37 @@ def test_without_a_model_the_lexical_result_stands_and_the_gap_is_recorded(build
     assert any("no model reached" in d for d in outcome.diagnostics)
 
 
+# 3b — a transient provider failure is retried once; a refusal never is
+def test_a_transient_provider_failure_is_retried_once(build, db, monkeypatch):
+    _residuals(build)
+    review = build.review(["11. Confidential Information — Use", PARAPHRASES[0]])
+    calls: list[str] = []
+    span = PARAPHRASES[0].split(". ", 1)[-1][:80]
+
+    def flaky(prompt, *, prompt_version, environment, request_id=None,
+              evidence_count=None, max_output_tokens=1024):
+        calls.append(prompt)
+        if len(calls) == 1:
+            raise generation.GenerationUnavailable("provider returned HTTP 503")
+        return generation.GenerationResult(text=_yes(span), model="fake@test",
+                                           prompt_version=prompt_version,
+                                           payload_sha256="0" * 64, latency_ms=1)
+    monkeypatch.setattr(generation, "generate_raw", flaky)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    run = run_analysis(db, review)
+    assert len(calls) == 2
+    assert run.outcomes[0].classification == "MATCH"
+
+
+def test_a_refusal_is_never_retried(build, db, monkeypatch):
+    _residuals(build)
+    review = build.review(["11. Confidential Information — Use", PARAPHRASES[0]])
+    calls: list[str] = []
+    _refuse(monkeypatch, calls)
+    run_analysis(db, review)
+    assert len(calls) == 1
+
+
 # 4 — the model says NO: the deterministic answer stands, evidence-free absence
 def test_a_no_verdict_keeps_established_absence(build, db, monkeypatch):
     _residuals(build)
