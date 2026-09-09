@@ -417,14 +417,16 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
 
 describe("the status mark and the merged three-part comparison (owner, 2026-09-08, fourth pass)", () => {
   it("gives every classification a status mark with the right tone, before any click", () => {
-    // One tone per user-facing status (AM-56): Acceptable ok, Requires
-    // modification bad, Needs a decision warn.
+    // One tone per user-facing status — owner, 2026-09-09: Acceptable green,
+    // Requires modification AMBER, Needs a decision RED. The amber and the red
+    // were the other way round until that instruction; `USER_STATUS_TONE` is
+    // now the only place the pairing lives (see `status-tones.test.tsx`).
     const cases: Array<[string, string]> = [
       ["MATCH", "ws-finding__mark--ok"],
-      ["DEVIATION", "ws-finding__mark--bad"],
-      ["MISSING", "ws-finding__mark--bad"],
-      ["CONFLICT", "ws-finding__mark--warn"],
-      ["UNABLE_TO_EVALUATE", "ws-finding__mark--warn"],
+      ["DEVIATION", "ws-finding__mark--warn"],
+      ["MISSING", "ws-finding__mark--warn"],
+      ["CONFLICT", "ws-finding__mark--bad"],
+      ["UNABLE_TO_EVALUATE", "ws-finding__mark--bad"],
     ];
     for (const [classification, markClass] of cases) {
       const html = card({ classification }, { classification });
@@ -523,7 +525,10 @@ describe("the three-word status on the card face", () => {
     );
     const { before, inside } = splitAtDetails(html);
     expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Requires modification</);
-    expect(before).toContain("ws-finding__mark--bad");
+    // Amber, not red: a cited prohibition still means the clause has to change,
+    // and red belongs to the word that says nobody could determine acceptance
+    // (owner, 2026-09-09).
+    expect(before).toContain("ws-finding__mark--warn");
     expect(before).toMatch(/Legal Constitution §9: “Unlimited liability is Unacceptable\.”/);
     // Not accepted routes to a person; it never claims a self-service edit fixes it.
     expect(before).not.toMatch(/would make/);

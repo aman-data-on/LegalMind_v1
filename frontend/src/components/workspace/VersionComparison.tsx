@@ -215,7 +215,13 @@ function Result({
                 <p className="ws-compare__findings">
                   <span className="ws-compare__findlabel">The analysis of this clause:</span>
                   {clause.findings.map((finding) => (
-                    <span key={finding.finding_id} className="ws-chip ws-chip--classify-fill">
+                    /* The reader's word in the reader's colour: this chip wore
+                       `--ws-classify` while every other surface showing the
+                       same word wore ok/warn/bad (2026-09-09). */
+                    <span
+                      key={finding.finding_id}
+                      className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
+                    >
                       {USER_STATUS_LABELS[userStatus(finding)]}
                       {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>

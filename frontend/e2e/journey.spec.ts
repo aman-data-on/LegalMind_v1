@@ -152,8 +152,17 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await page.goto("/dashboard");
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
   await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
-  // The fixture deviation is ruled UNACCEPTABLE, so it counts as Not accepted (the third badge).
-  await expect(row.locator(".ws-findings-badge--missing")).not.toHaveClass(/ws-findings-badge--zero/);
+  // Three badges, always in the one order, wearing the one set of tones
+  // (owner, 2026-09-09): green Acceptable, amber Requires modification, red
+  // Needs a decision. The fixture's DEVIATION is a Requires modification, so
+  // the AMBER badge is the non-zero one — it was the red one until the tones
+  // were put right.
+  const badges = row.locator(".ws-findings-badge");
+  await expect(badges).toHaveCount(3);
+  expect(await badges.nth(0).getAttribute("class")).toContain("ws-findings-badge--ok");
+  expect(await badges.nth(1).getAttribute("class")).toContain("ws-findings-badge--warn");
+  expect(await badges.nth(2).getAttribute("class")).toContain("ws-findings-badge--bad");
+  await expect(badges.nth(1)).not.toHaveClass(/ws-findings-badge--zero/);
 });
 
 test("journey: a revised version is a real new analysis; v1 stays historically valid", async ({

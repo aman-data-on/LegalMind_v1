@@ -130,6 +130,54 @@ export const USER_STATUS_LABELS: Record<UserStatus, string> = {
   NEEDS_DECISION: "Needs a decision",
 };
 
+/**
+ * The fixed order the three words are shown in, everywhere they appear as a
+ * sequence, and the tone each one wears — owner instruction, 2026-09-09:
+ *
+ *   Acceptable             green   the clause matches the company standard
+ *   Requires modification  amber   it deviates, or a required clause is absent
+ *   Needs a decision       red     acceptance cannot be determined at all, so
+ *                                  a person with legal authority must rule
+ *
+ * ONE place, because it was five: the Summary tiles, the ring, the Dashboard
+ * badges, the filter row and the report each spelled the order and the colour
+ * out for themselves, and two of them disagreed — which is how "Requires
+ * modification" ended up wearing the red that belongs to "Needs a decision".
+ * Every surface reads these two, and the tone names are the stylesheet's own
+ * `--ws-ok` / `--ws-warn` / `--ws-bad` channels (`ws-*--ok|warn|bad`).
+ *
+ * Presentation only, and no new colour: the three hues are DD-12's audited
+ * ones, reassigned. Never colour alone — every surface that carries a tone
+ * carries the word from `USER_STATUS_LABELS` and an icon beside it.
+ */
+export const USER_STATUS_ORDER: readonly UserStatus[] = [
+  "ACCEPTABLE",
+  "REQUIRES_MODIFICATION",
+  "NEEDS_DECISION",
+];
+
+export type StatusTone = "ok" | "warn" | "bad";
+
+export const USER_STATUS_TONE: Record<UserStatus, StatusTone> = {
+  ACCEPTABLE: "ok",
+  REQUIRES_MODIFICATION: "warn",
+  NEEDS_DECISION: "bad",
+};
+
+/** The engine's determination, as the short phrase under a card's title (owner's
+ *  reference, 2026-09-09) — the five answers in plain words, never the enum. */
+const DETERMINATION_LABELS: Record<string, string> = {
+  MATCH: "Constitution match",
+  DEVIATION: "Deviates from the Constitution",
+  MISSING: "Required clause missing",
+  CONFLICT: "Conflicting provisions",
+  UNABLE_TO_EVALUATE: "Unclear",
+};
+
+export function determinationLabel(classification: string): string | null {
+  return DETERMINATION_LABELS[classification] ?? null;
+}
+
 export function userStatus(finding: Pick<Finding, "user_status">): UserStatus {
   // Server-derived (owner's FINAL decision, 2026-09-09): the backend maps the
   // authoritative result — classification, the approved rule's own outcome,

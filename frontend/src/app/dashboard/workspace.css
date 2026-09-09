@@ -449,9 +449,13 @@
 /* Status markers — the DD-9 traffic light, as icons (never color alone: each
    carries a title and an accessible name). */
 .ws-status { display: inline-flex; align-items: center; flex: none; }
-.ws-status--match { color: var(--ws-ok); }
-.ws-status--review { color: var(--ws-warn); }
-.ws-status--missing { color: var(--ws-bad); }
+/* Two names, one rule: the outline's dots key off the CLASSIFICATION bucket
+   (`match`/`review`/`missing`), the three reader statuses key off their TONE
+   (`ok`/`warn`/`bad`, see `findingLanguage`). Same three channels either way —
+   aliases, never a second colour system. */
+.ws-status--match, .ws-status--ok { color: var(--ws-ok); }
+.ws-status--review, .ws-status--warn { color: var(--ws-warn); }
+.ws-status--missing, .ws-status--bad { color: var(--ws-bad); }
 .ws-legend { padding: var(--ws-s3) var(--ws-s4); flex: none; }
 .ws-legend p { margin: 0 0 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-700); display: flex; align-items: center; gap: 7px; }
 .ws-legend p:last-child { margin-bottom: 0; }
@@ -986,26 +990,28 @@
   overflow-wrap: anywhere; line-height: 1.3; padding-right: 20px;
 }
 .ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
-.ws-tile--match { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
-.ws-tile--review { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
-.ws-tile--missing { background: var(--ws-bad-soft); border-color: color-mix(in srgb, var(--ws-bad) 25%, transparent); color: var(--ws-bad); }
+/* Keyed by TONE, not by the engine's old buckets (2026-09-09): green
+   Acceptable, amber Requires modification, red Needs a decision. */
+.ws-tile--ok { background: var(--ws-ok-soft); border-color: color-mix(in srgb, var(--ws-ok) 25%, transparent); color: var(--ws-ok); }
+.ws-tile--warn { background: var(--ws-warn-soft); border-color: color-mix(in srgb, var(--ws-warn) 25%, transparent); color: var(--ws-warn); }
+.ws-tile--bad { background: var(--ws-bad-soft); border-color: color-mix(in srgb, var(--ws-bad) 25%, transparent); color: var(--ws-bad); }
 .ws-tile--decision { background: var(--ws-decision-soft); border-color: color-mix(in srgb, var(--ws-decision) 25%, transparent); color: var(--ws-decision); }
 .ws-status--decision { color: var(--ws-decision); }
 .ws-tile .ws-tile__n { color: var(--ws-ink-900); }
 
 .ws-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--ws-ink-100); }
 .ws-bar__seg { flex-basis: 0; }
-.ws-bar__seg--match { background: var(--ws-ok); }
-.ws-bar__seg--review { background: var(--ws-warn); }
-.ws-bar__seg--missing { background: var(--ws-bad); }
+.ws-bar__seg--ok { background: var(--ws-ok); }
+.ws-bar__seg--warn { background: var(--ws-warn); }
+.ws-bar__seg--bad { background: var(--ws-bad); }
 
 /* The donut — real counts, raw total in the center. */
 .ws-ring { display: flex; align-items: center; gap: var(--ws-s4); }
 .ws-ring__svg { width: 96px; height: 96px; flex: none; transform: none; }
 .ws-ring__seg { fill: none; stroke-width: 12; }
-.ws-ring__seg--match { stroke: var(--ws-ok); }
-.ws-ring__seg--review { stroke: var(--ws-warn); }
-.ws-ring__seg--missing { stroke: var(--ws-bad); }
+.ws-ring__seg--ok { stroke: var(--ws-ok); }
+.ws-ring__seg--warn { stroke: var(--ws-warn); }
+.ws-ring__seg--bad { stroke: var(--ws-bad); }
 .ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 650; fill: var(--ws-ink-900); }
 .ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
 .ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
@@ -1021,8 +1027,8 @@
 .ws-ring__go:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 .ws-ring__pct { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
 .ws-ring__swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ws-warn); }
-.ws-ring__legend li[data-bucket="match"] .ws-ring__swatch { background: var(--ws-ok); }
-.ws-ring__legend li[data-bucket="missing"] .ws-ring__swatch { background: var(--ws-bad); }
+.ws-ring__legend li[data-tone="ok"] .ws-ring__swatch { background: var(--ws-ok); }
+.ws-ring__legend li[data-tone="bad"] .ws-ring__swatch { background: var(--ws-bad); }
 
 /* Findings awaiting a decision — reference-style cards: status left border,
    chip, description. (Named "Key risks" until 2026-09-01; rule 12 has no risk
@@ -1471,9 +1477,9 @@
   min-width: 22px; text-align: center; font-family: var(--ws-mono); font-size: 11px;
   font-weight: 650; padding: 2px 6px; border-radius: var(--ws-radius-sm);
 }
-.ws-findings-badge--match { background: var(--ws-ok-soft); color: var(--ws-ok); }
-.ws-findings-badge--review { background: var(--ws-warn-soft); color: var(--ws-warn); }
-.ws-findings-badge--missing { background: var(--ws-bad-soft); color: var(--ws-bad); }
+.ws-findings-badge--ok { background: var(--ws-ok-soft); color: var(--ws-ok); }
+.ws-findings-badge--warn { background: var(--ws-warn-soft); color: var(--ws-warn); }
+.ws-findings-badge--bad { background: var(--ws-bad-soft); color: var(--ws-bad); }
 .ws-findings-badge--zero { opacity: 0.4; }
 
 .ws-doc-name { display: inline-flex; align-items: center; gap: 7px; }
@@ -1543,9 +1549,9 @@
 /* Findings badges destyled to plain numbers (2026-09-02): the filled pill
  * background read as noisy sitting three-wide in a table cell that also has
  * a status pill and a type chip already competing for attention. Colour and
- * left-to-right order (match, review, missing) still carry the meaning — the
- * SAME three DD-12-audited hues, which already clear 4.5:1 on white as plain
- * text, not only on their own soft tint. */
+ * left-to-right order (Acceptable, Requires modification, Needs a decision)
+ * still carry the meaning — the SAME three DD-12-audited hues, which already
+ * clear 4.5:1 on white as plain text, not only on their own soft tint. */
 .ws-docs--index .ws-findings-badge {
   min-width: 0; background: transparent; padding: 0 3px;
   font-size: 12.5px; font-weight: 700;
@@ -2892,13 +2898,16 @@
   letter-spacing: 0.04em; text-transform: uppercase;
 }
 .ws-chip--status-acceptable { background: var(--ws-ok-soft); color: var(--ws-ok); border-color: color-mix(in srgb, var(--ws-ok) 28%, transparent); }
-.ws-chip--status-needs_decision { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
-/* Not accepted is the loud one: solid chip and a red card edge, so it is told
-   apart from Needs review at arm's length (owner, 2026-09-09) — still never
-   colour alone: the word and the ✕ mark carry the same fact. */
-.ws-chip--status-requires_modification { background: var(--ws-bad); color: #fff; border-color: var(--ws-bad); }
-.ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-bad); }
-.ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-warn); }
+.ws-chip--status-requires_modification { background: var(--ws-warn-soft); color: var(--ws-warn); border-color: color-mix(in srgb, var(--ws-warn) 28%, transparent); }
+/* "Needs a decision" is the loud one (owner, 2026-09-09): the engine could not
+   determine acceptance at all, so a person with legal authority has to rule —
+   solid chip and a red card edge, told apart from "Requires modification" at
+   arm's length. Still never colour alone: the word and the ✕ mark carry the
+   same fact. (The solid treatment sat on Requires modification until this
+   date, which had the amber and the red the wrong way round.) */
+.ws-chip--status-needs_decision { background: var(--ws-bad); color: #fff; border-color: var(--ws-bad); }
+.ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-warn); }
+.ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-bad); }
 .ws-finding[data-user-status="ACCEPTABLE"] { border-left-color: var(--ws-ok); }
 
 /* The Constitution citation under a Not accepted — the source is part of the

@@ -397,6 +397,15 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);
     for (const label of tileLabels) expect(USER_WORDS).toContain(label);
+    // One fixed order and one set of tones (owner, 2026-09-09): the tiles that
+    // render keep USER_WORDS' order, and each wears its own channel — green
+    // Acceptable, amber Requires modification, red Needs a decision.
+    expect(tileLabels).toEqual(USER_WORDS.filter((w) => tileLabels.includes(w)));
+    const TONE = { Acceptable: "ok", "Requires modification": "warn", "Needs a decision": "bad" } as const;
+    for (const label of tileLabels) {
+      const tile = panel.locator(".ws-tile").filter({ hasText: label });
+      expect(await tile.getAttribute("class")).toContain(`ws-tile--${TONE[label as keyof typeof TONE]}`);
+    }
     for (const engineWord of ["DEVIATION", "MISSING", "UNABLE_TO_EVALUATE"]) {
       expect(await panel.innerText()).not.toContain(engineWord);
     }

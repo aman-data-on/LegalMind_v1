@@ -64,6 +64,8 @@ import {
   type Side,
   type UserStatus,
   USER_STATUS_LABELS,
+  USER_STATUS_ORDER,
+  USER_STATUS_TONE,
   userStatus,
 } from "./findingLanguage";
 import { requirementHeading, reviewOrder } from "./model";
@@ -339,7 +341,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   // The filter row speaks the reader's three-word vocabulary; the classification
   // view survives only for the `?classification=` deep links from the Summary
   // tiles and the report, which still name the engine's own words.
-  const statusCounts = (["ACCEPTABLE", "REQUIRES_MODIFICATION", "NEEDS_DECISION"] as UserStatus[])
+  const statusCounts = USER_STATUS_ORDER
     .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
     .filter(({ n }) => n > 0);
 
@@ -603,7 +605,7 @@ export function FindingCard({ finding, onChanged, prepared, explanation: given }
  *  the status chip right beside it already carries the word this icon
  *  repeats visually. One tone per user-facing status, no fourth. */
 function FindingStatusMark({ status }: { status: UserStatus }) {
-  const tone = status === "ACCEPTABLE" ? "ok" : status === "REQUIRES_MODIFICATION" ? "bad" : "warn";
+  const tone = USER_STATUS_TONE[status];
   const Icon = tone === "ok" ? IconCheckCircle
     : tone === "bad" ? IconXCircle
     : IconAlertCircle;

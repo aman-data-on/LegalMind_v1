@@ -26,7 +26,14 @@ import { sectionRef } from "@/lib/documentTypes";
 import { describeError } from "@/lib/api";
 import type { Finding } from "@/lib/types";
 
-import { USER_STATUS_LABELS, reviewHeadline, statusCounts, type UserStatus } from "./findingLanguage";
+import {
+  USER_STATUS_LABELS,
+  USER_STATUS_ORDER,
+  USER_STATUS_TONE,
+  reviewHeadline,
+  statusCounts,
+  type StatusTone,
+} from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
 import { classificationLabel } from "@/lib/labels";
 
@@ -37,18 +44,19 @@ import {
   findingsNeedingDecision,
   findingsSummary,
   relativeTime,
-  type StatusBucket,
 } from "./model";
 import { ObligationsPanel } from "./ObligationsPanel";
 import { useSideTabs } from "./WorkspaceLayout";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
- *  the 2026-09-01 tile correction; AM-50 r4). Engine words stay in View details. */
-const STATUS_TILES: Array<{ status: UserStatus; bucket: StatusBucket }> = [
-  { status: "ACCEPTABLE", bucket: "match" },
-  { status: "NEEDS_DECISION", bucket: "review" },
-  { status: "REQUIRES_MODIFICATION", bucket: "missing" },
-];
+ *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
+ *  of tones `findingLanguage` declares: Acceptable · Requires modification ·
+ *  Needs a decision, green · amber · red. The tiles, the bar, the ring and its
+ *  legend all read THIS list, so the four cannot disagree. */
+const STATUS_TILES = USER_STATUS_ORDER.map((status) => ({
+  status,
+  tone: USER_STATUS_TONE[status],
+}));
 
 export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
   const { state, reload } = useFindingsState();
@@ -149,18 +157,20 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
         {/* One tile per user-facing status that occurred — three, never more.
             Each tile opens the Findings tab filtered to it. */}
         <div className="ws-tiles">
-          {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, bucket }) => (
+          {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, tone }) => (
             <button
               key={status}
               type="button"
-              className={`ws-tile ws-tile--${bucket}`}
+              className={`ws-tile ws-tile--${tone}`}
               aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
               onClick={() => sideTabs?.openFindings({ status })}
             >
               <span className="ws-tile__n">{statuses[status]}</span>
               <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
-              <span className={`ws-status ws-status--${bucket}`}>
-                {bucket === "match" ? <IconCheckCircle size={18} /> : bucket === "missing" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
+              {/* Never colour alone: the tile carries the word above and this
+                  icon beside it — ✓ green, ! amber, ✕ red. */}
+              <span className={`ws-status ws-status--${tone}`}>
+                {tone === "ok" ? <IconCheckCircle size={18} /> : tone === "bad" ? <IconXCircle size={18} /> : <IconAlertCircle size={18} />}
               </span>
             </button>
           ))}
@@ -173,9 +183,9 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
           aria-label={STATUS_TILES.filter(({ status }) => statuses[status] > 0)
             .map(({ status }) => `${statuses[status]} ${USER_STATUS_LABELS[status]}`).join(", ")}
         >
-          {STATUS_TILES.map(({ status, bucket }) =>
+          {STATUS_TILES.map(({ status, tone }) =>
             statuses[status] > 0 ? (
-              <span key={status} className={`ws-bar__seg ws-bar__seg--${bucket}`} style={{ flexGrow: statuses[status] }} />
+              <span key={status} className={`ws-bar__seg ws-bar__seg--${tone}`} style={{ flexGrow: statuses[status] }} />
             ) : null,
           )}
         </div>
@@ -187,10 +197,15 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
       <section className="ws-analysis__section" aria-label="Clause status breakdown">
         <h3 className="ws-analysis__title">At a glance</h3>
         <div className="ws-ring">
-          <Donut match={statuses.ACCEPTABLE} review={statuses.NEEDS_DECISION} missing={statuses.REQUIRES_MODIFICATION} total={total} />
+          <Donut
+            segments={STATUS_TILES.map(({ status, tone }) => ({
+              tone, label: USER_STATUS_LABELS[status], n: statuses[status],
+            }))}
+            total={total}
+          />
           <ul className="ws-ring__legend">
-            {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, bucket }) => (
-              <li key={status} data-bucket={bucket}>
+            {STATUS_TILES.filter(({ status }) => statuses[status] > 0).map(({ status, tone }) => (
+              <li key={status} data-tone={tone}>
                 <button
                   type="button"
                   className="ws-ring__go"
@@ -252,34 +267,35 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
 
 /** Real counts as a three-part donut. The center is the raw total — no
  *  percentage-as-verdict, no invented score (rule 12). */
-function Donut({ match, review, missing, total }: {
-  match: number; review: number; missing: number; total: number;
+/** The ring reads the caller's ordered segments — it used to take three
+ *  positional counts named for the engine's old buckets, which is where the
+ *  legend and the ring could drift apart from the tiles above them. */
+function Donut({ segments, total }: {
+  segments: Array<{ tone: StatusTone; label: string; n: number }>; total: number;
 }) {
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
   const start = circumference / 4; // 12 o'clock
-  const segments: Array<{ bucket: StatusBucket; n: number }> = [
-    { bucket: "match", n: match },
-    { bucket: "review", n: review },
-    { bucket: "missing", n: missing },
-  ];
   let consumed = 0;
   return (
     <svg
       className="ws-ring__svg"
       viewBox="0 0 92 92"
       role="img"
-      aria-label={`${total} findings: ${match} match, ${review} need review, ${missing} missing`}
+      aria-label={`${total} findings: ${segments
+        .filter(({ n }) => n > 0)
+        .map(({ n, label }) => `${n} ${label}`)
+        .join(", ")}`}
     >
-      {segments.map(({ bucket, n }) => {
+      {segments.map(({ tone, n }) => {
         if (n === 0) return null;
         const length = (n / total) * circumference;
         const offset = start - consumed;
         consumed += length;
         return (
           <circle
-            key={bucket}
-            className={`ws-ring__seg ws-ring__seg--${bucket}`}
+            key={tone}
+            className={`ws-ring__seg ws-ring__seg--${tone}`}
             cx="46"
             cy="46"
             r={radius}

@@ -26,7 +26,7 @@ import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
 import { findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
-import { USER_STATUS_LABELS } from "@/components/workspace/findingLanguage";
+import { USER_STATUS_LABELS, USER_STATUS_ORDER } from "@/components/workspace/findingLanguage";
 
 import { ClassificationGlossary } from "./ClassificationGlossary";
 import { ExportControl } from "./ExportControl";
@@ -40,7 +40,7 @@ type Load =
 /** Visual weight only — filled chips mark states a human still owes work to.
  *  Never a severity ranking within an axis (UI master prompt), and RESOLVED
  *  stays a workflow fact, never restyled as a MATCH (rule 14). */
-const USER_STATUS_ORDER = ["ACCEPTABLE", "REQUIRES_MODIFICATION", "NEEDS_DECISION"] as const;
+
 const CALM_STATUSES = new Set(["RESOLVED", "OPEN"]);
 
 export function ReviewReportPage({ reviewId }: { reviewId: string }) {

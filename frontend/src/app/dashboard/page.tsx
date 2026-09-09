@@ -38,6 +38,11 @@ import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel } from "@/lib/docum
 import { CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { chainAnalysis } from "@/lib/analysisChain";
+import {
+  USER_STATUS_LABELS,
+  USER_STATUS_ORDER,
+  USER_STATUS_TONE,
+} from "@/components/workspace/findingLanguage";
 import { useSession } from "@/lib/session";
 import type { Contract, ContractsSummary, Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
 
@@ -94,10 +99,9 @@ function StatusPill({ contract }: { contract: Contract }) {
   );
 }
 
-/** The four real classification buckets, always in the same order, dashes
- *  when nothing has been analyzed yet — never a zero standing in for "not
- *  checked". Each populated badge is a real link, pre-filtered exactly like
- *  the workspace's own classification chips. */
+/** The reader's three status counts, always in the same order and wearing the
+ *  same three tones as the workspace (`findingLanguage`), dashes when nothing
+ *  has been analyzed yet — never a zero standing in for "not checked". */
 function FindingsCell({ contract }: { contract: Contract }) {
   const analyzed = documentStatusBucket(contract) !== "draft"
     && documentStatusBucket(contract) !== "analyzing";
@@ -105,19 +109,22 @@ function FindingsCell({ contract }: { contract: Contract }) {
   if (!analyzed || !counts) {
     return <span className="ws-findings-cell ws-pane__note">—</span>;
   }
-  // Acceptable · Needs a decision · Requires modification — the same three words as the card.
-  const buckets: Array<{ key: "match" | "review" | "missing"; n: number }> = [
-    { key: "match", n: counts.ACCEPTABLE ?? 0 },
-    { key: "review", n: counts.NEEDS_DECISION ?? 0 },
-    { key: "missing", n: counts.REQUIRES_MODIFICATION ?? 0 },
-  ];
+  // Acceptable · Requires modification · Needs a decision — the one order and
+  // the one set of tones every other surface uses (`findingLanguage`).
   return (
     <span className="ws-findings-cell">
-      {buckets.map(({ key, n }) => (
-        <span key={key} className={`ws-findings-badge ws-findings-badge--${key}${n === 0 ? " ws-findings-badge--zero" : ""}`}>
-          {n}
-        </span>
-      ))}
+      {USER_STATUS_ORDER.map((status) => {
+        const n = counts[status] ?? 0;
+        return (
+          <span
+            key={status}
+            className={`ws-findings-badge ws-findings-badge--${USER_STATUS_TONE[status]}${n === 0 ? " ws-findings-badge--zero" : ""}`}
+            title={`${n} ${USER_STATUS_LABELS[status]}`}
+          >
+            {n}
+          </span>
+        );
+      })}
     </span>
   );
 }
