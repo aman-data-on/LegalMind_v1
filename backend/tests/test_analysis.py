@@ -984,16 +984,18 @@ def test_content_wins_across_families_a_declared_nda_with_a_liability_clause_is_
     assert run.findings_created == 1
 
 
-def test_an_absent_clause_is_missing_only_inside_a_family_the_document_belongs_to(
+def test_an_absent_clause_is_missing_only_inside_the_declared_family_never_inferred(
         build, db):
-    """AM-51 — MISSING is asserted only where the document has shown it is that
-    kind of paper: two NDA standards confirmed make the NDA family detected, so
-    a third NDA standard whose clause is absent is MISSING; an MSA standard
-    whose clause is absent is simply not applicable (no type declared)."""
+    """AM-51 r2 (corrected 2026-09-09, live verification before deployment):
+    MISSING is asserted only inside the DECLARED family — never inferred from
+    other confirmed clauses, which live testing showed floods every family from
+    one ordinary document's boilerplate (Governing Law, a liability cap) alike.
+    A confirmed liability clause still produces its OWN finding regardless of
+    family or declaration; an absent NDA clause is MISSING only when NDA was
+    declared; an absent MSA clause is simply not applicable with no type
+    declared, whatever else the document confirmed."""
     nda = {**STANDARD, "document_type": "NDA"}
     build.requirement("NDA-LIAB-A-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
-                      mapping=MAPPING, standard=nda, legal_rule=LEGAL_RULE)
-    build.requirement("NDA-LIAB-B-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
                       mapping=MAPPING, standard=nda, legal_rule=LEGAL_RULE)
     build.requirement("NDA-GOVLAW-STRUCT", E.EvaluatorType.PRESENCE,
                       mapping=PRESENCE_MAPPING,
@@ -1013,12 +1015,32 @@ def test_an_absent_clause_is_missing_only_inside_a_family_the_document_belongs_t
     contract.contract_type = None
     db.flush()
 
+    # No type declared: the confirmed liability clause still produces a
+    # Finding, but NEITHER Governing Law standard is asserted MISSING — one
+    # confirmed clause is not evidence that this is specifically an NDA.
     run = run_analysis(db, review)
-
-    assert run.detected_types == ["NDA"]
+    assert run.detected_types == []
     codes = {o.requirement_code: o.classification for o in run.outcomes}
-    assert codes["NDA-GOVLAW-STRUCT"] == "MISSING"
+    assert codes["NDA-LIAB-A-STRUCT"] == "MATCH"
+    assert "NDA-GOVLAW-STRUCT" not in codes
     assert "MSA-GOVLAW-STRUCT" not in codes
+
+    # Declare NDA: now the NDA family is detected and its absent clause is
+    # MISSING; the MSA standard remains not applicable.
+    contract.contract_type = "NDA"
+    db.flush()
+    review2 = build.review([
+        "1. Limitation of Liability",
+        "Liability shall not exceed 6 months of fees paid.",
+    ])
+    contract2 = db.get(M.Contract, review2.contract_id)
+    contract2.contract_type = "NDA"
+    db.flush()
+    run2 = run_analysis(db, review2)
+    assert run2.detected_types == ["NDA"]
+    codes2 = {o.requirement_code: o.classification for o in run2.outcomes}
+    assert codes2["NDA-GOVLAW-STRUCT"] == "MISSING"
+    assert "MSA-GOVLAW-STRUCT" not in codes2
 
 
 def test_a_snapshot_with_an_untyped_standard_refuses(build, db):

@@ -354,10 +354,28 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                        to_tsquery('english', (SELECT array_to_string(lex, ' | ') FROM q)))
                    AS score,
                (upper(sc.section_number) = ANY(:wanted)) AS exact_section,
-               (SELECT count(*)
+               -- A RATIO, not a raw count (corrected 2026-09-09, live pre-deployment
+               -- verification): a raw count let a long title that merely CONTAINS
+               -- the named Act's words as a substring (CERT-In's title embeds
+               -- "Information Technology Act, 2000") outrank the Act itself, because
+               -- its long title racked up more incidental overlapping words. The
+               -- ratio of matched to total non-stopword title lexemes favours the
+               -- title the question actually names, whatever its length.
+               --
+               -- Only 'india'/'indian' are excluded (corrected the same pass): they
+               -- are truly generic — nearly every title carries them, so they never
+               -- discriminate. 'act' and 'rule' were excluded too until live testing
+               -- showed "What is the DPDP Act?" tied the DPDP ACT against the DPDP
+               -- RULES (their titles are otherwise near-identical) and the Rules won
+               -- the tiebreak — exactly the word the question used to distinguish
+               -- them was the word being thrown away. Keeping 'act'/'rule' as real
+               -- lexemes fixes that pair without reopening the CERT-In case (its
+               -- long title still loses on the ratio regardless of this word).
+               (SELECT CASE WHEN count(*) = 0 THEN 0.0 ELSE
+                    count(*) FILTER (WHERE t = ANY(q.lex))::float / count(*) END
                   FROM q, unnest(tsvector_to_array(to_tsvector('english',
                                                                s.official_title))) t
-                 WHERE t = ANY(q.lex) AND t NOT IN ('act', 'rule', 'india', 'indian'))
+                 WHERE t NOT IN ('india', 'indian'))
                    AS act_match
           FROM "{schema}".statute_chunks sc
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
@@ -368,11 +386,11 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
     floor = 2 if len((query or "").split()) > 1 else 1
     # A question that names the Act ("What is the DPDP Act?") is answered from
-    # that Act even when no section's text repeats the question's words: the
-    # title match alone admits its opening sections (AM-50 r3).
+    # that Act even when no section's text repeats the question's words: a
+    # majority title-lexeme match alone admits its opening sections (AM-50 r3).
     hits = [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
                        r.sub_section, r.marginal_note, r.content, float(r.score))
             for r in rows
-            if r.exact_section or r.matched >= floor or r.act_match >= 2][:limit]
+            if r.exact_section or r.matched >= floor or r.act_match >= 0.5][:limit]
     log_event("assist.statutes.searched", hits=len(hits), level=logging.DEBUG)
     return hits

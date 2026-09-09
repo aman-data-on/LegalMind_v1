@@ -17840,3 +17840,80 @@ r6   INTEGRITY. An untyped STANDARD in a snapshot still refuses (ENG-09); the
 **Approved by the owner on 2026-09-09** ("Do not make document-type detection the gatekeeper for
 review or retrieval … The user must never be required to select a document type or knowledge
 source merely to make this work.").
+
+--------------------------------------------------------------------------------
+
+# `AM-51` correction (r2) — family detection is the declared type only, never inferred from confirmed clauses (Owner-authorized engineering correction — 2026-09-09, pre-deployment live verification)
+
+**Amends:** `AM-51` r2 as first recorded, same day, before any deployment relying on it.
+**Does not amend:** `AM-51` r1, r3, r4, r5, r6, which stood correctly. Not a new owner
+decision — an engineering threshold `AM-51` r2 itself named as uncalibrated ("a family is
+DETECTED when it is the declared type OR when at least two of its standards map
+CONFIRMED"), corrected under the owner's standing authorization to resolve a deployment
+issue found during pre-deployment live verification, per the owner's instruction of
+2026-09-09 ("resolve any deployment issue you can safely resolve, then retest").
+
+**What live verification found.** A real mixed document (confidentiality, residuals,
+liability, termination, governing law, DPDP/IT Act references, AUP) with no declared type,
+run through `run_analysis` against the live 32-standard snapshot, produced 24 Findings —
+nearly every standard in the MSA, TOS and NDA families, most of them MISSING. Cause: three
+ordinary boilerplate clauses (a governing-law statement, a liability cap) mapped CONFIRMED
+against one standard each in the MSA, TOS and NDA families, and each family's independent
+"≥2 confirmed" count was satisfied by nothing more than that — because Governing Law and a
+liability cap are near-universal in commercial contracts, this heuristic would have
+"detected" nearly every family for nearly every document, which is precisely the false-
+MISSING flood the owner's instruction and rule 15 forbid.
+
+```text
+r2'  A family (Step 6 type) is DETECTED only when it is the DECLARED type — the
+     one fact a human, or a confident assist-lane suggestion (AM-50), actually
+     asserted about the document. Content still wins independently of family or
+     declaration: a Requirement whose own clause the document confirms applies
+     regardless of which family its standard belongs to (an NDA with a
+     liability clause is still measured against the liability standard) — but
+     an absent clause is MISSING only inside the DECLARED family, never
+     inferred from other confirmed clauses. `AM-51` r3's rule ("MISSING only
+     inside a detected family") is unchanged; only what counts as detection is
+     narrower.
+```
+
+Code: `legalmind/analysis/service.py::applicable_by_content`. Tests: `test_analysis.py`
+rewritten to assert the corrected behaviour (one confirmed clause alone detects nothing;
+a declared type still gates MISSING as designed). Verified: `run_analysis` on the same
+mixed document now returns Findings only for confirmed clauses (Governing Law × 3 variants
+match, Residuals match, MSA/TOS liability match) and zero MISSING findings, since no type
+was declared and no family was.
+
+--------------------------------------------------------------------------------
+
+# `AM-50` r3 correction — statute title-ranking uses a lexeme RATIO, and only india/indian are excluded (Owner-authorized engineering correction — 2026-09-09, pre-deployment live verification)
+
+**Amends:** `AM-50` r3's title-match mechanism as first implemented, same day, before any
+deployment relying on it. **Does not amend:** `AM-50` r3's rule that a title match alone
+admits an Act's opening sections, `AM-32` r7 (statutes never enter the evaluator), rule 21.
+
+**What live verification found, in two steps.** (1) "What does Section 43A of the IT Act
+mean?" refused, despite the IT Act being in the corpus: a raw COUNT of matching title
+lexemes let CERT-In's Directions — whose own long title happens to embed the phrase
+"Information Technology Act, 2000" — outscore the Act's own short title purely by having
+more incidental overlapping words. (2) After changing the count to a ratio (matched ÷ total
+non-stopword title lexemes), "What is the DPDP Act?" still answered from the DPDP RULES
+instead of the DPDP Act: excluding the words "act" and "rule" from the ratio (originally
+excluded as generic, alongside "india"/"indian") made the DPDP Act's and DPDP Rules'
+titles nearly indistinguishable, so the tiebreak picked the Rules — discarding the one word
+the question used to tell them apart.
+
+```text
+r3'  Title matching is a RATIO of matched to total non-stopword title lexemes,
+     never a raw count — a long title cannot outrank a short one merely for
+     containing more incidental words. Only "india"/"indian" are excluded from
+     that computation; "act" and "rule" are kept as real, discriminating
+     lexemes, because an Act and a same-named Rules instrument are told apart
+     by exactly that word.
+```
+
+Code: `legalmind/assist/statutes.py::search_statutes`. Tests: `test_assist_statutes.py`,
+`test_assist_intent.py` unchanged and green (45 passed). Verified live, post-fix, through
+the real API: "Section 43A of the IT Act" → IT Act §43A; "What is the DPDP Act?" → DPDP
+Act §§3/44; "Section 138 of the Negotiable Instruments Act" → NI Act §138 — all cited
+Act + section, none regressed.

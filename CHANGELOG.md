@@ -10,6 +10,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — AM-50 r3 corrected before deployment: statute title-ranking is a ratio, and only india/indian are excluded
+
+Pre-deployment live verification found "Section 43A of the IT Act" refused (CERT-In
+Directions' long title, which happens to embed "Information Technology Act, 2000",
+outranked the Act itself by raw word-count) and, after changing that count to a ratio,
+"What is the DPDP Act?" still answered from the DPDP Rules instead of the Act (excluding
+"act"/"rule" as generic made the two titles nearly identical). Corrected same day:
+title matching is now matched/total non-stopword lexemes, excluding only india/indian.
+`all_lock.md` correction appended (17,919 lines). Live re-verified through the real
+API: IT Act s.43A, DPDP Act ss.3/44, NI Act s.138 all answer correctly and cited.
+
+### Fixed — AM-51 r2 corrected before deployment: family detection is the declared type only
+
+Pre-deployment live verification on a real mixed document (confidentiality, residuals,
+liability, termination, governing law, DPDP/IT Act references, AUP; no declared type)
+found the "≥2 confirmed standards detects a family" heuristic floods every family from
+ordinary boilerplate (Governing Law, a liability cap appear once per family and satisfy
+the count on their own) — 24 of 32 standards produced a Finding, nearly all MISSING,
+for a document with no declared type. Corrected same day: a family is detected only
+when it is the DECLARED type; a confirmed clause still produces its own Finding
+regardless of family, but MISSING is asserted only inside the declared family, never
+inferred from other confirmed clauses. `all_lock.md` correction appended
+(17,842 -> 17,885 lines). Tests: analysis suite rewritten and green (1412 backend,
+165 golden corpus). Live re-verified: the same document now returns Findings only for
+its actually-confirmed clauses and zero false MISSING.
+
 ### Changed — Applicability by content: the document type is one optional signal, never a gate (AB-16, `AM-51`, 2026-09-09)
 
 Owner instruction: "Do not make document-type detection the gatekeeper for review or

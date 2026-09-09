@@ -355,32 +355,34 @@ def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None,
                           ) -> tuple[list[_SnapshotItem], set[str]]:
-    """Which pinned Requirements this document is measured against — AM-51.
+    """Which pinned Requirements this document is measured against — AM-51
+    (r2 corrected same-day, 2026-09-09, after live verification before
+    deployment — see the AM-51 correction appended to all_lock.md).
 
-    A family (Step 6 type) is DETECTED when it is the declared type or when at
-    least two of its standards (or all of them, for a family of one) map
-    CONFIRMED in the document. Applicable = every standard of a detected family
-    (so its absent clauses can be MISSING) plus every standard whose clause the
-    document confirms whatever its family (content wins — one document may span
-    several domains). A standard listing the declared type under
-    `not_applicable_to` is excluded even when confirmed: that is how an owner
-    ruling such as "SLA service credits are a remedy, not a liability cap"
-    (2026-08-20) stays in force. Order preserved (ENG-11).
+    A family (Step 6 type) is DETECTED only when it is the DECLARED type — the
+    one fact a human or a confident suggestion actually asserted about this
+    document (AM-50). An earlier draft of this rule also detected a family from
+    ANY two of its standards mapping CONFIRMED; live testing on a real mixed
+    document showed that fails exactly the guarantee this record exists to
+    keep: boilerplate clauses common to nearly every commercial contract
+    (Governing Law, a liability cap) confirmed against MSA, TOS and NDA
+    standards alike, "detecting" every family from one ordinary document and
+    flooding it with MISSING findings for clauses it was never shown to lack —
+    the false-positive flood rule 15 and the owner's instruction both forbid.
+    Detection now requires the one signal that is actually evidence of KIND:
+    a declared type. Content still wins independently of any family: a
+    Requirement whose own clause the document confirms applies regardless of
+    which family its standard belongs to or whether any type is declared — an
+    NDA with a liability clause is still measured against the liability
+    standard — but an absent clause is MISSING only inside the declared
+    family, never inferred from other clauses' presence. A standard listing
+    the declared type under `not_applicable_to` is excluded even when
+    confirmed: how the owner's SLA ruling (2026-08-20) stays in force. Order
+    preserved (ENG-11).
     """
     confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
                  for code, m in mappings.items()}
-    family_size: dict[str, int] = {}
-    family_confirmed: dict[str, int] = {}
-    for item in items:
-        t = _standard_type(item)
-        if t is None:
-            continue
-        family_size[t] = family_size.get(t, 0) + 1
-        if confirmed[item.requirement.code]:
-            family_confirmed[t] = family_confirmed.get(t, 0) + 1
-    detected = {t for t, n in family_confirmed.items() if n >= min(2, family_size[t])}
-    if declared_type:
-        detected.add(declared_type)
+    detected = {declared_type} if declared_type else set()
 
     def excluded(item: _SnapshotItem) -> bool:
         cfg = item.company_standard.configuration or {}
