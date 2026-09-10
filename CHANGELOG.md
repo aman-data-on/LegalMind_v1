@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Deployed — the Radix Dialog work is live (2026-09-10)
+
+PR #25 (`feat/shadcn-dialog-radix`, the four commits below: `819fd08`, `12dca0c`, `86dcb5e`,
+`f1e1507`) merged to `main` as `b00945b` with CI green on all 15 jobs (one visual-regression
+re-run needed, matching this repo's standing "adopt CI's actual baseline" pattern — not a
+defect), and deployed to production by a coordinating session. Independently verified from this
+session: `origin/main` carries `b00945b`; `https://legalmind.lsnw.io/login` answers `200` with
+fresh `_next/static` chunk hashes, consistent with the new build actually serving.
+
 ### Changed — `Dialog` rewritten on `@radix-ui/react-dialog` for five of six dialogs (2026-09-10)
 
 Follow-up to the entry directly below, after the owner asked for its "Radix breaks the test
