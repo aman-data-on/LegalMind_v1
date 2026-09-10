@@ -1,5 +1,11 @@
 """The source router — authorization first, question shape second, no user selector."""
-from legalmind.assist.routing import Domain, plan, positions_permitted, refusal_text
+from legalmind.assist.routing import (
+    Domain,
+    ordered,
+    plan,
+    positions_permitted,
+    refusal_text,
+)
 from legalmind.security import permissions as P
 
 USER = frozenset({P.ASSIST_ASK, P.LEGAL_POSITION_VIEW})      # a Department User (AB-12)
@@ -116,3 +122,11 @@ def test_the_plan_is_deterministic():
     a = plan("What is our policy?", has_document=True, permissions=USER)
     b = plan("What is our policy?", has_document=True, permissions=frozenset(USER))
     assert a == b
+
+
+def test_ordered_dedupes_and_accepts_enums_or_names():
+    """`service._consult_fallbacks` hands it a mixed tuple of recorded names and
+    enum members; one rendering must come back, in the fixed order, without repeats."""
+    assert ordered(("STATUTES", Domain.POSITIONS, "POSITIONS")) == ("POSITIONS", "STATUTES")
+    assert ordered((Domain.DOCUMENT, "DOCUMENT")) == ("DOCUMENT",)
+    assert ordered(()) == ()

@@ -1319,3 +1319,61 @@ def test_an_or_only_lexical_match_does_not_open_the_gate(db, user, indexed_contr
                               query="notice to the party about zorbulated framblewitz",
                               embed_query=lambda q: None)
     assert out.lexical_hit is False and out.gate_open is False and out.hits == []
+
+
+# ==========================================================================
+# The retrieval record after a fall-through (2026-09-10) — `_record_fallthrough`'s two
+# branches, previously unasserted: a document-less route synthesises ONE run row; a
+# document route UPDATES its existing row rather than adding a second.
+# ==========================================================================
+def _runs_for(db, message_id):
+    schema = config.assist_schema()
+    return db.execute(text(f"""
+        SELECT strategy_version, filters->>'document_version_id', filters->'domains'
+          FROM "{schema}".retrieval_runs WHERE message_id = :m"""),
+                      {"m": message_id}).all()
+
+
+def _user_message_id(db, conversation_id):
+    schema = config.assist_schema()
+    return db.execute(text(f"""
+        SELECT id FROM "{schema}".messages
+         WHERE conversation_id = :c AND role = 'USER' ORDER BY ordinal DESC LIMIT 1"""),
+                      {"c": conversation_id}).scalar_one()
+
+
+def test_a_document_less_answer_still_gets_a_retrieval_record(db, user, tmp_path):
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    out = service.ask(db, conversation_id=conv, document_version_id=None,
+                      permissions=USER_PERMS,
+                      question="What is the termination notice period?")
+    assert out.answer_state.value == "ANSWERED" and out.domains == ("POSITIONS",)
+    runs = _runs_for(db, _user_message_id(db, conv))
+    assert len(runs) == 1
+    strategy, document_version, domains = runs[0]
+    assert strategy == "sources-fallback-1"
+    assert document_version is None
+    assert domains == ["POSITIONS"]
+
+
+def test_a_fall_through_updates_the_existing_run_rather_than_adding_one(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    embedding_runtime.reset_for_tests()
+    monkeypatch.setattr(generation, "generate", lambda q, c, **k: generation.GenerationResult(
+        text="NOT FOUND", model="fake", prompt_version="grounded-answer-1",
+        payload_sha256="0" * 64, latency_ms=1))
+    conv = _conversation(db, user, contract)
+    out = service.ask(db, conversation_id=conv, document_version_id=version.id,
+                      permissions=USER_PERMS,
+                      question="What is the termination notice period?")
+    assert out.domains == ("DOCUMENT", "POSITIONS")
+    runs = _runs_for(db, _user_message_id(db, conv))
+    assert len(runs) == 1, "the fall-through must amend the run, never add a second"
+    strategy, document_version, domains = runs[0]
+    assert strategy.startswith("hybrid-rrf-gate")          # the document retrieval's own row
+    assert document_version == str(version.id)
+    assert domains == ["DOCUMENT", "POSITIONS"]

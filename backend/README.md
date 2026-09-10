@@ -333,7 +333,10 @@ Recorded in `permission_map.NOT_IMPLEMENTED`, and reported rather than filled:
   read that as the User being "more privileged" and locked administration out
   entirely. Different is not higher; the locked list is what distinguishes them.
 
-### API test coverage (134 tests)
+### API test coverage
+
+Per-file counts below are as of first writing and drift; the suite total is asserted only in
+`docs/00-project/IMPLEMENTATION_STATUS.md`. Run `python3 -m pytest tests/test_api*.py -q` for the live figure.
 
 | File | Covers |
 |---|---|

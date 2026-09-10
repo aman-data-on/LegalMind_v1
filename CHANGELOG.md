@@ -10,6 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — READMEs stop quoting counts; Ask refusal tails deduplicated; the fall-through's retrieval record is now tested (2026-09-10)
+
+**Docs.** Root `README.md`: the three-week-stale status paragraph ("28 fixtures of 64") is replaced by a
+pointer to IMPLEMENTATION_STATUS.md (the only file allowed to assert build state) and a **Quick start**
+(backend install/migrate/run/test with the source-material env var, the ruff+mypy gate, frontend
+dev/test/deploy, `ops/deploy.sh` from a clean `main`, the worktree convention). `backend/README.md`
+drops the "134 tests" heading figure; `frontend/README.md` drops its "53 passed / 26 passed" table,
+which contradicted its own rule against restating counts. **Code.** `assist/service.py::ask()`: the
+five identical `_positions_or_refusal` tails (gate closed, thin evidence, refused egress, verdict
+language, failed verification) collapse into one local `refuse()`; the unavailable-model branch keeps
+its WARNING/operational-failure log line as before. No behaviour change — 72 ask/routing tests
+unchanged and green. **Tests.** Three added for `b2becce`'s untested seams: a document-less answer
+writes exactly one `sources-fallback-1` retrieval run (the `run_id is None` branch of
+`_record_fallthrough`); a document fall-through UPDATES its run's domains rather than adding a row;
+`routing.ordered` dedupes and accepts enum members or names.
+
 ### Changed — the workspace is document-primary, and Ask is docked (`AM-57`, AB-18, owner, 2026-09-09)
 
 Owner instruction after reviewing the live workspace: *"The current UI feels like a collection

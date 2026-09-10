@@ -194,12 +194,8 @@ reimplemented roll-up.
 
 ## Verified
 
-```
-npm run test        53 passed        Vitest — rendering, boundaries, permissions
-npm run typecheck   clean
-npm run build       11 routes, 9 prerendered
-npx playwright test 26 passed        real Chromium, real API, real Postgres
-```
+`npm run test:all` (typecheck, the terminology check and Vitest) and `npm run test:e2e` are
+the verification; their counts are not restated here — see IMPLEMENTATION_STATUS.md.
 
 ## The browser suite (`e2e/`)
 

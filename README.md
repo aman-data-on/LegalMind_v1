@@ -18,7 +18,7 @@ Status:  Requires review
 
 **STABILIZATION. Implementation authorized 2026-08-17 (`IMPL-01`); the locked build sequence is complete.**
 
-The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09` and Amendment Batches AB-1 and AB-2 are locked. Step 45E (Golden Corpus) is in progress: **28 fixtures of 64 specified — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED` — and 0 `NORMATIVE`**. The Company Standard for `LIABILITY-001` was ratified on 2026-08-18 (12 months of total fees); normative authoring remains blocked on an approved Legal Rule rather than on engineering.
+The V1 specification is complete and every unit of the locked build sequence is implemented. Build state — what is built, what is only tested, what is deployed and what remains unratified — is asserted in **one place only**, [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md); this file deliberately quotes no counts, because every number it once carried went stale within a week. The plain-language status for the owner is [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md); the last session's changes are at the top of [CHANGELOG.md](CHANGELOG.md).
 
 **For final review, read [HANDOFF.md](HANDOFF.md) first** — what exists, how to verify it, what is honestly not done, every decision still open, and the exact material required to finish. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — it reports readiness; `IMPL-01` is what grants it.
 
@@ -107,7 +107,48 @@ Full text in [CLAUDE.md](CLAUDE.md); these are the ones most often violated by a
 
 ## Development
 
-`backend/` and `frontend/` carry their own READMEs with setup, test and run instructions. The specifications they implement are:
+### Quick start
+
+Prerequisites: Python 3.12, Node 20+, PostgreSQL with the `pgvector` and `pg_trgm` extensions.
+
+```bash
+# Backend — API on 127.0.0.1:8000
+cd backend
+pip install -e '.[dev]'
+createdb legalmind_v1_dev && createdb legalmind_v1_test        # names are config.py's defaults
+alembic upgrade head
+python3 -m uvicorn legalmind.api.app:app --reload
+
+# Backend tests (a real Postgres is required — every test runs the migrations
+# into a private per-run schema; there is no in-memory path)
+export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs    # else 6 tests skip silently
+python3 -m pytest
+ruff check legalmind tests && python3 -m mypy legalmind             # the CI gate
+
+# Frontend — dev server on 127.0.0.1:3000, proxying /api to the backend
+cd ../frontend
+npm install
+npm run dev
+npm run test            # Vitest
+npm run test:e2e        # Playwright, needs the API and Postgres up
+```
+
+**Never run a bare `next build` in the deploy tree** — the service serves `.next` from it and a
+half-written build took the live site down once. `npm run deploy` builds aside and swaps
+atomically; [frontend/README.md](frontend/README.md) explains the guard.
+
+### Deploying
+
+`bash ops/deploy.sh` from `/root/Legalmind.v1` on a **clean `main`**: migrate → restart the API →
+deploy the frontend, with health checks in between. That directory is the deploy tree and is
+treated as shared infrastructure; day-to-day work happens in a `git worktree` of your own
+(`git worktree add /root/legalmind-worktrees/<task> -b <branch> origin/main`). Procedure,
+refusals and the incident behind the rule: [ops/README.md](ops/README.md).
+
+### Where the rules live
+
+`backend/` and `frontend/` carry their own READMEs with module layout and rationale. The
+specifications they implement are:
 
 * Stack — [docs/05-architecture/BACKEND_ARCHITECTURE.md](docs/05-architecture/BACKEND_ARCHITECTURE.md)
 * Schema — [docs/09-implementation/DATABASE_MIGRATIONS.md](docs/09-implementation/DATABASE_MIGRATIONS.md)

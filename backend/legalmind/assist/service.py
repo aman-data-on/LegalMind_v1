@@ -446,6 +446,20 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                                 document_version_id=document_version_id, domains=domains,
                                 statute_hits=statute_hits)
 
+    def refuse(outcome: AssistAnswerState, cause: str, *, detail: str | None = None,
+               state: str | None = None, failures: str | None = None) -> AskOutcome:
+        """Every non-answer below: log its real cause, then converge on the one
+        place that consults the other authorized sources before refusing."""
+        extra = {k: v for k, v in (("detail", detail), ("state", state),
+                                   ("failures", failures)) if v is not None}
+        # `**extra` never carries `level`; mypy cannot see that through a dict.
+        log_event("assist.ask.refused", request_id=request_id, cause=cause,
+                  conversation_id=str(conversation_id), **extra)  # type: ignore[arg-type]
+        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
+                                     position_hits, route, domains, outcome, request_id,
+                                     statute_hits=statute_hits, question=question,
+                                     permissions=permissions)
+
     chunk_texts = [h.content for h in retrieval.hits]
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
         # The document does not answer. AM-50 r2: the other authorized sources are
@@ -454,15 +468,9 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         # gate opened but whose evidence the model judged non-responsive falls
         # through exactly like one whose gate never opened. The uploaded document
         # is never a hard filter on what may be answered.
-        cause = "gate_closed" if not retrieval.gate_open else "insufficient"
-        state = (AssistAnswerState.NO_EVIDENCE_RETRIEVED if not retrieval.gate_open
-                 else AssistAnswerState.EVIDENCE_INSUFFICIENT)
-        log_event("assist.ask.refused", request_id=request_id, cause=cause,
-                  conversation_id=str(conversation_id))
-        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains, state, request_id,
-                                     statute_hits=statute_hits, question=question,
-                                     permissions=permissions)
+        if not retrieval.gate_open:
+            return refuse(AssistAnswerState.NO_EVIDENCE_RETRIEVED, "gate_closed")
+        return refuse(AssistAnswerState.EVIDENCE_INSUFFICIENT, "insufficient")
 
     try:
         # Document chunks ONLY reach the model. Position text never does (AM-32 r4).
@@ -472,15 +480,11 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     except generation.GenerationRefused as exc:
         # Gate closed, or no credential: an operational condition, surfaced to the
         # user as the one refusal wording (r4) and logged with its real cause.
-        log_event("assist.ask.refused", request_id=request_id,
-                  cause="generation_refused", detail=type(exc).__name__,
-                  conversation_id=str(conversation_id))
-        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains,
-                                     AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
-                                     statute_hits=statute_hits, question=question,
-                                     permissions=permissions)
+        return refuse(AssistAnswerState.EVIDENCE_INSUFFICIENT, "generation_refused",
+                      detail=type(exc).__name__)
     except generation.GenerationUnavailable:
+        # Operational, not evidential: logged at WARNING with the failure flag so
+        # the observability rule for provider outages still sees it.
         log_event("assist.ask.refused", request_id=request_id,
                   cause="generation_unavailable", level=logging.WARNING,
                   operational_failure=True, conversation_id=str(conversation_id))
@@ -509,25 +513,12 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         # clause complies with our approved standard" is grounded and is exactly
         # the statement the assistant may never make (AM-25 r1/r4; Constitution
         # §29.1.1 distinction 5). Mechanical, outside the model, as AM-28 r2 wants.
-        log_event("assist.ask.refused", request_id=request_id, cause="verdict_language",
-                  conversation_id=str(conversation_id))
-        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains,
-                                     AssistAnswerState.CLAIM_UNSUPPORTED, request_id,
-                                     statute_hits=statute_hits, question=question,
-                                     permissions=permissions)
+        return refuse(AssistAnswerState.CLAIM_UNSUPPORTED, "verdict_language")
     if not verification.passed:
         # CLAIM_UNSUPPORTED or the model's own NOT FOUND — either way the generated
         # text never reaches the user (AM-25 r5).
-        state = verification.state
-        log_event("assist.ask.refused", request_id=request_id,
-                  cause="verification", state=state.value,
-                  failures=str(len(verification.failures)),
-                  conversation_id=str(conversation_id))
-        return _positions_or_refusal(db, conversation_id, user_message_id, run_id,
-                                     position_hits, route, domains, state, request_id,
-                                     statute_hits=statute_hits, question=question,
-                                     permissions=permissions)
+        return refuse(verification.state, "verification", state=verification.state.value,
+                      failures=str(len(verification.failures)))
 
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", result.text)
