@@ -1027,6 +1027,18 @@ def _recorded_domains(db, question: str) -> list[str]:
                       {"q": question}).scalar_one()
 
 
+# The four fallback-path tests below reproduce live retrieval shapes (gate open on
+# a hybrid score, heading fragments pruned by vector rank) that only exist with
+# the local embedding model provisioned. CI has no model (the run logs
+# `assist.embedding.unavailable`), so there retrieval is lexical-only and these
+# shapes cannot occur; the tests skip rather than assert a different engine.
+# The lexical-only behaviour has its own tests above.
+needs_embedding_model = pytest.mark.skipif(
+    not embedding_runtime.available(),
+    reason="reproduces hybrid-retrieval shapes; the local embedding model is not provisioned")
+
+
+@needs_embedding_model
 def test_a_document_that_mentions_the_topic_but_does_not_answer_falls_through_to_the_position(
         db, user, indexed_contract, tmp_path, monkeypatch):
     """The exact live shape: gate open, model says NOT FOUND, position exists."""
@@ -1059,6 +1071,7 @@ def test_a_document_that_mentions_the_topic_but_does_not_answer_falls_through_to
     assert not any("thirty (30) days" in c for chunks in sent for c in chunks)
 
 
+@needs_embedding_model
 def test_a_document_that_answers_is_not_second_guessed_by_the_positions(
         db, user, indexed_contract, tmp_path, monkeypatch):
     """Source priority: the document first. When it answers, the answer is the
@@ -1220,6 +1233,7 @@ def test_a_clause_sharing_two_of_three_words_is_a_lexical_candidate(db, user, in
                                query="notice zorbulated framblewitz") == []
 
 
+@needs_embedding_model
 def test_heading_fragments_are_pruned_from_the_evidence_but_their_clauses_are_kept(
         db, storage, user):
     from legalmind.assist import store
@@ -1247,6 +1261,7 @@ def test_heading_fragments_are_pruned_from_the_evidence_but_their_clauses_are_ke
     assert not store.is_fragment("Governing law: the laws of India.")
 
 
+@needs_embedding_model
 def test_a_contract_question_the_position_answers_is_not_also_put_to_the_statutes(
         db, user, indexed_contract, tmp_path, monkeypatch):
     """Source priority: document → position → statutes. Measured live, sweeping the
