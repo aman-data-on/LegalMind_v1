@@ -2,7 +2,7 @@
   "name": "legalmind-frontend",
   "private": true,
   "version": "0.1.0",
-  "description": "LegalMind V1 frontend — locked Step 52. Next.js + TypeScript (Step 39). No component library: 52.6 leaves visual design unspecified and rule 19 forbids adding a technology without approval.",
+  "description": "LegalMind V1 frontend — locked Step 52. Next.js + TypeScript (Step 39). shadcn/ui + Tailwind approved for incremental adoption (owner, 2026-09-10) — see CLAUDE.md § UI and UX work for binding terms; no other technology without rule 19 approval.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -18,6 +18,7 @@
     "deploy": "bash scripts/deploy-frontend.sh"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.6",
     "lucide-react": "^1.38.0",
     "next": "16.3.4",
     "react": "19.2.0",

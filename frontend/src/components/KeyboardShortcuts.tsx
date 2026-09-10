@@ -10,6 +10,14 @@
  *
  * The table renders from `REVIEW_SHORTCUTS`, the same source the page handlers
  * use — the help cannot describe bindings that don't exist.
+ *
+ * Deliberately its OWN plain implementation, not `components/Dialog.tsx`
+ * (2026-09-10): that component wraps `@radix-ui/react-dialog`, whose `Portal`
+ * renders nothing under Node with no DOM — verified empirically — and this is
+ * the one dialog with a Vitest test that asserts on `renderToStaticMarkup`
+ * output directly (`__tests__/keyboard-shortcuts.test.tsx`). Its rendered
+ * behaviour in a real browser is separately covered by `e2e/keyboard.spec.ts`.
+ * See docs/design/SHADCN_ADOPTION_REPORT.md for the full reasoning.
  */
 
 import { useEffect, useRef } from "react";

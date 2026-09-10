@@ -58,6 +58,7 @@ import {
   STATUS_BUCKET_LABEL,
   type DocumentStatusBucket,
 } from "@/components/workspace/model";
+import { Dialog } from "@/components/Dialog";
 import { Pipeline } from "@/components/workspace/Pipeline";
 import { UploadContract } from "@/components/workspace/UploadContract";
 import { WorkspacePage } from "@/components/workspace/WorkspacePage";
@@ -1078,8 +1079,6 @@ function EditContractDialog({
   contract: Contract; counterparties: string[]; companies: Counterparty[];
   onClose: () => void; onSaved: () => void;
 }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
   const [name, setName] = useState(contract.name);
   const [type, setType] = useState(contract.contract_type ?? "");
   // P-1 (2026-09-06): Step 2's Draft / Active / Superseded, declared here and
@@ -1100,13 +1099,6 @@ function EditContractDialog({
   const [effectiveDate, setEffectiveDate] = useState(latest?.effective_date ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.focus();
-    return () => restoreRef.current?.focus();
-  }, []);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -1160,13 +1152,7 @@ function EditContractDialog({
      facts with no warning and no undo. Escape and Cancel are both still here,
      and both are deliberate gestures. */
   return (
-    <div className="ws-modal">
-      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
-           aria-labelledby="ws-edit-title" tabIndex={-1}
-           onKeyDown={(e) => {
-             if (e.key === "Escape") onClose();
-             e.stopPropagation();
-           }}>
+    <Dialog onClose={onClose} titleId="ws-edit-title" dismissOnScrimClick={false}>
         <h2 id="ws-edit-title">Edit contract details</h2>
         <form onSubmit={save}>
           <label className="ws-field">
@@ -1266,8 +1252,7 @@ function EditContractDialog({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -1283,17 +1268,8 @@ function EditContractDialog({
 function ArchiveContractDialog({
   contract, onClose, onArchived,
 }: { contract: Contract; onClose: () => void; onArchived: () => void }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.focus();
-    return () => restoreRef.current?.focus();
-  }, []);
 
   async function confirm() {
     setBusy(true);
@@ -1308,15 +1284,7 @@ function ArchiveContractDialog({
   }
 
   return (
-    <div className="ws-modal" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
-      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
-           aria-labelledby="ws-arc-title" tabIndex={-1}
-           onKeyDown={(e) => {
-             if (e.key === "Escape") onClose();
-             e.stopPropagation();
-           }}>
+    <Dialog onClose={onClose} titleId="ws-arc-title">
         <h2 id="ws-arc-title">Archive this contract?</h2>
         <p className="ws-modal__body">
           <strong>{contract.name}</strong>
@@ -1335,8 +1303,7 @@ function ArchiveContractDialog({
             {busy ? "Archiving…" : "Archive"}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -1349,17 +1316,8 @@ function ArchiveContractDialog({
 function DeleteContractDialog({
   contract, onClose, onDeleted,
 }: { contract: Contract; onClose: () => void; onDeleted: () => void }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.focus();
-    return () => restoreRef.current?.focus();
-  }, []);
 
   async function confirm() {
     setBusy(true);
@@ -1374,15 +1332,7 @@ function DeleteContractDialog({
   }
 
   return (
-    <div className="ws-modal" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
-      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
-           aria-labelledby="ws-del-title" tabIndex={-1}
-           onKeyDown={(e) => {
-             if (e.key === "Escape") onClose();
-             e.stopPropagation();
-           }}>
+    <Dialog onClose={onClose} titleId="ws-del-title">
         <h2 id="ws-del-title">Delete this contract permanently?</h2>
         <p className="ws-modal__body">
           <strong>{contract.name}</strong>
@@ -1401,8 +1351,7 @@ function DeleteContractDialog({
             {busy ? "Deleting…" : "Delete permanently"}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -1415,20 +1364,11 @@ function DeleteContractDialog({
 function TransferContractDialog({
   contract, onClose, onTransferred,
 }: { contract: Contract; onClose: () => void; onTransferred: () => void }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
   const [members, setMembers] = useState<DepartmentMembers | null>(null);
   const [newOwnerId, setNewOwnerId] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.focus();
-    return () => restoreRef.current?.focus();
-  }, []);
 
   useEffect(() => {
     api.departmentMembers().then(setMembers).catch(setError);
@@ -1449,15 +1389,7 @@ function TransferContractDialog({
   }
 
   return (
-    <div className="ws-modal" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
-      <div ref={dialogRef} className="ws-modal__box" role="dialog" aria-modal="true"
-           aria-labelledby="ws-xfer-title" tabIndex={-1}
-           onKeyDown={(e) => {
-             if (e.key === "Escape") onClose();
-             e.stopPropagation();
-           }}>
+    <Dialog onClose={onClose} titleId="ws-xfer-title">
         <h2 id="ws-xfer-title">Transfer this contract?</h2>
         <p className="ws-modal__body">
           <strong>{contract.name}</strong>
@@ -1506,8 +1438,7 @@ function TransferContractDialog({
             {busy ? "Transferring…" : "Transfer"}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

@@ -209,12 +209,32 @@ one-line CSS change.** Invoke these before writing markup or styles, not after:
 Its `brand`, `banner-design` and `slides` skills are marketing-asset tools. LegalMind has no
 marketing surface — do not reach for them on a product screen.
 
-⚠️ **`ui-styling` is written around shadcn/ui + Tailwind, and this frontend has neither by
-deliberate choice** — [DESIGN.md](DESIGN.md) records that no CSS framework, component library or
-client-state library was added, and `frontend/src/app/globals.css` is one plain stylesheet.
-Adopting either is a **rule 19** dependency decision requiring owner approval. Until that
-approval exists, translate its guidance into the existing plain-CSS primitives (`.field`,
-`.btn--*`, `.table-card`, `StatePill`); never install the stack it assumes.
+**shadcn/ui + Tailwind is APPROVED for incremental adoption (owner, 2026-09-10)** — superseding
+the earlier "neither by deliberate choice" restriction. This is **not** a green light to convert
+the frontend wholesale. Terms, restated so no session has to re-ask:
+
+- **Incremental only, no big-bang migration.** Do not replace every button/input/table because
+  shadcn now exists. Add a primitive only where it genuinely improves consistency, accessibility
+  or maintainability over the hand-rolled equivalent.
+- **shadcn = component foundation. `ui-ux-pro-max` = design/UX judgment. The existing LegalMind
+  visual language wins where it is already correct.** Never let shadcn's default aesthetic
+  (Tailwind defaults, default Radix theming) dictate the product's look — restyle every adopted
+  primitive to the current tokens (`--surface`, `--line`, `--accent`, `--attention`, `--error`,
+  `--space-*`, `--text-*`) so the result reads as one product, not a component library pasted
+  into an existing app.
+- **Never touch:** anything rendering one of the five state axes (`StatePill` / `AXIS_CLASS` in
+  `components/Primitives.tsx` — this is the RESOLVED≠MATCH contract, not a styling choice),
+  `AccessRestricted.tsx` and any confidential-omission-as-absence logic (`SEC-07`, `LEGAL-02` —
+  a Radix "disabled + tooltip" default is the wrong shape here), `DecisionControl.tsx` /
+  `EscalateControl.tsx` (no-optimistic-UI + 409-handling is bespoke, not a library concern), and
+  table density (DESIGN.md rejects shadcn's airier Card/Table defaults for this product).
+  A prior audit of good/risky migration candidates lives in the 2026-09-10 session record; redo
+  it only if the frontend has changed enough to make it stale — don't re-derive from scratch.
+- **Before installing:** check `git status` and `git worktree list` — other sessions may have
+  uncommitted frontend work; add the Tailwind/shadcn build config on files nobody else has open,
+  and verify the existing `prebuild`/deploy scripts still work unmodified.
+- **Ambiguous cases are `OWNER DECISION REQUIRED`, not a default to guess.** This approval covers
+  *whether* shadcn may be used, not license to invent new visual/product decisions on the way.
 
 **These skills advise. They never override, and the order is not negotiable:**
 

@@ -10,6 +10,68 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — `Dialog` rewritten on `@radix-ui/react-dialog` for five of six dialogs (2026-09-10)
+
+Follow-up to the entry directly below, after the owner asked for its "Radix breaks the test
+environment" claim to be checked precisely rather than assumed. Verified empirically (isolated
+scratch install, not the repo): Radix's `Portal` is the *entire* failure surface under this
+project's `renderToStaticMarkup`-based Vitest strategy — and only `KeyboardShortcutsHelp` actually
+has a unit test that exercises it. The other five dialogs
+(`EditContractDialog`/`ArchiveContractDialog`/`DeleteContractDialog`/`TransferContractDialog`/
+`CompanyDocuments`) have zero Vitest coverage and are validated exclusively by Playwright in a
+real browser, where Portal is unproblematic.
+
+`components/Dialog.tsx` now wraps `@radix-ui/react-dialog` for those five (real focus trap, not
+just initial-focus + restore); `KeyboardShortcutsHelp` reverted to its own small plain
+implementation, with the reasoning in its own header comment. One dependency added:
+`@radix-ui/react-dialog` — no Tailwind, no shadcn CLI.
+
+Two real bugs found and fixed during implementation, neither caught by the existing test suite
+(both confirmed via real-browser computed-style checks, not assumed): (1) Radix's `Overlay`/
+`Content` render as siblings by default, but this CSS's `.ws-modal` flex-centers a *child* — the
+dialog rendered at `left: 0` until `Content` was nested inside `Overlay` to match the original
+markup. (2) Radix's `Portal` defaults to `document.body`, outside `.ws` — the exact class of bug
+`dashboard/page.tsx`'s row-action menu already hit and fixed on 2026-09-03 (`--ws-*` tokens are
+scoped to `.ws`, not `:root`; outside it they silently resolve to nothing, so the dialog rendered
+transparent). Fixed with the same `document.querySelector(".ws") ?? document.body` pattern the
+menu already uses. All 368 Vitest tests, typecheck, `check:terms`, and 11 relevant Playwright
+specs pass; scrim-click, Escape, and centering/opacity verified visually via screenshots (deleted
+after verification, not committed). Full sequence in
+`docs/design/SHADCN_ADOPTION_REPORT.md`'s "Final implementation" section.
+
+### Changed — six duplicated hand-rolled dialogs consolidated into one `Dialog` primitive (2026-09-10)
+
+First step of the shadcn adoption below, and it turned out **not to use shadcn**: a full scan
+(`docs/design/SHADCN_ADOPTION_REPORT.md`) found the frontend's dialogs already correctly
+accessible (focus-restore, Escape-to-close, `role="dialog"`), just implemented six separate
+times — four in `app/dashboard/page.tsx` (Edit/Archive/Delete/Transfer), one in
+`WorkspacePage.tsx` (`CompanyDocuments`), one in `KeyboardShortcuts.tsx`. Radix/shadcn's `Dialog`
+was ruled out for this: it renders through a portal, and Step 39 locks Vitest to a `"node"`
+environment testing components via `renderToStaticMarkup` with no DOM library — a portal can't
+render there without adding jsdom, a separate dependency decision this didn't need. Extracted a
+plain `components/Dialog.tsx` (`useDialogFocus` + `<Dialog>`) instead — same markup, same class
+names, zero new dependencies. Net -67 lines across the three call-site files. Fixed one real gap
+along the way: `CompanyDocuments` had no focus management at all before this. `AskDock`'s
+deliberately non-modal dialog (`aria-modal="false"`, no focus trap) is untouched, correctly.
+All 368 Vitest tests, typecheck, and `check:terms` pass unchanged.
+
+Checked the remaining §5 candidates (tooltip, row-action dropdown menu, Select/Combobox) against
+the current codebase, including the in-progress Client Profiles work, and closed all three:
+tooltip has zero consumers (every hint is a working `title` attribute), the dropdown menu exists
+in exactly one place already correctly accessible (nothing to de-duplicate), and every form in
+the tree uses a working native `<select>` with no combobox need. Adoption stays approved for the
+next case that actually clears the bar; see the report's closing call section.
+
+### Decision — shadcn/ui + Tailwind approved for incremental adoption (owner, 2026-09-10)
+
+Supersedes the earlier "no CSS framework/component library by deliberate choice" line in
+DESIGN.md and CLAUDE.md. Approved as **incremental adoption only** — no big-bang rewrite,
+existing visual language wins over shadcn defaults, and the five state-axis / confidential-
+omission / decision-vs-escalation surfaces (`StatePill`, `AccessRestricted`,
+`DecisionControl`/`EscalateControl`) are explicitly off-limits. Full terms in
+[CLAUDE.md](CLAUDE.md) § UI and UX work; audit of migration candidates done this session, not
+yet implemented — no dependency has been installed.
+
 ### Added — Client Profiles: the company as the place its documents live (owner instruction, 2026-09-10)
 
 Owner instruction: a **Client Profiles** section where one customer's company information,
@@ -204,7 +266,6 @@ e2e `workspace-viewports.spec.ts` at 1366×768, 1536×864 and 1920×1080 (pane f
 row, no `§`, Ask takes the column and a tab click closes it); outline selectors in four specs moved
 to `.ws-outline__jump` because the chevrons are buttons too. Backend: two new tests in
 `test_assist_ask.py`, one domains pin extended to name POSITIONS.
-
 
 ### Changed — the workspace is document-primary, and Ask is docked (`AM-57`, AB-18, owner, 2026-09-09)
 
