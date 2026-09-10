@@ -3440,3 +3440,26 @@
 .ws-finding__head { justify-content: space-between; align-items: flex-start; }
 .ws-finding__titlewrap { flex: 1 1 auto; min-width: 0; }
 .ws-finding__head > .ws-chip { flex: none; margin-top: 4px; }
+
+/* The Summary lives in a column whose width the layout decides — 340-380px
+   beside an open document (AM-57), the whole page when the document is hidden.
+   The hero adapts to ITS OWN width, not the viewport: below ~640px of column
+   the headline row stacks, the tiles and the explainer go single-column and the
+   ring sits under the tiles, so no word is ever broken mid-syllable ("Requir
+   es modific ation" — owner's 9 Sep note). */
+.ws-side__panel, .ws-pane--side .ws-analysis { container-type: inline-size; }
+@container (max-width: 640px) {
+  .ws-hero { padding: var(--ws-s4); }
+  .ws-hero__top { flex-direction: column; align-items: stretch; }
+  .ws-hero .ws-analysis__headline { font-size: var(--ws-text-md); }
+  .ws-hero__cta { justify-content: center; }
+  .ws-hero__grid { grid-template-columns: 1fr; }
+  .ws-tiles { grid-template-columns: 1fr; }
+  .ws-hero .ws-tile { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: var(--ws-s3); }
+  .ws-hero .ws-tile__n { font-size: 1.3rem; }
+  .ws-hero .ws-tile__label { padding-right: 0; }
+  .ws-hero .ws-tile__sub { flex-basis: 100%; }
+  .ws-explain__grid { grid-template-columns: 1fr; }
+  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+  .ws-facts--compare dd + dt { border-left: 0; }
+}
