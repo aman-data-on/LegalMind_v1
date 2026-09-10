@@ -112,9 +112,12 @@ export function useSideTabs() {
  */
 function storedDocOpen(): boolean {
   try {
-    return window.localStorage.getItem(DOC_OPEN_KEY) === "1";
+    // Absent means OPEN. The document is the primary reference surface
+    // (owner, 2026-09-09), so a reader who has never touched the toggle
+    // gets it; only an explicit "Hide document" is remembered.
+    return window.localStorage.getItem(DOC_OPEN_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -142,7 +145,16 @@ export function WorkspaceLayout({
   document,
   findings,
   analysis,
-}: Record<Region, React.ReactNode>) {
+  ask,
+}: Record<Region, React.ReactNode> & {
+  /* Ask, DOCKED into the right column rather than floating over the canvas
+     (owner, 2026-09-09, superseding DD-15). As a flow child of the column it
+     reserves space only while it is open, so it can never come to rest over the
+     document or a finding — WCAG 2.2 AA 2.4.11 names chat widgets as the
+     failure case, and the floating panel was one. Closed, it is the compact
+     launcher at the foot of the column, which is what reopens it. */
+  ask?: React.ReactNode;
+}) {
   const mode = useMode();
   /* Above the narrow-mode early return below: a hook after a conditional return
      runs on some renders and not others, which is React error #310 — and it
@@ -227,6 +239,11 @@ export function WorkspaceLayout({
           >
             {{ document, findings, analysis }[tab]}
           </section>
+          {/* One region at a time, so Ask cannot take a column here: it stays
+              the launcher plus an overlay sheet (its own narrow-mode CSS), the
+              behaviour DD-15 shipped and the only one a single-column layout
+              can offer. */}
+          {ask}
         </div>
       </SideTabCtx.Provider>
     );
@@ -253,12 +270,28 @@ export function WorkspaceLayout({
         * a keyboard affordance rather than dead code.
         */}
       <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-      {/* Findings/analysis FIRST (AM-50 r5, owner 2026-09-09): they are the
-          primary workspace and draw the flexible column whether or not the
-          document is shown. The document is second — a fixed, reader-resizable
-          companion when open, display:none when closed — so findings never
-          drop to a narrow rail. DOM order drives visual and tab order together. */}
+      {/* The DOCUMENT first (owner, 2026-09-09, amending AM-50 r5): it is the
+          primary reference surface of a legal review, so it draws the flexible
+          centre column and carries its own contents index on its left. The
+          side card — findings, analysis and Ask — is the fixed right column.
+          When the document is hidden the side card fills the workspace, exactly
+          as before. DOM order drives visual and tab order together. */}
       <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}>
+        <section
+          className="ws-pane ws-pane--document"
+          id="ws-pane-document"
+          aria-label="Document"
+          data-region="document"
+          /* `inert`, not unmounted: the pane keeps its scroll position, its
+             Original/Text choice and its outline state, so revealing it returns
+             the reader to where they were. `hidden` would take it out of the
+             accessibility tree AND stop the scroll-to-evidence gesture from
+             finding its rows, so the CSS hides it and `inert` keeps it out of
+             the tab order while it is not shown. */
+          inert={docOpen ? undefined : true}
+        >
+          {document}
+        </section>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
           <div className="ws-side__tabs">
             <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
@@ -312,21 +345,7 @@ export function WorkspaceLayout({
           >
             {findings}
           </div>
-        </section>
-        <section
-          className="ws-pane ws-pane--document"
-          id="ws-pane-document"
-          aria-label="Document"
-          data-region="document"
-          /* `inert`, not unmounted: the pane keeps its scroll position, its
-             Original/Text choice and its outline state, so revealing it returns
-             the reader to where they were. `hidden` would take it out of the
-             accessibility tree AND stop the scroll-to-evidence gesture from
-             finding its rows, so the CSS hides it and `inert` keeps it out of
-             the tab order while it is not shown. */
-          inert={docOpen ? undefined : true}
-        >
-          {document}
+          {ask}
         </section>
       </div>
     </SideTabCtx.Provider>

@@ -10,6 +10,155 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — the workspace is document-primary, and Ask is docked (`AM-57`, AB-18, owner, 2026-09-09)
+
+Owner instruction after reviewing the live workspace: *"The current UI feels like a collection
+of disconnected boxes and does not behave like a professional legal-document review
+workspace."* Six items, all presentation. **No evaluator, classification, Rule Outcome, API,
+permission or database change.**
+
+**`AM-50` r5 is amended, and the ID was named before anything was built** (rule 6). r5, locked
+the previous day, read "FINDINGS ARE THE PRIMARY WORKSPACE… the findings keep the flexible
+column — never a narrow rail". The owner reviewed the shipped result of their own instruction
+and reversed it: the document is the primary reference surface of a legal review. The wide
+workspace now reads LEFT contents · CENTRE document · RIGHT findings/Ask. **No component
+moved** — the document pane already carried its own contents index as its left column, so
+putting the document section first in the DOM produces the requested three-pane shape
+directly. The document also opens WITH the workspace now; "Hide document" still gives the side
+card everything, which was never the complaint. **DD-15 is superseded in its floating half**:
+Ask is a flow child of the right column, reserving space only while open, so it can never come
+to rest over the document or a finding. DD-15's real concern survives as the rule that a
+closed Ask costs the column one 44px launcher row and nothing more.
+
+**THE "EMPTY CONTENTS BOX" HAD TWO CAUSES, AND NEITHER WAS THE PANEL.**
+
+1. **The clause numbers were never parsed.** Measured on the live rows for the document in the
+   owner's screenshot: 91 evidence rows, **one** with a `section_number`, on a 20-page MSA.
+   The numbers are all in the text, separated from their titles by **U+200B** — Word exports
+   automatic list numbering as its own run terminated by a zero-width space, so
+   `ingestion/parsing.py`'s number regex matches nothing. The identical trap was fixed in
+   `assist/chunking.py` on 2026-09-08 ("U+200B/NBSP are blanks"); the parser never was.
+   Now derived **at the presentation layer**, in `model.ts`: a stored `section_number` always
+   wins, and the fallback reads only the row's own recorded text. The parser is deliberately
+   NOT retuned — `section_number` and `is_heading` feed the mapping engine and
+   `analysis/service.py`'s "too unsegmented to analyse" refusal, so changing them would change
+   which provisions map and which documents are refused, i.e. legal results, for a navigation
+   defect; and re-extracting would rewrite evidence rows that existing Findings cite (rule 17).
+   Measured against every document in the live database: fires only on rows the parser left
+   unnumbered, recovers 31 clauses on that MSA, 49 on the executed GRP MSA, 74 on a partner
+   agreement, and 0 on the six documents the parser already numbers completely.
+2. **A container query was squeezing it.** Two rules stacked the document grid — a 1100px
+   viewport query and a 900px container query — and the container one fired on the owner's
+   1863px screen because the document pane was then a `clamp(440px, 42vw, 760px)` companion.
+   The index was stacked into a 200px row, of which the title, search field and foot took
+   ~145px. The list was not empty; it was 55px tall. Now ONE rule, measuring the pane, at
+   620px.
+
+**THE TWO "AUTO-RENEWAL" FINDINGS ARE NOT A DUPLICATE.** `AUTORENEW-MSA-001` compares the
+renewal TERM (6 months, `NUMERIC_COMPARISON`); `AUTORENEW-TOS-001` checks the clause is
+PRESENT. Since `AM-51` measures applicability by content, both apply to one MSA.
+`requirementTitle` strips the document-type token as addressing rather than meaning, which
+collapsed both headings to "Auto renewal". A card now names its standard's family —
+"Auto renewal · MSA standard" — **only** where another finding on screen shares its title,
+computed over the whole finding set so the qualifier does not appear and vanish with the
+filter. The 2026-09-08 decision to keep requirement codes out of the card header stands
+everywhere else. **The findings, classifications and evaluations were correct as produced; no
+backend change.**
+
+**Three more defects the browser suite found**, none of them visible in markup: the collapsed
+index stayed rendered (`display: flex` out-specifies the UA `[hidden]` rule — the same trap
+`.ws-dock__launcher[hidden]` already records); icon-only controls were squashed to **4.4px**
+against the 16 they declare (`flex-shrink` defaults to 1 and an inline SVG's automatic minimum
+size is 0 — this codebase had been answering that one selector at a time, six `svg { flex:
+none }` rules, and both the Ask close button and the new collapse control were missed, which
+is exactly why the owner's item 1 reads "There is no obvious close/collapse icon"); and the
+docked Ask panel at 62% of its column left findings 241px against Ask's 458 with the first
+finding's title cut in half. One root rule replaces the six; Ask is capped at `min(52%, 400px)`.
+
+Also: `icons.tsx` was 272 lines of hand-drawn SVG duplicating a set the shell, Configuration
+and Admin already imported from `lucide-react`. The drawings are gone and the names stay. The
+wrapper is kept rather than replaced by a re-export because `lucide-react` does not mark its
+glyphs `aria-hidden`, and a bare re-export would put 26 unnamed graphics into the accessibility
+tree. Metrics are identical (24px viewBox, 2px stroke). **Rule 19 is not engaged — the
+dependency was already installed.** The comparison block inside a finding card lost its border
+and paper fill for a hairline and alignment; it was a framed panel inside a card inside a card.
+
+Tests: `src/__tests__/clause-index.test.ts` (new — 11, every string copied verbatim from a live
+evidence row, U+200B included), `src/__tests__/finding-collision.test.tsx` (new — 6),
+`e2e/workspace-panes.spec.ts` (new — the three-pane geometry, the index, collapse, docking
+non-overlap, and three real viewports; every claim in it is geometric, which is what the static
+suite cannot see), and `e2e/ask-dock.spec.ts` updated for the docked contract.
+
+Two stale assertions elsewhere were repaired rather than left red: `dashboard-actions.test.tsx`
+pinned that the client exposes no `deleteContract`, which `AM-55` added the same day (it
+replaced the backend twin of that pin and missed this one), and `confidentiality.spec.ts`
+compared LEGAL-02's fact labels case-sensitively against labels that `4f631ed` restyled to
+uppercase — the omission it guards was never affected, but a red security spec is one nobody
+reads.
+
+⚠️ **The visual baselines are stale by design.** `e2e/visual.spec.ts-snapshots/` predates the
+three-pane layout. Per that spec's own header they are regenerated from CI, never locally: let
+job 15 fail, take its `visual-regression-diffs` artifact and commit the `*-actual.png`.
+
+⚠️ **Coordination note.** `journey.spec.ts:68` expects a parenthesised filter count
+`Requires modification (n)`; `4f631ed` moved that count into a `.ws-filter__n` badge, so the
+accessible name is now "Requires modification 1". Pre-existing, in another session's area,
+left alone and reported to them.
+
+
+### Fixed — Ask: the uploaded document is context, not the knowledge boundary (owner, 2026-09-09; landed 2026-09-10)
+
+Owner report: "What is the termination notice period?" over an MSA returned "Information not
+found in the selected document" while the ratified positions held the answer. Traced end to end
+on the live retrieval record. **Precise cause, three layers:** (1) `routing.plan` made the
+positions a candidate only when the question named the organization and the statutes only when
+it named the law, so a plain contract question routed to DOCUMENT alone; (2) the AM-50 r2
+fall-through to the other sources lived in the closed-gate branch only — when the document
+mentioned the topic (gate open) and the model then said NOT FOUND, or verification failed, or
+the model was unavailable, the refusal skipped every other source; (3) the model's document
+answer, when it did come back grounded and verified, was discarded as a "compliance verdict"
+because the verdict screen reused the question router's stems — a party name ("Leapswitch")
+plus the document word "breach" fired it. Underneath, retrieval itself under-served the
+question: the lexical AND matched one survival clause, the clause stating the notice lacked
+the word "period" and sat under the vector floor, and heading fragments ("7.", "TERM AND
+TERMINATION", "7.6. Effect of Termination:") filled the top ten.
+
+**General fix, no second pipeline, existing seams only:** `RoutePlan.fallback` — every
+authorized source the primary route did not pick, recorded and deterministic in (permissions,
+document, corpus availability); one convergence point (`_positions_or_refusal` →
+`_consult_fallbacks`) that every non-answer reaches before it may become a refusal; source
+priority document → position → statutes, statutes for a question about the law or when the
+position is silent, and for a non-law question only on semantic evidence (measured: two shared
+lexemes put a Copyright Act licence-termination section under a contract question); the refusal
+names every source consulted (`AM-46` preserved — a function of facts the caller already
+holds); `retrieval_runs.filters.domains` updated after fall-through. **Retrieval:** OR-with-
+two-lexeme-floor lexical CANDIDATES join the evidence once the gate has opened, the gate's own
+lexical signal stays the calibrated AND (the Tier-2 gate measured OR-as-gate at 13/13
+unanswerable questions answered — so it never opens the gate); heading fragments are pruned
+from both branches (`store.is_fragment`); strategy version `hybrid-rrf-gate-2`. **Semantic
+increment across domains (`AM-32` r9's shared machinery):** `position_chunk_embeddings` filled
+(32 live rows, `positions.embed_positions`, re-embedded on every re-chunk) and Domain A search
+is hybrid through the same calibrated gate; Domain C uses its existing section vectors —
+lexical-first stands for a named Act or section (`AM-47`), rank-fused for an unnamed
+question. **Verdict screen:** `intent.is_verdict_statement` for generated text (position
+reference + compliance signal; real verdicts still caught, descriptive sentences naming a
+party pass). **Measured:** AM-28 Tier-2 gate SHIPPABLE — wrongly answered 1/13 (held), recall@10
+0.625 (was 0.469), retained 43, faithfulness 1.0, citation precision 1.0. Live, in-process
+against the production DB with the real model: the owner's question is answered from the
+document with four citations (FM 60 days; breach 30-day cure notice; non-payment 30 days;
+5-day suspension notice); a paraphrase falls to the positions; the same question with no
+document attached answers from the positions alone; an unsupported question is refused once
+naming all three sources; a caller without `legal_position.view` never sees a position. 24
+new backend tests across routing, ask, positions, statutes and intent; full suite 1489 passed.
+Not amended: `AM-45` (routing by question shape — the fallback is authorization-derived, not a
+selector), `AM-46`, `AM-47`. `AM-52` r5's factual note that Domain A vectors were "empty by
+design" is superseded by this entry. Observed and left: statute generation for a statute-
+shaped question is model-variable (one live DPDP consent run refused, the reproduction passed);
+the ORG-mention primary route can attach loosely related positions beside a good document
+answer. Files: `assist/{routing,service,positions,statutes,store,intent,calibration}.py`.
+Live DB: 32 additive embedding rows only, no schema change; API not restarted from this
+session.
+
 ### Deployed — 2026-09-09 (main `96103ea`, frontend build `EwrTKT7NlZdJDmg-CHU4Q`)
 
 `bash ops/deploy.sh` from `/root/Legalmind.v1` on a clean `main`, backend first.

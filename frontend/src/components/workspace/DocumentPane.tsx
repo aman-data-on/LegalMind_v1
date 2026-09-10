@@ -16,7 +16,8 @@
  * error — all honest, none invented.
  */
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { sectionRef } from "@/lib/documentTypes";
 import { USER_STATUS_LABELS, userStatus } from "./findingLanguage";
 
@@ -57,6 +58,7 @@ import {
   type StatusBucket,
 } from "./model";
 
+const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
 const PAGE_SIZE = 100;
 const ZOOM_STEPS = [85, 100, 115, 130, 150];
 
@@ -114,6 +116,28 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     setView(canOriginal ? "original" : "text");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version.id]);
+
+  /* The contents index collapses completely, for readers who want the paper to
+     have the whole pane (owner, 2026-09-09). Remembered per browser, like the
+     document toggle: a layout preference is this viewer's own convenience, it
+     never needs to reach the server, and losing it costs one click. Read after
+     mount — the server has no `localStorage`, and reading it in a `useState`
+     initialiser is a hydration mismatch. */
+  const [contentsOpen, setContentsOpen] = useState(true);
+  useEffect(() => {
+    try {
+      setContentsOpen(window.localStorage.getItem(CONTENTS_KEY) !== "0");
+    } catch {
+      // A viewer who blocks storage keeps the default, and their choice for
+      // this visit only.
+    }
+  }, []);
+  const chooseContents = useCallback((next: boolean) => {
+    setContentsOpen(next);
+    try {
+      window.localStorage.setItem(CONTENTS_KEY, next ? "1" : "0");
+    } catch { /* this visit only */ }
+  }, []);
 
   // Toolbar state — presentation conveniences over the loaded rows.
   const [clauseQuery, setClauseQuery] = useState("");
@@ -472,15 +496,32 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
       <p className="ws-visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <div className="ws-doc">
+      <div className="ws-doc" data-contents={contentsOpen ? "open" : "closed"}>
         {/* ------------------------------------------------ clauses column */}
-        <div className="ws-doc__clauses">
+        {/* Kept MOUNTED while collapsed (`hidden`, not unmounted) so the search
+            text and the list's scroll position survive a collapse — and `hidden`
+            is what takes the region out of the accessibility tree, which is
+            correct for a collapsed disclosure. */}
+        <div className="ws-doc__clauses" id="ws-contents" hidden={!contentsOpen}>
           <nav className="ws-card ws-outline" aria-label="Document outline">
             {/* "Contents", not "Clauses" (2026-09-05). This is the document's
                 own outline — its headings — and a clause is the unit a finding
                 attaches to, not a navigation target. The two were the same list
                 until the parser could tell a heading from body text. */}
-            <p className="ws-outline__title">Contents</p>
+            <div className="ws-outline__head">
+              <p className="ws-outline__title">Contents</p>
+              <button
+                type="button"
+                className="ws-outline__collapse"
+                aria-expanded={contentsOpen}
+                aria-controls="ws-contents"
+                aria-label="Hide contents"
+                title="Hide contents"
+                onClick={() => chooseContents(false)}
+              >
+                <PanelLeftClose size={16} aria-hidden focusable="false" />
+              </button>
+            </div>
             <label className="ws-outline__search">
               <IconSearch size={14} />
               <span className="ws-visually-hidden">Search contents</span>
@@ -536,10 +577,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 </p>
               ) : null}
             </div>
-            {pages.length > 0 ? (
-              <p className="ws-outline__pages">
-                {/* Jump straight to a page — the same jump the toolbar's page
-                    field performs, offered where the outline already lives. */}
+            {/* The page jump and the marker key, in the SAME card as the list
+                they belong to (owner, 2026-09-09: "Almost everything is
+                surrounded by cards/boxes… Reduce unnecessary borders and
+                cards"). The legend was its own bordered card directly beneath
+                this one, which is a box around three lines of key. A divider
+                and the spacing carry the separation now. */}
+            <div className="ws-outline__foot">
+              {pages.length > 0 ? (
+                /* Jump straight to a page — the same jump the toolbar's page
+                   field performs, offered where the outline already lives. */
                 <label className="ws-outline__pagenav">
                   <span>Page</span>
                   <select
@@ -552,15 +599,30 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   </select>
                   <span>of {pages[pages.length - 1]}</span>
                 </label>
-              </p>
-            ) : null}
+              ) : null}
+              <div className="ws-legend" role="note" aria-label="Status legend">
+                <p><StatusIcon bucket="match" /> Match (aligned)</p>
+                <p><StatusIcon bucket="review" /> Needs a decision</p>
+                <p><StatusIcon bucket="missing" /> Missing (not present)</p>
+              </div>
+            </div>
           </nav>
-          <div className="ws-card ws-legend" role="note" aria-label="Status legend">
-            <p><StatusIcon bucket="match" /> Match (aligned)</p>
-            <p><StatusIcon bucket="review" /> Needs a decision</p>
-            <p><StatusIcon bucket="missing" /> Missing (not present)</p>
-          </div>
         </div>
+        {/* Collapsed: a rail that gives the paper the pane and says how to get
+            the index back. Same control, same `aria-controls`, opposite state. */}
+        {contentsOpen ? null : (
+          <button
+            type="button"
+            className="ws-doc__rail"
+            aria-expanded={false}
+            aria-controls="ws-contents"
+            aria-label="Show contents"
+            title="Show contents"
+            onClick={() => chooseContents(true)}
+          >
+            <PanelLeftOpen size={16} aria-hidden focusable="false" />
+          </button>
+        )}
 
         {/* ------------------------------------------------ document card */}
         <div className="ws-card ws-doccard" ref={cardRef}>

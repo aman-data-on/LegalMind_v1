@@ -328,7 +328,8 @@ def expand_aliases(query: str) -> str:
 
 
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
-                    limit: int = 6) -> list[StatuteHit]:
+                    limit: int = 6, embed_query=None,
+                    require_semantic: bool = False) -> list[StatuteHit]:
     """Lexical retrieval over the statute corpus, authorized inside the function.
 
     A section number named in the question ("section 43A") ranks its exact section
@@ -338,6 +339,13 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     Act's was outranked by the CPC's until the title match was added). Otherwise the
     question's lexemes are OR-ed with a two-lexeme floor, as Domain A does.
     Deterministic order.
+
+    ``require_semantic`` (2026-09-09) is set by the fallback path for a question that
+    did not ask about the law: then two shared lexemes are not enough on their own —
+    "termination", "notice" and "period" reach the Copyright Act's licence-termination
+    section for a contract question — and the corpus counts as silent unless a gated
+    vector neighbour vouches for the match. A statute-shaped question is never held
+    to this: naming an Act or a section IS the relevance signal.
     """
     if P.ASSIST_ASK not in permissions:
         return []
@@ -392,5 +400,76 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                        r.sub_section, r.marginal_note, r.content, float(r.score))
             for r in rows
             if r.exact_section or r.matched >= floor or r.act_match >= 0.5][:limit]
+    # Vector increment (2026-09-09): a paraphrase that names no Act, section or
+    # statutory word — "can a company process someone's personal data without
+    # asking them?" — has no lexeme to match. The stored section vectors (`AM-32`'s
+    # `statute_chunk_embeddings`, filled at ingestion) are consulted through the
+    # same calibrated gate the document retrieval uses, and admitted neighbours
+    # FILL the slots the lexical ranking left empty — they never displace an exact
+    # section or a named Act, so the ranking `AM-47` locked stays lexical-first.
+    named = any(r.exact_section or r.act_match >= 0.5 for r in rows)
+    if named:
+        # A named section or Act: lexical-first stands; vectors only fill the rest.
+        if len(hits) < limit:
+            seen = {h.statute_chunk_id for h in hits}
+            hits += [h for h in _vector_neighbours(db, query, limit=limit,
+                                                   embed_query=embed_query)
+                     if h.statute_chunk_id not in seen][:limit - len(hits)]
+    else:
+        # Nothing named: a two-lexeme OR match is a weak signal ("company" and
+        # "person" reach the Companies Act for a question about personal data),
+        # while a gated cosine is a strong one. Reciprocal rank fusion, the
+        # vector side winning an exact tie.
+        vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
+        if require_semantic and not vector:
+            log_event("assist.statutes.searched", hits=0, level=logging.DEBUG,
+                      cause="no_semantic_evidence")
+            return []
+        fused: dict = {}
+        by_id: dict = {}
+        for rank, h in enumerate(vector, start=1):
+            key = h.statute_chunk_id
+            fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+            by_id.setdefault(h.statute_chunk_id, h)
+        for rank, h in enumerate(hits, start=1):
+            key = h.statute_chunk_id
+            fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+            by_id.setdefault(h.statute_chunk_id, h)
+        order = list(fused)                      # insertion order = vector first on ties
+        ranked = sorted(order, key=lambda i: (-fused[i], order.index(i)))
+        hits = [by_id[i] for i in ranked][:limit]
     log_event("assist.statutes.searched", hits=len(hits), level=logging.DEBUG)
     return hits
+
+
+def _vector_neighbours(db: DBSession, query: str, *, limit: int,
+                       embed_query=None) -> list[StatuteHit]:
+    """Gated nearest neighbours over `statute_chunk_embeddings`; [] without a model,
+    without vectors, or when the calibrated gate stays shut."""
+    from legalmind.assist import calibration, embedding_runtime, store
+
+    embed = embed_query or embedding_runtime.embed_query
+    embedded = embed(query) if query and query.strip() else None
+    if embedded is None:
+        return []
+    vector, _identity = embedded
+    schema = config.assist_schema()
+    op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
+    vtype = store.vector_type(db)
+    literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
+    rows = db.execute(sql_text(f"""
+        SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
+               sc.sub_section, sc.marginal_note, sc.content,
+               1 - (se.embedding {op} CAST(:q AS {vtype})) AS cosine
+          FROM "{schema}".statute_chunk_embeddings se
+          JOIN "{schema}".statute_chunks sc ON sc.id = se.statute_chunk_id
+          JOIN "{schema}".statutes s ON s.id = sc.statute_id
+         ORDER BY se.embedding {op} CAST(:q AS {vtype}), s.official_title, sc.ordinal
+         LIMIT :lim
+    """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
+    scores = [float(r.cosine) for r in rows]
+    if not calibration.gate_is_open(False, scores):
+        return []
+    return [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
+                       r.sub_section, r.marginal_note, r.content, float(r.cosine))
+            for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
