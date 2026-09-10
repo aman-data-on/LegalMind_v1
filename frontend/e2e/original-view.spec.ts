@@ -122,7 +122,7 @@ test.describe("the Original document view", () => {
      * the document. Where the cited row carries a page, the original turns to
      * that page and stays on screen — the smallest transition that arrives.
      */
-    await page.locator(".ws-outline__list button").first().click();
+    await page.locator(".ws-outline__list .ws-outline__jump").first().click();
     await expect(page.getByRole("button", { name: "Original", exact: true }))
       .toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".ws-original")).toHaveAttribute("src", /#page=\d+$/);

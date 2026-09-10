@@ -128,16 +128,18 @@ describe("structure and accessibility", () => {
   });
 });
 
-describe("section references print one § — never two", () => {
-  it("does not double a sign the document already carries", async () => {
+describe("section references print the document's own number — never an added sign", () => {
+  it("adds nothing and doubles nothing", async () => {
     // Real documents supply `section_number` both ways: "17.2" from one parser,
     // "§17.2" from another. Every caller used to prepend `§` unconditionally, so
     // an MSA whose headings carry the sign rendered "§§1" on every clause row,
     // finding card and citation. Found by screenshot.
     const { sectionRef } = await import("@/lib/documentTypes");
 
+    // Owner, 2026-09-10: "DO NOT add the § symbol" — the number is shown as the
+    // document states it. A sign the document itself carries is kept verbatim.
     expect(sectionRef("§17.2")).toBe("§17.2");
-    expect(sectionRef("17.2")).toBe("§17.2");
+    expect(sectionRef("17.2")).toBe("17.2");
     expect(sectionRef(" §4 ")).toBe("§4");
     expect(sectionRef("¶9")).toBe("¶9");          // pilcrow is a section mark too
     expect(sectionRef(null)).toBeNull();

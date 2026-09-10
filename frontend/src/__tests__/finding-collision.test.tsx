@@ -20,13 +20,15 @@ import {
   requirementFamily,
   requirementTitle,
 } from "@/components/workspace/findingLanguage";
-import type { Evaluation, Finding } from "@/lib/types";
+import type { Evaluation, Finding, FindingExplanation } from "@/lib/types";
 
-const AUTORENEW_MSA = { code: "AUTORENEW-MSA-001", name: "AUTORENEW-MSA-001", version_id: "v1", version_number: 1 };
-const AUTORENEW_TOS = { code: "AUTORENEW-TOS-001", name: "AUTORENEW-TOS-001", version_id: "v2", version_number: 1 };
+const AUTORENEW_MSA = { code: "AUTORENEW-MSA-001", name: "AUTORENEW-MSA-001", version_id: "v1", version_number: 1,
+  description: "The agreement renews automatically for a set period each time, on the same terms." };
+const AUTORENEW_TOS = { code: "AUTORENEW-TOS-001", name: "AUTORENEW-TOS-001", version_id: "v2", version_number: 1,
+  description: "Services renew automatically for the same billing period unless cancelled before the renewal date." };
 const LIABILITY_MSA = { code: "LIABILITY-MSA-001", name: "LIABILITY-MSA-001", version_id: "v3", version_number: 1 };
 
-function finding(requirement: typeof AUTORENEW_MSA, id: string): Finding {
+function finding(requirement: typeof AUTORENEW_MSA | typeof LIABILITY_MSA, id: string): Finding {
   const evaluation = {
     id: `e-${id}`, finding_id: id, scope_key: "GENERAL", scope_label: null,
     evaluation_kind: "PRIMARY", classification: "MATCH",
@@ -70,10 +72,10 @@ describe("collidingTitles", () => {
   });
 });
 
-function render(f: Finding, qualify: boolean): string {
+function render(f: Finding, qualify: boolean, explanation: FindingExplanation | null = null): string {
   return renderToStaticMarkup(
     <HighlightProvider>
-      <FindingCard finding={f} qualify={qualify} onChanged={() => {}} prepared={null} explanation={null} />
+      <FindingCard finding={f} qualify={qualify} onChanged={() => {}} prepared={null} explanation={explanation} />
     </HighlightProvider>,
   );
 }
@@ -89,5 +91,24 @@ describe("the card heading", () => {
     // for every card that is not ambiguous.
     const markup = render(finding(LIABILITY_MSA, "f3"), false);
     expect(markup).not.toContain("MSA standard");
+  });
+});
+
+describe("what each colliding standard asks (owner, 2026-09-10)", () => {
+  const grounded = { status: "ACCEPTED", text: "The clause renews the agreement for six months." } as unknown as FindingExplanation;
+
+  it("puts the requirement's own description under a colliding title", () => {
+    const msa = render(finding(AUTORENEW_MSA, "f1"), true, grounded);
+    const tos = render(finding(AUTORENEW_TOS, "f2"), true, grounded);
+    expect(msa).toContain("ws-finding__asks");
+    expect(msa).toContain("renews automatically for a set period");
+    expect(tos).toContain("for the same billing period");
+  });
+
+  it("does not repeat a description the lede already shows, and shows nothing on a lone title", () => {
+    // No grounded sentence: the lede IS the description, once.
+    const msa = render(finding(AUTORENEW_MSA, "f1"), true, null);
+    expect(msa.match(/renews automatically for a set period/g)).toHaveLength(1);
+    expect(render(finding(LIABILITY_MSA, "f3"), false, grounded)).not.toContain("ws-finding__asks");
   });
 });

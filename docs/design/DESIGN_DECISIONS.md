@@ -854,3 +854,40 @@ process-killing document to deterministic FAILED. Proved by `kill -9` mid-OCR
 + restart on the real document (clean rollback, reconciled to COMPLETED, 413
 rows, no duplicates) and by racing two jobs on one version (exactly one
 wrote). Decision #295 has the full record.
+
+## DD-17 — The workspace fix pass: adaptive panes, the Contents tree, Ask as the column, the standard beside an answer (owner review, 2026-09-10)
+
+**Status: recorded. Presentation only; locks nothing and amends no `AM-*`.**
+
+The owner reviewed the shipped `AM-57` workspace and listed eleven concrete problems: panels
+squeezed to letter-wrapped text, a flat Contents with an invented `§`, missing clauses, party-block
+words listed as sections, a "+1 more" that could not be opened, two same-titled findings, an Ask
+that felt like a form at the foot of the screen, and too many frames inside frames. Each was traced
+to its cause (read-only queries against the live rows and a code trace) before any change — see the
+CHANGELOG entry of the same date for the list. Decisions worth not re-litigating:
+
+1. **Panel widths are `clamp()`ed, not fixed, and the side card has a floor of 400px.** The three
+   status tiles stay three-across at every width; the label never breaks mid-word. Both panes still
+   collapse; a drag-resizer was deliberately not added (a new interaction pattern — add if asked).
+2. **The Contents is a tree derived at the presentation layer** (`model.outlineTree`), keyed on the
+   numbers the document states. Sections with children carry a chevron; collapsed by default; the
+   current section opens itself; a collapsed section shows its worst hidden marker. Two presentation
+   filters, both recorded beside `isHeadingLine`'s note: a numbered single title-like line is a
+   section even when the parser did not flag it (its comma rule), and a connective-only unnumbered
+   heading ("AND", "BETWEEN") is not listed. The parser is unchanged (`AM-57` r3, rule 17).
+3. **No `§` is ever added.** `sectionRef` returns the number as the document states it. A sign the
+   document itself carries is kept.
+4. **Ask, open, is the side column.** DD-15's concern (Ask reserves nothing while closed) and
+   `AM-57` r4 (docked, header, close, persistent launcher) both hold; what changed is the share while
+   open — the whole column, with the tab strip above it, and a tab click closes Ask. Below the
+   one-column breakpoint the sheet is unchanged.
+5. **Two same-titled findings are qualified by what each asks**, never merged: the AM-51 dual
+   application of an MSA and a TOS standard to one clause is a product decision, not a UI defect.
+6. **Frames: one card, then whitespace and hairlines** (`AM-57` r5 applied to the Summary): the hero,
+   the ring, the explainer and the obligation groups lost their boxes; the tiles keep a tint and a
+   1px border because they are buttons.
+7. **Assist lane:** a document answer now carries the relevant ratified position beside it, and that
+   position carries the evaluator's existing Finding as the "Assessment" — read, never produced.
+   The one behaviour reversed is the 2026-09-09 "not second-guessed" pin, which was an engineering
+   choice, not a lock.
+

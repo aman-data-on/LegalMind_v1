@@ -148,7 +148,7 @@ test.describe("Ask is a docked secondary tool", () => {
     // Not a modal: the document is still visible and its outline still clickable,
     // so "open chat" never means "leave the document".
     await expect(page.locator(".ws-pane--document")).toBeVisible();
-    const clause = page.locator(".ws-outline__list button").first();
+    const clause = page.locator(".ws-outline__list .ws-outline__jump").first();
     if (await clause.count()) {
       await clause.click();
       await expect(page.locator(".ws-dock__panel")).toBeVisible();

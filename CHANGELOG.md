@@ -10,6 +10,70 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — the workspace as a legal-review surface: adaptive panes, a real Contents tree, Ask as a column, the standard beside an answer (owner, 2026-09-10)
+
+Owner review of the live workspace, eleven items, each traced to its cause before anything was
+changed. Presentation work; one assist-lane change. **No evaluator, classification, Rule Outcome,
+permission or database change. No lock amended** — `AM-57` (document-primary, Ask docked with a
+header, a close control and a persistent launcher), `AM-51`, `AM-25`/`AM-45`/`AM-50` all hold.
+Recorded as **DD-17** in [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md).
+
+- **Layout.** `--ws-side-w` was a fixed 380px (340 under 1440px) and the three status tiles wrapped
+  letter by letter ("Requir / es / modific / ation") because `.ws-tile__label` carried
+  `overflow-wrap: anywhere` inside `repeat(3, minmax(0, 1fr))`. Now `clamp(400px, 28vw, 540px)`
+  for the side card, `clamp(220px, 15vw, 280px)` for the Contents, the document keeps the largest
+  share, and the label wraps only at word boundaries. With the document hidden the Summary's measure
+  rises from 64rem to 88rem (a 1024px strip on a 1920px screen was the "excessive whitespace").
+- **Contents is a tree, and prints the document's own numbers.** `sectionRef` no longer adds a `§`
+  anywhere (outline, finding locations, Ask citations, transcript). `model.outlineTree` builds
+  parent/child from the numbers the rows state, at the presentation layer only (`AM-57` r3 — the
+  parser is not retuned, evidence is not re-extracted): sections with children get a Lucide chevron,
+  collapsed by default, the section holding the current passage opens by itself, a collapsed section
+  carries its worst hidden clause's marker. Measured on the live distribution agreement: clauses
+  **8 and 11 were missing** because `parsing._is_heading` refuses a title containing a comma
+  ("8. ORDERING, FORECASTING, AND DELIVERY") — a numbered row whose whole content is one title-like
+  line is now admitted as a section; **"BETWEEN" and "AND"** were listed because the party block
+  promotes them — a connective-only unnumbered heading is dropped. *Parser observation for a future
+  re-extraction decision: the comma rule and the party-block promotion are both in
+  `ingestion/parsing.py`; neither is changed here.*
+- **Key obligations.** A group headed "6" showed five rows and a "+1 more" nothing could open: the
+  cap was `slice(0, 5)`, the line was not a control, and the only expander was a panel-wide "View
+  all" in the section header that reset on every accordion click. Each group now has its own
+  "Show N more" / "Show less" button; the count and the rows always reconcile.
+- **Two "Auto-renewal" findings are two requirements**, not a duplicate: `AUTORENEW-MSA-001`
+  (renewal period, NUMERIC — Needs a decision on this document) and `AUTORENEW-TOS-001` (clause
+  present, PRESENCE — Acceptable), both applying under `AM-51` because the TOS aliases confirm on
+  clause 5.2. Not deduplicated — a one-standard-per-concept rule would amend `AM-51` and is the
+  owner's call. The card now shows, beside the family, WHAT each standard asks (its own ratified
+  description) whenever titles collide and the lede is not already that text.
+- **Ask takes the side column while open** (`flex: 1`, the Summary/Findings panel hidden by a
+  `:has()` rule; the tab strip stays and choosing a tab closes Ask). The question sits right on the
+  paper tint, the answer runs as plain text, sources under a labelled hairline — no more bordered
+  answer boxes. Still docked, still a header with a visible close, still the 44px launcher when
+  closed (`AM-57` r4).
+- **The company standard beside a document answer** (`assist/service.py`). When the document
+  answers and the caller holds the position grant, the ratified position relevant to the question is
+  now quoted in its own section too (`AM-45` r2 — separate field, separate citation grammar,
+  disagreement shown never adjudicated); POSITIONS is recorded as searched whether or not one matched
+  (`AM-46`); position text still never enters the generation payload (`AM-32` r4). Each quoted
+  position carries `finding` — the deterministic engine's EXISTING Finding for that standard on the
+  latest Review (`{finding_id, classification, user_status}`), read never produced (`AM-45` r4), only
+  for a caller with `finding.view`; the UI shows it as "Assessment — by the evaluator's Finding" with
+  the three-word status and a link. Ask still generates no verdict; the verdict screen is untouched.
+  `test_a_document_that_answers_is_not_second_guessed_by_the_positions` (2026-09-09) is superseded
+  by `test_a_document_answer_carries_the_relevant_position_beside_it`.
+- **Less chrome.** The hero loses its border and shadow, the ring its box, the explainer its outer
+  frame and inner cards (a coloured left rule each), obligation groups become rows under hairlines,
+  finding cards lose their shadow. Class names kept — the confidentiality and legal-access specs read
+  them. Zoom is remembered per browser like the two panel toggles.
+
+Tests: `outline-tree.test.ts`, `obligations-panel.test.tsx`, extended `finding-collision` and
+`ask-dock` unit tests; `§` pins rewritten in `pipeline`/`ask-pane`/`workspace`/`finding-card`;
+e2e `workspace-viewports.spec.ts` at 1366×768, 1536×864 and 1920×1080 (pane floors, tiles on one
+row, no `§`, Ask takes the column and a tab click closes it); outline selectors in four specs moved
+to `.ws-outline__jump` because the chevrons are buttons too. Backend: two new tests in
+`test_assist_ask.py`, one domains pin extended to name POSITIONS.
+
 ### Changed — the workspace is document-primary, and Ask is docked (`AM-57`, AB-18, owner, 2026-09-09)
 
 Owner instruction after reviewing the live workspace: *"The current UI feels like a collection

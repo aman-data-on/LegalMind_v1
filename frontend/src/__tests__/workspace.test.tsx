@@ -73,7 +73,7 @@ describe("reading order", () => {
 
   it("labels a location from whatever the parser recorded", () => {
     expect(locationLabel(row({ section_number: "17.2", section_title: "Liability", page_number: 9 })))
-      .toBe("§17.2 · Liability · p.9");
+      .toBe("17.2 · Liability · p.9");
     expect(locationLabel(row({ page_number: null }))).toBe("location not recorded");
   });
 });
@@ -278,7 +278,7 @@ describe("TranscriptTurn (ask history replay)", () => {
     // version's reading order, so landing on the newest version would point the
     // highlight at a row that page does not contain.
     expect(html).toContain('href="/dashboard?id=c1&amp;version=dv1&amp;evidence=ev1"');
-    expect(html).toContain("§17.2");
+    expect(html).toContain("17.2");
     // Null score → the score line is absent entirely, never "NaN" or a blank label.
     expect(html).not.toContain("retrieval score");
     // With a score, it renders labeled as exactly that (AI-03 item 16).

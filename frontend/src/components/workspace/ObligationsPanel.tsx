@@ -13,6 +13,13 @@
  * the label work — see its note on why "our side / their side" is not
  * synthesised from a role label.
  *
+ * Each group shows its first five items and a "Show N more" control OF ITS
+ * OWN (owner, 2026-09-10). The previous "+1 more" was a non-interactive line
+ * and the only way to expand it was a "View all" button up in the section
+ * header, which reset on every accordion click — so a group headed "6" could
+ * never be made to show six. The count and the rendered items now always
+ * reconcile: 5 + "Show 1 more", or all 6 + "Show less".
+ *
  * Flow: read what exists; when nothing was extracted yet, request the
  * extraction once (the server runs it synchronously — the Ask precedent) and
  * read again. Every failure is an honest quiet sentence — obligations are a
@@ -35,12 +42,11 @@ type Load =
   | { kind: "unavailable" }
   | { kind: "ready"; groups: ObligationGroup[] };
 
-/** Items shown per party before "View all" expands the list. */
-const OBLIGATIONS_SHOWN = 5;
+/** Items shown per party before its own "Show N more" expands the list. */
+export const OBLIGATIONS_SHOWN = 5;
 
 export function ObligationsPanel({ documentVersionId }: { documentVersionId: string }) {
   const [state, setState] = useState<Load>({ kind: "loading" });
-  const [expanded, setExpanded] = useState(false);
   /** null = "the first category", the sensible default; "" = the user closed it. */
   const [open, setOpen] = useState<string | null>(null);
 
@@ -48,7 +54,6 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
     let cancelled = false;
     setState({ kind: "loading" });
     setOpen(null);
-    setExpanded(false);
 
     (async () => {
       try {
@@ -79,17 +84,11 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
 
   const categories = state.kind === "ready" ? obligationCategories(state.groups) : [];
   const openKey = open === null ? categories[0]?.key : open;
-  const openCategory = categories.find((category) => category.key === openKey);
 
   return (
     <section className="ws-analysis__section" aria-label="Key obligations">
       <div className="ws-analysis__head">
         <h3 className="ws-analysis__title">Key obligations</h3>
-        {openCategory && openCategory.items.length > OBLIGATIONS_SHOWN ? (
-          <button type="button" className="ws-viewall" onClick={() => setExpanded((v) => !v)}>
-            {expanded ? "Show fewer" : "View all"}
-          </button>
-        ) : null}
       </div>
       {state.kind === "loading" ? (
         <p className="ws-pane__note" aria-busy="true" role="status">
@@ -114,11 +113,7 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
               title={category.title}
               items={category.items}
               open={category.key === openKey}
-              expanded={expanded}
-              onToggle={() => {
-                setExpanded(false);
-                setOpen(category.key === openKey ? "" : category.key);
-              }}
+              onToggle={() => setOpen(category.key === openKey ? "" : category.key)}
             />
           ))}
         </div>
@@ -127,17 +122,22 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
   );
 }
 
-function ObligationCategoryRow({
-  title, items, open, expanded, onToggle,
+export function ObligationCategoryRow({
+  title, items, open, onToggle,
 }: {
   title: string;
   items: ObligationItem[];
   open: boolean;
-  expanded: boolean;
   onToggle: () => void;
 }) {
   const { point, target } = useHighlight();
   const panelId = useId();
+  const [expanded, setExpanded] = useState(false);
+  // A closed group forgets its expansion; reopening starts at the first five.
+  useEffect(() => {
+    if (!open) setExpanded(false);
+  }, [open]);
+  const hidden = items.length - OBLIGATIONS_SHOWN;
   const shown = expanded ? items : items.slice(0, OBLIGATIONS_SHOWN);
   return (
     <div className="ws-obligations__group" data-open={open ? "true" : "false"}>
@@ -166,7 +166,7 @@ function ObligationCategoryRow({
                 className="ws-obligations__jump"
                 aria-current={target === item.evidence_id ? "true" : undefined}
                 title={sectionRef(item.section_ref)
-                ? `Show ${sectionRef(item.section_ref)} in the document`
+                ? `Show clause ${sectionRef(item.section_ref)} in the document`
                 : "Show in the document"}
                 onClick={() => point(item.evidence_id!, "the cited")}
               >
@@ -177,8 +177,17 @@ function ObligationCategoryRow({
             )}
           </li>
         ))}
-        {!expanded && items.length > OBLIGATIONS_SHOWN ? (
-          <li className="ws-pane__note">+{items.length - OBLIGATIONS_SHOWN} more</li>
+        {hidden > 0 ? (
+          <li>
+            <button
+              type="button"
+              className="ws-obligations__more"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Show less" : `Show ${hidden} more`}
+            </button>
+          </li>
         ) : null}
       </ul>
     </div>

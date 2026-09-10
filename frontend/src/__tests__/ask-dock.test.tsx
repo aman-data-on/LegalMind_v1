@@ -215,3 +215,40 @@ describe("turnsFromHistory", () => {
     ])).toEqual([]);
   });
 });
+
+// =====================================================================
+// Company standard beside the answer, with the evaluator's own Finding
+// =====================================================================
+describe("a position beside the document's answer (owner, 2026-09-10)", () => {
+  const render = (r: AskResult) =>
+    renderToStaticMarkup(
+      <HighlightProvider>
+        <WsAnswerView result={r} contractId="c-1" openVersionNumber={2} />
+      </HighlightProvider>,
+    );
+  const position = {
+    position_chunk_id: "pc-1", standard_code: "TERM-NOTICE-NDA-001", document_type: "NDA",
+    source_clause: "9 Term", content: "Either party may terminate on thirty (30) days' written notice.",
+    retrieval_score: 0.5,
+  };
+
+  it("labels the standard as the company's, and the assessment as the evaluator's Finding — never a score", () => {
+    const html = render(result({
+      text: "Ninety days [1].", citations: [CITATION],
+      positions: [{ ...position, finding: { finding_id: "f-1", classification: "DEVIATION", user_status: "REQUIRES_MODIFICATION" } }],
+    }));
+    expect(html).toContain("Company standard");
+    expect(html).toContain("Sources — this document");
+    expect(html).toContain("Assessment — by the evaluator");
+    expect(html).toContain("Requires modification");
+    expect(html).toContain("finding=f-1");
+    expect(html).not.toContain("retrieval score");
+    expect(html.toLowerCase()).not.toContain("confidence");
+  });
+
+  it("quotes the position alone when no Review holds a Finding for it", () => {
+    const html = render(result({ text: "Ninety days [1].", citations: [CITATION], positions: [{ ...position, finding: null }] }));
+    expect(html).toContain("Company standard");
+    expect(html).not.toContain("Assessment");
+  });
+});

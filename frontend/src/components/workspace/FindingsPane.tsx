@@ -381,7 +381,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
           ?
         </button>
       </div>
-      <div className="ws-pane__body" style={{ padding: "16px" }}>
+      <div className="ws-pane__body ws-pane__body--pad">
         {/* What the outcomes mean — collapsed, so it costs a working reviewer
             nothing and answers a first-time reader without asking a colleague
             (2026-09-04 audit). */}
@@ -488,7 +488,7 @@ function askQuestionFor(finding: Finding): string {
   const where = finding.evidence.find((e) => e.section_number)?.section_number;
   return finding.classification === "MISSING"
     ? `Does this document say anything about ${name}?`
-    : `What does this document say about ${name}${where ? ` (§${where})` : ""}?`;
+    : `What does this document say about ${name}${where ? ` (clause ${where})` : ""}?`;
 }
 
 /** Exported for `finding-card.test.tsx`, which renders one card per
@@ -581,6 +581,16 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
                 <span className="ws-finding__family"> · {family} standard</span>
               ) : null}
             </h3>
+            {/* Two standards, one title (owner, 2026-09-10: "make the
+                distinction clear using meaningful metadata"): beside the
+                family, WHAT each standard asks — its own ratified description
+                — so "Auto-renewal · MSA standard" and "Auto-renewal · TOS
+                standard" no longer read as the same finding twice. Only on a
+                collision, and only when the lede is not already that text. */}
+            {qualify && finding.requirement.description?.trim()
+              && finding.requirement.description.trim() !== meaning ? (
+              <span className="ws-finding__asks">{finding.requirement.description.trim()}</span>
+            ) : null}
             {/* The engine's determination in plain words (owner's reference,
                 2026-09-09): which of the five answers produced this status. */}
             {determinationLabel(finding.classification) ? (

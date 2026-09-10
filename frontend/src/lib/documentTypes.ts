@@ -69,9 +69,11 @@ export function typeHintFromFilename(filename: string): string | null {
  * rule that gets fixed in some of them.
  */
 export function sectionRef(sectionNumber: string | null | undefined): string | null {
+  // The number exactly as the document states it (owner, 2026-09-10: "DO NOT
+  // add the § symbol… the document itself is the source of truth"). A sign the
+  // document carries stays; none is ever added.
   const trimmed = (sectionNumber ?? "").trim();
-  if (!trimmed) return null;
-  return /^[§¶]/.test(trimmed) ? trimmed : `§${trimmed}`;
+  return trimmed || null;
 }
 
 /**

@@ -68,7 +68,7 @@ test.describe("the document pane", () => {
     const doc = page.locator('[data-region="document"]');
     await expect(doc.locator(".ws-row").first()).toBeVisible();
 
-    const entries = doc.locator(".ws-outline button");
+    const entries = doc.locator(".ws-outline .ws-outline__jump");
     test.skip((await entries.count()) === 0, "fixture document carries no clause numbering");
 
     const last = entries.last();

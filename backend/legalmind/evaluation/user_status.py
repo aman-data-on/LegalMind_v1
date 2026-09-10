@@ -24,30 +24,18 @@ for the reader who may see them; they no longer move the word.
 """
 from __future__ import annotations
 
-from legalmind.domain.enums import FindingClassification as C
-from legalmind.domain.enums import RuleOutcome as R
-
-ACCEPTABLE = "ACCEPTABLE"
-REQUIRES_MODIFICATION = "REQUIRES_MODIFICATION"
-NEEDS_DECISION = "NEEDS_DECISION"
-_RANK = {ACCEPTABLE: 0, NEEDS_DECISION: 1, REQUIRES_MODIFICATION: 2}
-_MODIFY = {C.DEVIATION, C.MISSING}
-
-
-def user_status(classification: C, rule_outcome: R | None = None,
-                prohibited: bool = False) -> str:
-    """`rule_outcome` and `prohibited` are accepted for the callers' sake and
-    recorded beside the word; since AM-56 the word follows the classification."""
-    if classification is C.MATCH:
-        return ACCEPTABLE
-    if classification in _MODIFY:
-        return REQUIRES_MODIFICATION
-    return NEEDS_DECISION
-
-
-def worst(statuses: list[str], fallback: str) -> str:
-    """A Finding's status is its worst Evaluation's; with none, the fallback."""
-    return max(statuses, key=_RANK.__getitem__) if statuses else fallback
+# The pure mapping lives in `legalmind.domain.user_status` since 2026-09-10 (the
+# assist lane reads it; it may import `domain`, never `evaluation`). Re-exported
+# here so every existing caller keeps its import.
+from legalmind.domain.user_status import (  # noqa: F401
+    _MODIFY,
+    _RANK,
+    ACCEPTABLE,
+    NEEDS_DECISION,
+    REQUIRES_MODIFICATION,
+    user_status,
+    worst,
+)
 
 
 def by_finding(db, review_ids) -> dict:

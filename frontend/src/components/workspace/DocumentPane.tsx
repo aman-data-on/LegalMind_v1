@@ -18,7 +18,6 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { sectionRef } from "@/lib/documentTypes";
 import { USER_STATUS_LABELS, userStatus } from "./findingLanguage";
 
 import { ApiError, api, describeError } from "@/lib/api";
@@ -34,6 +33,7 @@ import {
   IconAlertCircle,
   IconCheckCircle,
   IconChevronDown,
+  IconChevronRight,
   IconChevronUp,
   IconMaximize,
   IconSearch,
@@ -41,24 +41,28 @@ import {
 } from "./icons";
 import {
   READINESS_TEXT,
+  allOutlineNodes,
   clauseStatusByEvidenceId,
-  clauseOf,
   documentTextState,
   groupByPage,
   locationLabel,
   findingsByEvidenceId,
-  outlineOf,
+  outlineAncestors,
+  outlineTree,
   partLabel,
   requirementHeading,
+  rollupBucket,
   sequenceBreaks,
   outlineStatus,
   readiness,
   rowPresentation,
+  visibleOutline,
   type ClauseStatus,
   type StatusBucket,
 } from "./model";
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
+const ZOOM_KEY = "legalmind.workspace.zoom";
 const PAGE_SIZE = 100;
 const ZOOM_STEPS = [85, 100, 115, 130, 150];
 
@@ -145,7 +149,30 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [findQuery, setFindQuery] = useState("");
   const [findIndex, setFindIndex] = useState(0);
   const [zoom, setZoom] = useState(100);
+  // Remembered per browser like the two panel toggles — a reading preference.
+  useEffect(() => {
+    try {
+      const stored = Number(window.localStorage.getItem(ZOOM_KEY));
+      if (ZOOM_STEPS.includes(stored)) setZoom(stored);
+    } catch { /* this visit only */ }
+  }, []);
+  const chooseZoom = useCallback((next: number) => {
+    setZoom(next);
+    try {
+      window.localStorage.setItem(ZOOM_KEY, String(next));
+    } catch { /* this visit only */ }
+  }, []);
   const [currentPage, setCurrentPage] = useState<number | null>(null);
+  /** Sections the reader has expanded in the Contents tree (2026-09-10). */
+  const [openNodes, setOpenNodes] = useState<Set<string>>(() => new Set());
+  const toggleNode = useCallback((id: string) => {
+    setOpenNodes((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Reader annotations (DD-14): this-device marks over the unmodified text.
   const { annotations, add, remove, setNote } = useAnnotations(version.id);
@@ -382,16 +409,36 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   }
 
   const ready = readiness(version.assist_index);
-  const outline = rows ? outlineOf(rows) : [];
-  const breaks = sequenceBreaks(outline);
-  const shownOutline = clauseQuery.trim()
-    ? outline.filter((row) => {
-        const clause = clauseOf(row);
-        return `${clause.number ?? ""} ${clause.title}`
+  // The Contents as the document's own tree (2026-09-10) — see `outlineTree`.
+  const tree = useMemo(() => (rows ? outlineTree(rows) : []), [rows]);
+  const outline = useMemo(() => allOutlineNodes(tree), [tree]);
+  const breaks = sequenceBreaks(tree.map((node) => node.row));
+  const searching = clauseQuery.trim().length > 0;
+  const shownOutline = searching
+    ? outline.filter((node) =>
+        `${node.number ?? ""} ${node.title}`
           .toLowerCase()
-          .includes(clauseQuery.trim().toLowerCase());
-      })
-    : outline;
+          .includes(clauseQuery.trim().toLowerCase()))
+    : visibleOutline(tree, (id) => openNodes.has(id));
+  /* Pointing at a passage opens the section that holds it, so the current entry
+     is never hidden inside a collapsed parent. The target may be a body row
+     rather than an outline entry; its owner is the nearest entry before it. */
+  useEffect(() => {
+    if (!target || !rows || outline.length === 0) return;
+    const ids = new Set(outline.map((node) => node.row.id));
+    let owner: string | null = null;
+    for (const row of rows) {
+      if (ids.has(row.id)) owner = row.id;
+      if (row.id === target) break;
+    }
+    if (!owner) return;
+    const ancestors = outlineAncestors(tree, owner);
+    if (ancestors.length === 0) return;
+    setOpenNodes((previous) => {
+      if (ancestors.every((id) => previous.has(id))) return previous;
+      return new Set([...previous, ...ancestors]);
+    });
+  }, [target, rows, tree, outline]);
 
   if (error) {
     return (
@@ -532,12 +579,17 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               />
             </label>
             <div className="ws-outline__list">
-              {shownOutline.map((row) => {
-                const status = clauseStatus.get(row.id);
-                const clause = clauseOf(row);
-                // §4.3.1 indents under §4.3 under §4 — depth is the section
-                // number's own dot count (capped; deeper than 3 reads as 3).
-                const depth = Math.min(3, clause.number?.match(/\./g)?.length ?? 0);
+              {shownOutline.map((node) => {
+                const { row } = node;
+                // A search shows its matches flat; the tree's own chevrons only
+                // mean something while the tree is showing.
+                const branch = node.children.length > 0 && !searching;
+                const expanded = branch && openNodes.has(row.id);
+                // A collapsed section carries its worst hidden clause's marker.
+                const bucket = rollupBucket(node, clauseStatus, branch && !expanded);
+                const label = `${node.number ?? ""} ${node.title}`.trim() || "Untitled clause";
+                // The number and title exactly as the document states them —
+                // never a "§", never a number the file does not carry.
                 return (
                   <Fragment key={row.id}>
                   {/* A new part of the document. When the file DECLARES it —
@@ -550,18 +602,37 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   ) : breaks.has(row.id) ? (
                     <p className="ws-outline__break">Numbering restarts</p>
                   ) : null}
-                  <button
-                    type="button"
-                    data-depth={depth > 0 ? depth : undefined}
-                    aria-current={target === row.id ? "true" : undefined}
-                    onClick={() => point(row.id, clause.number ? `clause ${clause.number}` : "the selected")}
+                  <div
+                    className="ws-outline__node"
+                    data-depth={!searching && node.depth > 0 ? Math.min(3, node.depth) : undefined}
+                    data-leaf={node.leaf ? "true" : undefined}
                   >
-                    <span className="ws-outline__label">
-                      {sectionRef(clause.number) ? <span className="ws-mono">{sectionRef(clause.number)}</span> : null}
-                      {clause.title || (clause.number ? "" : "Untitled clause")}
-                    </span>
-                    {status ? <StatusIcon bucket={status.bucket} /> : null}
-                  </button>
+                    {branch ? (
+                      <button
+                        type="button"
+                        className="ws-outline__twist"
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+                        onClick={() => toggleNode(row.id)}
+                      >
+                        {expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                      </button>
+                    ) : (
+                      <span className="ws-outline__twist ws-outline__twist--none" aria-hidden="true" />
+                    )}
+                    <button
+                      type="button"
+                      className="ws-outline__jump"
+                      aria-current={target === row.id ? "true" : undefined}
+                      onClick={() => point(row.id, node.number ? `clause ${node.number}` : "the selected")}
+                    >
+                      <span className="ws-outline__label">
+                        {node.number ? <span className="ws-mono">{node.number}</span> : null}
+                        {node.title || (node.number ? "" : "Untitled clause")}
+                      </span>
+                      {bucket ? <StatusIcon bucket={bucket} /> : null}
+                    </button>
+                  </div>
                   </Fragment>
                 );
               })}
@@ -750,7 +821,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   className="ws-toolbtn"
                   aria-label="Zoom out"
                   disabled={zoom === ZOOM_STEPS[0]}
-                  onClick={() => setZoom(ZOOM_STEPS[Math.max(0, ZOOM_STEPS.indexOf(zoom) - 1)]!)}
+                  onClick={() => chooseZoom(ZOOM_STEPS[Math.max(0, ZOOM_STEPS.indexOf(zoom) - 1)]!)}
                 >
                   −
                 </button>
@@ -760,7 +831,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   className="ws-toolbtn"
                   aria-label="Zoom in"
                   disabled={zoom === ZOOM_STEPS[ZOOM_STEPS.length - 1]}
-                  onClick={() => setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, ZOOM_STEPS.indexOf(zoom) + 1)]!)}
+                  onClick={() => chooseZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, ZOOM_STEPS.indexOf(zoom) + 1)]!)}
                 >
                   +
                 </button>
