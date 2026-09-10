@@ -44,8 +44,10 @@ test.use({ storageState: storageStatePath("owner") });
 
 /** `AM-29` r4's constant, as `backend/legalmind/assist/state.py` declares it. */
 const REFUSAL_TEXT =
-  "Information not found in the selected document. " +
-  "The available material does not answer this question.";
+  // The refusal names every source the caller's permissions let it consult
+  // (routing.refusal_text, 2026-09-09), so the document-only and the
+  // document-plus-positions wordings are both the one honest sentence.
+  /^Information not found in the selected document(?: or in the organization's approved positions)?(?: or in the approved statute corpus)?\. The available material does not answer this question\.$/;
 
 /** Upload a second document version to an existing contract, as the user would. */
 async function uploadRevision(page: import("@playwright/test").Page, contractId: string) {

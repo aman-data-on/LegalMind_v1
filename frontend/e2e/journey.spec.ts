@@ -29,8 +29,10 @@ test.use({ storageState: storageStatePath("owner") });
  */
 
 const REFUSAL_TEXT =
-  "Information not found in the selected document. " +
-  "The available material does not answer this question.";
+  // The refusal names every source the caller's permissions let it consult
+  // (routing.refusal_text, 2026-09-09), so the document-only and the
+  // document-plus-positions wordings are both the one honest sentence.
+  /^Information not found in the selected document(?: or in the organization's approved positions)?(?: or in the approved statute corpus)?\. The available material does not answer this question\.$/;
 
 test("journey: upload → analysis → report → findings → ask, with findings still open", async ({
   page,
