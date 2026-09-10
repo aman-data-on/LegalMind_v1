@@ -12,8 +12,7 @@
  * use — the help cannot describe bindings that don't exist.
  */
 
-import { useEffect, useRef } from "react";
-
+import { Dialog } from "@/components/Dialog";
 import { REVIEW_SHORTCUTS } from "@/lib/shortcuts";
 
 export function KeyboardShortcutsHelp({
@@ -23,40 +22,15 @@ export function KeyboardShortcutsHelp({
   open: boolean;
   onClose: () => void;
 }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.focus();
-    return () => restoreRef.current?.focus();
-  }, [open]);
-
   if (!open) return null;
 
   return (
-    <div
-      className="shortcuts-overlay"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Dialog
+      onClose={onClose}
+      titleId="shortcuts-title"
+      overlayClassName="shortcuts-overlay"
+      boxClassName="shortcuts-dialog"
     >
-      <div
-        ref={dialogRef}
-        className="shortcuts-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="shortcuts-title"
-        tabIndex={-1}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
-          /* While the dialog holds focus, page- and panel-level single-key
-             handlers must not also fire. */
-          event.stopPropagation();
-        }}
-      >
         <h2 id="shortcuts-title">Keyboard shortcuts</h2>
         <table>
           <tbody>
@@ -77,7 +51,6 @@ export function KeyboardShortcutsHelp({
         <button type="button" className="btn btn--secondary" onClick={onClose}>
           Close
         </button>
-      </div>
-    </div>
+    </Dialog>
   );
 }

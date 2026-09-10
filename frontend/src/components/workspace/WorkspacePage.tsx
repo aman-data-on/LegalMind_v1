@@ -35,6 +35,8 @@ import type { Contract, Counterparty, DocumentVersion } from "@/lib/types";
 import { contractStatusLabel } from "@/lib/labels";
 import { documentSourceChip } from "@/lib/documentTypes";
 
+import { Dialog } from "@/components/Dialog";
+
 import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
@@ -456,12 +458,7 @@ function CompanyDocuments({
 }: { company: Counterparty; currentId: string; onClose: () => void }) {
   const contracts = company.contracts ?? [];
   return (
-    <div className="ws-modal" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
-      <div className="ws-modal__box" role="dialog" aria-modal="true"
-           aria-labelledby="ws-company-title"
-           onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
+    <Dialog onClose={onClose} titleId="ws-company-title">
         <h2 id="ws-company-title">{company.name}</h2>
         {company.industry ? <p className="ws-pane__note">{company.industry}</p> : null}
         {company.relationship_notes ? (
@@ -490,7 +487,6 @@ function CompanyDocuments({
         <div className="ws-modal__acts">
           <button type="button" className="ws-btn" onClick={onClose}>Close</button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
