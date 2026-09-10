@@ -1,9 +1,17 @@
 # SHADCN ADOPTION REPORT
 
-**Status:** 📁 `ANALYSIS`, step 1 of §5 **IMPLEMENTED 2026-09-10 — without shadcn.** Dialog
-consolidation is done (`components/Dialog.tsx`); see the addendum at the end of this document for
-why Radix/shadcn's `Dialog` was rejected in favor of a dependency-free extraction, and what that
-implies for steps 2–5. No dependency has been installed; shadcn/Tailwind remain unused.
+**Status:** 📁 `ANALYSIS`, step 1 of §5 **IMPLEMENTED 2026-09-10.** History, for anyone reading
+this cold: the first pass built a dependency-free `Dialog.tsx` instead of Radix, on the belief
+that Radix's `Portal` was incompatible with this project's Node-only Vitest environment for all
+six dialogs. That belief was checked more precisely on request — it was true for exactly one of
+the six (`KeyboardShortcutsHelp`, which has a `renderToStaticMarkup` unit test; the other five
+have zero Vitest coverage and are validated only by Playwright in a real browser, where Portal is
+unproblematic) — and the **final, current state re-implements `Dialog.tsx` on top of
+`@radix-ui/react-dialog`** for those five, while `KeyboardShortcutsHelp` keeps its own plain
+implementation. See the two addenda at the end of this document for the full sequence, including
+a real structural bug (uncentered dialog) the first Radix attempt introduced and how it was
+verified and fixed. `@radix-ui/react-dialog` is the one dependency now installed; Tailwind/shadcn
+CLI remain unused — see §5 on why Radix-direct doesn't require either.
 **Date:** 2026-09-10. **Governed by:** [DESIGN.md](../../DESIGN.md) and [CLAUDE.md](../../CLAUDE.md)
 § "UI and UX work" (shadcn/ui + Tailwind approved for incremental adoption, owner 2026-09-10).
 This document locks nothing in `all_lock.md` and amends no entry in
@@ -136,6 +144,11 @@ decide after seeing the actual visual diff, not in the abstract.
 
 ## Addendum (2026-09-10) — step 1 implemented, and it isn't shadcn
 
+⚠️ **Superseded by the "Final implementation" section below.** This addendum's claim that Radix
+would break "for six call sites" was checked more precisely on request and found imprecise: it's
+true for exactly one of the six. Left in place, not rewritten, per this project's own append-only
+discipline for superseded reasoning — read it as the first-pass belief, not the final answer.
+
 Starting the actual migration surfaced something the desk audit above missed: `vitest.config.ts`
 locks the frontend's test environment to `"node"` and asserts components purely via
 `react-dom/server`'s `renderToStaticMarkup` — a deliberate Step 39 choice, documented in that
@@ -192,3 +205,68 @@ rung 1 of the ladder — real duplication, or a new surface a native element gen
 "shadcn because it's available" anti-pattern the owner's original instruction ruled out. No
 further action pending a new concrete trigger; re-derive from the current code at that time
 rather than resuming this list by default.
+
+---
+
+## Final implementation (2026-09-10) — Dialog rewritten on `@radix-ui/react-dialog`
+
+The owner, after reviewing the first-pass reasoning above, asked for the exact claim to be
+verified rather than assumed, and then approved a specific hybrid: Radix for the dialogs that
+actually clear it, keep it simple for the one that doesn't.
+
+**What verification found (empirical, not assumed):**
+
+- Installed `react`, `react-dom`, `@radix-ui/react-dialog` in an isolated scratch directory
+  (outside the repo) and reproduced this project's exact Vitest posture
+  (`renderToStaticMarkup`, plain Node, `typeof document === "undefined"` confirmed).
+  `Dialog.Portal` renders `""` for both open and closed states — silent, not a crash. Removing
+  only `Portal` (same `Root`/`Overlay`/`Content`) renders correct markup. **Portal is the entire
+  failure surface**; nothing else about Radix's Dialog has a problem there.
+- Checked which test layer actually exercises each of the six dialogs. Result:
+  `EditContractDialog`/`ArchiveContractDialog`/`DeleteContractDialog`/`TransferContractDialog`/
+  `CompanyDocuments` have **zero** Vitest unit tests — they are validated exclusively by
+  Playwright in a real Chromium browser (`dashboard-list.spec.ts`, `declared-metadata.spec.ts`),
+  where Portal is completely normal (all are `"use client"`; Next SSRs once, then hydrates and
+  the portal mounts, the same as any production Radix/shadcn app). Only `KeyboardShortcutsHelp`
+  has a Vitest test that asserts on `renderToStaticMarkup` output directly — and that dialog's
+  rendered behaviour is *also* already covered by `e2e/keyboard.spec.ts` in a real browser.
+- So the true blocker was one component's one unit test, not a project-wide constraint.
+
+**What shipped:** `components/Dialog.tsx` now wraps `RadixDialog.Root`/`Portal`/`Overlay`/
+`Content`, used by the five dialogs above (call-site signatures unchanged — no other file needed
+to change). `KeyboardShortcutsHelp` reverted to its own small, self-contained plain
+implementation (the same shape as before consolidation), since it's the one exception with a
+real reason to stay off Radix; that reasoning is now in its own file's header comment, not just
+here.
+
+**A real bug found and fixed during implementation, not by a test:** the first attempt rendered
+`Dialog.Overlay` and `Dialog.Content` as siblings (Radix's own documented pattern) — but this
+project's `.ws-modal` CSS centres its child via flexbox, so with nothing to apply that flexbox to,
+the dialog rendered at `left: 0`, uncentered. Confirmed via a computed-style check in a real
+browser (Playwright's `getBoundingClientRect`/`getComputedStyle` — the existing role/text-based
+Playwright assertions did not catch this, since they don't inspect layout or paint). Fixed by
+nesting `Content` inside `Overlay`, matching the original hand-rolled markup's parent/child
+structure exactly; re-verified centred, opaque, and inside `.ws` afterward.
+
+**A second real bug, caught by the same discipline, before it shipped:** Radix's `Dialog.Portal`
+defaults to `document.body`. This project's `--ws-*` design tokens (`--ws-surface`,
+`--ws-z-dialog`, `--ws-radius-card`, …) are scoped to `.ws`, not `:root` — the exact reason
+`dashboard/page.tsx`'s row-action menu already needed a custom `menuPortalTarget()` fix on
+2026-09-03 (portaling into `.ws` instead of `document.body`, after the default silently produced
+a transparent, unz-indexed menu that Playwright's assertions also didn't catch). `Dialog.tsx`'s
+Portal now targets `document.querySelector(".ws") ?? document.body`, the same fallback pattern.
+Verified via computed style in a real browser: opaque `rgb(255, 255, 255)` background, correct
+`z-index: 30`, centred at `left: 400` in a 1280px viewport (this test was a throwaway Playwright
+spec, deleted after verification — not part of the committed suite, since it duplicated no
+regression the existing suite doesn't already need covered by design changes, not test additions).
+
+**Also verified in the same real-browser pass:** `dismissOnScrimClick={false}` on
+`EditContractDialog` correctly blocks a scrim click while Escape still closes it;
+`ArchiveContractDialog` (default `dismissOnScrimClick={true}`) correctly closes on a scrim click;
+Delete and Transfer dialogs open and close cleanly. Screenshots taken and inspected, not just
+asserted on. All 368 Vitest tests, `tsc --noEmit`, `check:terms`, and the 11 relevant Playwright
+specs (`dashboard-list.spec.ts`, `declared-metadata.spec.ts`, `keyboard.spec.ts`) pass.
+
+**Dependency added:** `@radix-ui/react-dialog` — the single package this required, no Tailwind,
+no shadcn CLI. `AskDock`'s deliberately non-modal dialog remains untouched, as do all protected
+surfaces in §2/§7 of this report.

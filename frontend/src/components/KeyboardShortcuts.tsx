@@ -10,9 +10,18 @@
  *
  * The table renders from `REVIEW_SHORTCUTS`, the same source the page handlers
  * use — the help cannot describe bindings that don't exist.
+ *
+ * Deliberately its OWN plain implementation, not `components/Dialog.tsx`
+ * (2026-09-10): that component wraps `@radix-ui/react-dialog`, whose `Portal`
+ * renders nothing under Node with no DOM — verified empirically — and this is
+ * the one dialog with a Vitest test that asserts on `renderToStaticMarkup`
+ * output directly (`__tests__/keyboard-shortcuts.test.tsx`). Its rendered
+ * behaviour in a real browser is separately covered by `e2e/keyboard.spec.ts`.
+ * See docs/design/SHADCN_ADOPTION_REPORT.md for the full reasoning.
  */
 
-import { Dialog } from "@/components/Dialog";
+import { useEffect, useRef } from "react";
+
 import { REVIEW_SHORTCUTS } from "@/lib/shortcuts";
 
 export function KeyboardShortcutsHelp({
@@ -22,15 +31,40 @@ export function KeyboardShortcutsHelp({
   open: boolean;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => restoreRef.current?.focus();
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <Dialog
-      onClose={onClose}
-      titleId="shortcuts-title"
-      overlayClassName="shortcuts-overlay"
-      boxClassName="shortcuts-dialog"
+    <div
+      className="shortcuts-overlay"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
+      <div
+        ref={dialogRef}
+        className="shortcuts-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-title"
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+          /* While the dialog holds focus, page- and panel-level single-key
+             handlers must not also fire. */
+          event.stopPropagation();
+        }}
+      >
         <h2 id="shortcuts-title">Keyboard shortcuts</h2>
         <table>
           <tbody>
@@ -51,6 +85,7 @@ export function KeyboardShortcutsHelp({
         <button type="button" className="btn btn--secondary" onClick={onClose}>
           Close
         </button>
-    </Dialog>
+      </div>
+    </div>
   );
 }

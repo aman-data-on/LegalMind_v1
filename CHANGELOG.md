@@ -10,6 +10,35 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — `Dialog` rewritten on `@radix-ui/react-dialog` for five of six dialogs (2026-09-10)
+
+Follow-up to the entry directly below, after the owner asked for its "Radix breaks the test
+environment" claim to be checked precisely rather than assumed. Verified empirically (isolated
+scratch install, not the repo): Radix's `Portal` is the *entire* failure surface under this
+project's `renderToStaticMarkup`-based Vitest strategy — and only `KeyboardShortcutsHelp` actually
+has a unit test that exercises it. The other five dialogs
+(`EditContractDialog`/`ArchiveContractDialog`/`DeleteContractDialog`/`TransferContractDialog`/
+`CompanyDocuments`) have zero Vitest coverage and are validated exclusively by Playwright in a
+real browser, where Portal is unproblematic.
+
+`components/Dialog.tsx` now wraps `@radix-ui/react-dialog` for those five (real focus trap, not
+just initial-focus + restore); `KeyboardShortcutsHelp` reverted to its own small plain
+implementation, with the reasoning in its own header comment. One dependency added:
+`@radix-ui/react-dialog` — no Tailwind, no shadcn CLI.
+
+Two real bugs found and fixed during implementation, neither caught by the existing test suite
+(both confirmed via real-browser computed-style checks, not assumed): (1) Radix's `Overlay`/
+`Content` render as siblings by default, but this CSS's `.ws-modal` flex-centers a *child* — the
+dialog rendered at `left: 0` until `Content` was nested inside `Overlay` to match the original
+markup. (2) Radix's `Portal` defaults to `document.body`, outside `.ws` — the exact class of bug
+`dashboard/page.tsx`'s row-action menu already hit and fixed on 2026-09-03 (`--ws-*` tokens are
+scoped to `.ws`, not `:root`; outside it they silently resolve to nothing, so the dialog rendered
+transparent). Fixed with the same `document.querySelector(".ws") ?? document.body` pattern the
+menu already uses. All 368 Vitest tests, typecheck, `check:terms`, and 11 relevant Playwright
+specs pass; scrim-click, Escape, and centering/opacity verified visually via screenshots (deleted
+after verification, not committed). Full sequence in
+`docs/design/SHADCN_ADOPTION_REPORT.md`'s "Final implementation" section.
+
 ### Changed — six duplicated hand-rolled dialogs consolidated into one `Dialog` primitive (2026-09-10)
 
 First step of the shadcn adoption below, and it turned out **not to use shadcn**: a full scan

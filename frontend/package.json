@@ -18,6 +18,7 @@
     "deploy": "bash scripts/deploy-frontend.sh"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.6",
     "lucide-react": "^1.38.0",
     "next": "16.3.4",
     "react": "19.2.0",
