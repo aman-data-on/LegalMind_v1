@@ -34,7 +34,12 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { api, describeError, type ContractScope } from "@/lib/api";
-import { DOCUMENT_SOURCES, DOCUMENT_TYPES, documentTypeLabel } from "@/lib/documentTypes";
+import {
+  DOCUMENT_SOURCES,
+  DOCUMENT_TYPES,
+  documentTypeChip,
+  documentTypeLabel,
+} from "@/lib/documentTypes";
 import { CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { chainAnalysis } from "@/lib/analysisChain";
@@ -727,8 +732,18 @@ function DocumentsListView() {
                           value still present, every control reachable. */}
                       <td data-label="Type">
                         {contract.contract_type ? (
+                          /* The short form, not the raw code (2026-09-10):
+                             `ORDER_FORM` and `PRIVACY_POLICY` put an underscore
+                             in front of a reader, which is a leaked wire value
+                             rather than a label. Changed here as well as on the
+                             Client Profiles list so the two screens render the
+                             same field the same way — the alternative was
+                             introducing that inconsistency, not avoiding it.
+                             Presentation only: the CODE is still what is sent,
+                             stored and validated, and the full label is still
+                             the chip's title. */
                           <span className="ws-chip ws-chip--type" title={documentTypeLabel(contract.contract_type)}>
-                            {contract.contract_type}
+                            {documentTypeChip(contract.contract_type)}
                           </span>
                         ) : (
                           <span className="ws-chip">not declared</span>

@@ -65,6 +65,24 @@ function requestedVersionId(): string | null {
   return new URLSearchParams(window.location.search).get("version");
 }
 
+/**
+ * `?compare=1` opens the comparison already expanded (2026-09-10).
+ *
+ * Added so the Client Profile's "Compare" can hand the reader straight to the
+ * comparison that lives HERE, rather than growing a second one of its own.
+ * The alternative was a Client Profiles button that navigated to a workspace
+ * with the panel closed — a control that does nothing, which is exactly what
+ * the owner's instruction rules out ("Do not create fake buttons").
+ *
+ * Read once, at mount, as the initial state: the panel stays a plain toggle
+ * afterwards, so opening it from a link and then closing it does not fight the
+ * URL. Guarded for the server pass, where `window` does not exist.
+ */
+function comparisonRequested(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("compare") === "1";
+}
+
 export function WorkspacePage({ contractId }: { contractId: string }) {
   const { can } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
@@ -87,7 +105,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       .catch(() => { if (!cancelled) setCompany(null); });
     return () => { cancelled = true; };
   }, [linkedCompanyId]);
-  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(comparisonRequested);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });

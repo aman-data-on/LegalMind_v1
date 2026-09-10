@@ -101,6 +101,18 @@
       ],
       "title": "Contract Type"
      },
+     "counterparty_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Counterparty Id"
+     },
      "name": {
       "maxLength": 500,
       "minLength": 1,
@@ -238,8 +250,44 @@
    },
    "CounterpartyCreate": {
     "additionalProperties": false,
-    "description": "AB-13 r1 \u2014 the profile, and nothing more.\n\n`industry` and `relationship_notes` are optional and stay empty unless a\nhuman types them: rule 21 forbids inventing company or industry\ninformation, and \"not known yet\" is the normal state of a counterparty.",
+    "description": "AB-13 r1's profile, widened by the owner's Client Profiles instruction\n(2026-09-10).\n\nOnly `name` is required \u2014 it is the identity, and the owner's instruction\nsays so directly (\"Company Name should be the primary identifying field\").\nEverything else is optional and stays empty unless a human types it: rule\n21 forbids inventing company information, and \"not known yet\" is the normal\nstate of a client, not a gap for the system to fill.",
     "properties": {
+     "account_owner_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Account Owner Id"
+     },
+     "city": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "City"
+     },
+     "country": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country"
+     },
      "industry": {
       "anyOf": [
        {
@@ -252,11 +300,83 @@
       ],
       "title": "Industry"
      },
+     "legal_contact_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Contact Email"
+     },
+     "legal_contact_name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Contact Name"
+     },
+     "legal_name": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Name"
+     },
      "name": {
       "maxLength": 500,
       "minLength": 1,
       "title": "Name",
       "type": "string"
+     },
+     "primary_contact_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Contact Email"
+     },
+     "primary_contact_name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Contact Name"
+     },
+     "primary_contact_phone": {
+      "anyOf": [
+       {
+        "maxLength": 60,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Contact Phone"
      },
      "relationship_notes": {
       "anyOf": [
@@ -269,6 +389,42 @@
        }
       ],
       "title": "Relationship Notes"
+     },
+     "state_region": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State Region"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "maxLength": 40,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "website": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Website"
      }
     },
     "required": [
@@ -279,8 +435,44 @@
    },
    "CounterpartyUpdate": {
     "additionalProperties": false,
-    "description": "Every field optional; a field left out is untouched, and one sent as\nnull is cleared. `name` cannot be cleared \u2014 a company with no name is not\nan identity anyone can use.",
+    "description": "Every field optional; a field left out is untouched, and one sent as\nnull is cleared. `name` cannot be cleared \u2014 a company with no name is not\nan identity anyone can use \u2014 and neither can `status`, which is NOT NULL.",
     "properties": {
+     "account_owner_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Account Owner Id"
+     },
+     "city": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "City"
+     },
+     "country": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country"
+     },
      "industry": {
       "anyOf": [
        {
@@ -292,6 +484,42 @@
        }
       ],
       "title": "Industry"
+     },
+     "legal_contact_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Contact Email"
+     },
+     "legal_contact_name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Contact Name"
+     },
+     "legal_name": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Legal Name"
      },
      "name": {
       "anyOf": [
@@ -306,6 +534,42 @@
       ],
       "title": "Name"
      },
+     "primary_contact_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Contact Email"
+     },
+     "primary_contact_name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Contact Name"
+     },
+     "primary_contact_phone": {
+      "anyOf": [
+       {
+        "maxLength": 60,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Contact Phone"
+     },
      "relationship_notes": {
       "anyOf": [
        {
@@ -317,6 +581,42 @@
        }
       ],
       "title": "Relationship Notes"
+     },
+     "state_region": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State Region"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "maxLength": 40,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "website": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Website"
      }
     },
     "title": "CounterpartyUpdate",
@@ -449,6 +749,17 @@
        }
       ],
       "title": "Source"
+     },
+     "version_role": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Role"
      }
     },
     "title": "DocumentVersionDeclare",
@@ -1375,7 +1686,7 @@
   },
   "/api/v1/contracts": {
    "get": {
-    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.\n\n``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a\nDERIVED bucket (`_status_bucket`) that does not exist as a contracts-table\ncolumn, so it cannot be pushed into the same ``WHERE`` \u2014 the scoped set is\nbounded (one account's, or one department's, never a global scan), so it is\ncomputed once over every matching id and paginated in Python, exactly the\nprecedent `_list_summaries` already set for the per-row projection.\n\n``archived=true`` lists ONLY archived contracts (AB-12 r6) \u2014 the shelf, kept\napart from the working list rather than mixed into it.",
+    "description": "49.6 \u2014 the same object-level scope as ``GET /contracts/{id}``.\n\n``q``/``contract_type``/``sort`` filter and order in SQL. ``status`` is a\nDERIVED bucket (`_status_bucket`) that does not exist as a contracts-table\ncolumn, so it cannot be pushed into the same ``WHERE`` \u2014 the scoped set is\nbounded (one account's, or one department's, never a global scan), so it is\ncomputed once over every matching id and paginated in Python, exactly the\nprecedent `_list_summaries` already set for the per-row projection.\n\n``archived=true`` lists ONLY archived contracts (AB-12 r6) \u2014 the shelf, kept\napart from the working list rather than mixed into it.\n\n``counterparty_id`` narrows to one client, and the literal ``none`` narrows\nto the contracts linked to NO client (2026-09-10, Client Profiles): that is\nwhat the \"link an existing document to this client\" picker offers, so a\ndocument already in LegalMind never has to be uploaded a second time just\nbecause Client Profiles arrived. It only ever narrows the caller's own\nscoped set \u2014 never a way to reach another owner's paper.",
     "operationId": "list_contracts_api_v1_contracts_get",
     "parameters": [
      {
@@ -1460,6 +1771,23 @@
      },
      {
       "in": "query",
+      "name": "counterparty_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Counterparty Id"
+      }
+     },
+     {
+      "in": "query",
       "name": "page",
       "required": false,
       "schema": {
@@ -1511,6 +1839,7 @@
     ]
    },
    "post": {
+    "description": "`counterparty_id` is optional and new on 2026-09-10 (Client Profiles).\n\nIt exists so an upload begun from a client profile lands linked in ONE\ncall. Create-then-patch instead would leave an orphan contract behind every\ntime the second call failed \u2014 the document would then be in LegalMind but\nnot on the client's page, which is the one outcome this feature exists to\nprevent. Same AB-13 r2 rule as on update: an unknown id is refused rather\nthan stored, `contract.update` is additionally required (naming who a deal\nis with is maintaining it, r5), and the link is audited, because the \"show\nme everything for this company\" view is derived entirely from it.",
     "operationId": "create_contract_api_v1_contracts_post",
     "requestBody": {
      "content": {
@@ -2225,7 +2554,7 @@
   },
   "/api/v1/counterparties": {
    "get": {
-    "description": "The companies this caller actually deals with \u2014 never the whole book (r6).",
+    "description": "The companies this caller actually deals with \u2014 never the whole book (r6).\n\nPaginated as of 2026-09-10 (Client Profiles). The envelope's `data` is still\nthe array it always was \u2014 `paginated()` adds `pagination` beside it rather\nthan nesting \u2014 so every existing caller reads exactly what it read before.\nOnly the default page size is new, and the picker that needs them all asks\nfor a bigger page.\n\n`q`, `status` and `industry` filter in SQL. `has_documents` and\n`documents_desc` depend on the per-caller counts, which no counterparties\nWHERE can reach, so they are applied over the bounded scoped set in Python \u2014\nthe precedent `GET /contracts?status=` already set for a derived filter.\n\n`stats=true` adds `documents` / `signed_documents` / `last_activity` per\nrow. Off by default so the existing picker's call stays one query.",
     "operationId": "list_counterparties_api_v1_counterparties_get",
     "parameters": [
      {
@@ -2236,6 +2565,115 @@
        "default": "own",
        "title": "Scope",
        "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 500,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 40,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "industry",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 200,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Industry"
+      }
+     },
+     {
+      "in": "query",
+      "name": "has_documents",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Has Documents"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sort",
+      "required": false,
+      "schema": {
+       "default": "name_asc",
+       "title": "Sort",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "stats",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Stats",
+       "type": "boolean"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page_size",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
       }
      }
     ],
@@ -2269,7 +2707,7 @@
     ]
    },
    "post": {
-    "description": "`contract.update` (r5) \u2014 you are naming a company you are about to link.\n\nDeliberately NOT unique on name: two genuinely different companies may share\none, and a unique constraint would make the second one unrecordable. The\nconvergence affordance is the picker, which shows what already exists.",
+    "description": "`contract.update` (r5) \u2014 you are naming a company you are about to link.\n\nDeliberately NOT unique on name: two genuinely different companies may share\none, and a unique constraint would make the second one unrecordable. The\nconvergence affordance is the picker, which shows what already exists \u2014 and\nsince 2026-09-10 the Add Client form additionally *warns*, live, when the\nname being typed already names a client this caller can see, and offers to\nopen it instead. A warning is the right instrument here and a refusal is\nnot: only the person typing knows whether these are two companies or one.",
     "operationId": "create_counterparty_api_v1_counterparties_post",
     "requestBody": {
      "content": {
@@ -2311,9 +2749,33 @@
     ]
    }
   },
+  "/api/v1/counterparties/industries": {
+   "get": {
+    "description": "The industry values actually in use, for the list screen's filter.\n\nDerived from the caller's own visible clients, never a catalogue: there is\nno controlled list of industries in this product (rule 21 \u2014 the\norganisation's industry taxonomy is not ours to invent), so the filter can\nonly honestly offer what somebody has typed. An empty result means nobody\nhas recorded one yet, and the filter hides itself.",
+    "operationId": "list_industries_api_v1_counterparties_industries_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Industries Api V1 Counterparties Industries Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Industries",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
   "/api/v1/counterparties/{counterparty_id}": {
    "get": {
-    "description": "The profile AND its documents \u2014 this is the manager's \"related documents\"\nanswer (r3): every contract for this company, in one place, derived from the\nlink rather than from a relationship table. Scoped: the list holds only\ncontracts this caller could already open one by one (49.6).",
+    "description": "The profile AND its documents \u2014 this is the manager's \"related documents\"\nanswer (r3): every contract for this company, in one place, derived from the\nlink rather than from a relationship table. Scoped: the list holds only\ncontracts this caller could already open one by one (49.6).\n\nSince 2026-09-10 each contract also carries what the Client Profile's one\nunified document list shows: its versions (newest first, with the declared\nrole each was given), whether an executed version exists, and the same\npermission-layered `latest_version` / `latest_analysis` projection the\nDashboard rows use \u2014 reused from `contracts.py` rather than recomputed, so\na document cannot read one way here and another way there.\n\n\u26a0\ufe0f **One list, never grouped by type.** The API returns a flat array in one\norder and offers no per-type grouping, because the owner's instruction makes\nthat structural: document type is metadata on the row, not a folder.",
     "operationId": "get_counterparty_api_v1_counterparties__counterparty_id__get",
     "parameters": [
      {
@@ -2357,7 +2819,7 @@
     ]
    },
    "patch": {
-    "description": "`contract.update` (r5), and every change audited (r8) \u2014 a shared profile\nthat several people may edit is exactly what AUD-01 exists for.",
+    "description": "`contract.update` (r5), and every change audited (r8) \u2014 a shared profile\nthat several people may edit is exactly what AUD-01 exists for.\n\nThe audit `before`/`after` carry only the fields this request actually\nchanged. Recording the whole profile on every edit would bury the one field\nthat moved, and an append-only trail (AUD-01) keeps that noise forever.",
     "operationId": "update_counterparty_api_v1_counterparties__counterparty_id__patch",
     "parameters": [
      {
@@ -2406,6 +2868,64 @@
      }
     },
     "summary": "Update Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
+  "/api/v1/counterparties/{counterparty_id}/activity": {
+   "get": {
+    "description": "What has happened to this client and its documents, newest first.\n\n**The existing audit trail, re-read \u2014 not a second history.** `audit_events`\n(42.18, AUD-01) already records every event the owner's instruction asks\nfor: the client created and updated, a document's type declared, its\ncounterparty linked, its status changed, a version reprocessed, an analysis\nrun, a contract archived, restored, transferred or deleted. Nothing new is\nwritten for this screen and no event is invented for it.\n\n**Scope is inherited, not widened.** `GET /audit` needs `audit.view`, which\nan ordinary Department User does not hold \u2014 and rightly, because that\nendpoint spans the whole system. This one is bounded to the entity ids the\ncaller can already reach: this counterparty, and the contracts of it that\n`_readable_contracts` returns. A caller who can open the profile can see its\nhistory and nothing else, so no new permission is required.\n\n**Payloads are deliberately not returned.** An audit row's before/after can\nhold an internal legal position (`LEGAL-02`), and a client activity feed is\nnot the surface to relax that on. The feed answers when, what and who.",
+    "operationId": "counterparty_activity_api_v1_counterparties__counterparty_id__activity_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Counterparty Activity Api V1 Counterparties  Counterparty Id  Activity Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Counterparty Activity",
     "tags": [
      "counterparties"
     ]

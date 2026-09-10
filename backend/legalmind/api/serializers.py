@@ -245,7 +245,12 @@ def serialize_contract(c: M.Contract) -> dict[str, Any]:
 #: The declared keys of `document_versions.metadata` (locked 42.4 JSONB) that
 #: are part of the resource. `duplicate_of` is not: it is reported once, on the
 #: upload response (34.5), not as a standing attribute.
-DECLARED_KEYS: tuple[str, ...] = ("source", "counterparty", "effective_date")
+#: `version_role` joins the declared keys on 2026-09-10 (Client Profiles). It
+#: lives in the same 42.4 `metadata` JSONB and follows the same omit-when-absent
+#: rule, so a version nobody has classified says nothing rather than saying
+#: "unknown role" — which a reader would take as a checked fact.
+DECLARED_KEYS: tuple[str, ...] = ("source", "counterparty", "effective_date",
+                                  "version_role")
 
 
 def declared_metadata(dv: M.DocumentVersion) -> dict[str, Any]:
@@ -259,21 +264,42 @@ def declared_metadata(dv: M.DocumentVersion) -> dict[str, Any]:
     return {k: meta[k] for k in DECLARED_KEYS if meta.get(k) is not None}
 
 
+#: Every optional Client Profile field, in one list (2026-09-10). One list
+#: rather than fifteen `if` statements, because the failure mode of the latter
+#: is a field that silently never reaches the screen — and the screen's whole
+#: job is to show what is known about a client.
+PROFILE_FIELDS: tuple[str, ...] = (
+    "industry", "relationship_notes", "legal_name", "website",
+    "city", "state_region", "country",
+    "primary_contact_name", "primary_contact_email", "primary_contact_phone",
+    "legal_contact_name", "legal_contact_email",
+)
+
+
 def serialize_counterparty(c: M.Counterparty) -> dict[str, Any]:
-    """AB-13 r1. `industry` and `relationship_notes` are OMITTED when nobody has
-    typed them — the same discipline `SEC-07` applies to confidential fields,
-    for a different reason: an unknown industry is a fact, and a null would
-    invite the UI to render "Industry: —" as though it had been checked."""
+    """AB-13 r1, widened by the owner's Client Profiles instruction (2026-09-10).
+
+    Every optional field is OMITTED when nobody has typed it — the same
+    discipline `SEC-07` applies to confidential fields, for a different reason:
+    an unknown industry is a fact, and a null would invite the UI to render
+    "Industry: —" as though it had been checked. The client screen says
+    "Not available" against an absent key, which is the honest rendering.
+
+    `status` is always present: the column is NOT NULL and every row has one.
+    """
     payload: dict[str, Any] = {
         "id": str(c.id),
         "name": c.name,
+        "status": c.status,
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
     }
-    if c.industry:
-        payload["industry"] = c.industry
-    if c.relationship_notes:
-        payload["relationship_notes"] = c.relationship_notes
+    for field in PROFILE_FIELDS:
+        value = getattr(c, field, None)
+        if value:
+            payload[field] = value
+    if c.account_owner_id:
+        payload["account_owner_id"] = str(c.account_owner_id)
     return payload
 
 

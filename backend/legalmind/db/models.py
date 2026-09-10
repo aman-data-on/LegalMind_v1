@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy import (
     Enum as SAEnum,
@@ -221,8 +222,43 @@ class Counterparty(Base):
     created_at = ts_created()
     updated_at = ts_updated()
 
+    # ------------------------------------------------------------------
+    # Client Profile (owner, 2026-09-10) — migration e9f2b6c4a173.
+    #
+    # The profile screen's fields, and only those. Every one is NULLABLE and
+    # stays empty unless a human types it: rule 21's discipline, applied to
+    # company data. The serializer OMITS an empty field rather than nulling it,
+    # so the screen can honestly say "Not available" instead of rendering a
+    # dash that looks like something was checked.
+    #
+    # What is deliberately NOT here: anything a CRM would add. No pipeline, no
+    # revenue, no activity scoring, no contact table. The owner's instruction
+    # names that boundary explicitly, and a second contact is a schema decision
+    # nobody has asked for.
+    # ------------------------------------------------------------------
+    #: The registered entity name, where it differs from the one people use.
+    legal_name = _str(nullable=True)
+    #: ACTIVE / PROSPECTIVE / INACTIVE — `domain.client_profile.CLIENT_STATUSES`.
+    #: A validated string, not a PG enum (see that module, and `document_types`).
+    #: NOT NULL with a server default, so a row inserted without it is still valid.
+    status = mapped_column(String, nullable=False, server_default=text("'ACTIVE'"))
+    website = _str(nullable=True)
+    city = _str(nullable=True)
+    state_region = _str(nullable=True)
+    country = _str(nullable=True)
+    primary_contact_name = _str(nullable=True)
+    primary_contact_email = _str(nullable=True)
+    primary_contact_phone = _str(nullable=True)
+    legal_contact_name = _str(nullable=True)
+    legal_contact_email = _str(nullable=True)
+    #: Who inside the organisation owns this relationship. SET NULL on delete —
+    #: a departed colleague must not make a client unmaintainable.
+    account_owner_id = fk_uuid("users.id", nullable=True, ondelete="SET NULL")
+
     __table_args__ = (
         Index("ix_counterparties_name", "name"),
+        Index("ix_counterparties_status", "status"),
+        Index("ix_counterparties_account_owner_id", "account_owner_id"),
     )
 
 
