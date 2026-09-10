@@ -267,9 +267,152 @@ export function sequenceBreaks(rows: EvidenceRow[]): Set<string> {
   return breaks;
 }
 
+/**
+ * The outline as a TREE (owner, 2026-09-10): "Preserve actual section/clause
+ * numbers and titles. Proper parent/child hierarchy. DO NOT invent numbering."
+ *
+ * Built from the same rows `outlineOf` reads, at the presentation layer only
+ * (`AM-57` r3 — the parser is not retuned, evidence is not re-extracted):
+ *
+ *   heading rows      `is_heading` + `isHeadingLine`, minus a connective the
+ *                     party block promoted ("BETWEEN", "AND" — measured on a
+ *                     live distribution agreement, 2026-09-10)
+ *   numbered titles   a numbered row whose whole content is one title-like
+ *                     line. The parser's `_is_heading` refuses a title with a
+ *                     comma, so "8. ORDERING, FORECASTING, AND DELIVERY" and
+ *                     "11. TECHNICAL SUPPORT, TRAINING, AND SERVICE LEVELS"
+ *                     arrived un-flagged and the Contents jumped 7 → 9 → 10 → 12
+ *   numbered clauses  every other numbered row, as a LEAF under its section —
+ *                     "8.4 ZNet shall have the right to cancel…", truncated by
+ *                     the CSS to one line, a navigation target the way a
+ *                     finding's citation is
+ *
+ * Parent = the longest numeric prefix already seen ("8.4" → "8", "5.1.1" →
+ * "5.1" → "5"); a sub-number with no numbered parent in sight sits under the
+ * nearest preceding root. The map is overwritten in document order, so an
+ * annexure that restarts at 1 attaches its 1.2 to ITS 1, not the body's.
+ */
+export interface OutlineNode {
+  row: EvidenceRow;
+  number: string | null;
+  title: string;
+  depth: number;
+  parentId: string | null;
+  /** A clause paragraph rather than a heading line — one truncated line. */
+  leaf: boolean;
+  children: OutlineNode[];
+}
+
+const CONNECTIVES = new Set(["AND", "OR", "BETWEEN", "BY AND BETWEEN", "WHEREAS", "NOW THEREFORE"]);
+
+/** One short line, no sentence punctuation, set as a title: ALL CAPS or Title Case. */
+export function isTitleLine(text: string): boolean {
+  const line = text.replace(/[​ ]/g, " ").replace(/\s+/g, " ").trim();
+  if (line.length === 0 || line.length > 90 || /[.;:,]$/.test(line)) return false;
+  const letters = line.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 3) return false;
+  if (letters.replace(/[^A-Z]/g, "").length / letters.length >= 0.6) return true;
+  const words = line.replace(/^[\d.]+\s*/, "").split(" ").filter((w) => /[A-Za-z]{4,}/.test(w));
+  return words.length > 0 && words.every((w) => /^[A-Z]/.test(w));
+}
+
+export function outlineTree(rows: EvidenceRow[]): OutlineNode[] {
+  const headed = rows.some((row) => row.is_heading);
+  const roots: OutlineNode[] = [];
+  const byNumber = new Map<string, OutlineNode>();
+  let lastRoot: OutlineNode | null = null;
+  for (const row of rows) {
+    const clause = clauseOf(row);
+    const heading = row.is_heading && isHeadingLine(row);
+    if (heading && !clause.number && CONNECTIVES.has(row.content.trim().toUpperCase())) continue;
+    // Pre-2026-09-05 documents carry no heading marker: `outlineOf`'s fallback.
+    const fallback = !headed && !!row.section_title && isHeadingLine(row);
+    if (!heading && !clause.number && !fallback) continue;
+    const titled = heading || fallback || (clause.number !== null && isTitleLine(row.content));
+    const node: OutlineNode = {
+      row, number: clause.number, depth: 0, parentId: null, children: [],
+      title: clause.title || (clause.number ? "" : row.content.trim()),
+      leaf: !titled,
+    };
+    let parent: OutlineNode | null = null;
+    if (clause.number) {
+      const parts = clause.number.split(".");
+      for (let i = parts.length - 1; i > 0 && !parent; i -= 1) {
+        parent = byNumber.get(parts.slice(0, i).join(".")) ?? null;
+      }
+      if (!parent && parts.length > 1) parent = lastRoot;
+      byNumber.set(clause.number, node);
+    }
+    if (parent) {
+      node.depth = parent.depth + 1;
+      node.parentId = parent.row.id;
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+      lastRoot = node;
+    }
+  }
+  return roots;
+}
+
+/** Every node in document order — the search space, and the flat fallback. */
+export function allOutlineNodes(nodes: OutlineNode[]): OutlineNode[] {
+  const out: OutlineNode[] = [];
+  const walk = (list: OutlineNode[]) => {
+    for (const node of list) {
+      out.push(node);
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+/** The nodes on screen: a child shows only while every ancestor is open. */
+export function visibleOutline(nodes: OutlineNode[], isOpen: (id: string) => boolean): OutlineNode[] {
+  const out: OutlineNode[] = [];
+  const walk = (list: OutlineNode[]) => {
+    for (const node of list) {
+      out.push(node);
+      if (node.children.length > 0 && isOpen(node.row.id)) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+/** The ids to open so `rowId` is on screen — its ancestors, nearest last. */
+export function outlineAncestors(nodes: OutlineNode[], rowId: string): string[] {
+  const byId = new Map(allOutlineNodes(nodes).map((node) => [node.row.id, node]));
+  const path: string[] = [];
+  let parentId = byId.get(rowId)?.parentId ?? null;
+  while (parentId) {
+    path.unshift(parentId);
+    parentId = byId.get(parentId)?.parentId ?? null;
+  }
+  return path;
+}
+
+/** A collapsed section carries its worst descendant's marker, so a finding on
+ *  a hidden clause is still visible at the level the reader can see. */
+export function rollupBucket(
+  node: OutlineNode,
+  status: Map<string, ClauseStatus>,
+  collapsed: boolean,
+): StatusBucket | undefined {
+  let worst = status.get(node.row.id)?.bucket;
+  if (collapsed) {
+    for (const child of allOutlineNodes(node.children)) {
+      const bucket = status.get(child.row.id)?.bucket;
+      if (bucket) worst = worst ? worseBucket(worst, bucket) : bucket;
+    }
+  }
+  return worst;
+}
+
 export function locationLabel(row: EvidenceRow): string {
   const parts: string[] = [];
-  if (row.section_number) parts.push(`§${row.section_number}`);
+  if (row.section_number) parts.push(row.section_number);
   if (row.section_title) parts.push(row.section_title);
   if (row.page_number != null) parts.push(`p.${row.page_number}`);
   return parts.length > 0 ? parts.join(" · ") : "location not recorded";
@@ -317,6 +460,21 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
    * top-level slot. One label for one capability; the page itself explains
    * where asking happens.
    */
+  /*
+   * Client Profiles — the company a deal is with, and every document filed
+   * under it (owner instruction, 2026-09-10). It sits directly after the
+   * Dashboard because the two are the same documents seen two ways: the
+   * Dashboard is "what am I working on", this is "what do we have with X".
+   *
+   * `contract.view` and nothing more (AB-13 r5): the profile is the
+   * counterparty row, so a caller who may see a contract may see who it is
+   * with. Deliberately NOT admin-gated — the owner's instruction is explicit
+   * that every normal user reaches it, and the server scopes what each one
+   * sees rather than the nav hiding the section.
+   */
+  if (can(P.CONTRACT_VIEW)) {
+    items.push({ href: "/dashboard/clients", label: "Client Profiles" });
+  }
   if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask" });
   /*
    * Legal configuration — Requirements, Company Standards and the published

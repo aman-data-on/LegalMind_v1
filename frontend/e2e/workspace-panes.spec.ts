@@ -68,7 +68,7 @@ test.describe("the three panes", () => {
     /* The fixture's own two headings. Nothing here is placeholder content: if
        the parser records no numbering and the text states none, the panel says
        so instead of inventing entries. */
-    const entries = page.locator(".ws-outline__list button");
+    const entries = page.locator(".ws-outline__list .ws-outline__jump");
     await expect(entries.first()).toBeVisible();
     expect(await entries.count()).toBeGreaterThan(1);
     await expect(page.locator(".ws-outline__list")).toContainText("Limitation of Liability");
@@ -115,12 +115,13 @@ test.describe("the three panes", () => {
     const paperBox = (await page.locator(".ws-doccard").boundingBox())!;
     expect(panelBox.x).toBeGreaterThanOrEqual(paperBox.x + paperBox.width - 1);
 
-    /* And the findings keep a real share of the column. Measured on the
-       SCROLLER, not on a card: a card's own box extends past its scroll clip,
-       so a card assertion here would only measure how long the card is. */
-    const findingsBox = (await page.locator(".ws-side__panel:not([hidden])").boundingBox())!;
-    expect(findingsBox.y + findingsBox.height).toBeLessThanOrEqual(panelBox.y + 1);
-    expect(findingsBox.height).toBeGreaterThan(panelBox.height * 0.6);
+    /* Open, Ask IS the column (owner, 2026-09-10): the findings panel steps
+       aside rather than sharing a squeezed strip with it, the tab strip stays
+       above, and choosing a tab brings the findings back and closes Ask. */
+    await expect(page.locator(".ws-side__panel:visible")).toHaveCount(0);
+    const sideBox = (await page.locator(".ws-pane--side").boundingBox())!;
+    expect(panelBox.height).toBeGreaterThan(sideBox.height * 0.7);
+    await expect(page.getByRole("tab", { name: "Findings" })).toBeVisible();
 
     /* Both icon-only controls must actually be visible at their stated size.
        The owner's screenshot showed the Ask close control as a barely-there

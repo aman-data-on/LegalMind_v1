@@ -854,3 +854,132 @@ process-killing document to deterministic FAILED. Proved by `kill -9` mid-OCR
 + restart on the real document (clean rollback, reconciled to COMPLETED, 413
 rows, no duplicates) and by racing two jobs on one version (exactly one
 wrote). Decision #295 has the full record.
+
+## DD-17 — The workspace fix pass: adaptive panes, the Contents tree, Ask as the column, the standard beside an answer (owner review, 2026-09-10)
+
+**Status: recorded. Presentation only; locks nothing and amends no `AM-*`.**
+
+The owner reviewed the shipped `AM-57` workspace and listed eleven concrete problems: panels
+squeezed to letter-wrapped text, a flat Contents with an invented `§`, missing clauses, party-block
+words listed as sections, a "+1 more" that could not be opened, two same-titled findings, an Ask
+that felt like a form at the foot of the screen, and too many frames inside frames. Each was traced
+to its cause (read-only queries against the live rows and a code trace) before any change — see the
+CHANGELOG entry of the same date for the list. Decisions worth not re-litigating:
+
+1. **Panel widths are `clamp()`ed, not fixed, and the side card has a floor of 400px.** The three
+   status tiles stay three-across at every width; the label never breaks mid-word. Both panes still
+   collapse; a drag-resizer was deliberately not added (a new interaction pattern — add if asked).
+2. **The Contents is a tree derived at the presentation layer** (`model.outlineTree`), keyed on the
+   numbers the document states. Sections with children carry a chevron; collapsed by default; the
+   current section opens itself; a collapsed section shows its worst hidden marker. Two presentation
+   filters, both recorded beside `isHeadingLine`'s note: a numbered single title-like line is a
+   section even when the parser did not flag it (its comma rule), and a connective-only unnumbered
+   heading ("AND", "BETWEEN") is not listed. The parser is unchanged (`AM-57` r3, rule 17).
+3. **No `§` is ever added.** `sectionRef` returns the number as the document states it. A sign the
+   document itself carries is kept.
+4. **Ask, open, is the side column.** DD-15's concern (Ask reserves nothing while closed) and
+   `AM-57` r4 (docked, header, close, persistent launcher) both hold; what changed is the share while
+   open — the whole column, with the tab strip above it, and a tab click closes Ask. Below the
+   one-column breakpoint the sheet is unchanged.
+5. **Two same-titled findings are qualified by what each asks**, never merged: the AM-51 dual
+   application of an MSA and a TOS standard to one clause is a product decision, not a UI defect.
+6. **Frames: one card, then whitespace and hairlines** (`AM-57` r5 applied to the Summary): the hero,
+   the ring, the explainer and the obligation groups lost their boxes; the tiles keep a tint and a
+   1px border because they are buttons.
+7. **Assist lane:** a document answer now carries the relevant ratified position beside it, and that
+   position carries the evaluator's existing Finding as the "Assessment" — read, never produced.
+   The one behaviour reversed is the 2026-09-09 "not second-guessed" pin, which was an engineering
+   choice, not a lock.
+
+
+
+> **Numbered DD-18, not DD-17.** This entry was written as DD-17 in a branch cut
+> before the workspace fix pass landed on `main` and took that number. Renumbered on
+> merge rather than merging the two: they are unrelated decisions about different
+> screens, and one ID meaning two things is the `F-*` collision CLAUDE.md warns about.
+---
+
+## DD-18 — Client Profiles is a client FILE, not a second dashboard (owner instruction, 2026-09-10)
+
+**Presentation only. Nothing in [LOCKED_DECISIONS.md](../00-project/LOCKED_DECISIONS.md) is
+amended**, and CLAUDE.md's ordering applies: rules 1–23 first, DESIGN.md and these decisions
+second, the generic design skills last. (Those skills — `ui-ux-pro-max`, `frontend-design` —
+were **not available in the session that built this**; DESIGN.md and DD-1…DD-16, which CLAUDE.md
+says outrank them anyway, were used instead. Recorded so the next session does not assume they
+ran.)
+
+The owner's brief carried a warning as well as a request: *"DO NOT simply duplicate the
+Dashboard… The Client Profile should feel like a structured digital client file/workspace, NOT
+another analytics dashboard."* Four deliberate departures answer it, and each is a decision
+rather than a preference.
+
+### 1. One unified document list — enforced structurally, not by discipline
+
+The instruction's sharpest prohibition is that a client's documents must never be grouped into
+per-type folders, sections, cards or tabs. Rendering them flat and *intending* to keep it that
+way is not enough — the next screen would regroup them. So the **server returns one flat array
+with no grouping key at all**, `typesPresent()` exists only to populate a `<select>` and says so
+in its own comment, and both a static-render test and a browser test assert **one `<table>` and
+one `<tbody>`** holding six types. Document type is a column and an optional filter. A future
+change that wants sections has to add a structure that does not exist, which is the point.
+
+### 2. Full bleed, and no stat tiles
+
+`.ws-docs` (the Dashboard) is a centred 72rem column with a row of four count tiles above a
+table — correct for a working queue. A client file is a rail plus a document, so `.ws-cl` takes
+the whole width: that is what makes the two screens feel different before a word is read, and it
+is what the owner meant by using the desktop screen properly. **No stat tiles at all** —
+DESIGN.md's anti-patterns rule out stat cards that are not a real field with a defined meaning,
+and the two counts that matter here ("6 documents · 2 signed") are two words in the header. The
+rail is 236px, tighter than the workspace's 264px clause index, because it holds company names
+rather than clause numbers and every pixel beyond that is taken from the document list.
+
+### 3. ⚠️ A client's status is deliberately NOT the traffic light
+
+This is the decision most likely to be "corrected" by someone later, so it is recorded plainly.
+The owner's design direction named green/orange/red status colours, and the product already
+spends green on **Acceptable** and orange on **Requires modification** (`AM-56`). Painting a
+client `ACTIVE` in that same green would put a **filing state into a legal channel** — and
+DESIGN.md's information-hierarchy rule is explicit: *"Never let two axes share a visual
+channel… a reader will conflate them within a week."* A green client would come to read as a
+reviewed client.
+
+So `.ws-cl__status` varies by **fill and weight, not hue** (filled dark = Active, outlined =
+Prospective, pale outline + muted ink = Inactive), the word is always present beside the dot
+(never colour alone), and the screen's colour budget goes where it belongs: the **document
+rows**, which are the things that can actually need attention. The one exception is the header's
+"2 signed", which is green because "is it signed?" is the first question the owner asked and it
+is a fact about the file rather than a judgement about the law.
+
+A version's declared role follows the same rule: `FINAL_SIGNED` carries the green, the other two
+are neutral, because a draft is not a warning.
+
+### 4. Disclosures, not modals
+
+Add client, Edit profile, Upload document and Link existing all open **in place** — DD-11's rule
+(DESIGN.md reserves modals for a genuine interruption) applied to four more surfaces. The one
+pre-existing modal on this data, `CompanyDocuments` in the workspace, is untouched.
+
+### The browser review, and what it found
+
+The UI was inspected rendered, with real data, at 1440×900, 1366×768 and 1024×800 — not judged
+from source. Nine defects were found **there** and would not have been found any other way; two
+are worth recording as patterns rather than fixes:
+
+* **`[]` is not the same fact as "not yet loaded".** The client rail said *"No clients yet."* to
+  an account holding eleven of them, for the ~300ms before its debounced request landed. Its
+  state now starts `null`. DESIGN.md's "absence is information" has a corollary: absence must
+  not be *printed* until it is known. The directory had the same shape of bug — a bare
+  "Loading clients…" line in an otherwise empty viewport, now a skeleton that reserves the
+  table's header and six rows so nothing shifts when data arrives.
+* **`:hover` outranks a state class.** `.ws-cl__tab:hover` (0,2,0) beat `.ws-cl__tab--active`
+  (0,1,0), so the selected tab lost its accent colour whenever the pointer rested on it while
+  its underline kept it — two tabs looking half-active at once. Measured in the DOM, not
+  guessed from the screenshot: the screenshots had *also* caught a 130ms transition, and the
+  first reading of them was wrong. **A screenshot shows a moment; computed style shows the
+  rule.** Use both.
+
+The raw type code was the third: `ORDER_FORM` and `PRIVACY_POLICY` in a table cell are leaked
+wire values, so a short-word chip (`documentTypeChip`) was added — and applied to the
+**Dashboard** too, which rendered the same field the same way. Fixing one screen only would have
+been introducing the inconsistency, not avoiding it.

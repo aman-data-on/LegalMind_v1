@@ -17,6 +17,7 @@ import type {
   AnalysisSubmission,
   AskResult,
   AuditEvent,
+  ClientActivity,
   ConfigurationSnapshot,
   Contract,
   ContractsSummary,
@@ -300,6 +301,10 @@ export const api = {
       scope?: ContractScope | undefined;
       /** `true` lists ONLY archived contracts (AB-12 r6). */
       archived?: boolean | undefined;
+      /** One client's documents, or the literal `"none"` for the ones linked
+       *  to no client (2026-09-10) — what the "link an existing document"
+       *  picker offers, so a document already here is never re-uploaded. */
+      counterparty_id?: string | undefined;
     } = {},
   ) =>
     requestPage<Contract>("/contracts", {
@@ -313,10 +318,21 @@ export const api = {
   contractsSummary: (scope: ContractScope = "own") =>
     request<ContractsSummary>("/contracts/summary", { query: { scope } }),
   contract: (id: string) => request<Contract>(`/contracts/${id}`),
-  createContract: (name: string, contractType?: string) =>
+  /**
+   * `counterpartyId` links the new document to a client in the SAME call
+   * (2026-09-10). Create-then-patch would leave an unlinked contract behind
+   * whenever the second call failed — the document would be in LegalMind but
+   * absent from the client's page, which is the one outcome Client Profiles
+   * exists to prevent.
+   */
+  createContract: (name: string, contractType?: string, counterpartyId?: string) =>
     request<Contract>("/contracts", {
       method: "POST",
-      body: contractType ? { name, contract_type: contractType } : { name },
+      body: {
+        name,
+        ...(contractType ? { contract_type: contractType } : {}),
+        ...(counterpartyId ? { counterparty_id: counterpartyId } : {}),
+      },
     }),
   updateContract: (id: string, patch: Record<string, unknown>) =>
     request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
@@ -331,9 +347,50 @@ export const api = {
    * counterparties reachable from their own contracts. There is deliberately no
    * "all counterparties" endpoint to call.
    */
-  counterparties: () => request<Counterparty[]>("/counterparties"),
+  /**
+   * `page_size: 100` is the server's own clamp (49.6), asked for explicitly:
+   * this call feeds the edit dialog's company picker, which must offer every
+   * company the caller deals with rather than the first page of them. The list
+   * became paginated on 2026-09-10 and `data` is still the array it always
+   * was, so this call's shape is unchanged.
+   */
+  counterparties: () =>
+    request<Counterparty[]>("/counterparties", { query: { page_size: 100 } }),
+  /**
+   * The Client Profiles directory (2026-09-10). Same scoped set as
+   * `counterparties()` — AB-13 r6 forbids a global company list and a nicer
+   * screen over it does not change that. `stats` adds the per-caller document
+   * counts the list shows.
+   */
+  clients: (
+    page: number,
+    pageSize: number,
+    filters: {
+      q?: string;
+      status?: string;
+      industry?: string;
+      has_documents?: boolean;
+      sort?: string;
+    } = {},
+  ) =>
+    requestPage<Counterparty>("/counterparties", {
+      // The query string is text; a boolean only exists on this side of it —
+      // the same conversion `contracts()` makes for `archived`.
+      query: {
+        page, page_size: pageSize, stats: "true", ...filters,
+        has_documents: filters.has_documents === undefined
+          ? undefined : String(filters.has_documents),
+      },
+    }),
+  /** Industry values in use among this caller's own clients — there is no
+   *  industry taxonomy in this product to offer instead (rule 21). */
+  clientIndustries: () => request<string[]>("/counterparties/industries"),
+  /** One client's history, from the existing audit trail. Carries no
+   *  before/after payload (`LEGAL-02`). */
+  clientActivity: (id: string) =>
+    request<ClientActivity[]>(`/counterparties/${id}/activity`),
   counterparty: (id: string) => request<Counterparty>(`/counterparties/${id}`),
-  createCounterparty: (body: { name: string; industry?: string; relationship_notes?: string }) =>
+  createCounterparty: (body: Record<string, string | null>) =>
     request<Counterparty>("/counterparties", { method: "POST", body }),
   updateCounterparty: (id: string, patch: Record<string, string | null>) =>
     request<Counterparty>(`/counterparties/${id}`, { method: "PATCH", body: patch }),

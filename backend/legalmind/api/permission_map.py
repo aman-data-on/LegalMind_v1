@@ -217,6 +217,18 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/counterparties"): P.CONTRACT_UPDATE,
     ("GET", f"{API_PREFIX}/counterparties/{{counterparty_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/counterparties/{{counterparty_id}}"): P.CONTRACT_UPDATE,
+    # Client Profiles (owner, 2026-09-10). Both are READS of things the caller
+    # can already reach, so both take `contract.view` and AB-13 r5's "no new
+    # permission" still holds — the profile is the counterparty row with more
+    # fields on it, not a new kind of object.
+    #
+    # `/activity` deliberately does NOT take `audit.view`. That permission gates
+    # the SYSTEM-WIDE trail, which an ordinary Department User rightly does not
+    # hold; this route is bounded to the entity ids the caller's own contract
+    # scope already reaches, and returns no before/after payload (`LEGAL-02`).
+    ("GET", f"{API_PREFIX}/counterparties/industries"): P.CONTRACT_VIEW,
+    ("GET", f"{API_PREFIX}/counterparties/{{counterparty_id}}/activity"):
+        P.CONTRACT_VIEW,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 

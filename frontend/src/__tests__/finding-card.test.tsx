@@ -130,7 +130,7 @@ describe("evidence shapes", () => {
       { classification: "MATCH", evidence: [evidence()] },
       { classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["ev1"] },
     );
-    expect(html).toMatch(/§11 · Residuals · page 4/);
+    expect(html).toMatch(/11 · Residuals · page 4/);
     expect(html).toContain("The Receiving Party may use Residuals.");
     expect(html).toMatch(/Quoted from this document/i);
   });

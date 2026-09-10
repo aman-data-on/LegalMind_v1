@@ -71,8 +71,10 @@ import { ApiError, api, describeError } from "@/lib/api";
 import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, ConversationTurn } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
+import { USER_STATUS_LABELS } from "./findingLanguage";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
+import { useSideTabs } from "./WorkspaceLayout";
 
 interface Turn {
   question: string;
@@ -203,6 +205,17 @@ export function AskDock({
   }, [open]);
 
   const close = useCallback(() => setOpen(false), []);
+
+  /* Open, Ask takes the whole side column (owner, 2026-09-10: "a proper
+   * conversational AI workspace… dock Ask as a right-side panel"), so choosing
+   * Summary or Findings has to close it or the chosen tab would stay hidden. */
+  const closeAskSeq = useSideTabs()?.closeAskSeq ?? 0;
+  const seenCloseSeq = useRef(closeAskSeq);
+  useEffect(() => {
+    if (closeAskSeq === seenCloseSeq.current) return;
+    seenCloseSeq.current = closeAskSeq;
+    setOpen(false);
+  }, [closeAskSeq]);
 
   /* Escape closes, from anywhere on the page while the panel is open — a
    * non-modal panel can be left with focus somewhere else entirely, and Escape
@@ -473,7 +486,7 @@ export function WsAnswerView({
         <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
         <p>{result.text}</p>
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
-        <PositionsSection positions={result.positions ?? []} />
+        <PositionsSection positions={result.positions ?? []} contractId={contractId} />
         <StatutesSection statutes={result.statutes ?? null} />
       </div>
     );
@@ -502,7 +515,8 @@ export function WsAnswerView({
     <div className="ws-ask__answer" data-state="ANSWERED">
       <p className="ws-ask__text">{result.text}</p>
       {result.citations.length > 0 ? (
-        <ol className="ws-ask__citations">
+        <ol className="ws-ask__citations" aria-label="Sources in this document">
+          <li className="ws-ask__routed-label" aria-hidden="true">Sources — this document</li>
           {result.citations.map((citation, index) => (
             <li key={citation.chunk_id} className="ws-ask__citation">
               {elsewhere ? (
@@ -538,7 +552,7 @@ export function WsAnswerView({
           ))}
         </ol>
       ) : null}
-      <PositionsSection positions={result.positions ?? []} />
+      <PositionsSection positions={result.positions ?? []} contractId={contractId} />
       <StatutesSection statutes={result.statutes ?? null} />
     </div>
   );
@@ -570,11 +584,18 @@ export function StatutesSection({ statutes }: { statutes: AssistStatuteAnswer | 
 /** Domain A — the organization's ratified position, quoted verbatim with its own
  *  citation grammar (standard code · source clause), in its own section so it is
  *  never mistaken for document evidence (`AM-32` r1/r4). Says what it is, in words. */
-export function PositionsSection({ positions }: { positions: AssistPosition[] }) {
+export function PositionsSection({
+  positions,
+  contractId,
+}: {
+  positions: AssistPosition[];
+  /** Lets the assessment line open the Finding it names — a control, not prose. */
+  contractId?: string | undefined;
+}) {
   if (positions.length === 0) return null;
   return (
-    <section className="ws-ask__positions" aria-label="Approved position">
-      <p className="ws-ask__routed-label">Approved position — quoted from the ratified standard</p>
+    <section className="ws-ask__positions" aria-label="Company standard">
+      <p className="ws-ask__routed-label">Company standard — quoted from the ratified position</p>
       <ol className="ws-ask__citations">
         {positions.map((position) => (
           <li key={position.position_chunk_id} className="ws-ask__citation">
@@ -584,6 +605,29 @@ export function PositionsSection({ positions }: { positions: AssistPosition[] })
               {` · ${position.document_type}`}
             </span>
             <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
+            {/* The ASSESSMENT is the deterministic evaluator's existing Finding
+                for this standard on the asked version — read, never produced,
+                by Ask (`AM-25` r4; the `AM-45` r4 handoff precedent). Absent
+                when no Review holds one. Never a score. */}
+            {position.finding ? (
+              <p className="ws-ask__assessment">
+                <span className="ws-ask__routed-label">Assessment — by the evaluator&rsquo;s Finding</span>
+                <span
+                  className={`ws-chip ws-chip--fill ws-chip--status-${position.finding.user_status.toLowerCase()}`}
+                  data-status={position.finding.user_status}
+                >
+                  {USER_STATUS_LABELS[position.finding.user_status]}
+                </span>
+                {contractId ? (
+                  <Link
+                    className="ws-ask__cite"
+                    href={`/dashboard?id=${contractId}&finding=${position.finding.finding_id}`}
+                  >
+                    Open the Finding
+                  </Link>
+                ) : null}
+              </p>
+            ) : null}
           </li>
         ))}
       </ol>

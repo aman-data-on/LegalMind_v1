@@ -73,7 +73,7 @@ describe("reading order", () => {
 
   it("labels a location from whatever the parser recorded", () => {
     expect(locationLabel(row({ section_number: "17.2", section_title: "Liability", page_number: 9 })))
-      .toBe("§17.2 · Liability · p.9");
+      .toBe("17.2 · Liability · p.9");
     expect(locationLabel(row({ page_number: null }))).toBe("location not recorded");
   });
 });
@@ -95,13 +95,37 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
      * - Research left the nav entirely: statute intake is an open owner
      *   decision (C-16), so the capability does not exist, and a nav slot is a
      *   promise. Its screen stays and says so honestly.
+     *
+     * Client Profiles JOINED it on 2026-09-10, by the same "by existence"
+     * rule: the screen is real, it does something this caller cannot do
+     * anywhere else (every document for one company, in one place), and it
+     * needs no permission beyond the `contract.view` they already hold —
+     * AB-13 r5. Deliberately offered to an ordinary user rather than gated to
+     * an administrator, which is what the owner's instruction asked for; the
+     * server scopes what each caller sees rather than the nav hiding it.
      */
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
       { href: "/dashboard", label: "Dashboard" },
+      { href: "/dashboard/clients", label: "Client Profiles" },
       { href: "/dashboard/ask", label: "Ask" },
     ]);
+  });
+
+  it("Client Profiles needs contract.view and nothing more (AB-13 r5)", () => {
+    /* The owner's instruction: "available to all normal LegalMind users… Do
+     * NOT make this Admin-only by default." An account that can see a contract
+     * can see who it is with, because the profile IS the counterparty row. */
+    const minimal = navItemsFor((p) => p === P.CONTRACT_VIEW);
+    expect(minimal.map((i) => i.href)).toContain("/dashboard/clients");
+
+    /* And an account with NO contract access is not offered it — a Platform
+     * Admin holds no contract or Legal content access (Step 23/24 r8), so the
+     * client list, which is derived from contracts, has nothing to show them. */
+    const platformAdmin = new Set([P.USER_MANAGE, P.AUDIT_VIEW]);
+    const admin = navItemsFor((p) => platformAdmin.has(p));
+    expect(admin.map((i) => i.href)).not.toContain("/dashboard/clients");
   });
 
   it("the active item is the LONGEST matching href, so Dashboard never lights on a sibling screen", () => {
@@ -111,6 +135,9 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(activeNavHref("/dashboard/reviews", items)).toBe("/dashboard/reviews");
     expect(activeNavHref("/dashboard/reviews/0a1b2c3d", items)).toBe("/dashboard/reviews");
     expect(activeNavHref("/dashboard/ask/0a1b2c3d", items)).toBe("/dashboard/ask");
+    /* `/dashboard/clients` is a longer match than `/dashboard`, so opening a
+     * client keeps Client Profiles lit and does not also light the Dashboard. */
+    expect(activeNavHref("/dashboard/clients", items)).toBe("/dashboard/clients");
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
@@ -123,6 +150,7 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
       "/dashboard",
       "/dashboard/reviews",
       "/dashboard/legal",
+      "/dashboard/clients",
       "/dashboard/ask",
     ]);
     expect(activeNavHref("/dashboard/legal", items)).toBe("/dashboard/legal");
@@ -278,7 +306,7 @@ describe("TranscriptTurn (ask history replay)", () => {
     // version's reading order, so landing on the newest version would point the
     // highlight at a row that page does not contain.
     expect(html).toContain('href="/dashboard?id=c1&amp;version=dv1&amp;evidence=ev1"');
-    expect(html).toContain("§17.2");
+    expect(html).toContain("17.2");
     // Null score → the score line is absent entirely, never "NaN" or a blank label.
     expect(html).not.toContain("retrieval score");
     // With a score, it renders labeled as exactly that (AI-03 item 16).

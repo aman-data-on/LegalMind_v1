@@ -112,13 +112,68 @@ export interface LatestVersionSummary {
 export interface Counterparty {
   id: string;
   name: string;
+  /** ACTIVE / PROSPECTIVE / INACTIVE. Always present — the column is NOT NULL.
+   *  A filing state, never one of the five legal state axes. */
+  status: string;
   industry?: string;
   relationship_notes?: string;
   created_at: string | null;
   updated_at: string | null;
   /** Present only on the detail endpoint: every contract for this company that
    *  the caller may already see. AB-13 r3 — derived from the link, not a graph. */
-  contracts?: Contract[];
+  contracts?: ClientContract[];
+
+  /* ---- Client Profile (2026-09-10) -------------------------------------
+   * Every one of these is OMITTED when nobody typed it, exactly as
+   * `industry` always was. The screen renders "Not available" against an
+   * absent key — never a dash that reads as "checked and empty".            */
+  legal_name?: string;
+  website?: string;
+  city?: string;
+  state_region?: string;
+  country?: string;
+  primary_contact_name?: string;
+  primary_contact_email?: string;
+  primary_contact_phone?: string;
+  legal_contact_name?: string;
+  legal_contact_email?: string;
+  account_owner_id?: string;
+  account_owner_name?: string | null;
+  /** Counts, per caller (`?stats=true` on the list, always on the detail).
+   *  Derived server-side from the contracts THIS caller may open, so two
+   *  people legitimately see different numbers for the same company. */
+  documents?: number;
+  signed_documents?: number;
+  last_activity?: string | null;
+}
+
+/** A contract as the Client Profile's ONE unified document list needs it: the
+ *  Dashboard's row projection plus its version history.
+ *
+ *  There is deliberately no per-type grouping field. Document type is metadata
+ *  on the row (`contract_type`), and the owner's instruction makes that
+ *  structural — a client's documents are one list, never MSA/NDA/SLA folders. */
+export interface ClientContract extends Contract {
+  /** Newest first. Present when the caller holds `document.view`. */
+  versions?: DocumentVersion[];
+  version_count?: number;
+  /** Whether ANY version was declared FINAL_SIGNED. Never inferred from
+   *  recency: a client's redline is not the executed copy. */
+  signed?: boolean;
+}
+
+/** One row of a client's history — the existing `audit_events` trail, scoped to
+ *  this client and its documents. Deliberately carries no before/after payload:
+ *  those can hold an internal legal position (`LEGAL-02`). */
+export interface ClientActivity {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  /** The document's name, where the event was about one. */
+  subject?: string | null;
+  actor_name?: string | null;
+  timestamp: string | null;
 }
 
 export interface Contract {
@@ -176,6 +231,12 @@ export interface DocumentVersion {
   source?: DocumentSource;
   counterparty?: string;
   effective_date?: string;
+  /** COMPANY_DRAFT / CLIENT_MODIFIED / FINAL_SIGNED (2026-09-10) — what this
+   *  version IS in the negotiation. A THIRD axis, not a synonym for `source`:
+   *  `source` says whose paper it is, this says where in the negotiation it
+   *  sits. Absent on every version nobody classified, and never inferred from
+   *  the version number, the filename or the date. */
+  version_role?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
    * ready / lexical-only / not-indexed. Present on the detail endpoint. */
   assist_index?: { chunks: number; embedded_chunks: number };
@@ -626,6 +687,16 @@ export interface AssistPosition {
   source_clause: string | null;
   content: string;
   retrieval_score: number | null;
+  /** The deterministic engine's existing Finding for this standard on the asked
+   *  version — READ, never produced, by Ask (the `AM-45` r4 precedent). Absent
+   *  when no Review holds one or the caller may not view findings. */
+  finding?: AssistPositionFinding | null;
+}
+
+export interface AssistPositionFinding {
+  finding_id: string;
+  classification: string;
+  user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "NEEDS_DECISION";
 }
 
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
