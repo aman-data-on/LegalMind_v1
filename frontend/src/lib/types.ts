@@ -626,6 +626,16 @@ export interface AssistPosition {
   source_clause: string | null;
   content: string;
   retrieval_score: number | null;
+  /** The deterministic engine's existing Finding for this standard on the asked
+   *  version — READ, never produced, by Ask (the `AM-45` r4 precedent). Absent
+   *  when no Review holds one or the caller may not view findings. */
+  finding?: AssistPositionFinding | null;
+}
+
+export interface AssistPositionFinding {
+  finding_id: string;
+  classification: string;
+  user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "NEEDS_DECISION";
 }
 
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review

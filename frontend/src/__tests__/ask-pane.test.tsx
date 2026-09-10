@@ -31,7 +31,8 @@ describe("WsAnswerView", () => {
                     excerpt: "Either party may terminate on ninety days prior written notice.", retrieval_score: 0.6213 }],
     }));
     expect(html).toContain('data-evidence-id="ev-9"');
-    expect(html).toContain("§22");
+    expect(html).toContain("22 · p.7");
+    expect(html).not.toContain("§");
     expect(html).toContain("p.7");
     expect(html).not.toContain("retrieval score");
     expect(html.toLowerCase()).not.toContain("confidence");
@@ -76,7 +77,7 @@ describe("multi-source answers (2026-09-08)", () => {
       positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
         source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.", retrieval_score: 0.5 }],
     }));
-    expect(html).toContain("Approved position");
+    expect(html).toContain("Company standard");
     expect(html).toContain("TESTPOS-MSA-001");
     expect(html).toContain("9.9 Widget Handling");
     expect(html).toContain("Widgets shall be handled with care.");

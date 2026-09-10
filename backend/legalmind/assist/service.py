@@ -46,6 +46,7 @@ from legalmind.assist import (
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
 from legalmind.assist.state import REFUSAL_TEXT, AssistAnswerState  # noqa: F401
 from legalmind.observability.logs import log_event
+from legalmind.security import permissions as P
 
 EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
@@ -324,11 +325,51 @@ def _answer_statutes(db: DBSession, conversation_id: UUID, question: str,
             "_model": result.model, "_latency_ms": result.latency_ms}
 
 
-def _position_views(hits: list[positions.PositionHit]) -> list[dict]:
+def _position_views(hits: list[positions.PositionHit],
+                    findings: dict[str, dict] | None = None) -> list[dict]:
     return [{"position_chunk_id": str(h.position_chunk_id),
              "standard_code": h.standard_code, "document_type": h.document_type,
              "source_clause": h.source_clause, "content": h.content,
-             "retrieval_score": round(h.score, 4)} for h in hits]
+             "retrieval_score": round(h.score, 4),
+             "finding": (findings or {}).get(h.standard_code)} for h in hits]
+
+
+def _findings_for_standards(db: DBSession, document_version_id: UUID | None,
+                            codes: set[str],
+                            permissions: frozenset[str]) -> dict[str, dict]:
+    """The evaluator's EXISTING Finding for each quoted standard on the latest
+    Review of this version — `{standard_code: {finding_id, classification,
+    user_status}}` (owner, 2026-09-10: "Assessment: Match / Deviation / Needs
+    decision, when applicable").
+
+    READ, never produced: Ask points at a Finding the deterministic engine already
+    made, the `AM-45` r4 handoff precedent; it still generates no verdict (`AM-25`
+    r4). Reading a Finding needs `finding.view`, so without it the map is empty
+    and the position is quoted alone — the same shape as "no Review yet".
+    """
+    if document_version_id is None or not codes or P.FINDING_VIEW not in permissions:
+        return {}
+    from legalmind.domain.enums import FindingClassification
+    from legalmind.domain.user_status import user_status
+
+    review = db.execute(text("""
+        SELECT r.id FROM reviews r
+         WHERE r.document_version_id = :d
+         ORDER BY r.created_at DESC LIMIT 1"""), {"d": document_version_id}).first()
+    if review is None:
+        return {}
+    rows = db.execute(text("""
+        SELECT rq.code, f.id, f.classification::text
+          FROM findings f
+          JOIN requirement_versions rv ON rv.id = f.requirement_version_id
+          JOIN requirements rq ON rq.id = rv.requirement_id
+         WHERE f.review_id = :r AND rq.code = ANY(:codes)"""),
+        {"r": review[0], "codes": sorted(codes)}).all()
+    # The word follows the Finding's own classification (AM-56) — the same
+    # projection `evaluation.user_status.by_finding` applies, read from `domain`.
+    return {code: {"finding_id": str(fid), "classification": cls,
+                   "user_status": user_status(FindingClassification(cls))}
+            for code, fid, cls in rows}
 
 
 POSITIONS_ONLY_TEXT = ("The organization's approved position relevant to this question "
@@ -529,6 +570,23 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                                      statute_hits=statute_hits, question=question,
                                      permissions=permissions)
 
+    # The company standard BESIDE the document's answer (owner, 2026-09-10: the
+    # answer should read "Agreement evidence… Company Standard… Assessment…").
+    # The document answered, so its text is the answer; the ratified position
+    # relevant to the same question is quoted in its own section — separate
+    # field, separate citation grammar, disagreement shown never adjudicated
+    # (`AM-45` r2) — and never enters the generation payload (`AM-32` r4).
+    # Authorization is the route's: POSITIONS is in the fallback set only for a
+    # caller who may read positions, and the domain is recorded whenever it was
+    # SEARCHED, whether or not anything matched (`AM-46`).
+    if routing.Domain.POSITIONS in route.fallback and not position_hits:
+        position_hits = positions.search_positions(
+            db, query=question, permissions=permissions, limit=POSITION_LIMIT)
+        domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
+        _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
+    position_findings = _findings_for_standards(
+        db, document_version_id, {h.standard_code for h in position_hits}, permissions)
+
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", result.text)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
@@ -564,8 +622,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED,
                       text=result.text, citations=citations,
-                      positions=_position_views(position_hits), domains=domains,
-                      statutes=statute_section)
+                      positions=_position_views(position_hits, position_findings),
+                      domains=domains, statutes=statute_section)
 
 
 STATUTES_ONLY_TEXT = ("Answered from the approved statute corpus, cited by Act and "

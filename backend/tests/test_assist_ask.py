@@ -899,7 +899,10 @@ def test_document_and_statute_answers_stay_in_separate_sections(db, user, indexe
                       document_version_id=version.id, permissions=USER_PERMS,
                       question='What notice does this contract require for termination, and '
                                'what does section 3 of the Synthetic Widgets Act say?')
-    assert out.domains == ("DOCUMENT", "STATUTES")
+    # POSITIONS is recorded too (2026-09-10): the caller holds the position grant,
+    # so the ratified positions are searched beside a document answer — whether
+    # or not one matched, the record names what was searched (AM-46).
+    assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
     assert out.answer_state.value == "ANSWERED"
     assert out.statutes and out.statutes["text"] and out.statutes["citations"]
     assert out.statutes["citations"][0]["citation"].startswith("The Synthetic Widgets Act")
@@ -1072,21 +1075,81 @@ def test_a_document_that_mentions_the_topic_but_does_not_answer_falls_through_to
 
 
 @needs_embedding_model
-def test_a_document_that_answers_is_not_second_guessed_by_the_positions(
+def test_a_document_answer_carries_the_relevant_position_beside_it(
         db, user, indexed_contract, tmp_path, monkeypatch):
-    """Source priority: the document first. When it answers, the answer is the
-    document's, cited by page/section; the positions are attached only when the
-    question asks for them (AM-25 r4 keeps the side-by-side for the evaluator)."""
+    """Owner, 2026-09-10: an answer reads "Agreement evidence… Company Standard…
+    Assessment". The document answers FIRST and its text is the answer, cited;
+    the ratified position relevant to the same question is quoted beside it in
+    its own section (`AM-45` r2 — separate fields, never adjudicated), never
+    enters the generation payload (`AM-32` r4), and POSITIONS is recorded as
+    searched. Supersedes the 2026-09-09 "not second-guessed" pin, which left a
+    reader with the document's words and no view of the standard."""
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    embedding_runtime.reset_for_tests()
+    sent = []
+
+    def fake(question, evidence, *, environment, request_id=None):
+        sent.append(list(evidence))
+        return generation.GenerationResult(
+            text="Either party may terminate this Agreement for convenience on ninety "
+                 "days prior written notice [1].",
+            model="fake-model@test", prompt_version="test-1",
+            payload_sha256="0" * 64, latency_ms=1)
+    monkeypatch.setattr(service.generation, "generate", fake)
+    question = '"termination for convenience" notice'
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question=question)
+    assert out.answer_state.value == "ANSWERED" and out.citations
+    assert out.text.startswith("Either party may terminate")
+    assert [p["standard_code"] for p in out.positions] == ["TESTNOTICE-NDA-001"]
+    assert out.domains == ("DOCUMENT", "POSITIONS")
+    assert _recorded_domains(db, question) == ["DOCUMENT", "POSITIONS"]
+    assert not any("thirty (30) days" in c for chunks in sent for c in chunks)
+    # No Review exists, so there is no Finding to point at — quoted alone.
+    assert out.positions[0]["finding"] is None
+
+
+@needs_embedding_model
+def test_the_assessment_is_the_evaluators_existing_finding_and_needs_finding_view(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """The "Assessment" beside a quoted position is the deterministic engine's
+    OWN Finding for that standard on the latest Review — read, never produced
+    (`AM-25` r4; the `AM-45` r4 precedent) — and only for a caller who may view
+    findings. Without `finding.view` the position is quoted alone."""
+    from tests.conftest import make_finding
     contract, version = indexed_contract
     _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
     embedding_runtime.reset_for_tests()
     _fake_generation(monkeypatch, "Either party may terminate this Agreement for "
                                   "convenience on ninety days prior written notice [1].")
-    out = service.ask(db, conversation_id=_conversation(db, user, contract),
-                      document_version_id=version.id, permissions=USER_PERMS,
-                      question='"termination for convenience" notice')
-    assert out.answer_state.value == "ANSWERED" and out.citations
-    assert out.positions == [] and out.domains == ("DOCUMENT",)
+    rv = db.execute(
+        __import__("sqlalchemy").select(M.RequirementVersion)
+        .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
+        .where(M.Requirement.code == "TESTNOTICE-NDA-001")
+        .order_by(M.RequirementVersion.version_number.desc())).scalars().first()
+    snap = M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id)
+    db.add(snap); db.flush()
+    review = M.Review(contract_id=contract.id, document_version_id=version.id,
+                      configuration_snapshot_id=snap.id,
+                      status=E.ReviewStatus.ANALYSIS_COMPLETE, created_by=user.id)
+    db.add(review); db.flush()
+    finding = make_finding(db, review, rv, classification=E.FindingClassification.MATCH,
+                           status=E.FindingStatus.OPEN)
+
+    question = '"termination for convenience" notice'
+    with_view = service.ask(db, conversation_id=_conversation(db, user, contract),
+                            document_version_id=version.id,
+                            permissions=USER_PERMS | {"finding.view"}, question=question)
+    assert with_view.positions[0]["finding"] == {
+        "finding_id": str(finding.id), "classification": "MATCH",
+        "user_status": "ACCEPTABLE"}
+
+    without = service.ask(db, conversation_id=_conversation(db, user, contract),
+                          document_version_id=version.id, permissions=USER_PERMS,
+                          question=question)
+    assert without.positions and without.positions[0]["finding"] is None
 
 
 def test_the_fallback_never_reaches_a_caller_without_the_position_grant(

@@ -121,9 +121,13 @@
      Ask bar's alignment grid all read the SAME two numbers, so the Ask card can
      sit exactly under the document card at every viewport instead of drifting
      over the clause list the way a minmax column let it. */
-  --ws-clauses-w: 264px;
-  --ws-side-w: 380px;
-  /* (overridden to 236px/340px below 1440px — see the media block after .ws) */
+  /* Adaptive since 2026-09-10 (owner: "Do not let panels become extremely
+     narrow… sensible minimum usable widths"). The side card never drops below
+     400px — three status tiles need ~120px each to wrap at word boundaries —
+     and grows with the viewport to a cap, so the document keeps the largest
+     share on a 1366px laptop and on a 1920px monitor alike. */
+  --ws-clauses-w: clamp(220px, 15vw, 280px);
+  --ws-side-w: clamp(400px, 28vw, 540px);
   /* The document viewer's well — the grey ground the white paper sheet sits on.
      Slightly darker than --ws-paper so the sheet reads as a page, not a card. */
   --ws-viewer: #dfe3eb;
@@ -177,11 +181,6 @@
 .ws .ws-visually-hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
-}
-/* Mid-width laptops: slimmer fixed columns so the document sheet keeps a
-   readable measure down to the 1101px point where .ws-doc stacks anyway. */
-@media (max-width: 1439px) {
-  .ws { --ws-clauses-w: 236px; --ws-side-w: 340px; }
 }
 
 /* --------------------------------------------------------------------------
@@ -331,7 +330,8 @@
   display: grid; gap: var(--ws-s4);
   padding: var(--ws-s4);
 }
-.ws-workspace--wide { grid-template-columns: minmax(0, 1fr) var(--ws-side-w); }
+/* `.ws-workspace--wide`'s columns are set in the document-primary block near
+   the end of this file, keyed on `data-doc-open`. */
 .ws-workspace--one { grid-template-columns: 1fr; }
 .ws-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .ws-workspace--one .ws-pane { overflow-y: auto; }
@@ -504,11 +504,28 @@
   border-left-color: var(--ws-accent); color: var(--ws-accent);
   background: var(--ws-accent-soft); font-weight: 550;
 }
-/* Hierarchy is indentation (owner reference): §4.3.1 sits under §4.3 under §4.
-   Depth comes from the section number itself, computed in DocumentPane. */
-.ws-outline__list button[data-depth="1"] { padding-left: calc(var(--ws-s4) + 14px); }
-.ws-outline__list button[data-depth="2"] { padding-left: calc(var(--ws-s4) + 28px); }
-.ws-outline__list button[data-depth="3"] { padding-left: calc(var(--ws-s4) + 42px); }
+/* The Contents as a TREE (owner, 2026-09-10): a chevron per section that has
+   children, the document's own numbers, indentation by real depth. The jump
+   button keeps the rules above; the chevron is its own small control so
+   expanding never means navigating. */
+.ws-outline__node { display: flex; align-items: flex-start; border-left: 3px solid transparent; }
+.ws-outline__node:has(> .ws-outline__jump[aria-current="true"]) { border-left-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-outline__node .ws-outline__jump { flex: 1; min-width: 0; padding-left: 0; border-left: 0; }
+.ws-outline__list .ws-outline__twist {
+  flex: none; width: 22px; min-height: 34px; padding: 8px 0 0 var(--ws-s2);
+  border: 0; justify-content: flex-start;
+  color: var(--ws-ink-500);
+}
+.ws-outline__list .ws-outline__twist:hover { color: var(--ws-accent); background: transparent; }
+.ws-outline__twist--none { display: inline-block; width: 22px; flex: none; }
+.ws-outline__node[data-depth="1"] { padding-left: 14px; }
+.ws-outline__node[data-depth="2"] { padding-left: 28px; }
+.ws-outline__node[data-depth="3"] { padding-left: 42px; }
+/* A clause paragraph under its section: one line, then an ellipsis — the
+   reader is navigating by it, not reading it here. */
+.ws-outline__node[data-leaf="true"] .ws-outline__label { -webkit-line-clamp: 1; }
+.ws-outline__node[data-leaf="true"] .ws-outline__jump { color: var(--ws-ink-500); font-size: var(--ws-text-xs); min-height: 28px; padding-top: 6px; padding-bottom: 6px; }
+.ws-outline__node[data-leaf="true"] .ws-outline__twist { min-height: 28px; }
 /* Wrap to two lines rather than truncate — "DEFINITIONS AND INTERPR…" hid the
    words that distinguish one clause from the next (owner, 2026-09-02: ellipsis
    only when genuinely necessary). Two lines, then clamp. */
@@ -828,17 +845,26 @@
  * ========================================================================== */
 .ws-ask { display: flex; flex-direction: column; padding: var(--ws-s4); gap: var(--ws-s3); }
 .ws-ask__turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s4); }
-.ws-ask__q { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
-.ws-ask__role { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-right: 6px; }
-.ws-ask__answer {
-  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-ink-300);
-  border-radius: var(--ws-radius); padding: var(--ws-s3) var(--ws-s4);
+/* Two voices, told apart by placement and tint rather than by frames
+   (2026-09-10): the reader's question sits right, on the paper tint; the
+   answer runs full width as plain text with its sources beneath a hairline. */
+.ws-ask__q {
+  margin: 0 0 var(--ws-s3) auto; max-width: 85%; width: fit-content;
+  padding: var(--ws-s2) var(--ws-s3); border-radius: var(--ws-radius);
+  background: var(--ws-paper); font-size: var(--ws-text-sm); color: var(--ws-ink-900);
 }
+.ws-ask__role { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-right: 6px; }
+.ws-ask__answer { padding: 0 0 var(--ws-s2); }
 .ws-ask__answer p { margin: 0; font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6; }
+.ws-ask__answer--routed { padding-left: var(--ws-s3); border-left: 2px dashed var(--ws-ink-300); }
+.ws-ask__assessment { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); margin-top: var(--ws-s2) !important; }
+/* A wide column (document hidden) keeps the conversation at a reading measure. */
+.ws-dock__log > .ws-ask__turns, .ws-dock__log > .ws-dock__empty, .ws-dock__log > .ws-ask__empty {
+  width: 100%; max-width: 72ch; margin-inline: auto;
+}
 /* A refusal and an answer share the surface — same border, same weight; only the
  * words differ (AM-29 r4). Nothing red, nothing iconic. */
 .ws-ask__answer--refusal p { color: var(--ws-ink-700); }
-.ws-ask__answer--routed { border-left-style: dashed; }
 .ws-ask__positions { margin-top: var(--ws-s3); }
 .ws-ask__cite--static { cursor: default; }
 .ws-ask__handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); margin-top: var(--ws-s3); }
@@ -1049,15 +1075,17 @@
   border-top: 1px solid var(--ws-ink-100);
 }
 .ws-pane--side > .ws-dock[data-open="true"] {
-  /* A MINORITY share of the column: the findings above stay readable and the
-     log inside is what scrolls. 62% was the first attempt and the browser suite
-     measured the result — findings 241px against Ask's 458px, with the first
-     finding's title cut in half, which is the "don't obscure important findings"
-     complaint arriving by a different route. The 400px ceiling matters on a tall
-     monitor, where a percentage alone would hand Ask hundreds of pixels of empty
-     panel it has nothing to put in. */
-  flex: 0 1 auto; max-height: min(52%, 400px);
+  /* THE WHOLE COLUMN while open (owner, 2026-09-10: "a proper conversational
+     AI workspace… dock Ask as a right-side panel… conversation scrolls
+     independently, input stays at the bottom"). The 400px share it had before
+     left the log ~250px tall — a form at the foot of the findings. The Summary
+     and Findings panels hide while it is open (`:has` below); the tab strip
+     stays, so either is one click away and choosing one closes Ask. Still
+     docked, still a header with a visible close, still the persistent launcher
+     when closed — `AM-57` r4 unchanged. */
+  flex: 1 1 auto; max-height: none; border-top: 0;
 }
+.ws-pane--side:has(> .ws-dock[data-open="true"]) > .ws-side__panel { display: none; }
 .ws-pane--side > .ws-dock .ws-dock__launcher {
   /* The persistent way back in — full-width and flush in the column rather
      than a floating pill, still 44px for the touch-target minimum. */
@@ -1123,10 +1151,12 @@
 .ws-tile__n { font-family: var(--ws-mono); font-size: 1.35rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ws-tile__label {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
-  /* Wraps, never truncates — the classification NAME is the information
-     (rule 12: the exact vocabulary always renders). Long values like
-     UNABLE_TO_EVALUATE break at the underscores. */
-  overflow-wrap: anywhere; line-height: 1.3; padding-right: 20px;
+  /* Wraps at WORD boundaries, never truncates and never mid-word. The old
+     `overflow-wrap: anywhere` was the "Requir / es / modific / ation" defect
+     (owner, 2026-09-09): with three `minmax(0, 1fr)` columns the browser was
+     free to break every letter. The column floor (`--ws-side-w` ≥ 400px) is
+     what gives the label room; this rule just stops it being shredded. */
+  line-height: 1.3; padding-right: 20px;
 }
 .ws-tile .ws-status { position: absolute; top: var(--ws-s2); right: var(--ws-s2); }
 /* Keyed by TONE, not by the engine's old buckets (2026-09-09): green
@@ -1209,18 +1239,23 @@
    the others stay a header with a count. Single column below 900px. */
 .ws-obligations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s3); align-items: start; }
 @media (max-width: 900px) { .ws-obligations { grid-template-columns: 1fr; } }
+/* Rows under a hairline, not cards (2026-09-10) — the fourth nested frame. */
 .ws-obligations__group {
-  min-width: 0; background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
-  transition: border-color var(--ws-t);
+  min-width: 0;
+  border-top: 1px solid var(--ws-ink-100);
 }
-.ws-obligations__group[data-open="true"] { border-color: var(--ws-ink-300); }
+.ws-obligations__group[data-open="true"] .ws-obligations__party { color: var(--ws-accent); }
+.ws-obligations__more {
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-accent);
+  background: none; border: 0; padding: 2px 0 0 21px; cursor: pointer;
+}
+.ws-obligations__more:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ws-obligations__party:hover .ws-obligations__chev,
 .ws-obligations__party:hover .ws-obligations__partyname { color: var(--ws-accent); }
 .ws-obligations__party {
   display: flex; align-items: center; gap: var(--ws-s2); width: 100%;
   font: inherit; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
-  background: none; border: 0; padding: var(--ws-s2) var(--ws-s3);
+  background: none; border: 0; padding: var(--ws-s2) 0;
   text-align: left; cursor: pointer; border-radius: inherit;
 }
 /* The ring sits INSIDE the card: the default 2px offset drew it over the first
@@ -1234,7 +1269,7 @@
 .ws-obligations__chev { display: inline-flex; color: var(--ws-ink-500); }
 .ws-obligations__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ws-obligations__group .ws-obligations__list {
-  padding: var(--ws-s1) var(--ws-s3) var(--ws-s3);
+  padding: var(--ws-s1) 0 var(--ws-s3);
   animation: ws-obligations-open 140ms ease-out;
 }
 /* `display: flex` above out-specifies the UA stylesheet's `[hidden]` rule. */
@@ -3252,7 +3287,11 @@
    in the CLOSED state, where the side card is the whole workspace; in the
    OPEN state it is the ~380px rail, well under this cap already, so the rule
    is a no-op there rather than something that needs its own condition. */
-.ws-side__panel > * { width: 100%; max-width: 64rem; margin-inline: auto; }
+/* 88rem (2026-09-10): at 64rem the Summary sat in a 1024px strip with ~450px
+   of empty canvas each side on a 1920px monitor — the "excessive whitespace"
+   the owner reported. The hero's two-column grid and the three obligation
+   columns use the width; running text inside them keeps its own measure. */
+.ws-side__panel > * { width: 100%; max-width: 88rem; margin-inline: auto; }
 
 /* The tab row carries the document toggle at its far end. */
 .ws-side__tabs { justify-content: space-between; align-items: center; }
@@ -3335,9 +3374,12 @@
  * filter pills, finding-card head and footer. Plain CSS on the existing tokens;
  * the three status tones are `--ws-tone-*` (green · orange · indigo).
  * ========================================================================== */
+/* No frame of its own (2026-09-10): the hero sits directly on the side card,
+   which already IS a card — a bordered, shadowed section inside it was the
+   first of four nested frames the owner counted. Whitespace and the one
+   hairline under the headline carry the grouping (`AM-57` r5). */
 .ws-hero {
-  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card); padding: var(--ws-s5); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s2) var(--ws-s1) 0;
   display: flex; flex-direction: column; gap: var(--ws-s5);
 }
 .ws-hero__top {
@@ -3360,8 +3402,8 @@
 .ws-hero__left { display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0; }
 .ws-hero__right {
   display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0;
-  background: var(--ws-paper); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
-  padding: var(--ws-s4);
+  /* A divider, not a box: the ring is a second reading of the same counts. */
+  border-left: 1px solid var(--ws-ink-100); padding-left: var(--ws-s5);
 }
 .ws-hero__right .ws-ring { align-items: center; }
 .ws-hero__right .ws-ring__legend { flex: 1; }
@@ -3375,16 +3417,18 @@
   .ws-hero__top { flex-direction: column; }
 }
 
-/* The explainer — three quiet cards, one per word. */
-.ws-explain { border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-paper); padding: var(--ws-s3) var(--ws-s4); }
+/* The explainer — three quiet columns, one per word, each with its tone as a
+   left rule. No outer frame and no inner cards (2026-09-10): this sat as a
+   bordered box holding three bordered boxes inside the bordered hero. */
+.ws-explain { padding: var(--ws-s3) 0 0; border-top: 1px solid var(--ws-ink-100); }
 .ws-explain__title, .ws-explain > summary { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-700); }
 .ws-explain > summary { cursor: pointer; margin: 0; }
 .ws-explain[open] > summary { margin-bottom: var(--ws-s2); }
 .ws-explain__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s2); }
 .ws-explain__card {
-  display: flex; flex-direction: column; gap: 2px; background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100); border-left-width: 3px; border-radius: var(--ws-radius-sm);
-  padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4;
+  display: flex; flex-direction: column; gap: 2px;
+  border-left: 3px solid var(--ws-ink-100);
+  padding: 2px var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4;
 }
 .ws-explain__card b { color: var(--ws-ink-900); font-weight: 600; }
 .ws-explain__card--ok { border-left-color: var(--ws-tone-ok); }
@@ -3406,8 +3450,13 @@
 .ws-filter button[aria-pressed="true"] .ws-filter__n { background: rgba(255,255,255,0.15); color: #fff; border-color: transparent; }
 .ws-pane__await { font-family: var(--ws-sans); font-size: 10.5px; font-weight: 600; text-transform: none; letter-spacing: 0; }
 
-/* Finding card: title with its determination beneath, the same tone as the status. */
-.ws-finding { border-radius: var(--ws-radius-card); padding: var(--ws-s5); box-shadow: var(--ws-card-shadow); }
+/* Finding card: title with its determination beneath, the same tone as the status.
+   The shadow is gone (2026-09-10) — a raised card inside the side card was
+   chrome; the 3px status edge and the hairline border are the grouping. */
+.ws-finding { border-radius: var(--ws-radius); padding: var(--ws-s4) var(--ws-s5); }
+/* What each of two same-titled standards asks — shown only on a collision. */
+.ws-finding__asks { font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4; }
+.ws-pane__body--pad { padding: var(--ws-s4); }
 .ws-finding__titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ws-finding__det {
   display: inline-flex; align-self: flex-start; font-size: 10.5px; font-weight: 600;
@@ -3454,11 +3503,13 @@
   .ws-hero .ws-analysis__headline { font-size: var(--ws-text-md); }
   .ws-hero__cta { justify-content: center; }
   .ws-hero__grid { grid-template-columns: 1fr; }
-  .ws-tiles { grid-template-columns: 1fr; }
-  .ws-hero .ws-tile { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: var(--ws-s3); }
+  /* The three tiles stay three-across (owner, 2026-09-10: "cards must
+     maintain readable proportions") — the column floor gives them ~120px
+     each; only the ring moves beneath them and the tiles lose some padding. */
+  .ws-hero .ws-tile { padding: var(--ws-s3); }
   .ws-hero .ws-tile__n { font-size: 1.3rem; }
-  .ws-hero .ws-tile__label { padding-right: 0; }
-  .ws-hero .ws-tile__sub { flex-basis: 100%; }
+  .ws-hero .ws-tile__label { font-size: var(--ws-text-xs); padding-right: 18px; }
+  .ws-hero .ws-tile .ws-status svg { width: 14px; height: 14px; }
   .ws-explain__grid { grid-template-columns: 1fr; }
   .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
   .ws-facts--compare dd + dt { border-left: 0; }

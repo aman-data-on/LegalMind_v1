@@ -138,6 +138,12 @@ Do not do these, in LegalMind, without a documented, explicit decision overridin
 
 ## Design decision governance
 
+**Recorded presentation decisions since the freeze (pointers, not the record):** the three reader
+statuses are green · orange (`#c2410c`) · indigo (`#4f46e5`) — `--ws-tone-ok/warn/bad`, owner
+2026-09-09, DESIGN_DECISIONS.md; the workspace fix pass of 2026-09-10 (adaptive panes, the
+Contents tree, Ask as the column, fewer frames) is **DD-17**.
+
+
 Major, hard-to-reverse design decisions (an interaction model for a core workflow, a component-library adoption, an accessibility target, a responsive breakpoint strategy) are recorded in [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) as they are made, in the same append-oriented spirit as `all_lock.md` — a superseded decision is marked superseded in place, with a pointer to what replaced it and why, rather than deleted or silently reworked.
 
 A decision belongs in that log, not just in a PR description, when a future contributor could plausibly re-litigate it from scratch without knowing it was already decided. Smaller, page-local implementation choices that follow directly from the principles in this document do not need their own log entry.

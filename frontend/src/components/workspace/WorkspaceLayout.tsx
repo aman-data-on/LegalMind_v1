@@ -96,6 +96,9 @@ export interface FindingsPoint {
 const SideTabCtx = createContext<{
   openFindings: (target?: Omit<FindingsPoint, "seq">) => void;
   findingsPoint: FindingsPoint | null;
+  /** Bumped whenever a side tab is chosen: Ask, which takes the whole column
+   *  while open (2026-09-10), closes so the chosen tab is actually visible. */
+  closeAskSeq: number;
 } | null>(null);
 export function useSideTabs() {
   return useContext(SideTabCtx);
@@ -188,12 +191,20 @@ export function WorkspaceLayout({
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const sideTabsRef = useRef<HTMLDivElement | null>(null);
 
+  const [closeAskSeq, setCloseAskSeq] = useState(0);
+  const chooseSideTab = useCallback((which: SideTab) => {
+    setSideTab(which);
+    setCloseAskSeq((n) => n + 1);
+  }, []);
   const openFindings = useCallback((target?: Omit<FindingsPoint, "seq">) => {
-    setSideTab("findings");
+    chooseSideTab("findings");
     setTab("findings");
     if (target) setFindingsPoint((p) => ({ ...target, seq: (p?.seq ?? 0) + 1 }));
-  }, []);
-  const sideCtx = useMemo(() => ({ openFindings, findingsPoint }), [openFindings, findingsPoint]);
+  }, [chooseSideTab]);
+  const sideCtx = useMemo(
+    () => ({ openFindings, findingsPoint, closeAskSeq }),
+    [openFindings, findingsPoint, closeAskSeq],
+  );
 
   // ---- narrow: one region at a time, top tabs -----------------------------
   const tabbed: Region[] = ["document", "findings", "analysis"];
@@ -255,7 +266,7 @@ export function WorkspaceLayout({
   function onSideTabKey(event: React.KeyboardEvent, index: number) {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
     const next = (index + (event.key === "ArrowRight" ? 1 : -1) + sideTabs.length) % sideTabs.length;
-    setSideTab(sideTabs[next]!);
+    chooseSideTab(sideTabs[next]!);
     sideTabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
     event.preventDefault();
   }
@@ -304,7 +315,7 @@ export function WorkspaceLayout({
                 aria-selected={sideTab === which}
                 aria-controls={`ws-pane-${which}`}
                 tabIndex={sideTab === which ? 0 : -1}
-                onClick={() => setSideTab(which)}
+                onClick={() => chooseSideTab(which)}
                 onKeyDown={(event) => onSideTabKey(event, index)}
               >
                 {LABEL[which]}
