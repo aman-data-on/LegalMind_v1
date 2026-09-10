@@ -460,6 +460,21 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
    * top-level slot. One label for one capability; the page itself explains
    * where asking happens.
    */
+  /*
+   * Client Profiles — the company a deal is with, and every document filed
+   * under it (owner instruction, 2026-09-10). It sits directly after the
+   * Dashboard because the two are the same documents seen two ways: the
+   * Dashboard is "what am I working on", this is "what do we have with X".
+   *
+   * `contract.view` and nothing more (AB-13 r5): the profile is the
+   * counterparty row, so a caller who may see a contract may see who it is
+   * with. Deliberately NOT admin-gated — the owner's instruction is explicit
+   * that every normal user reaches it, and the server scopes what each one
+   * sees rather than the nav hiding the section.
+   */
+  if (can(P.CONTRACT_VIEW)) {
+    items.push({ href: "/dashboard/clients", label: "Client Profiles" });
+  }
   if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask" });
   /*
    * Legal configuration — Requirements, Company Standards and the published

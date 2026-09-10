@@ -1546,7 +1546,28 @@ def test_a_counterparty_with_contracts_cannot_be_deleted_out_from_under_them(
 
 def test_no_endpoint_lists_every_counterparty(api, db, owner):
     """AB-13 r6 states the global list is FORBIDDEN, not merely unbuilt. Pinned
-    structurally so a future convenience endpoint has to confront the record."""
+    structurally so a future convenience endpoint has to confront the record.
+
+    **2026-09-10, Client Profiles — this is that confrontation, recorded.** The
+    owner asked for a Client Profiles screen: a directory of clients, with
+    search, filters and counts. Two routes were added for it, and the record
+    was read before they were, not after:
+
+    * `GET /counterparties/industries` returns the industry strings in use
+      *among the caller's own visible clients*, for that screen's filter. It
+      names no company.
+    * `GET /counterparties/{id}/activity` returns audit rows for one client and
+      the contracts of it the caller can already open.
+
+    Neither is the thing r6 forbids. What r6 forbids is an endpoint that
+    discloses companies the caller has no contract with, and every route below
+    still resolves its set through `_all_visible_ids` — the same scoped
+    statement `GET /counterparties/{id}` 404s on. The Client Profiles list is a
+    better surface over the SAME set, not a wider one; its "total clients"
+    count is per-caller for that reason.
+
+    A route that cannot honestly claim that sentence does not belong in this
+    set, whatever screen wants it."""
     from legalmind.api.permission_map import ENDPOINT_PERMISSIONS
 
     counterparty_routes = {(m, p) for (m, p) in ENDPOINT_PERMISSIONS
@@ -1554,12 +1575,21 @@ def test_no_endpoint_lists_every_counterparty(api, db, owner):
     assert counterparty_routes == {
         ("GET", f"{V1}/counterparties"),
         ("POST", f"{V1}/counterparties"),
+        ("GET", f"{V1}/counterparties/industries"),
         ("GET", f"{V1}/counterparties/{{counterparty_id}}"),
+        ("GET", f"{V1}/counterparties/{{counterparty_id}}/activity"),
         ("PATCH", f"{V1}/counterparties/{{counterparty_id}}"),
     }
-    # And the two reads are contract-scoped permissions, not an admin one (r5).
+    # Every one of them is a contract-scoped permission, never an admin one
+    # (r5) — and in particular the activity feed is NOT `audit.view`, which
+    # spans the whole system.
+    assert {ENDPOINT_PERMISSIONS[route] for route in counterparty_routes} == {
+        P.CONTRACT_VIEW, P.CONTRACT_UPDATE}
     assert ENDPOINT_PERMISSIONS[("GET", f"{V1}/counterparties")] == P.CONTRACT_VIEW
     assert ENDPOINT_PERMISSIONS[("POST", f"{V1}/counterparties")] == P.CONTRACT_UPDATE
+    assert ENDPOINT_PERMISSIONS[
+        ("GET", f"{V1}/counterparties/{{counterparty_id}}/activity")
+    ] == P.CONTRACT_VIEW
 
 
 def test_a_lead_sees_a_companys_documents_across_the_department_and_the_shelf(

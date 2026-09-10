@@ -66,8 +66,12 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # same change as the migration and the lock record, which is the only way
     # this snapshot may ever move.
     "contracts": ('archived_at', 'contract_type', 'counterparty_id', 'created_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
-    # AB-12 r3 — the department boundary a Department Lead's scope is bounded by.
-    "counterparties": ('created_at', 'created_by', 'id', 'industry', 'name', 'relationship_notes', 'updated_at'),
+    # AB-13 r1 created this table with seven columns. Twelve more were added on
+    # 2026-09-10 under the owner's Client Profiles instruction (migration
+    # e9f2b6c4a173) — the profile fields a client page shows, all nullable but
+    # `status`, none backfilled. Recorded here in the same change as the
+    # migration and the model, which is the only way this snapshot may move.
+    "counterparties": ('account_owner_id', 'city', 'country', 'created_at', 'created_by', 'id', 'industry', 'legal_contact_email', 'legal_contact_name', 'legal_name', 'name', 'primary_contact_email', 'primary_contact_name', 'primary_contact_phone', 'relationship_notes', 'state_region', 'status', 'updated_at', 'website'),
     "departments": ('code', 'created_at', 'id', 'name'),
     "document_evidence": ('content', 'created_at', 'document_version_id', 'end_offset', 'id', 'metadata', 'page_number', 'processing_run_id', 'section_number', 'section_title', 'source_type', 'start_offset'),
     "document_processing_runs": ('completed_at', 'created_at', 'document_version_id', 'error_code', 'error_message', 'id', 'metadata', 'processor_version', 'run_type', 'started_at', 'status'),
@@ -164,10 +168,14 @@ def test_the_total_locked_column_count_is_unchanged(db):
     the four-column `departments` table added — alongside migration `b7c3d9e1f2a4`
     and the AB-12 lock record. 209 after 2026-09-06 (AB-13): the seven-column
     `counterparties` table and `contracts.counterparty_id`, alongside migration
-    `c8e4a1b7d2f6` and the AB-13 lock record.
+    `c8e4a1b7d2f6` and the AB-13 lock record. 221 after 2026-09-10: twelve
+    profile columns on `counterparties` under the owner's Client Profiles
+    instruction, alongside migration `e9f2b6c4a173`. No table was added — the
+    client profile IS the counterparty row, and a client's documents ARE its
+    contracts, so nothing beyond that one table changed.
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 209
+    assert sum(len(c) for c in live.values()) == 221
 
 
 # --------------------------------------------------------------------------

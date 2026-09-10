@@ -135,6 +135,7 @@ def list_contracts(
     sort: str = Query(default="created_desc"),
     scope: str = Query(default="own"),
     archived: bool = Query(default=False),
+    counterparty_id: str | None = Query(default=None, max_length=64),
 ) -> dict:
     """49.6 — the same object-level scope as ``GET /contracts/{id}``.
 
@@ -147,6 +148,13 @@ def list_contracts(
 
     ``archived=true`` lists ONLY archived contracts (AB-12 r6) — the shelf, kept
     apart from the working list rather than mixed into it.
+
+    ``counterparty_id`` narrows to one client, and the literal ``none`` narrows
+    to the contracts linked to NO client (2026-09-10, Client Profiles): that is
+    what the "link an existing document to this client" picker offers, so a
+    document already in LegalMind never has to be uploaded a second time just
+    because Client Profiles arrived. It only ever narrows the caller's own
+    scoped set — never a way to reach another owner's paper.
     """
     guard.permission(P.CONTRACT_VIEW)
     stmt = _scoped_contracts(guard, scope, archived=archived)
@@ -154,6 +162,14 @@ def list_contracts(
         stmt = stmt.where(M.Contract.name.ilike(f"%{q.strip()}%"))
     if contract_type:
         stmt = stmt.where(M.Contract.contract_type == contract_type)
+    if counterparty_id == "none":
+        stmt = stmt.where(M.Contract.counterparty_id.is_(None))
+    elif counterparty_id:
+        try:
+            stmt = stmt.where(M.Contract.counterparty_id == UUID(counterparty_id))
+        except ValueError:
+            raise BusinessRuleRejected(
+                "counterparty_id must be a UUID or the literal 'none'") from None
 
     order = {
         "created_desc": (M.Contract.created_at.desc(), M.Contract.id.desc()),
@@ -304,12 +320,36 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
 @router.post("/contracts", status_code=201)
 def create_contract(body: ContractCreate,
                     guard: Guard = Depends(get_guard)) -> dict:
+    """`counterparty_id` is optional and new on 2026-09-10 (Client Profiles).
+
+    It exists so an upload begun from a client profile lands linked in ONE
+    call. Create-then-patch instead would leave an orphan contract behind every
+    time the second call failed — the document would then be in LegalMind but
+    not on the client's page, which is the one outcome this feature exists to
+    prevent. Same AB-13 r2 rule as on update: an unknown id is refused rather
+    than stored, `contract.update` is additionally required (naming who a deal
+    is with is maintaining it, r5), and the link is audited, because the "show
+    me everything for this company" view is derived entirely from it.
+    """
     guard.permission(P.CONTRACT_CREATE)
+    if body.counterparty_id is not None:
+        guard.permission(P.CONTRACT_UPDATE)
+        if guard.db.get(M.Counterparty, body.counterparty_id) is None:
+            raise BusinessRuleRejected("unknown counterparty")
     contract = M.Contract(owner_id=guard.user_id, name=body.name,
                           contract_type=body.contract_type,
+                          counterparty_id=body.counterparty_id,
                           status=E.ContractStatus.DRAFT)
     guard.db.add(contract)
     guard.db.flush()
+    if body.counterparty_id is not None:
+        audit.record(
+            guard.db, action=audit.CONTRACT_COUNTERPARTY_LINKED,
+            entity_type="contract", entity_id=contract.id,
+            actor_id=guard.user_id, request_id=guard.request_id,
+            before={"counterparty_id": None},
+            after={"counterparty_id": str(body.counterparty_id)},
+        )
     return data(serialize_contract(contract))
 
 

@@ -51,6 +51,7 @@ import {
   Sparkles,
   Tag,
   UploadCloud,
+  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -66,6 +67,8 @@ export const IconCheckCircle = decorative(CircleCheck);
 export const IconAlertCircle = decorative(CircleAlert);
 export const IconXCircle = decorative(CircleX);
 export const IconSearch = decorative(Search);
+/** Client Profiles' page mark (2026-09-10) — the section is about companies. */
+export const IconUsers = decorative(Users);
 export const IconChevronUp = decorative(ChevronUp);
 export const IconChevronDown = decorative(ChevronDown);
 export const IconChevronRight = decorative(ChevronRight);

@@ -10,6 +10,137 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Client Profiles: the company as the place its documents live (owner instruction, 2026-09-10)
+
+Owner instruction: a **Client Profiles** section where one customer's company information,
+every legal document belonging to them, each document's version history and the existing
+LegalMind analysis all live in one place — and one explicit prohibition: *"All documents
+belonging to a client must appear in ONE SINGLE unified document list… DO NOT organize
+documents into separate folders, sections, cards, tabs or pages based on document type."*
+
+**Built on what already existed. No second document system, and no new table.** AB-13
+(2026-09-06) had already made the counterparty an entity and already linked contracts to it, so
+the requested hierarchy is the schema the repository already had:
+
+```text
+Counterparty (= the client)  →  Contract (= one legal document)  →  DocumentVersion (v1, v2, v3)
+                                                                 →  Review / Findings
+```
+
+A client's documents ARE its contracts. Linking a document to a client sets **one nullable
+column** on the contract that already exists — nothing is copied, no file is stored twice, and
+a document uploaded from a client profile appears on the Dashboard immediately because it went
+through the same `POST /contracts/{id}/document-versions` the Dashboard uses.
+
+**Database — one migration, one table widened.** `e9f2b6c4a173` adds twelve profile columns to
+`counterparties` (7 → 19; total 209 → 221 columns): `legal_name`, `status`, `website`, `city`,
+`state_region`, `country`, four contact fields, `legal_contact_*`, `account_owner_id`. Every one
+is nullable but `status` (NOT NULL, server default `ACTIVE`), and **nothing is backfilled** —
+rule 21's discipline applied to company data: an unknown industry is a fact, and the API omits
+an empty field rather than nulling it so the screen says "Not available" instead of a dash that
+reads as checked. No table added, no enum type added; `status` and the three version roles are
+validated strings in `domain/client_profile.py`, the route owner decision Q2 chose for Document
+Type. Application tables stay at 31 — **C-14 is untouched and stays open**.
+
+⚠️ **The locked-schema snapshot moved, in this same commit** — `test_locked_schema_columns.py`,
+whose own docstring names that as the only permitted way. See *Owner approval still owed* below.
+
+**Version history — the owner's three concepts, kept three.** `COMPANY_DRAFT` (what we sent),
+`CLIENT_MODIFIED` (what came back), `FINAL_SIGNED` (what was executed), declared per version
+into locked 42.4's existing `metadata` JSONB — **no column, no migration**, beside
+`source`/`counterparty`/`effective_date`. It is a THIRD axis and deliberately not a synonym for
+Step 6's `source`: `source` answers "whose paper is this?" and is what the evaluator reasons
+about; `version_role` answers "where in the negotiation is this?" and is filing. A client's
+redline is therefore never the signed copy, and `signed_documents` counts documents with a
+DECLARED `FINAL_SIGNED` version — never the newest one. Nothing is ever inferred from a version
+number, a filename or a date; an unclassified version says "Not classified".
+
+**Nothing was overwritten, and that is structural rather than promised**: `(contract_id,
+version_number)` has been unique since 42.4 and Step 26 makes a version immutable, so a
+revision has always been a new row. This screen makes it visible.
+
+**API — five routes, all `contract.view`/`contract.update` (AB-13 r5, no new permission).**
+`GET /counterparties` gains pagination, `q`/`status`/`industry`/`has_documents`/`sort` and
+optional per-caller stats (the envelope's `data` is still the array every existing caller read —
+`paginated()` adds `pagination` beside it, not around it). `GET /counterparties/{id}` gains each
+contract's versions, `signed` and the Dashboard's own `latest_version`/`latest_analysis`
+projection, reused rather than recomputed. NEW: `GET /counterparties/industries` and
+`GET /counterparties/{id}/activity`. `GET /contracts` gains `counterparty_id`, including the
+literal `none`. `POST /contracts` accepts `counterparty_id` so an upload from a profile lands
+linked in ONE call rather than leaving an orphan when a second call fails.
+
+⚠️ **AB-13 r6 still holds, and the screen does not widen it.** r6 forbids an endpoint that lists
+every counterparty, and Client Profiles is a better surface over the SAME scoped set — every
+route resolves through the one `_all_visible_ids`, and the header count is per-caller for that
+reason ("11 clients **you work with**", never an organisation-wide total). The structural
+tripwire `test_no_endpoint_lists_every_counterparty` was updated to record that confrontation
+rather than merely widened. **Activity deliberately does not take `audit.view`**: that
+permission gates the system-wide trail an ordinary Department User rightly does not hold, so the
+feed is bounded to the entity ids this caller can already reach, and it returns **no
+before/after payload** (`LEGAL-02`).
+
+**Activity is the existing audit trail, re-read — not a second history.** `audit_events` (42.18,
+AUD-01) already recorded every event asked for. Nothing new is written for this screen.
+
+**Frontend — `/dashboard/clients`, nav item "Client Profiles", gated on `contract.view` alone**
+(the owner: *"Do NOT make this Admin-only by default"*). A directory table, then a client
+workspace: a 236px rail for switching, and everything else the client's. Deliberately **not the
+Dashboard**: full-bleed rather than its centred 72rem column, **no stat tiles** (DESIGN.md's
+anti-patterns rule out stat cards that are not a real field), and the colour budget spent on the
+document rows rather than on the client — a client's own ACTIVE status is a neutral dot plus the
+word, because painting it the green that means "Acceptable" would put a filing state into a
+legal channel (DESIGN.md: "never let two axes share a visual channel"). One plain-CSS
+`.ws-cl*` block; **no framework, component library or dependency added** (rule 19).
+
+**Analysis is the existing engine, reached the existing way.** A row's Analyze calls the same
+`chainAnalysis`; a document opens in the existing workspace; Compare opens the existing
+comparison (`?compare=1` was wired into `WorkspacePage` for it, rather than growing a second
+comparison — the alternative was a button that navigated to a closed panel). No LLM, RAG,
+embedding or vector work was introduced, and no analysis status vocabulary competes with
+`AM-56`'s three reader words.
+
+**The rendered UI was reviewed in a browser, and nine defects were found and fixed there**, not
+in review of the source: a bare "Loading clients…" in an empty viewport (now a header-preserving
+skeleton); a rail that said "No clients yet" to an account with eleven of them (`[]` conflated
+"none" with "not yet loaded"); raw `ORDER_FORM`/`PRIVACY_POLICY` codes in the type chip (now
+short words — **also corrected on the Dashboard**, which rendered the same field the same wrong
+way, because leaving it would have meant introducing the inconsistency); six primary-blue
+Analyze buttons out-shouting the document names; a truncated version-role select; eleven
+outlined "Open" buttons; the active tab losing its accent under `:hover` (a specificity defect,
+measured in the DOM); a form sprawling to six columns with a full-bleed name field; and its
+action row floating 330px right of the last input.
+
+**Verification**, measured after rebasing onto the workspace fix pass (PR #23) rather than
+against the pre-#23 tree: backend 1454 → **1488 passed**, 142 skipped (PR #23's own count,
+unchanged by this work), 1 xfailed; frontend 351 → **380 passed** in 28 files, typecheck and
+`check:terms` clean, production build clean. So Client Profiles adds **+34 backend and +29
+frontend** tests and hides no skip. **12 new browser tests** (`e2e/client-profiles.spec.ts`)
+including six document types in one `<tbody>` as a DOM fact, three versions surviving, the
+link-not-copy path, the existing engine, the scope boundary, and the layout measured (rail
+< 260px, workspace > 3.5× the rail).
+
+**Not deployed.** The migration is applied to the live database (additive and nullable, so the
+running API is unaffected), but the API has not been restarted and the frontend has not been
+deployed — `.next` is untouched.
+
+### Owner approval still owed on three points
+
+Recorded rather than assumed (rules 5, 6, 19):
+
+1. **The schema addition has no lock record.** The owner's instruction ("Implement necessary
+   database/model changes… Only add the minimum required schema") is the authorisation this was
+   built under, and `IMPL-01` confers none. If the twelve columns and the `version_role` axis are
+   to be *locked*, they need an appended `all_lock.md` record; `all_lock.md` was **not** touched.
+2. **Three requested document types do not exist and were not added.** The instruction lists
+   Partner Agreement, Vendor Agreement and Distribution Agreement; locked **Step 6** fixes exactly
+   ten types and adding one is a locked-decision change (rule 6). They are filed as `OTHER`.
+   **SOW was correctly not added** — the instruction forbids it and Step 6 never had it.
+3. **A "company directory" remains forbidden.** The list shows only clients the caller shares a
+   contract with. Showing every company in the organisation is a disclosure decision under
+   AB-13 r6 / `SEC-07`, not a UI setting.
+
+---
+
 ### Fixed — the workspace as a legal-review surface: adaptive panes, a real Contents tree, Ask as a column, the standard beside an answer (owner, 2026-09-10)
 
 Owner review of the live workspace, eleven items, each traced to its cause before anything was
@@ -73,6 +204,7 @@ e2e `workspace-viewports.spec.ts` at 1366×768, 1536×864 and 1920×1080 (pane f
 row, no `§`, Ask takes the column and a tab click closes it); outline selectors in four specs moved
 to `.ws-outline__jump` because the chevrons are buttons too. Backend: two new tests in
 `test_assist_ask.py`, one domains pin extended to name POSITIONS.
+
 
 ### Changed — the workspace is document-primary, and Ask is docked (`AM-57`, AB-18, owner, 2026-09-09)
 

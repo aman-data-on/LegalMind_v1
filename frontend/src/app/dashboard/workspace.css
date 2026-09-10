@@ -3514,3 +3514,514 @@
   .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
   .ws-facts--compare dd + dt { border-left: 0; }
 }
+
+/* ==========================================================================
+ * CLIENT PROFILES (owner instruction, 2026-09-10) — `.ws-cl*`
+ *
+ * A client FILE, deliberately not a second dashboard. The distinction is
+ * carried by three choices, and each one is a decision rather than a style:
+ *
+ * 1. FULL BLEED. `.ws-docs` is a centred 72rem column, which is right for a
+ *    working queue. A client file is a rail plus a document, so it takes the
+ *    whole width — that is what makes the two screens feel different before a
+ *    word is read, and it is what the owner asked for ("proper placement and
+ *    use of the full desktop screen").
+ * 2. NO STAT TILES. DESIGN.md's anti-patterns rule out stat cards that are not
+ *    a real field with a defined meaning. The two counts that matter here are
+ *    two words in the header; every other number belongs to its row.
+ * 3. THE COLOUR BUDGET GOES TO THE DOCUMENTS. A client's own status is a dot
+ *    and a word in neutrals — see `.ws-cl__status` — so the green/amber/indigo
+ *    on this screen means exactly what it means everywhere else in the product:
+ *    a document needs attention. Painting a client ACTIVE in the same green as
+ *    "Acceptable" would put a filing state into a legal channel, which
+ *    DESIGN.md forbids ("never let two axes share a visual channel").
+ * ========================================================================== */
+
+.ws {
+  /* The rail. Narrow on purpose: it is for SWITCHING clients, and every pixel
+     beyond what a company name needs is a pixel taken from the document list.
+     Deliberately a touch tighter than the workspace's clause index (264px),
+     which has to hold clause numbers and titles. */
+  --ws-cl-rail-w: 236px;
+}
+
+.ws-cl { min-width: 0; }
+
+/* ---- the directory ------------------------------------------------------ */
+.ws-cl--index {
+  padding: var(--ws-s5) var(--ws-s5) var(--ws-s7);
+  display: flex; flex-direction: column; gap: var(--ws-s4);
+  /* Wide, but not unbounded: eight columns want room, and a table stretched
+     across a 4K display puts the action column a head-turn from the name. */
+  max-width: 104rem; width: 100%;
+}
+
+.ws-cl__toolbar {
+  display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap;
+}
+.ws-cl__spacer { flex: 1; }
+
+.ws-cl__search { position: relative; display: flex; align-items: center; min-width: 240px; }
+.ws-cl__searchicon {
+  position: absolute; left: 10px; display: inline-flex;
+  color: var(--ws-ink-500); pointer-events: none;
+}
+.ws-cl__search input {
+  font: inherit; font-size: var(--ws-text-sm);
+  padding: 8px 10px 8px 30px; min-height: 36px; width: 100%;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900);
+}
+.ws-cl__select select, .ws-cl__filter select {
+  font: inherit; font-size: var(--ws-text-sm);
+  padding: 8px 10px; min-height: 36px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-700);
+}
+.ws-cl__search input:focus-visible,
+.ws-cl__select select:focus-visible,
+.ws-cl__filter select:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 1px;
+  border-color: var(--ws-accent);
+}
+
+/* One table treatment for both tables on this screen — the directory and the
+   client's own documents. They are the same kind of object and read as one
+   system; the Dashboard's own table keeps its own rules. */
+.ws-cl__table {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  overflow-x: auto;
+}
+.ws-cl__table table { width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm); }
+.ws-cl__table th {
+  text-align: left; font-size: var(--ws-text-xs); font-weight: 650;
+  letter-spacing: 0.02em; color: var(--ws-ink-500);
+  background: var(--ws-paper); white-space: nowrap;
+  padding: 10px var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-cl__table td {
+  padding: 11px var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+  vertical-align: middle; color: var(--ws-ink-700);
+}
+.ws-cl__table tbody tr:last-child td { border-bottom: 0; }
+.ws-cl__table tbody tr { transition: background-color var(--ws-t); }
+.ws-cl__table tbody tr:hover td { background: var(--ws-accent-soft); }
+/* ...except the disclosed version panel, which is already inside its row and
+   must not light up as if it were a row of its own. */
+.ws-cl__table tbody tr.ws-cl__verrow:hover td { background: var(--ws-surface); }
+.ws-cl__table tr.ws-tr--attention td:first-child {
+  box-shadow: inset 3px 0 0 var(--ws-tone-warn);
+}
+
+/* The loading shape. Rows the height of real ones, so data arriving replaces
+   equal blocks instead of pushing the page (DESIGN.md; and the shimmer stops
+   under `prefers-reduced-motion`, which globals.css already handles). */
+.ws-cl__table--skel table { border-collapse: collapse; }
+.ws-cl__skel {
+  display: flex; gap: var(--ws-s5); align-items: center;
+  padding: 14px var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-cl__skel:last-child { border-bottom: 0; }
+
+/* The row's own action: a link, deliberately unadorned. */
+.ws-cl__rowact { text-align: right; white-space: nowrap; }
+.ws-cl__rowact a {
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-accent);
+  text-decoration: none;
+}
+.ws-cl__rowact a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* A company in a row: initials, name, where they are. */
+.ws-cl__row {
+  display: inline-flex; align-items: center; gap: 10px;
+  text-decoration: none; color: inherit; min-width: 0;
+}
+.ws-cl__rowtext { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ws-cl__rowname {
+  font-weight: 600; color: var(--ws-ink-900); font-size: var(--ws-text-sm);
+}
+.ws-cl__row:hover .ws-cl__rowname { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
+.ws-cl__rowloc { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* ---- the initials block ------------------------------------------------- */
+.ws-cl__avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; border-radius: var(--ws-radius-sm);
+  background: var(--ws-ink-100); color: var(--ws-ink-700);
+  font-weight: 650; letter-spacing: 0.01em; font-variant-numeric: tabular-nums;
+}
+.ws-cl__avatar--sm { width: 24px; height: 24px; font-size: 10px; }
+.ws-cl__avatar--md { width: 30px; height: 30px; font-size: 11px; }
+.ws-cl__avatar--lg {
+  width: 44px; height: 44px; font-size: var(--ws-text-md);
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+}
+
+/* ---- a client's own status: neutral by design (see the banner) ---------- */
+.ws-cl__status {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+}
+.ws-cl__dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--ws-ink-500); background: var(--ws-ink-500);
+}
+/* Filled and dark = live; outlined = not yet; hollow and pale = dormant. Three
+   readings from fill and weight, no hue, and the word is always beside it. */
+.ws-cl__status--active .ws-cl__dot { border-color: var(--ws-ink-700); background: var(--ws-ink-700); }
+.ws-cl__status--prospective .ws-cl__dot { border-color: var(--ws-ink-500); background: transparent; }
+.ws-cl__status--inactive { color: var(--ws-ink-500); }
+.ws-cl__status--inactive .ws-cl__dot { border-color: var(--ws-ink-300); background: transparent; }
+
+/* "Not available" / "Not recorded" — quiet, italic, unmistakably not a value. */
+.ws-cl__absent { color: var(--ws-ink-500); font-style: italic; font-size: var(--ws-text-xs); }
+
+/* ---- the client workspace ---------------------------------------------- */
+.ws-cl--work {
+  display: grid; grid-template-columns: var(--ws-cl-rail-w) minmax(0, 1fr);
+  align-items: start; min-height: 0; flex: 1;
+}
+
+.ws-cl__rail {
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+  padding: var(--ws-s4) var(--ws-s3);
+  background: var(--ws-surface); border-right: 1px solid var(--ws-ink-100);
+  /* Its own scroll, so a long client list never drags the document table with
+     it — the scroll-ownership rule DD-13 settled for the workspace. */
+  position: sticky; top: 0; align-self: stretch;
+  max-height: calc(100dvh - var(--ws-shell-h)); overflow-y: auto;
+}
+.ws-cl__rail-head {
+  display: flex; align-items: baseline; gap: var(--ws-s2);
+  padding: 0 var(--ws-s1) var(--ws-s1);
+}
+.ws-cl__rail-back {
+  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ws-ink-500); text-decoration: none;
+}
+.ws-cl__rail-back:hover { color: var(--ws-accent); }
+.ws-cl__rail-total { margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* Search and Add share a row: the button spanned the rail's full width and
+   read as a banner rather than a control, and at tablet width the collapsed
+   rail was spending 250px of vertical space on two stacked controls. */
+.ws-cl__rail-tools { display: flex; gap: var(--ws-s2); align-items: center; }
+.ws-cl__rail-search { flex: 1; min-width: 0; }
+.ws-cl__rail-search input {
+  font: inherit; font-size: var(--ws-text-sm); width: 100%;
+  padding: 7px 9px; min-height: 34px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface);
+}
+.ws-cl__rail-search input:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.ws-cl__rail-add { flex: none; white-space: nowrap; }
+.ws-cl__rail-empty { padding: var(--ws-s3) var(--ws-s1); }
+
+.ws-cl__raillist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.ws-cl__railitem {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 7px 9px; border-radius: var(--ws-radius-sm);
+  text-decoration: none; color: var(--ws-ink-700);
+  border-left: 2px solid transparent;
+  transition: background-color var(--ws-t), border-color var(--ws-t);
+}
+.ws-cl__railitem:hover { background: var(--ws-paper); }
+/* Subtle but unmistakable: a left edge in the accent plus a tinted ground.
+   No bold-and-boxed treatment — the rail is orientation, not the subject. */
+.ws-cl__railitem--active {
+  background: var(--ws-accent-soft); border-left-color: var(--ws-accent);
+}
+.ws-cl__railname {
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-cl__railitem--active .ws-cl__railname { color: var(--ws-accent); }
+
+.ws-cl__main {
+  min-width: 0;
+  padding: var(--ws-s4) var(--ws-s5) var(--ws-s7);
+  display: flex; flex-direction: column; gap: var(--ws-s4);
+}
+
+.ws-cl__crumbs {
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+}
+.ws-cl__crumbs a { color: var(--ws-ink-500); text-decoration: none; }
+.ws-cl__crumbs a:hover { color: var(--ws-accent); text-decoration: underline; }
+.ws-cl__crumbs span[aria-current] { color: var(--ws-ink-700); font-weight: 550; }
+.ws-cl__crumbs svg { display: block; }
+
+/* The client header. One row, no card: the client IS the page, so putting its
+   own name inside a bordered box would nest the page in itself. */
+.ws-cl__head {
+  display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap;
+  padding-bottom: var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-cl__headtext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ws-cl__headline { display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
+.ws-cl__headline h1 {
+  margin: 0; font-size: var(--ws-text-xl); font-weight: 650;
+  letter-spacing: -0.012em; color: var(--ws-ink-900);
+}
+.ws-cl__headmeta {
+  margin: 0; display: flex; align-items: center; gap: var(--ws-s3);
+  flex-wrap: wrap; font-size: var(--ws-text-sm); color: var(--ws-ink-500);
+}
+/* A middot between the metadata parts, drawn rather than typed so no part has
+   to know whether it is last. */
+.ws-cl__headmeta > span + span::before {
+  content: "·"; margin-right: var(--ws-s3); color: var(--ws-ink-300);
+}
+.ws-cl__headcounts {
+  display: flex; align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: nowrap;
+}
+/* The one count that earns a colour: "is it signed?" is the question the owner
+   named first, and it is a fact about the file rather than a legal judgement. */
+.ws-cl__signed { color: var(--ws-tone-ok); font-weight: 600; }
+
+/* The compact information strip — a row of pairs, never five cards. */
+.ws-cl__strip {
+  margin: 0; display: grid; gap: var(--ws-s3) var(--ws-s5);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  padding: var(--ws-s3) 0; border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-cl__fact { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ws-cl__fact dt {
+  font-size: var(--ws-text-xs); font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ws-ink-500);
+}
+.ws-cl__fact dd {
+  margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+  overflow-wrap: anywhere;
+}
+.ws-cl__fact dd a { color: var(--ws-accent); text-decoration: none; }
+.ws-cl__fact dd a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Tabs. Real ones — each owns a panel — so the underline idiom is honest here
+   in a way the Dashboard's scope buttons were not (2026-09-08). Deliberately
+   NOT `.ws-tabs`, whose active state is a filled dark pill: that reads as a
+   segmented control for switching a query, and these switch a section. */
+.ws-cl__tabs {
+  display: flex; gap: var(--ws-s4); align-items: center;
+  border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-cl__tab {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  color: var(--ws-ink-500); padding: 9px 2px 10px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color var(--ws-t), border-color var(--ws-t);
+}
+.ws-cl__tab:hover { color: var(--ws-ink-900); }
+/* `:hover` outranks a plain class (0,2,0 against 0,1,0), so the ACTIVE tab lost
+   its accent the moment the pointer rested on it — measured, not guessed: the
+   selected tab computed to ink-900 while its underline stayed accent, which
+   reads as two different tabs being active. Naming `:hover` on the active rule
+   settles it in the right direction. */
+.ws-cl__tab--active,
+.ws-cl__tab--active:hover { color: var(--ws-accent); border-bottom-color: var(--ws-accent); }
+.ws-cl__tab:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; border-radius: 3px; }
+.ws-cl__panel { min-width: 0; }
+.ws-cl__panel:focus-visible { outline: none; }
+
+/* ---- the documents tab ------------------------------------------------- */
+.ws-cl__docs { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.ws-cl__docs-head { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-cl__docs-head h2 {
+  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+}
+.ws-cl__docs-count {
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
+  border-radius: 20px; padding: 1px 8px;
+}
+.ws-cl__docname { font-weight: 600; color: var(--ws-ink-900); text-decoration: none; }
+.ws-cl__docname:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
+.ws-cl__rowacts { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+/* The status cell stacks the bucket pill over the three reader counts — one
+   above the other, because they answer two different questions and side by
+   side they read as one compound badge. */
+.ws-cl__table td .ws-status-pill + .ws-findings-cell { margin-top: 5px; }
+
+.ws-cl__vertoggle {
+  appearance: none; background: none; border: 0; cursor: pointer; font: inherit;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 0;
+}
+.ws-cl__vertoggle:hover { color: var(--ws-accent); }
+.ws-cl__vertoggle:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; border-radius: 3px; }
+.ws-cl__chev { display: inline-flex; transition: transform var(--ws-t); }
+.ws-cl__chev--open { transform: rotate(90deg); }
+
+/* The version panel: inset, on the page ground, so it reads as belonging
+   UNDER its document rather than as another row of the table. */
+.ws-cl__verrow td { padding: 0 !important; }
+.ws-cl__vers {
+  background: var(--ws-paper); border-top: 1px solid var(--ws-ink-100);
+  padding: var(--ws-s3) var(--ws-s4) var(--ws-s3) var(--ws-s5);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-cl__verlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.ws-cl__ver {
+  display: grid; align-items: center; gap: var(--ws-s3);
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  padding: 8px 10px; border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+}
+.ws-cl__ver-n {
+  font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-500);
+  font-variant-numeric: tabular-nums;
+}
+.ws-cl__ver-main { display: flex; align-items: center; gap: var(--ws-s2); min-width: 0; flex-wrap: wrap; }
+.ws-cl__ver-file {
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-cl__ver-when { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+.ws-cl__ver-current { color: var(--ws-ink-700); font-weight: 600; }
+.ws-cl__ver-acts { display: flex; align-items: center; gap: 6px; }
+.ws-cl__ver-error { grid-column: 1 / -1; margin: 4px 0 0; }
+.ws-cl__rolepick select {
+  font: inherit; font-size: var(--ws-text-xs); padding: 4px 6px; min-height: 28px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-700); max-width: 190px;
+}
+
+/* The declared role. Only the executed copy carries colour — see the banner. */
+.ws-cl__role {
+  display: inline-flex; align-items: center; white-space: nowrap;
+  font-size: var(--ws-text-xs); font-weight: 600; padding: 1px 7px;
+  border-radius: 20px; border: 1px solid var(--ws-ink-300); color: var(--ws-ink-700);
+}
+.ws-cl__role--ok {
+  background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok);
+  border-color: color-mix(in srgb, var(--ws-tone-ok) 28%, transparent);
+}
+
+/* ---- forms (add / edit / upload / link) — disclosures, never modals ----- */
+.ws-cl__form, .ws-cl__upload, .ws-cl__link {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s4) var(--ws-s5);
+  display: flex; flex-direction: column; gap: var(--ws-s4);
+}
+.ws-cl__form-head { display: flex; flex-direction: column; gap: 4px; }
+.ws-cl__form-head h2, .ws-cl__upload h3, .ws-cl__link-head h3 {
+  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+}
+.ws-cl__form-grid, .ws-cl__upload-grid {
+  display: grid; gap: var(--ws-s3) var(--ws-s4);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  align-items: start;
+  /* Capped, or `auto-fit` gives SIX columns of short inputs at 1440px and the
+     form reads as a spreadsheet. Four is the widest that still looks composed,
+     and the cap is on the grid rather than the card so the Notes field and the
+     action row still align to the card's own edges. */
+  max-width: 60rem;
+}
+/* Full width for the NOTES field, which genuinely wants the room. */
+.ws-cl__form-wide { grid-column: 1 / -1; }
+/* ...but not for the company name: stretched across the whole card it read as
+   a textarea and made the one required field the least form-like thing on the
+   screen. Two columns where there is room, one when there is not. */
+.ws-cl__form-name { grid-column: span 2; }
+@media (max-width: 640px) { .ws-cl__form-name { grid-column: span 1; } }
+.ws-cl__form-acts { display: flex; align-items: center; gap: var(--ws-s2); justify-content: flex-end; }
+/* The actions align with the FIELDS, not with the card. The field grid is
+   capped at 60rem so it does not sprawl into six columns; without the same cap
+   here, Cancel and Add sat ~330px to the right of the last input at 1440px,
+   which reads as two unrelated regions rather than one form. */
+.ws-cl__form > .ws-cl__form-acts,
+.ws-cl__upload > .ws-cl__form-acts,
+.ws-cl__form > .ws-cl__form-head,
+.ws-cl__form > .ws-field__error,
+.ws-cl__upload > .ws-field__error { max-width: 60rem; }
+.ws-cl__form textarea, .ws-cl__notes textarea {
+  font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900); resize: vertical;
+}
+.ws-cl__form textarea:focus-visible, .ws-cl__notes textarea:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 1px; border-color: var(--ws-accent);
+}
+/* The duplicate warning: informative, not an error — nothing is wrong yet, and
+   only the person typing knows whether these are two companies or one. */
+.ws-cl__dupe {
+  grid-column: 1 / -1; margin: 0; max-width: 60rem;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5;
+  background: var(--ws-warn-soft); border: 1px solid color-mix(in srgb, var(--ws-warn) 25%, transparent);
+  border-radius: var(--ws-radius-sm); padding: 8px 11px;
+}
+.ws-cl__dupe a { color: var(--ws-accent); }
+
+.ws-cl__link-head { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-cl__linklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; max-height: 320px; overflow-y: auto; }
+.ws-cl__linklist li {
+  display: flex; align-items: center; gap: var(--ws-s3);
+  padding: 8px 10px; border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+}
+.ws-cl__linklist li:hover { background: var(--ws-paper); }
+.ws-cl__linkname { font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-cl__linkwhen { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+
+/* ---- details / notes / activity ---------------------------------------- */
+.ws-cl__details, .ws-cl__notes, .ws-cl__activity {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s4) var(--ws-s5);
+  display: flex; flex-direction: column; gap: var(--ws-s3);
+}
+.ws-cl__notes h2, .ws-cl__activity h2:not(.ws-visually-hidden) {
+  margin: 0; font-size: var(--ws-text-md); font-weight: 650;
+}
+.ws-cl__factgrid {
+  margin: 0; display: grid; gap: var(--ws-s4) var(--ws-s5);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.ws-cl__notetext { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.6; white-space: pre-wrap; }
+
+.ws-cl__timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ws-cl__timeline li {
+  display: grid; gap: var(--ws-s3); align-items: baseline;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  padding: 9px 0; border-bottom: 1px solid var(--ws-ink-100);
+  font-size: var(--ws-text-sm);
+}
+.ws-cl__timeline li:last-child { border-bottom: 0; }
+.ws-cl__when { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+.ws-cl__what { color: var(--ws-ink-900); min-width: 0; }
+.ws-cl__subject { color: var(--ws-ink-500); }
+.ws-cl__who { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+
+/* ---- narrow viewports --------------------------------------------------
+ * DESIGN.md's responsive principle: a realistic desktop/laptop range first,
+ * tablet second, and a collapse must never DROP a column that carries state.
+ * Below 1100px the rail stops being a column and becomes a strip above the
+ * client — nothing is hidden, the tables keep every column and scroll inside
+ * their own bounded container.
+ * -------------------------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .ws-cl--work { grid-template-columns: minmax(0, 1fr); }
+  .ws-cl__rail {
+    position: static; max-height: none; border-right: 0;
+    border-bottom: 1px solid var(--ws-ink-100);
+  }
+  .ws-cl__raillist {
+    flex-direction: row; overflow-x: auto; gap: var(--ws-s2); padding-bottom: 2px;
+  }
+  .ws-cl__railitem { border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .ws-cl__railitem--active { border-left: 0; border-bottom-color: var(--ws-accent); }
+  .ws-cl__main { padding: var(--ws-s4); }
+  .ws-cl--index { padding: var(--ws-s4); }
+}
+
+@media (max-width: 760px) {
+  .ws-cl__head { align-items: flex-start; }
+  .ws-cl__headline h1 { font-size: var(--ws-text-lg); }
+  .ws-cl__ver { grid-template-columns: 34px minmax(0, 1fr); }
+  .ws-cl__ver-when, .ws-cl__ver-acts { grid-column: 2; }
+  .ws-cl__timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

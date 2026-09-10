@@ -18,6 +18,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from legalmind.domain.client_profile import is_client_status, is_version_role
 from legalmind.domain.document_types import is_document_source, is_document_type
 from legalmind.domain.enums import (
     ContractStatus,
@@ -85,6 +86,13 @@ class LoginRequest(Body):
 class ContractCreate(Body):
     name: str = Field(min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
+    #: Who this deal is with (2026-09-10, Client Profiles). Optional and absent
+    #: for every existing caller. It exists so an upload started FROM a client
+    #: profile lands linked in one call rather than as create-then-patch, which
+    #: would leave an unlinked contract behind whenever the second call failed.
+    #: The same AB-13 r2 rule applies as on update: an unknown id is refused
+    #: rather than stored, because a dangling link is worse than no link.
+    counterparty_id: UUID | None = None
 
     _contract_type = field_validator("contract_type")(_validate_contract_type)
 
@@ -104,18 +112,66 @@ class ContractUpdate(Body):
     _contract_type = field_validator("contract_type")(_validate_contract_type)
 
 
-class CounterpartyCreate(Body):
-    """AB-13 r1 — the profile, and nothing more.
+#: The Client Profile's free-text fields (2026-09-10) — every one optional on
+#: both create and update, and every one trimmed to None when blank. Listed once
+#: so create and update cannot drift apart, and so the trimming validator below
+#: cannot be applied to some of them and forgotten on the rest.
+_PROFILE_TEXT_FIELDS: tuple[str, ...] = (
+    "legal_name", "website", "city", "state_region", "country",
+    "primary_contact_name", "primary_contact_email", "primary_contact_phone",
+    "legal_contact_name", "legal_contact_email",
+)
 
-    `industry` and `relationship_notes` are optional and stay empty unless a
-    human types them: rule 21 forbids inventing company or industry
-    information, and "not known yet" is the normal state of a counterparty.
+
+def _validate_client_status(value: str | None) -> str | None:
+    """`domain.client_profile.CLIENT_STATUSES`, when one is supplied at all.
+
+    ``None`` stays legal: on create the column's own default applies, and on
+    update an omitted field means "untouched". A value outside the list is
+    refused rather than coerced — a status the list does not know is a filter
+    that would quietly match nothing.
+    """
+    if value is not None and not is_client_status(value):
+        raise ValueError(
+            f"unknown client status {value!r}; permitted values are "
+            "ACTIVE, PROSPECTIVE, INACTIVE")
+    return value
+
+
+class CounterpartyCreate(Body):
+    """AB-13 r1's profile, widened by the owner's Client Profiles instruction
+    (2026-09-10).
+
+    Only `name` is required — it is the identity, and the owner's instruction
+    says so directly ("Company Name should be the primary identifying field").
+    Everything else is optional and stays empty unless a human types it: rule
+    21 forbids inventing company information, and "not known yet" is the normal
+    state of a client, not a gap for the system to fill.
     """
     name: str = Field(min_length=1, max_length=500)
     industry: str | None = Field(default=None, max_length=200)
     relationship_notes: str | None = Field(default=None, max_length=5000)
+    status: str | None = Field(default=None, max_length=40)
+    legal_name: str | None = Field(default=None, max_length=500)
+    website: str | None = Field(default=None, max_length=500)
+    city: str | None = Field(default=None, max_length=200)
+    state_region: str | None = Field(default=None, max_length=200)
+    country: str | None = Field(default=None, max_length=200)
+    primary_contact_name: str | None = Field(default=None, max_length=200)
+    primary_contact_email: str | None = Field(default=None, max_length=320)
+    primary_contact_phone: str | None = Field(default=None, max_length=60)
+    legal_contact_name: str | None = Field(default=None, max_length=200)
+    legal_contact_email: str | None = Field(default=None, max_length=320)
+    #: Who inside the organisation owns the relationship. Refused unless the id
+    #: names a real user, and the router additionally holds it to the caller's
+    #: own department — this field must not become a probe for other
+    #: departments' accounts (the rule `contract.transfer` already follows).
+    account_owner_id: UUID | None = None
 
-    @field_validator("name", "industry", "relationship_notes")
+    _status = field_validator("status")(_validate_client_status)
+
+    @field_validator("name", "industry", "relationship_notes",
+                     *_PROFILE_TEXT_FIELDS)
     @classmethod
     def _trim(cls, value: str | None) -> str | None:
         stripped = value.strip() if value is not None else None
@@ -125,12 +181,27 @@ class CounterpartyCreate(Body):
 class CounterpartyUpdate(Body):
     """Every field optional; a field left out is untouched, and one sent as
     null is cleared. `name` cannot be cleared — a company with no name is not
-    an identity anyone can use."""
+    an identity anyone can use — and neither can `status`, which is NOT NULL."""
     name: str | None = Field(default=None, min_length=1, max_length=500)
     industry: str | None = Field(default=None, max_length=200)
     relationship_notes: str | None = Field(default=None, max_length=5000)
+    status: str | None = Field(default=None, max_length=40)
+    legal_name: str | None = Field(default=None, max_length=500)
+    website: str | None = Field(default=None, max_length=500)
+    city: str | None = Field(default=None, max_length=200)
+    state_region: str | None = Field(default=None, max_length=200)
+    country: str | None = Field(default=None, max_length=200)
+    primary_contact_name: str | None = Field(default=None, max_length=200)
+    primary_contact_email: str | None = Field(default=None, max_length=320)
+    primary_contact_phone: str | None = Field(default=None, max_length=60)
+    legal_contact_name: str | None = Field(default=None, max_length=200)
+    legal_contact_email: str | None = Field(default=None, max_length=320)
+    account_owner_id: UUID | None = None
 
-    @field_validator("name", "industry", "relationship_notes")
+    _status = field_validator("status")(_validate_client_status)
+
+    @field_validator("name", "industry", "relationship_notes",
+                     *_PROFILE_TEXT_FIELDS)
     @classmethod
     def _trim(cls, value: str | None) -> str | None:
         stripped = value.strip() if value is not None else None
@@ -147,6 +218,25 @@ class DocumentVersionDeclare(Body):
     source: str | None = None
     counterparty: str | None = Field(default=None, max_length=500)
     effective_date: date | None = None
+    #: What this version IS in the negotiation — COMPANY_DRAFT (what we sent),
+    #: CLIENT_MODIFIED (what came back), FINAL_SIGNED (what was executed).
+    #: Owner's Client Profiles instruction, 2026-09-10.
+    #:
+    #: ⚠️ A THIRD axis, not a synonym for `source`. `source` says whose paper it
+    #: is and is what the evaluator reasons about; this says where in the
+    #: negotiation it sits and is filing only. In particular FINAL_SIGNED is not
+    #: "the counterparty's version" and CLIENT_MODIFIED is emphatically not the
+    #: signed one — the owner named that confusion as the thing to avoid.
+    version_role: str | None = None
+
+    @field_validator("version_role")
+    @classmethod
+    def _version_role(cls, value: str | None) -> str | None:
+        if value is not None and not is_version_role(value):
+            raise ValueError(
+                f"unknown version role {value!r}; permitted values are "
+                "COMPANY_DRAFT, CLIENT_MODIFIED, FINAL_SIGNED")
+        return value
 
     @field_validator("source")
     @classmethod

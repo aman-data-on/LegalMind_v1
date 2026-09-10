@@ -27,6 +27,30 @@ export function documentTypeLabel(code: string | null | undefined): string {
 }
 
 /**
+ * The type as a CHIP — short enough for a table column, and still a word.
+ *
+ * The raw Step 6 code is the wrong thing to render: `ORDER_FORM` and
+ * `PRIVACY_POLICY` put an underscore in front of a reader, and the owner's
+ * instruction is explicit that the chip should read "MSA / NDA / SLA /
+ * Amendment / PO / Other". The initialisms stay initialisms because that is
+ * what people call them; the multi-word codes become words.
+ *
+ * The full label is still available for the chip's `title` and for a select,
+ * so nothing is lost — this is the short form, not a replacement vocabulary.
+ * The CODE remains the only thing sent to or from the server.
+ */
+const TYPE_CHIP: Record<string, string> = {
+  PRIVACY_POLICY: "Privacy",
+  ORDER_FORM: "Order form",
+  AMENDMENT: "Amendment",
+};
+
+export function documentTypeChip(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return TYPE_CHIP[code] ?? code;
+}
+
+/**
  * A name for the contract, derived from the file the user chose — an editable
  * DEFAULT, never a demand (2026-08-31 UX correction): the filename already
  * carries the natural label, and identity/audit live on ids and the preserved
@@ -102,4 +126,107 @@ export function documentSourceChip(value: string | null | undefined): string | n
   if (value === "ORGANIZATION") return "Our document";
   if (value === "COUNTERPARTY") return "Their document";
   return null;
+}
+
+/**
+ * What a version IS in the negotiation — the owner's three concepts
+ * (2026-09-10). Presentation copy of `VERSION_ROLES` in the backend's
+ * `domain/client_profile.py`; `test_frontend_vocabulary.py` asserts the two
+ * agree, so a drift on either side fails CI.
+ *
+ * Keyed `role`, not `code` or `value`, so neither of the two existing Step 6
+ * sync regexes can pick these up by mistake — the same care `DOCUMENT_SOURCES`
+ * took for the same reason.
+ *
+ * ⚠️ A THIRD axis, distinct from `DOCUMENT_SOURCES`. `source` answers "whose
+ * paper is this?"; this answers "where in the negotiation is this?". The owner
+ * named the confusion to avoid: a client's redline is NOT the signed copy, and
+ * the signed copy is not thereby the client's paper. Declared by a human, never
+ * inferred from the version number, the filename or the date.
+ */
+export const VERSION_ROLES: ReadonlyArray<{ role: string; label: string; hint: string }> = [
+  { role: "COMPANY_DRAFT", label: "Company draft", hint: "What we sent" },
+  { role: "CLIENT_MODIFIED", label: "Client modified", hint: "What came back" },
+  { role: "FINAL_SIGNED", label: "Final signed", hint: "What was executed" },
+];
+
+/** The reader's word for a version role, or null when nobody declared one —
+ *  null so a caller renders the version number alone rather than the word
+ *  "Unknown", which reads as a checked fact. */
+export function versionRoleLabel(role: string | null | undefined): string | null {
+  return VERSION_ROLES.find((r) => r.role === role)?.label ?? null;
+}
+
+/** Which of the three status tones a version role wears. Green for the executed
+ *  copy is the one place a role carries colour, and it is earned: "is this
+ *  signed?" is the question the owner named first. The other two are neutral —
+ *  a draft is not a warning. */
+export function versionRoleTone(role: string | null | undefined): "ok" | "neutral" {
+  return role === "FINAL_SIGNED" ? "ok" : "neutral";
+}
+
+/**
+ * The three client relationship states, in a non-legal reader's words
+ * (2026-09-10). Presentation copy of `CLIENT_STATUSES`; the same vocabulary
+ * test pins it.
+ *
+ * ⚠️ NOT one of the five legal state axes and never rendered in their colours.
+ * A client being INACTIVE says nothing about any document's classification,
+ * rule outcome or decision — it is filing, and `DECISION_STATE_MODEL.md`'s rule
+ * that no two axes share a visual channel applies here too.
+ */
+export const CLIENT_STATUSES: ReadonlyArray<{ state: string; label: string }> = [
+  { state: "ACTIVE", label: "Active" },
+  { state: "PROSPECTIVE", label: "Prospective" },
+  { state: "INACTIVE", label: "Inactive" },
+];
+
+export function clientStatusLabel(state: string | null | undefined): string {
+  return CLIENT_STATUSES.find((s) => s.state === state)?.label ?? state ?? "Active";
+}
+
+/**
+ * A company's initials for its avatar block — at most two letters, from the
+ * first two meaningful words.
+ *
+ * Legal suffixes are skipped: "ABC Technologies Pvt. Ltd." should read "AT",
+ * not "AP", and a list where four companies all show "PL" identifies nothing.
+ * Purely presentational — the full name is always beside it, and the avatar
+ * carries `aria-hidden` because it adds no information a screen reader needs.
+ */
+const NAME_NOISE = new Set([
+  "pvt", "pvt.", "private", "ltd", "ltd.", "limited", "llp", "inc", "inc.",
+  "llc", "plc", "gmbh", "co", "co.", "corp", "corp.", "corporation", "the",
+  "and", "&",
+]);
+
+export function companyInitials(name: string): string {
+  const words = name
+    .split(/[\s,]+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 0 && !NAME_NOISE.has(word.toLowerCase()));
+  // A purely numeric word is not an initial anyone recognises — a registration
+  // number or a year would give "A1" where "AT" was wanted. Dropped only when
+  // a letter-bearing word survives, so a name that is genuinely all digits
+  // still produces something rather than "?".
+  const lettered = words.filter((word) => /[A-Za-z]/.test(word));
+  const source = lettered.length > 0 ? lettered
+    : words.length > 0 ? words : [name.trim()];
+  const letters = source
+    .slice(0, 2)
+    .map((word) => word.replace(/[^A-Za-z0-9]/g, "").charAt(0).toUpperCase())
+    .filter(Boolean)
+    .join("");
+  return letters || "?";
+}
+
+/**
+ * "Mumbai, Maharashtra, India" from whichever parts exist — and null when none
+ * do, so the caller renders nothing rather than a row of stray commas.
+ */
+export function clientLocation(client: {
+  city?: string; state_region?: string; country?: string;
+}): string | null {
+  const parts = [client.city, client.state_region, client.country].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
 }
