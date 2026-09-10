@@ -82,3 +82,33 @@ def test_a_descriptive_answer_is_not_a_verdict():
                  "The parties agree to meet in Mumbai for the review [2].",
                  "The approved vendor list is attached as Schedule B [1]."):
         assert not is_verdict_statement(text), text
+
+
+# --------------------------------------------------------------------------
+# Follow-up detection (2026-09-10) — the deterministic half of conversation memory
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("question", [
+    "What about clause 7?",
+    "What does that mean?",
+    "And the penalty?",
+    "What happens after that?",
+    "Explain more.",
+    "Is it the same for the customer?",
+    "How long is it?",
+])
+def test_a_question_that_cannot_stand_alone_is_a_follow_up(question):
+    from legalmind.assist.intent import is_follow_up
+    assert is_follow_up(question), question
+
+
+@pytest.mark.parametrize("question", [
+    "What is the termination notice period?",
+    "Does the contract allow termination for convenience?",
+    "What is the liability cap under this Agreement?",
+    "Which law governs this document?",
+    "What does section 3 of the Synthetic Widgets Act say about handlers?",
+    "",
+])
+def test_a_self_contained_question_is_not_a_follow_up(question):
+    from legalmind.assist.intent import is_follow_up
+    assert not is_follow_up(question), question

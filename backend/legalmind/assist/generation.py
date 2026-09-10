@@ -72,7 +72,12 @@ DEFAULT_MODEL = "gemini-3.6-flash"
 _ENDPOINT_TEMPLATE = ("https://generativelanguage.googleapis.com/v1beta/models/"
                       "{model}:generateContent")
 
-PROMPT_VERSION = "grounded-answer-1"
+# grounded-answer-2 (2026-09-10): an optional block of the requester's EARLIER questions
+# in the same conversation, so "what about clause 7?" is read against "what is the
+# termination notice period?". Questions only — an earlier answer never egresses
+# (`AM-30` t2: the requester's question and this request's chunk spans). Rendered
+# empty when there is none, so a first question's prompt is byte-identical in shape.
+PROMPT_VERSION = "grounded-answer-2"
 PROMPT_TEMPLATE = """You are a legal document assistant. Answer the question using ONLY \
 the numbered evidence excerpts below. Rules, all mandatory:
 1. Every sentence of your answer MUST end with citation markers like [1] or [2][3] \
@@ -80,13 +85,16 @@ naming the excerpt(s) that support it.
 2. Use nothing but the excerpts. No outside knowledge, no assumptions, no legal advice.
 3. If the excerpts do not answer the question, reply exactly: NOT FOUND
 4. Never state whether anything complies with any standard or policy.
-
+5. Earlier questions, when listed, only tell you what the question refers to. They are \
+not evidence and must never be cited or answered instead of the question.
+{context}
 EVIDENCE:
 {evidence}
 
 QUESTION: {question}
 
 ANSWER:"""
+CONTEXT_HEADER = "EARLIER QUESTIONS IN THIS CONVERSATION (context only, not evidence):"
 
 
 class GenerationRefused(Exception):
@@ -205,15 +213,25 @@ def _forbidden_payload_check(payload: str) -> None:
 
 
 def generate(question: str, evidence: list[str], *,
-             environment: str, request_id: str | None = None) -> GenerationResult:
+             environment: str, request_id: str | None = None,
+             prior_questions: tuple[str, ...] | list[str] = ()) -> GenerationResult:
     """One grounded generation call — the Ask flow's entry to the single seam.
+
+    `prior_questions` — the requester's own earlier questions in this conversation,
+    already bounded by the caller (count and length). Nothing else from the
+    conversation is admitted here: not an earlier answer, not a position, not a
+    statute section (`AM-30` t2/t3, `AM-32` r4).
 
     Raises GenerationRefused when the gate, the payload screen or configuration
     forbids the call — the caller maps that to the identical user-facing refusal
     (`AM-29` r4). Raises GenerationUnavailable on provider failure.
     """
     numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(evidence, start=1))
-    prompt = PROMPT_TEMPLATE.format(evidence=numbered, question=question)
+    context = ""
+    if prior_questions:
+        listed = "\n".join(f"- {q}" for q in prior_questions)
+        context = f"\n{CONTEXT_HEADER}\n{listed}\n"
+    prompt = PROMPT_TEMPLATE.format(evidence=numbered, question=question, context=context)
     return generate_raw(prompt, prompt_version=PROMPT_VERSION,
                         environment=environment, request_id=request_id,
                         evidence_count=len(evidence))

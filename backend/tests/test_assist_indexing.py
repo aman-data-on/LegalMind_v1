@@ -565,3 +565,170 @@ def test_a_zero_width_space_after_the_clause_number_still_splits():
     chunks = chunk_evidence([_row(text)])
     assert len(chunks) == 2, [c.content[:40] for c in chunks]
     assert leading_section_ref(chunks[1].content) == "17.2"
+
+
+# --------------------------------------------------------------------------
+# clause-aware-4 (2026-09-10): the §10 / §10.1 / §10.2 shape, orphan markers, tails,
+# page furniture, and an id-preserving re-index. Owner ruling of the same day: no
+# blanket "under 80 characters" rule — a short legal sentence is valid evidence and
+# stays its own chunk; folding happens only where the document's structure says so.
+# --------------------------------------------------------------------------
+_BODY_10_1 = ("10.1 Either party may terminate this Agreement for convenience on thirty "
+              "(30) days' written notice to the other party.")
+_BODY_10_2 = ("10.2 Either party may terminate this Agreement immediately if the other "
+              "party commits a material breach that remains uncured for fifteen days.")
+
+
+def test_a_bare_clause_number_line_folds_into_the_clause_it_introduces():
+    """The recorded extraction shape: `10.` alone on a line, the title beneath it, then
+    §10.1 and §10.2 — under clause-aware-3 the `10.` survived as a chunk of its own
+    because it ends in a dot (25 such rows measured live)."""
+    from legalmind.assist.chunking import chunk_evidence
+    chunks = chunk_evidence([_row(f"10.\nTERM AND TERMINATION\n{_BODY_10_1}\n{_BODY_10_2}")])
+    texts = [c.content for c in chunks]
+    assert len(chunks) == 2, texts
+    assert texts[0].startswith("10.\nTERM AND TERMINATION\n10.1")
+    assert texts[1].startswith("10.2")
+    assert leading_section_ref(texts[1]) == "10.2"
+    assert not any(c.content.strip() in {"10", "10."} for c in chunks)
+
+
+def test_a_bare_number_with_a_zero_width_space_folds_too():
+    from legalmind.assist.chunking import chunk_evidence
+    chunks = chunk_evidence([_row(f"10.\u200b\nTERM AND TERMINATION\n{_BODY_10_1}")])
+    assert len(chunks) == 1 and chunks[0].content.endswith(_BODY_10_1)
+
+
+def test_an_orphan_list_marker_folds_forward():
+    from legalmind.assist.chunking import chunk_evidence
+    item = "the Customer shall keep all access credentials confidential at all times."
+    chunks = chunk_evidence([_row(f"7.1 The Customer shall:\ne.\n{item}")])
+    assert len(chunks) == 1 and "e.\n" in chunks[0].content
+
+
+def test_a_continuation_tail_folds_back_into_the_clause_it_completes():
+    """`30 days of invoice.` — the clause splitter takes a number at the start of a line
+    for a clause; the previous piece stopped mid-sentence, so the structure says it is
+    the same clause."""
+    from legalmind.assist.chunking import chunk_evidence
+    head = ("4.1 The Customer shall pay every undisputed invoice in full, without set-off "
+            "or deduction, within")
+    chunks = chunk_evidence([_row(f"{head}\n30 days of invoice.\n{_BODY_10_2}")])
+    assert chunks[0].content == f"{head}\n30 days of invoice.", \
+        [c.content for c in chunks]
+    assert len(chunks) == 2
+
+
+def test_a_short_complete_sentence_stays_its_own_chunk():
+    """Owner, 2026-09-10: short legal sentences are valid evidence — never folded on
+    length alone."""
+    from legalmind.assist.chunking import chunk_evidence
+    definition = '1.10 "Term" means the period specified in Clause 5.'
+    chunks = chunk_evidence([_row(f"{_BODY_10_1}\n{definition}\n{_BODY_10_2}")])
+    assert [c.content for c in chunks][1] == definition
+
+
+def test_page_furniture_rows_are_not_indexed_but_short_sentences_are():
+    from legalmind.assist.chunking import chunk_evidence
+    rows = []
+    for page in range(3):
+        rows += [FakeEvidence(uuid.uuid4(), "ACME"),
+                 FakeEvidence(uuid.uuid4(), "01/04/2025"),
+                 FakeEvidence(uuid.uuid4(), f"{page + 1}.1 Clause body on page {page + 1}. "
+                              + "Words of the clause. " * 4)]
+    rows.append(FakeEvidence(uuid.uuid4(), '(n) "Territory" means the territory of India.'))
+    contents = [c.content for c in chunk_evidence(rows)]
+    assert "ACME" not in contents and "01/04/2025" not in contents
+    assert '(n) "Territory" means the territory of India.' in contents
+    assert len(contents) == 4
+
+
+def test_a_heading_only_row_stays_indexed_for_its_clause_number():
+    """Not excluded: `17.2 Limitation of Liability` on its own row is the only place
+    the number a user asks with appears; `search_hybrid` redirects a hit on it."""
+    from legalmind.assist.chunking import chunk_evidence, is_fragment
+    rows = [FakeEvidence(uuid.uuid4(), "17.2 Limitation of Liability"),
+            FakeEvidence(uuid.uuid4(), "Neither party's aggregate liability shall exceed "
+                         "the fees paid in the twelve months preceding the claim.")]
+    chunks = chunk_evidence(rows)
+    assert len(chunks) == 2 and is_fragment(chunks[0].content)
+
+
+def test_every_v4_chunk_is_still_a_substring_of_its_evidence_row():
+    from legalmind.assist.chunking import chunk_evidence
+    row = _row(f"10.\nTERM AND TERMINATION\n{_BODY_10_1}\n{_BODY_10_2}\ne.\nthe shift)")
+    for c in chunk_evidence([row]):
+        assert c.content in row.content
+
+
+def test_v4_folding_loses_no_text_and_is_deterministic():
+    from legalmind.assist.chunking import chunk_evidence
+    text = f"10.\nTERM AND TERMINATION\n{_BODY_10_1}\n° item one\n° item two\n{_BODY_10_2}"
+    once = [c.content for c in chunk_evidence([_row(text)])]
+    assert "\n".join(once).split() == text.split()
+    assert once == [c.content for c in chunk_evidence([_row(text)])]
+
+
+def test_a_hit_on_a_heading_row_is_redirected_to_its_clause(db, storage, user):
+    """`search_hybrid` on "17.2" — the number lives on the heading row alone — now
+    returns the clause beneath it instead of dropping the fragment and refusing."""
+    dv = _ingested(db, storage, user)
+    index_document_version(db, dv.id)
+    out = store.search_hybrid(db, document_version_id=dv.id, query="17.2",
+                              embed_query=None)
+    assert out.gate_open and out.hits
+    assert "aggregate liability" in out.hits[0].content
+    assert not any(store.is_fragment(h.content) for h in out.hits)
+
+
+def test_a_reindex_keeps_every_citation_and_points_it_at_the_same_clause(db, storage, user):
+    """Rule 17: 130 of 136 live citations sat on rows an earlier chunker wrote. A
+    re-index must not cascade them away. Simulates the clause-aware-3 state — the
+    heading and the clause of ONE evidence row as two chunks — then re-indexes under
+    v4, which folds them into one."""
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    from legalmind.assist.chunking import Chunk
+    schema = config.assist_schema()
+    heading = "10. TERM AND TERMINATION"
+    body = ("Either party may terminate this Agreement on ninety days written notice. "
+            "Notice shall be given in writing to the registered office.")
+    dv = _ingested(db, storage, user, [f"{heading} {body}"])
+    evidence_id = db.execute(text("SELECT id FROM document_evidence WHERE "
+                                  "document_version_id = :dv"), {"dv": dv.id}).scalar_one()
+    store.write_chunks(db, dv.id, [Chunk(evidence_id, 0, heading, 0, None),
+                                   Chunk(evidence_id, 1, body, None, None)])
+    rows = db.execute(text(f'SELECT id, content FROM "{schema}".chunks '
+                           'WHERE document_version_id = :dv ORDER BY ordinal'),
+                      {"dv": dv.id}).all()
+    heading_id, clause_id = rows[0].id, rows[1].id
+    conv = db.execute(text(f'INSERT INTO "{schema}".conversations (id, user_id) '
+                           'VALUES (:i, :u) RETURNING id'),
+                      {"i": _uuid.uuid4(), "u": user.id}).scalar_one()
+    msg = db.execute(text(f'INSERT INTO "{schema}".messages (id, conversation_id, ordinal, '
+                          "role, content) VALUES (:i, :c, 0, 'ASSISTANT', 'x') RETURNING id"),
+                     {"i": _uuid.uuid4(), "c": conv}).scalar_one()
+    ans = db.execute(text(f'INSERT INTO "{schema}".ai_answers (id, message_id, answer_state) '
+                          "VALUES (:i, :m, 'ANSWERED') RETURNING id"),
+                     {"i": _uuid.uuid4(), "m": msg}).scalar_one()
+    for ordinal, cid in enumerate((heading_id, clause_id)):
+        db.execute(text(f'INSERT INTO "{schema}".answer_citations '
+                        '(id, answer_id, chunk_id, claim_ordinal) VALUES (:i, :a, :c, :o)'),
+                   {"i": _uuid.uuid4(), "a": ans, "c": cid, "o": ordinal})
+
+    again = index_document_version(db, dv.id, reindex=True)
+    assert not again.skipped and again.chunks_written == 1
+    cited = db.execute(text(f'SELECT ac.chunk_id, c.content FROM "{schema}".answer_citations ac '
+                            f'JOIN "{schema}".chunks c ON c.id = ac.chunk_id '
+                            'WHERE ac.answer_id = :a ORDER BY ac.claim_ordinal'),
+                       {"a": ans}).all()
+    assert len(cited) == 2, "no citation was cascaded away"
+    assert {row.chunk_id for row in cited} == {clause_id}, "the clause kept its id"
+    assert all("ninety days" in row.content and row.content.startswith(heading)
+               for row in cited), "every citation resolves to the clause it verified"
+    versions = db.execute(text(f'SELECT DISTINCT chunking_algorithm_version FROM "{schema}".chunks '
+                               'WHERE document_version_id = :dv'), {"dv": dv.id}).scalars().all()
+    assert versions == [CHUNKING_ALGORITHM_VERSION]
+    assert store.count_embeddings(db, dv.id) in (0, 1)   # re-embedded when a model is present
