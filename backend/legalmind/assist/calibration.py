@@ -98,7 +98,14 @@ RETRIEVAL_TOP_K = 10
 
 # Version string recorded on retrieval_runs rows, so a re-calibration is
 # distinguishable from this one in every persisted record.
-RETRIEVAL_STRATEGY_VERSION = "hybrid-rrf-gate-1 (calibrated 2026-08-26)"
+# "-2" (2026-09-09): OR-with-a-two-lexeme-floor lexical CANDIDATES join the evidence
+# once the gate is open, and heading fragments are pruned from both branches before
+# fusion. The gate itself — its constants and its AND lexical signal — is unchanged
+# (the Tier-2 gate showed that letting OR open it answers 13/13 unanswerable
+# questions); the version string keeps records under either strategy distinguishable.
+RETRIEVAL_STRATEGY_VERSION = (
+    "hybrid-rrf-gate-2 (or-floor+prune 2026-09-09; gate 2026-08-26)")
+assert len(RETRIEVAL_STRATEGY_VERSION) <= 64      # retrieval_runs.strategy_version
 
 
 def gate_is_open(lexical_hit: bool, vector_scores: list[float]) -> bool:

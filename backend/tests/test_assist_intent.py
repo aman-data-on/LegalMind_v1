@@ -57,3 +57,28 @@ def test_follow_family_is_a_comparison_signal_but_follow_up_is_not():
     assert is_comparison_question("Does the contract adhere to our approved position?")
     assert not is_comparison_question("What are our follow-up obligations under this contract?")
     assert not is_comparison_question("Following our call, what does the NDA say about notice?")
+
+
+# --------------------------------------------------------------------------
+# The verdict screen for generated text (2026-09-09) — narrower than the router
+# --------------------------------------------------------------------------
+from legalmind.assist.intent import is_verdict_statement  # noqa: E402
+
+
+def test_a_real_verdict_is_caught():
+    for text in ("This clause complies with our approved standard [1].",
+                 "The liability cap deviates from the company's position [2].",
+                 "The document is consistent with the approved policy on notice [1].",
+                 "This meets the LeapSwitch template's baseline [1]."):
+        assert is_verdict_statement(text), text
+
+
+def test_a_descriptive_answer_is_not_a_verdict():
+    for text in ("Leapswitch may terminate the agreement if the breach is not cured within "
+                 "thirty (30) days after receipt of written notice [3].",
+                 "For non-payment of invoiced amounts, Leapswitch may terminate with thirty "
+                 "(30) days' written notice [3].",
+                 "CloudPe accepts payment by card [1].",
+                 "The parties agree to meet in Mumbai for the review [2].",
+                 "The approved vendor list is attached as Schedule B [1]."):
+        assert not is_verdict_statement(text), text

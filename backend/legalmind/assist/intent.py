@@ -93,3 +93,36 @@ def is_statute_question(question: str) -> bool:
     """True when the question asks about the law itself — a section number, an Act,
     a set of Rules. The Domain C candidate signal."""
     return bool(_STATUTE.search(question or ""))
+
+
+# --------------------------------------------------------------------------
+# Verdict screen for GENERATED text (2026-09-09) — narrower than the question router
+# --------------------------------------------------------------------------
+# `is_comparison_question` routes QUESTIONS, and is deliberately wide: "does this
+# comply with Leapswitch's template?" must reach the evaluator. Reused on an ANSWER it
+# over-fires: a party name ("Leapswitch") is an organization token and "breach" is a
+# comparison stem, so the grounded, verified, purely descriptive sentence "Leapswitch
+# may terminate if the breach is not cured within thirty days [3]" was thrown away as
+# a compliance verdict (measured live, 2026-09-09 — the answer to the owner's own
+# question). A VERDICT is a statement about the document's standing against the
+# organization's POSITION: it needs a reference to that position (standard, policy,
+# approved position, constitution, baseline, playbook, template — never a mere party
+# name or pronoun) and a compliance signal (comply, conform, align, meet, satisfy,
+# deviate, match, acceptable, violate, consistent). "Breach" is a document word and
+# is not a signal here. Real verdicts — "this clause complies with our approved
+# standard", "the cap deviates from the company's position" — are still caught.
+_POSITION_STEMS = ("standard", "position", "polic", "approv", "constitution",
+                   "baseline", "playbook", "template")
+_VERDICT_STEMS = ("compl", "conform", "align", "meet", "meets", "satisf", "deviat",
+                  "match", "accept", "unaccept", "violat", "consistent", "inconsistent",
+                  "noncompliant", "compliant", "compliance")
+
+
+def is_verdict_statement(text: str) -> bool:
+    """True when generated text states how the document stands against the
+    organization's position — the sentence the assistant may never utter
+    (`AM-25` r1/r4). Mechanical, outside the model (`AM-28` r2)."""
+    tokens = _stems(text or "")
+    position = _hits(tokens, _POSITION_STEMS)
+    signal = _hits(tokens, _VERDICT_STEMS)
+    return bool(position) and bool(signal - position)

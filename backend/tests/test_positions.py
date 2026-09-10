@@ -194,3 +194,98 @@ def test_positions_module_never_imports_generation():
     forbidden = {name for name in imported
                  if "generation" in name or "urllib" in name}
     assert not forbidden, f"positions.py imports egress-capable code: {forbidden}"
+
+
+# ==========================================================================
+# The vector increment (2026-09-09) — `AM-32`'s `position_chunk_embeddings`, filled.
+# Deterministic: planted unit vectors and an injected query embedder, so the test
+# pins the MECHANISM (gate, floor, fusion, authorization) and never a model's number.
+# ==========================================================================
+def _plant(db, chunk_id, axis: int):
+    from legalmind.assist import store
+    schema = config.assist_schema()
+    model_id = store.register_embedding_model(db, name="planted", version="t",
+                                              dimensions=384, checksum="x")
+    vec = [0.0] * 384
+    vec[axis] = 1.0
+    db.execute(sql_text(f"""
+        INSERT INTO "{schema}".position_chunk_embeddings
+            (id, position_chunk_id, embedding_model_id, embedding)
+        VALUES (gen_random_uuid(), :c, :m, CAST(:v AS {store.vector_type(db)}))
+    """), {"c": chunk_id, "m": model_id, "v": "[" + ",".join(map(str, vec)) + "]"})
+
+
+def _axis(n):
+    vec = [0.0] * 384
+    vec[n] = 1.0
+    return lambda _q: (vec, "planted@t")
+
+
+def _ids(db):
+    schema = config.assist_schema()
+    return dict(db.execute(sql_text(
+        f'SELECT standard_code, id FROM "{schema}".position_chunks')).all())
+
+
+def test_a_paraphrase_with_no_shared_word_reaches_a_position_through_its_vector(
+        db, user, ratified_dir):
+    _indexed(db, user, ratified_dir)
+    ids = _ids(db)
+    _plant(db, ids["TESTPOS-MSA-001"], 0)
+    _plant(db, ids["TESTPOS-TOS-001"], 1)
+    # Not one lexeme in common with either standard: lexical retrieval is empty.
+    question = "Is there a rule about treating things gently?"
+    assert positions.search_positions(db, query=question, permissions=BOTH,
+                                      embed_query=lambda q: None) == []
+    hits = positions.search_positions(db, query=question, permissions=BOTH,
+                                      embed_query=_axis(0))
+    # cosine 1.0 to the MSA position opens the calibrated gate; the TOS position
+    # sits at 0.0, below the evidence floor, and is never admitted as evidence.
+    assert [h.standard_code for h in hits] == ["TESTPOS-MSA-001"]
+    assert hits[0].score == pytest.approx(1.0)
+
+
+def test_a_vector_far_from_every_position_keeps_the_gate_shut(db, user, ratified_dir):
+    _indexed(db, user, ratified_dir)
+    ids = _ids(db)
+    _plant(db, ids["TESTPOS-MSA-001"], 0)
+    _plant(db, ids["TESTPOS-TOS-001"], 1)
+    assert positions.search_positions(db, query="zorbulated framblewitz",
+                                      permissions=BOTH, embed_query=_axis(7)) == []
+
+
+def test_the_vector_increment_respects_the_same_authorization(db, user, ratified_dir):
+    _indexed(db, user, ratified_dir)
+    _plant(db, _ids(db)["TESTPOS-MSA-001"], 0)
+    assert positions.search_positions(db, query="treating things gently",
+                                      permissions=frozenset({P.ASSIST_ASK}),
+                                      embed_query=_axis(0)) == []
+
+
+def test_a_lexical_hit_and_a_vector_hit_fuse_into_one_deterministic_ranking(
+        db, user, ratified_dir):
+    _indexed(db, user, ratified_dir)
+    ids = _ids(db)
+    _plant(db, ids["TESTPOS-MSA-001"], 0)
+    _plant(db, ids["TESTPOS-TOS-001"], 1)
+    # Lexically the GADGET standard matches ("gadgets", "returned"); the vector points
+    # at the WIDGET standard. Both are evidence; the ranking is fixed and repeatable.
+    a = positions.search_positions(db, query="gadgets returned", permissions=BOTH,
+                                   embed_query=_axis(0))
+    b = positions.search_positions(db, query="gadgets returned", permissions=BOTH,
+                                   embed_query=_axis(0))
+    assert {h.standard_code for h in a} == {"TESTPOS-MSA-001", "TESTPOS-TOS-001"}
+    assert [h.standard_code for h in a] == [h.standard_code for h in b]
+
+
+def test_chunking_embeds_every_position_when_the_model_is_available(db, user, ratified_dir):
+    from legalmind.assist import embedding_runtime
+    embedding_runtime.reset_for_tests()
+    if not embedding_runtime.available():
+        pytest.skip("embedding model not present in this environment")
+    _indexed(db, user, ratified_dir)
+    schema = config.assist_schema()
+    chunks, vectors = db.execute(sql_text(f"""
+        SELECT (SELECT count(*) FROM "{schema}".position_chunks),
+               (SELECT count(*) FROM "{schema}".position_chunk_embeddings)""")).one()
+    assert chunks == vectors == 2

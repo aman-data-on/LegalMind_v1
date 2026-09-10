@@ -24,6 +24,13 @@ import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from
  * object, two callers, one difference.
  */
 
+/** The fact labels an Evaluation renders, lowercased — see the note at the
+ *  first call site for why case is not part of what LEGAL-02 asserts. */
+async function labelsOf(evaluation: import("@playwright/test").Locator): Promise<string[]> {
+  const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
+  return labels.map((label) => label.trim().toLowerCase());
+}
+
 const CONFIDENTIAL_KEYS = [
   "rule_outcome",
   "expected_value",
@@ -90,18 +97,22 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     // assertion is on elements, not on substrings of the page text.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(0);
     await expect(evaluation.locator(".ws-explain")).toHaveCount(0);
-    // Case-normalised deliberately. `.ws-facts--compare dt` is rendered
-    // `text-transform: uppercase` by the reference-design restyle (2026-09-09) and
-    // `allInnerTexts()` returns RENDERED text, so an exact-case comparison silently
-    // stopped matching — which made the two `not.toContain` assertions below pass
-    // vacuously, proving nothing about LEGAL-02. The labels themselves are still
-    // not free to rename (see FindingsPane); only their casing is presentation.
-    const labels = (await evaluation.locator(".ws-facts dt").allInnerTexts()).map((t) =>
-      t.trim().toLowerCase(),
-    );
-    expect(labels).toContain("contract");              // the contract's own value
-    expect(labels).not.toContain("company standard");  // an internal position
-    expect(labels).not.toContain("comparison");
+    /* The EXACT label set, not a list of `toContain`/`not.toContain` probes.
+     *
+     * A negative probe here can pass for the wrong reason, and did: these labels
+     * are styled `text-transform: uppercase`, so from 4f631ed until 2026-09-09
+     * `not.toContain("Company standard")` was compared against a rendered
+     * "COMPANY STANDARD" and asserted NOTHING — it would have passed just as
+     * happily if the internal position had leaked. Case-normalising the actual
+     * labels (see `labelsOf`) restores the teeth; asserting the whole set
+     * removes the failure mode instead, because a renamed, added or leaked
+     * label all fail it, and none of them can fail silently.
+     *
+     * The pair matters as much as the assertion: the with-permission test below
+     * asserts the SAME set plus "company standard", from the same code path. So
+     * the two together prove this screen discriminates on the permission rather
+     * than never rendering the field at all. */
+    expect(await labelsOf(evaluation)).toEqual(["contract", "next step"]);
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
@@ -161,16 +172,10 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     // element the same way (`toHaveCount(1)`); this test now matches it rather
     // than asserting a visibility default the redesign deliberately dropped.
     await expect(evaluation.locator(".ws-evaluation__outcome")).toHaveCount(1);
-    // Case-normalised deliberately. `.ws-facts--compare dt` is rendered
-    // `text-transform: uppercase` by the reference-design restyle (2026-09-09) and
-    // `allInnerTexts()` returns RENDERED text, so an exact-case comparison silently
-    // stopped matching — which made the two `not.toContain` assertions below pass
-    // vacuously, proving nothing about LEGAL-02. The labels themselves are still
-    // not free to rename (see FindingsPane); only their casing is presentation.
-    const labels = (await evaluation.locator(".ws-facts dt").allInnerTexts()).map((t) =>
-      t.trim().toLowerCase(),
-    );
-    expect(labels).toContain("company standard");
+    /* The same exact set as the without-permission test, plus the one label the
+       permission adds. Asserted as a set for the same reason: it is what makes
+       that test's absence meaningful rather than vacuous. */
+    expect(await labelsOf(evaluation)).toEqual(["contract", "company standard", "next step"]);
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

@@ -9,16 +9,26 @@ import { askSend, createAnalysedReview, csrfToken, fixture, openAsk, showDocumen
 test.use({ storageState: storageStatePath("owner") });
 
 /**
- * The Ask dock: a secondary floating surface, and Ask on the version you are
- * reading (owner report, 2026-09-02 — DD-15).
+ * The Ask dock: a secondary DOCKED surface, and Ask on the version you are
+ * reading.
+ *
+ * DD-15 (owner report, 2026-09-02) made this a floating dock so it reserved no
+ * workspace height. The owner reviewed the result on 2026-09-09 — "It feels
+ * like a temporary popup rather than a permanent workspace panel… should have a
+ * defined docked area, not randomly appear over content" — and it now lives in
+ * the side column. DD-15's concern survives as the assertion below that a
+ * CLOSED Ask costs that column one launcher row and nothing more; what is gone
+ * is the floating geometry, and with it the two WCAG 2.2 AA 2.4.11 defences a
+ * panel over the canvas needed. The three-pane geometry itself is asserted in
+ * `workspace-panes.spec.ts`.
  *
  * These are the two properties no isolated test can prove, because both are
  * about the composed, laid-out page:
  *
- * 1. **Ask reserves no workspace height.** The static render can show that the
- *    old bar's markup is gone; only a browser can show that the document region
- *    actually GREW by what the bar used to hold, that the launcher is a 44px
- *    target, and that nothing scrolls to rest underneath it.
+ * 1. **Ask costs the workspace only its launcher row.** The static render can
+ *    show that the old bar's markup is gone; only a browser can show that the
+ *    document region is unaffected, that the launcher is a 44px target, and
+ *    that nothing scrolls to rest underneath it.
  *
  * 2. **Ask works on an older version, and says which version answers.** The
  *    former bar disabled its input and offered "open the latest version" — the
@@ -55,8 +65,8 @@ async function uploadRevision(page: import("@playwright/test").Page, contractId:
   return (await response.json()).data.document_version;
 }
 
-test.describe("Ask is a floating secondary tool", () => {
-  test("closed, it costs the workspace no height and is still a real keyboard target", async ({
+test.describe("Ask is a docked secondary tool", () => {
+  test("closed, it costs the workspace one launcher row and is still a real keyboard target", async ({
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
@@ -66,10 +76,13 @@ test.describe("Ask is a floating secondary tool", () => {
     const launcher = page.getByRole("button", { name: /Ask about this document/i });
     await expect(launcher).toBeVisible();
 
-    // Touch-target minimum, and a compact footprint rather than a bar.
+    /* Touch-target minimum. The width bound is gone: the launcher used to be a
+       compact floating pill (DD-15) and is now a full-width row at the foot of
+       the side column, which is what makes it a persistent, findable way back
+       into a docked panel rather than something hovering over the canvas
+       (owner, 2026-09-09). */
     const box = (await launcher.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.width).toBeLessThan(200);
 
     // The panel exists in the DOM (state survives closing) but is inert and
     // contributes nothing to layout while closed.
@@ -77,8 +90,16 @@ test.describe("Ask is a floating secondary tool", () => {
     await expect(panel).toHaveCount(1);
     await expect(panel).toBeHidden();
 
-    // The document region reaches essentially the bottom of the workspace: the
-    // old bar's reserved row is genuinely gone, not merely restyled.
+    /* Ask costs the column the launcher row and NOTHING more while closed —
+       which is what DD-15's "reserves no workspace height" was protecting, and
+       is still the property worth holding. The findings panel above it runs to
+       the launcher's top edge. */
+    const sidePane = (await page.locator(".ws-pane--side").boundingBox())!;
+    const spentOnAsk = sidePane.y + sidePane.height - box.y;
+    expect(spentOnAsk).toBeLessThan(60);
+
+    /* The DOCUMENT is untouched by Ask's presence: it reaches the bottom of the
+       workspace, because Ask lives in the other column entirely. */
     const workmain = (await page.locator(".ws-workmain").boundingBox())!;
     const documentPane = (await page.locator(".ws-pane--document").boundingBox())!;
     const gapBelowDocument =

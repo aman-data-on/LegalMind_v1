@@ -620,9 +620,20 @@ def test_the_managers_own_phrasings_route_to_the_evaluator(db, user, indexed_con
 # ==========================================================================
 # Multi-source routing (2026-09-08): document + positions, separated
 # ==========================================================================
-def _ratified_positions(db, user, tmp_path):
-    """Two synthetic ratified standards, chunked as Domain A (borrowed shape from
-    tests/test_positions.py — inert test values, never a legal position)."""
+NOTICE_POSITION = {
+    "requirement_code": "TESTNOTICE-NDA-001", "ratified": "2026-08-27",
+    "source_document": "Synthetic NDA for tests", "source_clause": "9 Term",
+    "source_quote": "Either party may terminate this agreement early on thirty (30) days' "
+                    "written notice.",
+    "configuration": {"document_type": "NDA", "expected_presence": "PRESENT",
+                      "scope_key": "NOTICE", "applicability": "REQUIRED"},
+    "evaluator_type": "PRESENCE"}
+
+
+def _ratified_positions(db, user, tmp_path, *extra):
+    """Synthetic ratified standards, chunked as Domain A (borrowed shape from
+    tests/test_positions.py — inert test values, never a legal position). `extra`
+    adds further standards to the same ratified directory."""
     import json as _json
 
     import tools.import_ratified_standards as imp
@@ -634,6 +645,8 @@ def _ratified_positions(db, user, tmp_path):
                            "scope_key": "WIDGETS", "applicability": "REQUIRED"},
          "evaluator_type": "PRESENCE"}
     (tmp_path / "TESTPOS-MSA-001.json").write_text(_json.dumps(a))
+    for payload in extra:
+        (tmp_path / f"{payload['requirement_code']}.json").write_text(_json.dumps(payload))
     original = imp.RATIFIED_STANDARDS_DIR
     imp.RATIFIED_STANDARDS_DIR = tmp_path
     try:
@@ -720,9 +733,14 @@ def test_a_document_less_conversation_refuses_instead_of_erroring(api, db, seede
     assert reply.status_code == 201, reply.text
     payload = reply.json()["data"]
     assert payload["answer_state"] == "NO_EVIDENCE_RETRIEVED"
-    assert payload["text"].startswith("No document is attached")
+    # A Department User may read the positions (AB-12 r7), so they were consulted
+    # before the refusal (2026-09-09) and the wording says so — and still says that
+    # no document is attached and why the law itself cannot be answered here.
+    assert payload["text"].startswith(
+        "Information not found in the organization's approved positions.")
+    assert "No document is attached" in payload["text"]
     assert "Statutory text is not yet part" in payload["text"]
-    assert payload["domains"] == [] and payload["document_version_id"] is None
+    assert payload["domains"] == ["POSITIONS"] and payload["document_version_id"] is None
 
 
 def test_a_statute_question_with_a_document_says_why_the_law_is_unavailable(
@@ -735,7 +753,8 @@ def test_a_statute_question_with_a_document_says_why_the_law_is_unavailable(
                       document_version_id=version.id, permissions=USER_PERMS,
                       question="What does Section 138 of the Negotiable Instruments Act say?")
     assert out.answer_state.value != "ANSWERED"
-    assert out.text.startswith("Information not found in the selected document.")
+    assert out.text.startswith("Information not found in the selected document or in "
+                               "the organization's approved positions.")
     assert "Statutory text is not yet part" in out.text
 
 
@@ -787,6 +806,25 @@ def _synthetic_statute(db, tmp_path):
         "supplied_by": "test", "supplied_at": "2026-09-08T00:00:00Z"})
 
 
+def _plant_statute_vector(db, section_number, axis, monkeypatch):
+    """A planted unit vector on one section, and an embedder that points at it — the
+    deterministic stand-in for "the model finds this section semantically close"."""
+    from legalmind.assist import store
+    schema = config.assist_schema()
+    model_id = store.register_embedding_model(db, name="planted", version="t",
+                                              dimensions=384, checksum="x")
+    vec = [0.0] * 384
+    vec[axis] = 1.0
+    db.execute(text(f"""
+        INSERT INTO "{schema}".statute_chunk_embeddings
+            (id, statute_chunk_id, embedding_model_id, embedding)
+        SELECT gen_random_uuid(), sc.id, :m, CAST(:v AS {store.vector_type(db)})
+          FROM "{schema}".statute_chunks sc WHERE sc.section_number = :s
+        ON CONFLICT DO NOTHING
+    """), {"m": model_id, "v": "[" + ",".join(map(str, vec)) + "]", "s": section_number})
+    monkeypatch.setattr(embedding_runtime, "embed_query", lambda q: (vec, "planted@t"))
+
+
 def test_a_document_less_statute_question_is_answered_from_the_corpus_with_act_and_section(
         db, user, tmp_path, monkeypatch):
     from legalmind.assist import generation
@@ -803,7 +841,8 @@ def test_a_document_less_statute_question_is_answered_from_the_corpus_with_act_a
     out = service.ask(db, conversation_id=conv, document_version_id=None,
                       permissions=USER_PERMS,
                       question="What does section 3 of the Synthetic Widgets Act say?")
-    assert out.domains == ("STATUTES",)
+    # STATUTES was the primary route; the positions were consulted as the fallback.
+    assert out.domains == ("POSITIONS", "STATUTES")
     assert out.answer_state.value == "ANSWERED"
     assert out.statutes and out.statutes["answer_state"] == "ANSWERED"
     assert out.statutes["citations"][0]["citation"] == "The Synthetic Widgets Act, 2099, s. 3"
@@ -930,6 +969,9 @@ def test_a_general_question_the_document_cannot_answer_falls_through_to_the_stat
             latency_ms=1)
     monkeypatch.setattr(generation, "generate", fake)
     # Not statute-shaped, not about the organization: the router picks DOCUMENT only.
+    # A question that did not ask about the law reaches a statute only on semantic
+    # evidence (2026-09-09): plant the section's vector and point the embedder at it.
+    _plant_statute_vector(db, "3", 0, monkeypatch)
     out = service.ask(db, conversation_id=_conversation(db, user, contract),
                       document_version_id=version.id, permissions=USER_PERMS,
                       question="How must a handler treat every widget?")
@@ -954,3 +996,326 @@ def test_a_question_nothing_can_answer_is_still_one_safe_refusal(
                       question="What is the boiling point of zorbulated framblewitz?")
     assert out.answer_state.value != "ANSWERED"
     assert out.text.startswith("Information not found in the selected document")
+
+
+# ==========================================================================
+# The uploaded document is context, not the knowledge boundary (owner, 2026-09-09).
+#
+# Live defect, reproduced from the retrieval record: "What is the termination
+# notice period?" over an MSA routed to DOCUMENT only, the retrieval gate OPENED
+# (the document mentions termination), the model was shown the chunks and replied
+# NOT FOUND — and that branch refused without consulting the ratified position
+# TERM-NOTICE-NDA-001 or the statute corpus. The fix is architectural: every
+# non-answer converges on one point that consults every other authorized source
+# before it may refuse. These tests pin that for each source, each cause and each
+# authorization state; none of them is about termination in particular.
+# ==========================================================================
+def _positions_cited(db, message_id) -> int:
+    schema = config.assist_schema()
+    return db.execute(text(f"""
+        SELECT count(*) FROM "{schema}".answer_citations c
+          JOIN "{schema}".ai_answers a ON a.id = c.answer_id
+         WHERE a.message_id = :m AND c.position_chunk_id IS NOT NULL"""),
+                      {"m": message_id}).scalar_one()
+
+
+def _recorded_domains(db, question: str) -> list[str]:
+    schema = config.assist_schema()
+    return db.execute(text(f"""
+        SELECT filters->'domains' FROM "{schema}".retrieval_runs
+         WHERE query_text = :q ORDER BY created_at DESC LIMIT 1"""),
+                      {"q": question}).scalar_one()
+
+
+def test_a_document_that_mentions_the_topic_but_does_not_answer_falls_through_to_the_position(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """The exact live shape: gate open, model says NOT FOUND, position exists."""
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    embedding_runtime.reset_for_tests()
+    sent = []
+
+    def not_found(question, chunks, **k):
+        sent.append(chunks)
+        return generation.GenerationResult(text="NOT FOUND", model="fake",
+                                           prompt_version="grounded-answer-1",
+                                           payload_sha256="0" * 64, latency_ms=1)
+    monkeypatch.setattr(generation, "generate", not_found)
+    question = "What is the termination notice period?"
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question=question)
+    assert sent, "the document DID have topical chunks — the model was consulted"
+    assert out.answer_state.value == "ANSWERED"
+    assert out.text == service.POSITIONS_BESIDE_TEXT
+    assert [p["standard_code"] for p in out.positions] == ["TESTNOTICE-NDA-001"]
+    assert "thirty (30) days' written notice" in out.positions[0]["content"]
+    assert out.domains == ("DOCUMENT", "POSITIONS")
+    # Provenance: the position is cited, and the retrieval record names the fallback.
+    assert _positions_cited(db, out.message_id) == 1
+    assert _recorded_domains(db, question) == ["DOCUMENT", "POSITIONS"]
+    # AM-32 r4: the position never entered a generation payload.
+    assert not any("thirty (30) days" in c for chunks in sent for c in chunks)
+
+
+def test_a_document_that_answers_is_not_second_guessed_by_the_positions(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """Source priority: the document first. When it answers, the answer is the
+    document's, cited by page/section; the positions are attached only when the
+    question asks for them (AM-25 r4 keeps the side-by-side for the evaluator)."""
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    embedding_runtime.reset_for_tests()
+    _fake_generation(monkeypatch, "Either party may terminate this Agreement for "
+                                  "convenience on ninety days prior written notice [1].")
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question='"termination for convenience" notice')
+    assert out.answer_state.value == "ANSWERED" and out.citations
+    assert out.positions == [] and out.domains == ("DOCUMENT",)
+
+
+def test_the_fallback_never_reaches_a_caller_without_the_position_grant(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """Permissions are a property of the route, not of the fallback: without
+    `legal_position.view` the position is neither quoted nor named (AM-25 r6/r7)."""
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    embedding_runtime.reset_for_tests()
+    monkeypatch.setattr(generation, "generate", lambda q, c, **k: generation.GenerationResult(
+        text="NOT FOUND", model="fake", prompt_version="grounded-answer-1",
+        payload_sha256="0" * 64, latency_ms=1))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=frozenset({"assist.ask"}),
+                      question="What is the termination notice period?")
+    assert out.answer_state.value != "ANSWERED"
+    assert out.positions == [] and out.domains == ("DOCUMENT",)
+    assert out.text == ("Information not found in the selected document. "
+                        "The available material does not answer this question.")
+
+
+def test_every_non_answer_cause_consults_the_other_sources(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """Not only the closed gate: an ungrounded answer, an unavailable model and a
+    refused egress all arrive at the same convergence point."""
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    embedding_runtime.reset_for_tests()
+    causes = {
+        "ungrounded": lambda q, c, **k: generation.GenerationResult(
+            text="The notice period is nine hundred years [1].", model="fake",
+            prompt_version="grounded-answer-1", payload_sha256="0" * 64, latency_ms=1),
+        "unavailable": lambda *a, **k: (_ for _ in ()).throw(
+            generation.GenerationUnavailable("off")),
+        "refused": lambda *a, **k: (_ for _ in ()).throw(
+            generation.GenerationRefused("gate")),
+    }
+    for cause, fake in causes.items():
+        monkeypatch.setattr(generation, "generate", fake)
+        out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                          document_version_id=version.id, permissions=USER_PERMS,
+                          question="What is the termination notice period?")
+        assert out.answer_state.value == "ANSWERED", cause
+        assert out.positions[0]["standard_code"] == "TESTNOTICE-NDA-001", cause
+        assert out.text == service.POSITIONS_BESIDE_TEXT, cause
+
+
+def test_a_document_less_general_question_is_answered_from_the_positions(
+        db, user, tmp_path):
+    """No document, no organization word, no statute word — the user should not
+    have to know that the answer lives in the ratified standards."""
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    out = service.ask(db, conversation_id=conv, document_version_id=None,
+                      permissions=USER_PERMS,
+                      question="What is the termination notice period?")
+    assert out.answer_state.value == "ANSWERED"
+    assert out.text == service.POSITIONS_ONLY_TEXT
+    assert out.positions[0]["standard_code"] == "TESTNOTICE-NDA-001"
+    assert out.domains == ("POSITIONS",)
+
+
+def test_mixed_sources_are_combined_and_each_is_attributed(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """Positions AND statutes both relevant, the document silent: both arrive, each
+    in its own section with its own citation grammar (AM-32 r1) — never merged."""
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path)
+    _synthetic_statute(db, tmp_path)
+    embedding_runtime.reset_for_tests()
+    sent = []
+
+    def fake(question, chunks, **k):
+        sent.append(chunks)
+        return generation.GenerationResult(
+            text="Every handler shall handle every widget with synthetic care [1].",
+            model="fake", prompt_version="grounded-answer-1", payload_sha256="0" * 64,
+            latency_ms=1)
+    monkeypatch.setattr(generation, "generate", fake)
+    # Statute-shaped ("the Act") AND matching a position: both sources are relevant.
+    question = "Under the Act, how must a handler treat every widget with care?"
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question=question)
+    assert out.answer_state.value == "ANSWERED"
+    assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
+    assert out.text == service.STATUTES_BESIDE_TEXT
+    assert out.positions[0]["standard_code"] == "TESTPOS-MSA-001"
+    assert out.statutes["citations"][0]["citation"].startswith(
+        "The Synthetic Widgets Act, 2099, s. 3")
+    assert out.citations == []                       # the document contributed nothing
+    # Only statute text was generated over; the position stayed extractive.
+    assert all("widget" in c.lower() and "Widgets shall be handled" not in c
+               for chunks in sent for c in chunks)
+    schema = config.assist_schema()
+    kinds = db.execute(text(f"""
+        SELECT count(c.position_chunk_id), count(c.statute_chunk_id)
+          FROM "{schema}".answer_citations c
+          JOIN "{schema}".ai_answers a ON a.id = c.answer_id
+         WHERE a.message_id = :m"""), {"m": out.message_id}).one()
+    assert kinds[0] >= 1 and kinds[1] >= 1
+    assert _recorded_domains(db, question) == ["DOCUMENT", "POSITIONS", "STATUTES"]
+
+
+def test_a_question_nothing_can_answer_is_refused_once_naming_every_source_consulted(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path)
+    _synthetic_statute(db, tmp_path)
+    embedding_runtime.reset_for_tests()
+    monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("nothing to ground in — the model must not be called")))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="What is the boiling point of zorbulated framblewitz?")
+    assert out.answer_state.value != "ANSWERED"
+    assert out.text == (
+        "Information not found in the selected document or in the organization's "
+        "approved positions or in the approved statute corpus. The available material "
+        "does not answer this question.")
+    assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
+
+
+# ==========================================================================
+# Document retrieval (2026-09-09): OR-with-floor lexical matching, and heading
+# fragments never occupy evidence slots. Measured live on an MSA: the clause
+# stating the notice period failed the AND query (no word "period") and scored
+# under the vector floor, while "7.", "TERM AND TERMINATION" and "7.6. Effect of
+# Termination:" filled the top ten.
+# ==========================================================================
+def test_a_clause_sharing_two_of_three_words_is_a_lexical_candidate(db, user, indexed_contract):
+    from legalmind.assist import store
+    _, version = indexed_contract
+    # "terminate … notice" — no "period" anywhere in the clause.
+    hits = store.search_chunks(db, document_version_id=version.id,
+                               query="What is the termination notice period?")
+    assert any("ninety days prior written notice" in h.content for h in hits)
+    # One shared word is not enough (the two-lexeme floor).
+    assert store.search_chunks(db, document_version_id=version.id,
+                               query="notice zorbulated framblewitz") == []
+
+
+def test_heading_fragments_are_pruned_from_the_evidence_but_their_clauses_are_kept(
+        db, storage, user):
+    from legalmind.assist import store
+    contract = M.Contract(owner_id=user.id, name="Fragments MSA", contract_type="MSA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract)
+    db.flush()
+    result = ingest_document(db, storage, contract_id=contract.id, uploaded_by=user.id,
+                             data=build_docx(["7.", "TERM AND TERMINATION",
+                                              "7.6.\u200b\nEffect of Termination:",
+                                              "Leapswitch may terminate this Agreement if "
+                                              "a breach is not cured within thirty days "
+                                              "after receipt of written notice."]),
+                             filename="frag.docx", declared_mime=DOCX_MIME)
+    index_document_version(db, result.document_version.id)
+    embedding_runtime.reset_for_tests()
+    out = store.search_hybrid(db, document_version_id=result.document_version.id,
+                              query="What is the termination notice period?",
+                              embed_query=embedding_runtime.embed_query)
+    assert out.gate_open
+    assert [h.content for h in out.hits if store.is_fragment(h.content)] == []
+    assert any("thirty days" in h.content for h in out.hits)
+    assert store.is_fragment("7.\u200b\nTERM AND TERMINATION")
+    assert store.is_fragment("7.6.\u200b\nEffect of Termination:")
+    assert not store.is_fragment("Governing law: the laws of India.")
+
+
+def test_a_contract_question_the_position_answers_is_not_also_put_to_the_statutes(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """Source priority: document → position → statutes. Measured live, sweeping the
+    statute corpus for "termination notice period" after the position had already
+    answered produced a grounded Copyright Act answer about licence termination."""
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    _synthetic_statute(db, tmp_path)
+    embedding_runtime.reset_for_tests()
+    called = []
+    monkeypatch.setattr(generation, "generate", lambda q, c, **k: called.append(c) or
+                        generation.GenerationResult(text="NOT FOUND", model="fake",
+                                                    prompt_version="grounded-answer-1",
+                                                    payload_sha256="0" * 64, latency_ms=1))
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="What is the termination notice period?")
+    assert out.answer_state.value == "ANSWERED"
+    assert out.positions[0]["standard_code"] == "TESTNOTICE-NDA-001"
+    assert out.statutes is None and out.domains == ("DOCUMENT", "POSITIONS")
+    assert len(called) == 1                          # the document only; no statute call
+
+
+def test_a_descriptive_answer_naming_the_company_is_not_a_verdict(
+        db, user, indexed_contract, monkeypatch):
+    """The owner's own answer (live, 2026-09-09) was grounded, verified — and thrown
+    away because "Leapswitch" + "breach" read as a compliance verdict. It is not one."""
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    _fake_generation(monkeypatch,
+                     "Either party may terminate this Agreement for convenience on ninety "
+                     "days prior written notice; a breach by Leapswitch is not required [1].")
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="termination for convenience notice")
+    assert out.answer_state.value == "ANSWERED" and out.citations
+
+
+def test_a_contract_question_with_only_lexical_overlap_does_not_get_a_statute_answer(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """Positions silent, question not about the law, two lexemes shared with a
+    section, no semantic evidence: the statute corpus counts as silent (measured
+    live: Copyright Act s. 32B "answered" a contract notice-period question)."""
+    from legalmind.assist import generation
+    contract, version = indexed_contract
+    _synthetic_statute(db, tmp_path)
+    embedding_runtime.reset_for_tests()
+    called = []
+    monkeypatch.setattr(generation, "generate", lambda q, c, **k: called.append(c) or
+                        (_ for _ in ()).throw(generation.GenerationUnavailable("off")))
+    # "handler" and "widget" overlap section 3 lexically; nothing vouches semantically.
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=frozenset({"assist.ask"}),
+                      question="handler widget payment terms")
+    assert out.answer_state.value != "ANSWERED" and out.statutes is None
+    assert out.domains == ("DOCUMENT", "STATUTES")   # consulted, found silent
+    assert "approved statute corpus" in out.text
+
+
+def test_an_or_only_lexical_match_does_not_open_the_gate(db, user, indexed_contract):
+    """The Tier-2 gate (2026-09-09) measured OR-as-gate-signal at 13/13 unanswerable
+    questions answered. The gate keeps the calibrated AND signal; OR-floor matches are
+    evidence only once something calibrated has opened it."""
+    from legalmind.assist import store
+    _, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    # Shares "notice" and "party" with the document — two lexemes — and nothing else.
+    out = store.search_hybrid(db, document_version_id=version.id,
+                              query="notice to the party about zorbulated framblewitz",
+                              embed_query=lambda q: None)
+    assert out.lexical_hit is False and out.gate_open is False and out.hits == []

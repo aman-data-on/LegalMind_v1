@@ -158,17 +158,71 @@ def chunk_ratified_standards(db: DBSession, *,
 
     # 53.3 discipline: counts and codes only, never standard text.
     log_event("assist.positions.chunked", count=len(report))
+    embed_positions(db)
     return report
 
 
+def embed_positions(db: DBSession) -> int:
+    """Embed every position chunk that lacks a vector — `AM-32`'s
+    `position_chunk_embeddings`, filled (2026-09-09) with the calibrated model.
+
+    Best-effort in the sense `indexing._embed_chunks` gives the word: a missing model
+    never fails chunking, because lexical retrieval works without vectors and the
+    extractive answer's correctness never depends on them. What vectors add is
+    RECALL for a paraphrased question — "how much notice ends the NDA early?" shares
+    no lexeme with "terminated by either Party … thirty (30) days' notice" — and
+    the calibrated gate decides whether a vector-only neighbour is evidence at all.
+    """
+    from legalmind.assist import calibration, embedding_runtime, store
+
+    if not embedding_runtime.available():
+        return 0
+    schema = config.assist_schema()
+    rows = db.execute(sql_text(f"""
+        SELECT pc.id, pc.content FROM "{schema}".position_chunks pc
+         WHERE NOT EXISTS (SELECT 1 FROM "{schema}".position_chunk_embeddings e
+                            WHERE e.position_chunk_id = pc.id)
+         ORDER BY pc.standard_code, pc.ordinal
+    """)).all()
+    if not rows:
+        return 0
+    vectors = embedding_runtime.embed_texts([r[1] for r in rows])
+    if vectors is None:
+        return 0
+    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
+    name, _, revision = identity.partition("@")
+    model_id = store.register_embedding_model(
+        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
+        dimensions=calibration.EMBEDDING_DIMENSIONS,
+        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
+    vtype = store.vector_type(db)
+    db.execute(sql_text(f"""
+        INSERT INTO "{schema}".position_chunk_embeddings
+            (id, position_chunk_id, embedding_model_id, embedding)
+        VALUES (:i, :c, :m, CAST(:v AS {vtype}))
+        ON CONFLICT (position_chunk_id, embedding_model_id) DO NOTHING
+    """), [{"i": str(uuid4()), "c": r[0], "m": model_id,
+            "v": "[" + ",".join(f"{x:.6f}" for x in vec) + "]"}
+           for r, vec in zip(rows, vectors, strict=True)])
+    log_event("assist.positions.embedded", count=len(rows))
+    return len(rows)
+
+
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
-                     limit: int = 10) -> list[PositionHit]:
-    """Domain A lexical retrieval, authorization inside the function (r5).
+                     limit: int = 10, embed_query=None) -> list[PositionHit]:
+    """Domain A hybrid retrieval, authorization inside the function (r5).
 
     Without assist.ask AND (configuration.view OR legal_position.view) the result is
-    [], exactly the shape an empty corpus returns — `AM-25` r6/r7. Lexical-first: the
-    shared embedding machinery joins in the vector increment; the extractive answer's
-    correctness never depends on it.
+    [], exactly the shape an empty corpus returns — `AM-25` r6/r7. Lexical-first: a
+    lexical hit is trusted on its own (the calibrated finding). The vector increment
+    (2026-09-09) is the shared embedding machinery `AM-32` r9 names: the question's
+    embedding is compared with the stored position vectors and neighbours are
+    admitted only through the SAME calibrated gate the document retrieval uses
+    (`calibration.gate_is_open` — floor plus peak margin), then fused with the
+    lexical ranking by reciprocal rank. The extractive answer's correctness never
+    depends on it; what it adds is recall for a paraphrase.
+
+    ``embed_query`` is injectable for tests; by default the runtime's own callable.
     """
     # `AM-32` r5 as amended by `AM-44` (2026-09-08): `configuration.view` OR
     # `legal_position.view` — see `routing.positions_permitted` for the reasoning.
@@ -204,9 +258,66 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
          ORDER BY matched DESC, score DESC, standard_code
          LIMIT :limit
     """), {"q": query, "limit": limit}).all()
-    log_event("assist.positions.searched", hits=len(rows),
-              level=logging.DEBUG)
+    lexical = [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
+                           document_type=r.document_type, source_clause=r.source_clause,
+                           content=r.content, score=float(r.score))
+               for r in rows]
+    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
+    hits = _fuse(lexical, vector, limit)
+    log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
+              vector=len(vector), level=logging.DEBUG)
+    return hits
+
+
+def _vector_neighbours(db: DBSession, query: str, *, limit: int,
+                       embed_query=None) -> list[PositionHit]:
+    """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
+    is available, when nothing is embedded, or when the calibrated gate stays shut."""
+    from legalmind.assist import calibration, embedding_runtime, store
+
+    embed = embed_query or embedding_runtime.embed_query
+    embedded = embed(query) if query and query.strip() else None
+    if embedded is None:
+        return []
+    vector, _identity = embedded
+    schema = config.assist_schema()
+    op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
+    vtype = store.vector_type(db)
+    literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
+    rows = db.execute(sql_text(f"""
+        SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause, pc.content,
+               1 - (pe.embedding {op} CAST(:q AS {vtype})) AS cosine
+          FROM "{schema}".position_chunk_embeddings pe
+          JOIN "{schema}".position_chunks pc ON pc.id = pe.position_chunk_id
+         ORDER BY pe.embedding {op} CAST(:q AS {vtype}), pc.standard_code
+         LIMIT :lim
+    """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
+    scores = [float(r.cosine) for r in rows]
+    if not calibration.gate_is_open(False, scores):
+        return []
     return [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                         document_type=r.document_type, source_clause=r.source_clause,
-                        content=r.content, score=float(r.score))
-            for r in rows]
+                        content=r.content, score=float(r.cosine))
+            for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
+
+
+def _fuse(lexical: list[PositionHit], vector: list[PositionHit],
+          limit: int) -> list[PositionHit]:
+    """Reciprocal rank fusion (k=60). An exact tie goes to the vector side: a gated
+    cosine is a stronger relevance signal than two shared lexemes (measured live: a
+    liability standard sharing "agreement" and "give" with a notice question tied
+    with the notice standard the vector had ranked first, and an alphabetical
+    tie-break put liability on top). Deterministic: insertion order breaks ties."""
+    fused: dict[UUID, float] = {}
+    by_id: dict[UUID, PositionHit] = {}
+    for rank, hit in enumerate(vector, start=1):
+        key = hit.position_chunk_id
+        fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+        by_id.setdefault(hit.position_chunk_id, hit)
+    for rank, hit in enumerate(lexical, start=1):
+        key = hit.position_chunk_id
+        fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+        by_id.setdefault(hit.position_chunk_id, hit)
+    order = list(fused)
+    ordered = sorted(order, key=lambda i: (-fused[i], order.index(i)))
+    return [by_id[i] for i in ordered[:limit]]
