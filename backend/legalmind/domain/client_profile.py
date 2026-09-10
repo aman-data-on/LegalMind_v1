@@ -22,7 +22,7 @@ from __future__ import annotations
 CLIENT_STATUSES: tuple[str, ...] = (
     "ACTIVE",        # a live relationship
     "PROSPECTIVE",   # in discussion; paper may exist, the relationship is not signed
-    "INACTIVE",      # dormant or ended — the documents stay, the profile stops being current
+    "INACTIVE",      # dormant or ended — documents stay, profile stops being current
 )
 
 _CLIENT_STATUS_SET = frozenset(CLIENT_STATUSES)
