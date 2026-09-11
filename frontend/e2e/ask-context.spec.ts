@@ -106,7 +106,11 @@ test.describe("Findings and obligations lead into Ask", () => {
     await page.goto(`/dashboard?id=${contractId}`);
     await openFindingsTab(page);
 
-    const handoff = page.getByRole("button", { name: "Ask about this" }).first();
+    // `exact` matters: the dock launcher's accessible name is "Ask about this
+    // document", which substring-matches and is NOT the handoff. Without it this
+    // clicks the launcher, the input is empty, and the failure reads as a broken
+    // handoff (it did, on the first CI run).
+    const handoff = page.getByRole("button", { name: "Ask about this", exact: true }).first();
     await expect(handoff).toBeVisible({ timeout: 30_000 });
     await handoff.click();
 
@@ -114,7 +118,8 @@ test.describe("Findings and obligations lead into Ask", () => {
     // the reader always sees exactly what is asked before it is asked.
     const question = page.locator("#ws-ask-question");
     await expect(question).toBeVisible();
-    await expect(question).not.toHaveValue("");
+    // The draft arrives through an effect — wait for it rather than reading once.
+    await expect(question).not.toHaveValue("", { timeout: 15_000 });
     await expect(page.locator(".ws-ask__turn")).toHaveCount(0);
   });
 
