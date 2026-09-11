@@ -87,12 +87,12 @@ def test_a_conversation_that_already_has_a_document_is_refused(db, user,
 # ==========================================================================
 def test_the_endpoint_attaches_and_then_refuses_a_second_document(api, db, seeded,
                                                                   storage):
-    from tests.conftest import grant_role, make_user, sign_in
-    from tests.test_assist_ask import PARAGRAPHS
     from legalmind.db import models as M
     from legalmind.domain import enums as E
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
+    from tests.conftest import grant_role, make_user, sign_in
+    from tests.test_assist_ask import PARAGRAPHS
     from tests.test_ingestion import build_docx
 
     owner = make_user(db)
@@ -126,9 +126,9 @@ def test_attaching_a_contract_the_caller_cannot_read_is_not_found(api, db, seede
                                                                   storage):
     """`AM-25` r6/r7: out of scope is indistinguishable from nonexistent, and the
     attach route is not a new way to discover that a contract exists."""
-    from tests.conftest import grant_role, make_user, sign_in
     from legalmind.db import models as M
     from legalmind.domain import enums as E
+    from tests.conftest import grant_role, make_user, sign_in
 
     stranger = make_user(db)
     grant_role(db, stranger, "USER")
@@ -150,9 +150,9 @@ def test_attaching_a_contract_the_caller_cannot_read_is_not_found(api, db, seede
 def test_attaching_to_someone_elses_conversation_is_not_found(api, db, seeded, storage):
     """`AB-12` r8: a conversation is visible to its creator only, and this route is
     held to the same rule as reading one."""
-    from tests.conftest import grant_role, make_user, sign_in
     from legalmind.db import models as M
     from legalmind.domain import enums as E
+    from tests.conftest import grant_role, make_user, sign_in
 
     first = make_user(db)
     grant_role(db, first, "USER")
@@ -196,8 +196,8 @@ def test_the_seed_carries_no_classification_rule_outcome_or_standard_value(db, o
     """The assertion that matters. `AM-30` t3 and `AM-32` r4 are unchanged by `AM-58`:
     the seed widens the QUERY, and an internal legal position must not ride along into
     a payload on the back of it."""
-    from tests.test_assist_explanations import PASSAGE, _finding, _requirement
     from legalmind.domain import enums as E
+    from tests.test_assist_explanations import PASSAGE, _finding, _requirement
 
     rv = _requirement(db, owner)
     finding = _finding(db, owner, rv, classification=E.FindingClassification.DEVIATION,
