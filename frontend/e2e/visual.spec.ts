@@ -78,6 +78,15 @@ test.describe("signed in (counsel)", () => {
     // which is why no `-actual.png` for it appears in the CI diff artifact.
     await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+    /* The side panel loads independently of the document, and this shot waited
+       only for the first document row — so it raced the Summary. CI caught both
+       sides of that race on 2026-09-11: the baseline in the tree was a MID-LOAD
+       render ("Loading the analysis…", "Reading the document for each party's
+       obligations…"), one run matched it, the next captured the settled panel
+       and failed by 83810px. Every async panel here marks itself `aria-busy`
+       while it works, so waiting for none to remain settles all of them at once
+       — and it is a real condition, not a sleep. */
+    await expect(page.locator('.ws-pane__note[aria-busy="true"]')).toHaveCount(0);
     await expect(page).toHaveScreenshot("workspace.png", {
       ...SHOT,
       // The contract name carries a timestamp; the layout around it must not move.
