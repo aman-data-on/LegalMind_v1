@@ -1766,3 +1766,17 @@ to the document), the position in `positions` (standard code, source clause, ver
 evaluator's Finding for that standard beside it when a Review exists. No generated sentence
 compares them: the position may not enter a payload (`AM-32` r4) and the comparison is the
 verdict the assistant may not make (`AM-25` r4, `AM-45` r2). Does NOT decide: the evaluator.
+
+### 308 — folding strips trailing whitespace, so a chunk is not always a BYTE-exact substring (2026-09-11, deployment finding)
+Measured on the live index immediately after the `clause-aware-4` re-index: 204 of 7,371 chunks
+(2.77%) are not a strict substring of their evidence row, because `_fold_fragments` strips each
+piece before rejoining with a newline and the source writes `DEFINITIONS \n1.1.` with a trailing
+space. **All 204 are whitespace-only; zero have altered text**, so `AM-27` r4's substance — derived
+text, no second source of truth, no invented content — holds, and all 170 document citations still
+resolve to a chunk containing the text they originally cited. Pre-existing, not introduced: the
+same measurement over the same evidence gives 160 of 7,960 (2.01%) under `clause-aware-3`, so this
+deployment adds 44. Recorded rather than fixed, on the owner's instruction not to change thresholds
+or scoring in this deployment. Does NOT decide: whether the synthetic-fixture test
+`test_chunk_text_is_a_substring_of_its_evidence_row` should be widened to whitespace-normalised
+comparison — that is a separate call, and the strict test passing on synthetic DOCX while real PDFs
+differ is itself the useful signal.

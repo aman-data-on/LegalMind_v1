@@ -15,8 +15,10 @@ No version has been released. The V1 specification is complete and implementatio
 Follows the 2026-09-10 AI/RAG architecture audit. **No lock amended** — the owner ruled the
 same day that `AM-27` r4 (a chunk references the one evidence row it came from) and `AM-30` t2
 (only the requester's question and this request's chunk spans egress) stand, and everything
-below is built inside them. No UI change. Built and tested in a worktree (`feat/p0-rag-quality`),
-**NOT deployed** and the live index **NOT re-indexed** — both are deploy steps below.
+below is built inside them. No UI change. **DEPLOYED 2026-09-11**: merged as `ec32467`, API restarted
+(PID 4120980, 12:43 IST), and the live index re-indexed in 15 seconds — 8,065 → 7,371 chunks, short-row
+share 32.7% → 25.5%, **170 of 170 document citations preserved and every one still resolving to a chunk
+containing the text it originally cited**. 18 of 18 post-deployment smoke checks passed.
 
 **1. Chunk hygiene — `clause-aware-4`** (`backend/legalmind/assist/chunking.py`,
 `store.py`, `indexing.py`; new `tools/reindex_documents.py`). Measured on the live index first:
@@ -72,10 +74,23 @@ the difference would put the position in a payload (`AM-32` r4) and utter the ve
 assistant may not (`AM-25` r4, `AM-45` r2) — not built. `test_assist_source_matrix.py` pins
 A–E plus the boundary case.
 
-**Deploy steps (not done here):** merge; restart the API; then
-`python3 -m tools.reindex_documents --dry-run` and, on a clean report, without `--dry-run`. The
-old code tolerates a v4 index (its query-time prune still drops heading rows), so the order does
-not matter. `tests/assist_eval/baseline.json` is left as ratified; the gate holds against it.
+**Deployment, 2026-09-11 (owner approved after a readiness verification).** Readiness evidence:
+the dry run was reproduced immediately before the real run and matched the audit line for line (62
+versions, zero drift in any projection, zero `LOST`); the Tier-2 gate reported SHIPPABLE on two
+consecutive runs; the four Ask scenarios and four follow-up chains were verified live. hit@1 moved
+0.391 → 0.375, traced to exactly one question (Q-12, the MSA template §5.2.3) whose answering chunk
+is byte-identical under both chunkers — the cause is the query-time heading redirect, not the
+chunker, isolated by running the new retrieval code against the old index. recall@10, retained,
+wrongly-answered, faithfulness and citation precision all held. `tests/assist_eval/baseline.json`
+is left as ratified; the gate holds against it.
+
+**Three follow-up items documented, deliberately NOT changed in this deployment:** a redirected
+heading carries the fragment's own score and can outrank the clause it points at; the model can
+occasionally phrase a paraphrase answer below the grounding floor, where the guardrail correctly
+rejects it and Ask falls through (measured 3 of 5 answered on one such question, 0 said NOT FOUND);
+and folding strips trailing whitespace, so 2.77% of chunks are not a byte-exact substring of their
+evidence row (160 such chunks existed under `clause-aware-3`, 204 now — **all whitespace-only, zero
+with altered text**, so `AM-27` r4's substance holds and every citation still resolves).
 
 ### Deployed — the Radix Dialog work is live (2026-09-10)
 
