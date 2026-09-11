@@ -43,6 +43,9 @@ import {
   Link2,
   Lock,
   Maximize2,
+  MessageSquare,
+  Paperclip,
+  Plus,
   RefreshCw,
   Scale,
   ScanText,
@@ -91,3 +94,7 @@ export const IconFileCheck = decorative(FileCheck);
 export const IconLock = decorative(Lock);
 export const IconExternal = decorative(ExternalLink);
 export const IconX = decorative(X);
+/** Ask workspace (2026-09-11): start a chat, attach a file, a chat in the rail. */
+export const IconPlus = decorative(Plus);
+export const IconPaperclip = decorative(Paperclip);
+export const IconMessage = decorative(MessageSquare);

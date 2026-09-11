@@ -94,7 +94,11 @@ test.describe("ask history", () => {
     expect(asked.status(), await asked.text()).toBe(201);
 
     await page.goto("/dashboard/ask");
-    await expect(page.getByRole("heading", { name: "Ask", exact: true })).toBeVisible();
+    // The screen is the Ask workspace since 2026-09-11: the record lives in its
+    // rail, beside a composer, rather than on a page of its own. The property
+    // under test is unchanged — the question is listed, and opening it replays
+    // the identical refusal.
+    await expect(page.getByLabel("Your question")).toBeVisible();
     // Target the conversation this test created, by id. Matching on question
     // TEXT made the spec depend on no other spec ever asking the same thing in
     // the shared e2e database — which stopped being true, and is not a property

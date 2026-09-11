@@ -983,3 +983,66 @@ The raw type code was the third: `ORDER_FORM` and `PRIVACY_POLICY` in a table ce
 wire values, so a short-word chip (`documentTypeChip`) was added — and applied to the
 **Dashboard** too, which rendered the same field the same way. Fixing one screen only would have
 been introducing the inconsistency, not avoiding it.
+
+---
+
+## DD-19 — Ask is a workspace, not a filing cabinet (owner instruction, 2026-09-11)
+
+**Status: recorded. Presentation and product-IA only; locks nothing and amends no `AM-*`.**
+Every constraint in CLAUDE.md rules 1–23, `AM-25`, `AM-29`, `AM-32` and `AM-45` is unchanged —
+what moved is the SURFACE, not the lane.
+
+The owner's report: `/dashboard/ask` reads *"Ask · 1 total"*, is a four-column table of past
+questions, and carries a sentence telling the reader that asking happens somewhere else. The
+capability the nav advertises cannot be exercised on the page that bears its name, and the
+product model has two words for two different things — **Ask** (the AI workspace) and **Recent
+chats** (the record) — that the old screen collapsed into one.
+
+### The decisions
+
+1. **`/dashboard/ask` is the Ask workspace.** Two panes: recent chats on the left, the
+   conversation and a composer in the centre. `?id=` still selects one conversation at the same
+   pathname, so every link already handed out lands where it did before.
+2. **A question needs no document.** The assist lane has answered document-less conversations
+   since 2026-09-08 (`AM-47`); until now only `/dashboard/research` offered one, and only for
+   statutes. The composer opens a document-less conversation, and `assist.routing` decides which
+   authorized sources answer — no mode selector, no source picker, exactly as locked.
+3. **Attaching a file starts a chat ABOUT that document**, and says so before it happens. A
+   conversation's contract is bound at creation and retrieval is scoped to it (`AM-25` r6), so
+   silently re-pointing an open chat is not available and was not faked. Upload is the intake's
+   own two calls; `chainAnalysis` runs behind the conversation rather than in front of it.
+4. **A comparison question renders the evaluator's own Findings as a table** — Requirement ·
+   Agreement · Company standard · Result, worst first, in the three reader words (`AM-53`,
+   `AM-56`). `AM-25` r4 routes the question to the evaluator; this is that handoff shown in
+   full instead of as a link. **No row is generated**, and the Company Standard column is
+   ABSENT — not blank — for a caller without `legal_position.view` (LEGAL-02, SEC-07), because
+   an empty cell would claim the standard says nothing.
+5. **One renderer for a live turn and a replayed one.** `TranscriptTurn` draws both; a live
+   `AskResult` is mapped into the recorded turn's shape. Two renderers is how the transcript and
+   the dock drifted apart before.
+6. **The answer is formatted, never interpreted.** `AnswerProse` makes paragraphs from blank
+   lines and a list from a run of bulleted lines. Deliberately not a markdown renderer: headings,
+   emphasis and links nobody wrote have no place in a legal answer.
+7. **The in-document dock is untouched** (DD-15, DD-17 r4). A reader inside a document asks
+   there, about the version on screen. The new screen is the way in when no document is open —
+   and a global launcher (`.ws-askglobal`) reaches it from every other screen, hiding itself via
+   `:has()` wherever a conversation already exists on the page rather than by a list of routes.
+8. **The question keeps the house alignment** — right, on the paper tint, the answer full width
+   beneath (the dock's own 2026-09-10 treatment). One pattern on two surfaces.
+
+### What the browser found, again
+
+Measured rendered, not judged from source, at 1440 / 1180 / 768 / 390:
+
+* **`.ws a` (0,1,1) outranks a lone class (0,1,0).** "New chat" rendered white-on-blue in the
+  source and blue-on-blue on screen, invisible. Every link-shaped control here is now qualified
+  with its element (`a.ws-chat__new`). The DD-18 lesson in a new place: computed style, not the
+  screenshot, names the rule.
+* **A global `th` treatment is for COLUMN headers.** The comparison table's row headers inherited
+  uppercase and letter-spacing and read as a second header row; they are reset explicitly.
+* **A disabled white glyph at 45% opacity is a smudge, not a button.** The send control drops to
+  the neutral ground when disabled rather than fading the accent.
+* **An icon inside a wrapping flex row becomes its own line** at phone width. The scope line is
+  normal text flow with an inline icon.
+* The rail is a native `<details>`: open on a desktop, closed on a phone, where half the screen
+  before the first word is the wrong trade. No horizontal scroll at 390, 768, 1180 or 1440.

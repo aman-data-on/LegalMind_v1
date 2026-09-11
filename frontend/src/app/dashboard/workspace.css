@@ -4033,3 +4033,299 @@
   .ws-cl__ver-when, .ws-cl__ver-acts { grid-column: 2; }
   .ws-cl__timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* ==========================================================================
+ * Ask — the AI workspace (owner instruction, 2026-09-11)
+ *
+ * Two panes: the record on the left, the conversation on the right. The page
+ * itself never scrolls — the rail and the log own their own scrollbars, so a
+ * long answer arriving cannot move the composer or the chat list (the
+ * scroll-ownership rule DD-13 settled for the document workspace, applied
+ * here). The composer is the one fixed row at the foot of the centre pane.
+ *
+ * No card around a message. A conversation is one surface with two voices, and
+ * DD-17 r6's "one card, then whitespace and hairlines" is what tells them
+ * apart: the question sits on a tinted block, the answer sits on the page.
+ * ========================================================================== */
+.ws {
+  /* Wide enough for a real first question, narrow enough that the conversation
+     keeps the room. Matches the Client Profiles rail's intent, one step up. */
+  --ws-chat-rail-w: 260px;
+}
+
+.ws-chat {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: var(--ws-chat-rail-w) minmax(0, 1fr);
+  height: calc(100vh - var(--ws-shell-h));
+  height: calc(100dvh - var(--ws-shell-h));
+  overflow: hidden;
+}
+
+/* ---- the rail ----------------------------------------------------------- */
+.ws-chat__rail {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--ws-surface); border-right: 1px solid var(--ws-ink-100);
+}
+/* A native <details>: above the drawer breakpoint it is simply always open, so
+   there is no second state to keep in sync and no JavaScript to ship for it. */
+.ws-chat__railtoggle { display: none; }
+.ws-chat__railbody {
+  display: flex; flex-direction: column; gap: var(--ws-s4);
+  padding: var(--ws-s4) var(--ws-s3);
+  min-height: 0; overflow-y: auto;
+}
+/* The rail's own heading, so the column says what it is at every width. On a
+   phone the same words are the drawer's toggle, and this one steps aside. */
+.ws-chat__railhead {
+  display: flex; align-items: center; gap: 7px; padding: 0 var(--ws-s1);
+  margin: 0; font-size: var(--ws-text-xs); font-weight: 650;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--ws-ink-500);
+}
+a.ws-chat__new {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; text-decoration: none; flex: none;
+  /* Stated, not inherited: a link inside the rail otherwise picks up the
+     accent ink and renders blue-on-blue (measured in the browser, 2026-09-11). */
+  color: #fff;
+}
+a.ws-chat__new:hover { color: #fff; }
+.ws-chat__railempty {
+  margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); padding: 0 var(--ws-s1);
+}
+.ws-chat__railgroup + .ws-chat__railgroup { margin-top: var(--ws-s4); }
+.ws-chat__railday {
+  margin: 0 0 var(--ws-s2); padding: 0 var(--ws-s1);
+  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ws-ink-500);
+}
+.ws-chat__raillist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+a.ws-chat__railitem {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 9px; border-radius: var(--ws-radius-sm);
+  text-decoration: none; color: var(--ws-ink-700);
+  border-left: 2px solid transparent;
+  transition: background-color var(--ws-t), border-color var(--ws-t);
+}
+a.ws-chat__railitem:hover { background: var(--ws-paper); }
+a.ws-chat__railitem[aria-current="page"] {
+  background: var(--ws-accent-soft); border-left-color: var(--ws-accent);
+}
+.ws-chat__railname {
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-chat__railitem[aria-current="page"] .ws-chat__railname { color: var(--ws-accent); }
+.ws-chat__railmeta {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-chat__railmeta svg { flex: none; }
+
+/* ---- the conversation --------------------------------------------------- */
+.ws-chat__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ws-chat__head {
+  flex: none; padding: var(--ws-s3) var(--ws-s5);
+  border-bottom: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+}
+.ws-chat__title {
+  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+  letter-spacing: -0.005em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Normal text flow, not a flex row: as a flex item the icon becomes its own
+   wrappable box and ends up alone on a line above the sentence at phone width. */
+.ws-chat__scope {
+  margin: 3px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  line-height: 1.5;
+}
+.ws-chat__scope svg { display: inline; vertical-align: -2px; margin-right: 5px; }
+
+.ws-chat__log { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ws-s5) var(--ws-s5) var(--ws-s6); }
+.ws-chat__log:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+/* The reading measure. An answer carries citations and quoted passages, so it
+   is set at a document width rather than a chat bubble's. */
+.ws-chat__thread {
+  max-width: 62rem; margin: 0 auto;
+  display: flex; flex-direction: column; gap: var(--ws-s5);
+}
+
+/* The two voices keep the house treatment the dock settled on 2026-09-10
+   (DD-17): the question right, on the paper tint; the answer full width as
+   plain text with its sources beneath a hairline. One pattern, two surfaces —
+   a second alignment for the same object would read as a second product. */
+.ws-chat__thread .ws-ask__text + .ws-ask__text { margin-top: var(--ws-s3); }
+.ws-ask__bullets {
+  margin: var(--ws-s2) 0 0; padding-left: var(--ws-s5);
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6;
+}
+
+/* The first screen: a mark, a sentence, and four editable openers. */
+/* The first screen sits in the middle of the empty conversation rather than
+   against its top edge — the owner's "too much empty space" is a composition
+   complaint, and a block pinned to the top of a tall pane is what causes it. */
+.ws-chat__thread:has(> .ws-chat__welcome) { min-height: 100%; justify-content: center; }
+.ws-chat__welcome { display: flex; flex-direction: column; gap: var(--ws-s3); max-width: 54ch; }
+.ws-chat__welcomemark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: var(--ws-radius);
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+}
+.ws-chat__welcome h2 {
+  margin: 0; font-size: var(--ws-text-lg); font-weight: 650; color: var(--ws-ink-900);
+  letter-spacing: -0.008em;
+}
+.ws-chat__welcome p { margin: 0; font-size: var(--ws-text-base); color: var(--ws-ink-700); line-height: 1.6; }
+.ws-chat__openers { display: flex; flex-wrap: wrap; gap: var(--ws-s2); margin-top: var(--ws-s2); }
+.ws-chat__openers button {
+  font: inherit; font-size: var(--ws-text-sm); text-align: left;
+  padding: 7px 11px; border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-ink-100); background: var(--ws-surface); color: var(--ws-ink-700);
+  transition: background-color var(--ws-t), border-color var(--ws-t);
+}
+.ws-chat__openers button:hover:not(:disabled) { background: var(--ws-accent-soft); border-color: var(--ws-accent); color: var(--ws-accent); }
+.ws-chat__openers button:disabled { opacity: 0.55; }
+
+/* The evaluator's comparison, as a table. Its own scroll container, so a wide
+   table never makes the PAGE scroll sideways. */
+.ws-chat__tablewrap {
+  margin-top: var(--ws-s3); overflow-x: auto;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+}
+.ws-chat__table { width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm); }
+.ws-chat__table th {
+  text-align: left; font-weight: 650; color: var(--ws-ink-500);
+  font-size: var(--ws-text-xs); letter-spacing: 0.02em;
+  background: var(--ws-paper); padding: 9px var(--ws-s4);
+  border-bottom: 1px solid var(--ws-ink-100); white-space: nowrap;
+}
+.ws-chat__table td, .ws-chat__table tbody th {
+  padding: 10px var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+  vertical-align: top; color: var(--ws-ink-700); background: var(--ws-surface);
+  font-weight: 400; white-space: normal;
+}
+/* A ROW header is a requirement's name, not a column label: the page's global
+   `th` treatment (uppercase, tracked, small) is reset here or the requirement
+   reads as another header row. */
+.ws-chat__table tbody th {
+  color: var(--ws-ink-900); font-weight: 600; font-size: var(--ws-text-sm);
+  text-transform: none; letter-spacing: normal; font-family: var(--ws-sans);
+}
+.ws-chat__table tbody th a { text-decoration: none; }
+.ws-chat__table tbody th a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ws-chat__table tbody tr:last-child td, .ws-chat__table tbody tr:last-child th { border-bottom: 0; }
+.ws-chat__rowsub { display: block; font-weight: 400; font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-top: 2px; }
+
+/* ---- the composer ------------------------------------------------------- */
+.ws-chat__composer {
+  flex: none; padding: var(--ws-s3) var(--ws-s5) var(--ws-s4);
+  border-top: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-chat__composer > * { max-width: 62rem; width: 100%; margin-inline: auto; }
+.ws-chat__files { display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
+.ws-chat__file {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0;
+  padding: 5px 7px 5px 10px; border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-ink-100); background: var(--ws-paper);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+}
+.ws-chat__filename { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30ch; }
+.ws-chat__file button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: var(--ws-radius-sm); color: var(--ws-ink-500);
+}
+.ws-chat__file button:hover { background: var(--ws-ink-100); color: var(--ws-ink-900); }
+.ws-chat__filenote { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+.ws-chat__inputrow {
+  display: flex; align-items: flex-end; gap: var(--ws-s2);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius);
+  background: var(--ws-surface); padding: 6px 6px 6px 8px;
+  transition: border-color var(--ws-t), box-shadow var(--ws-t);
+}
+.ws-chat__inputrow:focus-within {
+  border-color: var(--ws-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ws-accent) 14%, transparent);
+}
+.ws-chat__attach {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  min-height: 36px; padding: 0 10px; border-radius: var(--ws-radius-sm);
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-chat__attach:hover:not(:disabled) { background: var(--ws-paper); color: var(--ws-accent); }
+.ws-chat__attach:disabled { opacity: 0.5; }
+.ws-chat__input {
+  flex: 1; min-width: 0; font: inherit; font-size: var(--ws-text-base);
+  border: 0; outline: 0; background: transparent; color: var(--ws-ink-900);
+  padding: 8px 4px; resize: none; max-height: 9rem; line-height: 1.5;
+  field-sizing: content; /* progressive: grows with the text where supported */
+}
+.ws-chat__input::placeholder { color: var(--ws-ink-500); }
+.ws-chat__send {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 36px; height: 36px; border-radius: var(--ws-radius-sm);
+  background: var(--ws-accent); color: #fff;
+  transition: background-color var(--ws-t);
+}
+.ws-chat__send:hover:not(:disabled) { background: var(--ws-accent-strong); }
+/* Disabled keeps the shape but drops the call to action — a white glyph at 45%
+   on the accent is a smudge, not a button. */
+.ws-chat__send:disabled {
+  background: var(--ws-ink-100); color: var(--ws-ink-500); cursor: not-allowed;
+}
+.ws-chat__note { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* ---- the global entry point --------------------------------------------- */
+/* Present on every screen; absent from the three that already carry Ask — the
+   document workspace and Research (their own dock) and Ask itself. `:has()`
+   states the real rule: this page already has a conversation on it. */
+a.ws-askglobal {
+  position: fixed; right: var(--ws-s5); bottom: var(--ws-s5); z-index: var(--ws-z-shell);
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 16px; border-radius: 999px;
+  background: var(--ws-accent); color: #fff; text-decoration: none;
+  font-size: var(--ws-text-sm); font-weight: 600;
+  box-shadow: 0 6px 20px rgba(14, 20, 32, 0.18);
+  transition: background-color var(--ws-t), transform var(--ws-t);
+}
+a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translateY(-1px); }
+/* WCAG 2.2 AA 2.4.11 "Focus Not Obscured", which names chat widgets explicitly:
+   nothing may come to rest underneath the launcher, so the scrolling column
+   reserves its footprint — the same rule `.ws-dock` already follows. */
+.ws:has(.ws-askglobal) .ws-docs, .ws:has(.ws-askglobal) .ws-cl--index, .ws:has(.ws-askglobal) .ws-cl__main {
+  padding-bottom: calc(var(--ws-s7) + 44px);
+}
+.ws-askglobal:active { transform: translateY(0); }
+.ws-askglobal:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
+.ws:has(.ws-dock) .ws-askglobal, .ws:has(.ws-chat) .ws-askglobal { display: none; }
+
+/* ---- responsive ---------------------------------------------------------- */
+/* Laptop: a narrower rail, the conversation keeps everything else. */
+@media (max-width: 1200px) {
+  .ws { --ws-chat-rail-w: 216px; }
+  .ws-chat__log, .ws-chat__composer { padding-left: var(--ws-s4); padding-right: var(--ws-s4); }
+}
+/* Small screens: the rail becomes a real drawer, and the composer stays put. */
+@media (max-width: 860px) {
+  .ws-chat { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .ws-chat__rail { border-right: 0; border-bottom: 1px solid var(--ws-ink-100); }
+  .ws-chat__railtoggle {
+    display: flex; align-items: center; gap: 7px; cursor: pointer;
+    min-height: 44px; padding: 0 var(--ws-s4);
+    font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
+    list-style: none;
+  }
+  .ws-chat__railtoggle::-webkit-details-marker { display: none; }
+  .ws-chat__railtoggle::after {
+    content: ""; margin-left: auto;
+    width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--ws-t);
+  }
+  .ws-chat__rail[open] .ws-chat__railtoggle::after { transform: rotate(-135deg) translate(-2px, -2px); }
+  .ws-chat__railbody { max-height: 50dvh; }
+  .ws-chat__railhead { display: none; }
+  .ws-chat__welcome h2 { font-size: var(--ws-text-md); }
+}

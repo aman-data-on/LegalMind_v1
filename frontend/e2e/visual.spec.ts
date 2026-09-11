@@ -78,6 +78,15 @@ test.describe("signed in (counsel)", () => {
     // which is why no `-actual.png` for it appears in the CI diff artifact.
     await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
+    /* The side panel loads independently of the document, and this shot waited
+       only for the first document row — so it raced the Summary. CI caught both
+       sides of that race on 2026-09-11: the baseline in the tree was a MID-LOAD
+       render ("Loading the analysis…", "Reading the document for each party's
+       obligations…"), one run matched it, the next captured the settled panel
+       and failed by 83810px. Every async panel here marks itself `aria-busy`
+       while it works, so waiting for none to remain settles all of them at once
+       — and it is a real condition, not a sleep. */
+    await expect(page.locator('.ws-pane__note[aria-busy="true"]')).toHaveCount(0);
     await expect(page).toHaveScreenshot("workspace.png", {
       ...SHOT,
       // The contract name carries a timestamp; the layout around it must not move.
@@ -125,8 +134,17 @@ test.describe("the new UI at the freeze (counsel)", () => {
     await expect(page).toHaveScreenshot("ws-documents.png", {
       ...SHOT,
       fullPage: true,
-      // Names carry timestamps and the Added column carries today's date.
-      mask: [page.locator("tbody td:first-child"), page.locator("tbody td:last-child")],
+      /* Names carry timestamps and the Added column carries today's date — and
+         until 2026-09-11 the mask covered the first and last cells only, so
+         Added was compared. The baseline held 2026-09-09 and drifted a few
+         digits a day, under the 1152px threshold, passing green while wrong.
+         The comment named the defect the mask did not cover; both cells are
+         `ws-mono`, so masking them cannot move anything outside their own box. */
+      mask: [
+        page.locator("tbody td:first-child"),
+        page.locator("tbody td:nth-child(6)"),
+        page.locator("tbody td:last-child"),
+      ],
     });
   });
 
@@ -167,29 +185,50 @@ test.describe("the new UI at the freeze (counsel)", () => {
     });
   });
 
-  test("ask history — the caller's own record", async ({ page }) => {
+  /* The Ask workspace (2026-09-11) replaced the history TABLE this baseline used
+     to pin, so both shots move with it: the empty workspace a reader meets, and
+     one open conversation beside its rail. Volatile text — the document name in
+     the rail and in the scope line — is masked; the two-pane layout is what
+     these pin.
+
+     ⚠️ WHOEVER ADOPTS THE TWO ACTUALS FOR THESE: OPEN THEM AND LOOK.
+     A green job 15 is not evidence that a baseline is correct — it is only
+     evidence that the run matched whatever pixels the baseline already holds.
+     `maxDiffPixelRatio: 0.001` is 1152px of 1280x900, and three baselines drifted
+     UNDER that threshold and passed silently for weeks: the Client Profiles nav
+     link was missing from `ws-legal`, `ws-ask-history` and `ws-transcript`, and a
+     `.ws-hero__ctan` contrast fix sat unabsorbed in `workspace` (found 2026-09-11
+     by reading the diff images of a run that failed for an unrelated reason, not
+     by a red job 15).
+
+     These two are NEW baselines, so their first CI run fails as missing and the
+     actuals are whatever the branch renders — right or wrong. Check the nav is
+     complete, the rail carries its chats, and the composer is present before
+     committing them. Adopt from CI's `*-actual.png`; never `--update-snapshots`
+     locally (owner, 2026-08-30). */
+  test("ask — the empty workspace", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await askAbout(page, contractId);
     await page.goto("/dashboard/ask");
-    await expect(page.locator("tbody tr").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("ws-ask-history.png", {
+    await expect(page.locator(".ws-chat__railitem").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-ask-workspace.png", {
       ...SHOT,
       fullPage: true,
-      mask: [page.locator("tbody td:nth-child(3)"), page.locator("tbody td:nth-child(4)")],
+      mask: [page.locator(".ws-chat__railmeta")],
     });
   });
 
-  test("transcript — the replayed refusal", async ({ page }) => {
+  test("ask — one conversation, replayed with its citations", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     const conversationId = await askAbout(page, contractId);
     await page.goto(`/dashboard/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("ws-transcript.png", {
+    await expect(page).toHaveScreenshot("ws-ask-conversation.png", {
       ...SHOT,
       fullPage: true,
-      mask: [page.locator(".ws-context a")],
+      mask: [page.locator(".ws-chat__railmeta"), page.locator(".ws-chat__scope")],
     });
   });
 
@@ -208,7 +247,16 @@ test.describe("the new UI at the freeze (admin)", () => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await page.goto("/dashboard/admin");
     await expect(page.locator("tbody tr").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("ws-admin.png", { ...SHOT, fullPage: true });
+    /* Last sign-in and Created are real timestamps — this shot carried NO mask,
+       so its baseline was pinned to the minute it was adopted (09-10 11:52) and
+       has been drifting under the threshold ever since. Both columns are
+       `ws-mono`: fixed advance width, so a mask here hides pixels without
+       moving the row. */
+    await expect(page).toHaveScreenshot("ws-admin.png", {
+      ...SHOT,
+      fullPage: true,
+      mask: [page.locator("tbody td:nth-child(6)"), page.locator("tbody td:nth-child(7)")],
+    });
   });
 
   test("audit trail — the dense read-only table", async ({ page }) => {
