@@ -1,0 +1,36 @@
+/**
+ * Tailwind, scoped to the Ask route (2026-09-11).
+ *
+ * WHY THIS FILE LOOKS LIKE THIS. LegalMind's design system is 4300 lines of
+ * hand-authored CSS whose every token is scoped to `.ws` — deliberately, so the
+ * legacy stylesheet at the root cannot collide with it. A stock Tailwind install
+ * (`@import "tailwindcss"`) would do two things this product cannot accept: it
+ * imports `preflight.css`, which resets margins, headings, lists, buttons and
+ * tables on EVERY screen, and shadcn's CSS-variables mode expects a global
+ * `:root` token layer, which is the opposite of `.ws`-scoping.
+ *
+ * So the three Tailwind entry points are imported individually and preflight is
+ * simply never named:
+ *
+ *   theme.css      the token layer (custom properties only — paints nothing)
+ *   utilities.css  the utilities themselves
+ *   preflight.css  NEVER IMPORTED. Not commented out — absent.
+ *
+ * `prefix(tw)` is a v4 namespace variant, not a string prefix: utilities are
+ * emitted as `.tw\:flex`, so a bare `flex` or `text-sm` appearing in any existing
+ * markup can never match one of them. `@source` limits scanning to this route and
+ * the components it owns, so nothing else in the app is even read.
+ *
+ * ONE THING TO KNOW BEFORE USING A UTILITY HERE. Cascade layers outrank
+ * specificity: a rule in ANY `@layer` loses to an unlayered rule, whatever the
+ * selectors say. `workspace.css` is unlayered, so `.ws a` (workspace.css:171)
+ * beats `tw:text-blue-500` every time, silently. Utilities are therefore for NEW
+ * markup that no `.ws` rule already targets — they are not a way to restyle
+ * anything the design system already owns. Use the `--ws-*` tokens for that.
+ */
+@layer theme, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
+
+@source "./";
