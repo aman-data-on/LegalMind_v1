@@ -643,7 +643,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           <button
             type="button"
             className="ws-escalate__link"
-            onClick={() => askIntent.ask(askQuestionFor(finding))}
+            onClick={() => askIntent.ask(askQuestionFor(finding), finding.id)}
           >
             Ask about this
           </button>

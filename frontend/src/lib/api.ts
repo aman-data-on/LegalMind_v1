@@ -274,12 +274,32 @@ export const api = {
    *  without naming the open version is how an answer ends up pointing at a
    *  passage that is not on the page. The server still defaults to the newest
    *  version when it is omitted. */
-  ask: (conversationId: string, question: string, documentVersionId?: string) =>
-    // JSON.stringify drops undefined-valued keys, so an omitted version id
-    // never reaches the wire — no need to branch the body shape.
+  ask: (
+    conversationId: string,
+    question: string,
+    documentVersionId?: string,
+    /** A question asked ABOUT a Finding the reader has open (2026-09-11). It seeds
+     *  the server's RETRIEVAL query with that Finding's requirement and the clause
+     *  its Evaluation cited, so "why is this a deviation?" retrieves the provision
+     *  instead of nothing. It widens nothing the caller may read: the server
+     *  resolves the Finding through the ordinary Guard and requires it to belong to
+     *  this conversation's contract. */
+    findingId?: string,
+  ) =>
+    // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
+    // the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
-      body: { question, document_version_id: documentVersionId },
+      body: { question, document_version_id: documentVersionId, finding_id: findingId },
+    }),
+  /** Give a document-less conversation a document, keeping every earlier turn
+   *  (2026-09-11). One-way by design — the server refuses a conversation that
+   *  already has one, because earlier turns cite evidence rows from the first
+   *  document's reading order. Attaching a second document starts a new chat. */
+  attachDocument: (conversationId: string, contractId: string) =>
+    request<Conversation>(`/conversations/${conversationId}/document`, {
+      method: "POST",
+      body: { contract_id: contractId },
     }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */

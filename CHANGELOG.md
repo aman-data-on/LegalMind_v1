@@ -10,6 +10,26 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Ask stage 3: the context follows the reader (2026-09-11)
+
+Third of three stages (owner instruction, 2026-09-11), on top of the stage 1 backend. Recorded as
+[DD-21](docs/design/DESIGN_DECISIONS.md).
+
+* **Attaching a document keeps the thread.** A chat with no document gains one and every earlier
+  turn stays, so a reader who has been asking what the organization requires can attach the
+  agreement and say "now compare this with our standards". A chat that already has a document
+  starts a new one and says so before sending — earlier turns cite evidence rows from the first
+  document's reading order.
+* **A Finding's "Ask about this" carries the Finding id** as a retrieval hint, so "why is this a
+  deviation?" finds the clause instead of nothing. The question the reader sees is unchanged, and
+  no classification, Rule Outcome or Company Standard value travels.
+* **Obligations gained the same handoff** — previously a reader could point at one but not ask
+  about it without retyping.
+* **The chat rail is searchable**, over question and document name, client-side (49.6 r3
+  allow-lists only `contract_id`, so no server search exists and none was invented).
+* Ask now names the document version it is asking about instead of relying on the server's
+  "newest" default, matching the dock.
+* Tests: `src/__tests__/ask-context.test.tsx` (4), `e2e/ask-context.spec.ts` (5).
 ### Added — Ask stage 2: Tailwind, isolated and measured; zero AI Elements adopted (2026-09-11)
 
 Second of three stages. Tooling only — no product behaviour changes, and no existing screen is

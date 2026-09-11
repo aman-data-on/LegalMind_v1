@@ -4089,6 +4089,23 @@ a.ws-chat__new {
   color: #fff;
 }
 a.ws-chat__new:hover { color: #fff; }
+/* Search over the chats already loaded. A rail control, so it sits at rail scale
+   rather than borrowing the page's search field. */
+.ws-chat__search { position: relative; display: flex; align-items: center; }
+.ws-chat__search svg {
+  position: absolute; left: 9px; color: var(--ws-ink-500); pointer-events: none;
+}
+.ws-chat__search input {
+  font: inherit; font-size: var(--ws-text-sm); width: 100%;
+  padding: 7px 9px 7px 29px; min-height: 34px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900);
+}
+.ws-chat__search input::placeholder { color: var(--ws-ink-500); }
+.ws-chat__search input:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 1px; border-color: var(--ws-accent);
+}
+
 .ws-chat__railempty {
   margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); padding: 0 var(--ws-s1);
 }
@@ -4277,6 +4294,26 @@ a.ws-chat__railitem[aria-current="page"] {
   background: var(--ws-ink-100); color: var(--ws-ink-500); cursor: not-allowed;
 }
 .ws-chat__note { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* An obligation's own "Ask about this" (2026-09-11). Quiet by default: a list of
+   twenty obligations must not read as twenty buttons. It appears on hover and —
+   this is the half that is easy to forget — on keyboard focus, so it is reachable
+   without a pointer. `focus-within` covers the row; `:focus-visible` covers the
+   control itself once tabbed to. */
+.ws-obligations__ask {
+  margin-left: auto; flex: none; align-self: flex-start;
+  font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-accent);
+  padding: 2px 6px; border-radius: var(--ws-radius-sm);
+  opacity: 0; transition: opacity var(--ws-t), background-color var(--ws-t);
+}
+.ws-obligations__item:hover .ws-obligations__ask,
+.ws-obligations__item:focus-within .ws-obligations__ask,
+.ws-obligations__ask:focus-visible { opacity: 1; }
+.ws-obligations__ask:hover { background: var(--ws-accent-soft); }
+.ws-obligations__ask:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+/* Touch has no hover, so the control is simply always visible there rather than
+   unreachable — the same reasoning that keeps the Ask dock click-to-open. */
+@media (hover: none) { .ws-obligations__ask { opacity: 1; } }
 
 /* ---- the global entry point --------------------------------------------- */
 /* Present on every screen; absent from the three that already carry Ask — the

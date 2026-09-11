@@ -180,11 +180,16 @@ export function AskDock({
   // nothing. Opening is part of the handoff now that the input is not always on
   // screen — otherwise "Ask about this" would silently do nothing visible.
   const consumedSeq = useRef(0);
+  /** The Finding the pending draft came from, if any — a retrieval hint for the
+   *  NEXT send only, cleared the moment it is used so a later, unrelated question
+   *  in the same conversation is not quietly seeded with a stale clause. */
+  const draftFinding = useRef<string | null>(null);
   useEffect(() => {
     const draft = askIntent?.draft;
     if (!draft || draft.seq === consumedSeq.current) return;
     consumedSeq.current = draft.seq;
     setQuestion(draft.text);
+    draftFinding.current = draft.findingId ?? null;
     setOpen(true);
   }, [askIntent?.draft]);
 
@@ -258,7 +263,10 @@ export function AskDock({
       }
       // The version on screen is the version asked about — never "whichever is
       // newest". This is the fix; everything else here is presentation.
-      const result = await api.ask(conversationRef.current, asked, documentVersionId ?? undefined);
+      const findingId = draftFinding.current ?? undefined;
+      draftFinding.current = null;
+      const result = await api.ask(conversationRef.current, asked,
+                                   documentVersionId ?? undefined, findingId);
       setTurns((previous) => [...previous, {
         question: asked,
         result,

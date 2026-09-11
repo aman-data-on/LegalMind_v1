@@ -1091,3 +1091,40 @@ stylesheet — the method and the numbers are in
 **The honest caveat**, recorded so nobody discovers it as a bug: the theme layer declares six
 `--tw-*` custom properties on `:root`. They collide with nothing and paint nothing, but this is
 not a zero-global-effect change and is not described as one.
+## DD-21 — Ask is one product in two places (owner instruction, 2026-09-11)
+
+**Status: recorded. Presentation and product-IA only; locks nothing.** `AM-57` r4 still
+governs the in-document dock, and it is unchanged here.
+
+The owner's complaint was that LegalMind had two chats that did not know about each other: a
+global Ask that forgot everything the moment you attached a document, and a document Ask that
+had to be told which document it was looking at. Four changes, one idea — **the context follows
+the reader**.
+
+1. **Attaching keeps the thread.** A chat with no document gains one
+   (`POST /conversations/{id}/document`) and every earlier turn stays, so "now compare this with
+   our standards" is a sentence someone can type after five turns about the standards. A chat
+   that already has a document starts a new one instead, and says so before sending: earlier
+   turns cite `evidence_id`s from the first document's reading order, and re-pointing would
+   strand every one of them. The server refuses it too — the UI branch is honesty, not
+   enforcement.
+2. **A Finding's "Ask about this" carries the Finding.** Not as hidden words in the question —
+   the reader still sees exactly what is asked — but as a **retrieval hint**: the server seeds
+   its search with that requirement and the clause the Evaluation cited, so "why is this a
+   deviation?", which has almost no retrievable content of its own, finds the provision instead
+   of nothing. `AM-30` t3 and `AM-32` r4 are untouched and a backend test asserts no
+   classification, Rule Outcome or standard value can ride along.
+3. **An obligation is no longer a dead end.** It could be pointed at but not asked about, so a
+   reader with a question had to retype it. Same editable-draft rule; no Finding id, because an
+   obligation is a descriptive fact about the document's text and not a Finding.
+4. **The chat list is searchable.** Over what is loaded, matching the question *and* the document
+   name — "CloudPe" is as likely a way back to a chat as "termination". `GET /conversations`
+   allow-lists only `contract_id` (49.6 r3), so there is no server-side search to call and none
+   was invented; the field says it searches the list.
+
+**What was deliberately not built.** LLM-generated chat titles: a title call is a new egress
+payload, and `AM-30` t2 does not authorize one — the first question is already the best available
+title and costs nothing. A source or mode selector: `AM-45` r1 forbids it, and the router already
+decides. A finer citation anchor: `chunks.start_offset` exists but is never selected into a hit,
+so clause and page is the real resolution and the UI will not imply more precision than the data
+carries.
