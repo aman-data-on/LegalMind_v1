@@ -117,7 +117,11 @@ export async function createAnalysedReview(
   const f = fixture();
 
   const contract = await postOk(page, "/contracts", {
-    name: `Structural MSA ${Date.now()}`,
+    // Fixed under DESIGN_QA: the name renders into `.ws-context h1`, which is
+    // masked in ws-report.png but still an in-flow flex child — the epoch's
+    // digits differ in width in a proportional font, so its box shifted the
+    // toolbar ~1px between baseline runs and failed job 15 on every commit.
+    name: `Structural MSA ${process.env.DESIGN_QA ? "baseline" : Date.now()}`,
     // Step 6 / owner Q9: the uploader declares the Document Type; analysis
     // refuses an undeclared one rather than evaluating everything.
     contract_type: "MSA",
