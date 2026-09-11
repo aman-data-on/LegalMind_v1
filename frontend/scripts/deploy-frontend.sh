@@ -25,6 +25,36 @@ PROBE="https://legalmind.lsnw.io/login"
 say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
 # ---------------------------------------------------------------------------
+# node_modules must match package-lock.json (2026-09-11).
+#
+# WHY. This script builds but has never installed, which was invisible while the
+# dependency list sat unchanged for weeks. Stage 2 added tailwindcss and
+# @tailwindcss/postcss, and `postcss.config.mjs` requires the latter at build
+# time: deploying onto a tree whose node_modules predates the merge fails in the
+# PostCSS transform of `globals.css` — a stack trace about a stylesheet that did
+# not change, which is a genuinely confusing place to start debugging.
+#
+# The atomic swap means a failed build ships nothing, so this is not a safety
+# fix; it is a "fail with the right sentence" fix. It refuses rather than
+# installing on your behalf, because pulling packages is not what someone typing
+# `npm run deploy` asked for.
+# ---------------------------------------------------------------------------
+missing_deps=""
+for dep in $(node -e '
+  const p = require("./package.json");
+  const all = {...(p.dependencies||{}), ...(p.devDependencies||{})};
+  process.stdout.write(Object.keys(all).join(" "));
+'); do
+  [ -d "node_modules/$dep" ] || missing_deps="$missing_deps $dep"
+done
+if [ -n "$missing_deps" ]; then
+  printf '\n\033[1;31m==> Dependencies are not installed:%s\033[0m\n' "$missing_deps"
+  printf '    package-lock.json has moved ahead of node_modules — run:\n\n'
+  printf '      (cd %s && npm ci)\n\n' "$(pwd)"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # The API must not be OLDER than the backend source (2026-09-02).
 #
 # WHY. The API rejects any request field it does not recognise

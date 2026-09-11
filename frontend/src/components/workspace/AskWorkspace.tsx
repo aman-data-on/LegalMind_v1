@@ -34,13 +34,21 @@
  *
  * Attaching a file
  * ----------------
- * A conversation's contract is fixed when the conversation is created (the
- * server binds it, `AM-25` r6 scopes retrieval to it), so attaching a document
- * STARTS A NEW CHAT about that document rather than silently re-pointing the
- * open one. The screen says so before it happens. The upload is the same two
- * calls the intake makes; the analysis chain runs behind it exactly as it does
- * from the Dashboard, so a comparison question has a Review to be answered from
- * as soon as the evaluator finishes.
+ * Attaching a document to a chat that has none KEEPS THE THREAD (2026-09-11,
+ * `POST /conversations/{id}/document`). A reader who has been asking what the
+ * organization requires and then attaches the agreement can say "now compare
+ * this with our standards" and mean it — the earlier turns are still there, and
+ * the answer is about the document they just supplied.
+ *
+ * A chat that already HAS a document starts a new one instead, and the screen
+ * says so before it happens. That is not a UI shortcut: earlier turns cite
+ * `evidence_id`s belonging to the first document's reading order, and moving
+ * the scope underneath them would leave every one of those citations pointing
+ * at a row the conversation no longer contains. The server refuses it too.
+ *
+ * The upload is the same two calls the intake makes; the analysis chain runs
+ * behind it exactly as it does from the Dashboard, so a comparison question has
+ * a Review to be answered from as soon as the evaluator finishes.
  */
 
 import Link from "next/link";
@@ -56,6 +64,7 @@ import type { AskResult, ConversationSummary, ConversationTurn } from "@/lib/typ
 
 import {
   IconFile,
+  IconSearch,
   IconMessage,
   IconPaperclip,
   IconPlus,
@@ -155,6 +164,12 @@ export function AskWorkspace() {
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [search, setSearch] = useState("");
+  /** The version a question is about, once the chat has a document. Named
+   *  explicitly rather than left to the server's "newest" default, for the same
+   *  reason the dock names it: a citation's `evidence_id` belongs to exactly one
+   *  version's reading order. */
+  const [versionId, setVersionId] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   /** The Review whose Findings answer a routed comparison turn. */
   const [reviewId, setReviewId] = useState<string | null>(null);
@@ -192,6 +207,7 @@ export function AskWorkspace() {
     if (!activeId) {
       setTurns([]);
       setScope({ contractId: null, documentName: null });
+      setVersionId(null);
       return;
     }
     setLoadingChat(true);
@@ -203,7 +219,9 @@ export function AskWorkspace() {
         let documentName: string | null = null;
         if (detail.contract_id) {
           try {
-            documentName = (await api.contract(detail.contract_id)).name;
+            const contract = await api.contract(detail.contract_id);
+            documentName = contract.name;
+            setVersionId(contract.document_versions?.[0]?.id ?? null);
           } catch {
             // A document since archived or out of scope: the conversation is
             // still the caller's own and still readable (`AM-25` r7).
@@ -285,15 +303,26 @@ export function AskWorkspace() {
       let contractId = scope.contractId;
 
       if (file) {
-        // Attaching starts a chat ABOUT the document: the server binds a
-        // conversation to its contract at creation and scopes retrieval to it.
         const contract = await api.createContract(nameFromFilename(file.name));
-        await api.uploadDocument(contract.id, file);
+        const uploaded = await api.uploadDocument(contract.id, file);
         contractId = contract.id;
-        const created = await api.createConversation(contract.id);
-        conversationId = created.id;
-        setTurns([]);
+        if (conversationId && scope.contractId === null) {
+          // THE THREAD SURVIVES. This chat has no document yet, so it gains one
+          // and every earlier turn stays readable — which is what makes "now
+          // compare this with our standards" a sentence a person can actually
+          // type after five turns about the standards themselves.
+          await api.attachDocument(conversationId, contract.id);
+        } else {
+          // It already has one. A second document starts a new chat rather than
+          // re-pointing this one: earlier citations belong to the FIRST
+          // document's reading order and would be stranded. The server refuses
+          // it as well — this branch is the honest UI, not the enforcement.
+          const created = await api.createConversation(contract.id);
+          conversationId = created.id;
+          setTurns([]);
+        }
         setScope({ contractId: contract.id, documentName: contract.name });
+        setVersionId(uploaded.document_version.id);
         setAttachment(null);
         // The analysis runs behind the conversation rather than in front of it
         // — the reader asked a question, not for a Review. Best-effort exactly
@@ -304,7 +333,8 @@ export function AskWorkspace() {
         conversationId = created.id;
       }
 
-      const result = await api.ask(conversationId, asked);
+      const result = await api.ask(conversationId, asked,
+                                   versionId ?? undefined);
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
       if (conversationId !== activeId) {
@@ -320,7 +350,8 @@ export function AskWorkspace() {
     } finally {
       setPending(null);
     }
-  }, [activeId, attachment, busy, can, loadConversations, question, scope.contractId]);
+  }, [activeId, attachment, busy, can, loadConversations, question, scope.contractId,
+      versionId]);
 
   if (!canAsk) {
     return (
@@ -331,8 +362,17 @@ export function AskWorkspace() {
     );
   }
 
+  /* The filter matches the question AND the document name, because "CloudPe" is
+     as likely a way to find a chat as "termination". Case-insensitive, substring —
+     no ranking, because a list of fifty is not a search problem. */
+  const needle = search.trim().toLowerCase();
+  const visible = (conversations ?? []).filter((conversation) =>
+    needle === "" ||
+    chatTitle(conversation).toLowerCase().includes(needle) ||
+    (conversation.document_name ?? "").toLowerCase().includes(needle));
+
   const groups: { day: string; items: ConversationSummary[] }[] = [];
-  for (const conversation of conversations ?? []) {
+  for (const conversation of visible) {
     const day = dayGroup(conversation.created_at);
     const last = groups[groups.length - 1];
     if (last && last.day === day) last.items.push(conversation);
@@ -363,6 +403,22 @@ export function AskWorkspace() {
           >
             <IconPlus size={15} /> New chat
           </Link>
+          {/* Filters what is ALREADY loaded. `GET /conversations` allow-lists only
+              `contract_id` (49.6 r3), so there is no server-side search to call and
+              none is invented here — the field says it searches this list. */}
+          <div className="ws-chat__search">
+            <IconSearch size={14} />
+            <label className="ws-visually-hidden" htmlFor="ws-chat-search">
+              Search your chats
+            </label>
+            <input
+              id="ws-chat-search"
+              type="search"
+              value={search}
+              placeholder="Search chats…"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
           <nav aria-label="Recent chats">
             {conversations === null ? (
               <p className="ws-pane__note" role="status" aria-live="polite">
@@ -371,6 +427,11 @@ export function AskWorkspace() {
             ) : conversations.length === 0 ? (
               <p className="ws-chat__railempty">
                 No conversations yet. Ask something and it is kept here.
+              </p>
+            ) : visible.length === 0 ? (
+              // A different fact from "you have no chats", and said differently.
+              <p className="ws-chat__railempty">
+                No chat matches &ldquo;{search.trim()}&rdquo;.
               </p>
             ) : (
               groups.map((group) => (
@@ -559,7 +620,9 @@ export function AskWorkspace() {
                 </button>
               </span>
               <span className="ws-chat__filenote">
-                Sending starts a new chat about this document.
+                {scope.contractId === null
+                  ? "This chat will be about this document. Your earlier questions stay."
+                  : "This chat is already about a document — sending starts a new one."}
               </span>
             </div>
           ) : null}

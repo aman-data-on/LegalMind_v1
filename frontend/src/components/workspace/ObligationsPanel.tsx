@@ -29,6 +29,8 @@
 import { useEffect, useId, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
+import { useAskIntent } from "./askIntent";
+
 import { api } from "@/lib/api";
 import type { ObligationGroup, ObligationItem } from "@/lib/types";
 
@@ -131,6 +133,9 @@ export function ObligationCategoryRow({
   onToggle: () => void;
 }) {
   const { point, target } = useHighlight();
+  // Null on any surface outside the workspace (the provider lives there), and the
+  // control simply is not rendered — the same degradation the Finding card uses.
+  const askIntent = useAskIntent();
   const panelId = useId();
   const [expanded, setExpanded] = useState(false);
   // A closed group forgets its expansion; reopening starts at the first five.
@@ -175,6 +180,21 @@ export function ObligationCategoryRow({
             ) : (
               <span className="ws-obligations__text">{item.obligation_text}</span>
             )}
+            {/* An obligation could be pointed at but not asked about, so reading one
+                that raised a question was a dead end — the reader had to retype it
+                into Ask. The draft is editable and nothing sends until they send it
+                (the Finding handoff's own rule). No finding id: an obligation is a
+                descriptive fact about the document's text, not a Finding. */}
+            {askIntent ? (
+              <button
+                type="button"
+                className="ws-obligations__ask"
+                onClick={() => askIntent.ask(
+                  `What does this document say about "${item.obligation_text.slice(0, 120)}"?`)}
+              >
+                Ask about this
+              </button>
+            ) : null}
           </li>
         ))}
         {hidden > 0 ? (
