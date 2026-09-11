@@ -8,7 +8,12 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY tsconfig.json next.config.ts vitest.config.ts ./
+# `postcss.config.mjs` is BUILD-time too (2026-09-11): without it Next has no
+# PostCSS pipeline, so `src/app/dashboard/ask/ai.css`'s `@import "tailwindcss/…"`
+# is never processed and the image build fails — the same shape of omission that
+# broke job 14 on 2026-09-01 when `scripts/` was missing, and it fails in the
+# same invisible place, since Trivy then has no image to scan.
+COPY tsconfig.json next.config.ts vitest.config.ts postcss.config.mjs ./
 # `scripts/` is needed at BUILD time, not runtime: package.json has a `prebuild`
 # hook (`scripts/guard-build-target.mjs`) that refuses an in-place `next build`
 # while the live service is serving `.next`. Without this COPY the container
