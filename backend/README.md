@@ -590,6 +590,40 @@ redactor. It found a defect the suite could not — see
 [INDEPENDENT_VERIFICATION.md](../docs/08-testing/INDEPENDENT_VERIFICATION.md). It is not
 third-party verification and makes nothing `VERIFIED`.
 
+## Assist index hygiene, re-indexing, and Ask follow-ups (2026-09-10)
+
+**Chunking is `clause-aware-4`** (`legalmind/assist/chunking.py`). A chunk is a transformation
+of ONE `document_evidence` row (`AM-27` r4 — never two). Inside a row, clause numbers split;
+a bare number, a heading line or an orphan list marker folds forward into the clause it
+introduces; a continuation tail folds back; a short complete sentence stays its own chunk.
+Page furniture — a short row repeated three or more times in a version — is not indexed. A
+heading-only row IS indexed (it holds the clause number users ask with) and `store.search_hybrid`
+redirects a hit on it to the clause beneath.
+
+**Re-index after a chunker change — without losing a citation:**
+
+```
+python3 -m tools.reindex_documents --dry-run      # per-version counts, rolls back
+python3 -m tools.reindex_documents                # id-preserving; exits 1 if any citation is lost
+python3 -m tools.reindex_documents --version-id <uuid> --only-older-than ''
+```
+
+`store.replace_chunks` keeps a clause's chunk id when its text is contained in the new chunk
+and moves an absorbed fragment's `answer_citations` to the chunk that absorbed it. A plain
+delete-and-reinsert would cascade citations away (rule 17). Indexing a version for the first
+time is unchanged; `reindex=True` is the only path that uses it.
+
+**Ask follow-ups.** `service.ask` reads the requester's last four USER turns of the same
+conversation (≤300 chars each). When the new question cannot stand alone (`intent.is_follow_up`
+— "what about clause 7?", "what happens after that?") the most recent question that does stand
+alone (the anchor) joins it in the retrieval query and the routing input, and the anchor plus
+the question just before are listed to the model as context (`grounded-answer-2`). Every chunk is
+still retrieved fresh, in the version the request names, under the caller's live permission set;
+an earlier answer, a position or a statute section never enters the payload (`AM-30` t2/t3,
+`AM-32` r4). The retrieval run records the expanded `query_text` and `filters.follow_up_of`.
+Tests: `tests/test_assist_conversation_memory.py`, `tests/test_assist_source_matrix.py`,
+`tests/test_assist_indexing.py` (clause-aware-4 section).
+
 ## Lint and types
 
 ```

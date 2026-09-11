@@ -32,18 +32,31 @@ an A3/A4 question, and adding it now would be tuning against a hypothesis.
 
 No parent/child hierarchy. Same reason: the two-tier retrieval strategy that would use
 it does not exist yet.
+
+No folding ACROSS evidence rows. When the parser emits a heading (`7.`, `TERM AND
+TERMINATION`) as an evidence row of its own, the chunk holding §7.1 cannot absorb it:
+`AM-27` r4 makes a chunk reference the one Document Evidence row it came from, and a chunk
+spanning two rows would have two. Owner ruling 2026-09-10: r4 is not amended. Such a row
+stays indexed — it carries the clause number a user asks with — and a hit on it is
+REDIRECTED at query time to the clause that follows it (`store.search_hybrid`), where
+before it was dropped. Page furniture (a running header repeated on every page) is the
+one row shape excluded from the index outright (`_excluded_rows`).
 """
 
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from itertools import pairwise
 
 # The chunker's own version, recorded on every row it writes. A change to the
 # boundaries below must change this, because chunk ids recorded against an older
 # algorithm would otherwise be silently reinterpreted.
-CHUNKING_ALGORITHM_VERSION = "clause-aware-3"
+# clause-aware-4 (2026-09-10): a bare clause number (`10.`) and an orphan list marker
+# (`e.`) fold forward like a heading, a continuation tail folds back into the clause it
+# completes, and page-furniture evidence rows are not indexed.
+CHUNKING_ALGORITHM_VERSION = "clause-aware-4"
 
 # An evidence row longer than this is split. The number is a retrieval-shape choice,
 # not a legal one, and it is characters rather than tokens on purpose: counting tokens
@@ -202,21 +215,76 @@ def _accumulate(parts: list[str]) -> list[str]:
     return out
 
 
+# A line that is nothing but a clause number — `10`, `10.`, `4.3.1` — the shape the
+# §10 / §10.1 / §10.2 extraction left behind: the number on its own line, its title on
+# the next. Ending in a dot does not make it a sentence.
+_BARE_NUMBER = re.compile(rf"^{_BLANK}*\d{{1,3}}(?:\.\d{{1,3}})*\.?{_BLANK}*$")
+# An orphaned list marker — `e.`, `(a)`, `iv.`, `(iii)` — separated from its item.
+_LIST_MARKER = re.compile(r"^\s*\(?(?:[a-zA-Z]|[ivxIVX]{1,4}|\d{1,2})[.)]\s*$")
+# A bullet glyph opening a line: the item continues the list it sits in.
+_BULLET = ("°", "•", "·", "▪", "○", "‣", "-", "\u2013", "\u2014", "*")
+_TERMINAL = (".", ";", ":", ")", "\"", "\u201d", "'", "\u2019")
+
+
+def _is_heading_line(line: str) -> bool:
+    line = line.replace("\u200b", "").strip()
+    if not line or len(line) >= MIN_CHUNK_CHARS:
+        return False
+    if _BARE_NUMBER.match(line) or _LIST_MARKER.match(line):
+        return True
+    if line.startswith(_BULLET):
+        return False          # a list item, not a title — handled as a tail
+    letters = [ch for ch in line if ch.isalpha()]
+    # `8. ACCEPTABLE USER POLICY (AUP)` — an all-capitals line is a title whatever
+    # it ends with; a sentence is not written in capitals.
+    if letters and all(ch.isupper() for ch in letters):
+        return True
+    return not line.endswith((".", ";", ")"))
+
+
 def _is_heading(piece: str) -> bool:
-    """One line, short, and not a sentence: `7. TERM AND TERMINATION`,
-    `7.6. Effect of Termination:`. Deterministic, and deliberately narrow."""
-    return ("\n" not in piece and len(piece) < MIN_CHUNK_CHARS
-            and not piece.rstrip().endswith((".", ";", ")")))
+    """A clause title, a bare clause number, an orphan list marker, or up to three such
+    lines together (`7.\\n\\nEffect of Termination:`) — never a sentence. Deterministic,
+    and deliberately narrow: one line that ends a sentence is a clause, however short."""
+    lines = [ln for ln in piece.splitlines() if ln.strip()]
+    return 0 < len(lines) <= 3 and all(_is_heading_line(ln) for ln in lines)
+
+
+def is_fragment(content: str) -> bool:
+    """The single definition of "not a retrieval unit on its own" — shared with
+    `store.is_fragment`, which applies it at query time to rows indexed before this
+    version of the chunker."""
+    return _is_heading(content)
+
+
+def _is_tail(piece: str, previous: str) -> bool:
+    """A short piece that COMPLETES the clause before it rather than starting one.
+
+    The document's own structure has to say so: the piece opens in lower case, with a
+    closing bracket or a bullet (`the shift)`, `° Denial of Service Attacks`), or the
+    previous piece stopped mid-sentence — `...payment within` / `30 days of invoice.`,
+    where the clause splitter took a number at the start of a line for a clause. A
+    short piece after a piece that DID end its sentence is a clause of its own, however
+    short — `1.10 "Term" means the period specified in Clause 5.` stays a chunk (owner,
+    2026-09-10: short legal sentences are valid evidence).
+    """
+    if len(piece) >= MIN_CHUNK_CHARS:
+        return False
+    head = piece.lstrip("\u200b \t")
+    if head[:1].islower() or head.startswith((")", ",", *_BULLET)):
+        return True
+    return not previous.rstrip().rstrip("\u200b").endswith(_TERMINAL)
 
 
 def _fold_fragments(pieces: list[str]) -> list[str]:
-    """Merge a heading or fragment into the piece that follows it.
+    """Merge a heading into the piece that follows it, and a tail into the piece before.
 
-    A piece under `MIN_CHUNK_CHARS` is carried forward and prepended to the next
-    piece, so `7. TERM AND TERMINATION` becomes the first line of the chunk holding
-    §7.1 rather than a chunk of its own. A trailing fragment with nothing after it
-    folds back into its predecessor. Lossless: the pieces still concatenate to the
-    original text, joined by the newline the split consumed nothing of.
+    A heading-shaped piece is carried forward and prepended to the next piece, so
+    `7. TERM AND TERMINATION` becomes the first line of the chunk holding §7.1 rather
+    than a chunk of its own; a bare `10.` travels the same way. A continuation tail is
+    appended to its predecessor. A trailing heading with nothing after it folds back.
+    Lossless: the pieces still concatenate to the original text, joined by the newline
+    the split consumed nothing of.
     """
     out: list[str] = []
     carry = ""
@@ -229,6 +297,9 @@ def _fold_fragments(pieces: list[str]) -> list[str]:
         if _is_heading(piece):
             carry = piece
             continue
+        if out and _is_tail(piece, out[-1]):
+            out[-1] = f"{out[-1]}\n{piece}"
+            continue
         out.append(piece)
     if carry:
         if out:
@@ -236,6 +307,26 @@ def _fold_fragments(pieces: list[str]) -> list[str]:
         else:
             out.append(carry)
     return out
+
+
+# A short row whose exact text recurs this many times in one document version is page
+# furniture — a running header, a footer date, a brand line — not a clause.
+FURNITURE_REPEATS = 3
+
+
+def _excluded_rows(contents: list[str]) -> set[int]:
+    """Indexes of evidence rows that must not become retrieval units: page furniture.
+
+    A short row whose exact text recurs `FURNITURE_REPEATS` times or more across the
+    version — a running header, a footer date, a brand line — belongs to no clause and
+    is decided by the document's own repetition, nothing else. A heading-only row is
+    deliberately NOT excluded here: it carries the clause number a user asks with
+    ("what does 17.2 say?"), and `store.search_hybrid` redirects a hit on it to the
+    clause it introduces. A short row that is a sentence is always kept.
+    """
+    short = Counter(c for c in contents if c and len(c) < MIN_CHUNK_CHARS)
+    return {i for i, c in enumerate(contents)
+            if c and len(c) < MIN_CHUNK_CHARS and short[c] >= FURNITURE_REPEATS}
 
 
 def chunk_evidence(rows: list) -> list[Chunk]:
@@ -254,11 +345,16 @@ def chunk_evidence(rows: list) -> list[Chunk]:
     """
     chunks: list[Chunk] = []
     ordinal = 0
-    for row in rows:
-        content = (row.content or "").strip()
-        if not content:
-            # A blank evidence row is not a retrieval unit. Skipped rather than stored
-            # empty, so the index never returns a hit with nothing in it.
+    contents = [(row.content or "").strip() for row in rows]
+    excluded = _excluded_rows(contents)
+    for index, row in enumerate(rows):
+        content = contents[index]
+        if not content or index in excluded:
+            # A blank evidence row is not a retrieval unit, and neither is a row that
+            # is only a heading or page furniture. Skipped rather than stored, so the
+            # index never returns a hit with nothing a user could read in it. The
+            # evidence row itself is untouched — the index is derived, it is not the
+            # record (`AM-27` r4).
             continue
         # Clause boundaries first — structural, and applied whatever the length.
         starts = _clause_starts(content)

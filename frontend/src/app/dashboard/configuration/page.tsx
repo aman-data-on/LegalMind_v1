@@ -267,48 +267,50 @@ function RequirementCard({
       {versions.length === 0 ? (
         <p className="hint">No versions yet.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Version</th>
-              <th>Name</th>
-              <th>Evaluator</th>
-              <th>Created</th>
-              {showValues ? <th>Company Standard</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {versions.map((version) => (
-              <tr key={version.id}>
-                <td>
-                  v{version.version_number}
-                  {current && version.id === current.id ? " (current)" : ""}
-                </td>
-                <td>{version.name}</td>
-                <td>{version.evaluator_type}</td>
-                <td>{version.created_at ?? "—"}</td>
-                {showValues ? (
-                  <td>
-                    <ValueCell version={version} />
-                    <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
-                      {version.company_standard ? (
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() => setEditing(version)}
-                        >
-                          {current && version.id === current.id
-                            ? "Change these values"
-                            : "Restore these values"}
-                        </button>
-                      ) : null}
-                    </PermissionGate>
-                  </td>
-                ) : null}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>Name</th>
+                <th>Evaluator</th>
+                <th>Created</th>
+                {showValues ? <th>Company Standard</th> : null}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {versions.map((version) => (
+                <tr key={version.id}>
+                  <td>
+                    v{version.version_number}
+                    {current && version.id === current.id ? " (current)" : ""}
+                  </td>
+                  <td>{version.name}</td>
+                  <td>{version.evaluator_type}</td>
+                  <td>{version.created_at ?? "—"}</td>
+                  {showValues ? (
+                    <td>
+                      <ValueCell version={version} />
+                      <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
+                        {version.company_standard ? (
+                          <button
+                            type="button"
+                            className="link"
+                            onClick={() => setEditing(version)}
+                          >
+                            {current && version.id === current.id
+                              ? "Change these values"
+                              : "Restore these values"}
+                          </button>
+                        ) : null}
+                      </PermissionGate>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {versions.length > 0 ? (

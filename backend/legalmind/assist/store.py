@@ -25,7 +25,7 @@ number, and rank fusion belongs with the vector half in A3/A4 where it can be me
 
 from __future__ import annotations
 
-import re
+import uuid
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -404,27 +404,116 @@ def count_embeddings(db: DBSession, document_version_id: UUID) -> int:
     """), {"dv": document_version_id}).scalar_one()
 
 
-_NUMBERING = re.compile(r"\d+(\.\d+)*\.?")
-
-
 def is_fragment(content: str) -> bool:
     """A chunk that is only a clause heading — never evidence on its own.
 
     The parser emits the numbering and the heading of a clause as their own
-    evidence rows, in the shape ``"7.6.\u200b\nEffect of Termination:"``: a
-    numbering line, a zero-width space, a newline, then a heading with no terminal
-    punctuation. `chunking._is_heading` recognises the heading alone; this strips
-    the numbering lines and the zero-width characters first, so the whole row is
-    judged. Anything with a sentence in it is not a fragment.
+    evidence rows, in the shape ``"7.6.\u200b\nEffect of Termination:"``. Since
+    `clause-aware-4` such a row is not indexed at all; this query-time backstop keeps
+    rows written by an earlier chunker out of every result until they are re-indexed
+    (`tools.reindex_documents`). One definition, in `chunking`, serves both.
     """
-    from legalmind.assist.chunking import _is_heading
+    from legalmind.assist import chunking
 
-    cleaned = content.replace("\u200b", "")
-    lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
-    body = [ln for ln in lines if not _NUMBERING.fullmatch(ln)]
-    if not body:
-        return True
-    return len(body) == 1 and _is_heading(body[0])
+    return chunking.is_fragment(content)
+
+
+@dataclass(frozen=True)
+class ReindexStats:
+    """What an id-preserving re-index did — counts only, never text."""
+
+    kept: int                 # old rows kept under the same id (content may differ)
+    removed: int              # old rows with no successor that were deleted
+    written: int              # new rows inserted
+    citations_repointed: int  # answer_citations moved from a removed row to its successor
+
+
+def replace_chunks(db: DBSession, document_version_id: UUID,
+                   chunks: list[Chunk]) -> ReindexStats:
+    """Re-index a version WITHOUT invalidating the citations recorded against it.
+
+    Delete-and-reinsert cascades to `answer_citations` (rule 17 forbids losing them —
+    measured 2026-09-10: 130 of 136 document citations sat on rows an earlier chunker
+    wrote). So instead every new chunk looks for its predecessors: the old rows of the
+    SAME evidence row whose text is contained in the new text. The longest keeps its id
+    and is updated in place — the citation still points at the clause it verified, now
+    carrying its heading; the others hand their citations to that id and go. An old row
+    with no successor at all (a heading row the chunker now excludes) hands its
+    citations to the next surviving row in document order — the clause it introduced —
+    and only then is deleted. Embeddings of changed text are dropped so the caller
+    re-embeds them. Does not commit.
+    """
+    schema = config.assist_schema()
+    old = db.execute(text(f"""
+        SELECT id, evidence_id, content, ordinal FROM "{schema}".chunks
+         WHERE document_version_id = :dv ORDER BY ordinal
+    """), {"dv": document_version_id}).all()
+    by_evidence: dict[object, list] = {}
+    for row in old:
+        by_evidence.setdefault(row.evidence_id, []).append(row)
+    # Park the old ordinals below zero so the new ones can be assigned freely under
+    # `uq (document_version_id, ordinal)`.
+    db.execute(text(f'UPDATE "{schema}".chunks SET ordinal = -1 - ordinal '
+                    'WHERE document_version_id = :dv'), {"dv": document_version_id})
+
+    successor: dict[UUID, UUID] = {}      # old id -> the id that now carries its text
+    written = repointed = 0
+    for c in chunks:
+        candidates = [o for o in by_evidence.get(c.evidence_id, ())
+                      if o.id not in successor and o.content in c.content]
+        if not candidates:
+            db.execute(_chunks_table(schema).insert(), [{
+                "id": uuid.uuid4(), "document_version_id": document_version_id,
+                "evidence_id": c.evidence_id, "ordinal": c.ordinal, "content": c.content,
+                "start_offset": c.start_offset, "end_offset": c.end_offset,
+                "chunking_algorithm_version": CHUNKING_ALGORITHM_VERSION}])
+            written += 1
+            continue
+        keep = max(candidates, key=lambda o: len(o.content))
+        db.execute(text(f"""
+            UPDATE "{schema}".chunks
+               SET content = :c, ordinal = :o, start_offset = :s, end_offset = :e,
+                   chunking_algorithm_version = :v
+             WHERE id = :i
+        """), {"i": keep.id, "c": c.content, "o": c.ordinal, "s": c.start_offset,
+               "e": c.end_offset, "v": CHUNKING_ALGORITHM_VERSION})
+        if keep.content != c.content:
+            db.execute(text(f'DELETE FROM "{schema}".chunk_embeddings '
+                            'WHERE chunk_id = :i'), {"i": keep.id})
+        successor[keep.id] = keep.id
+        for other in candidates:
+            if other.id != keep.id:
+                successor[other.id] = keep.id
+
+    # Orphans: old rows nothing absorbed. Their heir is the nearest surviving row after
+    # them in the old order (a heading introduces what follows), else the one before.
+    survivors = {o.id for o in old if successor.get(o.id) == o.id}
+    for position, o in enumerate(old):
+        if o.id in successor:
+            continue
+        heir = next((k.id for k in old[position + 1:] if k.id in survivors), None)
+        heir = heir or next((k.id for k in reversed(old[:position]) if k.id in survivors),
+                            None)
+        successor[o.id] = heir or o.id
+
+    for old_id, heir in successor.items():
+        if heir == old_id:
+            continue
+        # Move the citation unless the heir already carries that claim (the unique
+        # constraint); a duplicate then goes with the row it sat on.
+        moved = db.execute(text(f"""
+            UPDATE "{schema}".answer_citations ac SET chunk_id = :heir
+             WHERE ac.chunk_id = :old
+               AND NOT EXISTS (SELECT 1 FROM "{schema}".answer_citations x
+                                WHERE x.answer_id = ac.answer_id
+                                  AND x.claim_ordinal = ac.claim_ordinal
+                                  AND x.chunk_id = :heir)
+            RETURNING ac.id
+        """), {"old": old_id, "heir": heir}).all()
+        repointed += len(moved)
+        db.execute(text(f'DELETE FROM "{schema}".chunks WHERE id = :i'), {"i": old_id})
+    return ReindexStats(kept=len(survivors), removed=len(successor) - len(survivors),
+                        written=written, citations_repointed=repointed)
 
 
 # ==========================================================================
@@ -448,6 +537,52 @@ class RetrievalOutcome:
     vector_peak_gap: float | None
     strategy_version: str
     embedding_model: str | None
+
+
+def _clause_after(db: DBSession, document_version_id: UUID,
+                  hit: SearchHit) -> SearchHit | None:
+    """The clause a heading fragment introduces — the next non-fragment chunk of the
+    SAME document version in document order, carrying the fragment's own score.
+
+    Since `clause-aware-4` (2026-09-10) a heading row is redirected rather than dropped:
+    "what does 17.2 say?" matches the row `17.2 Limitation of Liability`, and the
+    answer is the clause beneath it. The scope stays a WHERE clause on the version
+    (`AM-25` r6); the fragment itself is never returned. A few hops cover a heading
+    split across rows (`7.` then `TERM AND TERMINATION`); more than that and the
+    fragment is simply dropped, as before.
+    """
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT n.id, n.evidence_id, n.content, e.page_number, e.section_number,
+               e.section_title, e.source_type
+          FROM "{schema}".chunks c
+          JOIN "{schema}".chunks n ON n.document_version_id = c.document_version_id
+                                  AND n.ordinal > c.ordinal
+          JOIN document_evidence e ON e.id = n.evidence_id
+         WHERE c.id = :i AND c.document_version_id = :dv
+         ORDER BY n.ordinal LIMIT 4
+    """), {"i": hit.chunk_id, "dv": document_version_id}).all()
+    for r in rows:
+        if not is_fragment(r[2]):
+            return SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2],
+                             page_number=r[3], section_number=r[4], section_title=r[5],
+                             source_type=str(r[6]), retrieval_score=hit.retrieval_score)
+    return None
+
+
+def _redirect_fragments(db: DBSession, document_version_id: UUID,
+                        hits: list[SearchHit], limit: int) -> list[SearchHit]:
+    out: list[SearchHit] = []
+    seen: set[UUID] = set()
+    for h in hits:
+        target: SearchHit | None = h
+        if is_fragment(h.content):
+            target = _clause_after(db, document_version_id, h)
+        if target is None or target.chunk_id in seen:
+            continue
+        seen.add(target.chunk_id)
+        out.append(target)
+    return out[:limit]
 
 
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
@@ -481,10 +616,12 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     # embeds close to a short question). Measured live on an MSA: the top ten for
     # "termination notice period" were mostly such fragments while the clause
     # stating "thirty (30) days after receipt of written notice" never reached the
-    # model. Candidates are fetched two deep and heading fragments are pruned from
-    # BOTH branches before fusion — the gate below still decides on the raw
-    # scores, exactly as calibrated. A fragment can never answer on its own
-    # (`evidence_is_sufficient` already says so); this stops it displacing what can.
+    # model. Candidates are fetched two deep and heading fragments are REDIRECTED
+    # (2026-09-10; pruned before) to the clause they introduce on BOTH branches
+    # before fusion — the gate below still decides on the raw scores, exactly as
+    # calibrated. A fragment can never answer on its own (`evidence_is_sufficient`
+    # already says so); its clause can, and the heading's words were the reason it
+    # ranked.
     # The GATE's lexical signal is the calibrated AND match, unchanged. The wider
     # OR-floor candidates join the evidence only after the gate has opened —
     # strict matches first, then the rest by shared-lexeme count.
@@ -493,14 +630,7 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     lexical_hit = bool(strict)
     broad = search_chunks(db, document_version_id=document_version_id, query=query,
                           limit=limit * 2, match="any")
-    seen: set[UUID] = set()
-    lexical_hits: list[SearchHit] = []
-    for h in [*strict, *broad]:
-        if h.chunk_id in seen or is_fragment(h.content):
-            continue
-        seen.add(h.chunk_id)
-        lexical_hits.append(h)
-    lexical_hits = lexical_hits[:limit]
+    lexical_hits = _redirect_fragments(db, document_version_id, [*strict, *broad], limit)
 
     vector_rows: list = []
     model_identity: str | None = None
@@ -529,7 +659,6 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
 
     # Gate features come from the raw, unpruned top-K — the calibration's input.
     scores = [float(r[7]) for r in vector_rows[:limit]]
-    vector_rows = [r for r in vector_rows if not is_fragment(r[2])][:limit]
     top = scores[0] if scores else None
     gap = (scores[0] - sum(scores[1:]) / len(scores[1:])) if len(scores) > 1 else None
     open_ = gate_is_open(lexical_hit, scores)
@@ -546,12 +675,12 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     # COSINE_FLOOR — the gate has already made its decision above, from the raw
     # `scores` list, before this prune runs. See calibration.py's "Two
     # responsibilities, two constants".
-    vector_hits = [
+    vector_hits = _redirect_fragments(db, document_version_id, [
         SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
                   section_number=r[4], section_title=r[5], source_type=str(r[6]),
                   retrieval_score=float(r[7]))
         for r in vector_rows if float(r[7]) >= EVIDENCE_COSINE_FLOOR
-    ]
+    ], limit)
 
     # Reciprocal rank fusion; branch-native score reported (cosine preferred where a
     # chunk appears in both, since it is the more interpretable of the two).

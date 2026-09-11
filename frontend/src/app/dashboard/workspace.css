@@ -2729,7 +2729,11 @@
 }
 
 @media (max-width: 1100px) {
-  .ws-admin__body { flex-direction: column; }
+  /* `align-items: flex-start` is a ROW rule. Once this flips to a column it sizes
+     both children to max-content instead of the available width, and the members
+     table pushed the whole page to 995px — a horizontal page scroll at 390px and
+     768px (measured 2026-09-11). Stretch restores the intended full-width stack. */
+  .ws-admin__body { flex-direction: column; align-items: stretch; }
   .ws-detail { flex: 1 1 auto; width: 100%; max-height: none; }
 }
 
@@ -3397,7 +3401,11 @@
 }
 .ws-hero__cta:hover { background: color-mix(in srgb, var(--ws-tone-bad) 85%, #000); }
 .ws-hero__cta:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
-.ws-hero__ctan { font-family: var(--ws-mono); background: rgba(255,255,255,0.2); border-radius: 999px; padding: 1px 7px; }
+/* The tint is DARK, not light. A white tint over `--ws-tone-bad` paints
+   rgb(114,107,234), on which this pill's own white 12px text measures 4.19:1 —
+   under the 4.5:1 minimum (measured in a browser, 2026-09-11). Darkening the
+   same pill keeps the subtle-chip look and measures 8.74:1. */
+.ws-hero__ctan { font-family: var(--ws-mono); background: rgba(0,0,0,0.22); border-radius: 999px; padding: 1px 7px; }
 .ws-hero__grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--ws-s5); align-items: start; }
 .ws-hero__left { display: flex; flex-direction: column; gap: var(--ws-s3); min-width: 0; }
 .ws-hero__right {
