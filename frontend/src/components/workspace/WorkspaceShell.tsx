@@ -14,8 +14,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
+import { IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -96,6 +98,21 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       <main id="ws-main" className="ws-main" tabIndex={-1}>
         {children}
       </main>
+      {/* The global way in to Ask (owner, 2026-09-11): every screen keeps a
+          persistent entry point, and it NAVIGATES to the Ask workspace rather
+          than opening a second, smaller chat beside the real one.
+
+          It hides itself on the two screens that already own the conversation —
+          the document workspace and Research (their own dock, DD-15/DD-17 r4)
+          and Ask itself — with `:has()` in the stylesheet rather than a
+          pathname test here, so the rule is "this page already has Ask" rather
+          than a list of routes that has to be kept in step with the router. */}
+      {can(P.ASSIST_ASK) ? (
+        <Link className="ws-askglobal" href="/dashboard/ask">
+          <IconSparkle size={17} />
+          <span>Ask</span>
+        </Link>
+      ) : null}
     </div>
   );
 }

@@ -167,29 +167,34 @@ test.describe("the new UI at the freeze (counsel)", () => {
     });
   });
 
-  test("ask history — the caller's own record", async ({ page }) => {
+  /* The Ask workspace (2026-09-11) replaced the history TABLE this baseline used
+     to pin, so both shots move with it: the empty workspace a reader meets, and
+     one open conversation beside its rail. Volatile text — the document name in
+     the rail and in the scope line — is masked; the two-pane layout is what
+     these pin. */
+  test("ask — the empty workspace", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await askAbout(page, contractId);
     await page.goto("/dashboard/ask");
-    await expect(page.locator("tbody tr").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("ws-ask-history.png", {
+    await expect(page.locator(".ws-chat__railitem").first()).toBeVisible();
+    await expect(page).toHaveScreenshot("ws-ask-workspace.png", {
       ...SHOT,
       fullPage: true,
-      mask: [page.locator("tbody td:nth-child(3)"), page.locator("tbody td:nth-child(4)")],
+      mask: [page.locator(".ws-chat__railmeta")],
     });
   });
 
-  test("transcript — the replayed refusal", async ({ page }) => {
+  test("ask — one conversation, replayed with its citations", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     const conversationId = await askAbout(page, contractId);
     await page.goto(`/dashboard/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("ws-transcript.png", {
+    await expect(page).toHaveScreenshot("ws-ask-conversation.png", {
       ...SHOT,
       fullPage: true,
-      mask: [page.locator(".ws-context a")],
+      mask: [page.locator(".ws-chat__railmeta"), page.locator(".ws-chat__scope")],
     });
   });
 

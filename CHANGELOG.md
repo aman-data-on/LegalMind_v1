@@ -10,6 +10,47 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Ask is the AI workspace; the history table is now its rail (2026-09-11)
+
+Owner instruction: `/dashboard/ask` was named after the capability but was a conversation-history
+TABLE ("Ask · 1 total") whose own copy told the reader that asking happens somewhere else. The
+screen is now the workspace — recent chats on the left, conversation and composer in the centre —
+and a question can be asked before any document exists. Decisions and the browser-measured defects
+are recorded in [DD-19](docs/design/DESIGN_DECISIONS.md); nothing in
+[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) is amended and the assist lane is
+unchanged.
+
+* **New** `AskWorkspace.tsx` (the two panes, the composer, the `+ Add files` attachment) and
+  `ComparisonTable.tsx` (a routed comparison rendered from the evaluator's OWN Findings —
+  Requirement · Agreement · Company standard · Result, worst first, in the `AM-53`/`AM-56` reader
+  words; the standard column is absent, not blank, without `legal_position.view`).
+* **Reused, not rebuilt:** `POST /conversations` (with and without a contract), `POST
+  /conversations/{id}/messages`, `GET /conversations`, `GET /reviews/{id}/findings`, the upload +
+  `chainAnalysis` pair, `TranscriptTurn`, `PositionsSection`/`StatutesSection` and the `?evidence=`
+  deep link. **No backend change was made, and no endpoint was added.**
+* `TranscriptTurn` gained `AnswerProse` (paragraphs and bullets — deliberately not a markdown
+  renderer), the position/statute sections on an answered turn, and the comparison table on a
+  routed one. `ConversationView.tsx` deleted: the workspace subsumes it.
+* A global Ask launcher in `WorkspaceShell`, hidden by `:has()` on the screens that already carry
+  a conversation (the document workspace, Research, Ask itself) rather than by a route list.
+* **Tests:** `src/__tests__/ask-workspace.test.tsx` (5) and `e2e/ask-workspace.spec.ts` (4,
+  against the real backend — a document-less question, an attachment that starts a chat about the
+  uploaded document, a comparison answered as the Findings table, the global entry point).
+  `e2e/reviews.spec.ts`'s ask-history assertion was re-pointed at the new surface; the property it
+  tests is unchanged. **The two `ws-ask-history` / `ws-transcript` visual baselines were deleted
+  and replaced by `ws-ask-workspace` / `ws-ask-conversation` — these need regenerating from CI's
+  `*-actual.png`, never locally.**
+* Verified rendered at 1440 / 1180 / 768 / 390: no horizontal scroll at any width, the composer
+  stays in view on a phone with the rail collapsed.
+
+**Not done, and why:** the shadcn AI-SDK elements were not installed. They require Tailwind plus
+`ai`/`@ai-sdk/react` and assume a token-streaming endpoint; LegalMind's ask endpoint returns one
+verified JSON answer with its citations (generation is bounded and grounded by `AM-30`), so the
+SDK's lifecycle would wrap a single response and the Tailwind reset would land on top of the
+hand-rolled design system. The shadcn chat PATTERNS (conversation, message, sources, prompt input
+with attachments, loading state) are implemented in the existing design language instead. Say so
+and it will be added properly. Rule 19 / the 2026-09-10 shadcn terms: incremental only.
+
 ### Coordination note — `main` was rewound past the P0 merge and has been restored (2026-09-11)
 
 Sequence, from `main`'s reflog: the P0 merge landed on `main` as `ec32467` (owner-approved, with the
