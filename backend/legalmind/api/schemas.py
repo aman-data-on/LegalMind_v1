@@ -55,6 +55,17 @@ class ConversationCreate(Body):
     contract_id: str | None = Field(default=None, max_length=64)
 
 
+class ConversationDocument(Body):
+    """Attach a document to a conversation that has none (2026-09-11).
+
+    One-way by design: the route refuses a conversation that already carries a
+    contract, so an earlier turn's citations can never be left pointing into a
+    document the conversation no longer holds.
+    """
+
+    contract_id: str = Field(min_length=1, max_length=64)
+
+
 class AskRequest(Body):
     """One question, about ONE document version.
 
@@ -70,6 +81,12 @@ class AskRequest(Body):
 
     question: str = Field(min_length=1, max_length=2000)
     document_version_id: str | None = Field(default=None, max_length=64)
+    #: A question asked ABOUT a Finding the reader has open (2026-09-11). It seeds the
+    #: RETRIEVAL query with that Finding's requirement and cited clause so "why is this
+    #: a deviation?" retrieves the clause instead of nothing. It never widens what the
+    #: caller may read — the Finding is resolved through the ordinary Guard and must
+    #: belong to this conversation's contract — and never enters a generation payload.
+    finding_id: str | None = Field(default=None, max_length=64)
 
 
 # ------------------------------------------------------------------ auth

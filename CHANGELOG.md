@@ -10,6 +10,42 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Ask stage 1: attach a document to a live conversation, ask about a Finding, and `AM-58` (2026-09-11)
+
+First of three stages taking Ask to a finished product (owner instruction, 2026-09-11). Backend
+and specification only; no UI change ships in this stage.
+
+**`AM-58` (AB-19) — bounded conversation context in a generation payload.** Conversation memory
+shipped 2026-09-10 and is live, sending up to two earlier questions to the model as context. An
+audit found `AM-30` t2 is a closed allow-list naming only the question, this request's chunk
+spans and the prompt template — so the shipped behaviour was not authorized by the record the
+code cited (rule 5). The owner was shown the alternative of deleting it and gave the decision to
+the implementer, who amended narrowly on the `AM-49` precedent. `all_lock.md` **18433 → 18499
+lines**, appended, prior lines byte-identical. The `service.py` comment that asserted t2 already
+permitted this now cites `AM-58` and records the correction.
+
+**`POST /conversations/{id}/document`** — a document-less conversation gains a document and
+keeps every earlier turn. One-way by design: a conversation that already carries a contract is
+refused, because earlier turns cite `evidence_id`s from the first document's reading order and
+re-pointing would strand all of them. Nothing locked bound a conversation to one contract —
+`AM-27` defines no column and no cardinality, and DESIGN_DECISIONS.md's own note says "Nothing
+here was locked." New audit action `assist.conversation_scoped`.
+
+**`AskRequest.finding_id`** — a question asked about a Finding seeds the RETRIEVAL query with
+that Finding's requirement title and the clause its Evaluation already cited, reusing
+`explanations.gather`. Retrieval only: the seed never enters a payload, and `AM-30` t3 /
+`AM-32` r4 stand unchanged — a test asserts no classification, Rule Outcome or standard value
+can ride along. The Finding is resolved through the ordinary Guard and must belong to the
+conversation's own contract.
+
+**Rate limit on the one paid egress path.** `POST /conversations/{id}/messages` had no budget at
+all — the only endpoint without one. `LEGALMIND_RATELIMIT_ASK`, default 120/hour per user.
+
+* Tests: `backend/tests/test_assist_conversation_scope.py` (9). Full suite **1579 passed, 107
+  skipped** with `LEGALMIND_SOURCE_MATERIAL_DIR` set.
+* `docs/api/openapi.json` regenerated via `python3 -m tools.export_openapi` — the diff is
+  additive only (one path, one schema, one field).
+
 ### Changed — Ask is the AI workspace; the history table is now its rail (2026-09-11)
 
 Owner instruction: `/dashboard/ask` was named after the capability but was a conversation-history

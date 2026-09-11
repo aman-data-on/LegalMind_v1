@@ -17,6 +17,18 @@
       ],
       "title": "Document Version Id"
      },
+     "finding_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finding Id"
+     },
      "question": {
       "maxLength": 2000,
       "minLength": 1,
@@ -246,6 +258,23 @@
      }
     },
     "title": "ConversationCreate",
+    "type": "object"
+   },
+   "ConversationDocument": {
+    "additionalProperties": false,
+    "description": "Attach a document to a conversation that has none (2026-09-11).\n\nOne-way by design: the route refuses a conversation that already carries a\ncontract, so an earlier turn's citations can never be left pointing into a\ndocument the conversation no longer holds.",
+    "properties": {
+     "contract_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Contract Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "contract_id"
+    ],
+    "title": "ConversationDocument",
     "type": "object"
    },
    "CounterpartyCreate": {
@@ -2492,6 +2521,62 @@
      }
     },
     "summary": "Get Conversation",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/conversations/{conversation_id}/document": {
+   "post": {
+    "description": "Give a document-less conversation a document, keeping the thread (2026-09-11).\n\nBefore this, attaching a file in Ask had to CREATE a second conversation, so a\nreader who had been asking about the organization's approved standards and then\nattached the agreement lost every earlier turn. Nothing locked required that:\n`AM-27` registers `conversations` as \"an assist-lane session\" and defines no\ncolumn and no cardinality for it.\n\nThe authorization chain is the one `create_conversation` already applies \u2014 the\nconversation must be the caller's own (`_visible_conversation`, byte-identical 404\notherwise) and the contract must be READ-able by them. Every later question\nre-resolves both, so this widens nothing at retrieval time (`AM-25` r6).\n\nONE-WAY. A conversation that already carries a contract is refused rather than\nre-pointed: earlier turns cite `evidence_id`s from the first document's reading\norder, and moving the scope under them would strand every one of those citations.",
+    "operationId": "attach_document_api_v1_conversations__conversation_id__document_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConversationDocument"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Attach Document Api V1 Conversations  Conversation Id  Document Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Attach Document",
     "tags": [
      "assist"
     ]
