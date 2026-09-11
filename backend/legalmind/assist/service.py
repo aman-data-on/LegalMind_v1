@@ -113,11 +113,17 @@ def _next_ordinal(db: DBSession, conversation_id: UUID) -> int:
     return int(current) + 1
 
 
-# Conversation memory (2026-09-10) — bounded, and questions only. The router has already
-# established that the caller owns this conversation (`_visible_conversation`), so
-# reading its earlier USER turns discloses nothing the caller did not write. Earlier
-# ASSISTANT turns are never read here: `AM-30` t2 admits the requester's question and
-# this request's chunk spans to a payload, and an earlier answer is neither.
+# Conversation memory (2026-09-10) — bounded, and questions only. Authorized by `AM-58`
+# (AB-19, 2026-09-11), which amends `AM-30` t2 for exactly this addition. The comment
+# here previously asserted t2 already permitted it; an audit found t2 is a closed
+# allow-list naming only the question, this request's chunk spans and the prompt
+# template, so the record was amended rather than the claim repeated (rule 5).
+#
+# The router has already established that the caller owns this conversation
+# (`_visible_conversation`), so reading its earlier USER turns discloses nothing the
+# caller did not write — `AM-58` r7. Earlier ASSISTANT turns are never read here
+# (`AM-58` r2): an answer is not evidence, and admitting one would let generated text
+# ground a later claim, which is what `AM-25` r5's verification exists to prevent.
 PRIOR_TURNS_SCANNED = 4       # how far back a follow-up looks for its anchor
 PRIOR_QUESTION_CHARS = 300
 
@@ -156,6 +162,40 @@ def _resolve_follow_up(prior: list[tuple[UUID, str]],
     return context, f"{anchor[1]} {question}"
 
 
+#: How much of a Finding's first cited passage seeds the retrieval query. Enough to
+#: carry the clause's own vocabulary, short enough not to swamp the question itself.
+FINDING_SEED_CHARS = 240
+
+
+def _finding_seed(db: DBSession, finding_id: UUID) -> str:
+    """Retrieval vocabulary for a question asked ABOUT a Finding (2026-09-11).
+
+    "Why is this a deviation?" carries almost no retrievable content of its own, so
+    without help it retrieves nothing and the reader gets a refusal about a Finding
+    that is on their screen. This seeds the query with the requirement's title in
+    words and the opening of the passage the Evaluation already cited, so retrieval
+    lands on the clause the Finding is about.
+
+    RETRIEVAL ONLY, and that distinction is the whole point. The seed widens the
+    QUERY, which is local SQL and a local embedding; it never reaches a payload.
+    `AM-30` t3 and `AM-32` r4 stand unchanged: the classification, the Rule Outcome
+    and the Company Standard value are not in this string and never egress. The
+    passages themselves are already-permitted contract text (`AM-30` t2), and they
+    are re-retrieved through the normal scoped query rather than injected as hits,
+    so authorization stays inside the retrieval (`AM-25` r6).
+
+    Reuses `explanations.gather` rather than a second assembly of the same facts.
+    """
+    from legalmind.assist import explanations
+    from legalmind.db import models as M
+    finding = db.get(M.Finding, finding_id)
+    if finding is None:
+        return ""
+    grounding = explanations.gather(db, finding)
+    passage = grounding.passages[0][:FINDING_SEED_CHARS] if grounding.passages else ""
+    return " ".join(part for part in (grounding.title, passage) if part).strip()
+
+
 def create_conversation(db: DBSession, *, user_id: UUID,
                         contract_id: UUID | None) -> UUID:
     schema = config.assist_schema()
@@ -165,6 +205,52 @@ def create_conversation(db: DBSession, *, user_id: UUID,
         VALUES (:i, :u, :c)
     """), {"i": conversation_id, "u": user_id, "c": contract_id})
     return conversation_id
+
+
+class ConversationAlreadyScoped(Exception):
+    """Raised when a conversation that already has a contract is asked to take another.
+
+    Not a permission problem and not a 404 — the caller owns this conversation and can
+    see it. The router maps it to a business-rule rejection with wording that tells the
+    reader what to do instead (start a new chat).
+    """
+
+
+def attach_contract(db: DBSession, *, conversation_id: UUID, contract_id: UUID) -> None:
+    """Give a document-less conversation a document, keeping every earlier turn.
+
+    Why this is permitted, and why it is narrow (2026-09-11). Nothing locked binds a
+    conversation to a contract: `AM-27` registers `conversations` as "an assist-lane
+    session" and defines no column and no cardinality, and DESIGN_DECISIONS.md's own
+    note on conversation scope says "Nothing here was locked." The one-contract binding
+    was the shape of the table, not a decision — so a reader who has been asking about
+    the organization's standards and then attaches the agreement keeps their thread
+    instead of losing it to a new chat.
+
+    ONLY `NULL -> contract`. Re-pointing a conversation that already has one is refused:
+    the earlier turns' citations carry `evidence_id`s belonging to the FIRST document's
+    reading order, and silently changing the scope underneath them would leave every one
+    of them pointing at a row that is no longer in the conversation's document. A second
+    attachment starts a new chat, and the UI says so before it happens.
+
+    Authorization is the router's, before this is called, and it is re-applied on every
+    subsequent ask: `AM-25` r6 is about the caller's scope at retrieval time, which this
+    does not touch.
+    """
+    schema = config.assist_schema()
+    # RETURNING rather than `rowcount`: it is the same single round trip, it is
+    # typed (SQLAlchemy's `Result` exposes `rowcount` only on the cursor subtype,
+    # which mypy rejects here), and it says what it checks.
+    updated = db.execute(text(f"""
+        UPDATE "{schema}".conversations SET contract_id = :k
+         WHERE id = :i AND contract_id IS NULL
+        RETURNING id
+    """), {"k": contract_id, "i": conversation_id}).first()
+    if updated is None:
+        # The row exists and is the caller's (the router established both), so the only
+        # way to match nothing is that a contract is already set. Guarded in SQL rather
+        # than by a read-then-write so two concurrent attaches cannot both win.
+        raise ConversationAlreadyScoped(conversation_id)
 
 
 def conversation_owner(db: DBSession, conversation_id: UUID) -> UUID | None:
@@ -459,7 +545,8 @@ def _latest_review_summary(db: DBSession,
 
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
         question: str, permissions: frozenset[str] = frozenset(),
-        request_id: str | None = None) -> AskOutcome:
+        request_id: str | None = None,
+        finding_id: UUID | None = None) -> AskOutcome:
     """Answer a question from the authorized sources it needs, or refuse honestly.
 
     The caller (the API layer) has already authorized the conversation and, when there
@@ -493,6 +580,14 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         context, resolved = _resolve_follow_up(prior, question)
         prior_texts = [content for _, content in context]
         follow_up_of = [message_id for message_id, _ in context]
+
+    # Asked ABOUT a Finding (2026-09-11): the router has already authorized it and
+    # confirmed it belongs to this conversation's contract. Its requirement and cited
+    # clause seed the RETRIEVAL query only — never the payload (see `_finding_seed`).
+    if finding_id is not None:
+        seed = _finding_seed(db, finding_id)
+        if seed:
+            resolved = f"{seed} {resolved}"
 
     # `permissions` empty means a caller that did not pass them — the service-level
     # tests. Treat as document-only, which is exactly the pre-router behaviour.

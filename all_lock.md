@@ -18431,3 +18431,69 @@ this contradicts and the choice was put to them (rule 6). Recorded engineering n
 `AB-8` precedent of keeping dissent with the record: none. The reviewed evidence was the live
 page, and `AM-50` r5 was one day old — the reversal reflects the owner seeing the shipped
 result of their own instruction, not a change of requirement.
+
+---
+
+# AB-19 — `AM-58` — Bounded conversation context in a generation payload (Owner Instruction — 2026-09-11)
+
+**Amends:** `AM-30` t2 **for exactly one addition** — the prior-question context defined in
+r1 below. **Does not amend:** `AM-25` r1–r9 (the lane still produces no Finding, Evaluation,
+Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition, and
+never answers "does this document meet our standard?"); `AM-30` t1, t3–t10 (single seam,
+LEGAL-02 as an egress rule, no identifiers, hash-only audit, pinned model); `AM-32` r4 (Domain
+A stays extractive and never enters a payload); `AM-45` r1 (no source selector); `AM-46`;
+`AM-49`'s separate Finding-explanation payload; rule 7, rule 12, rule 21.
+
+**Why this record exists.** Conversation memory shipped on 2026-09-10 and is live: a follow-up
+question ("Why?", "Is this acceptable?") is resolved against up to two earlier questions from
+the same conversation, which are sent to the model under a header naming them as context. The
+implementing comment asserted this was already "inside `AM-30` t2". On the strict reading it is
+not: t2 is a closed allow-list — *"Only the requester's question and the retrieved chunk spans
+required to answer that one request may be sent, together with the prompt template"* — and a
+prior question is none of its three items, while the AB-4 preamble makes the batch "void of
+effect for any component that does not satisfy every term". Found by audit on 2026-09-11 and
+put to the owner with the alternative of removing the feature (rule 5, rule 6). The owner gave
+the decision to the implementer with full ownership; the narrow amendment was chosen over
+removal, on the `AM-49` precedent, because the behaviour is what makes a follow-up answerable
+at all and the guardrails below are the ones the code already applies.
+
+```text
+r1   THE ONLY PERMITTED ADDITION. Up to two prior USER questions from the SAME
+     conversation may be sent, each clipped, under a header that names them as
+     context and not as evidence. They are selected deterministically — the most
+     recent earlier question that stands on its own, plus the one immediately
+     preceding the current question where that differs. Nothing else about the
+     conversation is admitted.
+
+r2   NEVER AN EARLIER ANSWER. An assistant turn is not evidence. Admitting one
+     would let text that was itself generated ground a later claim, which is
+     exactly what `AM-25` r5's mechanical verification exists to prevent.
+
+r3   `AM-30` t3 STANDS IN FULL. No Company Standard value, Legal Rule, threshold,
+     rule configuration, Rule Outcome, Evaluation or Finding enters the payload —
+     including by way of a prior question that quoted one. The existing mechanical
+     screen over the forbidden keys applies to the context exactly as it applies
+     to the question.
+
+r4   `AM-30` t4 STANDS IN FULL. No counterparty name, signatory name, contract
+     identifier, user identifier or organizational identifier.
+
+r5   NO NEW AUDIT SHAPE. The context is inside the payload that `AM-30` t5 hashes;
+     the audit row still records model identity, prompt version and the hash, and
+     never the payload.
+
+r6   CONTEXT, NEVER THE SUBJECT. A prior question tells the model what the current
+     question REFERS to. It is never answered instead of the current question, and
+     never cited.
+
+r7   THE CONVERSATION IS THE BOUNDARY. Only the caller's own conversation is read,
+     which the router has already established (`AB-12` r8). No other conversation,
+     no other user's question, and no cross-conversation memory of any kind.
+```
+
+**Approved by the owner on 2026-09-11**, after `AM-30` t2 was named explicitly as the record
+this amends and the alternative — deleting the shipped behaviour and accepting measurably worse
+follow-ups — was put to them (rule 6). Recorded engineering note: the limitation `AM-58` r2
+preserves is real and known. A follow-up referring to something only the previous *answer*
+contains ("is the 30 days you mentioned business days?") still resolves through the previous
+question, not the answer, and may therefore miss. That is the deliberate cost of r2.

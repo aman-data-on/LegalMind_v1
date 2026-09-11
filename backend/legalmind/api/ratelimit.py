@@ -43,6 +43,12 @@ LOGIN = _limit("LEGALMIND_RATELIMIT_LOGIN", 10, 300)
 ANALYSIS = _limit("LEGALMIND_RATELIMIT_ANALYSIS", 30, 3600)
 EXPORT = _limit("LEGALMIND_RATELIMIT_EXPORT", 20, 3600)
 SUGGEST_TYPE = _limit("LEGALMIND_RATELIMIT_SUGGEST_TYPE", 30, 3600)
+# Ask (2026-09-11). The generation seam is the one PAID egress path and was the only
+# one with no budget at all: a loop in a client could spend without limit. Generous
+# enough that a real conversation never meets it — a working session is tens of
+# questions, not hundreds. A threshold is deployment configuration (49.10), not a
+# specified control level.
+ASK = _limit("LEGALMIND_RATELIMIT_ASK", 120, 3600)
 
 
 class RateLimiter(Protocol):

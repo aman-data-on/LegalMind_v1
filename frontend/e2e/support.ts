@@ -240,7 +240,24 @@ export async function showDocument(page: Page): Promise<void> {
   } catch {
     return;   // narrow mode (the document is a top-level tab), or no workspace
   }
-  if ((await toggle.getAttribute("aria-pressed")) === "true") return;   // already shown
+  /* The toggle can vanish between `waitFor` and this read, and that is CI job
+     10's intermittent `locator.getAttribute` timeout — diagnosed 2026-09-11.
+     `WorkspaceLayout.useMode` initialises to "wide" and flips to narrow inside an
+     effect, so a narrow viewport paints the WIDE chrome for a frame or two before
+     collapsing. `waitFor` can catch that frame; `getAttribute` then retries a
+     detached element until the whole 60s test budget is gone — a hang, not a
+     failed assertion, which is why the error never named a real expectation.
+     Reproduces on CI (slower, so the flip lands later) and not on a dev box:
+     three consecutive local runs passed while the same commit failed twice in CI.
+     A disappearing toggle means exactly what the `catch` above means — narrow
+     mode, no toggle to press — so it is treated identically. */
+  let pressed: string | null = null;
+  try {
+    pressed = await toggle.getAttribute("aria-pressed", { timeout: 5_000 });
+  } catch {
+    return;
+  }
+  if (pressed === "true") return;   // already shown
   await toggle.click();
   await page.locator('[data-region="document"]').first()
     .waitFor({ state: "visible", timeout: 15_000 });

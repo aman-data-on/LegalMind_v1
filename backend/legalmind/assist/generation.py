@@ -75,7 +75,7 @@ _ENDPOINT_TEMPLATE = ("https://generativelanguage.googleapis.com/v1beta/models/"
 # grounded-answer-2 (2026-09-10): an optional block of the requester's EARLIER questions
 # in the same conversation, so "what about clause 7?" is read against "what is the
 # termination notice period?". Questions only — an earlier answer never egresses
-# (`AM-30` t2: the requester's question and this request's chunk spans). Rendered
+# (`AM-58` r1/r2, AB-19, which amends `AM-30` t2 for exactly this addition). Rendered
 # empty when there is none, so a first question's prompt is byte-identical in shape.
 PROMPT_VERSION = "grounded-answer-2"
 PROMPT_TEMPLATE = """You are a legal document assistant. Answer the question using ONLY \
@@ -218,9 +218,9 @@ def generate(question: str, evidence: list[str], *,
     """One grounded generation call — the Ask flow's entry to the single seam.
 
     `prior_questions` — the requester's own earlier questions in this conversation,
-    already bounded by the caller (count and length). Nothing else from the
-    conversation is admitted here: not an earlier answer, not a position, not a
-    statute section (`AM-30` t2/t3, `AM-32` r4).
+    already bounded by the caller (count and length) and authorized by `AM-58` r1.
+    Nothing else from the conversation is admitted here: not an earlier answer
+    (`AM-58` r2), not a position, not a statute section (`AM-30` t3, `AM-32` r4).
 
     Raises GenerationRefused when the gate, the payload screen or configuration
     forbids the call — the caller maps that to the identical user-facing refusal

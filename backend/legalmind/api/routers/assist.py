@@ -23,7 +23,7 @@ from legalmind.api.deps import Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
-from legalmind.api.schemas import AskRequest, ConversationCreate
+from legalmind.api.schemas import AskRequest, ConversationCreate, ConversationDocument
 from legalmind.assist import explanations, obligations, service, type_suggestion
 from legalmind.assist.chunking import leading_section_ref
 from legalmind.db import models as M
@@ -198,6 +198,48 @@ def create_conversation(body: ConversationCreate,
         guard.db, user_id=guard.user_id, contract_id=contract_id)
     return data({"id": str(conversation_id),
                  "contract_id": str(contract_id) if contract_id else None})
+
+
+@router.post("/conversations/{conversation_id}/document", status_code=200)
+def attach_document(conversation_id: UUID, body: ConversationDocument,
+                    guard: Guard = Depends(get_guard)) -> dict:
+    """Give a document-less conversation a document, keeping the thread (2026-09-11).
+
+    Before this, attaching a file in Ask had to CREATE a second conversation, so a
+    reader who had been asking about the organization's approved standards and then
+    attached the agreement lost every earlier turn. Nothing locked required that:
+    `AM-27` registers `conversations` as "an assist-lane session" and defines no
+    column and no cardinality for it.
+
+    The authorization chain is the one `create_conversation` already applies — the
+    conversation must be the caller's own (`_visible_conversation`, byte-identical 404
+    otherwise) and the contract must be READ-able by them. Every later question
+    re-resolves both, so this widens nothing at retrieval time (`AM-25` r6).
+
+    ONE-WAY. A conversation that already carries a contract is refused rather than
+    re-pointed: earlier turns cite `evidence_id`s from the first document's reading
+    order, and moving the scope under them would strand every one of those citations.
+    """
+    guard.permission(P.ASSIST_ASK)
+    conversation = _visible_conversation(guard, conversation_id)
+    contract = guard.contract_readable(UUID(body.contract_id), P.ASSIST_ASK)
+    if conversation["contract_id"] is not None:
+        raise BusinessRuleRejected(
+            "this conversation is already about a document; start a new chat to ask "
+            "about another one")
+    try:
+        service.attach_contract(guard.db, conversation_id=conversation_id,
+                                contract_id=contract.id)
+    except service.ConversationAlreadyScoped as exc:
+        raise BusinessRuleRejected(
+            "this conversation is already about a document; start a new chat to ask "
+            "about another one") from exc
+    from legalmind.security import audit as audit_log
+    audit_log.record(guard.db, action=audit_log.ASSIST_CONVERSATION_SCOPED,
+                     entity_type="conversation", entity_id=conversation_id,
+                     actor_id=guard.user_id, request_id=guard.request_id,
+                     after={"contract_id": str(contract.id)})
+    return data({"id": str(conversation_id), "contract_id": str(contract.id)})
 
 
 @router.get("/conversations")
@@ -411,15 +453,39 @@ def ask(conversation_id: UUID, body: AskRequest,
     # (`assist.routing`) decides which authorized sources can answer, and a question
     # nothing can answer gets the route's one refusal wording, not an error.
 
+    # The one paid egress path, and until 2026-09-11 the only endpoint with no budget.
+    _limiter.check(f"ask:{guard.user_id}", ratelimit.ASK)
+
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
     if len(body.question) > 2000:
         raise BusinessRuleRejected("the question exceeds 2000 characters")
 
+    # A question asked about a Finding: resolved through the ordinary Guard, then
+    # required to belong to THIS conversation's contract. Same narrowing discipline as
+    # `_asked_document_version` — a Finding the caller can legitimately read, but from
+    # another contract, is refused rather than used to seed this conversation.
+    finding_id = None
+    if body.finding_id is not None:
+        try:
+            finding_id = UUID(body.finding_id)
+        except ValueError as exc:
+            raise BusinessRuleRejected("finding_id is not a valid identifier") from exc
+        finding = guard.finding(finding_id, P.FINDING_VIEW)
+        owner = guard.db.execute(text("""
+            SELECT v.contract_id FROM findings f
+              JOIN reviews r ON r.id = f.review_id
+              JOIN document_versions v ON v.id = r.document_version_id
+             WHERE f.id = :f"""), {"f": finding.id}).scalar_one_or_none()
+        if owner is None or owner != conversation["contract_id"]:
+            raise BusinessRuleRejected(
+                "the finding does not belong to this conversation's document")
+
     outcome = service.ask(guard.db, conversation_id=conversation_id,
                           document_version_id=version.id if version else None,
                           permissions=guard.permissions,
-                          question=body.question, request_id=guard.request_id)
+                          question=body.question, request_id=guard.request_id,
+                          finding_id=finding_id)
     return data({
         "conversation_id": str(outcome.conversation_id),
         "message_id": str(outcome.message_id),

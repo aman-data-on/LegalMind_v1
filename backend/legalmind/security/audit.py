@@ -66,6 +66,10 @@ ASSIST_GENERATION_CALLED = "assist.generation_called"
 # what it proposed — the human confirmation that later records a type is a
 # separate, ordinary contract update. Hash only, never the payload (AM-30 t5).
 ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
+# A document-less conversation gained a document (2026-09-11). Recorded because it
+# changes what every SUBSEQUENT question in that conversation may retrieve, and the
+# binding is one-way — only NULL -> contract, never a re-point.
+ASSIST_CONVERSATION_SCOPED = "assist.conversation_scoped"
 # Contract lifecycle beyond the locked ContractStatus axis — AB-12 (2026-09-05).
 # Archive replaces AM-37's two-mode delete: nothing is destroyed any more, so
 # there is one action and its mirror. Rows written under the withdrawn actions
