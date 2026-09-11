@@ -96,11 +96,18 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
     if not rows:
         return IndexResult(document_version_id, 0, True, "no evidence to index")
 
-    if existing and reindex:
-        store.delete_chunks(db, document_version_id)
-
     chunks = chunk_evidence(list(rows))
-    written = store.write_chunks(db, document_version_id, chunks)
+    if existing and reindex:
+        # Id-preserving: a citation recorded against a clause keeps pointing at that
+        # clause (rule 17), even though the clause's chunk may now carry its heading.
+        stats = store.replace_chunks(db, document_version_id, chunks)
+        written = len(chunks)
+        log_event("assist.index.reindexed",
+                  document_version_id=str(document_version_id),
+                  kept=stats.kept, removed=stats.removed, inserted=stats.written,
+                  citations_repointed=stats.citations_repointed)
+    else:
+        written = store.write_chunks(db, document_version_id, chunks)
     embedded = _embed_chunks(db, document_version_id)
 
     # Deliberately in the assist signal namespace, never beside `workflow.decisions.*`

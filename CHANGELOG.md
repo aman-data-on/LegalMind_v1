@@ -10,6 +10,73 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — P0 backend quality phase: chunk hygiene, Ask conversation memory, source routing re-audited (owner instruction, 2026-09-10)
+
+Follows the 2026-09-10 AI/RAG architecture audit. **No lock amended** — the owner ruled the
+same day that `AM-27` r4 (a chunk references the one evidence row it came from) and `AM-30` t2
+(only the requester's question and this request's chunk spans egress) stand, and everything
+below is built inside them. No UI change. Built and tested in a worktree (`feat/p0-rag-quality`),
+**NOT deployed** and the live index **NOT re-indexed** — both are deploy steps below.
+
+**1. Chunk hygiene — `clause-aware-4`** (`backend/legalmind/assist/chunking.py`,
+`store.py`, `indexing.py`; new `tools/reindex_documents.py`). Measured on the live index first:
+71% of `assist.chunks` (5,735 of 8,065) still carried `clause-aware-2` — written before the
+heading fold existed and never re-indexed; of the remaining short rows, a bare `10.` survived
+because the heading test exempted anything ending in a dot (the §10 / §10.1 / §10.2 shape,
+25 rows), and 460 were whole evidence rows the per-row fold cannot reach. Changes, each decided
+by the document's own structure and none by length alone (owner: short legal sentences are
+valid evidence): a bare clause number and an orphan list marker (`e.`, `(a)`) fold forward into
+the clause they introduce; a continuation tail (`…within` / `30 days of invoice.`) folds back
+into the clause it completes; a short complete sentence stays its own chunk; page furniture (a
+short row repeated three or more times in one version — running header, footer date) is not
+indexed. A heading-only row stays indexed — it carries the clause number a user asks with — and
+`search_hybrid` now **redirects** a hit on it to the clause beneath instead of dropping it
+(`RETRIEVAL_STRATEGY_VERSION` → `hybrid-rrf-gate-3`). **Re-indexing is id-preserving**
+(`store.replace_chunks`): a clause's row is updated in place, an absorbed fragment hands its
+citations to the clause that absorbed it — rule 17: 130 of 136 live document citations sat on
+`clause-aware-2` rows and a delete-and-reinsert would have cascaded them away. Dry run over the
+live index: 8,065 → 7,371 chunks, under-80-character share 32.7% → 25.5%, citations 136 → 136.
+Tier-2 gate (`tools.verify_assist_quality`, real material) before and after: SHIPPABLE both —
+wrongly answered 1/13 held, recall@10 0.625 held, retained 43/64 held, user-answered 32 → 33,
+hit@1 0.391 → 0.375, faithfulness and citation precision 1.0. 12 new chunker/re-index tests.
+
+**2. Conversation memory for Ask — inside `AM-30` t2** (`service.py`, `intent.py`,
+`generation.py`). A follow-up — "what about clause 7?", "what happens after that?" — is
+detected deterministically (`intent.is_follow_up`: anaphora, a continuation opener, or at most
+one content word) and resolved by the requester's own earlier questions in the SAME conversation (looking back
+four turns, each clipped to 300 characters): the most recent question that stands on its own —
+the anchor — joins the current one in the retrieval query and the routing input (measured live:
+concatenating every earlier question flattened the vector and closed the gate; anchor + current
+opened it), and the anchor plus the question just before are listed to the model under `EARLIER QUESTIONS IN THIS CONVERSATION (context
+only, not evidence)` (`PROMPT_VERSION` → `grounded-answer-2`). They never add evidence (every
+chunk is retrieved fresh, in the version the request named), never widen a domain the caller's
+live permission set excludes, never cross a conversation, and an earlier ANSWER is never read —
+t2 admits the requester's question, not generated text. The USER turn persists the raw
+question; the retrieval run records the expanded `query_text` and `filters.follow_up_of` (ids).
+**Limitation the lock creates, reported not bent:** a follow-up that refers to something only
+the previous *answer* contains ("is the 30 days you mentioned business days?") resolves through
+the previous *question* and the re-retrieved clause, not the answer's wording; admitting the
+answer would need an amendment to `AM-30` t2. 15 tests in `test_assist_conversation_memory.py`
+(follow-up, pronoun, bounded history, isolation, no answer text in a payload, no position text
+across turns, no widening for a caller who lost the grant, version change through the API,
+stale context never answers from memory, raw turn persisted, prompt shape, forbidden-field
+screen), 13 in `test_assist_intent.py`.
+
+**3. Ask source routing re-audited** — question → `routing.plan` → primary sources →
+comparison handoff → hybrid retrieval → gate/sufficiency → generation → verification/verdict
+screen → position beside → fallbacks → refusal naming every searched source. No structural gap:
+the document is not the knowledge boundary (every non-answer cause consults the other authorized
+sources). Scenario C ("contract and standard differ — explain the difference") is met as *both
+shown, attributed, with the evaluator's existing Finding attached*; a generated explanation of
+the difference would put the position in a payload (`AM-32` r4) and utter the verdict the
+assistant may not (`AM-25` r4, `AM-45` r2) — not built. `test_assist_source_matrix.py` pins
+A–E plus the boundary case.
+
+**Deploy steps (not done here):** merge; restart the API; then
+`python3 -m tools.reindex_documents --dry-run` and, on a clean report, without `--dry-run`. The
+old code tolerates a v4 index (its query-time prune still drops heading rows), so the order does
+not matter. `tests/assist_eval/baseline.json` is left as ratified; the gate holds against it.
+
 ### Deployed — the Radix Dialog work is live (2026-09-10)
 
 PR #25 (`feat/shadcn-dialog-radix`, the four commits below: `819fd08`, `12dca0c`, `86dcb5e`,

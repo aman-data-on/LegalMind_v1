@@ -126,3 +126,53 @@ def is_verdict_statement(text: str) -> bool:
     position = _hits(tokens, _POSITION_STEMS)
     signal = _hits(tokens, _VERDICT_STEMS)
     return bool(position) and bool(signal - position)
+
+
+# --------------------------------------------------------------------------
+# Follow-up detection (2026-09-10) — the deterministic half of conversation memory
+# --------------------------------------------------------------------------
+# "What about clause 7?", "what does that mean?", "and the penalty?" carry no content of
+# their own: their meaning is the previous question's. `service.ask` resolves such a
+# question by expanding retrieval with the requester's own earlier questions and
+# passing those questions — never an earlier ANSWER (`AM-30` t2) — as labelled context.
+# No model rewrites anything: the test is a stop-word count and a small anaphora list,
+# so the same question always resolves the same way and the record can say why.
+_ANAPHORA = frozenset({"this", "that", "it", "its", "those", "these", "same", "previous",
+                       "above", "earlier", "there", "then", "latter", "former"})
+_OPENERS = frozenset({"and", "also", "but", "so", "plus"})
+_STOP = frozenset({
+    "what", "about", "how", "is", "are", "the", "a", "an", "of", "in", "on", "for", "to",
+    "does", "do", "did", "or", "with", "mean", "means", "say", "says", "said", "happen",
+    "happens", "after", "before", "clause", "section", "article", "please", "tell", "me",
+    "explain", "more", "who", "which", "when", "where", "why", "can", "could", "would",
+    "should", "be", "was", "were", "has", "have", "had", "any", "other", "again", "under",
+    "if", "into", "detail", "details", "elaborate", "part", "point", "one", "much",
+    "many", "long", "exactly", "specifically", "number", "no",
+})
+
+
+# "this Agreement", "that document": a determiner in front of the thing being asked
+# about, not a reference to an earlier turn.
+_DETERMINED = frozenset({"agreement", "contract", "document", "clause", "section",
+                         "msa", "nda", "sla", "policy", "version", "act", "provision"})
+
+
+def is_follow_up(question: str) -> bool:
+    """True when a question cannot stand alone: it points back ("that", "the previous
+    clause"), opens as a continuation ("and …"), or has at most one content word once
+    stop words and clause references are removed ("what about clause 7?")."""
+    tokens = _stems(question or "")
+    if not tokens:
+        return False
+    if tokens[0] in _OPENERS:
+        return True
+    for i, tok in enumerate(tokens):
+        if tok in _ANAPHORA and not (tok in {"this", "that", "these", "those"}
+                                     and i + 1 < len(tokens)
+                                     and tokens[i + 1] in _DETERMINED):
+            return True
+    # ponytail: a one-content-word standalone ("who are the parties?") also counts as
+    # a follow-up and gets the previous question added to its retrieval. Harmless —
+    # the current question still drives generation — but a real intent model is the
+    # upgrade if that ever measurably dilutes the top-k.
+    return len([t for t in tokens if t not in _STOP and t not in _ANAPHORA]) <= 1

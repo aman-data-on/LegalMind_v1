@@ -1712,3 +1712,57 @@ and 421 chunks in one commit. And two jobs raced on one version → exactly one
 OCR run, exactly 413 rows — the loser never claimed. 4 new tests pin the
 decision logic (claim reuse, attempt-state ledger, deterministic abandonment,
 reconciliation set).
+
+
+## 2026-09-10 — P0 backend quality phase: chunk hygiene, conversation memory, source routing (303–307) — BUILT in a worktree, NOT deployed
+
+Owner rulings the same day, both honoured: **`AM-27` r4 is not amended** (no chunk spans two
+evidence rows; no blanket "under 80 characters" deletion — short legal sentences are evidence)
+and **`AM-30` t2 is not amended** (prior USER questions only, never a prior answer; report the
+limitation).
+
+### 303 — fragments fold on STRUCTURE, never on length; page furniture alone is excluded
+A bare clause number (`10.`) and an orphan list marker (`e.`) fold forward into the clause they
+introduce; a continuation tail (lower-case opener, bracket, bullet, or a predecessor that stopped
+mid-sentence) folds back; a short complete sentence stays its own chunk. The one row shape not
+indexed is page furniture: a short row repeated three or more times in one version. Why: the
+live index showed 25 number-only chunks and running headers on every page; the owner refused a
+length rule. Does NOT decide: the parser's segmentation (authoritative, untouched).
+
+### 304 — a heading-only evidence row stays indexed and is REDIRECTED at query time
+It carries the clause number a user asks with ("what does 17.2 say?"), and r4 forbids folding
+it into the next row. `search_hybrid` maps a hit on it to the next non-fragment chunk of the
+same version (up to four hops), keeping the fragment's score; before it was dropped. The gate
+still decides on the raw scores. `RETRIEVAL_STRATEGY_VERSION` → `hybrid-rrf-gate-3`. Measured:
+Tier-2 gate SHIPPABLE before and after (wrongly answered 1/13, recall@10 0.625, retained 43;
+user-answered 32 → 33, hit@1 0.391 → 0.375). Does NOT decide: any change to the gate constants.
+
+### 305 — re-indexing preserves chunk ids and citations (`store.replace_chunks`)
+For each new chunk, the old rows of the same evidence row whose text it contains are its
+predecessors; the longest keeps its id (updated in place, embedding dropped for re-embedding),
+the others hand their `answer_citations` to it; an orphan with no successor hands its citations
+to the next surviving row in document order. Why: 130 of 136 live document citations sat on
+`clause-aware-2` rows; delete-and-reinsert would cascade them away (rule 17). Dry run on the
+live index: 8,065 → 7,371 chunks, 32.7% → 25.5% under 80 characters, citations 136 → 136.
+Operator tool `tools.reindex_documents` (`--dry-run` rolls back; exits 1 on any lost citation).
+
+### 306 — a follow-up is resolved by its anchor question, deterministically
+`intent.is_follow_up`: anaphora ("that", "it", "the previous"; but not "this Agreement"), a
+continuation opener ("and …"), or at most one content word after stop words and clause
+references. Of the last four USER turns of the same conversation (≤300 chars each), the most
+recent that stands on its own — the anchor — joins the current question in the retrieval query
+and the routing input; the anchor and the question just before are listed to the model as
+context under their own header (`grounded-answer-2`). Measured live on the owner's MSA: every
+earlier question concatenated → vector top 0.463, gate closed; anchor + current → 0.612, gate
+open, §14.1/§14.3 retrieved. Never: an ASSISTANT turn, another conversation, a position, a
+statute section. The USER turn persists the raw question; the retrieval run records the expanded
+`query_text` and `filters.follow_up_of`. No new table or column (`AM-27` "no other table").
+Limitation reported: a reference to wording only the previous answer contains is not resolvable
+without amending `AM-30` t2. Does NOT decide: any model-side query rewriting (refused).
+
+### 307 — scenario C is "both shown, attributed, Finding attached", never an explanation
+When the document answers and a ratified position is relevant, the answer is in `text` (cited
+to the document), the position in `positions` (standard code, source clause, verbatim), and the
+evaluator's Finding for that standard beside it when a Review exists. No generated sentence
+compares them: the position may not enter a payload (`AM-32` r4) and the comparison is the
+verdict the assistant may not make (`AM-25` r4, `AM-45` r2). Does NOT decide: the evaluator.
