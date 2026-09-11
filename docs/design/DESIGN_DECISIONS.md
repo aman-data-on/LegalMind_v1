@@ -1046,3 +1046,48 @@ Measured rendered, not judged from source, at 1440 / 1180 / 768 / 390:
   normal text flow with an inline icon.
 * The rail is a native `<details>`: open on a desktop, closed on a phone, where half the screen
   before the first word is the wrong trade. No horizontal scroll at 390, 768, 1180 or 1440.
+
+---
+
+## DD-20 — Tailwind is set up and isolated; zero AI Elements are adopted (owner decision, 2026-09-11)
+
+**Status: recorded. Presentation-layer tooling only; locks nothing and amends no `AM-*`.**
+
+The owner asked for the Ask experience to be built on shadcn's AI SDK helper, naming
+`ui.shadcn.com/docs/helpers/ai-sdk`, and in the same instruction forbade a mock AI backend. Those
+two turn out to be the same thing: that helper **is** a fixture generator — *"It runs offline,
+instantly, and the same way every time… decouples your chat UI from the model and the backend"* —
+and its transport never reaches a server. It was not adopted, and the contradiction was put to the
+owner rather than resolved quietly.
+
+The real component set is **AI Elements** (`elements.ai-sdk.dev`, `npx ai-elements@latest add …`).
+It was audited component by component against the live registry, and **none of it was adopted**.
+Three reasons, in order of weight:
+
+1. **Cascade layers outrank specificity.** Tailwind v4 emits utilities into `@layer utilities`;
+   `workspace.css` is unlayered; an unlayered rule beats a layered one whatever the selectors say.
+   So `.ws a` silently wins over any Tailwind class inside `.ws` — meaning the components could not
+   be styled the way they ship, and once restyled to `--ws-*` tokens (the owner's own condition)
+   nothing of the component but its markup would remain.
+2. **AI Elements is CSS-variables mode only** — it expects a global `:root` token layer, and
+   `shadcn init` writes `@import "tailwindcss"` into `globals.css`. That is preflight on every
+   screen, `/login` included, and all eleven visual baselines.
+3. **`message`/`response` is a markdown renderer** (Streamdown, with mermaid, katex and shiki
+   behind it). `TranscriptTurn.tsx` decided the opposite deliberately and says so: *"a parser that
+   invented headings, links or emphasis from stray punctuation would be putting formatting into a
+   legal answer that nobody wrote."* Adopting it would reverse a product decision and add
+   megabytes to do it.
+
+Per-component, every surface AI Elements offers — message list, messages, composer with
+attachments, sources, loading state — already exists in house CSS, with better accessibility than
+the library ships, and is pinned by two baselines.
+
+**What was adopted: Tailwind itself, isolated, as a capability for new markup.** `theme.css` and
+`utilities.css` imported individually under a `tw:` namespace; `preflight.css` never named;
+`@source` limited to the Ask route. Proven by a byte-identical diff of every previously-emitted
+stylesheet — the method and the numbers are in
+[TAILWIND_ISOLATION.md](TAILWIND_ISOLATION.md).
+
+**The honest caveat**, recorded so nobody discovers it as a bug: the theme layer declares six
+`--tw-*` custom properties on `:root`. They collide with nothing and paint nothing, but this is
+not a zero-global-effect change and is not described as one.
