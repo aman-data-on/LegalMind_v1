@@ -10,6 +10,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Ask stage 2: Tailwind, isolated and measured; zero AI Elements adopted (2026-09-11)
+
+Second of three stages. Tooling only — no product behaviour changes, and no existing screen is
+touched. Decision recorded as [DD-20](docs/design/DESIGN_DECISIONS.md); the measurement is
+[TAILWIND_ISOLATION.md](docs/design/TAILWIND_ISOLATION.md).
+
+The URL the owner named (`/docs/helpers/ai-sdk`) is a **fixture generator for developing chat UIs
+offline** — its transport never reaches a server — so adopting it would have built exactly the mock
+chat the same instruction forbade. The real component set, AI Elements, was audited against the
+live registry and **none of it adopted**: Tailwind's utilities sit in `@layer utilities` and an
+unlayered rule beats a layered one regardless of specificity, so `.ws a` silently wins over any
+Tailwind class inside `.ws`; AI Elements is CSS-variables-mode-only (a global `:root` token layer,
+and `shadcn init` writes `@import "tailwindcss"` into `globals.css`); and `message`/`response` is a
+markdown renderer, which `TranscriptTurn.tsx` deliberately is not.
+
+Tailwind v4 itself IS set up, as a capability for new markup: `theme.css` and `utilities.css`
+imported individually under a `tw:` namespace, `preflight.css` never named, `@source` limited to
+the Ask route.
+
+* **Isolation proof:** all three previously-emitted CSS chunks are **byte-identical** before and
+  after (`56a3ad60…`, `f2ce9567…`, `1c0299a3…`); one new 150-byte chunk appears. Zero
+  `box-sizing:border-box`, zero bare-element resets, zero unprefixed selectors. A temporary
+  `tw:isolate` probe confirmed utilities actually emit, and was removed before commit.
+* **Not claimed:** the theme layer declares six `--tw-*` properties on `:root`. Namespaced, paints
+  nothing — but this is not a zero-global-effect change.
+* Files: `frontend/postcss.config.mjs`, `frontend/src/app/dashboard/ask/ai.css` (both new), one
+  import line, and two devDependencies. Rollback is one revert plus `npm ci`.
+
 ### Changed — Ask is the AI workspace; the history table is now its rail (2026-09-11)
 
 Owner instruction: `/dashboard/ask` was named after the capability but was a conversation-history
