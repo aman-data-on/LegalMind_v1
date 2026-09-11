@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Coordination note — `main` was rewound past the P0 merge and has been restored (2026-09-11)
+
+Sequence, from `main`'s reflog: the P0 merge landed on `main` as `ec32467` (owner-approved, with the
+API restarted and the live index re-indexed against it); a concurrent session then committed its UI
+fix `a801694` on top of it while `main` was checked out, moved to a new branch
+`fix/ui-a11y-measured`, and reset `main` back to `origin/main` — which took the P0 merge off `main`
+with it. Production was never affected: the deploy tree's files, and therefore the running API,
+still carried the merged code throughout.
+
+`main` has been fast-forwarded back to `ec32467` and this deployment record cherry-picked onto it.
+**`a801694` was deliberately NOT brought along** — it is the other session's in-flight work and
+stays on `fix/ui-a11y-measured` for their own PR; nothing on that branch was modified. The deploy
+tree is still checked out on their branch, which is theirs to switch back, and the backend content
+there is identical to `main`.
+
 ### Fixed — three measured UI defects: a horizontal page scroll on two screens, and one AA contrast failure (2026-09-11)
 
 Owner asked for an expert UI/UX pass beyond the dialog work. Rather than migrate more
@@ -48,14 +63,15 @@ the browser suite passes 111/126 with 14 skips and one unrelated failure (`a suc
 lands on /dashboard`) that passes in isolation — S-5's login limiter exhausting across a
 full-suite run, exactly as `auth.setup.ts` documents.
 
-
 ### Changed — P0 backend quality phase: chunk hygiene, Ask conversation memory, source routing re-audited (owner instruction, 2026-09-10)
 
 Follows the 2026-09-10 AI/RAG architecture audit. **No lock amended** — the owner ruled the
 same day that `AM-27` r4 (a chunk references the one evidence row it came from) and `AM-30` t2
 (only the requester's question and this request's chunk spans egress) stand, and everything
-below is built inside them. No UI change. Built and tested in a worktree (`feat/p0-rag-quality`),
-**NOT deployed** and the live index **NOT re-indexed** — both are deploy steps below.
+below is built inside them. No UI change. **DEPLOYED 2026-09-11**: merged as `ec32467`, API restarted
+(PID 4120980, 12:43 IST), and the live index re-indexed in 15 seconds — 8,065 → 7,371 chunks, short-row
+share 32.7% → 25.5%, **170 of 170 document citations preserved and every one still resolving to a chunk
+containing the text it originally cited**. 18 of 18 post-deployment smoke checks passed.
 
 **1. Chunk hygiene — `clause-aware-4`** (`backend/legalmind/assist/chunking.py`,
 `store.py`, `indexing.py`; new `tools/reindex_documents.py`). Measured on the live index first:
@@ -111,10 +127,23 @@ the difference would put the position in a payload (`AM-32` r4) and utter the ve
 assistant may not (`AM-25` r4, `AM-45` r2) — not built. `test_assist_source_matrix.py` pins
 A–E plus the boundary case.
 
-**Deploy steps (not done here):** merge; restart the API; then
-`python3 -m tools.reindex_documents --dry-run` and, on a clean report, without `--dry-run`. The
-old code tolerates a v4 index (its query-time prune still drops heading rows), so the order does
-not matter. `tests/assist_eval/baseline.json` is left as ratified; the gate holds against it.
+**Deployment, 2026-09-11 (owner approved after a readiness verification).** Readiness evidence:
+the dry run was reproduced immediately before the real run and matched the audit line for line (62
+versions, zero drift in any projection, zero `LOST`); the Tier-2 gate reported SHIPPABLE on two
+consecutive runs; the four Ask scenarios and four follow-up chains were verified live. hit@1 moved
+0.391 → 0.375, traced to exactly one question (Q-12, the MSA template §5.2.3) whose answering chunk
+is byte-identical under both chunkers — the cause is the query-time heading redirect, not the
+chunker, isolated by running the new retrieval code against the old index. recall@10, retained,
+wrongly-answered, faithfulness and citation precision all held. `tests/assist_eval/baseline.json`
+is left as ratified; the gate holds against it.
+
+**Three follow-up items documented, deliberately NOT changed in this deployment:** a redirected
+heading carries the fragment's own score and can outrank the clause it points at; the model can
+occasionally phrase a paraphrase answer below the grounding floor, where the guardrail correctly
+rejects it and Ask falls through (measured 3 of 5 answered on one such question, 0 said NOT FOUND);
+and folding strips trailing whitespace, so 2.77% of chunks are not a byte-exact substring of their
+evidence row (160 such chunks existed under `clause-aware-3`, 204 now — **all whitespace-only, zero
+with altered text**, so `AM-27` r4's substance holds and every citation still resolves).
 
 ### Deployed — the Radix Dialog work is live (2026-09-10)
 
