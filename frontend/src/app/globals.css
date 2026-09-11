@@ -217,6 +217,11 @@ th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04e
    finding — "no responsive breakpoints... tables would overflow uncontrolled").
    Not yet applied in any page's markup; Phase 3 adds it per page as each table
    is revisited, so no existing screen's markup changes here. */
+/* Horizontal scroll for a bare table that is not inside a `.table-card` — the
+   configuration version table is 585px wide and scrolled the whole PAGE at
+   390px until it was wrapped (measured 2026-09-11). No border or background:
+   inside a `.card` a `.table-card` would nest a card in a card, which
+   DESIGN.md rejects. */
 .table-wrap { overflow-x: auto; }
 
 /* Visible to assistive technology only — for a live-region announcement (e.g. a

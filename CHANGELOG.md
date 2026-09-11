@@ -10,6 +10,45 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — three measured UI defects: a horizontal page scroll on two screens, and one AA contrast failure (2026-09-11)
+
+Owner asked for an expert UI/UX pass beyond the dialog work. Rather than migrate more
+components, the frontend was **measured** in a real browser (temporary Playwright harness,
+deleted after use; painted background sampled per element with `sharp`, because a naive
+`getComputedStyle` walk reads a gradient-painted bar as transparent and produces false
+failures — it claimed the top-bar nav links were 2.64:1 when they measure 8.54:1).
+
+Eleven screens at 1280px, plus every screen at 390px and 768px. Three real defects, all
+presentation-only; nothing else in the app fails AA contrast or scrolls horizontally.
+
+1. **`/dashboard/admin` scrolled horizontally at 390px and 768px** (page 1011px wide in a
+   390px viewport). `.ws-admin__body` flips to `flex-direction: column` at ≤1100px, but the
+   row rule's `align-items: flex-start` still applied — in a column flex container that sizes
+   children to max-content, so the members table dictated the page width. Fixed with
+   `align-items: stretch` in the same media query.
+2. **`/dashboard/configuration` scrolled horizontally at 390px** (585px version table). It was
+   the one bare `<table>` in the app with no scroll container; now wrapped in the already-defined
+   but previously unused `.table-wrap`. Not `.table-card` — inside a `.card` that would nest a
+   card in a card, which DESIGN.md rejects.
+3. **`.ws-hero__ctan`** (the pending-decisions count on the workspace CTA) measured **4.19:1**
+   against the 4.5:1 minimum for 12px text: a white tint over `--ws-tone-bad` paints
+   rgb(114,107,234), and the pill's own text is white. The tint is now dark rather than light —
+   same subtle-chip look, **8.74:1**.
+
+Deliberately **not** changed: the `LegalMind` wordmark's `Mind` half measures 2.56:1 on the
+near-black shell, which `workspace.css` already records as a considered decision (WCAG SC 1.4.3
+excludes logotypes) with the exact lift to use if it is ever revisited. Also left alone: several
+link-styled buttons below WCAG 2.2's 24×24 target minimum (`ws-viewall`, `ws-ring__go`,
+`ws-escalate__link`, inline table links) — these sit inline in prose, where the SC's inline
+exception applies, and padding them out would move a frozen layout. Reported, not fixed.
+
+Verified by re-running the same harness: zero horizontal overflow on every route at both widths,
+and the contrast sweep clean except the exempt wordmark. 380 Vitest tests and typecheck pass;
+the browser suite passes 111/126 with 14 skips and one unrelated failure (`a successful login
+lands on /dashboard`) that passes in isolation — S-5's login limiter exhausting across a
+full-suite run, exactly as `auth.setup.ts` documents.
+
+
 ### Changed — P0 backend quality phase: chunk hygiene, Ask conversation memory, source routing re-audited (owner instruction, 2026-09-10)
 
 Follows the 2026-09-10 AI/RAG architecture audit. **No lock amended** — the owner ruled the
