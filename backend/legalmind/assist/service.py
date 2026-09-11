@@ -238,11 +238,15 @@ def attach_contract(db: DBSession, *, conversation_id: UUID, contract_id: UUID) 
     does not touch.
     """
     schema = config.assist_schema()
+    # RETURNING rather than `rowcount`: it is the same single round trip, it is
+    # typed (SQLAlchemy's `Result` exposes `rowcount` only on the cursor subtype,
+    # which mypy rejects here), and it says what it checks.
     updated = db.execute(text(f"""
         UPDATE "{schema}".conversations SET contract_id = :k
          WHERE id = :i AND contract_id IS NULL
-    """), {"k": contract_id, "i": conversation_id}).rowcount
-    if updated == 0:
+        RETURNING id
+    """), {"k": contract_id, "i": conversation_id}).first()
+    if updated is None:
         # The row exists and is the caller's (the router established both), so the only
         # way to match nothing is that a contract is already set. Guarded in SQL rather
         # than by a read-then-write so two concurrent attaches cannot both win.
