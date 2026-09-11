@@ -125,8 +125,17 @@ test.describe("the new UI at the freeze (counsel)", () => {
     await expect(page).toHaveScreenshot("ws-documents.png", {
       ...SHOT,
       fullPage: true,
-      // Names carry timestamps and the Added column carries today's date.
-      mask: [page.locator("tbody td:first-child"), page.locator("tbody td:last-child")],
+      /* Names carry timestamps and the Added column carries today's date — and
+         until 2026-09-11 the mask covered the first and last cells only, so
+         Added was compared. The baseline held 2026-09-09 and drifted a few
+         digits a day, under the 1152px threshold, passing green while wrong.
+         The comment named the defect the mask did not cover; both cells are
+         `ws-mono`, so masking them cannot move anything outside their own box. */
+      mask: [
+        page.locator("tbody td:first-child"),
+        page.locator("tbody td:nth-child(6)"),
+        page.locator("tbody td:last-child"),
+      ],
     });
   });
 
@@ -229,7 +238,16 @@ test.describe("the new UI at the freeze (admin)", () => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await page.goto("/dashboard/admin");
     await expect(page.locator("tbody tr").first()).toBeVisible();
-    await expect(page).toHaveScreenshot("ws-admin.png", { ...SHOT, fullPage: true });
+    /* Last sign-in and Created are real timestamps — this shot carried NO mask,
+       so its baseline was pinned to the minute it was adopted (09-10 11:52) and
+       has been drifting under the threshold ever since. Both columns are
+       `ws-mono`: fixed advance width, so a mask here hides pixels without
+       moving the row. */
+    await expect(page).toHaveScreenshot("ws-admin.png", {
+      ...SHOT,
+      fullPage: true,
+      mask: [page.locator("tbody td:nth-child(6)"), page.locator("tbody td:nth-child(7)")],
+    });
   });
 
   test("audit trail — the dense read-only table", async ({ page }) => {
