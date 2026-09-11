@@ -171,7 +171,23 @@ test.describe("the new UI at the freeze (counsel)", () => {
      to pin, so both shots move with it: the empty workspace a reader meets, and
      one open conversation beside its rail. Volatile text — the document name in
      the rail and in the scope line — is masked; the two-pane layout is what
-     these pin. */
+     these pin.
+
+     ⚠️ WHOEVER ADOPTS THE TWO ACTUALS FOR THESE: OPEN THEM AND LOOK.
+     A green job 15 is not evidence that a baseline is correct — it is only
+     evidence that the run matched whatever pixels the baseline already holds.
+     `maxDiffPixelRatio: 0.001` is 1152px of 1280x900, and three baselines drifted
+     UNDER that threshold and passed silently for weeks: the Client Profiles nav
+     link was missing from `ws-legal`, `ws-ask-history` and `ws-transcript`, and a
+     `.ws-hero__ctan` contrast fix sat unabsorbed in `workspace` (found 2026-09-11
+     by reading the diff images of a run that failed for an unrelated reason, not
+     by a red job 15).
+
+     These two are NEW baselines, so their first CI run fails as missing and the
+     actuals are whatever the branch renders — right or wrong. Check the nav is
+     complete, the rail carries its chats, and the composer is present before
+     committing them. Adopt from CI's `*-actual.png`; never `--update-snapshots`
+     locally (owner, 2026-08-30). */
   test("ask — the empty workspace", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { contractId } = await createAnalysedReview(page, { analyse: false });
