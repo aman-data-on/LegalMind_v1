@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Coordination note — `main` was rewound past the P0 merge and has been restored (2026-09-11)
+
+Sequence, from `main`'s reflog: the P0 merge landed on `main` as `ec32467` (owner-approved, with the
+API restarted and the live index re-indexed against it); a concurrent session then committed its UI
+fix `a801694` on top of it while `main` was checked out, moved to a new branch
+`fix/ui-a11y-measured`, and reset `main` back to `origin/main` — which took the P0 merge off `main`
+with it. Production was never affected: the deploy tree's files, and therefore the running API,
+still carried the merged code throughout.
+
+`main` has been fast-forwarded back to `ec32467` and this deployment record cherry-picked onto it.
+**`a801694` was deliberately NOT brought along** — it is the other session's in-flight work and
+stays on `fix/ui-a11y-measured` for their own PR; nothing on that branch was modified. The deploy
+tree is still checked out on their branch, which is theirs to switch back, and the backend content
+there is identical to `main`.
+
 ### Changed — P0 backend quality phase: chunk hygiene, Ask conversation memory, source routing re-audited (owner instruction, 2026-09-10)
 
 Follows the 2026-09-10 AI/RAG architecture audit. **No lock amended** — the owner ruled the
