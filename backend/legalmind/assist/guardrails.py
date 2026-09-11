@@ -136,9 +136,131 @@ class Verification:
         return self.state is AssistAnswerState.ANSWERED
 
 
+# --------------------------------------------------------------------------
+# Word normalisation — what "the same word" means on both sides of a comparison
+# --------------------------------------------------------------------------
+# `_content_words` feeds two grounding checks: the Ask answer's citation overlap
+# (`verify_answer`, floor 0.5) and the Finding explanation's (floor 0.75). Both
+# compare a generated sentence against its source material by SET MEMBERSHIP, so
+# a word only counts as grounded when the two sides produce the identical token.
+#
+# Measured on the live explanation corpus (2026-09-11): of 63 rejected
+# explanations, ~37 were rejected for "ungrounded words" that ARE in the source
+# in another surface form — `leapswitch's` against `Leapswitch`, `one-year`
+# against `one year`, `2,` against `2`, `ends`/`ending` against `end`,
+# `specifies` against `specify`. The sentences were grounded; the comparison was
+# not measuring it. That is a validation defect, not a model failure, and the
+# fix is to normalise BOTH sides identically rather than to lower either floor —
+# the floors are unchanged by this, and an invented word still grounds nowhere.
+#
+# Deliberately a small deterministic stemmer, not a dependency (rule 19) and not
+# a model: `intent.py` already takes the same in-house approach, and a stemmer
+# that changes between library versions would silently move a guardrail.
+_TOKEN = re.compile(r"[A-Za-z][A-Za-z'\u2019-]*|\d[\d.,%]*")
+_SUFFIXES = ("ing", "edly", "ed", "es", "ly", "s")
+
+
+def _stem(word: str) -> str:
+    """One conservative surface form for a word. Short words are left alone."""
+    if len(word) <= 3:
+        return word
+    for suffix in _SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            word = word[: -len(suffix)]
+            break
+    # `exclude`/`excludes`/`excluding` all meet at `exclud`.
+    if len(word) > 3 and word.endswith("e"):
+        word = word[:-1]
+    # `specify`/`specifies` meet at `specifi`; `company`/`companies` at `compani`.
+    if word.endswith("y"):
+        word = word[:-1] + "i"
+    # `running` -> `runn` -> `run`; never applied to a genuine double vowel.
+    if len(word) >= 4 and word[-1] == word[-2] and word[-1] not in "aeiou":
+        word = word[:-1]
+    return word
+
+
+def _normalise(token: str) -> set[str]:
+    """Every form of one raw token that should count as the same word.
+
+    A hyphenated compound contributes its parts AND its joined form, so
+    `non-disclosure` meets `non disclosure` and `nondisclosure` alike; a number
+    sheds trailing punctuation so `2,` meets `2`; a possessive sheds its `'s`.
+    Nothing here invents a word the token did not contain.
+    """
+    token = token.strip("'\u2019-")
+    if not token:
+        return set()
+    if token[0].isdigit():
+        # Numbers are compared as written, minus trailing punctuation. A single
+        # digit counts: it was dropped before, so a claim's `2,` could never meet
+        # a source's `2`, and every digit read as an ungrounded word.
+        return {t for t in [token.strip(".,%")] if t}
+    for possessive in ("'s", "\u2019s"):
+        if token.endswith(possessive):
+            token = token[: -len(possessive)]
+    parts = [p for p in token.replace("\u2019", "'").split("-") if len(p) > 2]
+    forms = {_stem(p) for p in parts}
+    if len(parts) > 1:
+        forms.add(_stem("".join(parts)))
+    return {f for f in forms if len(f) > 1}
+
+
+# Stop words in their normalised form as well as their raw one: the tokens being
+# filtered are normalised, so a raw-form list alone would stop matching them.
+_STOPWORD_FORMS = frozenset(
+    _STOPWORDS | {f for w in _STOPWORDS for f in _normalise(w)})
+
+
+def normalised_forms(words) -> frozenset[str]:
+    """The normalised forms of a vocabulary list — for callers that keep their
+    own raw-word set and must compare it against `_content_words` output."""
+    return frozenset(f for w in words for f in _normalise(w.lower()))
+
+
+def _content_tokens(text: str) -> list[set[str]]:
+    """The claim side of a grounding comparison: ONE entry per content word,
+    holding every surface form that word may legitimately match.
+
+    A flat set would count `non-disclosure` as three words (`non`,
+    `disclosur`, `nondisclosur`) where the old raw comparison counted it as one,
+    so a single unmatched compound could triple its own weight in the
+    denominator — measured on the live corpus, that alone rejected five
+    explanations the raw comparison had accepted. A word is grounded when ANY of
+    its forms appears in the source, and it counts once either way.
+    """
+    tokens: list[set[str]] = []
+    for raw in _TOKEN.findall(text.lower()):
+        if raw in _STOPWORD_FORMS:
+            continue
+        forms = {f for f in _normalise(raw) if f not in _STOPWORD_FORMS}
+        if forms:
+            tokens.append(forms)
+    return tokens
+
+
+def grounded_fraction(claim: str, source_words: set[str],
+                      ignore: frozenset[str] = frozenset()) -> float:
+    """Share of the claim's content words present in `source_words`, counting
+    each word once. 1.0 when the claim has no content word to check."""
+    tokens = [t for t in _content_tokens(claim) if not (t & ignore)]
+    if not tokens:
+        return 1.0
+    return sum(1 for t in tokens if t & source_words) / len(tokens)
+
+
 def _content_words(text: str) -> set[str]:
-    words = re.findall(r"[A-Za-z][A-Za-z'-]+|\d[\d.,%]*", text.lower())
-    return {w for w in words if w not in _STOPWORDS and len(w) > 1}
+    """The comparable content words of a text — stop words removed, each in the
+    normalised form `_normalise` defines. Applied to BOTH sides of every
+    grounding comparison, so the check stays symmetric."""
+    out: set[str] = set()
+    for raw in _TOKEN.findall(text.lower()):
+        if raw in _STOPWORD_FORMS:
+            continue
+        for form in _normalise(raw):
+            if form not in _STOPWORD_FORMS:
+                out.add(form)
+    return out
 
 
 def evidence_is_sufficient(chunks: list[str]) -> bool:
@@ -198,11 +320,8 @@ def verify_answer(answer: str, chunks: list[str]) -> Verification:
             cited_chunks.append(chunks[n - 1])
         if not cited_chunks:
             continue
-        claim_words = _content_words(_MARKER.sub("", sentence))
         cited_words = set().union(*(_content_words(c) for c in cited_chunks))
-        overlap = (
-            len(claim_words & cited_words) / len(claim_words) if claim_words else 1.0
-        )
+        overlap = grounded_fraction(_MARKER.sub("", sentence), cited_words)
         grounded = overlap >= _GROUNDING_OVERLAP
         if not grounded:
             failures.append(

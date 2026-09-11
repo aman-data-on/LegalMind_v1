@@ -539,50 +539,94 @@ class RetrievalOutcome:
     embedding_model: str | None
 
 
-def _clause_after(db: DBSession, document_version_id: UUID,
-                  hit: SearchHit) -> SearchHit | None:
-    """The clause a heading fragment introduces — the next non-fragment chunk of the
-    SAME document version in document order, carrying the fragment's own score.
+def _clause_after(db: DBSession, document_version_id: UUID, hit: SearchHit,
+                  *, query_literal: str | None = None) -> SearchHit | None:
+    """The clause a heading fragment introduces — the next non-fragment chunk of
+    the SAME document version in document order.
 
-    Since `clause-aware-4` (2026-09-10) a heading row is redirected rather than dropped:
+    Since `clause-aware-4` a heading row is redirected rather than dropped:
     "what does 17.2 say?" matches the row `17.2 Limitation of Liability`, and the
-    answer is the clause beneath it. The scope stays a WHERE clause on the version
-    (`AM-25` r6); the fragment itself is never returned. A few hops cover a heading
-    split across rows (`7.` then `TERM AND TERMINATION`); more than that and the
-    fragment is simply dropped, as before.
+    answer is the clause beneath it. The scope stays a WHERE clause on the
+    version (`AM-25` r6); the fragment itself is never returned. A few hops cover
+    a heading split across rows (`7.` then `TERM AND TERMINATION`); more than
+    that and the fragment is simply dropped, as before.
+
+    `query_literal` (P1, 2026-09-11) re-scores the target against the query
+    embedding instead of letting it inherit the heading's cosine. A heading is
+    short and shares the question's words, so it scores high on its own account —
+    and handing that score to the clause beneath invented a similarity nobody
+    measured. Golden question Q-12 was the case: the heading `9. RESPONSIBILITY`
+    scored 0.552, the clause under it became the vector branch's ONLY hit on a
+    borrowed score, and it displaced §5.2.3, which actually answers the question.
+    Re-scored, a clause that is genuinely close survives and one that is not
+    falls under `EVIDENCE_COSINE_FLOOR` and is dropped — the same floor every
+    other vector hit must clear.
     """
+    from legalmind.assist.calibration import EVIDENCE_COSINE_FLOOR
+
     schema = config.assist_schema()
+    cosine = "NULL"
+    params: dict = {"i": hit.chunk_id, "dv": document_version_id}
+    if query_literal is not None:
+        op = f'OPERATOR("{vector_schema(db)}".<=>)'
+        cosine = (f'(SELECT 1 - (ce.embedding {op} CAST(:q AS {vector_type(db)})) '
+                  f'FROM "{schema}".chunk_embeddings ce WHERE ce.chunk_id = n.id '
+                  'ORDER BY 1 DESC LIMIT 1)')
+        params["q"] = query_literal
     rows = db.execute(text(f"""
         SELECT n.id, n.evidence_id, n.content, e.page_number, e.section_number,
-               e.section_title, e.source_type
+               e.section_title, e.source_type, {cosine} AS cosine
           FROM "{schema}".chunks c
           JOIN "{schema}".chunks n ON n.document_version_id = c.document_version_id
                                   AND n.ordinal > c.ordinal
           JOIN document_evidence e ON e.id = n.evidence_id
          WHERE c.id = :i AND c.document_version_id = :dv
          ORDER BY n.ordinal LIMIT 4
-    """), {"i": hit.chunk_id, "dv": document_version_id}).all()
+    """), params).all()
     for r in rows:
-        if not is_fragment(r[2]):
-            return SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2],
-                             page_number=r[3], section_number=r[4], section_title=r[5],
-                             source_type=str(r[6]), retrieval_score=hit.retrieval_score)
+        if is_fragment(r[2]):
+            continue
+        score = hit.retrieval_score if query_literal is None else (
+            float(r[7]) if r[7] is not None else None)
+        if score is None or (query_literal is not None
+                             and score < EVIDENCE_COSINE_FLOOR):
+            return None
+        return SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2],
+                         page_number=r[3], section_number=r[4], section_title=r[5],
+                         source_type=str(r[6]), retrieval_score=score)
     return None
 
 
 def _redirect_fragments(db: DBSession, document_version_id: UUID,
-                        hits: list[SearchHit], limit: int) -> list[SearchHit]:
-    out: list[SearchHit] = []
+                        hits: list[SearchHit], limit: int,
+                        *, query_literal: str | None = None) -> list[SearchHit]:
+    """Replace each heading fragment with the clause it introduces, and rank a
+    redirect BELOW every clause that matched on its own merits.
+
+    A redirect used to inherit the fragment's position outright, so a heading
+    that scored well on the query's words handed that rank to the clause beneath
+    it — and that clause could then displace one the query had actually matched.
+    A redirect is still a real signal (it is what makes "what does 17.2 say?"
+    reach the clause rather than the title), so it is kept, in its own relative
+    order, appended after the direct hits. When nothing matched directly the
+    redirect is still first, which is exactly the clause-number case.
+
+    On the vector branch `query_literal` additionally re-scores the target, so a
+    redirect carries its own similarity and must clear the same evidence floor as
+    any other vector hit. See `_clause_after`.
+    """
+    direct: list[SearchHit] = []
+    redirected: list[SearchHit] = []
     seen: set[UUID] = set()
     for h in hits:
-        target: SearchHit | None = h
-        if is_fragment(h.content):
-            target = _clause_after(db, document_version_id, h)
+        fragment = is_fragment(h.content)
+        target: SearchHit | None = _clause_after(
+            db, document_version_id, h, query_literal=query_literal) if fragment else h
         if target is None or target.chunk_id in seen:
             continue
         seen.add(target.chunk_id)
-        out.append(target)
-    return out[:limit]
+        (redirected if fragment else direct).append(target)
+    return (direct + redirected)[:limit]
 
 
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
@@ -680,7 +724,7 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                   section_number=r[4], section_title=r[5], source_type=str(r[6]),
                   retrieval_score=float(r[7]))
         for r in vector_rows if float(r[7]) >= EVIDENCE_COSINE_FLOOR
-    ], limit)
+    ], limit, query_literal=literal if vector is not None else None)
 
     # Reciprocal rank fusion; branch-native score reported (cosine preferred where a
     # chunk appears in both, since it is the more interpretable of the two).

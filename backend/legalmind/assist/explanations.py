@@ -106,6 +106,12 @@ _FRAME_WORDS = frozenset([
     "company", "standard", "our",
 ])
 
+# `_FRAME_WORDS` is written in raw surface forms for readability; the words it is
+# compared against are normalised (`guardrails._content_words`), so it is folded
+# into the same form once, here. Keeping the raw list as the source of truth is
+# deliberate — a reviewer reads "provides", not "provid".
+_FRAME_FORMS = guardrails.normalised_forms(_FRAME_WORDS)
+
 # Vocabulary that marks a judgment, advice or a consequence — rejected outright,
 # whatever the prompt said (`AM-35` t2's screen, widened for this surface).
 _FORBIDDEN = re.compile(
@@ -243,12 +249,13 @@ def validate(candidate: str, g: Grounding) -> tuple[bool, str | None]:
         if digit not in g.digits():
             return False, f"unsupported number {digit!r}"
     # Grounding: every content word comes from the material or the frame.
-    claim = {w for w in guardrails._content_words(s) if w not in _FRAME_WORDS}
-    if claim:
-        grounded = len(claim & g.words()) / len(claim)
-        if grounded < _GROUNDING_OVERLAP:
-            missing = sorted(claim - g.words())[:5]
-            return False, f"ungrounded words {missing}"
+    grounded = guardrails.grounded_fraction(s, g.words(), ignore=_FRAME_FORMS)
+    if grounded < _GROUNDING_OVERLAP:
+        source = g.words()
+        missing = sorted(
+            {next(iter(sorted(t))) for t in guardrails._content_tokens(s)
+             if not (t & _FRAME_FORMS) and not (t & source)})[:5]
+        return False, f"ungrounded words {missing}"
     return True, None
 
 

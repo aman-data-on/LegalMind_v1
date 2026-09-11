@@ -732,3 +732,103 @@ def test_a_reindex_keeps_every_citation_and_points_it_at_the_same_clause(db, sto
                                'WHERE document_version_id = :dv'), {"dv": dv.id}).scalars().all()
     assert versions == [CHUNKING_ALGORITHM_VERSION]
     assert store.count_embeddings(db, dv.id) in (0, 1)   # re-embedded when a model is present
+
+
+# --------------------------------------------------------------------------
+# Redirect ordering (P1 item 4, 2026-09-11): a heading redirect is a real signal
+# but it is not evidence the query matched. It keeps its place in the candidate
+# set and loses its place at the front of it.
+# --------------------------------------------------------------------------
+def _hit(chunk_id, content, score):
+    import uuid as _uuid
+    return store.SearchHit(chunk_id=chunk_id, evidence_id=_uuid.uuid4(), content=content,
+                           page_number=1, section_number=None, section_title=None,
+                           source_type="NATIVE_TEXT", retrieval_score=score)
+
+
+def test_a_direct_hit_outranks_a_clause_reached_only_by_redirect(monkeypatch):
+    """The Q-12 shape: a heading scored well on the query's words and handed its
+    rank to the clause beneath it, displacing the clause the query actually
+    matched. Both stay in the candidate set; only the order changes."""
+    import uuid as _uuid
+    heading_id, target_id, direct_id = _uuid.uuid4(), _uuid.uuid4(), _uuid.uuid4()
+    heading = _hit(heading_id, "9. RESPONSIBILITY", 0.55)
+    direct = _hit(direct_id, "5.2.3 The Customer is responsible for ensuring that "
+                             "verification is completed for those end customers.", 0.05)
+    target = _hit(target_id, "9.1 The Customer shall be solely responsible for its "
+                             "compliance with this Agreement.", 0.55)
+    monkeypatch.setattr(store, "_clause_after", lambda db, dv, h, **kw: target)
+    out = store._redirect_fragments(None, _uuid.uuid4(), [heading, direct], 10)
+    assert [h.chunk_id for h in out] == [direct_id, target_id], \
+        "a directly-matched clause must precede one reached only by a redirect"
+
+
+def test_a_redirect_is_still_first_when_nothing_matched_directly(monkeypatch):
+    """The clause-number case the redirect exists for: "what does 17.2 say?"
+    matches only the heading row, so its clause must still lead."""
+    import uuid as _uuid
+    target_id = _uuid.uuid4()
+    heading = _hit(_uuid.uuid4(), "17.2 Limitation of Liability", 0.61)
+    target = _hit(target_id, "Neither party's aggregate liability shall exceed the "
+                             "fees paid in the preceding twelve months.", 0.61)
+    monkeypatch.setattr(store, "_clause_after", lambda db, dv, h, **kw: target)
+    out = store._redirect_fragments(None, _uuid.uuid4(), [heading], 10)
+    assert [h.chunk_id for h in out] == [target_id]
+
+
+def test_redirect_ordering_keeps_every_candidate_so_recall_cannot_fall(monkeypatch):
+    import uuid as _uuid
+    targets = {}
+    hits = []
+    for i in range(3):
+        hid = _uuid.uuid4()
+        targets[hid] = _hit(_uuid.uuid4(), f"{i}.1 A substantive clause body number {i}.", 0.4)
+        hits.append(_hit(hid, f"{i}. HEADING", 0.5))
+    for i in range(2):
+        hits.append(_hit(_uuid.uuid4(), f"A directly matched clause body {i} with words.", 0.3))
+    monkeypatch.setattr(store, "_clause_after", lambda db, dv, h, **kw: targets[h.chunk_id])
+    out = store._redirect_fragments(None, _uuid.uuid4(), hits, 10)
+    assert len(out) == 5, "no candidate may be dropped by the reordering"
+    assert all(not store.is_fragment(h.content) for h in out)
+
+
+@pytest.mark.skipif(not __import__("legalmind.assist.embedding_runtime",
+                                   fromlist=["x"]).available(),
+                    reason="needs the local embedding model")
+def test_a_redirect_carries_its_own_similarity_not_the_headings(db, storage, user):
+    """The Q-12 defect at its source. A heading is short and shares the
+    question's words, so it scores well on its own account; handing that score
+    to the clause beneath it invents a similarity nobody measured. On the vector
+    branch the target is re-scored and must clear the same evidence floor as any
+    other vector hit."""
+    from legalmind.assist import embedding_runtime
+    from legalmind.assist.calibration import EVIDENCE_COSINE_FLOOR
+
+    embedding_runtime.reset_for_tests()
+    dv = _ingested(db, storage, user)
+    index_document_version(db, dv.id)
+    schema = config.assist_schema()
+    from sqlalchemy import text
+    rows = db.execute(text(f'SELECT id, evidence_id, content FROM "{schema}".chunks '
+                           'WHERE document_version_id = :d ORDER BY ordinal'),
+                      {"d": dv.id}).all()
+    heading = next((r for r in rows if store.is_fragment(r[2])), None)
+    if heading is None:
+        pytest.skip("this synthetic document produced no heading fragment")
+    fake = store.SearchHit(chunk_id=heading[0], evidence_id=heading[1], content=heading[2],
+                           page_number=1, section_number=None, section_title=None,
+                           source_type="NATIVE_TEXT", retrieval_score=0.99)
+
+    # Without a query the redirect inherits, as the lexical branch still does.
+    inherited = store._clause_after(db, dv.id, fake)
+    if inherited is not None:
+        assert inherited.retrieval_score == 0.99
+
+    # With one, it is re-scored against that query — never 0.99 by inheritance.
+    vector, _ = embedding_runtime.embed_query("obligations of the parties on termination")
+    literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
+    rescored = store._clause_after(db, dv.id, fake, query_literal=literal)
+    assert rescored is None or rescored.retrieval_score != 0.99
+    if rescored is not None:
+        assert rescored.retrieval_score >= EVIDENCE_COSINE_FLOOR, \
+            "a re-scored redirect must clear the evidence floor like any vector hit"

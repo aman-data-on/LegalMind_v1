@@ -24,7 +24,13 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.schemas import AskRequest, ConversationCreate
-from legalmind.assist import explanations, obligations, service, type_suggestion
+from legalmind.assist import (
+    explanations,
+    obligations,
+    routing,
+    service,
+    type_suggestion,
+)
 from legalmind.assist.chunking import leading_section_ref
 from legalmind.db import models as M
 from legalmind.security import permissions as P
@@ -300,6 +306,27 @@ def get_conversation(conversation_id: UUID,
          ORDER BY m.ordinal
     """), {"c": conversation_id}).all()
 
+    # Authorization is re-checked HERE, not inherited from the turn that was
+    # answered (P1, 2026-09-11). A conversation is creator-only, but owning the
+    # conversation is not the same right as reading what it quoted: the grant
+    # that disclosed a Company Position, and the scope that disclosed a clause,
+    # can both be withdrawn afterwards — by an administrator removing
+    # `legal_position.view`, or by `contract.transfer` moving the deal away.
+    # Measured before fixing: a caller whose position grant had been revoked
+    # still received `standard_code`, `source_clause` and the verbatim position
+    # text on reload, which is exactly the disclosure `LEGAL-02` forbids.
+    # The live ask path already re-resolves permissions per request (S-1) and
+    # checks `positions_permitted` twice; replay now applies the same two tests.
+    # Withheld material is OMITTED, never nulled or emptied in place (`SEC-07`,
+    # `API-10`), so a withheld citation is indistinguishable from a turn that
+    # never had one. `AM-25` r5's traceability is preserved for every caller who
+    # may still read the source — it was never a licence to disclose past it.
+    positions_readable = routing.positions_permitted(guard.permissions)
+    contract_row = (guard.db.get(M.Contract, conversation["contract_id"])
+                    if conversation["contract_id"] else None)
+    document_readable = contract_row is not None and can_read_contract(
+        guard.db, guard.user_id, contract_row)
+
     cited = guard.db.execute(text(f"""
         SELECT ac.answer_id, ac.claim_ordinal, ch.id, ch.content,
                e.page_number, e.section_number,
@@ -316,7 +343,7 @@ def get_conversation(conversation_id: UUID,
           LEFT JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id
          WHERE m.conversation_id = :c
          ORDER BY ac.claim_ordinal, ch.id
-    """), {"c": conversation_id}).all()
+    """), {"c": conversation_id}).all() if document_readable else []
     positioned = guard.db.execute(text(f"""
         SELECT ac.answer_id, pc.id, pc.standard_code, pc.document_type,
                pc.source_clause, pc.content
@@ -326,7 +353,7 @@ def get_conversation(conversation_id: UUID,
           JOIN "{schema}".position_chunks pc ON pc.id = ac.position_chunk_id
          WHERE m.conversation_id = :c
          ORDER BY ac.claim_ordinal
-    """), {"c": conversation_id}).all()
+    """), {"c": conversation_id}).all() if positions_readable else []
     statuted = guard.db.execute(text(f"""
         SELECT ac.answer_id, sc.id, s.official_title, sc.section_number, sc.sub_section,
                sc.marginal_note, sc.content

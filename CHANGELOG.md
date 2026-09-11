@@ -10,6 +10,102 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — P1 AI/RAG quality phase: authorization hardening, grounding comparison, redirect scoring; HNSW refused on evidence (owner instruction, 2026-09-11)
+
+Four items, each run as R&D → baseline → root cause → smallest change → test → measure →
+fix regression → re-measure. **No locked decision touched.** Built in a worktree
+(`feat/p1-rag-quality`), **NOT deployed**, production data and indexes **NOT modified**.
+
+**1. Metadata / authorization-aware retrieval — one real defect found and fixed.** The live ask
+path was already correct on every property and was not rewritten: permissions resolve per request
+from the database (S-1, never the JWT); `document_version_id` is a predicate on the candidate set
+of both retrieval branches and of the redirect walk, never a post-filter; Domains A and C check
+their grant in Python before any SQL AND are excluded again by the router; a hard-deleted contract
+leaves no chunk by FK cascade. There is no organization entity in this codebase, so the isolation
+unit is contract ownership widened by department, and that is what is tested. **The defect was on
+the replay path**: `GET /conversations/{id}` checked only that the caller created the conversation,
+then returned the cited clause text and the verbatim Company Position. Measured before fixing —
+after `legal_position.view` was revoked, a reload still served `standard_code`, `source_clause` and
+the position text, the disclosure `LEGAL-02` forbids. Replay now re-checks both:
+`routing.positions_permitted` for positions, `can_read_contract` for document citations, so a
+transferred deal stops serving excerpts. Withheld material is omitted, not nulled (`SEC-07`).
+13 tests in `test_assist_authorization_boundaries.py` cover the ten cases the brief names.
+
+**2. HNSW vector indexes — REFUSED for the document branch on measured recall.** pgvector 0.6.0
+on PostgreSQL 16.15 supports `hnsw` with `vector_cosine_ops`, so availability was never the
+question. Measured by building the index inside a transaction and rolling back, leaving production
+untouched:
+
+| Table | rows | exact | HNSW | recall vs exact |
+|---|---|---|---|---|
+| `chunk_embeddings` (document-scoped) | 7,371 | 0.95ms | 1.16ms | **0.145** |
+| `statute_chunk_embeddings` (unfiltered) | 5,140 | 4.02ms | 0.71ms | 0.990 |
+| `position_chunk_embeddings` | 32 | 0.38ms | n/a | n/a |
+
+The document branch filters by `document_version_id` on a joined table, so an approximate global
+walk exhausts its candidate list before finding enough in-scope rows: **85% of correct results
+lost, and slower**. That index is not created. The statute table behaves as advertised, but 3.3ms
+saved in front of a ~1s model call does not buy a 1-in-10 change in which statute section is cited,
+so it is not created either. Revisit when a vector table is queried unfiltered AND exceeds roughly
+100k rows, or when exact-scan latency passes ~50ms.
+
+**3. Grounding / explanation quality — a validation defect, not a model failure.** Root cause of
+the 41% acceptance rate: `_content_words` compared raw surface forms by set membership, so
+`leapswitch's` never met `Leapswitch`, `2,` never met `2`, `ends` never met `end`, `specifies`
+never met `specify`. The sentences were grounded; the comparison was not measuring it. Both sides
+are now normalised identically — possessives and punctuation stripped, hyphenated compounds
+contributing their parts and their joined form, and a small in-house suffix stemmer (a stemmer
+library would be a rule-19 dependency that moves a guardrail when its version changes).
+**Neither floor moved**: 0.5 for Ask, 0.75 for explanations. Two regressions were found by
+measurement and fixed inside the loop: `_STOPWORDS` and `_FRAME_WORDS` are raw-form lists that
+stopped filtering once tokens were normalised, and a hyphenated compound counted as three words
+instead of one, tripling its own weight in the denominator. Grounding is now computed **per word**,
+each word grounded if any of its forms appears in the source. New tool
+`tools/verify_explanation_quality.py` measures the pipeline over the live corpus and stores
+nothing; its `--compare-legacy` mode validates one generated sentence under both comparisons, which
+is the only way to see the validator's effect without the model's run-to-run variance (measured:
+the model re-answers about 10% of findings differently on an identical payload).
+
+Measured over all 538 findings, one generation each, judged by both comparisons:
+
+| Explanation metric | before | after |
+|---|---|---|
+| accepted (same sentences, variance-free) | 0.430 | **0.493** |
+| accepted only by the new comparison | — | 34 |
+| **accepted only by the old comparison (regressions)** | — | **0** |
+| grounding-overlap rejections | 108 | 88 |
+| unsupported numbers · forbidden vocabulary · format | unchanged checks, floors unmoved | |
+
+The residual 274 fallbacks are NOT comparison artefacts: 114 are the model declining the material
+as insufficient, 67 are forbidden or judgment vocabulary, and the 88 grounding rejections sit at a
+median overlap of 0.64 — genuinely ungrounded wording rather than near-misses, so lowering the
+floor would admit exactly what the floor exists to stop. A third of the corpus is
+`UNABLE_TO_EVALUATE` findings (29/102 accepted), where falling back to the approved description is
+the correct outcome anyway. The evidenced next step is a prompt iteration, measured the same way;
+it is deliberately not taken here on an unmeasured hunch.
+
+**4. Heading redirect scoring — the P0 follow-up item, root-caused and fixed.** A heading is short
+and shares the question's words, so it scores well on its own account; handing that score to the
+clause beneath it invented a similarity nobody measured. Golden question Q-12 was the case:
+`9. RESPONSIBILITY` scored 0.552, the clause under it became the vector branch's only hit on that
+borrowed score, and it displaced §5.2.3, which actually answers the question. A redirect is now
+re-scored against the query and must clear the same `EVIDENCE_COSINE_FLOOR` as any other vector hit
+(§9.1's own similarity is below it, so it correctly disappears), and within a branch a redirect is
+ordered after clauses that matched directly. `RETRIEVAL_STRATEGY_VERSION` → `hybrid-rrf-gate-4`.
+
+| Retrieval metric | P1 baseline | P1 after |
+|---|---|---|
+| hit@1 | 0.375 | **0.391** |
+| recall@10 | 0.625 | 0.625 |
+| retained | 43/64 | 43/64 |
+| wrongly answered | 1/13 | 1/13 |
+| faithfulness · citation precision | 1.0 · 1.0 | 1.0 · 1.0 |
+| `section_number` probes P@1 / R@10 | 0.979 / 1.000 | 0.979 / 1.000 |
+
+The clause-number case the redirect exists for is untouched, and exactly one golden question now
+differs from the pre-redirect baseline (Q-50, rank 4 → 5, inside the top ten). Tier-2 gate
+SHIPPABLE. Backend suite 1,617 passed; ruff and mypy clean.
+
 ### Changed — Ask is the AI workspace; the history table is now its rail (2026-09-11)
 
 Owner instruction: `/dashboard/ask` was named after the capability but was a conversation-history

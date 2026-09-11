@@ -1780,3 +1780,70 @@ or scoring in this deployment. Does NOT decide: whether the synthetic-fixture te
 `test_chunk_text_is_a_substring_of_its_evidence_row` should be widened to whitespace-normalised
 comparison — that is a separate call, and the strict test passing on synthetic DOCX while real PDFs
 differ is itself the useful signal.
+
+## 2026-09-11 — P1 AI/RAG quality phase (309–313) — BUILT in a worktree, NOT deployed
+
+### 309 — replay re-checks authorization; owning a conversation is not the right to re-read what it quoted
+`GET /conversations/{id}` checked only that the caller created the conversation, then returned the
+cited chunk text AND the verbatim Company Position. Measured before fixing: after
+`legal_position.view` and `configuration.view` were revoked, a reload still served
+`standard_code`, `source_clause` and the position text — the disclosure `LEGAL-02` forbids, and the
+one thing the live ask path enforces twice. Replay now applies the same two tests it does:
+`routing.positions_permitted` for the position citations, and `can_read_contract` (the helper the
+conversation LIST endpoint already used) for the document citations, so a transferred deal stops
+serving clause excerpts. Withheld material is OMITTED, not nulled (`SEC-07`, `API-10`), so a
+withheld citation is indistinguishable from a turn that never had one. `AM-25` r5's traceability is
+preserved for every caller who may still read the source; it was never a licence to disclose past
+it. Does NOT decide: whether a former owner should keep the transcript itself — they do, unchanged.
+
+### 310 — the rest of the authorization model was already correct, and is now pinned rather than rewritten
+Traced end to end: permissions resolve per request from the database, never from the JWT (S-1);
+`document_version_id` is a predicate on the candidate set of BOTH retrieval branches and of the
+redirect walk, never a post-filter; Domains A and C check their grant in Python before any SQL runs
+AND are excluded again by the router, two independent points; a hard-deleted contract leaves no
+chunk by FK cascade. There is no organization entity in this codebase — the isolation unit is
+contract ownership widened by department (`contract_read_basis`), so "cross-organization isolation"
+is tested as cross-owner and cross-department. Nothing was rewritten; 13 tests in
+`test_assist_authorization_boundaries.py` now pin the ten cases the brief names.
+
+### 311 — HNSW is REFUSED for the document branch on measured recall, not on principle
+pgvector 0.6.0 on PostgreSQL 16.15 supports `hnsw` with `vector_cosine_ops`, so the index is
+available. Measured by building it inside a transaction and rolling back, leaving production
+untouched: on `chunk_embeddings` the planner does use it, and **mean recall against the exact top-k
+collapses to 0.145** while latency gets *worse* (0.95ms → 1.16ms). That is the filtered-ANN problem
+— the document query filters by `document_version_id` on a joined table, so an approximate global
+walk exhausts its candidate list before finding enough in-scope rows. On
+`statute_chunk_embeddings` (unfiltered, 5,140 rows) HNSW behaves as advertised: 4.02ms → 0.71ms,
+recall 0.990, identical order on 9 of 10 queries. It is still not added: 3.3ms saved in front of a
+~1s model call does not buy a 1-in-10 change in which statute section is cited. `position_chunk_
+embeddings` holds 32 rows and needs no index. Revisit when a vector table is queried unfiltered AND
+exceeds roughly 100k rows, or when exact-scan latency passes ~50ms. Does NOT decide: the query
+shapes themselves.
+
+### 312 — a redirected heading is re-scored against the query instead of inheriting the heading's cosine
+The P0 follow-up item, root-caused. A heading is short and shares the question's words, so it scores
+well on its own account; handing that score to the clause beneath it invented a similarity nobody
+measured. Golden question Q-12 was the case: `9. RESPONSIBILITY` scored 0.552, the clause under it
+became the vector branch's ONLY hit on that borrowed score, and it displaced §5.2.3, which actually
+answers the question. Two changes, both minimal: a redirect is re-scored against the query embedding
+and must clear the same `EVIDENCE_COSINE_FLOOR` as any other vector hit (§9.1's own similarity is
+below it, so it correctly disappears), and within a branch a redirect is ordered after the clauses
+that matched directly. Measured: hit@1 0.375 → 0.391, recall@10 0.625 unchanged, retained 43/64
+unchanged, wrongly-answered 1/13 unchanged, faithfulness and citation precision 1.0, and the
+`section_number` probe family holds at P@1 0.979 / R@10 1.000 — the clause-number case the redirect
+exists for is untouched. `RETRIEVAL_STRATEGY_VERSION` → `hybrid-rrf-gate-4`. Does NOT decide: the
+RRF constant or any gate threshold, both unchanged.
+
+### 313 — the grounding comparison is normalised on BOTH sides; neither floor moved
+Root cause of the 41% explanation acceptance rate: `_content_words` compared raw surface forms by
+set membership, so `leapswitch's` never met `Leapswitch`, `2,` never met `2`, `ends` never met
+`end`, and `specifies` never met `specify`. The sentences were grounded; the comparison was not
+measuring it. Fixed by normalising both sides identically — possessives and punctuation stripped,
+hyphenated compounds contributing their parts and their joined form, and a small deterministic
+suffix stemmer (in-house, like `intent.py`; a stemmer library would be a dependency under rule 19
+and would move a guardrail when it changed version). `_GROUNDING_OVERLAP` stays 0.5 for Ask and 0.75
+for explanations. One regression found and fixed in the same loop: `_STOPWORDS` and
+`_FRAME_WORDS` are raw-form lists, so once tokens were normalised they stopped being filtered and
+acceptance fell; both vocabularies are now folded through the same normaliser
+(`guardrails.normalised_forms`), with the raw lists kept as the readable source of truth. Does NOT
+decide: the floors, the prompt, or the forbidden vocabulary.
