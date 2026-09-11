@@ -585,6 +585,45 @@ def _redirect_fragments(db: DBSession, document_version_id: UUID,
     return out[:limit]
 
 
+def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
+                        evidence_ids: list[UUID], limit: int = 4) -> list[SearchHit]:
+    """The chunks cut from named evidence rows, inside ONE document version.
+
+    Why this exists (2026-09-11). A question asked ABOUT a Finding already knows
+    which rows the Evaluation cited, so re-finding them by text is the wrong
+    mechanism — and measurably so: seeding the query with the clause's own words
+    made it LONGER, lexical search ANDs every stemmed term, and the gate stayed
+    shut on a clause that was sitting right there. Asking for the rows by id
+    cannot miss.
+
+    `AM-25` r6 is preserved: `document_version_id` is a WHERE clause on the
+    candidate set, exactly as in the search branches, so this can only ever return
+    chunks from the version the caller was already authorized for. `AM-30` t2 is
+    preserved too: these are "the retrieved chunk spans required to answer that
+    one request" — the same kind of object the search path returns, obtained by a
+    more direct route.
+    """
+    if not evidence_ids:
+        return []
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT c.id, c.evidence_id, c.content, e.page_number, e.section_number,
+               e.section_title, e.source_type::text
+          FROM "{schema}".chunks c
+          JOIN document_evidence e ON e.id = c.evidence_id
+         WHERE c.document_version_id = :dv AND c.evidence_id = ANY(:ids)
+         ORDER BY e.page_number NULLS LAST, c.id
+         LIMIT :lim
+    """), {"dv": document_version_id, "ids": list(evidence_ids), "lim": limit}).all()
+    # `retrieval_score` is 1.0 because these were not ranked — they are the rows the
+    # evaluator itself cited. It is still a RETRIEVAL score and still never rendered
+    # as legal weight (`AI-03` item 16).
+    return [SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
+                      section_number=r[4], section_title=r[5], source_type=r[6],
+                      retrieval_score=1.0)
+            for r in rows]
+
+
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                   embed_query, limit: int | None = None) -> RetrievalOutcome:
     """Hybrid retrieval within ONE authorized document version, gated.

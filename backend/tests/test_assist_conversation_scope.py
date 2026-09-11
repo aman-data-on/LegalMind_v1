@@ -17,6 +17,9 @@ what they do:
 
 from __future__ import annotations
 
+import typing
+import uuid
+
 import pytest
 from sqlalchemy import text
 
@@ -174,45 +177,96 @@ def test_attaching_to_someone_elses_conversation_is_not_found(api, db, seeded, s
 
 
 # ==========================================================================
-# Asking about a Finding — retrieval is seeded, the payload is not widened
+# Asking about a Finding — the cited rows are admitted, the payload is not widened
 # ==========================================================================
-def test_a_findings_requirement_and_clause_seed_the_retrieval_query(db, owner):
-    """"Why is this a deviation?" carries no retrievable content of its own. The seed
-    supplies the requirement's words and the clause the Evaluation already cited, so
-    retrieval lands on the provision the reader is looking at."""
+def test_a_findings_cited_rows_are_found_by_id(db, owner):
+    """"Why is this a deviation?" carries no retrievable content of its own. The
+    Finding already knows which rows it is about, so they are fetched by id rather
+    than re-found by text — measured 2026-09-11: seeding the QUERY with the clause's
+    own words made it longer, lexical search ANDs every stemmed term, and the gate
+    stayed shut on a clause sitting in the same document."""
     from tests.test_assist_explanations import PASSAGE, _finding, _requirement
 
     rv = _requirement(db, owner)
     finding = _finding(db, owner, rv, passages=(PASSAGE,))
 
-    seed = service._finding_seed(db, finding.id)
+    ids = service._finding_evidence_ids(db, finding.id)
 
-    assert "Residuals" in seed                       # the requirement, in words
-    assert "unaided memory" in seed                  # the cited clause's own vocabulary
-    assert len(seed) <= service.FINDING_SEED_CHARS + 120
+    assert len(ids) == 1, "the one cited row, by id"
 
 
-def test_the_seed_carries_no_classification_rule_outcome_or_standard_value(db, owner):
-    """The assertion that matters. `AM-30` t3 and `AM-32` r4 are unchanged by `AM-58`:
-    the seed widens the QUERY, and an internal legal position must not ride along into
-    a payload on the back of it."""
-    from legalmind.domain import enums as E
+def test_the_cited_rows_resolve_to_chunks_inside_the_asked_version(db, owner):
+    """`AM-25` r6: the chunk lookup is scoped to the one document version, so a
+    Finding can never widen retrieval beyond the document being asked about."""
+    from sqlalchemy import select
+
+    from legalmind.assist import store
+    from legalmind.db import models as M
     from tests.test_assist_explanations import PASSAGE, _finding, _requirement
 
     rv = _requirement(db, owner)
-    finding = _finding(db, owner, rv, classification=E.FindingClassification.DEVIATION,
-                       passages=(PASSAGE,))
+    finding = _finding(db, owner, rv, passages=(PASSAGE,))
+    ids = service._finding_evidence_ids(db, finding.id)
+    evidence = db.execute(select(M.DocumentEvidence)
+                          .where(M.DocumentEvidence.id == ids[0])).scalar_one()
 
-    seed = service._finding_seed(db, finding.id).upper()
+    # Asked about ANOTHER version: the cited row is not in it, so nothing comes back.
+    other = uuid.uuid4()
+    assert store.chunks_for_evidence(db, document_version_id=other,
+                                     evidence_ids=ids) == []
+    # Asked about its own version: whatever chunks exist are this document's.
+    same = store.chunks_for_evidence(
+        db, document_version_id=evidence.document_version_id, evidence_ids=ids)
+    for hit in same:
+        assert hit.evidence_id in ids
 
-    for forbidden in ("DEVIATION", "MISSING", "MATCH", "UNACCEPTABLE", "ACCEPTABLE",
-                      "NOT_APPLICABLE", "RULE_OUTCOME", "EXPECTED_VALUE"):
-        assert forbidden not in seed, f"{forbidden} must never reach a payload"
+
+def test_a_finding_with_no_cited_rows_admits_nothing(db, owner):
+    """Fail closed and quiet: a Finding whose Evaluation cited nothing (a MISSING
+    clause is the ordinary case) degrades to an ordinary question, never an error."""
+    from tests.test_assist_explanations import _finding, _requirement
+
+    rv = _requirement(db, owner)
+    finding = _finding(db, owner, rv)          # no passages
+    assert service._finding_evidence_ids(db, finding.id) == []
 
 
-def test_an_unknown_finding_seeds_nothing_rather_than_failing(db, owner):
-    """Fail closed and quiet: a stale id from a client degrades to an ordinary
-    question, never a 500."""
-    import uuid as _uuid
+def test_an_unknown_finding_admits_nothing_rather_than_failing(db, owner):
+    """A stale id from a client is not a 500."""
+    assert service._finding_evidence_ids(db, uuid.uuid4()) == []
 
-    assert service._finding_seed(db, _uuid.uuid4()) == ""
+
+def test_a_follow_up_inherits_the_finding_the_previous_turn_named(db, owner):
+    """Flow 8's mechanism. "Is this acceptable?" carries no subject of its own —
+    that is what makes it a follow-up — so dropping the Finding on the very next
+    question made it retrieve nothing while the clause it meant was on screen.
+
+    Recorded on the retrieval run, and read back the same way the answered VERSION
+    already is. Only the most recent turn is consulted.
+    """
+    from legalmind.assist import service as svc
+
+    conversation_id = svc.create_conversation(db, user_id=owner.id, contract_id=None)
+    message_id = svc._persist_turn(db, conversation_id, 0, "USER", "What does clause 13 say?")
+
+    class _Empty:
+        hits: typing.ClassVar[list] = []
+        gate_open = False
+        lexical_hit = False
+        vector_top_score = None
+        vector_peak_gap = None
+        strategy_version = "test"
+        embedding_model = None
+
+    finding_id = uuid.uuid4()
+    svc._persist_retrieval(db, message_id, "q", _Empty(), document_version_id=None,
+                           finding_id=finding_id)
+
+    assert svc._inherited_finding(db, conversation_id) == finding_id
+
+
+def test_a_conversation_that_never_named_a_finding_inherits_nothing(db, owner):
+    from legalmind.assist import service as svc
+
+    conversation_id = svc.create_conversation(db, user_id=owner.id, contract_id=None)
+    assert svc._inherited_finding(db, conversation_id) is None

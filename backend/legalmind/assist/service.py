@@ -20,6 +20,7 @@ its cause, because a distinguishable refusal is an oracle (`AM-25` r6/r7).
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -162,38 +163,60 @@ def _resolve_follow_up(prior: list[tuple[UUID, str]],
     return context, f"{anchor[1]} {question}"
 
 
-#: How much of a Finding's first cited passage seeds the retrieval query. Enough to
-#: carry the clause's own vocabulary, short enough not to swamp the question itself.
-FINDING_SEED_CHARS = 240
+#: How many of a Finding's cited rows are admitted. Small: a Finding cites the
+#: clause it is about, not the document.
+FINDING_CITED_LIMIT = 4
 
 
-def _finding_seed(db: DBSession, finding_id: UUID) -> str:
-    """Retrieval vocabulary for a question asked ABOUT a Finding (2026-09-11).
+def _inherited_finding(db: DBSession, conversation_id: UUID) -> UUID | None:
+    """The Finding the most recent turn of this conversation was asked about.
 
-    "Why is this a deviation?" carries almost no retrievable content of its own, so
-    without help it retrieves nothing and the reader gets a refusal about a Finding
-    that is on their screen. This seeds the query with the requirement's title in
-    words and the opening of the passage the Evaluation already cited, so retrieval
-    lands on the clause the Finding is about.
+    Why a follow-up inherits it (2026-09-11). "Is this acceptable?" carries no
+    subject of its own — that is what makes it a follow-up — so dropping the pin
+    on the very next question is what made the owner's flow 8 retrieve nothing
+    while the clause it meant was on screen. The existing memory already resolves
+    the anchor QUESTION; this resolves the anchor EVIDENCE the same way.
 
-    RETRIEVAL ONLY, and that distinction is the whole point. The seed widens the
-    QUERY, which is local SQL and a local embedding; it never reaches a payload.
-    `AM-30` t3 and `AM-32` r4 stand unchanged: the classification, the Rule Outcome
-    and the Company Standard value are not in this string and never egress. The
-    passages themselves are already-permitted contract text (`AM-30` t2), and they
-    are re-retrieved through the normal scoped query rather than injected as hits,
-    so authorization stays inside the retrieval (`AM-25` r6).
-
-    Reuses `explanations.gather` rather than a second assembly of the same facts.
+    Only the immediately preceding turn is consulted, and only when the current
+    question is anaphoric, so a new standalone question is never quietly seeded
+    with a stale clause.
     """
-    from legalmind.assist import explanations
-    from legalmind.db import models as M
-    finding = db.get(M.Finding, finding_id)
-    if finding is None:
-        return ""
-    grounding = explanations.gather(db, finding)
-    passage = grounding.passages[0][:FINDING_SEED_CHARS] if grounding.passages else ""
-    return " ".join(part for part in (grounding.title, passage) if part).strip()
+    schema = config.assist_schema()
+    row = db.execute(text(f'''
+        SELECT r.filters->>'finding_id'
+          FROM "{schema}".retrieval_runs r
+          JOIN "{schema}".messages m ON m.id = r.message_id
+         WHERE m.conversation_id = :c AND r.filters ? 'finding_id'
+         ORDER BY m.ordinal DESC LIMIT 1
+    '''), {"c": conversation_id}).first()
+    return UUID(row[0]) if row and row[0] else None
+
+
+def _finding_evidence_ids(db: DBSession, finding_id: UUID) -> list[UUID]:
+    """The evidence rows THIS Finding's Evaluations cited.
+
+    Why by id rather than by text (2026-09-11, corrected after measuring). The
+    first version of this seeded the retrieval QUERY with the requirement's title
+    and the opening of the cited clause. The seed was faithful and the query was
+    recorded correctly — and it made things worse: lexical search ANDs every
+    stemmed term, so a longer query is a NARROWER one, and "why is this a
+    deviation?" retrieved nothing while the clause sat in the same document. Seen
+    live: the run's `query_text` was the whole clause opening and the answer was
+    still NO_EVIDENCE_RETRIEVED.
+
+    A Finding already knows which rows it is about, so they are fetched by id and
+    cannot be missed. Authorization is unchanged — the caller resolved the Finding
+    through the Guard, and the chunk lookup is still scoped to the one document
+    version (`AM-25` r6).
+    """
+    rows = db.execute(text("""
+        SELECT DISTINCT ee.evidence_id
+          FROM evaluations ev
+          JOIN evaluation_evidence ee ON ee.evaluation_id = ev.id
+         WHERE ev.finding_id = :f
+         LIMIT :lim
+    """), {"f": finding_id, "lim": FINDING_CITED_LIMIT}).all()
+    return [r[0] for r in rows]
 
 
 def create_conversation(db: DBSession, *, user_id: UUID,
@@ -265,7 +288,8 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
                        document_version_id: UUID | None,
                        domains: tuple[str, ...] = ("DOCUMENT",),
                        statute_hits: list | None = None,
-                       follow_up_of: list[UUID] | None = None) -> UUID:
+                       follow_up_of: list[UUID] | None = None,
+                       finding_id: UUID | None = None) -> UUID:
     """The retrieval record behind the answer — `AM-27`'s `retrieval_runs`.
 
     Chunk ids and scores only, never text (r6), plus the gate's raw features so the
@@ -305,6 +329,11 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
                           "domains": list(domains)}
     if follow_up_of:
         filters_dict["follow_up_of"] = [str(i) for i in follow_up_of]
+    # The Finding this turn was asked about (2026-09-11). Recorded for the same
+    # reason the version is: so the provenance of the admitted rows is on the row
+    # rather than inferred — and so a FOLLOW-UP can inherit it (see `ask`).
+    if finding_id:
+        filters_dict["finding_id"] = str(finding_id)
     filters = _json.dumps(filters_dict)
     db.execute(text(f"""
         INSERT INTO "{schema}".retrieval_runs
@@ -582,12 +611,15 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         follow_up_of = [message_id for message_id, _ in context]
 
     # Asked ABOUT a Finding (2026-09-11): the router has already authorized it and
-    # confirmed it belongs to this conversation's contract. Its requirement and cited
-    # clause seed the RETRIEVAL query only — never the payload (see `_finding_seed`).
+    # confirmed it belongs to this conversation's contract. The rows its Evaluation
+    # CITED are admitted directly below — the question itself is left alone, because
+    # lengthening it narrows the lexical query rather than widening it.
+    cited_evidence: list[UUID] = []
+    if finding_id is None and follow_up:
+        # The subject carries over with the question it refers to.
+        finding_id = _inherited_finding(db, conversation_id)
     if finding_id is not None:
-        seed = _finding_seed(db, finding_id)
-        if seed:
-            resolved = f"{seed} {resolved}"
+        cited_evidence = _finding_evidence_ids(db, finding_id)
 
     # `permissions` empty means a caller that did not pass them — the service-level
     # tests. Treat as document-only, which is exactly the pre-router behaviour.
@@ -651,9 +683,23 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     retrieval = store.search_hybrid(
         db, document_version_id=document_version_id, query=resolved,
         embed_query=embedding_runtime.embed_query)
+    if cited_evidence:
+        # A question about a Finding can always see the clause that Finding cites.
+        # These rows are ADDED to whatever search found, never substituted for it,
+        # and the gate is opened because the evidence is not in doubt — the
+        # evaluator already recorded it against this document version.
+        pinned = store.chunks_for_evidence(
+            db, document_version_id=document_version_id,
+            evidence_ids=cited_evidence, limit=FINDING_CITED_LIMIT)
+        if pinned:
+            seen = {h.chunk_id for h in pinned}
+            retrieval = dataclasses.replace(
+                retrieval, gate_open=True,
+                hits=[*pinned, *[h for h in retrieval.hits if h.chunk_id not in seen]])
     run_id = _persist_retrieval(db, user_message_id, resolved, retrieval,
                                 document_version_id=document_version_id, domains=domains,
-                                statute_hits=statute_hits, follow_up_of=follow_up_of)
+                                statute_hits=statute_hits, follow_up_of=follow_up_of,
+                                finding_id=finding_id)
 
     chunk_texts = [h.content for h in retrieval.hits]
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):

@@ -72,6 +72,21 @@ const backendEnv = {
   // extract-obligations (found 2026-09-05) — the same class of thing the two
   // limits above were raised for.
   LEGALMIND_RATELIMIT_SUGGEST_TYPE_MAX: "500",
+  // Ask gained a budget on 2026-09-11 (it was the one paid egress path with
+  // none). Same reasoning as the three above: a full suite run asks far more
+  // questions through one owner account than any person would, so the
+  // production threshold would trip on the last spec rather than on a defect.
+  LEGALMIND_RATELIMIT_ASK_MAX: "500",
+  // The generator credential, ONLY when the person running the suite exported one
+  // (2026-09-11). CI exports nothing, so CI keeps asserting production's own
+  // posture — every ask that clears retrieval still refuses, which is what
+  // `ask.spec.ts` pins. Locally it is the difference between verifying that a
+  // refusal renders and verifying that an ANSWER is grounded and cited: without
+  // it, `webServer.env` replaces the environment and the API silently starts
+  // keyless, which reads as a product defect and is not one.
+  ...(process.env.LEGALMIND_GEMINI_API_KEY
+    ? { LEGALMIND_GEMINI_API_KEY: process.env.LEGALMIND_GEMINI_API_KEY }
+    : {}),
 };
 
 export default defineConfig({

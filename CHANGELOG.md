@@ -25,6 +25,20 @@ Third of three stages (owner instruction, 2026-09-11), on top of the stage 1 bac
   no classification, Rule Outcome or Company Standard value travels.
 * **Obligations gained the same handoff** — previously a reader could point at one but not ask
   about it without retyping.
+  * **Corrected after measuring against a real document.** The first implementation
+    seeded the retrieval QUERY with the Finding's requirement and cited clause. It was
+    faithfully recorded and it made things worse: lexical search ANDs every stemmed
+    term, so a longer query is a NARROWER one, and "why is this a deviation?"
+    retrieved nothing while the clause sat in the same document. The Finding already
+    knows which rows it is about, so `store.chunks_for_evidence` fetches them by id
+    and pins them into the outcome — scoped to the one document version, so `AM-25`
+    r6 is unchanged. Measured before/after on LeapSwitch's own published TOS: 0 hits
+    → 1 hit, refusal → a grounded answer citing clause 13, page 5.
+  * **A follow-up inherits the Finding** the previous turn named, recorded on
+    `retrieval_runs.filters` exactly as the document version already is. Without it
+    "Is this acceptable?" dropped the subject on the very next question — the flow
+    the owner names as 8.
+
 * **The chat rail is searchable**, over question and document name, client-side (49.6 r3
   allow-lists only `contract_id`, so no server search exists and none was invented).
 * Ask now names the document version it is asking about instead of relying on the server's
