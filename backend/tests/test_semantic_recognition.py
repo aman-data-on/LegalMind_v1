@@ -196,7 +196,12 @@ def test_an_unrelated_clause_is_never_sent_to_the_model(build, db, monkeypatch):
 
 # 5b — outside the declared family the stage is silent: applicability across
 # families stays lexical (AM-51), so no cross-family adjacency can create a Finding
-def test_an_out_of_family_requirement_never_reaches_the_model(build, db, monkeypatch):
+def test_an_out_of_family_requirement_reaches_the_model_and_is_not_applicable_without_a_span(
+        build, db, monkeypatch):
+    """AM-60 (2026-09-13, amending AM-54 r4): the semantic stage runs for every
+    pinned Requirement, whatever the declared type. With no model answer the
+    lexical result stands, and out of the declared family an unconfirmed
+    Requirement is NOT_APPLICABLE — recorded with its reason, no Finding."""
     rv = build.requirement("RESIDUALS-NDA-001", E.EvaluatorType.PRESENCE,
                            mapping=RESIDUALS_MAPPING,
                            standard={**RESIDUALS_STANDARD, "document_type": "NDA"},
@@ -207,8 +212,32 @@ def test_an_out_of_family_requirement_never_reaches_the_model(build, db, monkeyp
     calls: list[str] = []
     _refuse(monkeypatch, calls)
     run = run_analysis(db, review)                      # the contract is declared MSA
-    assert calls == []
+    assert len(calls) == 1, "the model IS asked, in any family"
     assert run.findings_created == 0
+    cov = {c["code"]: c for c in run.applicability}
+    assert cov["RESIDUALS-NDA-001"]["outcome"] == "NOT_APPLICABLE"
+    assert "not the declared family (MSA)" in cov["RESIDUALS-NDA-001"]["reason"]
+
+
+def test_an_out_of_family_clause_confirmed_on_a_verbatim_span_is_measured(build, db, monkeypatch):
+    """The content-first case AM-60 exists for: an NDA position, paraphrased,
+    inside a document declared MSA — recognised on a verbatim span, therefore
+    applicable (AM-51 r2: content wins), therefore a Finding."""
+    rv = build.requirement("RESIDUALS-NDA-001", E.EvaluatorType.PRESENCE,
+                           mapping=RESIDUALS_MAPPING,
+                           standard={**RESIDUALS_STANDARD, "document_type": "NDA"},
+                           legal_rule=ZERO_TOLERANCE)
+    rv.description = RESIDUALS_DESCRIPTION
+    build.db.flush()
+    review = build.review(["11. Confidential Information — Use", PARAPHRASES[0]])
+    calls: list[str] = []
+    _fake(monkeypatch, [_yes(PARAPHRASES[0][:60])], calls)
+    run = run_analysis(db, review)
+    assert len(calls) == 1
+    assert [o.classification for o in run.outcomes] == ["MATCH"]
+    cov = {c["code"]: c for c in run.applicability}
+    assert cov["RESIDUALS-NDA-001"]["outcome"] == "APPLIED"
+    assert cov["RESIDUALS-NDA-001"]["reason"] == "the document confirms this clause"
 
 
 # 6 — lexical confirmation is never widened semantically

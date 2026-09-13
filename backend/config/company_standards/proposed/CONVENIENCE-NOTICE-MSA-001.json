@@ -1,0 +1,96 @@
+{
+  "_about": [
+    "PROPOSED Company Standard — drafted 2026-09-13 under AM-59 r6 from the Legal Constitution L1.10's OWN words.",
+    "NOT RATIFIED: `ratified` is null, this directory is read by nothing (importer, assist index and verifiers glob",
+    "the parent only). The owner ratifies by setting `ratified` and moving the file up one directory (rule 21:",
+    "supplied source, human approval). Every value is quoted from the cited section; none is invented (rule 7)."
+  ],
+  "requirement_code": "CONVENIENCE-NOTICE-MSA-001",
+  "description": "Either party may terminate for convenience on a set period of written notice.",
+  "ratified": null,
+  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§13",
+  "source_quote": "Either party may terminate for convenience with 30 days' written notice.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "13",
+      "topic": "Termination & Suspension",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "preferred": 30,
+    "unit": "DAYS",
+    "basis": "CONVENIENCE_TERMINATION_NOTICE",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "terminate this agreement for convenience",
+        "terminate for convenience",
+        "terminate this agreement at any time",
+        "without cause",
+        "for any reason"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days",
+          "days'"
+        ]
+      },
+      "bases": {
+        "CONVENIENCE_TERMINATION_NOTICE": [
+          "terminat"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "terminate for convenience",
+      "termination for convenience",
+      "for any reason",
+      "without cause"
+    ],
+    "aliases": [
+      "terminate this agreement at any time"
+    ],
+    "keyword_groups": [
+      [
+        "terminat",
+        "convenience"
+      ],
+      [
+        "terminat",
+        "notice",
+        "any time"
+      ]
+    ],
+    "negative_patterns": [
+      "material breach",
+      "fails to cure"
+    ],
+    "section_heading_terms": [
+      "termination"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "§13 governs 'ongoing, non-fixed-term arrangements'; §31.2/§14 forbid reading a convenience clause as an exit from a committed term. This standard measures the NOTICE only; whether a fixed term subordinates it is EARLY-TERM-RESTRICTION-MSA-001's question. Live: a partner agreement's 'at least 30 days' prior written notice' (§31.3 — MATCH). Negative patterns keep for-cause clauses (CURE-PERIOD-MSA-001's subject) out."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

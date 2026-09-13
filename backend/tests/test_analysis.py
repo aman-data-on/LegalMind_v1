@@ -1342,3 +1342,147 @@ def test_a_mixed_domain_document_still_shows_no_false_missing_flood_after_the_fi
     codes = {o.requirement_code: o.classification for o in run.outcomes}
     assert codes["LIABILITY-MSA-STRUCT"] == "MISSING"
     assert "NDA-GOVLAW-STRUCT" not in codes, "one liability clause must not detect the NDA family"
+
+
+# ---------------------------------------------------------------- AM-61
+# Applicability with recorded reasons: declared type, confirmed content, and a
+# DECLARED Constitution sibling; the same position measured once; nothing dropped.
+
+_LIAB_CAP = {**STANDARD, "document_type": "MSA",
+             "constitution": {"version": "L1.10", "section": "9", "topic": "Liability",
+                              "basis": "STAKEHOLDER_CONFIRMED"}}
+_LIAB_EXCL_MAPPING = {"exact_phrases": ["consequential damages"],
+                      "section_heading_terms": ["exclusion"], "confirm_threshold": 5}
+_LIAB_EXCL = {"document_type": "NDA", "applicability": "REQUIRED",
+              "expected_presence": "PRESENT", "scope_key": "CONSEQUENTIAL_DAMAGES_EXCLUSION",
+              "constitution": {"version": "L1.10", "section": "9", "topic": "Liability",
+                               "basis": "STAKEHOLDER_CONFIRMED",
+                               "expected_when": {"confirmed_any": ["LIAB-CAP-STRUCT"]}}}
+_CAP_CLAUSE = ["3. Limitation of Liability",
+               "Each party's aggregate liability shall not exceed the total fees paid "
+               "in the six (6) months preceding the claim."]
+
+
+def _typed(db, review, contract_type):
+    contract = db.get(M.Contract, review.contract_id)
+    contract.contract_type = contract_type
+    db.flush()
+
+
+def test_a_declared_sibling_makes_an_absent_position_expected_and_missing(build, db):
+    """The document confirms the §9 cap; the §9 exclusion names the cap as its
+    sibling, so its absence is measured — MISSING — although the document is
+    typed OTHER and the standard is an NDA-family one."""
+    build.requirement("LIAB-CAP-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=_LIAB_CAP, legal_rule=LEGAL_RULE)
+    build.requirement("LIAB-EXCL-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=_LIAB_EXCL_MAPPING, standard=_LIAB_EXCL, legal_rule=None)
+    review = build.review(_CAP_CLAUSE)
+    _typed(db, review, "OTHER")
+    run = run_analysis(db, review)
+    by = {o.requirement_code: o for o in run.outcomes}
+    assert by["LIAB-EXCL-STRUCT"].classification == "MISSING"
+    cov = {c["code"]: c for c in run.applicability}
+    assert cov["LIAB-EXCL-STRUCT"]["outcome"] == "APPLIED"
+    assert "§9 through LIAB-CAP-STRUCT" in cov["LIAB-EXCL-STRUCT"]["reason"]
+    assert cov["LIAB-CAP-STRUCT"]["reason"] == "the document confirms this clause"
+
+
+def test_a_position_with_no_evidence_of_expectation_is_recorded_not_applicable(build, db):
+    """No declared family, no confirmed clause, no confirmed sibling: the
+    requirement produces no Finding AND is recorded with the reason (rule 15 —
+    not a guess, not a silence)."""
+    build.requirement("LIAB-CAP-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=_LIAB_CAP, legal_rule=LEGAL_RULE)
+    build.requirement("LIAB-EXCL-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=_LIAB_EXCL_MAPPING, standard=_LIAB_EXCL, legal_rule=None)
+    review = build.review(["1. Confidentiality",
+                           "Each party shall protect the other party's Confidential Information."])
+    _typed(db, review, None)
+    run = run_analysis(db, review)
+    assert run.outcomes == [] and run.findings_created == 0
+    cov = {c["code"]: c for c in run.applicability}
+    assert cov["LIAB-CAP-STRUCT"]["outcome"] == "NOT_APPLICABLE"
+    assert cov["LIAB-EXCL-STRUCT"]["outcome"] == "NOT_APPLICABLE"
+    assert "no type declared" in cov["LIAB-EXCL-STRUCT"]["reason"]
+    assert "no Constitution sibling" in cov["LIAB-EXCL-STRUCT"]["reason"]
+    assert len(run.applicability) == run.requirements_in_snapshot == 2
+
+
+_GOVLAW_A = {"document_type": "MSA", "applicability": "REQUIRED",
+             "expected_presence": "PRESENT", "scope_key": "GOVERNING_LAW",
+             "constitution": {"version": "L1.10", "section": "22",
+                              "topic": "Governing Law & Dispute Resolution",
+                              "basis": "STAKEHOLDER_CONFIRMED"}}
+_GOVLAW_B = {**_GOVLAW_A, "document_type": "NDA"}
+
+
+def test_the_same_constitution_position_in_two_families_is_measured_once(build, db):
+    """Two standards, one §22 position: the declared family's copy is measured,
+    the other is recorded SAME_POSITION — one Finding, not two (AM-61)."""
+    build.requirement("GOVLAW-A-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING, standard=_GOVLAW_A, legal_rule=None)
+    build.requirement("GOVLAW-B-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING, standard=_GOVLAW_B, legal_rule=None)
+    review = build.review(["9. Governing Law",
+                           "This Agreement is governed by the laws of India."])
+    _typed(db, review, "NDA")
+    run = run_analysis(db, review)
+    codes = [o.requirement_code for o in run.outcomes]
+    assert codes == ["GOVLAW-B-STRUCT"], codes
+    assert run.findings_created == 1
+    cov = {c["code"]: c for c in run.applicability}
+    assert cov["GOVLAW-A-STRUCT"]["outcome"] == "SAME_POSITION"
+    assert "GOVLAW-B-STRUCT" in cov["GOVLAW-A-STRUCT"]["reason"]
+
+
+def test_different_positions_in_the_same_section_are_both_measured(build, db):
+    """Same §15, different bases: two positions, two Findings — de-duplication
+    never merges what the Constitution states differently."""
+    a = {**STANDARD, "document_type": "MSA", "basis": "SURVIVAL_POST_TERMINATION",
+         "constitution": {"version": "L1.10", "section": "15", "topic": "Confidentiality",
+                          "basis": "STAKEHOLDER_CONFIRMED"}}
+    b = {**a, "document_type": "NDA", "basis": "SURVIVAL_POST_RELATIONSHIP_END"}
+    build.requirement("SURV-A-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=a, legal_rule=LEGAL_RULE)
+    build.requirement("SURV-B-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=b, legal_rule=LEGAL_RULE)
+    review = build.review(_CAP_CLAUSE)
+    _typed(db, review, "OTHER")
+    run = run_analysis(db, review)
+    assert sorted(o.requirement_code for o in run.outcomes) == ["SURV-A-STRUCT", "SURV-B-STRUCT"]
+
+
+def test_applicability_is_in_the_audit_record_and_the_report(build, db):
+    from legalmind.api.reporting import report_payload
+    build.requirement("LIAB-CAP-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=_LIAB_CAP, legal_rule=LEGAL_RULE)
+    build.requirement("LIAB-EXCL-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=_LIAB_EXCL_MAPPING, standard=_LIAB_EXCL, legal_rule=None)
+    review = build.review(_CAP_CLAUSE)
+    _typed(db, review, "OTHER")
+    run = run_analysis(db, review)
+    event = db.execute(
+        select(M.AuditEvent).where(M.AuditEvent.action == "analysis.run_recorded",
+                                   M.AuditEvent.entity_id == review.id)).scalars().one()
+    assert event.after_state["applicability"] == run.applicability
+    report = report_payload(db, review)
+    assert report["coverage"]["applicability"] == run.applicability
+    assert report["coverage"]["requirements_in_snapshot"] == 2
+
+
+def test_a_numeric_requirement_with_no_provision_at_all_is_missing_not_dropped(build, db):
+    """Mapping NONE on an APPLIED numeric requirement is established absence:
+    MISSING with zero evidence (45C.15), the same shape PRESENCE reports — never
+    an UNABLE_TO_EVALUATE with no evidence that N-34 then refuses to persist.
+    Found live 2026-09-13: CONF-SURVIVAL-NDA-001, expected through a confirmed
+    §15 sibling, produced a cardinality failure and no Finding at all."""
+    build.requirement("LIAB-CAP-STRUCT", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=_LIAB_CAP, legal_rule=LEGAL_RULE)
+    review = build.review(["1. Confidentiality",
+                           "Each party shall protect the other party's Confidential Information."])
+    run = run_analysis(db, review)                       # declared MSA — applies
+    (outcome,) = run.outcomes
+    assert outcome.failure is None
+    assert outcome.classification == "MISSING"
+    assert outcome.mapping_state == "NONE"

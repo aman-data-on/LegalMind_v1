@@ -17,6 +17,12 @@
   "source_quote": "Leapswitch does not make any representation or warranty regarding the reliability, accuracy, completeness, authenticity, merchantability, non-infringement, correctness, or usefulness of the information and data, third-party applications, or services",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": null,
+      "topic": "Warranty Disclaimer",
+      "basis": "DOCUMENT_ONLY"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "WARRANTY_DISCLAIMER",
     "applicability": "REQUIRED"

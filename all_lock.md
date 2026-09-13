@@ -18497,3 +18497,304 @@ follow-ups — was put to them (rule 6). Recorded engineering note: the limitati
 preserves is real and known. A follow-up referring to something only the previous *answer*
 contains ("is the 30 days you mentioned business days?") still resolves through the previous
 question, not the answer, and may therefore miss. That is the deliberate cost of r2.
+--------------------------------------------------------------------------------
+
+# AB-20 — Constitution-driven, content-first review (Owner Instruction — 2026-09-13)
+
+The owner instructed: *"LegalMind must behave like a smart legal review system, not like a
+simple document-type matcher … The agreement may be labelled MSA, NDA, PO, or OTHER, but the
+label must not control the entire analysis … Do not preserve the current behavior merely
+because it is already implemented … you have the full ownership if any locked decision
+blocked you update that decision."* Four records follow — `AM-59` to `AM-62`. Each names
+what it amends; every earlier line of this file stands as written (rule 22).
+
+# `AM-59` — The Legal Constitution L1.10 governs company positions, superseding L1.5
+
+**Amends:** `AM-43` r1(1) and r4's source citation (the "current lawyer-review Constitution"
+is now the Lawyer Review Version **L1.10**, canonical at
+`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md`; L1.5 stays in the repository with a
+superseded banner). **Does not amend:** `AM-43` r2 (configuration source, never runtime
+corpus — L1.10 is not chunked, indexed or retrieved either), r3, r5, r7, r8; `AI-01`;
+`AM-25`; the zero-tolerance Legal Rule; rules 7, 12, 13, 15, 21.
+
+```text
+r1   WHICH TEXT. L1.10 is the owner-supplied Markdown, transcribed verbatim with ONE
+     class of change: the customer, partner and NDA counterparties L1.10 names as
+     historical evidence (§15.5, §31) are replaced by bracketed placeholders. The
+     repository never names a counterparty (source-material rules); vendors cited
+     for their PUBLISHED terms are not counterparties and stay. Recorded, not
+     hidden: the committed L1.5 already names the NDA counterparty (§15.5) and one
+     customer (§31.2's predecessor text) — a confidentiality item for the owner,
+     since removing them from history is a rewrite no session may perform alone.
+
+r2   WHAT CHANGED IN THE NUMBERS: NOTHING IN §§9-22. Every value the six AM-43 r4
+     reconciliations rest on (12 months / FEES_PAID; 2 %/month; 30 days ×3; 3
+     years) is byte-identical between L1.5 and L1.10. Those six standards stand.
+
+r3   WHAT IS NEW. §24.4 (the three user-facing statuses and their four
+     clarifications), §31 (Partner, Vendor, Distribution, PO, Amendment, Renewal,
+     Change-of-control and Service-discontinuation rules), Appendix B (13 clause
+     categories), Appendix F (rule mapping). §20/§21 now DEFER to §31.11/§31.12:
+     a Purchase Order or Amendment IS reviewable, against §31's rules, whether or
+     not the company has published its own form ("NOT A DEPENDENCY", §31.16).
+
+r4   ONE POSITION RECONCILED. AUTORENEW-MSA-001 fixed the renewal TERM at 6 months
+     (MSA template §7.3). L1.10 §31.15: the period "is treated as a negotiable
+     commercial term, not a fixed Constitution value"; "the 30-day non-renewal
+     notice requirement … is adopted as the standard position." The standard now
+     measures the notice — 30 DAYS, basis NON_RENEWAL_NOTICE — and measures no
+     period; `_history` keeps the 6-month reading and its source. Terminology
+     re-drawn from §31.15 and the three live MSAs it cites ("at least thirty (30)
+     days prior to the expiry of the Initial Term"), calibrated live (see AM-61).
+
+r5   THE CONSTITUTION BLOCK. Every ratified standard's configuration carries
+     `constitution: {version, section, topic, basis, expected_when?}` — the
+     section that states its position, the Appendix B category, and the basis in
+     the Constitution's OWN vocabulary: STAKEHOLDER_CONFIRMED (§§9-22),
+     APPLICABLE_LAW, COMPANY_APPROVED (§31), LEGALMIND_RULE (§31 practice-based —
+     never Acceptable by guess, §24.4(3)), NOT_ADOPTED (§31.6a), and DOCUMENT_ONLY
+     for the eight standards the Constitution states no position for (AM-43 r5's
+     list: FORCE-MAJEURE-*, WARRANTY-DISCLAIMER, COMPELLED-DISCLOSURE,
+     RETURN-DESTRUCTION-*, LIAB-CARVEOUTS). Publish and the importer refuse a
+     malformed block. A Finding can now cite its Constitution section (§23.5),
+     and a reader is told when there is none.
+
+r6   NOT AUTHORED, LISTED. L1.10 states checkable positions with no standard:
+     §16 (21-day payment, 15-day dispute window, 30-day price-change notice,
+     notice-and-cure before suspension, GST exclusive), §11 (10/25/50 credits,
+     99.9/99.95 % tiers), §12/§19 (6-hour CERT-In, 180-day logs, residency,
+     sub-processor flow-down), §17/§19 (3-hour / 2-hour takedowns), §13 (30-day
+     convenience notice), §31.3/§31.8/§31.14/§31.15 (30 days ×6, 15 days), §31.11
+     (PO contents; PO references its MSA; MSA prevails), §31.12 (amendment form).
+     Zero standards exist for Partner, Vendor, Distribution, PO or Amendment —
+     the five document types §31 was written to govern. Drafts calibrated per
+     locked 35.10 are proposed under `backend/config/company_standards/proposed/`
+     — a directory nothing reads until the owner ratifies a file by moving it.
+     None is invented (rule 21); each quotes its section verbatim.
+
+r7   CONSTITUTION-SIDE ISSUES, REPORTED NOT RESOLVED (rule 5). §31.7's heading is
+     missing (the trademark licence sits inside §31.6a "NOT CURRENTLY ADOPTED"
+     yet is "Company-approved"); §31.5 cites a set-off position "under Section
+     20" that no section states; §8.2 forbids inventing "MSA always wins" while
+     §31.11 states "the MSA prevails" on evidence drawn from customer MSAs; §9's
+     "no super-cap approved" sits beside LIAB-CARVEOUTS-MSA-001 (AM-43 r5 keeps
+     them distinct); §17 calls the takedown deadlines settled while §27 Item 15
+     calls their applicability unresolved; §12.3-B's DPDP deadline is "SOURCE
+     VERIFICATION REQUIRED"; nine different "30 days" with no disambiguating
+     table; "India-designated services", "operationally feasible", "materially
+     less favorable" undefined. Full list: CONSTITUTION_RECONCILIATION_2026-09-13.md.
+
+r8   COUNSEL. L1.10's Legal Status is FOR COUNSEL REVIEW AND APPROVAL. Every
+     position it states is a Stakeholder-Confirmed Business Position, Applicable
+     Law or a Counsel Validation Point (§6.3) — and every standard's block says
+     which. Whatever Counsel changes on sign-off propagates by a further record.
+```
+
+# `AM-60` — Grounded semantic recognition runs for every pinned Requirement, not only the declared family
+
+**Amends:** `AM-54` r4 ("ONLY INSIDE THE DECLARED FAMILY … the stage is silent for
+out-of-family Requirements and for an untyped document") and r8's cost statement. **Does not
+amend:** `AM-54` r1, r2 (verbatim span), r3 (uncertainty → a person), r5, r6, r7, r9 (two
+claims), r10 (semantic mapping never establishes absence), r11–r13; `AM-51` r3 (MISSING only
+where the Requirement applies); `AI-01`/`AM-25` (the model still decides nothing — recognition
+only); `AM-30` t1–t10; rules 7, 9, 12, 15, 21.
+
+```text
+r1   WHY THE GATE EXISTED, AND WHY IT NO LONGER HOLDS. r4 was written on the
+     first live R&D, before r9. Its evidence was cross-family semantic
+     confirmations of topically adjacent clauses; r9 (the clause must address
+     the subject AND state the same KIND of position, on a verbatim span) was
+     added the same day and drove semantic false positives to 0 on 38 hard
+     negatives — in-family. Whether r9 also holds out-of-family was a
+     measurement nobody had made. Meanwhile the gate had a cost r4 did not name:
+     the 32 ratified standards are typed MSA/TOS/NDA/SLA and none OTHER, so on a
+     document typed OTHER, or untyped, the semantic stage never ran at all —
+     and a Constitution position present in different wording produced NO
+     Finding, not MISSING, not Needs review: a silent false negative, on
+     exactly the mixed and unfamiliar documents AM-51 was written for.
+
+r2   THE MEASUREMENT (2026-09-13, live, pinned model). The AM-54 r13 labelled
+     corpus — 104 variants, 19 standards, 38 hard negatives — run with the gate
+     removed, each variant's document declared as (a) its own family, the r13
+     baseline; (b) OTHER; (c) no type; (d) a DIFFERENT real family:
+
+       mode        recognised   semantic FP   changed-a-correct-result   calls
+       same          66/66         0/38               0                  127
+       OTHER         65/66         0/38               0                  127
+       none          65/66         0/38               0                  127
+       mismatch      66/66         0/38               0                  127
+
+     The two single misses fall on DIFFERENT variants (a table row; a
+     sub-clause) — the run-to-run variance r6 already records — and each is
+     recorded NOT APPLICABLE (no Finding), never a wrong classification. The
+     lexical false positive is the pre-existing one r13 names. Cost is
+     unchanged at one call per Requirement the words did not confirm.
+
+r3   THE RULE. The semantic stage runs for every pinned Requirement whose
+     configured terminology confirmed nothing, whatever the document's declared
+     type and whether or not it has one. Everything after recognition is
+     unchanged: a verified YES on a verbatim span scores the confirm threshold
+     (r2); an UNCLEAR, a YES without a span or a DIFFERENT position leaves the
+     mapping UNRESOLVED (r3); out of the declared family an UNRESOLVED mapping
+     makes the Requirement NOT APPLICABLE — recorded with its reason (AM-61) —
+     so widening recognition cannot widen "Needs review" either; absence is
+     still never established semantically (r10).
+
+r4   APPLICABILITY FOLLOWS CONTENT. A semantic confirmation is a confirmation:
+     the Requirement applies under AM-51 r2 exactly as a lexical one does, in
+     any family. Family DETECTION is unchanged (AM-51 r2': the declared type
+     only) — this record widens what the document is shown to CONTAIN, never
+     what it is presumed to LACK.
+
+r5   ACCEPTANCE RECORD. `tests/test_rd_semantic_corpus.py` now runs in the four
+     modes (LEGALMIND_RD_DECLARED_TYPE) and reports "not applied" as its own
+     column; the gate it asserts is unchanged — 0 semantic FP, 0 wrong, 0
+     changed-correct — in every mode.
+```
+
+# `AM-61` — Applicability with recorded reasons: declared, confirmed or expected; one position measured once; nothing dropped
+
+**Amends:** `AM-51` r2/r2' (a Requirement applies when CONFIRMED or in the DECLARED family) by
+adding a third, declared signal; `AM-51` r3's last sentence ("no Finding, never a guess") by
+requiring the non-applicable Requirement to be RECORDED with its reason; owner Q3=B's
+consequence that the same Constitution position is measured once per family. **Does not
+amend:** `AM-51` r1 (map first), r2' (family detection is the declared type ONLY — never
+inferred from confirmed clauses), r3's rule (MISSING only for an applied Requirement), r4
+(`not_applicable_to`), r5, r6; `AM-56` r1 (no Constitution position → unmatched provision);
+rule 15; 45B.26 (no fifth classification — nothing here is a classification); F-1.
+
+The owner instructed: *"Do not use the current simplistic rule: 'The Constitution contains a
+requirement, but the uploaded document does not contain it, therefore MISSING.' … the system
+must intelligently determine whether the requirement is expected in this agreement based on
+… relevant clauses already present elsewhere in the agreement … Do not hide NOT_APPLICABLE or
+UNCLEAR as MISSING … Never assume that every MSA, NDA, PO or tax rule applies to every
+agreement."*
+
+```text
+r1   THREE SIGNALS, EACH DECLARED, EACH RECORDED. A pinned Requirement APPLIES when
+     (a) the document CONFIRMS its clause — lexically or on a verbatim span
+     (AM-54/AM-60) — in any family; (b) its family is the DECLARED type; or (c) it
+     is EXPECTED: its own `constitution.expected_when.confirmed_any` names a
+     Constitution sibling the document confirms. A confirmed liability cap makes
+     the §9 exclusion of consequential damages expected; a confirmed
+     confidentiality position makes the §15 survival period and trade-secret
+     carve-out expected; a governing-law clause makes §22 dispute resolution
+     expected; a renewal clause makes the §14 fixed-term exit position expected.
+     The trigger is written per standard from the Constitution's structure and
+     reviewed as configuration — never inferred across topics, so the boilerplate
+     flood that killed AM-51 r1 cannot recur: no standard names a governing-law
+     clause as evidence for anything but dispute resolution. Deliberately NOT
+     triggered by a sibling (declared family or confirmed clause only):
+     NON-SOLICIT, IP-OWNERSHIP, INDEMNITY, CURE-PERIOD, TERM-NOTICE,
+     KYC-RETENTION, LATE-FEE, CLAIM-WINDOW and every DOCUMENT_ONLY standard.
+
+r2   NOTHING IS DROPPED. Every pinned Requirement leaves the run with one record
+     — {code, section, outcome, reason} — outcome APPLIED, NOT_APPLICABLE or
+     SAME_POSITION, the reason in the engine's own words ("not confirmed in the
+     document; not the declared family (OTHER); no Constitution sibling it names
+     is confirmed"). The record is written into the ANALYSIS_RUN_RECORDED audit
+     event and read back into the report's coverage; the Report shows what was
+     NOT measured and why. NOT_APPLICABLE is a coverage outcome, not a
+     classification (45B.26), and it is never rendered as MISSING or as a
+     Finding. "Unclear" stays UNABLE_TO_EVALUATE on an applied Requirement.
+
+r3   ONE POSITION, MEASURED ONCE. Two applied standards stating the SAME
+     Constitution position — same section and same value/unit/basis/scope, or
+     same presence expectation and scope — are evaluated once: the declared
+     family's copy if there is one, else the first by code (ENG-11); the others
+     are recorded SAME_POSITION naming the one measured. The standards stay per
+     family (Q3=B: the type NAMES the family); only the measurement is
+     de-duplicated. Standards of one section with DIFFERENT bases (the MSA and
+     NDA confidentiality-survival positions) are two positions and both measure.
+     Measured: on the real OTHER-typed distribution agreement the 21 Findings
+     that were 15 distinct positions plus GOVLAW×3, LIABILITY×2, ARBITRATION×2
+     and RETURN-DESTRUCTION×2 are now 21 distinct positions.
+
+r4   ESTABLISHED ABSENCE ON A NUMERIC REQUIREMENT IS MISSING. An applied numeric
+     Requirement whose mapping is NONE (no clause scored at all) evaluates
+     MISSING with zero evidence (45C.15) — the shape PRESENCE already reports —
+     not UNABLE_TO_EVALUATE with no evidence, which N-34 refuses to persist and
+     which silently produced NO Finding. Found on the real mixed document
+     (CONF-SURVIVAL-NDA-001, expected through a confirmed §15 sibling, was a
+     cardinality failure). A pre-existing gap in the declared family too.
+
+r5   MEASURED, BEFORE AND AFTER, live, rolled back (2026-09-13):
+       real mixed document, no type   before 7 Findings (4 MATCH, 3 MISSING;
+                                      GOVLAW×3 and LIABILITY×2 duplicates)
+                                      after  8 Findings, 0 duplicates: GOVLAW,
+                                      RESIDUALS MATCH; ARBITRATION MISSING
+                                      (expected through GOVLAW); TRADE-SECRET
+                                      MISSING (expected through §15 siblings);
+                                      LIAB-EXCLUSIONS and TERM-NOTICE Needs
+                                      review (recognised, not readable);
+                                      LIABILITY and CONF-SURVIVAL MISSING as
+                                      before; 23 NOT_APPLICABLE, each with its
+                                      reason; 0 false MISSING introduced
+       real OTHER distribution agreement   before 21 Findings (15 MATCH, 5 Needs
+                                      review, 1 MISSING) with 6 duplicate
+                                      positions; after 21 distinct positions:
+                                      NON-SOLICIT reads "twelve (12) months" as
+                                      one year → DEVIATION (AM-62); AUTORENEW
+                                      measures the non-renewal notice →
+                                      DEVIATION (AM-59 r4); CURE-PERIOD reads
+                                      both cure periods → CONFLICT (a person,
+                                      both cited); TRADE-SECRET-CARVEOUT and
+                                      COMPELLED-DISCLOSURE recognised on the
+                                      OTHER document; LIABILITY stays Needs
+                                      review on the unrecognised basis (r4 of
+                                      AM-62 — by design)
+     Synthetic mixed agreement (MSA payment/liability, NDA confidentiality, PO,
+     GST, one absent expected position, one internal conflict), typed OTHER,
+     untyped and MSA: the content-recognised verdicts are identical under all
+     three labels; the PO and payment clauses surface as unmatched provisions
+     (no ratified standard yet — AM-59 r6); `tests/test_mixed_agreement.py`.
+
+r6   NOT DONE HERE, RECORDED. AM-51 r5 ("a type set in Edit details re-runs the
+     analysis") remains unimplemented: an analysed Review refuses re-analysis
+     (43.28) and a new Review on the same version, snapshot and creator IS the
+     same Review under 49.8's idempotency key. Registered C-21 with the
+     amendment it would need. `not_applicable_to` still tests the declared type
+     only; on an untyped document the SLA/liability exclusion rests on the
+     "service credit(s)" negative pattern (AM-54 r4's last sentence), recorded.
+```
+
+# `AM-62` — A declared, definitional unit conversion is not a silent one
+
+**Amends:** the application of `45C.23` ("units are not silently converted") and `44.29`'s
+division of labour, for time units only. **Does not amend:** `45B.4` (bases are never assumed
+equivalent — "fees paid" and "fees actually received" stay two bases and fail closed),
+`45C.19`, `45C.5`/`45C.6`, rule 7, rule 15, the zero-tolerance rule.
+
+The owner instructed: *"Use semantic understanding for equivalent wording, such as
+`one year` = `12 months` … `fees paid` and `fees actually received` must not automatically be
+treated as legally equivalent without an approved rule."*
+
+```text
+r1   TWO GATES. The Company Standard DECLARES the pair
+     (`configuration.unit_conversions: [{from_unit, to_unit}]`), and the engine
+     performs the arithmetic ONLY for a pair it knows to be an identity of
+     measure: YEARS<->MONTHS (×12), WEEKS<->DAYS (×7). DAYS<->MONTHS is absent by
+     design and cannot be declared into existence — a month is not thirty days
+     by definition (rule 7). Undeclared, or declared but not definitional: the
+     comparison stays UNABLE_TO_EVALUATE exactly as before, a person decides.
+
+r2   THE DOCUMENT'S WORDS STAY. `actual_value` records the quantity in the unit
+     the document used; the comparison and the explanation record the
+     conversion sentence ("1 YEARS read as 12 MONTHS under the declared
+     conversion"). A MATCH or DEVIATION reached through a conversion says so.
+
+r3   TERMINOLOGY (35.4). Unit terms are the unit ("days", "calendar days"); the
+     phrase around it ("after receipt of written notice") is a cap phrase or a
+     basis, never a unit. Three standards carried phrase-shaped unit terms and
+     failed every paraphrase and "30days" — they now carry bare terms, with the
+     change in each file's `_history`. Declared: LIABILITY-MSA/TOS (YEARS->MONTHS),
+     CONF-SURVIVAL-MSA/NDA, NON-SOLICIT-NDA, KYC-RETENTION-TOS (MONTHS->YEARS).
+
+r4   NOT CHANGED. No basis synonym was added anywhere. "fees actually received"
+     remains an unrecognised basis and the liability comparison on it remains a
+     fail-closed refusal that shows both sides (the not-recorded fix, 2026-09-12).
+```
+
+**Approved by the owner on 2026-09-13** ("you have the full ownership if any locked decision blocked you update that decision"; the content-first and Constitution-audit instructions of the same day, quoted above). Recorded by the implementer under that authority; every amendment names the decision it changes and nothing above this batch was edited.
+
+--------------------------------------------------------------------------------

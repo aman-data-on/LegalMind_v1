@@ -26,7 +26,7 @@ import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
 import { findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
-import { USER_STATUS_LABELS, USER_STATUS_ORDER } from "@/components/workspace/findingLanguage";
+import { USER_STATUS_LABELS, USER_STATUS_ORDER, requirementTitle } from "@/components/workspace/findingLanguage";
 
 import { ClassificationGlossary } from "./ClassificationGlossary";
 import { ExportControl } from "./ExportControl";
@@ -111,6 +111,12 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
   }
 
   const { review, report, reportDenied } = state;
+  // AM-61 — the analysis run's own per-requirement record. Grouped here, never
+  // re-derived: the reason strings are the engine's, verbatim.
+  const applicability = report?.coverage.applicability ?? [];
+  const applied = applicability.filter((r) => r.outcome === "APPLIED");
+  const samePosition = applicability.filter((r) => r.outcome === "SAME_POSITION");
+  const notApplicable = applicability.filter((r) => r.outcome === "NOT_APPLICABLE");
 
   return (
     <>
@@ -206,6 +212,69 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
               </span>
             </div>
           </section>
+
+          {applicability.length > 0 ? (
+            <section aria-label="What was measured">
+              <h2 className="ws-report__h">What was measured, and what was not</h2>
+              {/* AM-61 — every pinned requirement, with the engine's own reason.
+                  A requirement that did not apply is shown here rather than
+                  silently absent: "not applicable" and "missing" are different
+                  facts, and a reader must be able to tell them apart. The
+                  applied ones are listed too, collapsed — the Findings carry
+                  their verdicts. No legal meaning is attached to any count. */}
+              <p className="ws-pane__note">
+                <span className="ws-mono">{applied.length}</span> of{" "}
+                <span className="ws-mono">{applicability.length}</span> requirements applied to this
+                document
+                {samePosition.length > 0 ? (
+                  <>; <span className="ws-mono">{samePosition.length}</span> more state a position already measured</>
+                ) : null}
+                {notApplicable.length > 0 ? (
+                  <>; <span className="ws-mono">{notApplicable.length}</span> did not apply</>
+                ) : null}.
+              </p>
+              {notApplicable.length > 0 ? (
+                <div className="ws-report__scroll">
+                  <table className="ws-report__table">
+                    <caption className="ws-visually-hidden">Requirements that did not apply, with the reason</caption>
+                    <thead>
+                      <tr><th scope="col">Requirement</th><th scope="col">Constitution</th><th scope="col">Why it did not apply</th></tr>
+                    </thead>
+                    <tbody>
+                      {notApplicable.map((row) => (
+                        <tr key={row.code}>
+                          <th scope="row">{requirementTitle({ code: row.code })}<span className="ws-report__code ws-mono">{row.code}</span></th>
+                          <td>{row.section ? `Section ${row.section}` : "No position stated"}</td>
+                          <td>{row.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+              {(applied.length > 0 || samePosition.length > 0) ? (
+                <details className="ws-determined">
+                  <summary>Applied requirements</summary>
+                  <div className="ws-report__scroll">
+                    <table className="ws-report__table">
+                      <thead>
+                        <tr><th scope="col">Requirement</th><th scope="col">Constitution</th><th scope="col">Why it applied</th></tr>
+                      </thead>
+                      <tbody>
+                        {[...applied, ...samePosition].map((row) => (
+                          <tr key={row.code}>
+                            <th scope="row">{requirementTitle({ code: row.code })}<span className="ws-report__code ws-mono">{row.code}</span></th>
+                            <td>{row.section ? `Section ${row.section}` : "No position stated"}</td>
+                            <td>{row.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              ) : null}
+            </section>
+          ) : null}
 
           <p className="ws-pane__note">
             Counts, deliberately: this report never grades the document. The alignment figure is a

@@ -114,6 +114,27 @@ def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
 # ==========================================================================
 # Findings — the derived summary layer
 # ==========================================================================
+def _constitution_for(db: DBSession, finding: M.Finding) -> dict[str, Any] | None:
+    """The `constitution` block of the Company Standard PINNED for this Finding —
+    read through the Review's snapshot, never from current configuration (16)."""
+    row = db.execute(
+        select(M.CompanyStandardVersion.configuration)
+        .join(M.ConfigurationSnapshotItem,
+              M.ConfigurationSnapshotItem.company_standard_version_id
+              == M.CompanyStandardVersion.id)
+        .join(M.Review, M.Review.configuration_snapshot_id
+              == M.ConfigurationSnapshotItem.snapshot_id)
+        .where(M.Review.id == finding.review_id,
+               M.ConfigurationSnapshotItem.requirement_version_id
+               == finding.requirement_version_id)
+    ).scalar_one_or_none()
+    block = (row or {}).get("constitution") if isinstance(row, dict) else None
+    if not isinstance(block, dict):
+        return None
+    return {"section": block.get("section"), "topic": block.get("topic"),
+            "basis": block.get("basis")}
+
+
 def serialize_finding(db: DBSession, finding: M.Finding, *,
                       legal_position: bool) -> dict[str, Any]:
     """49.7 r1 — ``classification`` and ``evaluations`` travel together, always.
@@ -134,6 +155,7 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
         .where(M.RequirementVersion.id == finding.requirement_version_id)
     ).first()
     rv, req = requirement if requirement else (None, None)
+    constitution = _constitution_for(db, finding)
     serialized = [
         serialize_evaluation(db, ev, legal_position=legal_position,
                              escalated=escalated,
@@ -153,6 +175,11 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             "description": rv.description if rv else None,
             "version_id": str(finding.requirement_version_id),
             "version_number": rv.version_number if rv else None,
+            # AM-59 — which Constitution section states the position this
+            # Finding measured, and on what basis (§23.5: cite the source). Not a
+            # legal position: a section number and a label, never a value. None
+            # for a snapshot that predates the block.
+            "constitution": constitution,
         },
         # Derived, non-authoritative summary (45B re-lock, D-1.1).
         "classification": finding.classification.value,

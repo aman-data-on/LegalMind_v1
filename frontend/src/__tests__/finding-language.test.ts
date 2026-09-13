@@ -484,3 +484,31 @@ describe("a value cell says WHICH kind of nothing it is (2026-09-13)", () => {
     expect(side.text).not.toBe("Not recorded");
   });
 });
+
+// ---------------------------------------------------------------- AM-59 citation
+import { constitutionCitation } from "@/components/workspace/findingLanguage";
+
+describe("constitutionCitation", () => {
+  const withBlock = (constitution: unknown) =>
+    ({ requirement: { code: "X", name: null, version_id: "v", version_number: 1, constitution } }) as never;
+
+  it("renders nothing for a snapshot that predates the block", () => {
+    expect(constitutionCitation(withBlock(undefined))).toBeNull();
+    expect(constitutionCitation(withBlock(null))).toBeNull();
+  });
+
+  it("cites the section and category — a source, never a value", () => {
+    expect(constitutionCitation(withBlock({ section: "9", topic: "Liability", basis: "STAKEHOLDER_CONFIRMED" })))
+      .toBe("Constitution, Section 9 · Liability");
+  });
+
+  it("says plainly when the Constitution states no position", () => {
+    expect(constitutionCitation(withBlock({ section: null, topic: "Force Majeure", basis: "DOCUMENT_ONLY" })))
+      .toBe("No Constitution position — measured against a LeapSwitch document clause");
+  });
+
+  it("qualifies a practice-based analysis rule so it never reads as company-evidenced (§24.4(3))", () => {
+    expect(constitutionCitation(withBlock({ section: "31.11", topic: "Orders", basis: "LEGALMIND_RULE" })))
+      .toBe("Constitution, Section 31.11 · Orders · analysis rule, not company-evidenced");
+  });
+});

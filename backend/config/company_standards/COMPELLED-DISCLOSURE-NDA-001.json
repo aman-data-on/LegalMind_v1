@@ -21,6 +21,12 @@
   "source_quote": "If the Receiving Party is required by applicable law ... to disclose any Confidential Information, the Receiving Party shall, to the extent legally permitted, promptly notify the Disclosing Party in writing",
   "configuration": {
     "document_type": "NDA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "DOCUMENT_ONLY"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "COMPELLED_DISCLOSURE",
     "applicability": "REQUIRED"

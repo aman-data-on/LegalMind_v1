@@ -17,6 +17,12 @@
   "source_quote": "LeapSwitch is and shall remain the sole and exclusive owner of all right, title, and interest in and to all intellectual property rights associated with or embedded in the Services",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "IP_OWNERSHIP",
     "applicability": "REQUIRED"

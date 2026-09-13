@@ -37,6 +37,19 @@
   "source_quote": "LEAPSWITCH'S TOTAL AGGREGATE LIABILITY TO YOU FOR ALL CLAIMS ARISING OUT OF OR IN CONNECTION WITH THESE TERMS OR THE SERVICES SHALL NOT EXCEED THE TOTAL FEES PAID BY YOU TO LEAPSWITCH DURING THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM.",
   "configuration": {
     "document_type": "TOS",
+    "constitution": {
+      "version": "L1.10",
+      "section": "9",
+      "topic": "Liability",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "LIAB-EXCLUSIONS-MSA-001",
+          "LIAB-CARVEOUTS-MSA-001",
+          "LIABILITY-MSA-001"
+        ]
+      }
+    },
     "not_applicable_to": [
       "SLA"
     ],
@@ -59,6 +72,10 @@
         "MONTHS": [
           "months",
           "month"
+        ],
+        "YEARS": [
+          "years",
+          "year"
         ]
       },
       "bases": {
@@ -76,7 +93,13 @@
         "whichever is higher",
         "whichever is greater"
       ]
-    }
+    },
+    "unit_conversions": [
+      {
+        "from_unit": "YEARS",
+        "to_unit": "MONTHS"
+      }
+    ]
   },
   "_semantics": [
     "unit MONTHS with preferred 12 encodes the LOOKBACK WINDOW the clause states",
@@ -177,5 +200,26 @@
     "words (AWS 9.2, CtrlS 12.1(ii)). No position, threshold or tolerance",
     "changed; composite formulas (greater-of/lesser-of/averages) still fail",
     "closed rather than having one limb read as the cap (45B.4)."
+  ],
+  "_history": [
+    {
+      "date": "2026-09-13",
+      "record": "AM-62",
+      "added": {
+        "unit_conversions": [
+          {
+            "from_unit": "YEARS",
+            "to_unit": "MONTHS"
+          }
+        ],
+        "units": {
+          "YEARS": [
+            "years",
+            "year"
+          ]
+        }
+      },
+      "why": "a year is a fixed number of months by definition; the engine performs the arithmetic only because the standard declares the pair (45C.23, 44.29)."
+    }
   ]
 }

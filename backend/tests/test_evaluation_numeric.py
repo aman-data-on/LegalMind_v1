@@ -337,3 +337,54 @@ def test_a_standard_with_no_preferred_value_reports_nothing_and_says_so():
     assert e.classification is C.UNABLE_TO_EVALUATE
     assert (_standard_side(e) or {}).get("preferred") is None
     assert any("no preferred" in x for x in e.explanation)
+
+
+# ---------------------------------------------------------------- AM-62 units
+# A DECLARED, DEFINITIONAL unit conversion is performed in tested code; anything
+# undeclared, or declared but not an identity of measure, stays UNABLE_TO_EVALUATE.
+
+def _years_standard(**extra):
+    return structural_standard(
+        preferred=12, unit="MONTHS",
+        unit_conversions=[{"from_unit": "YEARS", "to_unit": "MONTHS"}], **extra)
+
+
+def test_a_declared_definitional_conversion_reads_one_year_as_twelve_months():
+    e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=_years_standard())))
+    assert e.classification is C.MATCH
+    assert e.actual_value["cap_value"] == 12 and e.actual_value["cap_unit"] == "MONTHS"
+    assert any("1 YEARS read as 12 MONTHS" in line for line in e.explanation)
+    assert "conversion" in e.comparison
+
+
+def test_a_converted_quantity_still_deviates_when_it_differs():
+    e = only(evaluate(numeric_input([cap(2, unit="YEARS")], standard=_years_standard())))
+    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.UNACCEPTABLE)
+    assert e.actual_value["cap_value"] == 24
+
+
+def test_an_undeclared_unit_difference_still_fails_closed():
+    standard = structural_standard(preferred=12, unit="MONTHS")
+    e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert e.actual_value == {"cap_value": 1, "cap_unit": "YEARS",
+                              "cap_basis": STRUCTURAL_BASIS, "scope": STRUCTURAL_SCOPE}
+    assert e.expected_value["preferred"] == 12
+
+
+def test_a_declared_but_non_definitional_conversion_is_refused():
+    """Configuration cannot make thirty days a month (rule 7, 44.29)."""
+    standard = structural_standard(
+        preferred=1, unit="MONTHS",
+        unit_conversions=[{"from_unit": "DAYS", "to_unit": "MONTHS"}])
+    e = only(evaluate(numeric_input([cap(30, unit="DAYS")], standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert any("AM-62" in line for line in e.explanation)
+
+
+def test_a_declared_pair_in_the_wrong_direction_is_not_applied():
+    standard = structural_standard(
+        preferred=12, unit="MONTHS",
+        unit_conversions=[{"from_unit": "MONTHS", "to_unit": "YEARS"}])
+    e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE

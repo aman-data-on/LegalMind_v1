@@ -50,6 +50,25 @@
         "basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
         "scope_key": "AGGREGATE"
       }
+    },
+    {
+      "date": "2026-09-13",
+      "record": "AM-62",
+      "added": {
+        "unit_conversions": [
+          {
+            "from_unit": "YEARS",
+            "to_unit": "MONTHS"
+          }
+        ],
+        "units": {
+          "YEARS": [
+            "years",
+            "year"
+          ]
+        }
+      },
+      "why": "a year is a fixed number of months by definition; the engine performs the arithmetic only because the standard declares the pair (45C.23, 44.29)."
     }
   ],
   "requirement_code": "LIABILITY-MSA-001",
@@ -60,6 +79,19 @@
   "source_quote": "the standard 12-month liability cap applies unless a specific agreement approved by the company expressly provides otherwise. ... The cap applies mutually to both parties; there is no one-sided or party-specific cap. Indirect, incidental, and consequential damages are excluded for both parties. [Illustrative clause:] the aggregate liability of either Party ... shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "9",
+      "topic": "Liability",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "LIAB-EXCLUSIONS-MSA-001",
+          "LIAB-CARVEOUTS-MSA-001",
+          "LIABILITY-TOS-001"
+        ]
+      }
+    },
     "not_applicable_to": [
       "SLA"
     ],
@@ -82,6 +114,10 @@
         "MONTHS": [
           "months",
           "month"
+        ],
+        "YEARS": [
+          "years",
+          "year"
         ]
       },
       "bases": {
@@ -108,7 +144,13 @@
         "whichever is higher",
         "whichever is greater"
       ]
-    }
+    },
+    "unit_conversions": [
+      {
+        "from_unit": "YEARS",
+        "to_unit": "MONTHS"
+      }
+    ]
   },
   "_semantics": [
     "unit MONTHS with preferred 6 encodes the LOOKBACK WINDOW the clause states",

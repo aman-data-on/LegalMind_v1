@@ -10,6 +10,56 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — the review is Constitution-driven and content-first (AB-20: `AM-59`–`AM-62`, 2026-09-13; BUILT in a worktree, NOT deployed)
+
+**What the owner asked.** A single agreement may mix MSA, NDA, PO and tax clauses; the label must
+not control the analysis; MISSING must rest on evidence the requirement is expected; NOT_APPLICABLE
+and UNCLEAR must not hide as MISSING; the Legal Constitution — now **L1.10**, supplied today — is the
+source of truth. Full ownership granted to amend any blocking lock.
+
+**What the R&D found (traced, not assumed).** Applicability was already content-first (`AM-51`);
+recognition was not: `AM-54` r4 switched the semantic stage off outside the declared family, and no
+standard is typed OTHER, so on an OTHER-typed or untyped document a Constitution position in
+different wording produced **no finding at all**. Time units never converted ("one (1) year" vs a
+MONTHS standard stayed Unclear forever). Absence was asserted by declared family only, and a
+non-applicable requirement was invisible. L1.10 changed no number in §§9–22 but added §24.4, §31 and
+Appendix B; §31.15 contradicts `AUTORENEW-MSA-001`'s fixed 6-month period.
+
+**Changed.**
+- `analysis/service.py` — the semantic stage runs for every pinned requirement (`AM-60`; gate
+  measured live in four declared-type modes: 0 semantic FP / 38 negatives, 0 changed-correct, each
+  time); `applicable_by_content` returns a reason per requirement — APPLIED (confirmed · declared ·
+  expected through a declared Constitution sibling), NOT_APPLICABLE, SAME_POSITION — written to the
+  analysis audit event and the report (`AM-61`); the same Constitution position is measured once;
+  mapping NONE on an applied numeric requirement is MISSING, not a dropped cardinality failure.
+- `evaluation/numeric.py` — declared, definitional unit conversion (`AM-62`): YEARS↔MONTHS,
+  WEEKS↔DAYS only, both gates required; the document's unit stays in `actual_value`.
+- `evaluation/constitution_block.py` (new) — the `constitution` block validated at publish and import.
+- 32 standards — `constitution` {section, topic, basis, expected_when}; `AUTORENEW-MSA-001` measures
+  the 30-day non-renewal notice (L1.10 §31.15; the period is negotiable — `_history` keeps the old
+  reading); six declare a conversion; three drop phrase-shaped unit terms. Golden fixture
+  `CLS-AUTORENEW-MSA-001` and the corpus variants follow.
+- `company_standards/proposed/` (new, read by nothing) — ten drafts from L1.10 §16/§13/§31.11/§31.14.
+- API — `requirement.constitution` on every Finding; `coverage.applicability` on the report.
+- Frontend — "What was measured, and what was not" on the report; "Constitution, Section 9 ·
+  Liability" (or "No Constitution position") on the card. No `§` added anywhere (owner, 2026-09-10).
+- Docs — `LEGAL_CONSTITUTION_L1.10.md` (redacted), L1.5 superseded, `CONSTITUTION_RECONCILIATION_2026-09-13.md`,
+  C-20 (§24.4 vs `AM-56`), C-21 (`AM-51` r5), registry rows, catalogue.
+- Merged `fix/not-recorded-precision` (`e7da39c`).
+
+**Measured, live, rolled back.** Real OTHER distribution agreement: 21 findings before and after,
+but 21 distinct positions instead of 15 + six duplicates; NON-SOLICIT "twelve (12) months" → 1
+year vs 2 → DEVIATION; AUTORENEW notice → DEVIATION; CURE-PERIOD both cure periods read → CONFLICT;
+two NDA positions recognised on the OTHER document; LIABILITY still Needs review on the
+unrecognised basis — by design. Real mixed document, untyped: 7 → 8 findings, 0 duplicates,
+dispute resolution MISSING because governing law is present, 23 NOT_APPLICABLE each with a reason.
+Synthetic mixed agreement (`test_mixed_agreement.py`): identical content verdicts under OTHER,
+untyped and MSA; PO and payment clauses surface as unmatched provisions.
+
+**Not changed, deliberately.** `FEES_PAID` vs "fees actually received" (45B.4). Family detection
+(the declared type only). `AM-56`'s mapping (C-20). No fifth classification. Nothing deployed;
+`AM-59`'s standards need re-import + publish to reach the live database.
+
 ### Fixed — "Not recorded" told the reader nothing, and part of it was false (owner investigation, 2026-09-13)
 
 Reported on a distribution agreement (contract type **OTHER**): five findings under *Needs a

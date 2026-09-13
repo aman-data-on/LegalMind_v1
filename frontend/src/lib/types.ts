@@ -409,6 +409,15 @@ export interface Finding {
     description?: string | null;
     version_id: string;
     version_number: number | null;
+    /** AM-59 — the Constitution section that states the measured position, its
+     *  Appendix B category and the basis in the Constitution's own vocabulary.
+     *  A citation, never a value; `section` null when the Constitution states no
+     *  position (basis `DOCUMENT_ONLY`); absent on pre-AM-59 snapshots. */
+    constitution?: {
+      section: string | null;
+      topic: string | null;
+      basis: string | null;
+    } | null;
   };
   /**
    * 49.7 r1 — a **derived, non-authoritative summary**. The API never returns it
@@ -436,12 +445,25 @@ export interface Escalation {
   created_at: string;
 }
 
+export type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION";
+
+export interface ApplicabilityRecord {
+  code: string;
+  section: string | null;
+  outcome: ApplicabilityOutcome;
+  reason: string;
+}
+
 export interface ReviewReport {
   review_id: string;
   review_status: string;
   coverage: {
     requirements_in_snapshot: number;
     requirements_with_findings: number;
+    /** AM-61 — every pinned requirement's applicability outcome and reason,
+     *  from the analysis run's audit record. What was NOT measured is shown,
+     *  with why — never inferred from a count. Empty on pre-AM-61 runs. */
+    applicability?: ApplicabilityRecord[];
   };
   classification_counts: Record<string, number>;
   user_status_counts?: Record<string, number>;

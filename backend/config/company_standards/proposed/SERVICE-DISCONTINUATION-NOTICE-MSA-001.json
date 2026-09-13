@@ -1,0 +1,101 @@
+{
+  "_about": [
+    "PROPOSED Company Standard — drafted 2026-09-13 under AM-59 r6 from the Legal Constitution L1.10's OWN words.",
+    "NOT RATIFIED: `ratified` is null, this directory is read by nothing (importer, assist index and verifiers glob",
+    "the parent only). The owner ratifies by setting `ratified` and moving the file up one directory (rule 21:",
+    "supplied source, human approval). Every value is quoted from the cited section; none is invented (rule 7)."
+  ],
+  "requirement_code": "SERVICE-DISCONTINUATION-NOTICE-MSA-001",
+  "description": "Planned discontinuation of a service is notified a set period in advance, or the service continues to the end of the committed term.",
+  "ratified": null,
+  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.14",
+  "source_quote": "Provide 30 days' advance notice, OR continue the service until the customer's committed contract period ends, whichever is later ... CONFIRMED.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.14",
+      "topic": "Major Changes — Service Discontinuation",
+      "basis": "COMPANY_APPROVED"
+    },
+    "preferred": 30,
+    "unit": "DAYS",
+    "basis": "SERVICE_DISCONTINUATION_NOTICE",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "advance notice",
+        "prior notice",
+        "notice of discontinuation",
+        "discontinue",
+        "retire"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days",
+          "days'"
+        ]
+      },
+      "bases": {
+        "SERVICE_DISCONTINUATION_NOTICE": [
+          "discontinu",
+          "retire",
+          "end of life",
+          "sunset"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "discontinue the service",
+      "discontinuation of the service",
+      "retire the service",
+      "end-of-life"
+    ],
+    "aliases": [
+      "service discontinuation",
+      "sunset"
+    ],
+    "keyword_groups": [
+      [
+        "discontinu",
+        "notice"
+      ],
+      [
+        "retire",
+        "notice",
+        "service"
+      ]
+    ],
+    "negative_patterns": [
+      "non-payment",
+      "fails to pay"
+    ],
+    "section_heading_terms": [
+      "discontinu",
+      "changes to the services"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "The compound position ('30 days OR the end of the committed period, whichever is later') has two limbs; this standard measures the notice limb only and the 'whichever is later' wording would be a COMPOSITE the extractor refuses to reduce (AM-54 r2) → a person. Live: a customer MSA's non-payment discontinuation clause is the DIFFERENT position §31.14 carves out — the negative patterns keep it out. Calibration outstanding."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

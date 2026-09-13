@@ -1811,3 +1811,58 @@ model-assisted reading that exists for exactly this (`AM-54`) never ran, because
 document type — and zero of the 32 standards are typed OTHER. Widening that gate amends `AM-54`;
 adding a basis synonym asserts a legal equivalence 45B.4 keeps distinct (rule 7). Both are owner
 decisions and are written up for approval rather than taken here.
+
+## 2026-09-13 — Constitution-driven, content-first review (AB-20, `AM-59`–`AM-62`) — BUILT in a worktree, NOT deployed
+
+### 317 — L1.10 is canonicalised with counterparty names redacted, not withheld
+The owner-supplied L1.10 names seven customer/partner/NDA counterparties as evidence (§15.5, §31). The
+repository never names one (source-material rules). Canonicalising a redacted copy keeps every position
+and cross-reference searchable and citable while adding nothing; withholding the file would have left the
+governing source outside the repository. Vendors cited for their published terms stay. The committed
+L1.5's names are reported (B-15), not rewritten — history rewriting is not a session's call.
+
+### 318 — `expected_when` is declared per standard, never inferred by section
+An automatic "same section confirmed → sibling expected" rule was simpler but blunter: §15 spans
+confidentiality, IP and non-solicitation, so one residuals clause would have made IP ownership and a
+two-year non-solicit "expected". The trigger list is written into each standard's `constitution` block
+from the Constitution's structure and reviewed as configuration. NON-SOLICIT, IP-OWNERSHIP, INDEMNITY,
+CURE-PERIOD, TERM-NOTICE, KYC-RETENTION, LATE-FEE, CLAIM-WINDOW and every DOCUMENT_ONLY standard are
+deliberately untriggered. Measured on the real mixed document: 0 false MISSING introduced.
+
+### 319 — the same Constitution position is measured once; the declared family's copy wins
+GOVLAW ×3, LIABILITY ×2, ARBITRATION ×2, RETURN-DESTRUCTION ×2 fired on one clause each. The
+signature is (section, value/unit/basis/scope) or (section, presence, scope) — so the MSA and NDA
+confidentiality-survival standards, whose bases differ, stay two positions. The kept copy's own
+mapping is evaluated; a union of evidence across copies was not built (recorded limitation).
+
+### 320 — NOT_APPLICABLE is a coverage outcome carried in the analysis audit event, not a column and not a classification
+The owner wants "not applicable" visible. 45B.26 forbids a fifth classification; a Review column is
+a schema change. The run already writes ANALYSIS_RUN_RECORDED; the per-requirement list rides in its
+`after_state` and the report reads it back. Older runs simply show an empty list.
+
+### 321 — unit conversions are two-gated: declared in the standard AND definitional in code
+Configuration cannot make thirty days a month. The Python table holds only identities of measure
+(YEARS↔MONTHS, WEEKS↔DAYS); a declared pair outside it is refused like an undeclared one. The
+conversions live in the Company Standard's own `configuration` because the importer accepts only
+the exact approved Legal Rule configuration.
+
+### 322 — the out-of-family gate was removed on measurement, not on argument
+Three extra corpus passes (OTHER, untyped, mismatched family) reproduced 0 semantic false positives
+on 38 hard negatives and 0 changed-correct results. Each of two passes lost one different variant
+— `AM-54` r6's run-to-run variance — recorded as "not applied", a new harness column, never as WRONG.
+
+### 323 — `AM-51` r5 is not implemented; registered C-21 instead of bending 49.8
+A type change cannot re-run analysis without a new Review identity. Rather than invent one, the
+gap is recorded with the exact amendment it needs. Since `AM-60` the type only adds the declared-family
+expectation, so the cost is bounded.
+
+### 324 — proposed standards live in a directory nothing reads
+Every reader of `company_standards/` globs the parent only. Ten drafts from L1.10 §16/§13/§31 sit
+in `proposed/` with `ratified: null`; ratification is the owner moving a file. No draft names a value
+its section does not state; two PO drafts are marked "no PO supplied" (rule 21).
+
+### 325 — established absence on a numeric requirement is MISSING, found live
+An applied numeric requirement with mapping NONE produced UNABLE_TO_EVALUATE with no evidence, which
+N-34 refused to persist — a silent, pre-existing gap in the declared family too. Now MISSING with zero
+evidence (45C.15), the shape PRESENCE always had.
+

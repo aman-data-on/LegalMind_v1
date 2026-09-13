@@ -71,6 +71,37 @@ def document_side(cap: Cap, scope_key: str) -> dict:
             "cap_basis": cap.cap_basis, "scope": scope_key}
 
 
+UNIT_CONVERSIONS = "unit_conversions"
+
+#: AM-62 — the ONLY conversions the engine will perform, and only when the Company
+#: Standard also declares the pair. Each is an identity of measure, not a legal
+#: equivalence: a year is twelve months by definition; a month is not thirty
+#: days by definition, so DAYS<->MONTHS is deliberately absent and can never be
+#: declared into existence (rule 7).
+DEFINITIONAL_UNIT_FACTORS: dict[tuple[str, str], float] = {
+    ("YEARS", "MONTHS"): 12.0, ("MONTHS", "YEARS"): 1 / 12,
+    ("WEEKS", "DAYS"): 7.0, ("DAYS", "WEEKS"): 1 / 7,
+}
+
+
+def declared_unit_factor(standard: dict, from_unit: str | None,
+                         to_unit: str | None) -> float | None:
+    """The factor that reads `from_unit` as `to_unit`, or None (fail closed).
+
+    Both gates must open: the standard's `unit_conversions` lists the pair AND
+    the pair is definitional. A declared pair the engine does not recognise is
+    refused exactly like an undeclared one — configuration cannot widen what
+    "the same quantity" means (44.29, 45C.23).
+    """
+    if from_unit is None or to_unit is None:
+        return None
+    for rule in standard.get(UNIT_CONVERSIONS) or ():
+        if (isinstance(rule, dict) and rule.get("from_unit") == from_unit
+                and rule.get("to_unit") == to_unit):
+            return DEFINITIONAL_UNIT_FACTORS.get((from_unit, to_unit))
+    return None
+
+
 def standard_side(standard: dict) -> dict | None:
     """The organization's own position, for reporting alongside ANY result.
 
@@ -217,15 +248,30 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                            f"Standard scope {standard_scope}",
                            "no cross-scope comparison is performed (45C.5)"))
 
+    unit_note: str | None = None
     if cap.cap_unit != standard.get(UNIT):
-        return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
-                       RuleOutcome.NOT_APPLICABLE,
-                       expected_value=standard_side(standard),
-                       actual_value=document_side(cap, scope_key),
-                       explanation=(
-                           f"unit {cap.cap_unit} differs from the Company "
-                           f"Standard unit {standard.get(UNIT)}",
-                           "units are not silently converted (45C.23)"))
+        # AM-62 — a DECLARED, DEFINITIONAL conversion is not a silent one. The
+        # standard must declare the pair, the pair must be one the engine knows
+        # to be an identity of measure (a year IS twelve months), and the
+        # arithmetic is done here, in tested code (44.29). Anything else stays
+        # exactly where 45C.23 left it: UNABLE_TO_EVALUATE, a person decides.
+        factor = declared_unit_factor(standard, cap.cap_unit, standard.get(UNIT))
+        if factor is None:
+            return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
+                           RuleOutcome.NOT_APPLICABLE,
+                           expected_value=standard_side(standard),
+                           actual_value=document_side(cap, scope_key),
+                           explanation=(
+                               f"unit {cap.cap_unit} differs from the Company "
+                               f"Standard unit {standard.get(UNIT)}",
+                               "units are not converted without a declared, "
+                               "definitional conversion (45C.23, AM-62)"))
+        assert cap.cap_value is not None
+        unit_note = (f"{cap.cap_value:g} {cap.cap_unit} read as "
+                      f"{cap.cap_value * factor:g} {standard.get(UNIT)} under the "
+                      f"declared conversion (1 {cap.cap_unit} = {factor:g} "
+                      f"{standard.get(UNIT)}; AM-62)")
+        cap = replace(cap, cap_value=cap.cap_value * factor, cap_unit=standard.get(UNIT))
 
     standard_basis = standard.get(BASIS)
     if not rule_config.basis_is_comparable(cap.cap_basis, standard_basis):
@@ -243,12 +289,17 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                        explanation=(detail, "bases are not assumed equivalent "
                                             "(45B.4, 45C.23)"))
 
-    return _compare(base, cap, standard, legal_rule, scope_key)
+    return _compare(base, cap, standard, legal_rule, scope_key, conversion=unit_note)
 
 
 def _compare(base, cap: Cap, standard: dict, legal_rule,
-             scope_key: str) -> EvaluationResult:
-    """The ordinal comparison. Thresholds are configuration (45B.9)."""
+             scope_key: str, conversion: str | None = None) -> EvaluationResult:
+    """The ordinal comparison. Thresholds are configuration (45B.9).
+
+    `conversion` is the AM-62 sentence when the document's quantity was read in a
+    different, declared unit; it travels in the explanation so the reader sees
+    the document's own words AND the arithmetic that made them comparable.
+    """
     preferred = standard.get(PREFERRED)
     if preferred is None:
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
@@ -264,6 +315,7 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
                 BASIS: standard.get(BASIS), SCOPE_KEY: standard.get(SCOPE_KEY)}
     actual_value = {"cap_value": actual, "cap_unit": cap.cap_unit,
                     "cap_basis": cap.cap_basis, "scope": scope_key}
+    converted: tuple[str, ...] = (conversion,) if conversion else ()
 
     if actual == preferred:
         return _result(base, FindingClassification.MATCH,
@@ -271,9 +323,10 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
                        expected_value=expected, actual_value=actual_value,
                        operator="==",
                        comparison={"expected": preferred, "actual": actual,
-                                   "operator": "==", "result": True},
+                                   "operator": "==", "result": True,
+                                   **({"conversion": conversion} if conversion else {})},
                        explanation=(f"{actual} {cap.cap_unit} equals the Company "
-                                    f"Standard of {preferred}",))
+                                    f"Standard of {preferred}", *converted))
 
     outcome, rule_detail = _rule_outcome_for(actual, legal_rule)
     return _result(base, FindingClassification.DEVIATION, outcome,
@@ -286,7 +339,8 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
                        f"{actual} {cap.cap_unit} differs from the Company "
                        f"Standard of {preferred}",
                        f"configured rule outcome: {outcome.value}"
-                       + (f" ({rule_detail})" if rule_detail else "")))
+                       + (f" ({rule_detail})" if rule_detail else ""),
+                       *converted))
 
 
 def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:

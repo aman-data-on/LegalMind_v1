@@ -17,6 +17,12 @@
   "source_quote": "The Customer shall, at its sole cost and expense, defend, indemnify, and hold harmless Leapswitch, its affiliates, officers, directors, employees, agents, and subcontractors (“Indemnified Parties”)",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "10",
+      "topic": "Indemnification",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "INDEMNIFICATION",
     "applicability": "REQUIRED"

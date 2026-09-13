@@ -17,6 +17,12 @@
   "source_quote": "The foregoing limitations shall not apply to the Customer's indemnity obligations under this Agreement, the Customer's breach of payment obligations, or damages resulting from the Customer's fraud, willful misconduct, or gross negligence.",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "9",
+      "topic": "Liability",
+      "basis": "DOCUMENT_ONLY"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "LIABILITY_CAP_CARVE_OUTS",
     "applicability": "REQUIRED"

@@ -17,6 +17,19 @@
   "source_quote": "the Receiving Party's personnel may retain and use, in the conduct of its ordinary business activities, any Confidential Information that is incidentally retained in the unaided memory of such personnel",
   "configuration": {
     "document_type": "NDA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "CONF-SURVIVAL-MSA-001",
+          "CONF-SURVIVAL-NDA-001",
+          "TRADE-SECRET-CARVEOUT-NDA-001"
+        ]
+      }
+    },
     "expected_presence": "PRESENT",
     "scope_key": "RESIDUALS",
     "applicability": "REQUIRED"

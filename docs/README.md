@@ -112,7 +112,9 @@ Declared at the top of every specification document. Never mix states without la
 | [LEGAL_RULES.md](02-legal-domain/LEGAL_RULES.md) | How far the organization tolerates departing from a Standard |
 | [FINDING_CLASSIFICATION.md](02-legal-domain/FINDING_CLASSIFICATION.md) | The seven Finding classifications; RESOLVED ≠ MATCH |
 | [LEGAL_DECISIONS.md](02-legal-domain/LEGAL_DECISIONS.md) | Authorized human rulings; the engine never produces one |
-| [LEGAL_CONSTITUTION_L1.5.md](02-legal-domain/LEGAL_CONSTITUTION_L1.5.md) | **The governing source for company positions** (owner ruling 2026-09-08, `AM-43`) — verbatim Markdown of the lawyer-review DOCX; configuration source, never runtime corpus |
+| [LEGAL_CONSTITUTION_L1.10.md](02-legal-domain/LEGAL_CONSTITUTION_L1.10.md) | **The governing source for company positions** (`AM-59`, 2026-09-13, superseding L1.5 under `AM-43`) — the owner-supplied Lawyer Review Version L1.10, verbatim except counterparty names in §15.5/§31 evidence lines, redacted; configuration source, never runtime corpus |
+| [LEGAL_CONSTITUTION_L1.5.md](02-legal-domain/LEGAL_CONSTITUTION_L1.5.md) | 📁 SUPERSEDED by L1.10 (`AM-59`) — the 2026-09-08 canonical copy, retained for the `AM-43` reconciliation record |
+| [CONSTITUTION_RECONCILIATION_2026-09-13.md](02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-13.md) | The L1.10 handoff: full requirement inventory, L1.5→L1.10 differences, Constitution-side defects, Constitution→standard map, coverage gaps, what was built (AB-20), decisions still open |
 | [REQUIREMENT_DESCRIPTIONS_2026-09-09.md](02-legal-domain/REQUIREMENT_DESCRIPTIONS_2026-09-09.md) | 📁 The 32 plain-English requirement descriptions shown on the Finding card — requirement → source clause → source quote → line — awaiting Counsel's wording approval; explanatory only, never an evaluator input |
 | [CONSTITUTION_RECONCILIATION_2026-09-08.md](02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-08.md) | The engineering/legal handoff: Constitution rules inspected, conflicts found and resolved, effective values, what remains for Counsel |
 

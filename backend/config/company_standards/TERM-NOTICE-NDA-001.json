@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard \u2014 NDA document type. OWNER DESIGNATION 2026-08-19:",
+    "RATIFIED Company Standard — NDA document type. OWNER DESIGNATION 2026-08-19:",
     "the executed NDA of 17 June 2026 IS the LeapSwitch NDA, i.e. the positions",
     "LeapSwitch accepts AS RECEIVING PARTY. Under the manager's whatever-is-stated",
     "rule those accepted positions are the baseline for reviewing counterparty NDAs",
@@ -16,11 +16,17 @@
   "requirement_code": "TERM-NOTICE-NDA-001",
   "description": "Either party may end the NDA early by giving a set period of written notice.",
   "ratified": "2026-08-19",
-  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 — NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
   "source_clause": "9 Term and Survival",
   "source_quote": "unless earlier terminated by either Party in writing with thirty (30) days' notice.",
   "configuration": {
     "document_type": "NDA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "13",
+      "topic": "Termination & Suspension",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
     "preferred": 30,
     "unit": "DAYS",
     "basis": "TERMINATION_NOTICE_PERIOD",

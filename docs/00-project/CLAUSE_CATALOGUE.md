@@ -15,6 +15,15 @@ clause**, never invented. Rule 7/21 satisfied: the positions are the documents' 
 > records the drafting corrections as "in progress"). The previous source clause and value are
 > preserved in each standard file's `_history`. Every other row is unchanged.
 
+> **⚖️ 2026-09-13 — AB-20 / `AM-59`.** The Constitution is now **L1.10** (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md`).
+> Every standard's `configuration.constitution` names its section, Appendix B topic and basis
+> (`STAKEHOLDER_CONFIRMED` · `APPLICABLE_LAW` · `COMPANY_APPROVED` · `LEGALMIND_RULE` · `NOT_ADOPTED` ·
+> `DOCUMENT_ONLY` for the eight with no Constitution position), plus `expected_when` for the
+> positions a confirmed sibling makes expected (`AM-61`). Six standards declare `unit_conversions`
+> (`AM-62`). One row changed value (AUTORENEW-MSA-001, below). Ten further positions the Constitution
+> states are DRAFTED, not ratified, under `backend/config/company_standards/proposed/` — see that
+> directory's README and [CONSTITUTION_RECONCILIATION_2026-09-13.md](../02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-13.md).
+
 Register note: the owner's conflict register was located at
 `/root/LegalMind/docs/CONFLICT_GAP_ANALYSIS.md` (owner authorized that location,
 2026-08-19). Its own tracker marks C-01/C-04/C-05/C-07/C-23 "Needs owner decision" and
@@ -49,7 +58,7 @@ goes to Legal with the evidence.
 | CONF-SURVIVAL-MSA-001 | Confidentiality survival | **3 years** post-termination | §12.3 | NUMERIC |
 | FORCE-MAJEURE-MSA-001 | FM termination trigger | **60 consecutive days** | §18.3 | NUMERIC |
 | CURE-PERIOD-MSA-001 | Breach cure period | **30 days** | §7.4 | NUMERIC |
-| AUTORENEW-MSA-001 | Auto-renewal term | **6 months** | §7.3 | NUMERIC |
+| AUTORENEW-MSA-001 ⚖️2026-09-13 | Auto-renewal — non-renewal notice | **30 days' notice of non-renewal** (Constitution L1.10 §31.15: the renewal PERIOD is "a negotiable commercial term, not a fixed Constitution value"; was **6 months** term from §7.3 — kept in `_history`, `AM-59` r4) | Constitution §31.15 | NUMERIC |
 | DATA-PURGE-MSA-001 ⚖️2026-09-08 | Post-termination data purge | **30 days** (Constitution §13: deletion only after the 30-day retrieval window; was 15 days from §7.6.6 — now a DEVIATION) | Constitution §13 | NUMERIC |
 | GOVLAW-MSA-001 | Governing law clause | present (laws of India) | §19.1 | PRESENCE |
 | ARBITRATION-MSA-001 | Arbitration clause | present (Mumbai, ACA 1996) | §19.3–19.4 | PRESENCE |

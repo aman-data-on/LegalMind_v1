@@ -42,6 +42,7 @@ from legalmind import config
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.document_types import is_document_type
+from legalmind.evaluation.constitution_block import constitution_block_error
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 
 
@@ -70,6 +71,8 @@ def _validate(path: Path, payload: dict) -> None:
         raise ImportRefused(
             f"{path.name}: configuration.document_type {cfg.get('document_type')!r} "
             "is not a locked Step 6 value")
+    if (problem := constitution_block_error(cfg)):
+        raise ImportRefused(f"{path.name}: {problem}")
     for field in ("ratified", "source_document", "source_clause"):
         if not payload.get(field):
             raise ImportRefused(

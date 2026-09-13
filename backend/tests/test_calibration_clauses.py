@@ -30,6 +30,7 @@ from uuid import uuid4
 
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 from legalmind.extraction.liability import (
+    ABSENT,
     FINITE,
     LiabilityExtractionConfig,
     extract_liability_facts,
@@ -113,20 +114,38 @@ def test_ctrls_ten_day_cure_period_is_read():
     assert cap.cap_basis == "BREACH_CURE_PERIOD"
 
 
-def test_a_day_denominated_renewal_term_surfaces_the_unit_mismatch():
+def test_a_renewal_period_clause_states_no_non_renewal_notice():
     """CtrlS MSA §1.23 (ctrls.in): 'automatic renewal period ... consecutive
-    rolling 90 days terms'. DAYS is configured as a recognisable unit precisely
-    so the evaluator refuses EXPLICITLY (unit differs, 45C.23) instead of
-    reporting an unreadable clause."""
+    rolling 90 days terms'. Since AM-59 r4 (Constitution L1.10 §31.15) the
+    renewal PERIOD is a negotiable commercial term and is not measured; the
+    standard measures the NON-RENEWAL NOTICE. A clause that only states a
+    period is recognised (CONFIRMED) and states no notice — ABSENT, never a
+    90-vs-anything comparison and never a guessed notice."""
     result, facts = _run("AUTORENEW-MSA-001", (
         "Renewal Term means the automatic renewal period following expiry of "
         "the Initial Term, for consecutive rolling 90 days terms unless "
         "otherwise provided under the STA."))
     assert result.state.value == "CONFIRMED"
     cap = _single_cap(facts)
-    assert (cap.cap_status, cap.cap_value, cap.cap_unit) == (FINITE, 90.0, "DAYS")
-    # The ratified unit is MONTHS; the evaluator's strict unit equality turns
-    # this into UNABLE_TO_EVALUATE, never a silent 90-vs-6 comparison.
+    assert cap.cap_status == ABSENT
+
+
+def test_the_live_msa_non_renewal_notice_is_read_as_thirty_days():
+    """The wording every live MSA §31.15 cites uses: 'unless notice is given ...
+    to stop the Services, at least thirty (30) days prior to the expiry of the
+    Initial Term (or as the case may be a Renewal Term)'. 30 DAYS, basis
+    NON_RENEWAL_NOTICE — the §31.15 position, read from the document's words."""
+    result, facts = _run("AUTORENEW-MSA-001", (
+        "5.2 On the expiration of the Initial Term, the Renewal Term shall "
+        "automatically commence upon the same terms and conditions, unless "
+        "notice is given by either Party in the manner described in Clause 22 "
+        "(Notices) of this Agreement to stop the Services, at least thirty (30) "
+        "days prior to the expiry of the Initial Term (or as the case may be a "
+        "Renewal Term)."))
+    assert result.state.value == "CONFIRMED"
+    cap = _single_cap(facts)
+    assert (cap.cap_status, cap.cap_value, cap.cap_unit) == (FINITE, 30.0, "DAYS")
+    assert cap.cap_basis == "NON_RENEWAL_NOTICE"
 
 
 def test_the_generic_force_majeure_trigger_wording_is_read_by_the_msa_requirement():

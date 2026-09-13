@@ -1,5 +1,9 @@
 # Legal Mind — Legal Constitution — Lawyer Review Version L1.5
 
+> **📁 SUPERSEDED 2026-09-13 by [LEGAL_CONSTITUTION_L1.10.md](LEGAL_CONSTITUTION_L1.10.md) (`AM-59`, AB-20).**
+> Retained unchanged as the record `AM-43` (2026-09-08) reconciled against. No value in §§9–22 differs
+> between the two versions; L1.10 adds §24.4, §31 and Appendix B/F. Read L1.10 for the current position.
+>
 > **Canonical engineering representation** of `LegalMind_Legal_Constitution_Lawyer_Review_fv.docx`,
 > converted verbatim on 2026-09-08 (owner instruction: treat the Constitution as the single source of truth
 > for legal/business requirements). Headings, paragraphs and tables are preserved; nothing is added.

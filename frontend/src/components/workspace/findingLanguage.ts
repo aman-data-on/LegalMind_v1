@@ -215,6 +215,23 @@ const DETERMINATION_LABELS: Record<string, string> = {
   UNABLE_TO_EVALUATE: "Unclear",
 };
 
+/** AM-59 — the Finding's source citation (Constitution §23.5), presentation only.
+ *  A section and its Appendix B category when the Constitution states the
+ *  position; the honest alternative when it does not. Never a value, never a
+ *  verdict, and nothing at all for a snapshot that predates the block. */
+export function constitutionCitation(finding: Pick<Finding, "requirement">): string | null {
+  const c = finding.requirement.constitution;
+  if (!c) return null;
+  if (c.basis === "DOCUMENT_ONLY" || !c.section) {
+    return "No Constitution position — measured against a LeapSwitch document clause";
+  }
+  const qualifier = c.basis === "LEGALMIND_RULE" ? " · analysis rule, not company-evidenced"
+    : c.basis === "APPLICABLE_LAW" ? " · applicable law"
+    : c.basis === "NOT_ADOPTED" ? " · not currently adopted"
+    : "";
+  return `Constitution, Section ${c.section}${c.topic ? ` · ${c.topic}` : ""}${qualifier}`;
+}
+
 export function determinationLabel(classification: string): string | null {
   return DETERMINATION_LABELS[classification] ?? null;
 }

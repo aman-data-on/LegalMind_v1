@@ -21,6 +21,12 @@
   "source_quote": "the Receiving Party shall promptly return or permanently destroy all Confidential Information ... and shall certify such return or destruction in writing if requested",
   "configuration": {
     "document_type": "NDA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "DOCUMENT_ONLY"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "RETURN_OR_DESTRUCTION",
     "applicability": "REQUIRED"

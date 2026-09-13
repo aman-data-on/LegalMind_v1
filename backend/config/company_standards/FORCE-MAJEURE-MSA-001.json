@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard FORCE-MAJEURE-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard FORCE-MAJEURE-MSA-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -9,11 +9,17 @@
   "requirement_code": "FORCE-MAJEURE-MSA-001",
   "description": "If a force majeure event lasts longer than a set period, either party may end the agreement by written notice.",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "18.3 Extended Force Majeure",
   "source_quote": "If a Force Majeure Event continues for a period exceeding sixty (60) consecutive days, either Party may terminate this Agreement upon written notice.",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": null,
+      "topic": "Force Majeure",
+      "basis": "DOCUMENT_ONLY"
+    },
     "preferred": 60,
     "unit": "DAYS",
     "basis": "FORCE_MAJEURE_TERMINATION_TRIGGER",

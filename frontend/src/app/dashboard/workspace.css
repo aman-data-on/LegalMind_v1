@@ -1372,6 +1372,22 @@
   padding: var(--ws-s3); background: var(--ws-surface);
 }
 .ws-report__unmatched-item a { font-size: var(--ws-text-sm); font-weight: 550; }
+/* AM-61 — what was measured, and what was not. A dense reference table in the
+   product's own tokens: the requirement, its Constitution section, the engine's
+   reason verbatim. Scrolls horizontally on a narrow screen rather than breaking
+   the page (UX: table handling); row headers carry the code in mono beneath. */
+.ws-report__scroll { overflow-x: auto; margin: 0 0 var(--ws-s3); }
+.ws-report__table {
+  width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-surface);
+}
+.ws-report__table th, .ws-report__table td {
+  text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--ws-ink-100);
+}
+.ws-report__table thead th { border-top: 0; color: var(--ws-ink-500); font-weight: 550; white-space: nowrap; }
+.ws-report__table tbody th { font-weight: 550; color: var(--ws-ink-700); min-width: 12rem; }
+.ws-report__table td:nth-child(2) { white-space: nowrap; color: var(--ws-ink-500); }
+.ws-report__code { display: block; font-size: var(--ws-text-xs); font-weight: 450; color: var(--ws-ink-500); margin-top: 2px; }
 .ws-report__unmatched-item .ws-quote {
   display: block; margin: 6px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
 }
@@ -3464,6 +3480,7 @@
 .ws-finding { border-radius: var(--ws-radius); padding: var(--ws-s4) var(--ws-s5); }
 /* What each of two same-titled standards asks — shown only on a collision. */
 .ws-finding__asks { font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4; }
+.ws-finding__source { font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.4; }
 .ws-pane__body--pad { padding: var(--ws-s4); }
 .ws-finding__titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ws-finding__det {

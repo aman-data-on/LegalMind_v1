@@ -17,6 +17,12 @@
   "source_quote": "receiving party shall promptly return to the disclosing party or destroy at the disclosing party’s option all documents and materials (including computer media) containing any Confidential Information",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "DOCUMENT_ONLY"
+    },
     "expected_presence": "PRESENT",
     "scope_key": "RETURN_OR_DESTRUCTION",
     "applicability": "REQUIRED"

@@ -82,9 +82,14 @@ CORPUS: dict[str, list[tuple[str, list[str], str | None]]] = {
   ("neg-term-of-agreement", ["7.1 This Agreement has an initial term of three years from the Service Commencement Date."], None),
  ],
  "AUTORENEW-MSA-001": [
-  ("synonym", ["7.3 Rollover. Unless either party gives notice of non-renewal, this Agreement rolls over for further terms of six months each on the same conditions."], None),
-  ("reordered", ["On expiry of the Term this Agreement shall automatically renew for successive periods of 6 months, unless terminated in accordance with this Section."], "MATCH"),
-  ("table", ["RENEWAL | automatic | successive periods of six (6) months"], None),
+  # AM-59 r4 (L1.10 §31.15): the standard measures the 30-day NON-RENEWAL NOTICE; the
+  # renewal PERIOD is a negotiable commercial term and is not measured.
+  ("synonym", ["7.3 Rollover. This Agreement rolls over for further terms on the same conditions unless either party gives written notice of non-renewal at least thirty (30) days before the end of the then-current term."], "MATCH"),
+  ("reordered", ["Thirty (30) days' written notice of non-renewal, given before the current term ends, is what prevents this Agreement from automatically renewing for a further term."], "MATCH"),
+  ("live-wording", ["5.2 On the expiration of the Initial Term, the Renewal Term shall automatically commence upon the same terms and conditions, unless notice is given by either Party to stop the Services, at least thirty (30) days prior to the expiry of the Initial Term (or as the case may be a Renewal Term)."], "MATCH"),
+  ("table", ["RENEWAL | automatic | notice of non-renewal 30 days before the end of the term"], "MATCH"),
+  ("genuine-difference", ["7.3 This Agreement shall automatically renew for successive terms unless either party gives notice of non-renewal at least sixty (60) days prior to the expiry of the then-current term."], "DEVIATION"),
+  ("period-only", ["On expiry of the Term this Agreement shall automatically renew for successive periods of 6 months, unless terminated in accordance with this Section."], None),
   ("neg-renewal-of-licence", ["The Customer must renew its software licences with the third-party vendor annually."], None),
   ("neg-price-review", ["Charges are reviewed every six months and may be revised on 30 days' notice."], None),
  ],
@@ -189,10 +194,29 @@ def _standard(code: str) -> dict:
     return json.loads((STD / f"{code}.json").read_text())
 
 
+_MISMATCH = {"MSA": "NDA", "NDA": "TOS", "TOS": "MSA", "SLA": "MSA"}
+
+
+def _declared(family: str) -> str | None:
+    """The type the document DECLARES for this run — the AM-60 out-of-family gate.
+
+    LEGALMIND_RD_DECLARED_TYPE: unset/"same" = the standard's own family (the AM-54
+    r13 baseline); "OTHER"; "none" = no type; "mismatch" = a different real family.
+    """
+    mode = os.environ.get("LEGALMIND_RD_DECLARED_TYPE", "same")
+    if mode == "same":
+        return family
+    if mode == "none":
+        return None
+    if mode == "mismatch":
+        return _MISMATCH[family]
+    return mode
+
+
 def _review(build, family: str, paragraphs: list[str]) -> M.Review:
     db = build.db
-    contract = M.Contract(owner_id=build.owner.id, name=f"RD {family}", contract_type=family,
-                          status=E.ContractStatus.ACTIVE)
+    contract = M.Contract(owner_id=build.owner.id, name=f"RD {family}",
+                          contract_type=_declared(family), status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()
     result = ingest_document(db, build.storage, contract_id=contract.id,
                              uploaded_by=build.owner.id, data=build_docx(paragraphs),
@@ -261,23 +285,33 @@ def test_zz_report():
     fp_lexical = [r for r in neg if r["sem_map"] == "CONFIRMED" and r["lex_map"] == "CONFIRMED"]
     neg_safe = [r for r in neg if r["sem_map"] == "UNRESOLVED"]
     cls_ok = [r for r in pos if r["expected"] and r["sem_cls"] == r["expected"]]
-    cls_bad = [r for r in pos if r["expected"] and r["sem_cls"] not in (r["expected"], "UNABLE_TO_EVALUATE")]
+    # Out of the declared family (AM-60) a clause the words and the model both
+    # left unconfirmed is NOT APPLICABLE — recorded, no Finding — which is the
+    # fail-closed shape there, distinct from a wrong classification. In-family it
+    # cannot happen (the family makes the Requirement apply), so the count is
+    # zero in the AM-54 r13 baseline mode.
+    not_applied = [r for r in pos if r["expected"] and r["sem_cls"] == "none"]
+    cls_bad = [r for r in pos if r["expected"]
+               and r["sem_cls"] not in (r["expected"], "UNABLE_TO_EVALUATE", "none")]
     cls_safe = [r for r in pos if r["expected"] and r["sem_cls"] == "UNABLE_TO_EVALUATE"]
     lex_correct = [r for r in pos if r["expected"] and r["lex_cls"] == r["expected"]]
     changed_correct = [r for r in lex_correct if r["sem_cls"] != r["lex_cls"]]
     recovered = [r for r in pos if r["expected"] and r["lex_cls"] != r["expected"] and r["sem_cls"] == r["expected"]]
     lines = [
         "# AM-54 semantic recognition — live corpus report", "",
+        f"declared type mode: {os.environ.get('LEGALMIND_RD_DECLARED_TYPE', 'same')}", "",
         f"variants: {len(ROWS)} ({len(pos)} positives, {len(neg)} negatives) across {len(CORPUS)} standards; model calls: {CALLS['n']}", "",
         f"RECOGNITION  TP {len(tp)}/{len(pos)} · FN→MISSING {len(fn_missing)} · FN→Needs review {len(fn_review)}",
         f"NEGATIVES    semantic FP {len(fp)}/{len(neg)} · lexical FP (pre-existing) {len(fp_lexical)} · fail-safe (Needs review) {len(neg_safe)} · correctly not mapped {len(neg) - len(fp) - len(fp_lexical) - len(neg_safe)}",
-        f"CLASSIFICATION (positives with an expected result)  correct {len(cls_ok)} · fail-safe {len(cls_safe)} · WRONG {len(cls_bad)}",
+        f"CLASSIFICATION (positives with an expected result)  correct {len(cls_ok)} · fail-safe {len(cls_safe)} · not applied (out-of-family, recorded) {len(not_applied)} · WRONG {len(cls_bad)}",
         f"LEXICAL BASELINE  correct {len(lex_correct)} · recovered by semantic {len(recovered)} · CHANGED-A-CORRECT-RESULT {len(changed_correct)}", "",
         "| standard | variant | expected | lexical map/cls | semantic map/cls | note |", "|---|---|---|---|---|---|",
     ]
     for r in ROWS:
         note = ("FP" if r in fp else "lexical-FP" if r in fp_lexical else "WRONG" if r in cls_bad else "changed-correct" if r in changed_correct
-                else "recovered" if r in recovered else "FN" if r in fn_missing else "fail-safe" if (r in fn_review or r in neg_safe or r in cls_safe) else "")
+                else "recovered" if r in recovered else "FN" if r in fn_missing
+                else "not-applied" if r in not_applied
+                else "fail-safe" if (r in fn_review or r in neg_safe or r in cls_safe) else "")
         lines.append(f"| {r['code']} | {r['kind']} | {r['expected'] or '—'} | {r['lex_map']}/{r['lex_cls']} | {r['sem_map']}/{r['sem_cls']} | {note} |")
     REPORT.write_text("\n".join(lines) + "\n")
     print("\n".join(lines[:8]))
