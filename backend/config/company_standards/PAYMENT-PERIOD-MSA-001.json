@@ -83,13 +83,16 @@
     "section_heading_terms": [
       "payment",
       "fees",
-      "invoic"
+      "invoice",
+      "invoices",
+      "invoicing"
     ],
     "confirm_threshold": 5
   },
   "_calibration": [
     "Live wording seen 2026-09-13: a partner agreement 'within [30] days of the invoice date'; two customer MSAs bill 'by the 25th day of the month' / 'Grace Period 15 (fifteen) days from the due date' — neither states a day-count from the invoice date and would fall to a person (UNKNOWN), correctly. Negotiable per §16: Net-30 'subject to commercial approval'.",
-    "'business days' is listed as a DAYS term deliberately so the reader is told the unit was read; whether business days equal calendar days is the owner's call, not a conversion (AM-62 r1)."
+    "'business days' is listed as a DAYS term deliberately so the reader is told the unit was read; whether business days equal calendar days is the owner's call, not a conversion (AM-62 r1).",
+    "2026-09-14 (AM-65 loop): truncated stems replaced with whole words. Matching is word-boundary (mapping/scoring.contains_phrase), so 'terminat' never matched 'termination' and 'invoic' never matched 'invoice' — the term contributed nothing. Recall loss only; no verdict changed."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

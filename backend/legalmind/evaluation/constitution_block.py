@@ -23,9 +23,42 @@ BASES: frozenset[str] = frozenset({
     "LEGALMIND_RULE",          # §31 practice-based rule; never Acceptable by guess
     "NOT_ADOPTED",             # §31.6a: "NOT CURRENTLY ADOPTED" — never a current rule
     "DOCUMENT_ONLY",           # no Constitution position; source is a LeapSwitch clause
+    "RETIRED",                 # AM-65: withdrawn from active review; history preserved
 })
 
+#: AM-65 (owner, 2026-09-14) — the exact words a retired standard must carry, so the
+#: reason is in the file rather than only in a lock record.
+RETIRED_MARKER = "RETIRED — NOT PRESENT IN CURRENT CONSTITUTION"
+
 _SECTION = re.compile(r"^\d{1,2}(\.\d{1,2}[a-z]?)?$")
+
+
+def is_retired(payload: dict | None) -> bool:
+    """True when the standard file declares itself retired (AM-65).
+
+    Read from the FILE, not from the database: the importer uses it to set
+    `Requirement.status = DEPRECATED`, which is what actually keeps the standard
+    out of every future configuration snapshot.
+    """
+    return isinstance((payload or {}).get("retired"), dict)
+
+
+def retired_block_error(payload: dict | None) -> str | None:
+    """None when a `retired` block is well-formed or absent; else the refusal."""
+    block = (payload or {}).get("retired")
+    if block is None:
+        return None
+    if not isinstance(block, dict):
+        return "retired block is not an object"
+    if block.get("marker") != RETIRED_MARKER:
+        return f"retired.marker must read exactly {RETIRED_MARKER!r}"
+    for field in ("date", "reason", "ruling"):
+        if not isinstance(block.get(field), str) or not block[field].strip():
+            return f"retired.{field} is required — a retirement without its reason is not a record"
+    basis = ((payload or {}).get("configuration") or {}).get("constitution", {}).get("basis")
+    if basis != "RETIRED":
+        return "a retired standard must declare constitution.basis RETIRED"
+    return None
 
 
 def constitution_block_error(configuration: dict | None) -> str | None:
@@ -44,7 +77,7 @@ def constitution_block_error(configuration: dict | None) -> str | None:
     if block.get("basis") not in BASES:
         return (f"constitution.basis {block.get('basis')!r} is not one of "
                 + ", ".join(sorted(BASES)))
-    if section is None and block.get("basis") != "DOCUMENT_ONLY":
+    if section is None and block.get("basis") not in ("DOCUMENT_ONLY", "RETIRED"):
         return "a standard with no Constitution section can only have basis DOCUMENT_ONLY"
     when = block.get("expected_when")
     if when is not None:

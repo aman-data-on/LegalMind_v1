@@ -512,3 +512,24 @@ describe("constitutionCitation", () => {
       .toBe("Constitution, Section 31.11 · Orders · analysis rule, not company-evidenced");
   });
 });
+
+describe("constitutionCitation — retired standards (AM-65)", () => {
+  const req = (over: Record<string, unknown>) =>
+    ({ requirement: { code: "FORCE-MAJEURE-MSA-001", name: null, version_id: "v", version_number: 1, ...over } }) as never;
+
+  it("says a retired standard is retired, never that it is approved", () => {
+    expect(constitutionCitation(req({ retired: true, constitution: { section: null, topic: "Force Majeure", basis: "RETIRED" } })))
+      .toBe("Retired — not present in the current Constitution; kept for the record only");
+  });
+
+  it("says so for a historical finding whose pinned snapshot predates the retirement", () => {
+    // The snapshot still carries the old DOCUMENT_ONLY block; current status wins.
+    expect(constitutionCitation(req({ retired: true, constitution: { section: "15", topic: "Confidentiality", basis: "DOCUMENT_ONLY" } })))
+      .toContain("Retired");
+  });
+
+  it("leaves an active standard's citation alone", () => {
+    expect(constitutionCitation(req({ retired: false, constitution: { section: "9", topic: "Liability", basis: "STAKEHOLDER_CONFIRMED" } })))
+      .toBe("Constitution, Section 9 · Liability");
+  });
+});

@@ -22,10 +22,7 @@
       "expected_when": {
         "confirmed_any": [
           "RESIDUALS-NDA-001",
-          "RETURN-DESTRUCTION-MSA-001",
-          "RETURN-DESTRUCTION-NDA-001",
           "TRADE-SECRET-CARVEOUT-NDA-001",
-          "COMPELLED-DISCLOSURE-NDA-001",
           "CONF-SURVIVAL-NDA-001"
         ]
       }

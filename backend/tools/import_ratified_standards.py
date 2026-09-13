@@ -42,7 +42,11 @@ from legalmind import config
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.document_types import is_document_type
-from legalmind.evaluation.constitution_block import constitution_block_error
+from legalmind.evaluation.constitution_block import (
+    constitution_block_error,
+    is_retired,
+    retired_block_error,
+)
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 
 
@@ -72,6 +76,8 @@ def _validate(path: Path, payload: dict) -> None:
             f"{path.name}: configuration.document_type {cfg.get('document_type')!r} "
             "is not a locked Step 6 value")
     if (problem := constitution_block_error(cfg)):
+        raise ImportRefused(f"{path.name}: {problem}")
+    if (problem := retired_block_error(payload)):
         raise ImportRefused(f"{path.name}: {problem}")
     for field in ("ratified", "source_document", "source_clause"):
         if not payload.get(field):
@@ -118,6 +124,7 @@ def import_standards(db: Session, *, actor_email: str | None = None,
         raise ImportRefused(f"no ratified standards in {RATIFIED_STANDARDS_DIR}")
 
     publishable: list[str] = []
+    retired_codes: list[str] = []
     for path in files:
         payload = json.loads(path.read_text())
         _validate(path, payload)
@@ -134,6 +141,21 @@ def import_standards(db: Session, *, actor_email: str | None = None,
             req = M.Requirement(code=code, status=E.ConfigStatus.DRAFT)
             db.add(req); db.flush()
             report.append(f"{code}: created")
+
+        # AM-65 (owner, 2026-09-14) — a standard the current Constitution does not
+        # define is RETIRED: `Requirement.status = DEPRECATED`. That is the whole
+        # mechanism, and it is the locked Step 29 lifecycle value that has existed
+        # since the initial migration. Publish pins only ACTIVE requirements, so a
+        # deprecated one leaves every FUTURE snapshot; existing snapshots are
+        # immutable (locked 16) and the Findings that cite it stay readable (17).
+        # Never re-activated here: reversing a retirement is an owner decision.
+        if is_retired(payload):
+            if req.status is not E.ConfigStatus.DEPRECATED:
+                req.status = E.ConfigStatus.DEPRECATED
+                db.flush()
+                report.append(f"{code}: RETIRED (status DEPRECATED) — "
+                              f"{payload['retired']['marker']}")
+            retired_codes.append(code)
 
         latest = db.execute(
             select(M.RequirementVersion)
@@ -191,7 +213,7 @@ def import_standards(db: Session, *, actor_email: str | None = None,
                                   f"(version {latest.version_number})")
                 else:
                     report.append(f"{code}: unchanged (version {latest.version_number})")
-                if mapping_rules and evaluation_rules:
+                if mapping_rules and evaluation_rules and not is_retired(payload):
                     publishable.append(code)
                 continue
 

@@ -70,6 +70,8 @@ def _load_all(build, db):
     codes = []
     for path in sorted(STD.glob("*.json")):
         payload = json.loads(path.read_text())
+        if "retired" in payload:
+            continue        # AM-65 — retired standards never reach a live snapshot
         evaluator = E.EvaluatorType(payload.get("evaluator_type")
                                     or payload["evaluation_rules"]["evaluator"])
         rv = build.requirement(payload["requirement_code"], evaluator,

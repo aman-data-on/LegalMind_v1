@@ -12,6 +12,14 @@
   "requirement_code": "LIAB-CARVEOUTS-MSA-001",
   "description": "The liability limits do not apply to the customer's indemnity, unpaid fees, fraud, wilful misconduct or gross negligence.",
   "ratified": "2026-08-20",
+  "retired": {
+    "date": "2026-09-14",
+    "marker": "RETIRED — NOT PRESENT IN CURRENT CONSTITUTION",
+    "reason": "Carve-outs from the liability cap must be present. §9 states the opposite kind of position — 'No separate multiplier or super-cap has been approved' — and AM-43 r5 already recorded the two as different subjects.",
+    "ruling": "owner, 2026-09-14: 'The eight standards that are not defined in the current approved Constitution must be retired … Do not use them in active LegalMind reviews. Do not show them as approved standards. Preserve their historical/reference record.' The set is seven, not eight — see the AM-59 r5 correction in AM-65.",
+    "record": "AM-65 (AB-20)",
+    "note": "The file is kept, and `ratified` is left as it was: this standard WAS ratified from a LeapSwitch document on that date, and the historical Findings that cite it stay readable (rule 17). Retirement is carried by Requirement.status = DEPRECATED, which excludes it from every future configuration snapshot."
+  },
   "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "17.3 Exclusions from Limitation",
   "source_quote": "The foregoing limitations shall not apply to the Customer's indemnity obligations under this Agreement, the Customer's breach of payment obligations, or damages resulting from the Customer's fraud, willful misconduct, or gross negligence.",
@@ -21,7 +29,7 @@
       "version": "L1.10",
       "section": "9",
       "topic": "Liability",
-      "basis": "DOCUMENT_ONLY"
+      "basis": "RETIRED"
     },
     "expected_presence": "PRESENT",
     "scope_key": "LIABILITY_CAP_CARVE_OUTS",
@@ -32,7 +40,6 @@
     "evaluator": "PRESENCE",
     "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
   },
-  "source_file": "MSA.pdf",
   "mapping_rules": {
     "exact_phrases": [
       "the foregoing limitations shall not apply",
@@ -83,6 +90,7 @@
     ],
     "confirm_threshold": 5
   },
+  "source_file": "MSA.pdf",
   "_terminology": [
     "Mapping terminology, ratified with the standard on 2026-08-20. Every term is",
     "drawn from the cited source clause's own wording or names the clause type",

@@ -84,15 +84,19 @@
     "negative_patterns": [],
     "section_heading_terms": [
       "payment",
-      "invoic",
-      "dispute"
+      "invoice",
+      "invoices",
+      "invoicing",
+      "dispute",
+      "disputes"
     ],
     "confirm_threshold": 5
   },
   "_calibration": [
     "Live wording seen 2026-09-13: 'notify ... in writing within fifteen (15) calendar days of its receipt' (one customer MSA, MATCH); 'within three (3) calendar days of its receipt' (another, DEVIATION). Basis is receipt of invoice, not invoice DATE — §16 says 'of the invoice date'; recorded, not assumed equivalent.",
     "2026-09-13: cap phrases narrowed to the dispute sentence; a paragraph that states several periods (payment, interest, dispute) is a known extraction limit — the first quantity in the clause body is read (44.24 forbids choosing), so a multi-period paragraph falls to a person unless the dispute sentence stands alone, as it does in the live MSAs.",
-    "2026-09-13: plural/participle forms added — a term matches at word boundaries, so 'dispute' never matched 'disputes' (found reproducing §16's Company Position paragraph)."
+    "2026-09-13: plural/participle forms added — a term matches at word boundaries, so 'dispute' never matched 'disputes' (found reproducing §16's Company Position paragraph).",
+    "2026-09-14 (AM-65 loop): truncated stems replaced with whole words. Matching is word-boundary (mapping/scoring.contains_phrase), so 'terminat' never matched 'termination' and 'invoic' never matched 'invoice' — the term contributed nothing. Recall loss only; no verdict changed."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

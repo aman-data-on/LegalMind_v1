@@ -74,11 +74,20 @@
     ],
     "keyword_groups": [
       [
-        "terminat",
+        "terminate",
         "convenience"
       ],
       [
-        "terminat",
+        "termination",
+        "convenience"
+      ],
+      [
+        "terminate",
+        "notice",
+        "any time"
+      ],
+      [
+        "termination",
         "notice",
         "any time"
       ]
@@ -94,7 +103,8 @@
   },
   "_calibration": [
     "§13 governs 'ongoing, non-fixed-term arrangements'; §31.2/§14 forbid reading a convenience clause as an exit from a committed term. This standard measures the NOTICE only; whether a fixed term subordinates it is EARLY-TERM-RESTRICTION-MSA-001's question. Live: a partner agreement's 'at least 30 days' prior written notice' (§31.3 — MATCH). Negative patterns keep for-cause clauses (CURE-PERIOD-MSA-001's subject) out.",
-    "2026-09-13: basis terms are whole words ('terminat' never matched at a word boundary) — found reproducing §13."
+    "2026-09-13: basis terms are whole words ('terminat' never matched at a word boundary) — found reproducing §13.",
+    "2026-09-14 (AM-65 loop): truncated stems replaced with whole words. Matching is word-boundary (mapping/scoring.contains_phrase), so 'terminat' never matched 'termination' and 'invoic' never matched 'invoice' — the term contributed nothing. Recall loss only; no verdict changed."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

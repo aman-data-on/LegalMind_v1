@@ -9,6 +9,14 @@
   "requirement_code": "FORCE-MAJEURE-TOS-001",
   "description": "If a force majeure event lasts longer than a set period, either party may end the affected services by written notice.",
   "ratified": "2026-08-19",
+  "retired": {
+    "date": "2026-09-14",
+    "marker": "RETIRED — NOT PRESENT IN CURRENT CONSTITUTION",
+    "reason": "Force-majeure termination trigger (60 days). Same basis as the MSA standard — no Constitution position exists.",
+    "ruling": "owner, 2026-09-14: 'The eight standards that are not defined in the current approved Constitution must be retired … Do not use them in active LegalMind reviews. Do not show them as approved standards. Preserve their historical/reference record.' The set is seven, not eight — see the AM-59 r5 correction in AM-65.",
+    "record": "AM-65 (AB-20)",
+    "note": "The file is kept, and `ratified` is left as it was: this standard WAS ratified from a LeapSwitch document on that date, and the historical Findings that cite it stay readable (rule 17). Retirement is carried by Requirement.status = DEPRECATED, which excludes it from every future configuration snapshot."
+  },
   "source_document": "Leapswitch Networks Terms of Service (26 February 2026) — TOS-leapswitch.pdf",
   "source_clause": "15 Force Majeure",
   "source_quote": "If a Force Majeure Event continues for more than 60 consecutive days, either party may terminate the affected Services upon written notice.",
@@ -18,7 +26,7 @@
       "version": "L1.10",
       "section": null,
       "topic": "Force Majeure",
-      "basis": "DOCUMENT_ONLY"
+      "basis": "RETIRED"
     },
     "preferred": 60,
     "unit": "DAYS",
@@ -49,7 +57,6 @@
     "evaluator": "NUMERIC_COMPARISON",
     "_note": "comparison semantics live in tested code (44.29); deviation disposition lives in the Legal Rule, never here"
   },
-  "source_file": "TOS-leapswitch.pdf",
   "mapping_rules": {
     "exact_phrases": [
       "force majeure event continues"
@@ -69,6 +76,7 @@
     ],
     "confirm_threshold": 5
   },
+  "source_file": "TOS-leapswitch.pdf",
   "_terminology": [
     "Mapping and extraction terminology, added 2026-08-19 under the owner's",
     "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",

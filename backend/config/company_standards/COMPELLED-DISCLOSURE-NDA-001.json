@@ -16,6 +16,14 @@
   "requirement_code": "COMPELLED-DISCLOSURE-NDA-001",
   "description": "If a party is legally forced to disclose confidential information, it must promptly tell the other party in writing, where the law allows.",
   "ratified": "2026-08-19",
+  "retired": {
+    "date": "2026-09-14",
+    "marker": "RETIRED — NOT PRESENT IN CURRENT CONSTITUTION",
+    "reason": "Notice on compelled disclosure. §15 states the confidentiality position and says nothing about compelled disclosure.",
+    "ruling": "owner, 2026-09-14: 'The eight standards that are not defined in the current approved Constitution must be retired … Do not use them in active LegalMind reviews. Do not show them as approved standards. Preserve their historical/reference record.' The set is seven, not eight — see the AM-59 r5 correction in AM-65.",
+    "record": "AM-65 (AB-20)",
+    "note": "The file is kept, and `ratified` is left as it was: this standard WAS ratified from a LeapSwitch document on that date, and the historical Findings that cite it stay readable (rule 17). Retirement is carried by Requirement.status = DEPRECATED, which excludes it from every future configuration snapshot."
+  },
   "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 — NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
   "source_clause": "5 Compelled Disclosure",
   "source_quote": "If the Receiving Party is required by applicable law ... to disclose any Confidential Information, the Receiving Party shall, to the extent legally permitted, promptly notify the Disclosing Party in writing",
@@ -25,7 +33,7 @@
       "version": "L1.10",
       "section": "15",
       "topic": "Confidentiality & Intellectual Property",
-      "basis": "DOCUMENT_ONLY"
+      "basis": "RETIRED"
     },
     "expected_presence": "PRESENT",
     "scope_key": "COMPELLED_DISCLOSURE",
@@ -36,7 +44,6 @@
     "evaluator": "PRESENCE",
     "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
   },
-  "source_file": "NDA.pdf",
   "mapping_rules": {
     "exact_phrases": [
       "required by applicable law"
@@ -71,6 +78,7 @@
     ],
     "confirm_threshold": 5
   },
+  "source_file": "NDA.pdf",
   "_terminology": [
     "Mapping and extraction terminology, added 2026-08-19 under the owner's",
     "publishability tasking (AUTO_MODE_DECISIONS.md #18-#21). Every term is drawn",

@@ -872,13 +872,26 @@ def test_every_ratified_standard_publishes_through_the_gated_endpoint(api, db, s
     import_standards(db, actor_email=admin.email)
     db.flush()
 
-    codes = sorted(p.stem for p in RATIFIED_STANDARDS_DIR.glob("*.json"))
+    # AM-65 — a retired standard is imported (its history is preserved) but is
+    # DEPRECATED, so it never reaches a snapshot and publishing it is refused.
+    import json as _json
+    payloads = {p.stem: _json.loads(p.read_text())
+                for p in RATIFIED_STANDARDS_DIR.glob("*.json")}
+    codes = sorted(c for c, d in payloads.items() if "retired" not in d)
+    retired = sorted(c for c, d in payloads.items() if "retired" in d)
+    assert retired, "the retirement fixture is the point of this assertion"
+
     published = api.post(f"{V1}/configuration/publish",
                          json={"requirement_codes": codes})
     # A refusal names the incomplete Requirement, so surface it rather than a
     # bare status code.
     assert published.status_code == 201, published.text
     assert published.json()["data"]["requirement_count"] == len(codes)
+
+    refused = api.post(f"{V1}/configuration/publish",
+                       json={"requirement_codes": [retired[0]]})
+    assert refused.status_code == 422, refused.text
+    assert "retired" in refused.text
 
 
 # ---------------------------------------------------------------------------

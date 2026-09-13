@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.domain.enums import FindingStatus
+from legalmind.domain.enums import ConfigStatus, FindingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
@@ -180,6 +180,11 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             # legal position: a section number and a label, never a value. None
             # for a snapshot that predates the block.
             "constitution": constitution,
+            # AM-65 — read from the requirement's CURRENT status, deliberately not
+            # from the pinned snapshot: a Finding written before the retirement
+            # must still tell the reader the standard behind it has since been
+            # withdrawn. The Finding itself is untouched (rule 17).
+            "retired": req.status is ConfigStatus.DEPRECATED if req else False,
         },
         # Derived, non-authoritative summary (45B re-lock, D-1.1).
         "classification": finding.classification.value,

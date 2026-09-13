@@ -418,6 +418,11 @@ export interface Finding {
       topic: string | null;
       basis: string | null;
     } | null;
+    /** AM-65 — the standard behind this finding has been withdrawn because the
+     *  current Constitution does not define it. Read from the requirement's
+     *  CURRENT status, so a finding written before the retirement says so too.
+     *  The finding itself is untouched and stays on the record (rule 17). */
+    retired?: boolean;
   };
   /**
    * 49.7 r1 — a **derived, non-authoritative summary**. The API never returns it

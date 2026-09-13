@@ -25,8 +25,7 @@
       "expected_when": {
         "confirmed_any": [
           "LIABILITY-MSA-001",
-          "LIABILITY-TOS-001",
-          "LIAB-CARVEOUTS-MSA-001"
+          "LIABILITY-TOS-001"
         ]
       }
     },

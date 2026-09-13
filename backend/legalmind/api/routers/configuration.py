@@ -303,6 +303,13 @@ def publish(body: ConfigurationPublish,
             ).scalars().first()
             if req is None:
                 raise BusinessRuleRejected(f"unknown Requirement code: {code}")
+            if req.status is E.ConfigStatus.DEPRECATED:
+                # AM-65 — a retired Requirement is not re-activated by publishing.
+                # Reversing a retirement is an owner decision that goes through the
+                # standard file and the record, not through a publish call.
+                raise BusinessRuleRejected(
+                    f"{code} is retired and cannot be published; reversing a "
+                    "retirement is an owner decision (AM-65)")
             if req.status is E.ConfigStatus.DRAFT:
                 req.status = E.ConfigStatus.ACTIVE
         guard.db.flush()

@@ -87,7 +87,6 @@
       "expected_when": {
         "confirmed_any": [
           "LIAB-EXCLUSIONS-MSA-001",
-          "LIAB-CARVEOUTS-MSA-001",
           "LIABILITY-TOS-001"
         ]
       }

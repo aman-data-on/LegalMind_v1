@@ -221,6 +221,12 @@ const DETERMINATION_LABELS: Record<string, string> = {
  *  verdict, and nothing at all for a snapshot that predates the block. */
 export function constitutionCitation(finding: Pick<Finding, "requirement">): string | null {
   const c = finding.requirement.constitution;
+  // AM-65 — a retired standard is never shown as an approved one, whatever its
+  // pinned configuration said at the time. The finding stays readable; the
+  // sentence says why it is no longer measured.
+  if (finding.requirement.retired || c?.basis === "RETIRED") {
+    return "Retired — not present in the current Constitution; kept for the record only";
+  }
   if (!c) return null;
   if (c.basis === "DOCUMENT_ONLY" || !c.section) {
     return "No Constitution position — measured against a LeapSwitch document clause";
