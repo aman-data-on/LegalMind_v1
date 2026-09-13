@@ -56,6 +56,19 @@ dispute resolution MISSING because governing law is present, 23 NOT_APPLICABLE e
 Synthetic mixed agreement (`test_mixed_agreement.py`): identical content verdicts under OTHER,
 untyped and MSA; PO and payment clauses surface as unmatched provisions.
 
+**Verified.** Backend 1,605 passed (110 skipped, live-only), frontend 398 passed, ruff and mypy
+clean. Labelled corpus, live, four declared-type modes (104 variants): 0 semantic FP / 38 hard
+negatives and 0 changed-correct in every mode; final run with the rewritten AUTORENEW variants
+(107 variants, 69 positives): 69/69 recognised, 50 correct, 16 fail-safe, 0 wrong, 125 calls.
+`test_mixed_agreement.py` passes lexical-only under three labels and live with the semantic stage.
+Browser suite (workspace, reviews, analysis, legal-access): 34/34 — one test needed re-running
+without a generation credential, as the suite assumes. Reproducibility gate PASS; its legal record
+under `main` and under this branch is field-for-field identical (the digest differs across runs
+only by the randomised `REPRO-…` requirement code the gate mints, which the record includes).
+`tools.verify_terminology`: 26 PASS · 6 FAIL — the six are the `AM-43` r4 Constitution-reconciled
+standards whose live paper deviates by design; `AUTORENEW-MSA-001` reproduces its new 30-day
+position from the MSA template.
+
 **Not changed, deliberately.** `FEES_PAID` vs "fees actually received" (45B.4). Family detection
 (the declared type only). `AM-56`'s mapping (C-20). No fifth classification. Nothing deployed;
 `AM-59`'s standards need re-import + publish to reach the live database.
