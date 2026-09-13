@@ -603,6 +603,21 @@ jobs:
         env:
           LEGALMIND_VERIFY_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@127.0.0.1:5432/legalmind_v1_verify
         run: python -m tools.verify_invariants --redis-port 6399
+      # Every ratified standard must still reproduce its own position from the
+      # source it cites — its LeapSwitch clause, or, for a standard approved
+      # through the Constitution, the text of the Constitution section itself.
+      # This was a script nobody ran until 2026-09-14, which meant a heading
+      # edit in LEGAL_CONSTITUTION_L1.10.md (which the tool parses) could break
+      # configuration verification in silence.
+      #
+      # Source documents are gitignored (locked 54.6) and absent in CI, so every
+      # document-sourced standard SKIPs here and only the Constitution-sourced
+      # ones are actually reproduced. A skip is not a pass: the point of running
+      # it here is that a PARSE failure or a Constitution-sourced regression
+      # fails the build, and the full run happens where the documents live.
+      - name: Ratified terminology reproduces its position
+        working-directory: backend
+        run: python -m tools.verify_terminology
 
   # ── 13 ─────────────────────────────────────────────────────────────────────
   full-suite:

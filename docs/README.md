@@ -88,7 +88,7 @@ Declared at the top of every specification document. Never mix states without la
 | [LOCKED_DECISIONS.md](00-project/LOCKED_DECISIONS.md) | Registry of every explicitly locked decision, by ID |
 | [IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) | Current step, status per area, and everything NOT YET SPECIFIED |
 | [CLAUSE_CATALOGUE.md](00-project/CLAUSE_CATALOGUE.md) | The full-document review map: Requirements per document type, sources, and gaps (2026-08-19) |
-| [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved (C-01–C-04, C-09, C-11) and **nine open** (C-05–C-08, C-10, C-12, C-13, and C-14–C-16 registered 2026-08-25) |
+| [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved, and **five open** — C-12, C-13, C-14, C-17, C-19. C-15/C-16 were resolved by AB-5 and `AM-47`/`AM-48`; C-05–C-08 and C-10 by owner ruling 2026-08-27; C-20 by `AM-63` and C-21 by `AM-64`, both 2026-09-14. The register itself is the current list|
 | [GLOSSARY.md](00-project/GLOSSARY.md) | Terminology, with the distinctions that must not be conflated |
 | [DECISION_FINALIZATION.md](00-project/DECISION_FINALIZATION.md) | Working record: classification of every remaining item, F-1–F-12 |
 | [EXTERNAL_REFERENCE_AUDIT.md](00-project/EXTERNAL_REFERENCE_AUDIT.md) | Working record: audit of external MoS material; source of OD-1–OD-15 |
@@ -109,11 +109,17 @@ Declared at the top of every specification document. Never mix states without la
 | [LEGAL_ANALYSIS_PHILOSOPHY.md](02-legal-domain/LEGAL_ANALYSIS_PHILOSOPHY.md) | Determinism, the AI boundary, complete-alignment reporting |
 | [DECISION_STATE_MODEL.md](02-legal-domain/DECISION_STATE_MODEL.md) | **The five state axes.** Read before naming any state value |
 | [COMPANY_STANDARDS.md](02-legal-domain/COMPANY_STANDARDS.md) | What the organization wants; configuration versioning |
+| [COMPANY_STANDARDS.md](02-legal-domain/COMPANY_STANDARDS.md) | **Where positions come from**: the provenance vocabulary (approved through the Constitution · ratified from a document · proposed · pending business approval · retired), the retired seven (`AM-65`), and the PO calibration process |
 | [LEGAL_RULES.md](02-legal-domain/LEGAL_RULES.md) | How far the organization tolerates departing from a Standard |
 | [FINDING_CLASSIFICATION.md](02-legal-domain/FINDING_CLASSIFICATION.md) | The seven Finding classifications; RESOLVED ≠ MATCH |
 | [LEGAL_DECISIONS.md](02-legal-domain/LEGAL_DECISIONS.md) | Authorized human rulings; the engine never produces one |
 | [LEGAL_CONSTITUTION_L1.10.md](02-legal-domain/LEGAL_CONSTITUTION_L1.10.md) | **The governing source for company positions** (`AM-59`, 2026-09-13, superseding L1.5 under `AM-43`) — the owner-supplied Lawyer Review Version L1.10, verbatim except counterparty names in §15.5/§31 evidence lines, redacted; configuration source, never runtime corpus |
 | [LEGAL_CONSTITUTION_L1.5.md](02-legal-domain/LEGAL_CONSTITUTION_L1.5.md) | 📁 SUPERSEDED by L1.10 (`AM-59`) — the 2026-09-08 canonical copy, retained for the `AM-43` reconciliation record |
+| [ASSIST_LANE_AND_RAG.md](05-architecture/ASSIST_LANE_AND_RAG.md) | 📁 **The LLM/RAG lane end to end** — three domains, retrieval and its two floors, the single egress seam, prompt/version tracking, the grounding guardrails, how it is measured |
+| [APPLICABILITY.md](04-analysis-engine/APPLICABILITY.md) | 📁 **What a document is measured against** — confirmed · declared · expected, the recorded reasons, one position measured once, what may be MISSING (`AM-51`, `AM-61`) |
+| [AUTO_MODE_DECISIONS.md](00-project/AUTO_MODE_DECISIONS.md) | 📁 RECORD — every engineering decision taken under the owner's AUTO-mode authorization, numbered and dated |
+| [SHADCN_ADOPTION_REPORT.md](design/SHADCN_ADOPTION_REPORT.md) | 📁 ANALYSIS — the shadcn/ui adoption audit (owner approval 2026-09-10) |
+| [RECONCILIATION_PASS_2.md](04-analysis-engine/EDGE_CASES/RECONCILIATION_PASS_2.md) · [_3](04-analysis-engine/EDGE_CASES/RECONCILIATION_PASS_3.md) · [_4](04-analysis-engine/EDGE_CASES/RECONCILIATION_PASS_4.md) · [_5](04-analysis-engine/EDGE_CASES/RECONCILIATION_PASS_5.md) · [_6](04-analysis-engine/EDGE_CASES/RECONCILIATION_PASS_6.md) | 📁 Working documents — how the Step-45 reconciliations were reached. **Never implement from them**; their status lines are stale by design |
 | [CONSTITUTION_RECONCILIATION_2026-09-13.md](02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-13.md) | The L1.10 handoff: full requirement inventory, L1.5→L1.10 differences, Constitution-side defects, Constitution→standard map, coverage gaps, what was built (AB-20), decisions still open |
 | [REQUIREMENT_DESCRIPTIONS_2026-09-09.md](02-legal-domain/REQUIREMENT_DESCRIPTIONS_2026-09-09.md) | 📁 The 32 plain-English requirement descriptions shown on the Finding card — requirement → source clause → source quote → line — awaiting Counsel's wording approval; explanatory only, never an evaluator input |
 | [CONSTITUTION_RECONCILIATION_2026-09-08.md](02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-08.md) | The engineering/legal handoff: Constitution rules inspected, conflicts found and resolved, effective values, what remains for Counsel |

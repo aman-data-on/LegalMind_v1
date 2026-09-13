@@ -18931,3 +18931,142 @@ if any locked decision blocked you update that decision") and the business clari
 above.
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+# AB-20 (continued) — the owner's final business decisions (2026-09-14)
+
+The owner instructed: *"Service discontinuation — treat the two conditions as one compound
+requirement … Do not evaluate the 30-day notice limb independently, because that would narrow the
+Constitution's actual meaning. … The standards that are not defined in the current approved
+Constitution must be retired … Do not use them in active LegalMind reviews. Do not show them as
+approved standards. Preserve their historical/reference record. Mark them clearly as `RETIRED — NOT
+PRESENT IN CURRENT CONSTITUTION`. … Do not invent missing business rules. … Clearly distinguish:
+Approved rule from the current Constitution · Historical evidence from an older signed document ·
+Proposed rule created by the system · Rule requiring future business confirmation."*
+
+# `AM-59` r5 correction — it is SEVEN standards, not eight
+
+**Amends:** `AM-59` r5's count, recorded 2026-09-13. Nothing else in `AM-59` changes.
+
+```text
+r5'  The standards the Constitution states no position for number SEVEN, not
+     eight: FORCE-MAJEURE-MSA-001, FORCE-MAJEURE-TOS-001,
+     WARRANTY-DISCLAIMER-MSA-001, COMPELLED-DISCLOSURE-NDA-001,
+     RETURN-DESTRUCTION-MSA-001, RETURN-DESTRUCTION-NDA-001,
+     LIAB-CARVEOUTS-MSA-001. The figure "eight" was carried over from AM-43 r5's
+     older list, which also counted AUTORENEW-* and TERM-NOTICE-NDA-001 — both of
+     which L1.10 DOES state (§31.15, §13) and neither of which is retired. The
+     implementer reported the wrong number to the owner before correcting it;
+     the owner's instruction to retire "the eight" is executed on the seven that
+     actually qualify, and no standard is retired that the Constitution defines.
+```
+
+# `AM-65` — The seven standards the Constitution does not define are retired
+
+**Amends:** `AM-43` r5, which explicitly KEPT them ("each traces to a real LeapSwitch clause and is
+reported to Counsel as a Constitution gap, **not removed**"), and the owner rulings of 2026-08-19
+and 2026-08-20 that ratified them from LeapSwitch documents. **Does not amend:** rule 17 (the audit
+trail is append-only and historical Reviews stay reproducible), locked 16 (a published snapshot is
+immutable), 45B.26, `AM-51`, `AM-61`, the four classifications, the zero-tolerance Legal Rule.
+
+```text
+r1   WHY. The owner ruled the current Constitution final and these seven state
+     positions it does not contain. Their scale was measured before acting: 184
+     of the 580 Findings in the live database — 32% — cite one of the seven, and
+     ZERO Legal Decisions have been recorded against any of them. So no human
+     ruling is invalidated, but nearly a third of everything the product has
+     asserted rested on positions the Constitution does not state.
+
+r2   THE MECHANISM IS A STATUS FLIP, NOT A DELETION OR A MOVE. Requirement.status
+     becomes ConfigStatus.DEPRECATED — the locked Step 29 lifecycle value that has
+     existed since the initial migration, is in the shipped Postgres enum, and
+     that nothing had ever produced. Publish already pins only ACTIVE
+     requirements, so a retired one silently leaves every FUTURE snapshot with no
+     code change; publish additionally refuses to re-activate one, because
+     reversing a retirement is an owner decision. No migration, no new enum
+     member, no fifth classification.
+
+     Neither alternative was viable and both were checked rather than assumed:
+     DELETING the rows makes every Finding that cites one serialize as nulls
+     (`serialize_finding` resolves the requirement by version id); MOVING the
+     files breaks nine golden fixtures at load time and six directory-glob tests.
+
+r3   THE RECORD IS PRESERVED. Each file stays where it is, keeps its `ratified`
+     date, its source document and its source clause, and gains a `retired` block
+     carrying the owner's exact marker "RETIRED — NOT PRESENT IN CURRENT
+     CONSTITUTION", the date, the reason and the ruling. `constitution.basis`
+     becomes RETIRED. Import and publish refuse a malformed retirement — a
+     retirement without its reason is not a record.
+
+r4   IT IS NEVER SHOWN AS APPROVED. A Finding reports `retired` read from the
+     requirement's CURRENT status, deliberately NOT from its pinned snapshot, so
+     a Finding written before the retirement still tells the reader the standard
+     behind it has been withdrawn. The card says so instead of citing a
+     Constitution section. The Finding, its evaluations and its evidence are
+     byte-identical before and after — asserted by test.
+
+r5   IT INFLUENCES NOTHING THAT REMAINS. Five active standards named a retired one
+     in `constitution.expected_when.confirmed_any`; those entries are removed, so
+     a retired standard can no longer make an active one EXPECTED and therefore
+     can no longer drive a MISSING.
+
+r6   WHAT IS NOT DECIDED HERE. Whether these seven positions should exist at all
+     is a Constitution question, not an engineering one. They return only through
+     a Constitution update or an explicit business approval, and the files remain
+     so that either is a small change rather than an archaeology exercise.
+```
+
+# `AM-66` — Service discontinuation is ONE compound requirement
+
+**Amends:** nothing previously locked — `SERVICE-DISCONTINUATION-NOTICE-MSA-001` was a PROPOSED
+draft, marked Pending Business Approval on 2026-09-13 precisely because measuring the notice limb
+alone narrows the Constitution. **Does not amend:** locked 42.7 / N-36 (a Requirement version has
+exactly ONE evaluator type), the two evaluators, 44.29, 35.4, rule 15.
+
+```text
+r1   THE POSITION. Constitution L1.10 §31.14 A: "Provide 30 days' advance notice,
+     OR continue the service until the customer's committed contract period ends,
+     whichever is later." The owner ruled both limbs are one requirement and the
+     applicable date is the LATER of the two; the notice limb is never evaluated
+     alone.
+
+r2   EXPRESSED IN TERMINOLOGY, NOT IN A NEW EVALUATOR. EvaluatorType is singular
+     by locked 42.7 and no compound evaluator exists; inventing one would be a
+     domain-boundary change for a problem configuration already solves. The
+     standard is SERVICE-DISCONTINUATION-MSA-001, PRESENCE, whose mapping
+     terminology confirms ONLY on the compound structure: compound exact phrases,
+     keyword groups that each pair the subject with the "whichever is later" or
+     "committed term" limb, heading terms deliberately worth less than the
+     threshold on their own, and §31.14's own non-payment carve-out as a negative
+     pattern. Renamed from `…-NOTICE-…`, which named the limb.
+
+r3   MEASURED BEFORE RATIFICATION, against the real mapper:
+
+       the Constitution's own compound sentence      7   CONFIRMS -> MATCH
+       one limb only ("30 days' notice"), headed     2   below threshold, evidence
+                                                         retained -> a person decides
+       one limb only, unheaded                       0   no signal
+       non-payment discontinuation                  -3   vetoed (§31.14's carve-out)
+
+     So a clause narrower than the Constitution does not match; it reaches a
+     person WITH the clause cited, rather than being asserted absent.
+
+r4   WHAT IS ACTUALLY CHECKED. LegalMind holds no contract dates and never
+     computes the later of the two — it checks that the CLAUSE provides the
+     compound protection, and a person reads the clause it cites. Stated in the
+     standard's description and its calibration notes so no reader infers more.
+
+r5   NOT MEASURED, DELIBERATELY. §31.14 B (a material non-discontinuing change,
+     "30 days where reasonably practicable") has no checkable boundary, and C
+     (six exceptions) is a carve-out rather than a position. Recorded, not built.
+
+r6   LIMITATION RECORDED. An unheaded one-limb clause scores zero and produces no
+     signal; it surfaces on the report as an unmatched provision (REC-02) rather
+     than as a finding.
+```
+
+**Recorded 2026-09-14 under the owner's standing authority of 2026-09-13** ("you have the full
+ownership if any locked decision blocked you update that decision") and the business decisions
+quoted above.
+
+--------------------------------------------------------------------------------

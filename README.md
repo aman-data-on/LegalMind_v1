@@ -1,117 +1,188 @@
 # LegalMind V1
 
-**Deterministic legal document analysis.** LegalMind compares a counterparty contract against the organization's approved legal standards and reports what matches, what is missing, what deviates, and what conflicts — with evidence for every claim.
+**Legal document review, grounded in the company's own rulebook.** LegalMind reads a contract,
+finds the clauses it actually contains, measures them against the organization's approved legal
+positions, and reports what matches, what deviates, what is missing, what conflicts and what it
+could not read — with the evidence for every claim.
 
 **The system identifies and structures the issue. An authorized human makes the legal decision.**
 
 ```text
-Finding: Limitation of Liability
-Result:  Conflict
-Risk:    High
-Evidence: Relevant contract clause
-Status:  Requires review
+Requirement   Liability cap
+Source        Constitution, Section 9 · Liability
+Contract      12 months of fees paid          §6.1, page 4
+Standard      12 months of FEES_PAID, aggregate
+Result        Acceptable
 ```
 
----
-
-## Project phase
-
-**STABILIZATION. Implementation authorized 2026-08-17 (`IMPL-01`); the locked build sequence is complete.**
-
-The V1 specification is complete — Steps 1–45D, 47, 49, 52–55, `REC-01`–`REC-09` and Amendment Batches AB-1 and AB-2 are locked. Step 45E (Golden Corpus) is in progress: **28 fixtures of 64 specified — 16 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 3 `STANDARD_DERIVED` — and 0 `NORMATIVE`**. The Company Standard for `LIABILITY-001` was ratified on 2026-08-18 (12 months of total fees); normative authoring remains blocked on an approved Legal Rule rather than on engineering.
-
-**For final review, read [HANDOFF.md](HANDOFF.md) first** — what exists, how to verify it, what is honestly not done, every decision still open, and the exact material required to finish. The [Implementation Readiness Gate](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) reports all nine criteria met — it reports readiness; `IMPL-01` is what grants it.
-
-`IMPL-01` authorizes **building what is already locked** and confers no authority to decide what is not. It is recorded retroactively and **not backdated**: the build preceded the authorization and the lock record says so.
-
-Current state is authoritative in [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), never here — including what is built, what is only tested, and what remains **unratified**.
+There is deliberately no risk score, no confidence percentage and no "the AI thinks" — a retrieval
+score is never rendered as legal confidence (rule 12, `AI-03`).
 
 ---
 
-## Legal source documents — `legal-docs/` (gitignored, never committed)
+## How a review works, end to end
 
-The owner-supplied documents live in [`legal-docs/`](legal-docs/README.md) inside the
-project (owner ruling 2026-08-19). The directory is **gitignored**; locked 54.6 forbids
-these files entering version control, and `backend/tests/test_source_material.py`
-enforces it. Read via `LEGALMIND_SOURCE_MATERIAL_DIR` (defaults to this directory).
+```text
+upload ─► ingestion ─────► segmentation ─► mapping ──────────► applicability ─► evaluation ─► Finding
+          PDF/DOCX,        clauses with     lexical terms,       confirmed ·     deterministic   + evidence
+          OCR when the     their own        then grounded        declared ·      comparison,     + explanation
+          text is not      numbering        semantic             expected        never a model   + Constitution
+          legible                           recognition                                            citation
+```
 
-| File | Document |
+1. **Ingestion** reads PDF or DOCX, OCRs a page whose text is missing *or illegible*, and refuses a
+   document whose structure never came out rather than analysing a page as if it were a clause.
+2. **Segmentation** splits on the document's own clause numbering. A number is never invented — a
+   fabricated section reference would corrupt every citation that follows.
+3. **Mapping** matches each Requirement to clauses using configured terminology, then — where the
+   words found nothing — asks the model whether a clause addresses the subject *and* states the same
+   kind of position, accepting only a verbatim span (`AM-54`, `AM-60`).
+4. **Applicability** decides what this document is measured against: a Requirement applies when the
+   document confirms its clause (any family), when it belongs to the declared type, or when a
+   Constitution sibling it names is confirmed. Everything not applied is **recorded with its
+   reason** (`AM-51`, `AM-61`).
+5. **Evaluation** is deterministic and model-free: two evaluators, `PRESENCE` and
+   `NUMERIC_COMPARISON`, compare facts to the ratified position and fail closed.
+6. **A Finding** carries its classification, its evidence, its explanation and the Constitution
+   section it came from.
+
+The reader sees three words — **Acceptable · Requires modification · Needs a decision** — derived
+server-side from the engine's five determinations (`AM-56`, `AM-63`).
+
+**The model never decides anything.** It helps *recognise* which clause addresses which requirement
+and what quantity a clause states, always on a verbatim span, always recorded with the model
+identity, prompt version and payload hash. The comparison, the classification and the outcome are
+the deterministic evaluators' alone (`AI-01` as amended by `AM-54`).
+
+---
+
+## Where the legal positions come from
+
+**The Legal Constitution is the source of truth.**
+[`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md`](docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md)
+states the company's positions. It is **configuration source, never a runtime corpus**: it is not
+chunked, indexed or retrieved. Its positions reach the engine as ratified **Company Standards** —
+JSON files under [`backend/config/company_standards/`](backend/config/company_standards/), each
+naming the Constitution section it restates.
+
+Every standard declares its provenance, and the four are never mixed:
+
+| Provenance | Meaning |
 |---|---|
-| `MSA.pdf` | Leapswitch MSA v2 template, July 2025 |
-| `MSA-Feb.pdf` | MSA template, February draft |
-| `MSA-GRP-2026-07-30.pdf` | **Executed** MSA, 28 July 2026 — real counterparty, never named |
-| `NDA.pdf` | **Executed** NDA, 17 June 2026 — the LeapSwitch NDA baseline (owner designation); counterparty never named |
-| `TOS-leapswitch.pdf` / `TOS-cloudpe.pdf` | Terms of Service, both brands |
-| `SLA-leapswitch.pdf` / `SLA-cloudpe.pdf` | Service Level Agreements |
-| `AUP-leapswitch.pdf` / `AUP-cloudpe.pdf` | Acceptable Usage Policies |
-| `PRIVACY-leapswitch.pdf` / `PRIVACY-cloudpe.pdf` | Privacy Policies |
-| `Indian_Laws_and_Acts/` (7 PDFs) | Background statutes — never a Standard or Rule |
+| **Approved through the Constitution** | Restates a clearly defined section without changing its meaning. Live. |
+| **Ratified from a LeapSwitch document** | Traces to a real clause in company paper. Live. |
+| **Proposed** | Drafted by the system, in `company_standards/proposed/`, read by nothing until ratified. |
+| **Retired** | *"RETIRED — NOT PRESENT IN CURRENT CONSTITUTION"* — withdrawn from active review, history preserved (`AM-65`). |
+
+A statute is **not** a Company Standard and never creates a Requirement. Statutes are background
+law, cited in an explanation and reachable through Ask, never loaded as configuration.
+
+Where the Constitution is silent, LegalMind says so. It does not invent a position, a threshold or
+a tolerance — `NOT YET SPECIFIED` is a valid, useful state.
+
+---
+
+## The two lanes
+
+| | Authoritative lane | Assist lane |
+|---|---|---|
+| Produces | Findings, Evaluations, Classifications | Answers, citations, explanations, suggestions |
+| Decides | Yes — deterministically | **Never** |
+| Model use | Recognition only, on a verbatim span | Retrieval-grounded generation |
+| Determinism | Same facts + same snapshot + same version → same result | No determinism claim |
+| Guardrails | Fail closed, evidence required | Every sentence cited, every citation verified, refuses rather than guesses |
+
+The assist lane is documented in
+[`docs/05-architecture/ASSIST_LANE_AND_RAG.md`](docs/05-architecture/ASSIST_LANE_AND_RAG.md).
+
+---
 
 ## Start here
 
 | | |
 |---|---|
-| **Reviewing the project?** | [HANDOFF.md](HANDOFF.md) — state, verification evidence, limitations, open decisions, required inputs |
+| **What is built right now** | [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) — **the only document that may assert build state** |
+| **Where we stand, in plain language** | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) |
+| **How the system works end to end** | [docs/00-project/ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
 | **Where do I find X?** | [docs/README.md](docs/README.md) — the documentation index |
-| What LegalMind is | [docs/00-project/PROJECT_OVERVIEW.md](docs/00-project/PROJECT_OVERVIEW.md) |
 | What is settled | [docs/00-project/LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) |
-| What is *not* settled | [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) |
 | Known contradictions | [docs/00-project/CONFLICTS.md](docs/00-project/CONFLICTS.md) |
 | Terminology | [docs/00-project/GLOSSARY.md](docs/00-project/GLOSSARY.md) |
 | How to propose a change | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Working rules (humans and AI agents) | [CLAUDE.md](CLAUDE.md) |
 | The authoritative historical record | [all_lock.md](all_lock.md) |
 
+**`all_lock.md` is authoritative** and append-only. `docs/` is the organized reference derived from
+it. If they disagree, `all_lock.md` wins — and the discrepancy must be **reported**, not quietly
+resolved. Counts and figures live in the document that owns them; this file quotes none, because a
+second copy of a number that changes is a second answer.
+
 ---
 
-## Repository layout
+## Running it
 
-```text
-all_lock.md          the authoritative master specification — every decision, in order
-CLAUDE.md            working rules; the twenty rules that govern all work here
-AGENTS.md            pointer to CLAUDE.md for non-Claude agents
-CONTRIBUTING.md      change management: what needs approval and how to ask
-CHANGELOG.md         repository and specification milestones
-docs/                the organized implementation reference, derived from all_lock.md
-  00-project/          overview · locked decisions · status · conflicts · glossary
-  01-product/          requirements · roles · workflows
-  02-legal-domain/     philosophy · standards · rules · classifications · decisions
-  03-document-model/   documents · versioning · evidence · processing
-  04-analysis-engine/  engine · mapping · extraction · rules · explainability · evaluators
-  05-architecture/     system · backend · frontend · API · database · storage
-  06-security/         authentication · authorization · ownership · security model
-  07-audit/            audit trail · reproducibility
-  08-testing/          test strategy · golden corpus · regression
-  09-implementation/   target schema · API contract · observability · deployment
+```bash
+# backend
+cd backend && pip install -e '.[dev]'
+alembic upgrade head
+python3 -m tools.import_ratified_standards        # load the ratified standards
+uvicorn legalmind.api.app:app --reload
+
+# frontend
+cd frontend && npm ci && npm run dev
 ```
 
-**`all_lock.md` is authoritative.** `docs/` is the organized reference derived from it. If they disagree, `all_lock.md` wins — and the discrepancy must be **reported**, not quietly resolved.
+```bash
+# the gates, in the order a release runs them
+cd backend
+python3 -m pytest tests -q                        # unit and integration
+python3 -m tools.verify_terminology               # every standard reproduces its position
+python3 -m tools.verify_invariants                # guarantees re-checked by another mechanism
+python3 -m tools.verify_reproducibility           # historical Reviews replay identically
+python3 -m tools.verify_assist_quality            # the Tier-2 answer-quality gate
+python3 -m tools.calibrate_historical             # real signed paper, if any is present
+cd ../frontend && npm run test:all && npm run test:e2e
+```
+
+Deployment is `bash ops/deploy.sh` and is documented in [ops/README.md](ops/README.md) and
+[docs/09-implementation/STEP_55_DEPLOYMENT.md](docs/09-implementation/STEP_55_DEPLOYMENT.md).
+`backend/` and `frontend/` carry their own READMEs for the detail.
+
+---
+
+## Legal source documents — `legal-docs/` (gitignored, never committed)
+
+Owner-supplied documents live in [`legal-docs/`](legal-docs/README.md) inside the project (owner
+ruling 2026-08-19). The directory is **gitignored**; locked 54.6 forbids these files entering
+version control and `backend/tests/test_source_material.py` enforces it. Read through
+`LEGALMIND_SOURCE_MATERIAL_DIR`.
+
+It holds the company's own paper (MSA template, TOS, SLA, AUP and Privacy Policy for both brands),
+two executed agreements whose counterparties are **never named in this repository**, and the Indian
+statutes — background law, never a Standard or a Rule. `legal-docs/historical/` is for older signed
+counterparty documents supplied for calibration: historical evidence only, never a current
+position, always validated against the current Constitution.
 
 ---
 
 ## The constraints that define this system
 
-Full text in [CLAUDE.md](CLAUDE.md); these are the ones most often violated by accident.
+Full text in [CLAUDE.md](CLAUDE.md); these are the ones most often broken by accident.
 
-1. **No LLM, RAG, embeddings or vector search** in the authoritative analysis path (`AI-01`). This is locked, not a temporary simplification. Classical NLP is permitted in an assist-only role.
-2. **Deterministic.** Same inputs + same configuration snapshot + same engine version → same result.
+1. **No model decides anything in the authoritative path** (`AI-01`). Since `AM-54`/`AM-60` the
+   model may help *recognise* a clause and read a quantity it states — on a verbatim span, inside
+   the recorded audit trail — and nothing more. The comparison and the classification stay
+   deterministic.
+2. **Deterministic where it counts.** Same recognised facts + same configuration snapshot + same
+   engine version → same classification, always.
 3. **The engine never makes a Legal Decision.** It produces Findings; an authorized human decides.
-4. **Every Finding is explainable** as `Evidence → Fact → Standard → Rule → Result`. No generic risk score, no AI confidence percentage.
-5. **Fail closed.** Insufficient evidence produces `UNABLE_TO_EVALUATE` — never a guess, never a discarded carve-out.
-6. **`RESOLVED ≠ MATCH`**, and `DEVIATION` does not mean "unacceptable."
-7. **Security is server-side.** Authentication → Authorization → Business Operation → Database. Knowing an object's ID is never sufficient for access.
-8. **Never invent a legal requirement.** `NOT YET SPECIFIED` is a valid state — preserve it.
-9. **Ask for real legal source material; never manufacture it.** If contracts, company standards, or other legal source material are needed and not in the repository, request them explicitly before proceeding. No arbitrary example becomes production truth.
-
----
-
-## Development
-
-`backend/` and `frontend/` carry their own READMEs with setup, test and run instructions. The specifications they implement are:
-
-* Stack — [docs/05-architecture/BACKEND_ARCHITECTURE.md](docs/05-architecture/BACKEND_ARCHITECTURE.md)
-* Schema — [docs/09-implementation/DATABASE_MIGRATIONS.md](docs/09-implementation/DATABASE_MIGRATIONS.md)
-* API — [docs/05-architecture/STEP_49_API_FINALIZATION.md](docs/05-architecture/STEP_49_API_FINALIZATION.md)
-* Testing — [docs/08-testing/STEP_54_TESTING_STRATEGY.md](docs/08-testing/STEP_54_TESTING_STRATEGY.md)
-* Deployment — [docs/09-implementation/STEP_55_DEPLOYMENT.md](docs/09-implementation/STEP_55_DEPLOYMENT.md)
-* Build sequence — [docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) §5
+4. **Every Finding is explainable** as `Evidence → Fact → Standard → Rule → Result`. No risk score,
+   no confidence percentage.
+5. **Fail closed.** Insufficient evidence produces `UNABLE_TO_EVALUATE` — never a guess, never a
+   silently resolved ambiguity, never a discarded carve-out.
+6. **`RESOLVED ≠ MATCH`**, and `DEVIATION` does not mean "unacceptable".
+7. **Security is server-side.** Authentication → Authorization → Business Operation → Database.
+   Knowing an object's ID is never sufficient; an out-of-scope object returns a byte-identical 404.
+8. **Never invent a legal requirement**, a threshold, a tolerance or a basis equivalence.
+9. **Ask for real legal source material; never manufacture it.** Missing material is a blocker to
+   raise, not a gap to fill.

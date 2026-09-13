@@ -8,6 +8,12 @@ If this document and a specification disagree, **the specification wins** — an
 
 **Related:** [docs/README.md](../README.md) (documentation index) · [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) (what LegalMind is) · [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) (decision registry) · [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) (build state)
 
+> ⚠️ **Read §0.1 first.** Sections 1–10 below describe the system as locked through **AB-1**. Six
+> amendment batches have landed since, and three of them changed the flow rather than adding to it:
+> the assistive AI lane exists, recognition is model-assisted, and applicability is decided by
+> content rather than by document type. §0.1 is the current end-to-end picture and says which of
+> the sections below it supersedes.
+
 ---
 
 ## 0. Source of truth by area
@@ -41,6 +47,100 @@ Read the map here; read the specification there. Nothing below is restated in de
 | Deployment | [STEP_55_DEPLOYMENT.md](../09-implementation/STEP_55_DEPLOYMENT.md) | Step 55 · `DEP-01` |
 
 > ⚠️ Four older topic documents still read `NOT YET SPECIFIED` for areas the Step-numbered documents above have since locked — `AUTHENTICATION.md`, `FRONTEND_ARCHITECTURE.md`, `TEST_STRATEGY.md`, `DEPLOYMENT.md`. Always check the successor. See [CLAUDE.md](../../CLAUDE.md) § Three traps.
+
+---
+
+## 0.1 The system as it stands — what changed after AB-1
+
+Sections 1–10 were written against AB-1 (2026-08). They remain accurate on the layer boundaries,
+the security model, the data model's spine, the API conventions and the release gates. Six batches
+have since changed how a review is actually produced. This section is the current flow; where it
+contradicts a later section, **this one is current** and the older text is the AB-1 baseline.
+
+### The review pipeline today
+
+```text
+upload ──► ingestion ──► segmentation ──► mapping ──────────► applicability ──► evaluation ──► Finding
+           PDF/DOCX      clauses with     lexical terms,       confirmed ·       deterministic   + evidence
+           OCR on        the document's   then GROUNDED        declared ·        comparison      + explanation
+           missing OR    own numbering    SEMANTIC             expected          (no model)      + Constitution
+           illegible                      recognition                                              citation
+           text
+```
+
+**Ingestion** (Step 34, unchanged in shape) gained a legibility test in 2026-09: a page whose text
+is present but not language is OCR'd, and a document whose structure never came out is REFUSED
+rather than analysed as if each page were a clause. Neither is a new decision — both are 34.9/34.10
+applied where they had not been.
+
+**Mapping** is still the locked deterministic matcher (Steps 28/35), with one amendment. `AM-54`
+(2026-09-09) lets the RECOGNITION step use the local embedding model to shortlist clauses and the
+single egress seam to ask whether a clause addresses a Requirement's subject and states the same
+KIND of position — accepted only on a **verbatim span**, scored through the same confirm threshold
+as a configured phrase, with the model identity, prompt version and payload hash recorded. `AM-60`
+(2026-09-13) removed its in-family gate after measuring four declared-type modes at 0 false
+positives across 38 hard negatives. An UNCLEAR answer, a YES without a verifiable span, or a
+different position leaves the mapping UNRESOLVED — a person looks. **Semantic recognition never
+establishes absence.**
+
+**Applicability** is new as a stage: `AM-51` removed the document-type gate and `AM-61` made every
+outcome recorded. Full rules in [APPLICABILITY.md](../04-analysis-engine/APPLICABILITY.md).
+Summary: a Requirement applies when the document confirms its clause (any family), when it belongs
+to the declared type, or when a Constitution sibling it names is confirmed; everything else is
+`NOT_APPLICABLE` **with its reason**, written into the analysis audit event and shown on the report.
+One Constitution position is measured once (`SAME_POSITION`).
+
+**Evaluation** is unchanged in principle — the two locked evaluators, fail-closed, no model — with
+two amendments: a declared, definitional unit conversion (`AM-62`: YEARS↔MONTHS, WEEKS↔DAYS only,
+both gates required) and a fail-closed result that now reports the company standard's own position
+instead of a blank cell.
+
+**The reader** sees three words, derived server-side: Acceptable · Requires modification · Needs a
+decision (`AM-56`, with `AM-63`'s Constitution §24.4 exception). The engine's five determinations
+stay on every record. See [FINDING_CLASSIFICATION.md](../02-legal-domain/FINDING_CLASSIFICATION.md).
+
+### The second lane
+
+`AM-25`–`AM-32` put an **assistive lane** in V1 scope: retrieval over document chunks, ratified
+positions (Domain A) and statutes (Domain C), with generation through one screened, audited egress
+seam and two independent grounding guardrails. It produces no Finding, writes to no legal table,
+states no position absent from a ratified standard, and never answers "does this meet our
+standard?" — that routes to the evaluator. Full description:
+[ASSIST_LANE_AND_RAG.md](../05-architecture/ASSIST_LANE_AND_RAG.md).
+
+### Where the positions come from
+
+`AM-43` made the **Legal Constitution** the governing source of company positions — as
+*configuration source, never runtime corpus*: it is not chunked, indexed or retrieved, and its
+positions enter as ratified Company Standards citing their section. `AM-59` moved the canonical
+text to **L1.10** and put a `constitution` block on every standard. `AM-65` retired the seven
+standards the Constitution does not define. Provenance and retirement:
+[COMPANY_STANDARDS.md](../02-legal-domain/COMPANY_STANDARDS.md).
+
+### What §4 and §5 below no longer describe
+
+* **Roles.** AB-12 (`AM-39`–`AM-41`) replaced the earlier role set with four personas — Department
+  User, Department Lead, Platform Admin, Developer — with department-scoped reads, owner-only
+  writes, contract transfer, and archive beside a real delete (`AM-55`). §4's permission catalogue
+  and the role names in it are the pre-AB-12 set; [RBAC_MODEL.md](../06-security/RBAC_MODEL.md) is
+  authoritative. The security INVARIANTS in §4 (S-1 … S-10, the ownership traversal, the 404-not-403
+  rule, no super-role reaching legal authority) are unchanged and still correct.
+* **Tables.** AB-13 (`AM-42`) added `counterparties`; AB-12 added `departments`; the assist lane
+  added its own schema (`AM-27` r1) and the Domain A/C corpus tables (`AM-32`). §5's table list is
+  the AB-1 set. [DATABASE_MIGRATIONS.md](../09-implementation/DATABASE_MIGRATIONS.md) is
+  authoritative.
+* **The workspace.** `AM-57` made it document-primary — contents index left, document centre,
+  findings and Ask right — superseding §7's screen description.
+* **The intake.** `AM-64` (2026-09-14) removed the document-type control entirely: the reader never
+  selects a type. A confident assist-lane inference is recorded and audited; the review is
+  content-first either way.
+
+### The standing constraint that did change
+
+§10 and the tail of this document say implementation requires explicit approval. `IMPL-01`
+(2026-08-17) granted it for what is locked, and `IMPL-02` for the assist lane. What has NOT changed
+is that authorization covers *building what is already locked* and confers no authority to decide
+what is not.
 
 ---
 
@@ -671,4 +771,8 @@ These hold in every layer and do not relax when implementation begins ([IMPLEMEN
 10. A changed golden-corpus expectation is a specification change, not a test fix.
 11. Real legal source material is requested, never manufactured.
 
-**Implementation requires explicit approval.** This document describes a specified target, not built work — see [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for actual build state.
+**Implementation is authorized** — `IMPL-01` (2026-08-17) for the locked V1 specification and
+`IMPL-02` for the assist lane. That authorization covers building what is already locked and
+confers no authority to decide what is not. This document is a map, not a build report: see
+[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), the only document that may assert build
+state.

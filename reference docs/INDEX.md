@@ -1,3 +1,12 @@
+> **📁 UNMAINTAINED SNAPSHOT, banner added 2026-09-14.** These five files were written on
+> 2026-09-01 against the `ui-phase3-through-3.4` branch and have had no automated sync since. Known
+> to be stale: `AUTHORIZATION.md` describes 21 permissions and 5 canonical roles, while
+> `backend/legalmind/security/permissions.py` carries 27 permissions and AB-12's four personas plus
+> DEVELOPER. Nothing here is part of the locked specification. Authoritative instead:
+> [docs/06-security/RBAC_MODEL.md](../docs/06-security/RBAC_MODEL.md),
+> [docs/06-security/STEP_47_SECURITY_SPECIFICATION.md](../docs/06-security/STEP_47_SECURITY_SPECIFICATION.md)
+> and [docs/00-project/ARCHITECTURE_REFERENCE.md](../docs/00-project/ARCHITECTURE_REFERENCE.md).
+
 # Reference Documentation Index
 
 > **Scope.** LegalMind reference materials — architecture, authentication, authorization, and user management.

@@ -1,4 +1,4 @@
-"""Shipped retrieval recall is 0.438 against a 0.938 vector ceiling — attributed.
+"""The retrieval recall ledger: what ships, against what the model can do.
 
 Records a MEASURED gap between the basis `AM-26` r2 selected the embedding model
 on and what the shipped pipeline delivers, so it cannot stay invisible and so a
@@ -80,8 +80,27 @@ RECALL_AT_10 = {
     (False, False): 60 / 64,   # == the vector branch alone
 }
 VECTOR_CEILING_AT_10 = 60 / 64      # the AM-26 r2 selection basis
-SHIPPED_RECALL_AT_10 = RECALL_AT_10[(True, True)]
 LEXICAL_ALONE_AT_10 = 1 / 64        # the branch contributes no unique recall
+
+# MEASURED 2026-09-14 under the pipeline that actually ships,
+# `hybrid-rrf-gate-3`, with BOTH floors unchanged at 0.50. The 2x2 above was
+# measured under `hybrid-rrf-gate-1`; its cells are history, and its
+# ATTRIBUTION (the two floor applications, not fusion) still stands.
+#
+# What moved, and what did not:
+#
+#     recall@10        0.438 -> 0.625        hit@1     0.281 -> 0.375
+#     answered          24   -> 33           retained   41   -> 43
+#     wrongly answered   1/13 unchanged      user-visible wrong  0/13 unchanged
+#     faithfulness      1.0  unchanged       citation precision 1.0 unchanged
+#
+# No floor was weakened; the gain is the 2026-09-10 heading-redirect work, which
+# had never been measured because the gate compared against a baseline recorded
+# under the older pipeline and refused nothing when the pipeline changed. That
+# hole is closed (`verify_assist_quality` now refuses a pipeline mismatch as it
+# already refused a dataset one), which is how this measurement came to exist.
+SHIPPED_RECALL_AT_10 = 0.625
+HISTORICAL_SHIPPED_AT_10 = RECALL_AT_10[(True, True)]
 
 
 def test_fusion_reproduces_the_vector_ceiling_when_no_threshold_is_applied():
@@ -98,22 +117,22 @@ def test_fusion_reproduces_the_vector_ceiling_when_no_threshold_is_applied():
 
 def test_neither_threshold_application_is_a_fix_on_its_own():
     """The super-additivity, which is why there is no small safe change here."""
-    floor_only = RECALL_AT_10[(True, False)] - SHIPPED_RECALL_AT_10
-    gate_only = RECALL_AT_10[(False, True)] - SHIPPED_RECALL_AT_10
-    both = RECALL_AT_10[(False, False)] - SHIPPED_RECALL_AT_10
+    floor_only = RECALL_AT_10[(True, False)] - HISTORICAL_SHIPPED_AT_10
+    gate_only = RECALL_AT_10[(False, True)] - HISTORICAL_SHIPPED_AT_10
+    both = RECALL_AT_10[(False, False)] - HISTORICAL_SHIPPED_AT_10
     assert both > (floor_only + gate_only) * 2, (
         f"one constant read twice: floor-only recovers {floor_only:.3f}, "
         f"gate-only {gate_only:.3f}, but both together {both:.3f}")
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "MEASURED 2026-09-02: shipped recall@10 0.438 against a 0.938 vector "
-    "ceiling. Attributed to COSINE_FLOOR being applied at two points — the "
-    "refusal gate and the per-hit evidence filter — which together account for "
-    "the whole 0.5 gap and individually recover +0.016 and +0.188. Fusion "
-    "accounts for zero. Both levers are out of scope for the audit that found "
-    "this (COSINE_FLOOR, PEAK_MARGIN, refusal thresholds) and need an owner "
-    "calibration decision."))
+    "MEASURED 2026-09-14: shipped recall@10 0.625 against a 0.938 vector "
+    "ceiling — up from 0.438 on 2026-09-02 with no floor weakened and no "
+    "increase in wrong answers. The remaining gap is still attributed to "
+    "COSINE_FLOOR being applied at two points, the refusal gate and the per-hit "
+    "evidence filter; fusion accounts for zero. The owner ruled on 2026-09-14 "
+    "that the dial moves only where recall improves WITHOUT a rise in wrongly- "
+    "answered, so closing the rest needs a measurement that shows it is free."))
 def test_shipped_retrieval_reaches_the_calibrated_vector_basis():
     """The invariant the product needs: what AM-26 r2 selected is what ships.
 

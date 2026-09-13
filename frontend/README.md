@@ -178,7 +178,7 @@ by accident. Only the two locked evaluator types are offered (AM-16).
 | **Review status controls** | Step 30 r3 — users cannot arbitrarily set Review status. |
 | **Visual design, a11y target, i18n** | 52.6 records all three as NOT YET SPECIFIED. |
 
-## Tests (46, Vitest)
+## Tests (Vitest)
 
 | File | Defends |
 |---|---|
@@ -192,7 +192,7 @@ the rules they defend are about what the frontend *must not contain*, and no
 behavioural test can prove the absence of a database client or a locally
 reimplemented roll-up.
 
-## Verified
+## What these tests actually prove
 
 ```
 npm run test        53 passed        Vitest — rendering, boundaries, permissions

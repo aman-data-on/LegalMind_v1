@@ -1893,3 +1893,44 @@ Removing the field would break the intake's own recording of a confident inferen
 tooling that declare a type. The owner's rule is about the reader's workflow; the reader now has no type
 control anywhere, and the type is shown only as inferred context.
 
+## 2026-09-14 — the final business decisions and the production/documentation pass (331–336)
+
+### 331 — retirement is a status flip, because both alternatives were checked and both break something
+Deleting the seven rows makes every Finding that cites one serialize as nulls (`serialize_finding`
+resolves by version id). Moving the files breaks nine golden fixtures at load time (`corpus.py`
+raises `FixtureError` when a `company_standard_ref` has no file) and six directory-glob tests.
+`ConfigStatus.DEPRECATED` existed in the locked Step 29 lifecycle and in the shipped Postgres enum,
+unused, and publish already filtered on ACTIVE — so the retirement cost one line of importer code
+and one guard, with no migration.
+
+### 332 — `retired` is read from current status, never from the pinned snapshot
+The snapshot is immutable (locked 16), so a Finding written before the retirement pins the old
+configuration. Reading retirement from the snapshot would leave 184 existing Findings still
+presenting as approved. `serialize_finding` already joins `M.Requirement`, so current status costs
+no extra query and satisfies "do not show them as approved standards".
+
+### 333 — the compound requirement lives in terminology, not in a new evaluator
+`EvaluatorType` is singular by locked 42.7/N-36 and adding a compound evaluator is a domain-boundary
+change. Mapping terminology already expresses "both limbs or nothing": keyword groups score only
+when every term is present, and heading terms are deliberately worth less than the threshold so a
+one-limb clause is retained as evidence and routed to a person rather than asserted absent.
+
+### 334 — the gate refuses a pipeline mismatch, and that is how the recall gain was found
+The gate already refused a changed dataset. Applying the same argument to the pipeline identity was
+a four-line change, and the first run under it revealed that shipped recall had improved from 0.438
+to 0.625 on 2026-09-10 and nobody knew, because every release since had been compared against a
+baseline recorded under an older strategy. No floor was touched.
+
+### 335 — the calibration harness prints aggregates, never text
+Real counterparty paper cannot enter the repository (54.6) and counterparty names cannot be written
+anywhere in it. The harness derives an anonymised handle from the filename's document-type words,
+reports counts only, and rolls back everything it writes — so its output is safe to paste into a
+report while the documents stay in a gitignored directory.
+
+### 336 — documentation gaps were closed by writing the missing canonical file, not by cross-linking
+Three required topics (the LLM/RAG flow, applicability, the reader's three words) existed only
+inside lock records. Cross-referencing `all_lock.md` would have been cheaper and would have left the
+next reader reading lock records. Two new documents and one extended section now own those topics,
+and a test keeps every document reachable from the index so the class of drift that produced eight
+orphans cannot recur silently.
+

@@ -165,10 +165,31 @@ is approved through the Constitution (`AM-59` r6'). Reproduced from the section'
 | GST-EXCLUSIVE-MSA-001 | Fees exclusive of GST | present | Constitution §16 | PRESENCE |
 | CONVENIENCE-NOTICE-MSA-001 | Termination for convenience notice | **30 days'** written notice (non-fixed-term) | Constitution §13 | NUMERIC |
 | CHANGE-OF-CONTROL-NOTICE-MSA-001 | Change-of-control notice | **30 days** | Constitution §31.14 | NUMERIC |
+| SERVICE-DISCONTINUATION-MSA-001 ⚖️2026-09-14 | Service discontinuation | **compound**: advance notice AND continuation to the end of the committed term, whichever is later — one requirement, never the notice limb alone (`AM-66`) | Constitution §31.14 A | PRESENCE |
 
 Left in `proposed/`: PO-MSA-REFERENCE and PO-PRECEDENCE (approved through §31.11, deferred — no PO
 to calibrate against; the owner will supply one), SERVICE-DISCONTINUATION-NOTICE (**Pending Business
 Approval** — a compound position the draft would narrow).
+
+### Retired — 7 Requirements (`AM-65`, 2026-09-14)
+
+The current Constitution states no position for these, so they are **RETIRED — NOT PRESENT IN
+CURRENT CONSTITUTION**: withdrawn from active review, never shown as approved, history preserved.
+Their files remain with their original `ratified` date and source clause; `Requirement.status` is
+`DEPRECATED`, so they enter no future snapshot. The 184 existing Findings that cite them stay
+readable and now report `retired`.
+
+| Code | Was measured | Why the Constitution does not state it |
+|---|---|---|
+| FORCE-MAJEURE-MSA-001 | 60 days | §31.14-C names force majeure only as one of six circumstances permitting shorter notice, and fixes no period |
+| FORCE-MAJEURE-TOS-001 | 60 days | same |
+| WARRANTY-DISCLAIMER-MSA-001 | present | no warranty position appears in §§9–22 or §31 |
+| COMPELLED-DISCLOSURE-NDA-001 | present | §15 states the confidentiality position and says nothing about compelled disclosure |
+| RETURN-DESTRUCTION-MSA-001 | present | §15 states no return/destruction position; the only such wording is §31.8(e), which governs Partner Agreement termination |
+| RETURN-DESTRUCTION-NDA-001 | present | same |
+| LIAB-CARVEOUTS-MSA-001 | present | §9 states the opposite kind of position — "No separate multiplier or super-cap has been approved" — and `AM-43` r5 already recorded the two as different subjects |
+
+They return only through a Constitution update or an explicit business approval.
 
 ### AUP / Privacy Policy / Order Form / Amendment / DPA — no Requirements in V1
 

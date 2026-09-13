@@ -10,6 +10,73 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — the final business decisions, a production-quality pass, and the documentation set (AB-20: `AM-65`, `AM-66`; 2026-09-14; NOT deployed)
+
+**Retirement.** The seven standards the current Constitution does not define are retired
+(`AM-65`): FORCE-MAJEURE-MSA/TOS, WARRANTY-DISCLAIMER-MSA, COMPELLED-DISCLOSURE-NDA,
+RETURN-DESTRUCTION-MSA/NDA, LIAB-CARVEOUTS-MSA. **It is seven, not the eight reported** — the
+earlier figure came from `AM-43` r5's older list, which also counted AUTORENEW-* and
+TERM-NOTICE-NDA-001, both of which L1.10 does state; `AM-59` r5 is corrected in the same batch.
+Measured before acting: **184 of 580 live Findings (32%) cite one of the seven, and zero Legal
+Decisions rest on them.** The mechanism is `Requirement.status = DEPRECATED` — the locked Step 29
+value nothing had ever produced — so a retired standard leaves every future snapshot with no code
+change; publish refuses to re-activate one. Deleting the rows would make every citing Finding
+serialize as nulls and moving the files would break nine golden fixtures: both were checked, not
+assumed. Files keep their `ratified` date and source; a Finding reports `retired` from the
+requirement's **current** status so an old Finding says so too while staying byte-identical; five
+`expected_when` lists drop the retired codes so a retired standard can no longer drive a MISSING.
+
+**Service discontinuation is one compound requirement** (`AM-66`, Constitution §31.14 A). Expressed
+in terminology rather than a new evaluator — `EvaluatorType` is singular by locked 42.7/N-36.
+Measured against the real mapper before ratification: the Constitution's own compound sentence
+scores 7 (MATCH), a one-limb "30 days' notice" clause scores 2 (below threshold, evidence retained,
+a person decides), a non-payment clause −3 (vetoed by §31.14's own carve-out). The notice limb is
+never evaluated alone. LegalMind holds no contract dates, so what it checks is that the *clause*
+provides the compound protection.
+
+**The release gate was measuring against a stale bar.** `baseline.json` recorded
+`hybrid-rrf-gate-1` while the code shipped `-3`: the gate refused a changed dataset hash but never
+a changed pipeline identity. It now refuses the mismatch and names the drifted field — and the
+first honest measurement showed the shipped pipeline is **strictly better**: recall@10
+0.438 → **0.625**, hit@1 0.281 → 0.375, answered 24 → 33, with wrongly-answered unchanged at 1/13,
+**0 wrong answers reaching a user**, faithfulness 1.0 and both floors untouched at 0.50. Re-baselined.
+
+**Retention (41.26) is answered by the Constitution, not invented.** Asked, the owner said "check in
+constitution": L1.10 §26.1 requires superseded versions to stay "archived and accessible, not
+deleted" and every historical Review to stay linked to the configuration active when it ran. That is
+the policy — no automatic expiry, removal only by an explicit human act (`AM-55`). §28.2 records the
+DPDP retention rules as not in force until 13 May 2027, and the check names that date. Preflight
+moves BLOCKED → PASS with no period invented.
+
+**Also fixed**: three truncated-stem terms (`terminat`, `invoic`) that whole-word matching could
+never hit, with a guard test across every standard; `RRF_K = 60` given one home instead of three
+literals; `tools/verify_terminology` wired into CI, where it had never run despite being the only
+check that each standard reproduces its Constitution position.
+
+**New**: `tools/calibrate_historical.py` measures the published configuration against real signed
+counterparty paper — gitignored input, anonymised handles, aggregates only, everything rolled back.
+First run on three real documents: 0 findings without evidence, 0 duplicate positions; an AUP
+correctly produced 3 findings and 29 recorded NOT_APPLICABLE, an MSA 26 findings across five
+classifications.
+
+**Documentation** (the owner's mandatory item). Root `README.md` rewritten as a real entry point —
+it had stopped at AB-2, repeated the stale "28 fixtures" triple and printed a risk score the product
+forbids. Two documents created for topics that had no canonical home at all:
+`docs/05-architecture/ASSIST_LANE_AND_RAG.md` (the LLM/RAG lane end to end) and
+`docs/04-analysis-engine/APPLICABILITY.md`. `ARCHITECTURE_REFERENCE.md` — the designated end-to-end
+document, frozen at AB-1 — gained a current §0.1 naming exactly which later sections it supersedes.
+`FINDING_CLASSIFICATION.md` gained the reader's three words and `AM-53`'s superseded triple;
+`COMPANY_STANDARDS.md` the provenance vocabulary, the retired seven and the PO calibration process.
+`frontend/README.md`'s "no CSS framework" claim and build-state assertions fixed;
+`backend/README.md`'s stale OIDC block removed; `AUTH_IMPLEMENTATION_COMPLETE.md` and
+`reference docs/` bannered as superseded and linked rather than left orphaned; `docs/README.md`
+gained the eight unlinked files and lost a stale conflict count. A new
+`test_documentation_index.py` keeps every document reachable and every index link alive.
+
+**Verified**: 1,655+ backend tests, 398 frontend, ruff and mypy clean, Tier-2 gate green against the
+re-baselined bar, `verify_terminology` 34 PASS (the 6 FAILs are the `AM-43` r4 reconciled standards
+whose live paper deviates by design), reproducibility digest unchanged. Not deployed.
+
 ### Changed — the owner's business clarification applied (AB-20 continued: `AM-59` r6'/r9, `AM-62` r5, `AM-63`, `AM-64`, 2026-09-13; NOT deployed)
 
 Five rulings, each with a consequence. **The Constitution is final** — a standard restating a

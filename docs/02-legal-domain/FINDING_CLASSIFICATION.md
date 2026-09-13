@@ -325,3 +325,42 @@ Workflow formally finished
 ```
 
 Key rule reiterated here because it governs Finding interpretation: `ANALYSIS_FAILED` (a Review-level exception state — automated analysis could not complete) is distinct from a Finding of `UNABLE_TO_EVALUATE` (a Finding-level classification where deterministic evaluation could not establish a reliable result).
+
+---
+
+## The reader's three words
+
+The classifications above are what the ENGINE records — on every Evaluation and Finding, in the
+API, the audit trail, View details and the export. They are not what a reader is shown.
+
+Since `AM-56` (owner, 2026-09-09) every surface speaks three words, derived server-side in one
+place (`legalmind/domain/user_status.py`) and never stored as a sixth state axis:
+
+| Reader sees | From | Next step shown |
+|---|---|---|
+| **Acceptable** | `MATCH` | "No action is needed." |
+| **Requires modification** | `DEVIATION`, `MISSING` | "This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide." |
+| **Needs a decision** | `UNABLE_TO_EVALUATE`, `CONFLICT` | "Someone with legal authority needs to decide this." |
+
+One exception, `AM-63` (2026-09-14), from the Constitution's own §24.4: a `DEVIATION` or `MISSING`
+that falls inside a **defined Unacceptable Position** is *Not Negotiable* and reads **Needs a
+decision** rather than Requires modification — because §24.4 maps a Not-Negotiable deviation to "a
+human legal or business call", not to a clause someone can go and edit. Only the two Unacceptable
+Positions the engine can mechanically check qualify (`evaluation/constitution_boundaries.py`): an
+unlimited or one-sided liability cap (§9), and a post-termination export window under 30 days (§13).
+
+A Finding takes its **worst** Evaluation: Requires modification over Needs a decision over
+Acceptable.
+
+Three rules about this vocabulary, all load-bearing:
+
+* **"Needs a decision" is never a rejection.** §24.4(1) is explicit: it means a human decision is
+  required, not that one has been made against the counterparty. No surface may word it otherwise.
+* **A sixth answer exists and is not a Finding.** "The Constitution has no position on this topic"
+  is an **unmatched provision** (REC-02) — listed on the report, routed to a person, never
+  classified.
+* **A retired standard is never shown as approved** (`AM-65`). Its Finding stays readable and says
+  the standard behind it has been withdrawn.
+
+The earlier triple — *Accepted / Needs review / Not accepted* (`AM-53`, 2026-09-09) — is
+**superseded** by `AM-56` of the same day. It survives only in that lock record.
