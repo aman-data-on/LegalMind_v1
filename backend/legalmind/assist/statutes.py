@@ -425,15 +425,17 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
             log_event("assist.statutes.searched", hits=0, level=logging.DEBUG,
                       cause="no_semantic_evidence")
             return []
+        from legalmind.assist.calibration import RRF_K
+
         fused: dict = {}
         by_id: dict = {}
         for rank, h in enumerate(vector, start=1):
             key = h.statute_chunk_id
-            fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+            fused[key] = fused.get(key, 0.0) + 1 / (RRF_K + rank)
             by_id.setdefault(h.statute_chunk_id, h)
         for rank, h in enumerate(hits, start=1):
             key = h.statute_chunk_id
-            fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+            fused[key] = fused.get(key, 0.0) + 1 / (RRF_K + rank)
             by_id.setdefault(h.statute_chunk_id, h)
         order = list(fused)                      # insertion order = vector first on ties
         ranked = sorted(order, key=lambda i: (-fused[i], order.index(i)))

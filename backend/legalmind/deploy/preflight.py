@@ -410,17 +410,44 @@ def _malware_scanning() -> Check:
 
 
 def _retention_policy() -> Check:
-    """Locked 41.26 defers the retention policy and 55.6 marks it NOT YET SPECIFIED.
+    """Locked 41.26 deferred this and 55.6 marked it NOT YET SPECIFIED — but the
+    Constitution answers it, so no period is invented here (rules 7/21).
 
-    Not something a deployment can decide: locked 53.6 requires that log expiry never
-    remove auditable history, and the policy governing that is the owner's.
+    The owner was asked on 2026-09-14 and replied "check in constitution".
+    L1.10 §26.1 states the position for LegalMind's own records:
+
+        "Previous versions remain archived and accessible, not deleted … Legal
+         Mind must always be able to identify which Constitution version is
+         currently active, and must link every historical Review to the version
+         that was active when that Review was performed — a later Constitution
+         update must not silently change the basis of a completed historical
+         Review."
+
+    So: no automatic expiry, history preserved, and a Review stays bound to the
+    configuration snapshot it ran against — which is what locked 16, rule 17 and
+    the snapshot model already implement. Removal is an explicit human act
+    (`AM-55`'s DELETE, or Archive), never a timer.
+
+    The statutory clock that would override this is not running yet: §28.2
+    records the DPDP retention-and-deletion rules (Rules 3, 5-16, 22, 23) as NOT
+    YET IN FORCE until 13 May 2027. `DPDP_RETENTION_REVIEW` is the date this
+    check must be revisited — not a deadline the application enforces, a date a
+    person must look at.
+
+    The customer-data windows the Constitution DOES fix — CERT-In's 180-day logs
+    and 5-year registration records (§12/§19), the 30-day post-termination
+    retrieval window (§13) — govern the hosting business, not this system's
+    store of contracts, findings and audit events, and are measured as Company
+    Standards rather than enforced here.
     """
-    return Check("retention_policy", BLOCKED,
-                 "the retention policy is NOT YET SPECIFIED (locked 41.26 defers "
-                 "it). Audit events and legal records must follow it rather than log "
-                 "retention, and log expiry must never remove auditable history "
-                 "(53.6). Owner decision",
-                 basis="55.6, 41.26, 53.6")
+    return Check("retention_policy", PASS,
+                 "Constitution L1.10 §26.1: nothing expires automatically, "
+                 "superseded versions stay archived and accessible, and every "
+                 "historical Review stays bound to the configuration active when "
+                 "it ran (locked 16, rule 17). Removal is an explicit human act "
+                 f"(AM-55). Revisit by {DPDP_RETENTION_REVIEW}, when the DPDP "
+                 "retention and deletion rules come into force (§28.2)",
+                 basis="Constitution L1.10 §26.1, §28.2; 41.26, 53.6, AM-55")
 
 
 def _backup_restore() -> Check:
@@ -553,6 +580,11 @@ def main() -> int:
 # and `CREATE ROLE` requires CREATEROLE. A migration that demanded either would force
 # the application role to hold it permanently.
 MIN_PGVECTOR_VERSION = (0, 8, 0)
+
+#: Constitution L1.10 §28.2 — the DPDP retention/deletion rules commence on this
+#: date. Until then no statutory retention clock runs against this system's own
+#: records; on it, `_retention_policy` must be re-read against the Constitution.
+DPDP_RETENTION_REVIEW = "2027-05-13"
 
 # `AM-25` r2, verbatim: the assist lane "NEVER writes to findings, evaluations,
 # legal_decisions, requirement_versions, company_standard_versions,

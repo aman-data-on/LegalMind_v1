@@ -644,6 +644,7 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
         EVIDENCE_COSINE_FLOOR,
         RETRIEVAL_STRATEGY_VERSION,
         RETRIEVAL_TOP_K,
+        RRF_K,
         gate_is_open,
     )
 
@@ -726,10 +727,10 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     fused: dict[UUID, float] = {}
     by_id: dict[UUID, SearchHit] = {}
     for rank, hit in enumerate(lexical_hits, start=1):
-        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (60 + rank)
+        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (RRF_K + rank)
         by_id.setdefault(hit.chunk_id, hit)
     for rank, hit in enumerate(vector_hits, start=1):
-        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (60 + rank)
+        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (RRF_K + rank)
         by_id[hit.chunk_id] = hit   # prefer the cosine-scored representation
     ordered = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:limit]
 

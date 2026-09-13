@@ -439,6 +439,24 @@ def main(argv: list[str] | None = None) -> int:
               "--write-baseline — a dataset change is reviewable in the same diff.")
         return 1
 
+    # The same argument applies to the PIPELINE, and did not used to be made
+    # (found 2026-09-14): the baseline was recorded under `hybrid-rrf-gate-1`
+    # while the code shipped `-3`, so the bar a release was measured against had
+    # been set by a retrieval strategy two revisions old. A metric is only
+    # comparable to one produced by the same pipeline; where it is not, the
+    # honest move is to re-measure, not to compare across the change.
+    recorded = baseline.get("pipeline") or {}
+    current = _baseline_payload(metrics, dataset_sha, len(questions))["pipeline"]
+    drifted = {k: (recorded.get(k), v) for k, v in current.items() if recorded.get(k) != v}
+    if drifted:
+        print("FAIL  the pipeline changed since the baseline was recorded, so the "
+              "numbers are not comparable:")
+        for key, (was, now) in sorted(drifted.items()):
+            print(f"        {key}: {was!r} -> {now!r}")
+        print("      Re-baseline deliberately with --write-baseline — a pipeline "
+              "change is reviewable in the same diff.")
+        return 1
+
     base = baseline["metrics"]
     verdicts: list[str] = []
     blocking_failures = 0

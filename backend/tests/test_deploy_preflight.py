@@ -185,12 +185,26 @@ def test_oidc_refuses_a_redirect_uri_that_is_not_the_served_route(monkeypatch):
     assert by_name(run_preflight())["oidc"].status == FAIL
 
 
-def test_retention_policy_is_blocked_on_the_owner():
-    """Locked 41.26 defers it; 53.6 requires that log expiry never remove auditable
-    history. Not a deployment choice."""
+def test_retention_policy_follows_the_constitution_rather_than_an_invented_period():
+    """Locked 41.26 deferred this and 55.6 called it NOT YET SPECIFIED — but the
+    Constitution answers it, so nothing is invented (rules 7/21).
+
+    L1.10 §26.1: superseded versions "remain archived and accessible, not deleted",
+    and every historical Review stays linked to the configuration active when it
+    ran. That IS the policy for this system's own records: no automatic expiry,
+    removal only by an explicit human act (`AM-55`). §28.2 records the DPDP
+    retention/deletion rules as not in force until 13 May 2027, so no statutory
+    clock overrides it yet — and the check names that date rather than leaving a
+    future obligation to be rediscovered."""
+    from legalmind.deploy.preflight import DPDP_RETENTION_REVIEW
+
     check = by_name(run_preflight())["retention_policy"]
-    assert check.status == BLOCKED
-    assert "NOT YET SPECIFIED" in check.detail
+    assert check.status == PASS
+    assert "§26.1" in check.detail
+    assert DPDP_RETENTION_REVIEW in check.detail
+    # No period is stated for contracts, findings or audit events: the policy is
+    # that they do not expire, not that they expire after some invented interval.
+    assert "days" not in check.detail and "years" not in check.detail
 
 
 def test_malware_scanning_is_a_recorded_decision(monkeypatch):

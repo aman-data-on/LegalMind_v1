@@ -54,8 +54,10 @@ def retired_block_error(payload: dict | None) -> str | None:
         return f"retired.marker must read exactly {RETIRED_MARKER!r}"
     for field in ("date", "reason", "ruling"):
         if not isinstance(block.get(field), str) or not block[field].strip():
-            return f"retired.{field} is required — a retirement without its reason is not a record"
-    basis = ((payload or {}).get("configuration") or {}).get("constitution", {}).get("basis")
+            return (f"retired.{field} is required — a retirement without its "
+                    "reason is not a record")
+    configuration = (payload or {}).get("configuration") or {}
+    basis = (configuration.get("constitution") or {}).get("basis")
     if basis != "RETIRED":
         return "a retired standard must declare constitution.basis RETIRED"
     return None

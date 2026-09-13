@@ -68,7 +68,7 @@ CONSTITUTION = Path(__file__).resolve().parents[2] / "docs" / "02-legal-domain" 
 
 
 def _constitution_clauses(section: str) -> list[Clause]:
-    """The paragraphs of one L1.10 section, each as a clause titled by the section.
+    r"""The paragraphs of one L1.10 section, each as a clause titled by the section.
 
     The heading forms are `# **16\. Payment…**` for a section and `## **31.15 …**`
     for a subsection; the slice runs to the next heading of the same or higher

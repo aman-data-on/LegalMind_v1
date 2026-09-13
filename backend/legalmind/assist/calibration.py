@@ -107,6 +107,12 @@ RETRIEVAL_STRATEGY_VERSION = (
     "hybrid-rrf-gate-3 (redirect 2026-09-10; gate 2026-08-26)")
 assert len(RETRIEVAL_STRATEGY_VERSION) <= 64      # retrieval_runs.strategy_version
 
+#: Reciprocal-rank-fusion damping. 60 is the value the RRF paper reports and the
+#: value every branch has always used; it lived as a bare literal in three modules
+#: (document, positions, statutes) until 2026-09-14. One constant, because three
+#: copies of a number is three chances to change one of them.
+RRF_K = 60
+
 
 def gate_is_open(lexical_hit: bool, vector_scores: list[float]) -> bool:
     """The deterministic refusal decision, exactly as calibrated.

@@ -24,7 +24,11 @@ from sqlalchemy import select
 from legalmind.api.serializers import serialize_finding
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.evaluation.constitution_block import RETIRED_MARKER, is_retired, retired_block_error
+from legalmind.evaluation.constitution_block import (
+    RETIRED_MARKER,
+    is_retired,
+    retired_block_error,
+)
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 from tests.conftest import make_evaluation, make_finding, make_user
 

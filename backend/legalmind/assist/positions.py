@@ -303,20 +303,23 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
 
 def _fuse(lexical: list[PositionHit], vector: list[PositionHit],
           limit: int) -> list[PositionHit]:
-    """Reciprocal rank fusion (k=60). An exact tie goes to the vector side: a gated
+    """Reciprocal rank fusion (`calibration.RRF_K`). An exact tie goes to the vector
+    side: a gated
     cosine is a stronger relevance signal than two shared lexemes (measured live: a
     liability standard sharing "agreement" and "give" with a notice question tied
     with the notice standard the vector had ranked first, and an alphabetical
     tie-break put liability on top). Deterministic: insertion order breaks ties."""
+    from legalmind.assist.calibration import RRF_K
+
     fused: dict[UUID, float] = {}
     by_id: dict[UUID, PositionHit] = {}
     for rank, hit in enumerate(vector, start=1):
         key = hit.position_chunk_id
-        fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+        fused[key] = fused.get(key, 0.0) + 1 / (RRF_K + rank)
         by_id.setdefault(hit.position_chunk_id, hit)
     for rank, hit in enumerate(lexical, start=1):
         key = hit.position_chunk_id
-        fused[key] = fused.get(key, 0.0) + 1 / (60 + rank)
+        fused[key] = fused.get(key, 0.0) + 1 / (RRF_K + rank)
         by_id.setdefault(hit.position_chunk_id, hit)
     order = list(fused)
     ordered = sorted(order, key=lambda i: (-fused[i], order.index(i)))
