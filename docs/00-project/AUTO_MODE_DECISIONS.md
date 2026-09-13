@@ -1866,3 +1866,30 @@ An applied numeric requirement with mapping NONE produced UNABLE_TO_EVALUATE wit
 N-34 refused to persist — a silent, pre-existing gap in the declared family too. Now MISSING with zero
 evidence (45C.15), the shape PRESENCE always had.
 
+### 326 — "approved through the Constitution" is a provenance, recorded in the file, not a session's opinion
+The owner ruled that a standard restating a clearly defined section is already approved. Each such file
+carries `approval: {basis: CONSTITUTION, section, ruling}` beside its `ratified` date, so the importer, a
+reader and Counsel can see WHY it is live without asking. A draft that narrows or extends a section is
+labelled Pending Business Approval in its `status` and stays in `proposed/`.
+
+### 327 — the Constitution's own paragraphs are the first calibration text
+`verify_terminology` reproduces a Constitution-sourced standard from its section (Company Position and
+illustrative clause), since no LeapSwitch clause exists for it. It found three vocabulary gaps and one
+extraction defect on the first run — which is what calibration is for. Counterparty paper, when supplied,
+is the second calibration; its absence does not block activation (owner: PO later).
+
+### 328 — the quantity nearest the cap phrase, overlap first
+A multi-period paragraph read its first number whatever the phrase introduced. "Nearest" is chosen
+among stated numbers only: overlap (the phrase carries the unit word) beats any gap; smaller gap beats
+larger; after beats before on a tie. Single-quantity clauses are unaffected — the corpus is the proof.
+
+### 329 — §24.4 governs the word, `AM-56` governs everything §24.4 does not name
+The owner's "everything clearly defined in the Constitution is final" resolved C-20 without a separate
+question. The narrowest reading was taken: only a deviation inside a defined Unacceptable Position moves
+to "Needs a decision"; DEVIATION/MISSING otherwise keep "Requires modification".
+
+### 330 — the API keeps `contract_type`; the UI loses the control
+Removing the field would break the intake's own recording of a confident inference and the e2e/operator
+tooling that declare a type. The owner's rule is about the reader's workflow; the reader now has no type
+control anywhere, and the type is shown only as inferred context.
+

@@ -150,6 +150,26 @@ Liability remains **not applicable** to NDA (owner Q4=A, unchanged). Note the pe
 model resolving the register's C-07 cleanly: MSA survival = 3 years, NDA survival = 2
 years — two document types, two positions, no contradiction.
 
+### Approved through the Constitution — 7 Requirements (L1.10 §16, §13, §31.14; owner ruling 2026-09-13)
+
+Ratified by the owner's rule that a standard restating a clearly defined Constitution position
+is approved through the Constitution (`AM-59` r6'). Reproduced from the section's own text by
+`tools.verify_terminology`; counterparty paper is the second calibration when supplied.
+
+| Code | Clause | Standard | Source | Evaluator |
+|---|---|---|---|---|
+| PAYMENT-PERIOD-MSA-001 | Invoice payment period | **21 days** of invoice date | Constitution §16 | NUMERIC |
+| DISPUTE-WINDOW-MSA-001 | Billing-dispute window | **15 days** of invoice date | Constitution §16 | NUMERIC |
+| PRICE-CHANGE-NOTICE-MSA-001 | Price-change notice | **30 days'** written notice | Constitution §16 | NUMERIC |
+| SUSPENSION-NOTICE-CURE-MSA-001 | Notice and cure before non-payment suspension | present | Constitution §16 | PRESENCE |
+| GST-EXCLUSIVE-MSA-001 | Fees exclusive of GST | present | Constitution §16 | PRESENCE |
+| CONVENIENCE-NOTICE-MSA-001 | Termination for convenience notice | **30 days'** written notice (non-fixed-term) | Constitution §13 | NUMERIC |
+| CHANGE-OF-CONTROL-NOTICE-MSA-001 | Change-of-control notice | **30 days** | Constitution §31.14 | NUMERIC |
+
+Left in `proposed/`: PO-MSA-REFERENCE and PO-PRECEDENCE (approved through §31.11, deferred — no PO
+to calibrate against; the owner will supply one), SERVICE-DISCONTINUATION-NOTICE (**Pending Business
+Approval** — a compound position the draft would narrow).
+
 ### AUP / Privacy Policy / Order Form / Amendment / DPA — no Requirements in V1
 
 AUP and Privacy Policy are unilateral published policies incorporated by reference;

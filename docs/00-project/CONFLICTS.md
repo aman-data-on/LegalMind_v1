@@ -572,7 +572,13 @@ Documented at: [test_import_boundaries.py](../../backend/tests/test_import_bound
 
 ## C-20 — L1.10 §24.4's status mapping vs `AM-56` r2
 
-**Registered 2026-09-13 · open · blocks nothing.** The Constitution L1.10 §24.4 maps a
+## ✅ RESOLVED 2026-09-13 — `AM-63`
+
+The owner ruled the same day that everything clearly defined in the Constitution is approved and final; §24.4 is. A deviation inside a defined Unacceptable Position is "Needs a decision"; every other mapping keeps `AM-56`.
+
+### Original finding (retained for the record)
+
+**Registered 2026-09-13.** The Constitution L1.10 §24.4 maps a
 *Negotiable — Approval Required* deviation to "Requires Modification" and a *Not Negotiable /
 Unacceptable* one to "Needs a Decision". `AM-56` r2 (owner instruction, 2026-09-09) maps EVERY
 DEVIATION to "Requires modification" and explicitly stopped the Constitution citation moving
@@ -584,7 +590,13 @@ entries. Not resolved here (rule 5).
 
 ## C-21 — `AM-51` r5 ("a type change re-runs the analysis") vs 43.28 and 49.8
 
-**Registered 2026-09-13 · open · blocks nothing.** `AM-51` r5 says a document type set in Edit
+## ✅ RESOLVED (moot) 2026-09-13 — `AM-64`
+
+The reader never selects or changes a document type; the only type is the assist lane's confident inference at intake. There is no type change to re-run.
+
+### Original finding (retained for the record)
+
+**Registered 2026-09-13.** `AM-51` r5 says a document type set in Edit
 details "runs a fresh analysis". `contracts.py` records the type and stops, because an analysed
 Review refuses re-analysis (43.28, `assert_analysable`) and a new Review on the same document
 version, snapshot and creator IS the same Review under 49.8's idempotency key — a Review does

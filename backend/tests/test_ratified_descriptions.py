@@ -10,7 +10,10 @@ STANDARDS = sorted((Path(__file__).resolve().parents[1] / "config" / "company_st
 
 
 def test_every_ratified_standard_has_a_one_sentence_description():
-    assert len(STANDARDS) == 32
+    # 32 ratified from LeapSwitch documents (2026-08-19/20) + 7 approved through
+    # the Constitution L1.10 (AM-59 r6', 2026-09-13). Pinned on purpose: a
+    # standard appears here only through a recorded ruling.
+    assert len(STANDARDS) == 39
     for path in STANDARDS:
         d = json.loads(path.read_text())
         desc = d.get("description", "")

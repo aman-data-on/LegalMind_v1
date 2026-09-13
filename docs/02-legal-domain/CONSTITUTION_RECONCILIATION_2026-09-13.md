@@ -140,7 +140,11 @@ itself is never chunked or retrieved; Ask reaches its positions through the publ
 
 * Ratified: 32 standards over 14 Constitution positions in §§9, 10, 11, 12, 13, 14, 15, 16, 22
   and §31.15; 8 of the 32 have no Constitution position (`DOCUMENT_ONLY`).
-* Drafted, not ratified (`proposed/`, 10 files): §16 ×5, §13 ×1, §31.11 ×2, §31.14 ×2.
+* Approved through the Constitution and ratified 2026-09-13 (`AM-59` r6'): PAYMENT-PERIOD, DISPUTE-WINDOW,
+  PRICE-CHANGE-NOTICE, SUSPENSION-NOTICE-CURE, GST-EXCLUSIVE (§16); CONVENIENCE-NOTICE (§13);
+  CHANGE-OF-CONTROL-NOTICE (§31.14) — 39 standards in all.
+* Still in `proposed/`: PO-MSA-REFERENCE and PO-PRECEDENCE (approved through §31.11, deferred until a PO exists
+  to calibrate against — not a business question); SERVICE-DISCONTINUATION-NOTICE (Pending Business Approval).
 * Not drafted, deliberately: §11 schedule/tiers (needs a SCHEDULE evaluator, none specified);
   §12/§19 Applicable-Law rows (statute restatements); §17 takedowns (unilateral policy);
   §31.9/§31.10 Vendor/Distribution "should" rules (§24.4(3): only ever "Needs a decision").
@@ -160,11 +164,21 @@ report table + card citation. Merged: the "Not recorded" fix (`e7da39c`).
 
 ## G. Still open — owner / Counsel
 
-1. C-20 (§24.4 vs `AM-56`) — which mapping the product follows.
-2. C-21 (`AM-51` r5) — whether a Review should carry the declared type it was analysed under.
-3. Ratification of any of the ten proposed standards; a real Purchase Order for calibration
-   (none supplied — rule 21).
-4. The counterparty names in the committed L1.5 (B-15).
-5. Everything in C above for Counsel, in particular B-2, B-4, B-5 and B-10.
-6. Deployment: `AM-59`'s standards need re-import + publish (a new snapshot) to reach the live
-   database; nothing here is deployed.
+Resolved by the owner's clarification of 2026-09-13: C-20 (§24.4 governs — `AM-63`), C-21 (moot —
+`AM-64`), ratification of Constitution-derived standards (through the Constitution — `AM-59` r6').
+
+1. **Older signed documents for reference testing** — please share a Drive link when convenient:
+   the three MSAs §31.15 cites, the two Partner Agreements §31.3–31.8 cite, and any PO or
+   Vendor/Distribution agreement. They will be used as historical evidence and calibration only,
+   validated against the current Constitution, never as a position.
+2. **A real or anonymised Purchase Order** — activates the two §31.11 drafts.
+3. **Business ruling** on SERVICE-DISCONTINUATION-NOTICE-MSA-001 (how the two limbs of §31.14's
+   compound position compare), or a future Constitution update stating one.
+4. **Confirm or retire** the eight standards with no Constitution position (FORCE-MAJEURE-MSA/TOS,
+   WARRANTY-DISCLAIMER, COMPELLED-DISCLOSURE, RETURN-DESTRUCTION-MSA/NDA, LIAB-CARVEOUTS,
+   TRADE-SECRET…): they rest on LeapSwitch's own templates, which §7.1 treats as reference
+   documents. They remain active under the 2026-08-19/20 rulings and the card says "No Constitution
+   position" — a future Constitution update either states them or they go.
+5. The counterparty names in the committed L1.5 (B-15) — a history question, not a rule.
+6. Everything in C above for Counsel — in particular B-2, B-4, B-5, B-10.
+7. Deployment: the 39 standards need re-import + publish (a new snapshot) to reach the live database.

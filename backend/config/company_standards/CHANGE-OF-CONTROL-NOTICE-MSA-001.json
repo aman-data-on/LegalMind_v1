@@ -1,14 +1,20 @@
 {
   "_about": [
-    "PROPOSED Company Standard — drafted 2026-09-13 under AM-59 r6 from the Legal Constitution L1.10's OWN words.",
-    "NOT RATIFIED: `ratified` is null, this directory is read by nothing (importer, assist index and verifiers glob",
-    "the parent only). The owner ratifies by setting `ratified` and moving the file up one directory (rule 21:",
-    "supplied source, human approval). Every value is quoted from the cited section; none is invented (rule 7)."
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'). Drafted 2026-09-13 under AM-59 r6 from the cited section's own words; every value is the",
+    "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
   ],
   "requirement_code": "CHANGE-OF-CONTROL-NOTICE-MSA-001",
   "description": "A change of control is notified to the other party within a set number of days.",
-  "ratified": null,
-  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "ratified": "2026-09-13",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.14",
+    "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
+    "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
+  },
   "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
   "source_clause": "§31.14",
   "source_quote": "Customer should provide notice of a Change of Control within 30 days, where applicable ... CONFIRMED. 30-day notice; no automatic termination",

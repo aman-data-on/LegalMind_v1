@@ -46,7 +46,11 @@ def test_match_is_acceptable_whatever_the_rule_outcome_says():
 def test_deviation_and_missing_require_modification(outcome):
     assert user_status(C.DEVIATION, outcome) == "REQUIRES_MODIFICATION"
     assert user_status(C.MISSING, outcome) == "REQUIRES_MODIFICATION"
-    assert user_status(C.DEVIATION, outcome, prohibited=True) == "REQUIRES_MODIFICATION"
+    # AM-63 (Constitution L1.10 §24.4, owner 2026-09-13): a deviation inside a
+    # defined Unacceptable Position is Not Negotiable — a person decides.
+    assert user_status(C.DEVIATION, outcome, prohibited=True) == "NEEDS_DECISION"
+    assert user_status(C.DEVIATION, outcome, prohibited=False) == "REQUIRES_MODIFICATION"
+    assert user_status(C.MISSING, outcome, prohibited=True) == "NEEDS_DECISION"
 
 
 # 3 — unclear or conflicting needs a decision, and is never a rejection
@@ -103,7 +107,10 @@ def test_the_unlimited_cap_is_not_accepted_by_citation_even_when_unruled(api, db
                           actual={"cap_status": "UNLIMITED"})
     sign_in(api, db, owner)
     body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
-    assert body["user_status"] == "REQUIRES_MODIFICATION"
+    # AM-63 (Constitution L1.10 §24.4, owner 2026-09-13): an UNLIMITED cap sits
+    # inside §9's defined Unacceptable Position — Not Negotiable — so the word is
+    # "Needs a decision", never "Acceptable", and never worded as a rejection.
+    assert body["user_status"] == "NEEDS_DECISION"
     assert body["evaluations"][0]["constitution_prohibition"]["section"] == "9"
 
 

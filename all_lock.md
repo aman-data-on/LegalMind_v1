@@ -18798,3 +18798,136 @@ r4   NOT CHANGED. No basis synonym was added anywhere. "fees actually received"
 **Approved by the owner on 2026-09-13** ("you have the full ownership if any locked decision blocked you update that decision"; the content-first and Constitution-audit instructions of the same day, quoted above). Recorded by the implementer under that authority; every amendment names the decision it changes and nothing above this batch was edited.
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+# AB-20 (continued) — the owner's business clarification of 2026-09-13
+
+The owner instructed, after AB-20's first four records: *"The current Legal Constitution is the
+final source of truth for now … Treat everything clearly defined in this file as currently
+approved and final. Do not ask me to separately approve rules that are already clearly defined
+in this Constitution. If a proposed standard is directly derived from this Constitution without
+changing its meaning, classify it as already approved through the Constitution. If a proposed
+standard is not present in the Constitution, changes the meaning, or introduces a new business
+rule, mark it as Pending Business Approval … The user must not select the document type … PO is
+not available right now. Do not block the current work because of a PO … Do not invent missing
+business rules … Clearly distinguish: Approved rule from the current Constitution · Historical
+evidence from an older signed document · Proposed rule created by the system · Rule requiring
+future business confirmation."*
+
+# `AM-59` correction (r6', r9) — approval flows THROUGH the Constitution
+
+**Amends:** `AM-59` r6's last sentence ("ratification is the owner moving a file"). **Does not
+amend:** rule 21 (the material is supplied — the Constitution is the supplied, stakeholder-
+confirmed source), rule 7, `AM-59` r1–r5, r7, r8.
+
+```text
+r6'  A standard that restates a position the Constitution clearly defines,
+     without changing its meaning, is APPROVED THROUGH THE CONSTITUTION. Its
+     file carries `approval: {basis: CONSTITUTION, section, ruling}` and a
+     `ratified` date; it is imported and published like any ratified standard.
+     Seven of the ten drafts qualify and are ratified this way: PAYMENT-PERIOD-
+     MSA-001 (21 days), DISPUTE-WINDOW-MSA-001 (15 days), PRICE-CHANGE-NOTICE-
+     MSA-001 (30 days), SUSPENSION-NOTICE-CURE-MSA-001, GST-EXCLUSIVE-MSA-001
+     (§16); CONVENIENCE-NOTICE-MSA-001 (30 days, §13); CHANGE-OF-CONTROL-NOTICE-
+     MSA-001 (30 days, §31.14). Each is reproduced from its section's own text
+     by `tools.verify_terminology` (a standard approved through the
+     Constitution has no LeapSwitch clause to reproduce from); representative
+     counterparty paper is the second calibration when the owner supplies it.
+
+r9   FOUR PROVENANCES, NEVER MIXED. Every standard is one of: APPROVED THROUGH
+     THE CONSTITUTION (`approval.basis: CONSTITUTION`, or a `constitution`
+     section with basis STAKEHOLDER_CONFIRMED / COMPANY_APPROVED / APPLICABLE_LAW
+     / LEGALMIND_RULE); RATIFIED FROM A LEAPSWITCH DOCUMENT with no Constitution
+     position (`constitution.basis: DOCUMENT_ONLY` — eight standards, owner
+     rulings of 2026-08-19/20; the card says so; listed for the owner to
+     confirm or retire, since the Constitution §7.1 treats the MSA template and
+     the NDA as reference documents); PROPOSED BY THE SYSTEM (`proposed/`, read
+     by nothing); PENDING BUSINESS APPROVAL (`proposed/`, `status` says why).
+     Historical evidence from an older signed document is never a position —
+     it is calibration material, validated against the current Constitution.
+     Of the three drafts left: PO-MSA-REFERENCE and PO-PRECEDENCE are approved
+     through §31.11 but DEFERRED for want of any PO to calibrate against (not a
+     business question — the owner will supply one later); SERVICE-
+     DISCONTINUATION-NOTICE is PENDING BUSINESS APPROVAL because measuring the
+     notice limb alone narrows a compound position ("30 days OR the end of the
+     committed period, whichever is later").
+```
+
+# `AM-62` correction (r5) — the quantity the cap phrase introduces
+
+**Amends:** `_find_magnitude`'s "FIRST match in document order" (an implementation choice
+recorded in code, not a locked rule). **Does not amend:** 44.24 (a number the text does not
+state is never guessed), 44.30, 35.4, `AM-54` r5.
+
+```text
+r5   A clause that states several quantities ("Payments are due within 21 days
+     … disputes within 15 days … prices changed with 30 days' notice") read as
+     its FIRST number whatever the cap phrase introduced — the §16 Company
+     Position paragraph reproduced 21 days for the dispute window and for the
+     price-change notice. The magnitude is now the stated number NEAREST the
+     first matching cap phrase: the first one after it, else the last one
+     before it ("at least thirty (30) days prior to the expiry of"). Every
+     quantity read is still one the clause states; only which stated one is
+     chosen changed, deterministically. A clause with one quantity reads
+     exactly as before.
+```
+
+# `AM-63` — Constitution §24.4: a deviation inside a defined Unacceptable Position needs a decision
+
+**Amends:** `AM-56` r2's sentence "since this record they no longer move the word" — for the
+Constitution prohibition only. **Resolves C-20.** **Does not amend:** `AM-56` r1, r3, the
+classification → word mapping for every other case, `AM-53` r1/r4/r5, 45B.26, the zero-
+tolerance rule, D-3.5.
+
+```text
+r1   WHY. L1.10 §24.4 is clearly defined and, by the owner's ruling, final:
+     "Requires Modification — the difference … can be resolved through a
+     specific, identifiable modification"; "Needs a Decision — the clause falls
+     within a Not Negotiable / Unacceptable Position requiring a human legal or
+     business call". A cap that is UNLIMITED or one-sided (§9), an export
+     window under 30 days (§13) — the two Unacceptable Positions the engine
+     can check (`constitution_boundaries.py`) — are Not Negotiable.
+
+r2   THE RULE. DEVIATION or MISSING with a Constitution prohibition → NEEDS_
+     DECISION; without one → REQUIRES_MODIFICATION, as AM-56. Every other
+     mapping is unchanged. §24.4(1): "Needs a Decision" is never displayed or
+     worded as a rejection — the explainer and the next-step copy say a person
+     decides. The Rule Outcome (UNACCEPTABLE, zero tolerance) is unchanged and
+     still travels with the Evaluation; the word is presentation (§24.4(4)).
+
+r3   EXTENDING the checkable Unacceptable Positions beyond the two remains a
+     rule 6 change: quote the section, name the fact the evaluator already
+     extracts, record it.
+```
+
+# `AM-64` — The reader never selects the document type
+
+**Amends:** `AM-34` t1 and `AM-50` r1's "pre-fills the intake select" and `AM-51` r5's "a type
+can be declared or corrected at any time in Edit details" (the human declaration path).
+**Resolves C-21 as moot.** **Does not amend:** `AM-50` r1's recording of a CONFIDENT assist-lane
+suggestion, audited with its source (that is now the ONLY way a type is recorded); `AM-51`
+(the type is one optional signal, never a gate); Step 6's vocabulary; the API field (the
+intake and operator tooling still write it, source ASSIST_SUGGESTION); the Dashboard's type
+FILTER.
+
+```text
+r1   The intake offers no type control and Edit details offers none. After
+     upload the assist lane proposes a type; a confident proposal is recorded
+     (contract_type_source ASSIST_SUGGESTION, audited) and shown as the
+     inferred context ("Reviewed as MSA"); an unconfident one records nothing.
+     The review is content-first either way (AM-60/AM-61), so a wrong or
+     absent inference changes only which family's absences are measured.
+
+r2   Client uploads follow the same path: the type control on the client
+     upload form is removed and the suggestion recorded the same way.
+
+r3   C-21 (a type change re-runs analysis) is moot: there is no type change a
+     reader can make. A developer or operator setting the field through the
+     API is a configuration act outside the product workflow.
+```
+
+**Recorded 2026-09-13 under the owner's authority of the same day** ("you have the full ownership
+if any locked decision blocked you update that decision") and the business clarification quoted
+above.
+
+--------------------------------------------------------------------------------

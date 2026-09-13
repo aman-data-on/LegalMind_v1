@@ -8,7 +8,7 @@
   "requirement_code": "PO-MSA-REFERENCE-ORDER_FORM-001",
   "description": "A purchase order names the master agreement under which it is issued.",
   "ratified": null,
-  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "status": "APPROVED THROUGH THE CONSTITUTION (§31.11, LegalMind Rule) — ACTIVATION DEFERRED: no Purchase Order exists to calibrate the terminology against (locked 35.10); the owner will supply a real or anonymised PO later. Not a business-approval question.",
   "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
   "source_clause": "§31.11",
   "source_quote": "Every PO should explicitly reference the MSA under which it is issued | LegalMind Rule",

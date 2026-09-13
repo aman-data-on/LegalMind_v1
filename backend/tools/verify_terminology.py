@@ -30,6 +30,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from pathlib import Path
 
@@ -61,6 +62,36 @@ def _clauses(document: Path) -> list[Clause]:
         )
         for i, seg in enumerate(result.segments)
     ]
+
+
+CONSTITUTION = Path(__file__).resolve().parents[2] / "docs" / "02-legal-domain" / "LEGAL_CONSTITUTION_L1.10.md"
+
+
+def _constitution_clauses(section: str) -> list[Clause]:
+    """The paragraphs of one L1.10 section, each as a clause titled by the section.
+
+    The heading forms are `# **16\. Payment…**` for a section and `## **31.15 …**`
+    for a subsection; the slice runs to the next heading of the same or higher
+    level. Bold and quote marks are stripped so the words match as written."""
+    text = CONSTITUTION.read_text(encoding="utf-8")
+    number = section.replace(".", r"\.")
+    start = re.search(rf"^#{{1,2}} \*\*{number}\\?\.? ", text, re.M)
+    if start is None:
+        return []
+    level = start.group(0).count("#")
+    rest = text[start.end():]
+    end = re.search(rf"^#{{1,{level}}} \*\*", rest, re.M)
+    body = rest[: end.start()] if end else rest
+    title = text[start.end():].split("\n", 1)[0].strip("* ")
+    clauses = []
+    for i, para in enumerate(p.strip() for p in body.split("\n\n")):
+        if not para or para.startswith("#") or para.startswith("|"):
+            continue
+        content = para.replace("**", "").replace("*", "").replace("“", '"').replace("”", '"')
+        clauses.append(Clause(evidence_id=uuid.uuid5(_NS, f"constitution:{section}:{i}"),
+                              content=content, section_number=section,
+                              section_title=title, page_number=None))
+    return clauses
 
 
 def _verify_numeric(payload: dict, confirmed: list[Clause]) -> list[str]:
@@ -95,21 +126,30 @@ def verify(standards_dir: Path, source_dir: Path) -> tuple[list[str], bool]:
         code = payload["requirement_code"]
         mapping_config = payload.get("mapping_rules")
         source_file = payload.get("source_file")
-        if not mapping_config or not source_file:
-            lines.append(f"FAIL  {code}: no mapping_rules/source_file in the "
-                         "ratified file")
+        section = ((payload.get("configuration") or {}).get("constitution") or {}).get("section")
+        if not mapping_config or not (source_file or section):
+            lines.append(f"FAIL  {code}: no mapping_rules, and neither a source_file "
+                         "nor a Constitution section in the ratified file")
             ok = False
             continue
 
-        document = source_dir / source_file
-        if not document.exists():
-            lines.append(f"SKIP  {code}: {source_file} not present at "
-                         f"{source_dir} (normal away from the owner's machine)")
-            continue
+        if source_file:
+            document = source_dir / source_file
+            if not document.exists():
+                lines.append(f"SKIP  {code}: {source_file} not present at "
+                             f"{source_dir} (normal away from the owner's machine)")
+                continue
+            clauses, source_file = _clauses(document), source_file
+        else:
+            # AM-59 r6 / owner 2026-09-13 — a standard approved THROUGH the
+            # Constitution has no LeapSwitch clause to reproduce from; it is
+            # reproduced from its section's own text (the Company Position and
+            # the illustrative clause language). Representative counterparty
+            # paper, when supplied, is the second calibration (35.10).
+            clauses, source_file = _constitution_clauses(section), f"Constitution §{section}"
 
         rules = MappingRules.from_config(mapping_config)
-        result = map_requirement(uuid.uuid5(_NS, code), rules,
-                                 _clauses(document))
+        result = map_requirement(uuid.uuid5(_NS, code), rules, clauses)
         if result.state.value != "CONFIRMED":
             lines.append(
                 f"FAIL  {code}: mapping state {result.state.value} on "

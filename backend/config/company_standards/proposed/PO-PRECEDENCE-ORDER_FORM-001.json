@@ -8,7 +8,7 @@
   "requirement_code": "PO-PRECEDENCE-ORDER_FORM-001",
   "description": "Where a purchase order conflicts with the master agreement, the master agreement prevails.",
   "ratified": null,
-  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "status": "APPROVED THROUGH THE CONSTITUTION (§31.11, Company-approved) — ACTIVATION DEFERRED for the same reason: no PO to calibrate against. Not a business-approval question.",
   "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
   "source_clause": "§31.11",
   "source_quote": "Where a PO and the governing MSA conflict, the MSA prevails | Company-approved",

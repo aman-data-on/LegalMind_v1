@@ -1,14 +1,20 @@
 {
   "_about": [
-    "PROPOSED Company Standard — drafted 2026-09-13 under AM-59 r6 from the Legal Constitution L1.10's OWN words.",
-    "NOT RATIFIED: `ratified` is null, this directory is read by nothing (importer, assist index and verifiers glob",
-    "the parent only). The owner ratifies by setting `ratified` and moving the file up one directory (rule 21:",
-    "supplied source, human approval). Every value is quoted from the cited section; none is invented (rule 7)."
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'). Drafted 2026-09-13 under AM-59 r6 from the cited section's own words; every value is the",
+    "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
   ],
   "requirement_code": "PRICE-CHANGE-NOTICE-MSA-001",
   "description": "Price changes require a set period of prior written notice.",
-  "ratified": null,
-  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "ratified": "2026-09-13",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "16",
+    "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
+    "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
+  },
   "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
   "source_clause": "§16",
   "source_quote": "Prices may be changed with 30 days' written notice.",
@@ -27,10 +33,11 @@
     "applicability": "REQUIRED",
     "extraction": {
       "cap_phrases": [
-        "prior written notice",
         "written notice",
+        "prior notice",
+        "days' notice",
         "notice of any change",
-        "days' notice"
+        "prior written notice"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -61,7 +68,12 @@
       "revise the fees",
       "revise the price",
       "price change",
-      "pricing change"
+      "pricing change",
+      "prices may be changed",
+      "change the prices",
+      "changes to pricing",
+      "price increase",
+      "revise its prices"
     ],
     "aliases": [
       "revision of fees",
@@ -87,7 +99,8 @@
     "confirm_threshold": 5
   },
   "_calibration": [
-    "No live customer paper states a price-change notice as a day-count (the MSAs route price through a signed Change Request, which is a different mechanism and correctly yields no cap → a person). Vocabulary is from §16's own words; calibration against a counterparty paper stating notice is outstanding (35.10)."
+    "No live customer paper states a price-change notice as a day-count (the MSAs route price through a signed Change Request, which is a different mechanism and correctly yields no cap → a person). Vocabulary is from §16's own words; calibration against a counterparty paper stating notice is outstanding (35.10).",
+    "2026-09-13: §16's own sentence is 'Prices may be changed with 30 days' written notice' — added as an exact phrase; the drafting-notes wording did not carry a price-change sentence."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

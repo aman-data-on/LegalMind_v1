@@ -8,7 +8,7 @@
   "requirement_code": "SERVICE-DISCONTINUATION-NOTICE-MSA-001",
   "description": "Planned discontinuation of a service is notified a set period in advance, or the service continues to the end of the committed term.",
   "ratified": null,
-  "status": "PROPOSED — awaiting owner ratification (AM-59 r6)",
+  "status": "PENDING BUSINESS APPROVAL — the Constitution's position is compound ('30 days' advance notice, OR continue until the committed contract period ends, whichever is later'); this draft measures the notice limb alone, which NARROWS the meaning (a 30-day notice on a longer committed term would read as a match). Needs either a compound evaluator or a business ruling on how the two limbs are compared.",
   "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
   "source_clause": "§31.14",
   "source_quote": "Provide 30 days' advance notice, OR continue the service until the customer's committed contract period ends, whichever is later ... CONFIRMED.",

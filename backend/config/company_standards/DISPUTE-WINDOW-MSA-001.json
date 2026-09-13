@@ -1,0 +1,104 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'). Drafted 2026-09-13 under AM-59 r6 from the cited section's own words; every value is the",
+    "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "DISPUTE-WINDOW-MSA-001",
+  "description": "Billing disputes must be raised in writing within a set number of days of the invoice.",
+  "ratified": "2026-09-13",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "16",
+    "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
+    "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§16",
+  "source_quote": "Billing disputes must be raised in writing within 15 days of the invoice date.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "16",
+      "topic": "Payment Terms & Taxes",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "preferred": 15,
+    "unit": "DAYS",
+    "basis": "BILLING_DISPUTE_WINDOW",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "disputes must be raised in writing within",
+        "dispute must be raised in writing within",
+        "raised in writing within",
+        "notify",
+        "dispute in the same"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days"
+        ]
+      },
+      "bases": {
+        "BILLING_DISPUTE_WINDOW": [
+          "dispute",
+          "disputes",
+          "disputed"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "dispute in the same",
+      "disputed invoice",
+      "billing dispute",
+      "disputes must be raised in writing",
+      "billing disputes",
+      "dispute the invoice",
+      "disputed amount"
+    ],
+    "aliases": [
+      "dispute",
+      "disputes",
+      "disputed"
+    ],
+    "keyword_groups": [
+      [
+        "invoice",
+        "dispute"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "payment",
+      "invoic",
+      "dispute"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "Live wording seen 2026-09-13: 'notify ... in writing within fifteen (15) calendar days of its receipt' (one customer MSA, MATCH); 'within three (3) calendar days of its receipt' (another, DEVIATION). Basis is receipt of invoice, not invoice DATE — §16 says 'of the invoice date'; recorded, not assumed equivalent.",
+    "2026-09-13: cap phrases narrowed to the dispute sentence; a paragraph that states several periods (payment, interest, dispute) is a known extraction limit — the first quantity in the clause body is read (44.24 forbids choosing), so a multi-period paragraph falls to a person unless the dispute sentence stands alone, as it does in the live MSAs.",
+    "2026-09-13: plural/participle forms added — a term matches at word boundaries, so 'dispute' never matched 'disputes' (found reproducing §16's Company Position paragraph)."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

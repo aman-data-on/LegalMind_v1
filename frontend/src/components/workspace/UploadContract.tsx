@@ -12,7 +12,7 @@
  * AM-50 (owner, 2026-09-09) amends Q9 / AM-34 / DOC-06: a CONFIDENT suggestion
  * is recorded by the intake and the review starts — "I uploaded my contract and
  * LegalMind reviewed it." The audit trail records that the type came from the
- * suggestion; the reader can change it in Edit details, which re-runs the
+ * suggestion; the reader never selects a type (AM-64, 2026-09-13) — the
  * analysis; the evaluator still refuses an undeclared type. Only when the
  * document's text does not say what it is does the intake ask its one question.
  *
@@ -224,7 +224,7 @@ export function UploadContract({ firstRun }: {
         <ChecklistRow done={stage === "analyzing"} active={stage === "suggesting"}>
           {stage === "analyzing" ? (
             recordedType ? (
-              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — change it any time in Edit details</>
+              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — inferred from the document; one signal for the review, never a gate</>
             ) : (
               "Reviewing by content — the type can be added in Edit details"
             )

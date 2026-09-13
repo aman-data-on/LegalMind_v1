@@ -42,7 +42,6 @@ import {
 } from "@/lib/documentTypes";
 import { CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
-import { chainAnalysis } from "@/lib/analysisChain";
 import {
   USER_STATUS_LABELS,
   USER_STATUS_ORDER,
@@ -1080,7 +1079,6 @@ function EditContractDialog({
   onClose: () => void; onSaved: () => void;
 }) {
   const [name, setName] = useState(contract.name);
-  const [type, setType] = useState(contract.contract_type ?? "");
   // P-1 (2026-09-06): Step 2's Draft / Active / Superseded, declared here and
   // nowhere else — never inferred from a date or a version.
   const [status, setStatus] = useState(contract.status);
@@ -1114,10 +1112,11 @@ function EditContractDialog({
       } else if (companyId !== "NEW") {
         linkId = companyId || null;
       }
-      const typeChanged = (type || null) !== (contract.contract_type ?? null);
+      // AM-64 (owner, 2026-09-13): the reader never selects a document type —
+      // the intake records the assist lane's confident inference, and the review
+      // is content-first either way. Nothing here touches `contract_type`.
       await api.updateContract(contract.id, {
         name: name.trim(),
-        contract_type: type || null,
         ...(status !== contract.status ? { status } : {}),
         ...(linkId !== undefined && linkId !== (contract.counterparty_id ?? null)
           ? { counterparty_id: linkId }
@@ -1136,9 +1135,6 @@ function EditContractDialog({
         }
         if (Object.keys(declared).length > 0) await api.declareVersion(latest.id, declared);
       }
-      // A newly declared type is the human act analysis was waiting for (AM-50):
-      // run it now, best-effort, rather than telling the reader it will not.
-      if (typeChanged && type) await chainAnalysis(contract.id, true);
       onSaved();
     } catch (cause) {
       setError(cause);
@@ -1148,7 +1144,7 @@ function EditContractDialog({
 
   /* No scrim-click dismissal on THIS dialog (2026-09-08), unlike the two
      confirmations below. It is a form: a stray click beside it discarded a
-     half-typed name, a corrected document type and three declared version
+     half-typed name and three declared version
      facts with no warning and no undo. Escape and Cancel are both still here,
      and both are deliberate gestures. */
   return (
@@ -1158,19 +1154,6 @@ function EditContractDialog({
           <label className="ws-field">
             <span className="ws-field__label">Name</span>
             <input required value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="ws-field">
-            <span className="ws-field__label">Document type</span>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="">Not declared</option>
-              {DOCUMENT_TYPES.map((t) => (
-                <option key={t.code} value={t.code}>{t.label} ({t.code})</option>
-              ))}
-            </select>
-            <span className="ws-field__help">
-              The type selects which approved standard this contract is measured
-              against. Changing it runs a fresh analysis; earlier ones stay on record.
-            </span>
           </label>
           <label className="ws-field">
             <span className="ws-field__label">Status</span>

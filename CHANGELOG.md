@@ -10,6 +10,29 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — the owner's business clarification applied (AB-20 continued: `AM-59` r6'/r9, `AM-62` r5, `AM-63`, `AM-64`, 2026-09-13; NOT deployed)
+
+Five rulings, each with a consequence. **The Constitution is final** — a standard restating a
+clearly defined section is *approved through the Constitution*: seven of the ten drafts are
+ratified this way (§16: 21-day payment, 15-day dispute window, 30-day price-change notice,
+notice-and-cure before suspension, GST exclusive; §13: 30-day convenience notice; §31.14:
+30-day change-of-control notice), each reproduced from its section's own text by
+`tools.verify_terminology` (33 PASS · the 6 `AM-43` live-paper deviations). Two PO drafts stay
+deferred — **no PO exists to calibrate against and that blocks nothing**; one draft is
+**Pending Business Approval** because it narrows a compound position. Four provenances are
+kept distinct in every file: approved through the Constitution · ratified from a LeapSwitch
+document (eight, no Constitution position — listed for the owner to confirm or retire) ·
+proposed by the system · pending business approval. **§24.4 is final** — a deviation inside a
+defined Unacceptable Position (an unlimited or one-sided cap; an export window under 30 days)
+is "Needs a decision", not "Requires modification" (`AM-63`; C-20 resolved). **The reader never
+selects a document type** — the type controls are gone from Edit details and the client upload;
+the intake records the assist lane's confident inference, audited, and the review is
+content-first either way (`AM-64`; C-21 moot). Reproducing the Constitution's own §16
+paragraph exposed that the extractor read the *first* number in a multi-period clause: the
+quantity is now the one nearest its cap phrase (`AM-62` r5) — a deterministic choice among
+stated numbers, never a guess. **Not invented:** §11's credit schedule, §12/§19 statute rows,
+§17 takedowns, §31.9/§31.10 "should" rules — reported, not drafted.
+
 ### Changed — the review is Constitution-driven and content-first (AB-20: `AM-59`–`AM-62`, 2026-09-13; BUILT in a worktree, NOT deployed)
 
 **What the owner asked.** A single agreement may mix MSA, NDA, PO and tax clauses; the label must

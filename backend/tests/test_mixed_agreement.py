@@ -126,6 +126,8 @@ def _assert_content_first(cls, cov, run):
     assert cls["CONF-SURVIVAL-MSA-001"] == "MATCH"      # 3 years (§15)
     assert cls["LIAB-EXCLUSIONS-MSA-001"] == "MATCH"    # §9 exclusion present
     assert cls["LIABILITY-MSA-001"] == "CONFLICT"       # 12 vs 6 months, same scope (45C.2)
+    assert cls["PAYMENT-PERIOD-MSA-001"] == "MATCH"     # 21 days (§16) — Constitution-approved standard
+    assert cls["GST-EXCLUSIVE-MSA-001"] == "MATCH"      # fees exclusive of GST (§16)
     # One Constitution position, measured once:
     assert "LIABILITY-TOS-001" not in cls and cov["LIABILITY-TOS-001"]["outcome"] == "SAME_POSITION"
     govlaw = [c for c in cls if c.startswith("GOVLAW-")]
@@ -147,8 +149,10 @@ def _assert_unmeasured_clauses_are_visible(report):
     # purchase-order clauses (no ratified standard yet: §16, §31.11) surface here
     # as their anchors, read by a person, never judged.
     excerpts = " ".join(r["excerpt"] for r in report["unmatched_provisions_detail"])
-    assert "Purchase Orders" in excerpts, report["_cited_by"]
-    assert "twenty-one (21) days of the invoice" in excerpts, report["_cited_by"]
+    assert "Purchase Orders" in excerpts, report["_cited_by"]          # §31.11 drafts wait for a PO
+    # §16's payment and GST positions are ratified THROUGH the Constitution (owner
+    # 2026-09-13) — the clauses are measured now, not merely surfaced.
+    assert "twenty-one (21) days of the invoice" not in excerpts, report["_cited_by"]
 
 
 def test_mixed_agreement_typed_other(build, db, monkeypatch):
