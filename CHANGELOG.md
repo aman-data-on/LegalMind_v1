@@ -10,6 +10,71 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — "Not recorded" told the reader nothing, and part of it was false (owner investigation, 2026-09-13)
+
+Reported on a distribution agreement (contract type **OTHER**): five findings under *Needs a
+decision* showed **"? Not recorded"** in BOTH the Contract and the Company standard column, while
+the clauses were plainly in the document. Investigated before touching anything; the cause is not
+where the report suggested.
+
+**What the review pipeline actually does** — traced, because the brief asked for it rather than an
+assumption. `analysis/` and `evaluation/` read **no** assist corpus: not `assist.chunks`, not
+`assist.statute_chunks`, and not the Legal Constitution as a document. They read snapshot-pinned
+configuration plus the document's own evidence rows. That is `AM-43` working as locked — the
+Constitution is *configuration source, not runtime corpus*, and its positions enter as ratified
+standard files. Statutes are Domain C and reach Ask only. The card wording "Constitution match" is a
+label over `MATCH`, not a retrieval claim. **No MSA-to-MSA restriction remains in applicability**:
+`AM-51` admitted MSA, TOS *and* NDA standards against this OTHER-typed document, and 21 of 32 were
+evaluated.
+
+**The real split, and it is not about document type.** All 15 `PRESENCE` standards matched and wrote
+both values. All 5 `NUMERIC_COMPARISON` standards failed closed with **both values NULL**. Every one
+of the five had evidence attached, so retrieval and mapping succeeded. The same clause that made
+`AUTORENEW-TOS-001` a MATCH made `AUTORENEW-MSA-001` unclear — the difference was the evaluator.
+
+The evaluator's own stored reason separates two causes: three were *"cap could not be reliably
+interpreted"*, two were *"no configured conversion rule permits comparing basis None with
+FEES_PAID"*. Against the wording: the document renews "for successive periods of **one (1) year**"
+while that standard's extraction vocabulary lists only DAYS and MONTHS; it says "fails to cure such
+breach within **30days**" (no space) against phrases expecting "days after receipt of written
+notice"; it caps at "the total fees **actually received**" where the configured `FEES_PAID` phrases
+all say *paid*. **The clause was found, cited and read — its figure or its basis could not be
+interpreted with vocabularies written from LeapSwitch's own paper.** Failing closed there is correct
+(rule 15), and for liability it is legally correct: an unrecognised basis must not be assumed
+equivalent to `FEES_PAID` (45B.4).
+
+**So two reporting defects, fixed here; the evaluation logic is unchanged.**
+
+1. **The Company standard column was stating something false.** Those standards *do* record a
+   position — 6 months, 30 days, 12 months — and the fail-closed branches simply never copied it.
+   `evaluation/numeric.py` now reports the standard on every refusal (`standard_side`), returning
+   nothing only when the standard genuinely declares no value, so "Not recorded" keeps exactly one
+   meaning.
+2. **The Contract column conflated three different facts.** It now distinguishes *Not recorded* (we
+   hold no value), *Not found* (the document says nothing) and **"Stated, but not readable"** (the
+   clause is there and its figure could not be read). Where the refusal is about **comparability
+   rather than readability, the figure that WAS read is now shown** — the two liability rows now
+   read "12 MONTHS" beside the standard's "12 MONTHS of FEES_PAID", so a reader sees at once that
+   the periods agree and only the basis is unrecognised. That is the decision they are being asked
+   to make.
+
+**Verified end to end on the reported contract**, by re-running the real analysis inside a
+transaction that was rolled back: classifications **byte-identical** (15 MATCH, 1 MISSING, 5
+UNABLE_TO_EVALUATE), **zero** rows blank on both sides, production review untouched. Backend 1,588
+tests, frontend 392, ruff and mypy clean, and the 55.4 reproducibility gate passes with an identical
+digest — no evaluation drift.
+
+**Two things deliberately NOT changed, because they are the owner's to decide, not mine.**
+
+- **The `AM-54` semantic gate.** Model-assisted quantity reading is the thing that would have read
+  "one (1) year", and it never ran on this document: `analysis/service.py` skips it unless the
+  standard's family equals the declared type, and **zero** of the 32 standards are typed OTHER
+  (18 MSA, 12 TOS, 9 NDA, 2 SLA). Widening that gate is the single highest-value precision change
+  available and it amends `AM-54`, so it needs an appended lock record.
+- **Extraction vocabulary.** Adding a YEARS unit is arguably clerical, but adding "fees actually
+  received" as a `FEES_PAID` synonym asserts a legal equivalence that 45B.4 keeps deliberately
+  distinct. Rule 7 territory.
+
 ### Changed — Ask stage 3: the context follows the reader (2026-09-11)
 
 Third of three stages (owner instruction, 2026-09-11), on top of the stage 1 backend. Recorded as

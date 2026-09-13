@@ -449,3 +449,38 @@ describe("the three-word user-facing status is the server's word (owner's FINAL 
   });
 });
 
+
+describe("a value cell says WHICH kind of nothing it is (2026-09-13)", () => {
+  // Reproduced from a live review: five findings showed "Not recorded" in both
+  // columns although the clauses were in the document and the standards record
+  // a value. The three cases are different facts and must read differently.
+  it("distinguishes nothing held, nothing in the document, and unreadable", () => {
+    expect(sideOf(null).text).toBe("Not recorded");
+    expect(sideOf({ cap_status: "ABSENT" }).text).toBe("Not found");
+    expect(sideOf({ cap_status: "UNREADABLE", scope: "AGGREGATE" }).text).toBe(
+      "Stated, but not readable",
+    );
+  });
+
+  it("shows the figure that WAS read when the refusal is about comparability", () => {
+    const side = sideOf({
+      cap_value: 12,
+      cap_unit: "MONTHS",
+      cap_basis: "FEES_RECEIVED",
+      scope: "AGGREGATE",
+    });
+    expect(side.text).toContain("12");
+    expect(side.detail).toBe("FEES_RECEIVED");
+  });
+
+  it("still reports the company standard on a fail-closed result", () => {
+    const side = sideOf({
+      preferred: 12,
+      unit: "MONTHS",
+      basis: "FEES_PAID",
+      scope_key: "AGGREGATE",
+    });
+    expect(side.text).toContain("12");
+    expect(side.text).not.toBe("Not recorded");
+  });
+});

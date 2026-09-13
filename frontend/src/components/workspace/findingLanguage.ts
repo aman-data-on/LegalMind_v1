@@ -412,6 +412,12 @@ const PRESENCE_WORDS: Record<string, Side> = {
   FINITE: { tone: "present", text: "Found" },
   UNLIMITED: { tone: "value", text: "No limit stated" },
   UNKNOWN: { tone: "unknown", text: "Unclear" },
+  // The clause IS in the document and was read; its figure could not be
+  // interpreted (2026-09-13). Distinct from "Not found", which asserts the
+  // document says nothing, and from "Not recorded", which says we hold no
+  // value at all. Stating which of the three happened is the whole point —
+  // a reader deciding this needs to know whether to go and read the clause.
+  UNREADABLE: { tone: "unknown", text: "Stated, but not readable" },
 };
 
 /** The keys the evaluators actually use, measured against the live database

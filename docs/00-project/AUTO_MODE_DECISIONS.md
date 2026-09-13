@@ -1780,3 +1780,34 @@ or scoring in this deployment. Does NOT decide: whether the synthetic-fixture te
 `test_chunk_text_is_a_substring_of_its_evidence_row` should be widened to whitespace-normalised
 comparison — that is a separate call, and the strict test passing on synthetic DOCX while real PDFs
 differ is itself the useful signal.
+
+## 2026-09-13 — "Not recorded" precision (314–316) — BUILT in a worktree, NOT deployed
+
+### 314 — a fail-closed result still reports the company standard's own position
+`numeric.py`'s UNABLE branches never copied the standard into `expected_value`, so the Findings
+screen said "Company standard: Not recorded" for standards declaring 6 months / 30 days / 12
+months. The screen was stating something false about configuration we hold, independently of
+whether the document's value could be read. `standard_side()` now reports it on every refusal and
+returns None only when the standard genuinely declares no value — so "Not recorded" keeps exactly
+one meaning. Classification, rule outcome and every fail-closed refusal are unchanged. Does NOT
+decide: anything about the document side.
+
+### 315 — three different facts get three different words in a value cell
+"Not recorded" (we hold no value), "Not found" (the document says nothing) and "Stated, but not
+readable" (the clause is present and its figure could not be interpreted) are distinct facts, and
+conflating them is what destroyed trust in the Needs-a-decision list. The backend now records
+`cap_status: UNREADABLE` on the readability refusals, and on the COMPARABILITY refusals reports the
+figure that was actually read (`document_side()`), so a reader sees "12 MONTHS" beside the
+standard's "12 MONTHS of FEES_PAID" and understands that only the basis is unrecognised. No score,
+no hedging, no "the AI thinks" (rule 12, DESIGN.md). Verified on the reported contract with
+classifications byte-identical. Does NOT decide: the three reader words (`AM-56`), untouched.
+
+### 316 — the numeric extraction vocabularies are LeapSwitch-shaped, and the AM-54 rescue is family-gated
+Measured, recorded, NOT acted on. Every numeric failure on the reported document was a wording gap:
+"one (1) year" against a DAYS/MONTHS vocabulary, "30days" against "days after receipt of written
+notice", "total fees actually received" against `FEES_PAID` phrases that all say *paid*. The
+model-assisted reading that exists for exactly this (`AM-54`) never ran, because
+`analysis/service.py` skips the semantic stage unless the standard's family equals the declared
+document type — and zero of the 32 standards are typed OTHER. Widening that gate amends `AM-54`;
+adding a basis synonym asserts a legal equivalence 45B.4 keeps distinct (rule 7). Both are owner
+decisions and are written up for approval rather than taken here.

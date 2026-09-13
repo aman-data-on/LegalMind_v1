@@ -53,6 +53,45 @@ BASIS = "basis"
 SCOPE_KEY = "scope_key"
 
 
+UNREADABLE = "UNREADABLE"
+
+
+def document_side(cap: Cap, scope_key: str) -> dict:
+    """What the document was actually found to say, in the shape `_compare`
+    already uses for a MATCH.
+
+    A comparability refusal is not an absence: the clause was read, and the
+    reader is better served seeing "12 MONTHS of FEES_RECEIVED" beside the
+    standard's "12 MONTHS of FEES_PAID" than seeing "Not recorded" twice. It
+    explains the refusal instead of hiding it, and it asserts nothing about
+    whether the two are equivalent — that is exactly what a human is being asked
+    to decide (45B.4).
+    """
+    return {"cap_value": cap.cap_value, "cap_unit": cap.cap_unit,
+            "cap_basis": cap.cap_basis, "scope": scope_key}
+
+
+def standard_side(standard: dict) -> dict | None:
+    """The organization's own position, for reporting alongside ANY result.
+
+    A fail-closed result still has a knowable half: what we require. Until
+    2026-09-13 the UNABLE branches reported neither side, so the Findings screen
+    said "Company standard: Not recorded" for standards that plainly record one —
+    measured on a live review, five findings whose standards declare 6 months,
+    30 days and 12 months respectively. That is the screen stating something
+    false about our own configuration, and it is independent of whether the
+    document's value could be read.
+
+    Returns None only when the standard genuinely declares no value, so
+    "Not recorded" keeps exactly one meaning wherever it still appears. Nothing
+    here reads the document, changes a classification or relaxes a refusal.
+    """
+    if standard.get(PREFERRED) is None:
+        return None
+    return {PREFERRED: standard.get(PREFERRED), UNIT: standard.get(UNIT),
+            BASIS: standard.get(BASIS), SCOPE_KEY: standard.get(SCOPE_KEY)}
+
+
 def evaluate_numeric(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
     """Evaluate every scoped cap, producing one Evaluation per scope.
 
@@ -125,6 +164,7 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
     if cap.scope == SCOPE_UNKNOWN and rule_config.scope_required:
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
+                       expected_value=standard_side(standard),
                        explanation=("scope could not be determined and the "
                                     "configured comparison requires it",
                                     "scope is not assumed (45C.20)"))
@@ -132,6 +172,8 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
     if cap.cap_status == UNKNOWN:
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
+                       expected_value=standard_side(standard),
+                       actual_value={"cap_status": UNREADABLE, "scope": scope_key},
                        explanation=("cap could not be reliably interpreted",))
 
     # 45C.4 — an UNLIMITED carve-out applies ONLY to its own scope and never
@@ -158,6 +200,8 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
         # 45C.19 — a bare quantity without its qualifier is insufficient.
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
+                       expected_value=standard_side(standard),
+                       actual_value={"cap_status": UNREADABLE, "scope": scope_key},
                        explanation=("cap value or unit is missing; a bare "
                                     "quantity is insufficient (45C.19)",))
 
@@ -166,7 +210,8 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
         # 45C.5 / 45C.6 — values in incomparable scopes must not be compared.
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
-                       actual_value={"scope": scope_key},
+                       expected_value=standard_side(standard),
+                       actual_value=document_side(cap, scope_key),
                        explanation=(
                            f"scope {scope_key} is not comparable to the Company "
                            f"Standard scope {standard_scope}",
@@ -175,6 +220,8 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
     if cap.cap_unit != standard.get(UNIT):
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
+                       expected_value=standard_side(standard),
+                       actual_value=document_side(cap, scope_key),
                        explanation=(
                            f"unit {cap.cap_unit} differs from the Company "
                            f"Standard unit {standard.get(UNIT)}",
@@ -191,6 +238,8 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                   f"unavailable: {list(conversion.required_inputs)}")
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
+                       expected_value=standard_side(standard),
+                       actual_value=document_side(cap, scope_key),
                        explanation=(detail, "bases are not assumed equivalent "
                                             "(45B.4, 45C.23)"))
 
@@ -391,6 +440,8 @@ def _unable(evaluator_input, *, scope_key: str, reason: str,
         rule_outcome=RuleOutcome.NOT_APPLICABLE,
         evaluator_version=evaluator_input.evaluator_version,
         evidence_refs=tuple(r.evidence_id for r in evaluator_input.evidence),
+        expected_value=standard_side(
+            evaluator_input.company_standard.configuration or {}),
         explanation=(reason, "failing closed rather than guessing (ENG-09)"),
         diagnostics=diagnostics)
 

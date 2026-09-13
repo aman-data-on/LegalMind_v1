@@ -271,3 +271,69 @@ def test_evaluator_emits_no_decision_or_status():
     fields = set(vars(e))
     assert not (fields & {"decision", "decision_type", "legal_decision",
                           "status", "resolution", "risk"})
+
+
+# ==========================================================================
+# The company standard's own position survives a fail-closed result
+# (2026-09-13). Reproduced from a live review: five NUMERIC findings rendered
+# "Company standard: Not recorded" on the Findings screen although every one of
+# those standards declares a `preferred` value in its configuration. The screen
+# was stating something false about our own configuration, because the
+# fail-closed branches never copied the standard into `expected_value`.
+#
+# The classification and the rule outcome are NOT the subject of these tests and
+# must not move: failing closed is correct (rule 15). What must change is only
+# that the reader can still see what the organization's position IS while a
+# human decides.
+# ==========================================================================
+def _standard_side(evaluation):
+    return evaluation.expected_value
+
+
+def test_an_unreadable_cap_still_reports_the_company_standard():
+    """The live shape: the clause was found and read, its magnitude could not be
+    interpreted, and the standard declares 10."""
+    e = only(evaluate(numeric_input([cap(None, status="UNKNOWN")])))
+    assert e.classification is C.UNABLE_TO_EVALUATE          # unchanged
+    assert e.rule_outcome is O.NOT_APPLICABLE                # unchanged
+    assert _standard_side(e) is not None, "the standard's position must be reported"
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_an_incomparable_basis_still_reports_the_company_standard():
+    e = only(evaluate(numeric_input([cap(10, basis="BASIS_OTHER")])))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+    assert _standard_side(e)["basis"] == STRUCTURAL_BASIS
+
+
+def test_a_missing_unit_still_reports_the_company_standard():
+    bare = cap(10)
+    bare = type(bare)(**{**vars(bare), "cap_unit": None})
+    e = only(evaluate(numeric_input([bare])))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_a_failed_extraction_still_reports_the_company_standard():
+    e = only(evaluate(numeric_input(
+        [cap(10)], extraction_status=ExtractionStatus.FAILED,
+        diagnostics=("OCR produced no usable text",))))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_no_facts_at_all_still_reports_the_company_standard():
+    e = only(evaluate(numeric_input(None)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_a_standard_with_no_preferred_value_reports_nothing_and_says_so():
+    """The one case where "Not recorded" is the truth: the standard itself
+    declares no value. It must stay distinguishable from the cases above."""
+    e = only(evaluate(numeric_input([cap(10)], standard=structural_standard(
+        preferred=None))))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert (_standard_side(e) or {}).get("preferred") is None
+    assert any("no preferred" in x for x in e.explanation)
