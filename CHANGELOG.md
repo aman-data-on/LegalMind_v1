@@ -10,6 +10,50 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — production hardening on the live host: every preflight FAIL closed (2026-09-14)
+
+**Preflight 11 PASS / 3 FAIL / 1 BLOCKED → 17 PASS / 8 ATTEST / 0 FAIL / 0 BLOCKED.** Every
+remaining row is an attestation about the platform that the application cannot observe from
+inside itself.
+
+**Credentials.** The database credential was rotated to a generated 40-character secret and
+`LEGALMIND_DATABASE_URL` injected; the built-in development default with the
+`legalmind:legalmind` pair is gone, and the old credential is confirmed dead.
+
+**Role separation, not a cosmetic revoke.** `legalmind_migrate` now owns the schema and
+`legalmind` holds DML only. Revoking `CREATE` alone would have left the runtime role able to
+`ALTER` and `DROP` what it owned. Rehearsed on a restored copy first: `SELECT`/`INSERT` work,
+`CREATE TABLE`, `DROP findings` and `ALTER findings` are all refused, and the append-only
+audit trigger still refuses an `UPDATE`. **Recorded for anyone repeating it:** `REASSIGN
+OWNED` also moves *shared* objects, so it reassigned all 21 `legalmind*` databases
+cluster-wide; production was correct throughout, and ownership of every non-production
+database was returned to `legalmind`.
+
+**Worker and broker.** Redis started, the worker installed and proven consuming *before* the
+broker URL was set — reversed, every analysis would enqueue with nothing to run it. A
+dispatched task was transported through Redis and executed in the worker process.
+
+**Security.** Five response headers added at nginx (all six were absent), present on error
+responses too. Both services gained isolation — `NoNewPrivileges`, `PrivateTmp`,
+`ProtectSystem=full`, `PrivateDevices`, `MemoryMax=3G`, `TasksMax=512` — where they
+previously ran as root with none while parsing attacker-supplied PDFs and shelling out to
+OCR. A real PDF still parses to 235 segments COMPLETE.
+
+**Malware scanning: `accepted-absent`, decided on evidence.** ClamAV was assessed and
+rejected: it adds a service outside the locked Step 39 stack, `freshclam` needs egress that
+contradicts the locked allow-list, and decisively it does not address the actual threat —
+parser exploitation, which is what the isolation above mitigates. Residual risk documented.
+
+**Backups and disk.** A verified restore (12 tables matched row-for-row), then a nightly
+verified backup at 02:30 with 14-day retention and weekly log rotation. Disk 85% → 67% by
+reclaiming stale VS Code server versions, the npm cache and apt caches; the journal was
+capped at 500 MB with 30-day retention, down from 1.6 GB uncapped.
+
+**Verified:** 1,765 backend tests pass. Live site, OIDC start, worker and all five services
+healthy after every change. Developer note: a test run now needs
+`LEGALMIND_TEST_DATABASE_URL` and must not see `LEGALMIND_BROKER_URL` — both documented in
+`ops/production/README.md`.
+
 ### Changed — production configuration hardened on the live host (2026-09-14)
 
 Measured against the deployment preflight on the live server rather than inferred.
