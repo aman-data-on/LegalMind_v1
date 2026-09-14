@@ -50,6 +50,25 @@ if [[ "${code:-}" != "200" ]]; then
 fi
 say "Backend healthy (200)"
 
+# The worker runs the SAME code from the SAME tree, and Celery loads it once at
+# startup — so without this it keeps serving the previous revision after every
+# deploy, silently. Restarting it was a manual step nobody had written down
+# until a deploy on 2026-09-14 needed it; a step that lives only in a person's
+# head is a step that gets skipped. Restarted AFTER the API is healthy, so a
+# backend that cannot start never takes the worker down with it.
+say "Backend: restarting legalmind-worker"
+systemctl restart legalmind-worker
+for i in $(seq 1 20); do
+  sleep 1
+  systemctl is-active --quiet legalmind-worker && break
+done
+if ! systemctl is-active --quiet legalmind-worker; then
+  echo "Worker failed to start after restart." >&2
+  echo "Diagnose with: journalctl -u legalmind-worker -n 50" >&2
+  exit 1
+fi
+say "Worker active"
+
 # --- frontend ----------------------------------------------------------------
 # The API was restarted above, so the stale-API preflight inside this script
 # passes by construction. The script builds to staging, verifies BUILD_ID, swaps

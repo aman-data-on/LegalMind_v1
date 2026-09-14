@@ -144,9 +144,16 @@ python3 -m tools.calibrate_historical             # real signed paper, if any is
 cd ../frontend && npm run test:all && npm run test:e2e
 ```
 
-Deployment is `bash ops/deploy.sh` and is documented in [ops/README.md](ops/README.md) and
+Deployment is `bash ops/deploy.sh` — backend, then worker, then frontend, in that order for a
+reason the script explains — and is documented in [ops/README.md](ops/README.md) and
 [docs/09-implementation/STEP_55_DEPLOYMENT.md](docs/09-implementation/STEP_55_DEPLOYMENT.md).
 `backend/` and `frontend/` carry their own READMEs for the detail.
+
+**Backups** run nightly at 02:30 via `ops/production/backup.sh`: 14 days locally for fast
+recovery, plus 90 days encrypted (GPG AES-256, applied before upload) in a private CloudPe
+bucket for disaster recovery. Restore is verified into a scratch database, never assumed. See
+[ops/production/README.md](ops/production/README.md#backups-and-disaster-recovery); the
+off-server upload is credential-gated and those credentials are still outstanding.
 
 ---
 

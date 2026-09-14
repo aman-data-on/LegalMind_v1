@@ -80,6 +80,14 @@ Encrypted volumes for the document store and database. Malware scanning on uploa
 an ATTEST integration. Backups: schedule them, and attest a **tested restore** — an
 unrestored backup is a hope, not a control.
 
+**Backups are implemented and documented in
+[production/README.md](production/README.md#backups-and-disaster-recovery)**: local 14 days
+(plaintext, fast recovery) plus off-server 90 days (GPG AES-256 before upload) to the private
+CloudPe bucket `legalmind-production-backups` in `S3-INWEST2`, run nightly at 02:30 by
+`production/backup.sh` with `production/s3_object.py`. Restore was verified end to end on
+2026-09-14 into a scratch database. The off-server upload is **credential-gated** and those
+credentials are still outstanding — see that document for the exact variable names.
+
 ## 5 · Identity (row: `oidc`) — BLOCKED, honestly
 
 OIDC/RIAAS needs the IdP's details and a rule-19 dependency approval; password login

@@ -68,6 +68,105 @@ python3 -m pytest tests -q
 
 Verified 2026-09-14: **1,765 passed, 0 failed.**
 
+## Backups and disaster recovery
+
+Two copies with two different jobs. Run by `ops/production/backup.sh`, installed at
+`/usr/local/sbin/legalmind-backup` and driven by root's cron at **02:30 daily**.
+
+| | Local | Off-server |
+|---|---|---|
+| Location | `/var/backups/legalmind` (mode 700, dumps mode 600) | CloudPe Object Storage, bucket **`legalmind-production-backups`**, region **`S3-INWEST2`**, **private — public access denied** |
+| Format | `pg_dump -Fc`, plaintext | the same dump, **GPG symmetric AES-256** before it leaves the host |
+| Retention | **14 days** | **90 days** |
+| Purpose | the fast path — one `pg_restore`, no key ceremony | the disaster path, for when this machine is what was lost |
+
+**Why the local copy is not encrypted.** It is the copy you reach for at 3am, and hunting a
+passphrase mid-outage turns a recovery into an incident. It sits at mode 600 in a mode-700
+directory on a host where only root and postgres have accounts. The disk itself is **not**
+encrypted — an outstanding provider attestation — which is precisely why the copy that *leaves*
+the machine is encrypted first.
+
+### Credentials and permissions
+
+`backup.sh` runs **as root** and drops to `postgres` only for `pg_dump`, so the credential file
+stays root-only and postgres never reads it. Settings live in **`/root/.legalmind-backup.env`,
+mode 600**, and are referenced by name only — never printed, never committed, never logged:
+
+```
+LEGALMIND_S3_ENDPOINT             # CloudPe S3 endpoint URL for the region
+LEGALMIND_S3_BUCKET               # legalmind-production-backups
+LEGALMIND_S3_REGION               # S3-INWEST2
+LEGALMIND_S3_ACCESS_KEY_ID        # secret
+LEGALMIND_S3_SECRET_ACCESS_KEY    # secret
+LEGALMIND_BACKUP_PASSPHRASE_FILE  # path to a mode-600 file holding the GPG passphrase
+```
+
+The access key should be scoped to **this bucket only**, with just the operations the script
+uses: `PutObject`, `GetObject`, `ListBucket`, `DeleteObject` (delete is required for the 90-day
+prune, and for nothing else). It needs no bucket-creation, no policy and no ACL rights.
+
+⚠️ **The GPG passphrase is a single point of failure.** Lose it and every off-server backup is
+permanently unreadable — that is what "encrypted before upload" costs. It must live in the
+owner's password manager, **off this machine**. A passphrase stored only beside the backups it
+protects is not a second copy of anything.
+
+**When the credential file is absent**, stage B is skipped and says so loudly on stderr and in
+`/var/log/legalmind-backup.log`. Stage A still runs, so the local backup never depends on the
+off-server configuration being present. A backup gap that logs nothing is indistinguishable
+from a backup.
+
+### What a run verifies
+
+Stage A dumps, then proves the archive readable with `pg_restore -l` — a dump that cannot be
+listed is not a backup. Stage B probes the bucket with a `HEAD` *before* encrypting (an expired
+key should cost one request, not a full upload), encrypts, uploads with the SHA-256 stored in
+object metadata so the checksum travels **with** the object, then **downloads it back**, compares
+it byte-for-byte with what was sent, and **decrypts the read-back** to prove the key and cipher
+work. Only then does it prune the remote by age.
+
+Retention refuses to empty the bucket: if *every* object looks expired, the clock or the prefix
+is wrong far more often than an entire archive genuinely aged out overnight, and deleting the lot
+is not the recovery from either. Pinned by `backend/tests/test_backup_retention.py`.
+
+### Restoring
+
+```bash
+# 1 — off-server: list, fetch, decrypt
+set -a && . /root/.legalmind-backup.env && set +a
+python3 /root/Legalmind.v1/ops/production/s3_object.py list legalmind_v1_dev/
+python3 /root/Legalmind.v1/ops/production/s3_object.py get <key> /tmp/restore.dump.gpg
+gpg --batch --decrypt --passphrase-file "$LEGALMIND_BACKUP_PASSPHRASE_FILE" \
+    --output /tmp/restore.dump /tmp/restore.dump.gpg
+
+# 1' — local: skip straight to step 2 with a file from /var/backups/legalmind
+
+# 2 — restore into a NON-PRODUCTION database first, always
+su -s /bin/bash postgres -c "createdb legalmind_restore_test"
+su -s /bin/bash postgres -c "pg_restore -d legalmind_restore_test --no-owner --role=postgres /tmp/restore.dump"
+
+# 3 — prove it before trusting it, then drop the scratch copy
+su -s /bin/bash postgres -c "psql -d legalmind_restore_test -c 'select count(*) from findings'"
+su -s /bin/bash postgres -c "dropdb legalmind_restore_test"
+```
+
+Restoring **over** production is a deliberate act: stop `legalmind-api` and `legalmind-worker`
+first, take a fresh dump of what you are about to replace, then `pg_restore --clean`.
+
+### Verified 2026-09-14
+
+Exercised end to end on this host, production untouched throughout:
+
+| Step | Result |
+|---|---|
+| Local dump + `pg_restore -l` | **PASS** — 8 dumps retained, none deleted |
+| GPG AES-256 encryption | **PASS** — `PGP symmetric key encrypted data - AES with 256-bit key`, ciphertext does not begin `PGDMP` |
+| SHA-256 integrity | **PASS** — decrypted output byte-identical to the source dump |
+| Restore into `legalmind_restore_test` | **PASS** — 32 requirements / 580 findings / 58 reviews / 3 snapshots / 1,578 audit events, **identical to production**; 49 tables both; alembic `e9f2b6c4a173` |
+| Local retention | **PASS** — 15- and 40-day files pruned, 1/5/13-day kept |
+| Remote retention guard | **PASS** — 7 unit tests, including refusal to delete every object |
+| Credential handling | **PASS** — a missing-credential error names the *variables*, never a value |
+| **Upload / download to CloudPe** | **NOT RUN — credentials not yet supplied.** This is the one untested stage. |
+
 ## Outstanding — and who has to act
 
 ### Requires the infrastructure owner, not this host
@@ -93,8 +192,14 @@ Verified 2026-09-14: **1,765 passed, 0 failed.**
 * **TLS confirmation** (ATTEST). The certificate, redirect, TLS 1.2/1.3-only posture and
   `certbot.timer` are all verified here; what cannot be observed from inside is whether the
   database connection is encrypted where the network is not fully trusted.
-* **Off-host backup copies.** Backups exist and are verified, but only on the machine they
-  protect. That is not a backup against losing the machine.
+* **CloudPe credentials for off-server backups** (2026-09-14). The backup system is **built,
+  installed and tested** — encryption, integrity, decrypt, restore-to-scratch-database and
+  retention all verified on this host. The only untested stage is the network one, because
+  **no credentials exist anywhere**: not in `/root/.legalmind.env`, no `~/.aws`, no `~/.s3cfg`,
+  and the bucket name appears nowhere in the repository. Supply the five values named under
+  *Credentials and permissions* above in `/root/.legalmind-backup.env` (mode 600) plus a
+  passphrase file, and the nightly job starts uploading with no code change. Until then every
+  backup still exists only on the machine it protects, and each run says so on stderr.
 
 ### Requires an owner decision — configuration, not infrastructure
 
@@ -141,7 +246,40 @@ Verified 2026-09-14: **1,765 passed, 0 failed.**
   deployment needs the shared Redis behind it — Redis is now running, so this is a small
   change when a second worker appears.
 
-## Deploying AB-20 — rehearsed 2026-09-14, not yet applied
+## Deploying AB-20 — code DEPLOYED 2026-09-14; standards publish PENDING
+
+**Status.** The code is live: PR #36 merged as `a1b23e1d5277ea2f43b794a039d8e13cdd45d21e`,
+deployed and verified healthy. **The standards import and snapshot publish have NOT run** —
+production still holds 32 requirements, all ACTIVE, 3 snapshots, 580 findings.
+
+They are deliberately left as **one atomic operator step**. Publishing writes `actor_id` into
+the append-only audit trail, no API token is stored, and locked **55.3** makes creating a
+production credential "a deliberate operator act" — `tools/dev_account.py` refuses on production
+for exactly that reason. Forging a token with the signing secret would circumvent that lock and
+record an action against a person who did not perform it, so it is not done. Running the import
+alone would also leave production half-applied: eight inert `DRAFT` standards and seven newly
+deprecated ones, with no new snapshot.
+
+**The two commands, in order** (both run by an operator; the second needs a session for an
+account holding `configuration.publish`):
+
+```bash
+# 1 — import (writes requirement versions; creates the 8 new ones as DRAFT)
+cd /root/Legalmind.v1/backend
+set -a && . /root/.legalmind.env && set +a
+python3 -m tools.import_ratified_standards --actor-email <you@leapswitch.com>
+
+# 2 — regenerate and validate the payload, then publish exactly 33
+python3 -m tools.publish_payload -o /root/publish-33.json
+curl -sS -X POST https://legalmind.lsnw.io/api/v1/configuration/publish \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  --data @/root/publish-33.json
+```
+
+`tools/publish_payload.py` derives the list from the ratified files and **refuses** unless it is
+exactly 33 publishable and 7 retired, with no overlap and no duplicates — so the payload cannot
+drift from the directory. Never hand-edit it, and never send the 40-code list the import tool
+prints.
 
 Rehearsed in full against `legalmind_dryrun`, a scratch database restored from
 `legalmind_v1_dev-20260914-2110-pre-ab20-deployment.dump`. Two findings below would each
