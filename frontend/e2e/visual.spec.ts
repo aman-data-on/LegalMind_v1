@@ -131,6 +131,13 @@ test.describe("the new UI at the freeze (counsel)", () => {
     await createAnalysedReview(page);
     await page.goto("/dashboard");
     await expect(page.locator("tbody tr").first()).toBeVisible();
+    /* The four totals tiles come from a SEPARATE request and render only once it
+       resolves (`{summary ? <section className="ws-doctiles">` in the dashboard
+       page). Waiting on the table alone is a race the table usually wins: on
+       2026-09-14 this shot was captured tile-less on a docs-only commit, 96px
+       shorter than the baseline, having passed on the commit before it. Wait for
+       the tiles too, or the gate reports a layout change nobody made. */
+    await expect(page.locator(".ws-doctiles")).toBeVisible();
     await expect(page).toHaveScreenshot("ws-documents.png", {
       ...SHOT,
       fullPage: true,
