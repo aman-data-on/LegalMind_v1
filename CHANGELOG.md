@@ -10,6 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Deployed — PR #36 merged and code live; standards import/publish still pending (2026-09-14 21:46–21:47 IST)
+
+PR #36 (`feat/constitution-content-first`) merged to `main` at `a1b23e1`. `legalmind-api`
+and `legalmind-frontend` restarted and confirmed serving it directly (systemd
+`ActiveEnterTimestamp`, `/health`, frontend `BUILD_ID` `9sjlCM6TCHGaX1i6S_u8v`). No
+migration was owed — the database was already at head `e9f2b6c4a173`.
+
+**The release is code-only.** The runbook's remaining two steps
+([ops/production/README.md](ops/production/README.md) "Deploying AB-20") — import, then
+`POST /configuration/publish` — have not run. Checked directly against the live
+database: 32 requirements, all `ACTIVE`, zero `DEPRECATED`; the newest
+`configuration_snapshots` row is still 2026-09-09. All eight AB-20 codes are absent, the
+`AM-65` retirements have not fired, and every review run right now still evaluates
+against the pre-AB-20 positions. Import + publish is an audited production
+configuration change and needs the owner's go-ahead before it runs.
+
 ### Added — release preparation for AB-20: the branch is pushed, green, and rehearsed (2026-09-14)
 
 **The push was never blocked.** `ssh -T git@github.com` authenticates and `git ls-remote`
