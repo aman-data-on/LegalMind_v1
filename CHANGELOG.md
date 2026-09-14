@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — production configuration hardened on the live host (2026-09-14)
+
+Measured against the deployment preflight on the live server rather than inferred.
+**Applied and verified:** `LEGALMIND_ENVIRONMENT=production` — the service had declared
+none, so it ran as `development` while serving real legal documents; the only runtime
+consumer is the `AM-31` egress gate, which is RELEASED, confirmed before restarting. The
+`legalmind_assist` PostgreSQL role now exists (`AM-25` r2), `NOLOGIN` so it creates no
+credential, holding SELECT on `public`, full DML on `assist`, and **no INSERT or UPDATE on
+any of the ten authoritative tables**, asserted table by table. `redis-server` enabled and
+started, listening on loopback only. A real backup was taken and **restore-verified** into
+a scratch database — 12 tables matched row-for-row across both schemas, including 580
+findings and 7,567 assist chunks; the scratch database was dropped and the live database
+never written to (locked 55.2: "restore is verified, not assumed").
+
+Preflight moved from **11 PASS / 1 BLOCKED / 3 FAIL** to **13 PASS / 0 BLOCKED / 3 FAIL**.
+
+**Corrected:** the previous report listed OIDC identity-provider registration as a
+production blocker. It is not, and never was — Google SSO is configured, the redirect URI
+is registered and validated, and six accounts have signed in through it, most recently
+2026-09-11. That claim came from reading the code path instead of running the check.
+
+**Prepared, not applied** (each needs an operator or an owner decision):
+`ops/production/legalmind-worker.service` with the ordering constraint that the worker
+must run before the broker URL is set; the database-URL injection, which needs a password
+on the role; and the DDL separation, which needs a distinct owner/migration role because
+the application role owns all 49 tables. See `ops/production/README.md`.
+
 ### Changed — the final business decisions, a production-quality pass, and the documentation set (AB-20: `AM-65`, `AM-66`; 2026-09-14; NOT deployed)
 
 **Retirement.** The seven standards the current Constitution does not define are retired

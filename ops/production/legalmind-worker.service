@@ -1,0 +1,41 @@
+# LegalMind analysis worker — locked 55.1.
+#
+# NOT INSTALLED as of 2026-09-14. Install with:
+#   sudo cp ops/production/legalmind-worker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now legalmind-worker
+#
+# Install this BEFORE adding LEGALMIND_BROKER_URL to /root/.legalmind.env and
+# restarting the API. The order matters: with a broker set and no worker running,
+# the API would enqueue every analysis and nothing would consume it — Reviews that
+# quietly never acquire Findings, which is the exact failure RequireBroker exists
+# to prevent on the worker side.
+
+[Unit]
+Description=LegalMind analysis worker (Celery, Step 55.1)
+After=network.target postgresql.service redis-server.service
+Requires=redis-server.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+# The SAME working directory as legalmind-api, deliberately: 55.1 requires the
+# worker to run the same version as the API, and a version-skewed worker refuses
+# jobs by design rather than producing Findings under the wrong evaluator version.
+WorkingDirectory=/root/Legalmind.v1/backend
+EnvironmentFile=/root/.legalmind.env
+ExecStart=/usr/local/bin/celery -A legalmind.worker.app worker \
+    --queues analysis,assist \
+    --concurrency 2 \
+    --loglevel INFO \
+    --hostname legalmind@%%h
+Restart=always
+RestartSec=5
+# An analysis in flight must not be killed mid-Review on reload.
+KillSignal=SIGTERM
+TimeoutStopSec=300
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=legalmind-worker
+
+[Install]
+WantedBy=multi-user.target

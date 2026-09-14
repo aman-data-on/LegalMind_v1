@@ -252,4 +252,7 @@ limitations section is frozen at 2026-08-18. Each entry names where the evidence
 | **Two PO standards are drafted but deferred** — no Purchase Order exists to calibrate against (locked 35.10). Explicitly not a blocker (owner, 2026-09-14). | `company_standards/proposed/README.md` |
 | **Illegible native text is never repaired, only OCR'd or refused** — the inversion that recovers body text corrupts every capital, which is the invented text 34.9 forbids. | `ingestion/parsing.py` |
 | **Hosting, orchestration, object storage, monitoring and DR objectives remain NOT YET SPECIFIED** (55.6). | `DEPLOYMENT.md` § NOT YET SPECIFIED |
-| **OIDC identity-provider registration is outstanding**, so a full preflight PASS is not yet reachable. | `deploy/preflight.py::_oidc_configured` |
+| **Production preflight: 13 PASS, 3 FAIL, 9 ATTEST** (measured on the live host 2026-09-14). The three FAILs are the database URL not being injected, the application role holding DDL, and analysis running inline for want of a worker service. | [ops/production/README.md](../../ops/production/README.md) |
+| **Analysis runs inline in the API request**, not as a worker job (locked 55.1). Redis and Celery are installed and the unit file is prepared; installing a system service needs an operator. | `ops/production/legalmind-worker.service` |
+| **The live database is named `legalmind_v1_dev`** and its URL is not injected, so the built-in development default is in use. Closing the check needs a password on the role — a secret rotation, and the owner's call. | `deploy/preflight.py::_secrets_not_defaulted` |
+| **Disk is at 85%** on the application host, and the one verified backup is neither scheduled nor copied off-host. | `/var/backups/legalmind` |
