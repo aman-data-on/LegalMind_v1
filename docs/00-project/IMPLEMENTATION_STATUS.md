@@ -14,6 +14,42 @@ Last synchronized against `all_lock.md` at **19,072 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — AB-20 code DEPLOYED, standards publish PENDING (2026-09-14, later)
+
+Supersedes the section below, which recorded the state before the merge. That record stands as
+written; this is what is true now.
+
+**DEPLOYED.** PR #36 merged as **`a1b23e1d5277ea2f43b794a039d8e13cdd45d21e`**; the deploy tree
+is on that commit, identical to `origin/main`, clean. Frontend rebuilt (`BUILD_ID`
+`5XDhaMyKDnv2u0skbIdxv` → `9sjlCM6TCHGaX1i6S_u8v`), API and worker restarted. All six services
+active with **0 restarts**, logs clean, TLS 1.3, smoke routes 200/302, database reachable over
+SSL at head `e9f2b6c4a173`. Preflight on the deployed code: **17 PASS · 8 ATTEST · 0 FAIL**.
+
+**The standards import and publish have NOT run.** Production holds **32 requirements, all
+ACTIVE, 3 snapshots, 580 findings, 58 reviews** — unchanged. They are left as one atomic
+operator step: publishing writes `actor_id` into the append-only audit trail, no API token is
+stored, and locked **55.3** makes production credential creation a deliberate operator act
+(`tools/dev_account.py` refuses on production for that reason). The commands and the validated
+33-code payload are in [ops/production/README.md](../../ops/production/README.md).
+
+**Off-server backups: BUILT AND TESTED, credential-gated.** `ops/production/backup.sh` now runs
+two stages — local 14-day plaintext for fast recovery, off-server 90-day GPG AES-256 for
+disaster recovery to the private CloudPe bucket `legalmind-production-backups` (`S3-INWEST2`),
+via `ops/production/s3_object.py` on the already-installed apt `python3-boto3`. Verified on this
+host 2026-09-14: encryption (AES-256, ciphertext confirmed not plaintext), byte-identical
+decrypt, **restore into a scratch database matching production exactly** (32 / 580 / 58 / 3 /
+1,578, 49 tables, alembic at head), local retention pruning, and 7 unit tests on the remote
+retention guard. **Upload and download are the one untested stage** — no CloudPe credentials
+exist on this host or in the repository.
+
+**Also fixed:** `ops/deploy.sh` restarted the API but never `legalmind-worker`, which runs the
+same code from the same tree and loads it once at startup — every deploy silently left a stale
+worker. It now restarts the worker after the API is healthy.
+
+**Unchanged and still outstanding:** the six AB-14 terminology failures remain **pre-existing,
+non-regression** (identical on `main` before this deploy); encryption at rest and the egress
+allow-list remain provider/owner items.
+
 ### Release state — AB-20, as of 2026-09-14
 
 **PREPARED · REHEARSED · NOT DEPLOYED.** `feat/constitution-content-first` is pushed and

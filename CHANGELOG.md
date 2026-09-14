@@ -10,6 +10,54 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — off-server encrypted backups, and AB-20 deployed to production (2026-09-14, later)
+
+**AB-20 is live.** PR #36 merged as `a1b23e1d5277ea2f43b794a039d8e13cdd45d21e` and deployed:
+frontend rebuilt (`BUILD_ID` `5XDhaMyKDnv2u0skbIdxv` → `9sjlCM6TCHGaX1i6S_u8v`), API and worker
+restarted, six services active with 0 restarts, clean logs, TLS 1.3, preflight 17 PASS / 8
+ATTEST / 0 FAIL. **Production data untouched: 32 requirements all ACTIVE, 580 findings, 58
+reviews, 3 snapshots.**
+
+**Backups now leave the machine.** `ops/production/backup.sh` gains a second stage and a new
+helper `ops/production/s3_object.py` (apt `python3-boto3`, so no project dependency):
+
+* **Local** — 14 days, plaintext, mode 600 in a mode-700 directory. The fast path; a key
+  ceremony mid-outage turns a recovery into an incident.
+* **Off-server** — 90 days, **GPG AES-256 applied before upload**, to the private CloudPe bucket
+  `legalmind-production-backups` (`S3-INWEST2`). Encrypted client-side because encryption at rest
+  at the provider is unconfirmed, and would be their control rather than ours even if it were not.
+* Each run probes the bucket before encrypting, stores the SHA-256 **in object metadata** so the
+  checksum travels with the object, **downloads the object back**, compares it byte-for-byte, and
+  **decrypts the read-back** before pruning. An upload nobody has read back is not a backup.
+* Retention **refuses to empty the bucket**: if every object looks expired, the clock or the
+  prefix is wrong far more often than an archive genuinely ages out overnight.
+* The script now runs as root and drops to `postgres` only for `pg_dump`, so the credential file
+  stays root-only. When it is absent the off-server stage is skipped **loudly** — a backup gap
+  that logs nothing is indistinguishable from a backup.
+
+Verified end to end on the host, production untouched: encryption confirmed non-plaintext,
+byte-identical decrypt, **restore into a scratch database matching production exactly** (32 /
+580 / 58 / 3 / 1,578, 49 tables, alembic `e9f2b6c4a173`), local retention pruning correct, and
+13 new tests. **Upload and download are the one untested stage — no CloudPe credentials exist on
+this host or in the repository**, and none were invented.
+
+**Fixed: `ops/deploy.sh` never restarted the worker.** It runs the same code from the same tree
+and Celery loads it once at startup, so every deploy silently left a stale worker until someone
+restarted it by hand. It now restarts the worker after the API is healthy.
+
+**Added `backend/tools/publish_payload.py`.** The import tool prints all 40 codes; publishing a
+retired one is refused by design (`AM-65`) and fails the whole call. This derives the 33 from the
+ratified files and refuses unless the shape is exactly 33 publishable / 7 retired, no overlap, no
+duplicates — so the payload cannot drift from the directory.
+
+**The 33-standard import and publish were NOT run**, deliberately and on the owner's instruction:
+publishing writes `actor_id` into an append-only legal audit trail, no API token is stored, and
+locked 55.3 makes production credential creation a deliberate operator act. Forging a token with
+the signing secret would circumvent that lock and misattribute the action, so it was not done.
+Running the import alone would have left production half-applied (8 inert DRAFT standards, 7
+deprecated, no new snapshot), so both are left as one operator step with the commands prepared.
+
+
 ### Added — release preparation for AB-20: the branch is pushed, green, and rehearsed (2026-09-14)
 
 **The push was never blocked.** `ssh -T git@github.com` authenticates and `git ls-remote`
