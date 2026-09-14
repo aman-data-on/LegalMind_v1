@@ -96,10 +96,10 @@
     "id": "CLS-AUTORENEW-MSA-001",
     "provenance": "STANDARD_DERIVED",
     "company_standard_ref": "AUTORENEW-MSA-001",
-    "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025)",
-    "source_clause": "7.3",
+    "source_document": "Legal Constitution, Lawyer Review Version L1.10, §31.15 Renewal (Auto-Renewal)",
+    "source_clause": "31.15",
     "covers": [],
-    "description": "Clause-catalogue expansion (owner instruction 2026-08-19): the auto renewal term position the document itself states (automatic renewal for successive periods of six (6) months), measured against the standard ratified FROM that clause: MATCH, rule_outcome NOT_APPLICABLE (zero-tolerance wiring pending; routing unaffected). Asserts the engine handles this clause type end to end with real values — the numeric machinery is requirement-agnostic, which is the point being proven.",
+    "description": "AM-59 r4 (2026-09-13): AUTORENEW-MSA-001 now measures the NON-RENEWAL NOTICE the Constitution §31.15 adopts as the standard position (30 days); the renewal PERIOD is 'a negotiable commercial term, not a fixed Constitution value' and is no longer measured. Before this record the fixture measured the MSA template's six-month period (§7.3) — that reading is preserved in the standard's _history. MATCH, rule_outcome NOT_APPLICABLE; the numeric machinery is requirement-agnostic.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "requirement_code": "AUTORENEW-MSA-001",
     "legal_rule": null,
@@ -107,9 +107,9 @@
       {
         "scope": "GENERAL",
         "cap_status": "FINITE",
-        "cap_value": 6,
-        "cap_unit": "MONTHS",
-        "cap_basis": "AUTO_RENEWAL_TERM",
+        "cap_value": 30,
+        "cap_unit": "DAYS",
+        "cap_basis": "NON_RENEWAL_NOTICE",
         "evidence_count": 1
       }
     ],

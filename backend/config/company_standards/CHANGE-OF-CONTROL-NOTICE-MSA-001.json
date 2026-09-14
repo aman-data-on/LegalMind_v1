@@ -1,0 +1,97 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'). Drafted 2026-09-13 under AM-59 r6 from the cited section's own words; every value is the",
+    "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "CHANGE-OF-CONTROL-NOTICE-MSA-001",
+  "description": "A change of control is notified to the other party within a set number of days.",
+  "ratified": "2026-09-13",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.14",
+    "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
+    "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.14",
+  "source_quote": "Customer should provide notice of a Change of Control within 30 days, where applicable ... CONFIRMED. 30-day notice; no automatic termination",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.14",
+      "topic": "Major Changes — Change of Control",
+      "basis": "COMPANY_APPROVED"
+    },
+    "preferred": 30,
+    "unit": "DAYS",
+    "basis": "CHANGE_OF_CONTROL_NOTICE",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "notice of a change of control",
+        "notify",
+        "written notice",
+        "within"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days"
+        ]
+      },
+      "bases": {
+        "CHANGE_OF_CONTROL_NOTICE": [
+          "change of control",
+          "change in control"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "change of control",
+      "change in control"
+    ],
+    "aliases": [
+      "change of ownership",
+      "acquisition of a controlling interest"
+    ],
+    "keyword_groups": [
+      [
+        "control",
+        "notice"
+      ],
+      [
+        "control",
+        "assign"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "change of control",
+      "assignment"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "Live wording seen 2026-09-13: both partner agreements state a change-of-control TERMINATION right ('may terminate ... immediately if ... undergoes any change of control ... will provide notice with the reason') and no notice PERIOD — §31.14's Partner position; the MSA position (30-day notice) has no live specimen. A clause stating the right but no period reads UNKNOWN → a person, correctly. Calibration outstanding (35.10)."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

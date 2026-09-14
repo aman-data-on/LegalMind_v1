@@ -17,6 +17,18 @@
   "source_quote": "Auto-Renewal: Unless cancelled prior to the renewal date, Services will automatically renew for the same billing period. We will issue an invoice at least 7 days before the renewal date.",
   "configuration": {
     "document_type": "TOS",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.15",
+      "topic": "Renewal (Auto-Renewal)",
+      "basis": "COMPANY_APPROVED",
+      "expected_when": {
+        "confirmed_any": [
+          "EARLY-TERM-RESTRICTION-MSA-001",
+          "AUTORENEW-MSA-001"
+        ]
+      }
+    },
     "expected_presence": "PRESENT",
     "scope_key": "AUTO_RENEWAL",
     "applicability": "REQUIRED"

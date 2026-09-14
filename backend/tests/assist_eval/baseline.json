@@ -1,5 +1,5 @@
 {
- "recorded": "2026-09-02",
+ "recorded": "2026-09-14",
  "dataset": {
   "path": "tests/assist_eval/questions_draft.json",
   "sha256": "c53d249943d3adee0eaf459410ef65ff19fc7a9f2fc9dcdc6885606f243bf0a6",
@@ -7,7 +7,7 @@
  },
  "pipeline": {
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2@main",
-  "strategy_version": "hybrid-rrf-gate-1 (calibrated 2026-08-26)",
+  "strategy_version": "hybrid-rrf-gate-3 (redirect 2026-09-10; gate 2026-08-26)",
   "cosine_floor": 0.5,
   "evidence_cosine_floor": 0.5,
   "peak_margin": 0.059,
@@ -18,17 +18,17 @@
   "unanswerable": 13,
   "wrongly_answered": 1,
   "correct_refusals": 12,
-  "retained": 41,
-  "false_refusals": 23,
-  "recall_at_10": 0.438,
-  "hit_at_1": 0.281,
-  "generated_answers": 24,
-  "user_answered": 24,
+  "retained": 43,
+  "false_refusals": 21,
+  "recall_at_10": 0.625,
+  "hit_at_1": 0.375,
+  "generated_answers": 33,
+  "user_answered": 33,
   "user_wrongly_answered": 0,
   "faithfulness": 1.0,
   "unfaithful_answers": 0,
   "citation_precision": 1.0,
-  "claims_scored": 67
+  "claims_scored": 76
  },
  "not_yet_measurable": {}
 }

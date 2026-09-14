@@ -1,0 +1,104 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'). Drafted 2026-09-13 under AM-59 r6 from the cited section's own words; every value is the",
+    "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "PAYMENT-PERIOD-MSA-001",
+  "description": "Invoices are payable within a set number of days of the invoice date.",
+  "ratified": "2026-09-13",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "16",
+    "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
+    "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§16",
+  "source_quote": "Payments are due within 21 days of invoice date ... 'Customer shall pay all undisputed invoices within twenty-one (21) days of the invoice date.'",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "16",
+      "topic": "Payment Terms & Taxes",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "preferred": 21,
+    "unit": "DAYS",
+    "basis": "INVOICE_PAYMENT_PERIOD",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "days of the invoice date",
+        "days from the invoice date",
+        "days of invoice",
+        "days of receipt of the invoice",
+        "days from the date of invoice"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days",
+          "business days"
+        ]
+      },
+      "bases": {
+        "INVOICE_PAYMENT_PERIOD": [
+          "invoice"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "days of the invoice date",
+      "days from the invoice date"
+    ],
+    "aliases": [
+      "payment terms",
+      "due date",
+      "payable within"
+    ],
+    "keyword_groups": [
+      [
+        "invoice",
+        "pay"
+      ],
+      [
+        "invoice",
+        "due"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "payment",
+      "fees",
+      "invoice",
+      "invoices",
+      "invoicing"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "Live wording seen 2026-09-13: a partner agreement 'within [30] days of the invoice date'; two customer MSAs bill 'by the 25th day of the month' / 'Grace Period 15 (fifteen) days from the due date' — neither states a day-count from the invoice date and would fall to a person (UNKNOWN), correctly. Negotiable per §16: Net-30 'subject to commercial approval'.",
+    "'business days' is listed as a DAYS term deliberately so the reader is told the unit was read; whether business days equal calendar days is the owner's call, not a conversion (AM-62 r1).",
+    "2026-09-14 (AM-65 loop): truncated stems replaced with whole words. Matching is word-boundary (mapping/scoring.contains_phrase), so 'terminat' never matched 'termination' and 'invoic' never matched 'invoice' — the term contributed nothing. Recall loss only; no verdict changed."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

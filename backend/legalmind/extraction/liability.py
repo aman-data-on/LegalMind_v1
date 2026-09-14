@@ -296,7 +296,12 @@ def _extract_from_clause(
 
     states_composite = any(
         contains_phrase(body, phrase) for phrase in config.composite_phrases)
-    magnitude = (_find_magnitude(body, config.units)
+    # AM-62 r5 — the quantity the cap phrase INTRODUCES: a clause stating
+    # several periods ("due within 21 days … disputes within 15 days … 30 days'
+    # notice") is read at the number nearest its first cap phrase, not at its
+    # first number. Every candidate is still a number the clause states (44.24).
+    magnitude = (_find_magnitude(body, config.units,
+                                 anchor=_phrase_span(body, config.cap_phrases))
                  if not (states_unlimited or states_composite) else None)
     basis = _find_basis(body, config.bases)
 
@@ -351,9 +356,24 @@ def _extract_from_clause(
     return results
 
 
+def _phrase_span(body: str, phrases: tuple[str, ...]) -> tuple[int, int] | None:
+    """Where the EARLIEST configured phrase occurs in the normalised body — the
+    same boundary semantics as `contains_phrase` (35.5), as a span."""
+    best: tuple[int, int] | None = None
+    for phrase in phrases:
+        needle = normalize(phrase)
+        if not needle:
+            continue
+        match = re.search(r"(?<!\w)" + re.escape(needle) + r"(?!\w)", body)
+        if match and (best is None or match.start() < best[0]):
+            best = (match.start(), match.end())
+    return best
+
+
 def _find_magnitude(
     body: str,
     units: tuple[str, ...] | dict[str, tuple[str, ...]],
+    anchor: tuple[int, int] | None = None,
 ) -> tuple[float, str] | None:
     """Locked 44.30 "regex/pattern matching for structured values".
 
@@ -377,9 +397,12 @@ def _find_magnitude(
     position, and ties are broken alphabetically so the result is deterministic
     (`ENG-11`).
 
-    Returns the FIRST match in document order so the result is deterministic when a
-    clause states several magnitudes; a clause with more than one is reported as a
-    diagnostic by the caller only if none matched at all.
+    With no ``anchor`` returns the FIRST match in document order. With the span of
+    the cap phrase (AM-62 r5, 2026-09-13) it returns the stated quantity NEAREST that
+    phrase — a quantity overlapping the phrase first ("21 days of the invoice date"),
+    then the smallest gap, the one after winning a tie ("at least thirty (30) days
+    prior to the expiry of" reads 30) — so a clause stating several periods is read
+    at the one its own cap phrase introduces. Deterministic either way (`ENG-11`).
     """
     if isinstance(units, dict):
         pairs = [(normalize(term), canonical)
@@ -405,9 +428,19 @@ def _find_magnitude(
         rf"(?<!\w)(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?|\d+(?:\.\d+)?|{_NUMBER_WORD})\s*"
         rf"(?:\)|\([a-z0-9]+\))?\s*"
         rf"({alternatives})(?!\w)")
-    match = pattern.search(body)
-    if match is None:
+    matches = list(pattern.finditer(body))
+    if not matches:
         return None
+    match = matches[0]
+    if anchor is not None:
+        # Nearest stated quantity to the phrase; one that OVERLAPS it ("21 days
+        # of the invoice date" — the phrase carries the unit word) is distance 0.
+        def distance(m: re.Match) -> tuple[int, int]:
+            if m.end() > anchor[0] and m.start() < anchor[1]:
+                return (0, 0)
+            gap = m.start() - anchor[1] if m.start() >= anchor[1] else anchor[0] - m.end()
+            return (gap, 0 if m.start() >= anchor[1] else 1)   # tie → the one after
+        match = min(matches, key=distance)
     value = parse_number(match.group(1))
     if value is None:                                   # pragma: no cover
         return None

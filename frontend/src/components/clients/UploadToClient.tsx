@@ -30,11 +30,8 @@ import { useRef, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
 import {
-  DOCUMENT_TYPES,
-  VERSION_ROLES,
-  documentTypeLabel,
+    VERSION_ROLES,
   nameFromFilename,
-  typeHintFromFilename,
 } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -66,11 +63,9 @@ export function UploadToClient({ client, onDone }: {
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
-  const [contractType, setContractType] = useState("");
   const [role, setRole] = useState("");
   /** "" means a new document; otherwise the contract a new version belongs to. */
   const [intoContractId, setIntoContractId] = useState("");
-  const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -84,7 +79,6 @@ export function UploadToClient({ client, onDone }: {
     if (problem) { setFile(null); setError(problem); return; }
     setFile(chosen);
     if (!intoContractId) setName(nameFromFilename(chosen.name));
-    setHint(typeHintFromFilename(chosen.name));
   }
 
   async function submit(event: React.FormEvent) {
@@ -101,7 +95,7 @@ export function UploadToClient({ client, onDone }: {
         // client's page — the outcome this feature exists to prevent.
         const contract = await api.createContract(
           name.trim() || nameFromFilename(file.name),
-          contractType || undefined,
+          undefined,
           client.id,
         );
         contractId = contract.id;
@@ -109,6 +103,25 @@ export function UploadToClient({ client, onDone }: {
 
       setStep("Uploading…");
       const uploaded = await api.uploadDocument(contractId, file);
+
+      // AM-64 (owner, 2026-09-13): the reader never selects a type. The assist
+      // lane's CONFIDENT inference is recorded and audited as the intake does
+      // (AM-50); an unconfident one records nothing, and the review is
+      // content-first either way (AM-60/AM-61). Best-effort: a failure here
+      // never stops the upload or the review.
+      if (!intoContractId) {
+        setStep("Reading what kind of document this is…");
+        try {
+          const proposed = await api.suggestType(uploaded.document_version.id);
+          if (proposed.confident && proposed.suggested_type) {
+            await api.updateContract(contractId, {
+              contract_type: proposed.suggested_type,
+              contract_type_source: "ASSIST_SUGGESTION",
+            });
+          }
+        } catch {
+        }
+      }
 
       // What this version IS. Declared before analysis on purpose: locked 33.7
       // freezes a version's declared metadata once a Review exists, so the
@@ -192,30 +205,6 @@ export function UploadToClient({ client, onDone }: {
               <input value={name} onChange={(event) => setName(event.target.value)}
                      maxLength={500} disabled={busy}
                      placeholder="Taken from the filename" />
-            </label>
-            <label className="ws-field">
-              <span className="ws-field__label">Document type</span>
-              <select value={contractType} disabled={busy}
-                      onChange={(event) => { setContractType(event.target.value); setHint(null); }}>
-                <option value="">Not recorded</option>
-                {DOCUMENT_TYPES.map((type) => (
-                  <option key={type.code} value={type.code}>{type.label}</option>
-                ))}
-              </select>
-              {hint && !contractType ? (
-                <span className="ws-field__help">
-                  The filename suggests {documentTypeLabel(hint)}.{" "}
-                  <button type="button" className="ws-btn ws-btn--link"
-                          onClick={() => { setContractType(hint); setHint(null); }}>
-                    Use it
-                  </button>
-                </span>
-              ) : (
-                <span className="ws-field__help">
-                  Optional. The review measures the document by its content, so
-                  this is a label rather than a gate.
-                </span>
-              )}
             </label>
           </>
         ) : null}

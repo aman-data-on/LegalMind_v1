@@ -14,6 +14,20 @@
   "source_quote": "These Terms and any disputes arising out of or in connection with them shall be governed by and construed in accordance with the laws of India",
   "configuration": {
     "document_type": "TOS",
+    "constitution": {
+      "version": "L1.10",
+      "section": "22",
+      "topic": "Governing Law & Dispute Resolution",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "ARBITRATION-MSA-001",
+          "ARBITRATION-TOS-001",
+          "GOVLAW-MSA-001",
+          "GOVLAW-NDA-001"
+        ]
+      }
+    },
     "expected_presence": "PRESENT",
     "scope_key": "GOVERNING_LAW",
     "applicability": "REQUIRED"

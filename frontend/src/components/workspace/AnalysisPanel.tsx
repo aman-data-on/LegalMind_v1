@@ -85,11 +85,11 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
       </div>
       <div className="ws-explain__card ws-explain__card--warn">
         <b>Deviation or missing → Requires modification</b>
-        <span>The clause differs from the approved position, or a required clause is absent.</span>
+        <span>The clause differs from the approved position, or a required clause is absent — a specific change would resolve it.</span>
       </div>
       <div className="ws-explain__card ws-explain__card--bad">
-        <b>Unclear or no position → Needs a decision</b>
-        <span>The wording is unclear or conflicting, or the company has no approved position yet.</span>
+        <b>Unclear, not negotiable, or no position → Needs a decision</b>
+        <span>The wording is unclear or conflicting, the Constitution names the position unacceptable, or the company has no approved position yet. Never a rejection — a person decides.</span>
       </div>
     </div>
   );

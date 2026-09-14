@@ -1,0 +1,97 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 §31.14, with the",
+    "owner's interpretation of 2026-09-14 recorded in AM-66: the two limbs are ONE compound",
+    "requirement and the notice limb is never evaluated alone. Every value is the section's own;",
+    "none is invented (rule 7/21)."
+  ],
+  "requirement_code": "SERVICE-DISCONTINUATION-MSA-001",
+  "description": "Planned discontinuation of a service gives advance notice and runs to the end of any committed term, whichever falls later.",
+  "ratified": "2026-09-14",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.14 A. Planned Full Service Discontinuation / Retirement",
+  "source_quote": "Provide 30 days' advance notice, OR continue the service until the customer's committed contract period ends, whichever is later.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.14",
+      "topic": "Major Changes — Service Discontinuation",
+      "basis": "COMPANY_APPROVED"
+    },
+    "scope_key": "SERVICE_DISCONTINUATION",
+    "applicability": "REQUIRED",
+    "expected_presence": "PRESENT"
+  },
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "whichever is later",
+      "whichever is the later",
+      "until the end of the committed term",
+      "until the expiry of the committed term",
+      "for the remainder of the committed term"
+    ],
+    "aliases": [],
+    "keyword_groups": [
+      [
+        "discontinuation",
+        "whichever is later"
+      ],
+      [
+        "discontinue",
+        "whichever is later"
+      ],
+      [
+        "discontinue",
+        "committed"
+      ],
+      [
+        "discontinuation",
+        "committed"
+      ],
+      [
+        "retirement",
+        "whichever is later"
+      ],
+      [
+        "discontinue",
+        "remainder of the term"
+      ]
+    ],
+    "negative_patterns": [
+      "non-payment",
+      "fails to pay"
+    ],
+    "section_heading_terms": [
+      "discontinuation",
+      "service changes",
+      "end of life"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "2026-09-14 (AM-66): the compound position is expressed in TERMINOLOGY, not in a new evaluator — EvaluatorType is singular by locked 42.7/N-36 and no compound evaluator exists. Scored against the real mapper: the Constitution's own compound sentence = 7 (CONFIRMS -> MATCH); a one-limb clause 'may discontinue upon thirty (30) days' prior written notice' under a Discontinuation heading = 2 (below threshold, evidence retained -> UNRESOLVED -> Needs a decision); the same clause with no heading = 0; a non-payment discontinuation clause = -3 (vetoed, §31.14's own carve-out).",
+    "The heading terms are deliberately worth less than the threshold on their own, so a clause on the subject keeps its evidence and reaches a person rather than being asserted absent.",
+    "What is checked is that the CLAUSE provides the compound protection. LegalMind holds no contract dates, so it never computes the later of the two dates — a person does, from the clause it cites.",
+    "Limitation recorded: an unheaded one-limb clause scores 0 and produces no signal; it surfaces on the report as an unmatched provision (REC-02) rather than as a finding.",
+    "§31.14 B (material non-discontinuing change, 30 days 'where reasonably practicable') and C (six exceptions) are NOT measured by this standard — B's qualifier has no checkable boundary and C is a carve-out, not a position."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.14",
+    "ruling": "owner, 2026-09-14: 'Treat the two conditions as one compound requirement: the required 30-day notice must be satisfied; and the committed contract term must have ended. The applicable discontinuation date is the later of these two dates. Do not evaluate the 30-day notice limb independently, because that would narrow the Constitution's actual meaning.'",
+    "calibration": "35.10 — reproduced from §31.14's own text by tools.verify_terminology; scored against the real mapper for the compound clause, a one-limb clause and the non-payment carve-out before ratification. Counterparty paper is the second calibration."
+  },
+  "evaluator_type": "PRESENCE"
+}

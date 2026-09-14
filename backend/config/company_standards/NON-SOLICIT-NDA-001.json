@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard \u2014 NDA document type. OWNER DESIGNATION 2026-08-19:",
+    "RATIFIED Company Standard — NDA document type. OWNER DESIGNATION 2026-08-19:",
     "the executed NDA of 17 June 2026 IS the LeapSwitch NDA, i.e. the positions",
     "LeapSwitch accepts AS RECEIVING PARTY. Under the manager's whatever-is-stated",
     "rule those accepted positions are the baseline for reviewing counterparty NDAs",
@@ -16,11 +16,17 @@
   "requirement_code": "NON-SOLICIT-NDA-001",
   "description": "For a set period after the NDA ends, the receiving party must not solicit, directly or indirectly.",
   "ratified": "2026-08-19",
-  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 \u2014 NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
+  "source_document": "Executed Non-Disclosure Agreement, 17 June 2026 — NDA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (counterparty deliberately not named in this repository)",
   "source_clause": "10 Non-Solicitation",
   "source_quote": "During the term of this Agreement and for a period of two (2) years following its termination or expiry, the Receiving Party shall not, directly or indirectly ... solicit ...",
   "configuration": {
     "document_type": "NDA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
     "preferred": 2,
     "unit": "YEARS",
     "basis": "NON_SOLICITATION_PERIOD",
@@ -34,6 +40,10 @@
         "YEARS": [
           "years",
           "year"
+        ],
+        "MONTHS": [
+          "months",
+          "month"
         ]
       },
       "bases": {
@@ -42,7 +52,13 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "unit_conversions": [
+      {
+        "from_unit": "MONTHS",
+        "to_unit": "YEARS"
+      }
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -96,5 +112,26 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_history": [
+    {
+      "date": "2026-09-13",
+      "record": "AM-62",
+      "added": {
+        "unit_conversions": [
+          {
+            "from_unit": "MONTHS",
+            "to_unit": "YEARS"
+          }
+        ],
+        "units": {
+          "MONTHS": [
+            "months",
+            "month"
+          ]
+        }
+      },
+      "why": "a month is a fixed number of years by definition; the engine performs the arithmetic only because the standard declares the pair (45C.23, 44.29)."
+    }
   ]
 }

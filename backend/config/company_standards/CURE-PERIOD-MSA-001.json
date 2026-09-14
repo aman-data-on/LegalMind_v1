@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard CURE-PERIOD-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard CURE-PERIOD-MSA-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -9,11 +9,17 @@
   "requirement_code": "CURE-PERIOD-MSA-001",
   "description": "A customer in breach gets a set period after written notice to fix it before the agreement can be terminated.",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
   "source_clause": "7.4 Termination for Breach or Non-Payment",
   "source_quote": "if the Customer breaches any provision of this Agreement and such breach is not cured within thirty (30) days after receipt of written notice",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "13",
+      "topic": "Termination & Suspension",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
     "preferred": 30,
     "unit": "DAYS",
     "basis": "BREACH_CURE_PERIOD",
@@ -26,8 +32,8 @@
       "unlimited_phrases": [],
       "units": {
         "DAYS": [
-          "days after receipt of written notice",
-          "days (or such mutually agreeable period)"
+          "days",
+          "calendar days"
         ]
       },
       "bases": {
@@ -92,5 +98,20 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_history": [
+    {
+      "date": "2026-09-13",
+      "record": "AM-62 (terminology, 35.4)",
+      "was": {
+        "units": {
+          "DAYS": [
+            "days after receipt of written notice",
+            "days (or such mutually agreeable period)"
+          ]
+        }
+      },
+      "why": "phrase-shaped unit terms ('days after receipt of written notice') failed on any paraphrase and on '30days'; the unit is the unit, the context is a cap phrase/basis."
+    }
   ]
 }

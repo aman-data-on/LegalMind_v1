@@ -70,6 +70,7 @@ import {
   USER_STATUS_ORDER,
   USER_STATUS_TONE,
   userStatus,
+  constitutionCitation,
 } from "./findingLanguage";
 import { requirementHeading, reviewOrder } from "./model";
 import { useHighlight } from "./highlight";
@@ -590,6 +591,13 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
             {qualify && finding.requirement.description?.trim()
               && finding.requirement.description.trim() !== meaning ? (
               <span className="ws-finding__asks">{finding.requirement.description.trim()}</span>
+            ) : null}
+            {/* AM-59 — where the measured position comes from (Constitution §23.5:
+                cite the source). A section and a category, or the honest
+                "no Constitution position" for a standard that traces only to a
+                LeapSwitch clause — never a value, never a verdict. */}
+            {constitutionCitation(finding) ? (
+              <span className="ws-finding__source">{constitutionCitation(finding)}</span>
             ) : null}
             {/* The engine's determination in plain words (owner's reference,
                 2026-09-09): which of the five answers produced this status. */}

@@ -215,6 +215,29 @@ const DETERMINATION_LABELS: Record<string, string> = {
   UNABLE_TO_EVALUATE: "Unclear",
 };
 
+/** AM-59 — the Finding's source citation (Constitution §23.5), presentation only.
+ *  A section and its Appendix B category when the Constitution states the
+ *  position; the honest alternative when it does not. Never a value, never a
+ *  verdict, and nothing at all for a snapshot that predates the block. */
+export function constitutionCitation(finding: Pick<Finding, "requirement">): string | null {
+  const c = finding.requirement.constitution;
+  // AM-65 — a retired standard is never shown as an approved one, whatever its
+  // pinned configuration said at the time. The finding stays readable; the
+  // sentence says why it is no longer measured.
+  if (finding.requirement.retired || c?.basis === "RETIRED") {
+    return "Retired — not present in the current Constitution; kept for the record only";
+  }
+  if (!c) return null;
+  if (c.basis === "DOCUMENT_ONLY" || !c.section) {
+    return "No Constitution position — measured against a LeapSwitch document clause";
+  }
+  const qualifier = c.basis === "LEGALMIND_RULE" ? " · analysis rule, not company-evidenced"
+    : c.basis === "APPLICABLE_LAW" ? " · applicable law"
+    : c.basis === "NOT_ADOPTED" ? " · not currently adopted"
+    : "";
+  return `Constitution, Section ${c.section}${c.topic ? ` · ${c.topic}` : ""}${qualifier}`;
+}
+
 export function determinationLabel(classification: string): string | null {
   return DETERMINATION_LABELS[classification] ?? null;
 }
@@ -412,6 +435,12 @@ const PRESENCE_WORDS: Record<string, Side> = {
   FINITE: { tone: "present", text: "Found" },
   UNLIMITED: { tone: "value", text: "No limit stated" },
   UNKNOWN: { tone: "unknown", text: "Unclear" },
+  // The clause IS in the document and was read; its figure could not be
+  // interpreted (2026-09-13). Distinct from "Not found", which asserts the
+  // document says nothing, and from "Not recorded", which says we hold no
+  // value at all. Stating which of the three happened is the whole point —
+  // a reader deciding this needs to know whether to go and read the clause.
+  UNREADABLE: { tone: "unknown", text: "Stated, but not readable" },
 };
 
 /** The keys the evaluators actually use, measured against the live database

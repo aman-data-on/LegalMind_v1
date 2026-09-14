@@ -17,6 +17,18 @@
   "source_quote": "Leapswitch shall not be liable to the Customer or any third party for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for any loss of profits, revenue, goodwill, business opportunities, data, or use of data",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "9",
+      "topic": "Liability",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "LIABILITY-MSA-001",
+          "LIABILITY-TOS-001"
+        ]
+      }
+    },
     "expected_presence": "PRESENT",
     "scope_key": "CONSEQUENTIAL_DAMAGES_EXCLUSION",
     "applicability": "REQUIRED"

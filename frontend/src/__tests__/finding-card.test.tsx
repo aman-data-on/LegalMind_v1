@@ -688,3 +688,20 @@ describe("the grounded explanation (AM-49, owner 2026-09-09) — language only",
     }
   });
 });
+
+// ---------------------------------------------------------------- AM-59 citation
+describe("Constitution citation on the card", () => {
+  it("names the section and category the position comes from", () => {
+    const html = card({ requirement: { code: "LIABILITY-MSA-001", name: "Liability cap", version_id: "v", version_number: 1,
+      constitution: { section: "9", topic: "Liability", basis: "STAKEHOLDER_CONFIRMED" } } });
+    expect(html).toContain("Constitution, Section 9 · Liability");
+  });
+  it("says when the Constitution states no position, and shows nothing for an older snapshot", () => {
+    const withNone = card({ requirement: { code: "FORCE-MAJEURE-MSA-001", name: "Force majeure", version_id: "v", version_number: 1,
+      constitution: { section: null, topic: "Force Majeure", basis: "DOCUMENT_ONLY" } } });
+    expect(withNone).toContain("No Constitution position");
+    const older = card({ requirement: { code: "LIABILITY-MSA-001", name: "Liability cap", version_id: "v", version_number: 1 } });
+    expect(older).not.toContain("Constitution, Section");
+    expect(older).not.toContain("No Constitution position");
+  });
+});

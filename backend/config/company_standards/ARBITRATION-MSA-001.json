@@ -14,6 +14,20 @@
   "source_quote": "such differences and disputes shall be referred, at the option of either Party, to arbitration by a single arbitrator ... The arbitration shall take place in Mumbai, India",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "22",
+      "topic": "Governing Law & Dispute Resolution",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "GOVLAW-MSA-001",
+          "GOVLAW-NDA-001",
+          "GOVLAW-TOS-001",
+          "ARBITRATION-TOS-001"
+        ]
+      }
+    },
     "expected_presence": "PRESENT",
     "scope_key": "ARBITRATION",
     "applicability": "REQUIRED"

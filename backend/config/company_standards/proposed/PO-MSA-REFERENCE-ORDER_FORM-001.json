@@ -1,0 +1,71 @@
+{
+  "_about": [
+    "PROPOSED Company Standard — drafted 2026-09-13 under AM-59 r6 from the Legal Constitution L1.10's OWN words.",
+    "NOT RATIFIED: `ratified` is null, this directory is read by nothing (importer, assist index and verifiers glob",
+    "the parent only). The owner ratifies by setting `ratified` and moving the file up one directory (rule 21:",
+    "supplied source, human approval). Every value is quoted from the cited section; none is invented (rule 7)."
+  ],
+  "requirement_code": "PO-MSA-REFERENCE-ORDER_FORM-001",
+  "description": "A purchase order names the master agreement under which it is issued.",
+  "ratified": null,
+  "status": "APPROVED THROUGH THE CONSTITUTION (§31.11, LegalMind Rule) — ACTIVATION DEFERRED: no Purchase Order exists to calibrate the terminology against (locked 35.10); the owner will supply a real or anonymised PO later. Not a business-approval question.",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.11",
+  "source_quote": "Every PO should explicitly reference the MSA under which it is issued | LegalMind Rule",
+  "configuration": {
+    "document_type": "ORDER_FORM",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.11",
+      "topic": "Orders / Purchase Orders / Order Forms",
+      "basis": "LEGALMIND_RULE"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "PO_REFERENCES_MSA",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "issued under the master services agreement",
+      "subject to the master services agreement",
+      "pursuant to the master services agreement",
+      "governed by the master services agreement"
+    ],
+    "aliases": [
+      "master services agreement",
+      "under the agreement dated"
+    ],
+    "keyword_groups": [
+      [
+        "purchase order",
+        "agreement",
+        "subject to"
+      ],
+      [
+        "order",
+        "msa"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "purchase order",
+      "order form"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "§24.4(3): a LegalMind Rule 'not yet company-evidenced' is never forced to Acceptable — the block's basis LEGALMIND_RULE tells the reader so. The Constitution states the rule as 'should'; the standard is PRESENCE (no value to invent). Calibration against a real PO is OUTSTANDING: no PO is in the supplied material (rule 21 — request one)."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

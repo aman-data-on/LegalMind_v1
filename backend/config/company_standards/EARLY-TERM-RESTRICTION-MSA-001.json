@@ -17,6 +17,18 @@
   "source_quote": "The Customer shall have no right to terminate this Agreement before the expiry of the Term. If the Customer elects to terminate this Agreement for any reason not expressly permitted under this Agreement, the Customer shall remain fully liable to pay Leapswitch an early termination fee equal to the total fees that would have become payable for the remainder of the Term",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "14",
+      "topic": "Fixed-Term Commitments & Early Exit",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "AUTORENEW-MSA-001",
+          "AUTORENEW-TOS-001"
+        ]
+      }
+    },
     "expected_presence": "PRESENT",
     "scope_key": "EARLY_TERMINATION_RESTRICTION",
     "applicability": "REQUIRED"

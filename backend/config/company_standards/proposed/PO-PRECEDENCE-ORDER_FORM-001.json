@@ -1,0 +1,76 @@
+{
+  "_about": [
+    "PROPOSED Company Standard — drafted 2026-09-13 under AM-59 r6 from the Legal Constitution L1.10's OWN words.",
+    "NOT RATIFIED: `ratified` is null, this directory is read by nothing (importer, assist index and verifiers glob",
+    "the parent only). The owner ratifies by setting `ratified` and moving the file up one directory (rule 21:",
+    "supplied source, human approval). Every value is quoted from the cited section; none is invented (rule 7)."
+  ],
+  "requirement_code": "PO-PRECEDENCE-ORDER_FORM-001",
+  "description": "Where a purchase order conflicts with the master agreement, the master agreement prevails.",
+  "ratified": null,
+  "status": "APPROVED THROUGH THE CONSTITUTION (§31.11, Company-approved) — ACTIVATION DEFERRED for the same reason: no PO to calibrate against. Not a business-approval question.",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.11",
+  "source_quote": "Where a PO and the governing MSA conflict, the MSA prevails | Company-approved",
+  "configuration": {
+    "document_type": "ORDER_FORM",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.11",
+      "topic": "Orders / Purchase Orders / Order Forms",
+      "basis": "COMPANY_APPROVED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "PO_PRECEDENCE_MSA_PREVAILS",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "this agreement shall prevail",
+      "the master services agreement shall prevail",
+      "the msa shall prevail",
+      "the terms of this agreement prevail"
+    ],
+    "aliases": [
+      "order of precedence",
+      "in the event of conflict",
+      "in case of any conflict"
+    ],
+    "keyword_groups": [
+      [
+        "conflict",
+        "prevail",
+        "purchase order"
+      ],
+      [
+        "inconsistency",
+        "prevail",
+        "order"
+      ]
+    ],
+    "negative_patterns": [
+      "purchase order shall prevail",
+      "the order shall prevail"
+    ],
+    "section_heading_terms": [
+      "precedence",
+      "conflict"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "§8.2 vs §31.11 tension is REPORTED (AM-59 r7): §8.2 forbids inventing 'MSA always wins' unless established in an approved company document; §31.11 marks it Company-approved on evidence from customer MSAs. The negative pattern refuses the inverse precedence rather than confirming it. Calibration against a real PO is OUTSTANDING (rule 21)."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

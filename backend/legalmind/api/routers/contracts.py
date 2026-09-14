@@ -387,9 +387,15 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
         contract.name = body.name
     if body.contract_type is not None and body.contract_type != contract.contract_type:
         # AM-50 (2026-09-09): the type is still recorded only through this
-        # ordinary update, and the trail now says WHO determined it — the reader,
-        # or the intake applying a confident suggestion. Analysis still refuses
-        # an undeclared type; nothing here changes what the evaluator does.
+        # ordinary update, and the trail says WHO determined it — the reader, or
+        # the intake applying a confident suggestion. Since AM-51 the type is one
+        # optional applicability signal, never a gate; since AM-61 every
+        # requirement it did or did not bring in is recorded with its reason.
+        # AM-51 r5's "a type change re-runs the analysis" is NOT implemented
+        # here: an already-analysed Review refuses re-analysis (43.28) and a new
+        # Review on the same version + snapshot + creator is the SAME Review
+        # under 49.8's idempotency key — see CONFLICTS.md C-21 for the amendment
+        # that would be needed. A reader re-analyses by uploading a new version.
         before_type = {"contract_type": contract.contract_type}
         contract.contract_type = body.contract_type
         audit.record(

@@ -1,3 +1,13 @@
+> **📁 SUPERSEDED 2026-09-14 — retained as the implementation record of 2026-09-01.**
+>
+> This file asserts build state, which only
+> [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) may do
+> (CLAUDE.md). The subject itself is owned by
+> [docs/06-security/STEP_47_SECURITY_SPECIFICATION.md](docs/06-security/STEP_47_SECURITY_SPECIFICATION.md)
+> and `AM-36` (AB-8), which locked the stateless 24-hour JWT for the OIDC path with its `roles`
+> claim advisory and never enforced. Its content was accurate when written and is kept so the
+> reasoning is not lost; read it as history, never as the current state.
+
 # Authentication & Authorization Implementation — Complete
 
 **Status:** ✅ IMPLEMENTED AND TESTED  

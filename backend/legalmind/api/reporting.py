@@ -21,6 +21,21 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import by_finding
 from legalmind.evaluation.user_status import counts as user_status_counts
+from legalmind.security import audit as A
+
+
+def _applicability(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
+    event = db.execute(
+        select(M.AuditEvent)
+        .where(M.AuditEvent.action == A.ANALYSIS_RUN_RECORDED,
+               M.AuditEvent.entity_type == "review",
+               M.AuditEvent.entity_id == review.id)
+        .order_by(M.AuditEvent.timestamp.desc())
+    ).scalars().first()
+    if event is None:
+        return []
+    rows = (event.after_state or {}).get("applicability") or []
+    return [r for r in rows if isinstance(r, dict)]
 
 
 def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
@@ -67,6 +82,10 @@ def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         "coverage": {
             "requirements_in_snapshot": requirements_in_snapshot,
             "requirements_with_findings": evaluated,
+            # AM-61 — every pinned Requirement's applicability outcome and reason,
+            # from the analysis run's own audit record: what was NOT measured is
+            # shown, never inferred from a count. Empty for runs that predate it.
+            "applicability": _applicability(db, review),
         },
         "classification_counts": dict(classifications),
         # The reader's three words (owner, 2026-09-09) — the Summary and the

@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard DATA-PURGE-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard DATA-PURGE-MSA-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -8,29 +8,59 @@
   ],
   "_reconciliation": [
     "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
-    "positions (owner ruling 2026-09-08). Constitution \u00a713: 'the customer has a 30-day window to",
-    "retrieve or export its data before deletion' \u2014 deletion before that window closes is the",
-    "Unacceptable Position, so the purge horizon is 30 days. MSA \u00a77.6.6's fifteen (15) days states",
+    "positions (owner ruling 2026-09-08). Constitution §13: 'the customer has a 30-day window to",
+    "retrieve or export its data before deletion' — deletion before that window closes is the",
+    "Unacceptable Position, so the purge horizon is 30 days. MSA §7.6.6's fifteen (15) days states",
     "the template, not the position. Previous source and configuration preserved in `_history`.",
     "Consequence: the MSA template clause now evaluates as a DEVIATION (fixture CLS-DATA-PURGE-MSA-001)."
   ],
   "_history": [
     {
       "reconciled": "2026-09-08",
-      "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+      "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
       "source_clause": "7.6.6 Effect of Termination",
       "source_quote": "Leapswitch shall purge all Customer data from its equipment and infrastructure within fifteen (15) days of termination",
-      "configuration_before": {"document_type": "MSA", "preferred": 15, "unit": "DAYS", "basis": "POST_TERMINATION_DATA_PURGE", "scope_key": "GENERAL"}
+      "configuration_before": {
+        "document_type": "MSA",
+        "preferred": 15,
+        "unit": "DAYS",
+        "basis": "POST_TERMINATION_DATA_PURGE",
+        "scope_key": "GENERAL"
+      }
+    },
+    {
+      "date": "2026-09-13",
+      "record": "AM-62 (terminology, 35.4)",
+      "was": {
+        "units": {
+          "DAYS": [
+            "days of termination",
+            "days after written request"
+          ]
+        }
+      },
+      "why": "phrase-shaped unit terms ('days after receipt of written notice') failed on any paraphrase and on '30days'; the unit is the unit, the context is a cap phrase/basis."
     }
   ],
   "requirement_code": "DATA-PURGE-MSA-001",
   "description": "After termination, the customer has a set period to retrieve or export its data before it is deleted.",
   "ratified": "2026-08-19",
-  "source_document": "Legal Mind \u2014 Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
-  "source_clause": "\u00a713 Termination & Suspension \u2014 Company Position",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+  "source_clause": "§13 Termination & Suspension — Company Position",
   "source_quote": "Following termination, the customer has a 30-day window to retrieve or export its data before deletion, free of charge, subject to the legal/compliance retention carve-outs in Section 12",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "13",
+      "topic": "Termination & Suspension",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "DATA-RETRIEVAL-TOS-001"
+        ]
+      }
+    },
     "preferred": 30,
     "unit": "DAYS",
     "basis": "POST_TERMINATION_DATA_PURGE",
@@ -42,8 +72,8 @@
       "unlimited_phrases": [],
       "units": {
         "DAYS": [
-          "days of termination",
-          "days after written request"
+          "days",
+          "calendar days"
         ]
       },
       "bases": {

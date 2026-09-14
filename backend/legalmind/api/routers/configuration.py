@@ -34,6 +34,7 @@ from legalmind.api.serializers import serialize_requirement
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.document_types import is_document_type
+from legalmind.evaluation.constitution_block import constitution_block_error
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
@@ -302,6 +303,13 @@ def publish(body: ConfigurationPublish,
             ).scalars().first()
             if req is None:
                 raise BusinessRuleRejected(f"unknown Requirement code: {code}")
+            if req.status is E.ConfigStatus.DEPRECATED:
+                # AM-65 — a retired Requirement is not re-activated by publishing.
+                # Reversing a retirement is an owner decision that goes through the
+                # standard file and the record, not through a publish call.
+                raise BusinessRuleRejected(
+                    f"{code} is retired and cannot be published; reversing a "
+                    "retirement is an owner decision (AM-65)")
             if req.status is E.ConfigStatus.DRAFT:
                 req.status = E.ConfigStatus.ACTIVE
         guard.db.flush()
@@ -362,6 +370,11 @@ def publish(body: ConfigurationPublish,
         if not is_document_type(declared):
             incomplete.append(
                 f"{req.code}: unknown document_type {declared!r}")
+            continue
+        # AM-59 — the Constitution block, when present, must be well-formed for the
+        # same reason the type must: analysis reads it as a plain dict.
+        if (problem := constitution_block_error(cs.configuration)):
+            incomplete.append(f"{req.code}: {problem}")
             continue
         items.append({
             "requirement_version_id": str(rv.id),

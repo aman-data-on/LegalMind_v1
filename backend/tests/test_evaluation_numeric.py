@@ -271,3 +271,120 @@ def test_evaluator_emits_no_decision_or_status():
     fields = set(vars(e))
     assert not (fields & {"decision", "decision_type", "legal_decision",
                           "status", "resolution", "risk"})
+
+
+# ==========================================================================
+# The company standard's own position survives a fail-closed result
+# (2026-09-13). Reproduced from a live review: five NUMERIC findings rendered
+# "Company standard: Not recorded" on the Findings screen although every one of
+# those standards declares a `preferred` value in its configuration. The screen
+# was stating something false about our own configuration, because the
+# fail-closed branches never copied the standard into `expected_value`.
+#
+# The classification and the rule outcome are NOT the subject of these tests and
+# must not move: failing closed is correct (rule 15). What must change is only
+# that the reader can still see what the organization's position IS while a
+# human decides.
+# ==========================================================================
+def _standard_side(evaluation):
+    return evaluation.expected_value
+
+
+def test_an_unreadable_cap_still_reports_the_company_standard():
+    """The live shape: the clause was found and read, its magnitude could not be
+    interpreted, and the standard declares 10."""
+    e = only(evaluate(numeric_input([cap(None, status="UNKNOWN")])))
+    assert e.classification is C.UNABLE_TO_EVALUATE          # unchanged
+    assert e.rule_outcome is O.NOT_APPLICABLE                # unchanged
+    assert _standard_side(e) is not None, "the standard's position must be reported"
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_an_incomparable_basis_still_reports_the_company_standard():
+    e = only(evaluate(numeric_input([cap(10, basis="BASIS_OTHER")])))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+    assert _standard_side(e)["basis"] == STRUCTURAL_BASIS
+
+
+def test_a_missing_unit_still_reports_the_company_standard():
+    bare = cap(10)
+    bare = type(bare)(**{**vars(bare), "cap_unit": None})
+    e = only(evaluate(numeric_input([bare])))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_a_failed_extraction_still_reports_the_company_standard():
+    e = only(evaluate(numeric_input(
+        [cap(10)], extraction_status=ExtractionStatus.FAILED,
+        diagnostics=("OCR produced no usable text",))))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_no_facts_at_all_still_reports_the_company_standard():
+    e = only(evaluate(numeric_input(None)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert _standard_side(e)["preferred"] == 10
+
+
+def test_a_standard_with_no_preferred_value_reports_nothing_and_says_so():
+    """The one case where "Not recorded" is the truth: the standard itself
+    declares no value. It must stay distinguishable from the cases above."""
+    e = only(evaluate(numeric_input([cap(10)], standard=structural_standard(
+        preferred=None))))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert (_standard_side(e) or {}).get("preferred") is None
+    assert any("no preferred" in x for x in e.explanation)
+
+
+# ---------------------------------------------------------------- AM-62 units
+# A DECLARED, DEFINITIONAL unit conversion is performed in tested code; anything
+# undeclared, or declared but not an identity of measure, stays UNABLE_TO_EVALUATE.
+
+def _years_standard(**extra):
+    return structural_standard(
+        preferred=12, unit="MONTHS",
+        unit_conversions=[{"from_unit": "YEARS", "to_unit": "MONTHS"}], **extra)
+
+
+def test_a_declared_definitional_conversion_reads_one_year_as_twelve_months():
+    e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=_years_standard())))
+    assert e.classification is C.MATCH
+    assert e.actual_value["cap_value"] == 12 and e.actual_value["cap_unit"] == "MONTHS"
+    assert any("1 YEARS read as 12 MONTHS" in line for line in e.explanation)
+    assert "conversion" in e.comparison
+
+
+def test_a_converted_quantity_still_deviates_when_it_differs():
+    e = only(evaluate(numeric_input([cap(2, unit="YEARS")], standard=_years_standard())))
+    assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.UNACCEPTABLE)
+    assert e.actual_value["cap_value"] == 24
+
+
+def test_an_undeclared_unit_difference_still_fails_closed():
+    standard = structural_standard(preferred=12, unit="MONTHS")
+    e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert e.actual_value == {"cap_value": 1, "cap_unit": "YEARS",
+                              "cap_basis": STRUCTURAL_BASIS, "scope": STRUCTURAL_SCOPE}
+    assert e.expected_value["preferred"] == 12
+
+
+def test_a_declared_but_non_definitional_conversion_is_refused():
+    """Configuration cannot make thirty days a month (rule 7, 44.29)."""
+    standard = structural_standard(
+        preferred=1, unit="MONTHS",
+        unit_conversions=[{"from_unit": "DAYS", "to_unit": "MONTHS"}])
+    e = only(evaluate(numeric_input([cap(30, unit="DAYS")], standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert any("AM-62" in line for line in e.explanation)
+
+
+def test_a_declared_pair_in_the_wrong_direction_is_not_applied():
+    standard = structural_standard(
+        preferred=12, unit="MONTHS",
+        unit_conversions=[{"from_unit": "MONTHS", "to_unit": "YEARS"}])
+    e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE

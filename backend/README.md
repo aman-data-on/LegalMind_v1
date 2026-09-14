@@ -277,73 +277,7 @@ all of them ungated.
 
 ### Locked 49.3 endpoints deliberately NOT registered
 
-Recorded in `permission_map.NOT_IMPLEMENTED`, and reported rather than filled:
-
-| Endpoint | Why |
-|---|---|
-| `GET /auth/oidc/start`, `/auth/oidc/callback` | OIDC needs a JWT/JWKS client library — a dependency requiring approval (rule 19) — plus the deployment's issuer/client configuration. Step 47's password fallback is implemented. |
-| `POST /reviews/{id}/export` | 49.12 records export formats as locked **NOT YET SPECIFIED**. There is no format to emit, and the locked 49.5 taxonomy has no status for "specified later". |
-
-### Engineering decisions worth knowing
-
-* **Upload is a raw body plus `X-Filename`**, not multipart. Endpoint shape is
-  outside the locked boundary (38.24), and this keeps a multipart parser off the
-  path that handles untrusted input — 34.16 and Step 39's upload-validation item
-  both argue for the smaller surface. The declared `Content-Type` is treated as a
-  claim; magic bytes decide.
-* **Password hashing is `hashlib.scrypt`**, not argon2 or bcrypt, because both
-  would be a new dependency. The stored format is self-describing, so switching
-  later is a dependency approval plus a hash migration, not a redesign.
-* **The OpenAPI document is off by default** (`LEGALMIND_ENABLE_DOCS=1` to serve
-  it). 49.12 leaves generation to implementation, and an unauthenticated schema
-  document sits oddly beside 47.7's 404-over-403 posture.
-* **Audit `before_state`/`after_state` are gated behind `legal_position.view`.**
-  47.9 puts legal-workflow events in `audit_events` and 49.3 gates the endpoint on
-  `audit.view` — which by Step 47's defaults belongs to Super Admin, who has no
-  `legal_position.view`. Step 24 r8 says a Super Admin has no automatic access to
-  Legal content, so the envelope is returned and the payload is omitted.
-* **The Review advances to RESOLVED inside the decision route**, never through an
-  endpoint. Step 30 r3 forbids a caller setting Review status and r16 makes the
-  summary derived.
-* **`POST /reviews` idempotency is scoped to the creator** as well as to
-  `(document_version_id, configuration_snapshot_id)`. Two users may legitimately
-  review the same document against the same snapshot, and returning one user's
-  Review to the other would leak it (Step 24 r4).
-* **`Review` is created in `DRAFT`.** Recorded tension, not resolved: locked 42.13
-  makes `document_version_id` NOT NULL, so a Review cannot exist before its
-  document is uploaded, which leaves Step 30's DRAFT and UPLOADED describing the
-  same real situation. Starting at DRAFT keeps every locked transition reachable
-  and invents nothing.
-
-### Two defects found in earlier steps and fixed here
-
-* **`assert_legal_authority_remains` counted disabled accounts.** SEC-05 exists so
-  a Review requiring a decision can always be resolved; a suspended or disabled
-  account cannot authenticate by any route (47.1.3), so counting its grant
-  satisfied SEC-05 on paper while leaving exactly the stalled Review the rule
-  prevents. Now restricted to ACTIVE users, and split into an absolute check plus
-  `assert_legal_authority_preserved`, because 47.5 r6 is a rule about what a
-  change may *leave behind* — a deployment that had no authority before a change
-  was not left that way by it.
-* **The S-8/S-9 guards compared whole permission sets.** Locked S-8 names the
-  permissions it applies to — `legal.decision`, `legal.approve_customization`,
-  `role.manage`, `platform.manage` — and comparing everything was not merely
-  stricter but wrong: Step 23 gives Super Admin no contract access, so an ordinary
-  User holds `contract.view` a Super Admin does not, and a whole-set difference
-  read that as the User being "more privileged" and locked administration out
-  entirely. Different is not higher; the locked list is what distinguishes them.
-
-### API test coverage (134 tests)
-
-| File | Covers |
-|---|---|
-| `test_api_contract.py` (56) | permission-map completeness · 401 on every non-public route · X-Request-Id round trip and audit correlation · byte-identical 404s · validation errors that echo no values · page_size clamping and stable pagination · CSRF · no PUT |
-| `test_api_authz.py` (21) | 404-not-403 across the whole 47.6 traversal · list scope agreeing with `can_see_review` · Super Admin blocked from Reviews *and* decisions · `legal.review` ≠ `legal.decision` · `approve_customization` extra grant · authority ≠ access without assignment · byte-identical login failures · no credential material · immediate revocation · authority revoked mid-session |
-| `test_api_findings.py` (12) | evaluations always nested · no Finding-level `rule_outcome` · empty-but-never-null `evidence_refs` · legal position omitted not nulled · no threshold anywhere in a normal user's payload · audit payload gating |
-| `test_api_decisions.py` (18) | routes that must not exist · version chain and 409 · mandatory justification · `REQUEST_CLARIFICATION` never effective · second-person co-signature · RESOLVED derived · RESOLVED ≠ MATCH · escalation is not approval |
-| `test_api_resources.py` (27) | upload/duplicate/download and magic-byte rejection · review idempotency · report with no risk field · publish failing closed · append-only configuration versions · S-8/S-9/SEC-05/S-10 over HTTP · login rate limiting |
-
----
+**None, as of 2026-09-01.** The two OIDC routes were the last entries here — `permission_map.NOT_IMPLEMENTED` is now an empty dict, and its comment records why: *"no JWT/JWKS dependency turned out to be needed"*. Both are registered and `UNAUTHENTICATED` by design (the caller has no session yet). Kept as a heading because the *mechanism* — a route may be specified and deliberately unregistered, and the map says which — is still the contract `test_api_contract.py` enforces.
 
 ## Analysis orchestrator (Steps 28, 34, 35, 44; owner decisions D-1 – D-4)
 

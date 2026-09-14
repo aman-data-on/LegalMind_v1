@@ -46,6 +46,7 @@ from legalmind.db.lookup import must_exist
 from legalmind.domain.document_types import is_document_type
 from legalmind.domain.enums import (
     EvaluatorType,
+    ExtractionStatus,
     FindingClassification,
     MappingState,
     ProcessingStatus,
@@ -70,6 +71,7 @@ from legalmind.extraction.liability import (
     ABSENT,
     UNKNOWN,
     LiabilityExtractionConfig,
+    LiabilityFacts,
     extract_liability_facts,
     prune_absent,
 )
@@ -125,6 +127,10 @@ class AnalysisRun:
     #: AM-51 — the Step 6 families the document showed it belongs to (declared
     #: type plus every type at least two of whose standards mapped CONFIRMED).
     detected_types: list[str] = field(default_factory=list)
+    #: AM-61 — one record per pinned Requirement: APPLIED, NOT_APPLICABLE or
+    #: SAME_POSITION, each with the reason. What was NOT measured, and why, is
+    #: part of the run's record — never silently dropped.
+    applicability: list[dict] = field(default_factory=list)
     requirements_applicable: int = 0
     outcomes: list[RequirementOutcome] = field(default_factory=list)
     #: REC-02 / D-4 (owner, 2026-09-01) — evidence rows this Review's Findings
@@ -217,17 +223,17 @@ def run_analysis(db: DBSession, review: M.Review, *,
                        "recovered; re-upload in a format that preserves structure",
                        "structure_not_extracted")
 
-    # ---- Applicability by CONTENT — AM-51 (owner, 2026-09-09) -----------------
+    # ---- Applicability by CONTENT — AM-51 (2026-09-09), AM-61 (2026-09-13) -----
     # The document decides what applies: every pinned Requirement is MAPPED
-    # first (deterministic, Steps 28/35), and a Requirement applies when the
-    # document actually contains its clause (mapping CONFIRMED) or when it
-    # belongs to a family the document is evidently a member of — the declared
-    # type, if any, or a Step 6 type at least two of whose standards the
-    # document confirms. Only a family's standards may be MISSING: absence is
-    # asserted only where the document has shown it belongs to that family.
-    # The declared type is one optional signal, never a gate; a document with no
-    # type — or one that spans several families — is analysed across all of
-    # them. An untyped standard in the snapshot still refuses (ENG-09).
+    # first (lexical, then grounded semantic — AM-54/AM-60), and a Requirement
+    # applies when the document CONFIRMS its clause (any family), belongs to the
+    # DECLARED family, or is EXPECTED because the document confirms a Constitution
+    # sibling the standard itself names (`constitution.expected_when`). Absence is
+    # asserted only for an applied Requirement; one that applies by none of these
+    # is NOT_APPLICABLE — recorded with its reason, never dropped. Two standards
+    # stating the SAME Constitution position are evaluated once (SAME_POSITION).
+    # The declared type is one signal, never a gate. An untyped standard in the
+    # snapshot still refuses (ENG-09).
     document_type = _review_document_type(db, review)
     if document_type is not None and not is_document_type(document_type):
         document_type = None
@@ -254,7 +260,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
     mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
                                                  declared_type=document_type)
                 for item in items}
-    items, families = applicable_by_content(items, mappings, document_type)
+    items, families, run.applicability = applicable_by_content(
+        items, mappings, document_type)
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
     # state what was pinned, not what applied.
     run.requirements_applicable = len(items)
@@ -288,6 +295,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
                     "document_type": run.document_type,
                     "detected_types": run.detected_types,
                     "requirements_applicable": run.requirements_applicable,
+                    "applicability": run.applicability,
                     "findings_created": run.findings_created,
                     "skipped_as_optional": run.skipped_as_optional,
                     "failures": len(run.failures),
@@ -418,8 +426,7 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
     except MappingMisconfigured as exc:
         return f"mapping configuration unusable: {exc}"
     lexical = map_requirement(item.requirement_version.id, rules, clauses)
-    if (index is None or egress is None or lexical.state is MappingState.CONFIRMED
-            or declared_type is None or _standard_type(item) != declared_type):
+    if index is None or egress is None or lexical.state is MappingState.CONFIRMED:
         return lexical
     # 35.5 still vetoes: a clause carrying a configured negative pattern (a
     # negative lexical score) is never offered for semantic confirmation.
@@ -443,50 +450,133 @@ def _standard_type(item: _SnapshotItem) -> str | None:
     return (item.company_standard.configuration or {}).get("document_type")
 
 
+APPLIED = "APPLIED"
+NOT_APPLICABLE = "NOT_APPLICABLE"
+SAME_POSITION = "SAME_POSITION"
+
+
+def _constitution(item: _SnapshotItem) -> dict:
+    return (item.company_standard.configuration or {}).get("constitution") or {}
+
+
+def _section(item: _SnapshotItem) -> str | None:
+    return _constitution(item).get("section")
+
+
+def _position_signature(item: _SnapshotItem) -> tuple | None:
+    """What the standard asks for, as a comparable key — or None when the
+    Constitution states no section for it (then nothing can be 'the same')."""
+    cfg = item.company_standard.configuration or {}
+    section = _section(item)
+    if section is None:
+        return None
+    if "preferred" in cfg:
+        return (section, "NUMERIC", cfg.get("preferred"), cfg.get("unit"),
+                cfg.get("basis"), cfg.get("scope_key"))
+    if "expected_presence" in cfg:
+        return (section, "PRESENCE", cfg.get("expected_presence"), cfg.get("scope_key"))
+    return None
+
+
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None,
-                          ) -> tuple[list[_SnapshotItem], set[str]]:
-    """Which pinned Requirements this document is measured against — AM-51
-    (r2 corrected same-day, 2026-09-09, after live verification before
-    deployment — see the AM-51 correction appended to all_lock.md).
+                          ) -> tuple[list[_SnapshotItem], set[str], list[dict]]:
+    """Which pinned Requirements this document is measured against, and WHY each
+    one was or was not — AM-51 (2026-09-09, r2 corrected same day) as amended by
+    AM-61 (2026-09-13).
 
-    A family (Step 6 type) is DETECTED only when it is the DECLARED type — the
-    one fact a human or a confident suggestion actually asserted about this
-    document (AM-50). An earlier draft of this rule also detected a family from
-    ANY two of its standards mapping CONFIRMED; live testing on a real mixed
-    document showed that fails exactly the guarantee this record exists to
-    keep: boilerplate clauses common to nearly every commercial contract
-    (Governing Law, a liability cap) confirmed against MSA, TOS and NDA
-    standards alike, "detecting" every family from one ordinary document and
-    flooding it with MISSING findings for clauses it was never shown to lack —
-    the false-positive flood rule 15 and the owner's instruction both forbid.
-    Detection now requires the one signal that is actually evidence of KIND:
-    a declared type. Content still wins independently of any family: a
-    Requirement whose own clause the document confirms applies regardless of
-    which family its standard belongs to or whether any type is declared — an
-    NDA with a liability clause is still measured against the liability
-    standard — but an absent clause is MISSING only inside the declared
-    family, never inferred from other clauses' presence. A standard listing
-    the declared type under `not_applicable_to` is excluded even when
-    confirmed: how the owner's SLA ruling (2026-08-20) stays in force. Order
-    preserved (ENG-11).
+    Three signals make a Requirement apply, each deterministic and each recorded:
+
+    * CONFIRMED — the document contains its clause (content wins, whatever family
+      the standard belongs to; one document may span several legal domains).
+    * DECLARED — the standard's family is the type a human or a confident
+      suggestion declared (AM-50): the one fact actually asserted about the KIND
+      of paper. Absence inside it is measured.
+    * EXPECTED — the standard's own `constitution.expected_when.confirmed_any`
+      names a sibling position the document confirms: a liability cap makes the
+      §9 exclusion of consequential damages expected; a confidentiality clause
+      makes the §15 survival period expected. The trigger is DECLARED per
+      standard from the Constitution's structure, never inferred across topics —
+      the boilerplate flood that killed AM-51 r1 (a governing-law clause
+      "detecting" the whole MSA family) cannot recur, because no standard names
+      a governing-law clause as evidence for anything but dispute resolution.
+
+    A Requirement none of these reaches is NOT_APPLICABLE and is RECORDED with its
+    reason (rule 15: not a guess, not a silence). A standard listing the declared
+    type under `not_applicable_to` never applies, even when confirmed — how the
+    owner's SLA ruling (2026-08-20) stays in force. Two applied standards stating
+    the SAME Constitution position (same section, same value/unit/basis/scope or
+    same presence expectation) are evaluated ONCE: the declared family's copy if
+    there is one, else the first by code (ENG-11); the others are SAME_POSITION.
+    The standards stay per family (Q3=B); only the measurement is de-duplicated.
+    Order preserved (ENG-11).
     """
     confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
                  for code, m in mappings.items()}
     detected = {declared_type} if declared_type else set()
+    coverage: list[dict] = []
+    applied: list[_SnapshotItem] = []
 
-    def excluded(item: _SnapshotItem) -> bool:
+    def record(item: _SnapshotItem, outcome: str, reason: str) -> None:
+        coverage.append({"code": item.requirement.code, "section": _section(item),
+                         "outcome": outcome, "reason": reason})
+
+    for item in items:
+        code = item.requirement.code
         cfg = item.company_standard.configuration or {}
         blocked = cfg.get("not_applicable_to") or []
-        return declared_type is not None and declared_type in blocked
+        if declared_type is not None and declared_type in blocked:
+            record(item, NOT_APPLICABLE,
+                   f"the standard lists the declared type {declared_type} under "
+                   "not_applicable_to (owner ruling 2026-08-20)")
+            continue
+        triggers = sorted(c for c in (_constitution(item).get("expected_when") or {})
+                          .get("confirmed_any", []) if confirmed.get(c))
+        if confirmed[code]:
+            reason = "the document confirms this clause"
+        elif _standard_type(item) in detected:
+            reason = (f"declared type {declared_type} is this standard's family; "
+                      "absence is measured")
+        elif triggers:
+            section = _section(item)
+            reason = (f"expected: the document confirms Constitution §{section} "
+                      f"through {', '.join(triggers)}")
+        else:
+            record(item, NOT_APPLICABLE,
+                   "not confirmed in the document; "
+                   + (f"not the declared family ({declared_type}); "
+                      if declared_type else "no type declared; ")
+                   + "no Constitution sibling it names is confirmed")
+            continue
+        applied.append(item)
+        record(item, APPLIED, reason)
 
-    applicable = [
-        item for item in items
-        if not excluded(item)
-        and (_standard_type(item) in detected or confirmed[item.requirement.code])
-    ]
-    return applicable, detected
+    # SAME_POSITION — one Constitution position, measured once.
+    kept: dict[tuple, _SnapshotItem] = {}
+    duplicates: dict[str, str] = {}
+    for item in applied:
+        key = _position_signature(item)
+        if key is None:
+            continue
+        holder = kept.get(key)
+        if holder is None:
+            kept[key] = item
+        elif (_standard_type(item) == declared_type
+              and _standard_type(holder) != declared_type):
+            duplicates[holder.requirement.code] = item.requirement.code
+            kept[key] = item
+        else:
+            duplicates[item.requirement.code] = holder.requirement.code
+    if duplicates:
+        for entry in coverage:
+            if entry["code"] in duplicates:
+                entry["outcome"] = SAME_POSITION
+                entry["reason"] = (f"states the same Constitution §{entry['section']} "
+                                   f"position as {duplicates[entry['code']]}, which is "
+                                   "measured for both")
+        applied = [i for i in applied if i.requirement.code not in duplicates]
+    return applied, detected, coverage
 
 
 def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
@@ -601,6 +691,19 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     """
     if rv.evaluator_type is not EvaluatorType.NUMERIC_COMPARISON:
         return None
+
+    if mapping.state is MappingState.NONE:
+        # Established absence: the mapping layer completed and no clause scored
+        # at all. For a Requirement that APPLIES (declared family, or expected
+        # through a confirmed Constitution sibling — AM-61) that is the numeric
+        # evaluator's MISSING with zero evidence (45C.15), exactly as PRESENCE
+        # reports it — not "unable", and never a cardinality failure that drops
+        # the Finding (found 2026-09-13 on the real mixed document).
+        outcome.diagnostics.append(
+            "mapping NONE: no provision to extract from; absence established by "
+            "the mapping layer, not by evaluator inspection")
+        return LiabilityFacts(caps=(), extraction_status=ExtractionStatus.COMPLETE,
+                              extraction_diagnostics=())
 
     if mapping.state is not MappingState.CONFIRMED:
         outcome.diagnostics.append(

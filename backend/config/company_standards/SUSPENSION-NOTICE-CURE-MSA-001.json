@@ -1,0 +1,78 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'). Drafted 2026-09-13 under AM-59 r6 from the cited section's own words; every value is the",
+    "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "SUSPENSION-NOTICE-CURE-MSA-001",
+  "description": "Suspension for non-payment is preceded by written notice and an opportunity to cure.",
+  "ratified": "2026-09-13",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "16",
+    "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
+    "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§16",
+  "source_quote": "Before suspending service for non-payment, the customer should receive appropriate written notice and a cure period ... Unacceptable: Suspension for non-payment with no prior written notice or cure opportunity.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "16",
+      "topic": "Payment Terms & Taxes",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "SUSPENSION_NOTICE_AND_CURE",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "notice and a reasonable opportunity to cure",
+      "prior written notice before suspending",
+      "written notice and a cure period"
+    ],
+    "aliases": [
+      "suspend the services for non-payment",
+      "suspension for non-payment"
+    ],
+    "keyword_groups": [
+      [
+        "suspend",
+        "notice",
+        "cure"
+      ],
+      [
+        "suspension",
+        "notice",
+        "payment"
+      ]
+    ],
+    "negative_patterns": [
+      "without prior notice"
+    ],
+    "section_heading_terms": [
+      "suspension"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "Live wording seen 2026-09-13: one customer MSA §6.1 'Temporary Suspension of Services Without Prior Notice' for non-payment — the negative pattern 'without prior notice' vetoes a confirmation so the clause is NOT read as satisfying the position; absence in the declared family → MISSING → a person. The cure LENGTH is undefined in §16 (Counsel item 3) so this is a PRESENCE standard, not a numeric one (rule 7)."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

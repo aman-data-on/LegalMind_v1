@@ -1780,3 +1780,157 @@ or scoring in this deployment. Does NOT decide: whether the synthetic-fixture te
 `test_chunk_text_is_a_substring_of_its_evidence_row` should be widened to whitespace-normalised
 comparison — that is a separate call, and the strict test passing on synthetic DOCX while real PDFs
 differ is itself the useful signal.
+
+## 2026-09-13 — "Not recorded" precision (314–316) — BUILT in a worktree, NOT deployed
+
+### 314 — a fail-closed result still reports the company standard's own position
+`numeric.py`'s UNABLE branches never copied the standard into `expected_value`, so the Findings
+screen said "Company standard: Not recorded" for standards declaring 6 months / 30 days / 12
+months. The screen was stating something false about configuration we hold, independently of
+whether the document's value could be read. `standard_side()` now reports it on every refusal and
+returns None only when the standard genuinely declares no value — so "Not recorded" keeps exactly
+one meaning. Classification, rule outcome and every fail-closed refusal are unchanged. Does NOT
+decide: anything about the document side.
+
+### 315 — three different facts get three different words in a value cell
+"Not recorded" (we hold no value), "Not found" (the document says nothing) and "Stated, but not
+readable" (the clause is present and its figure could not be interpreted) are distinct facts, and
+conflating them is what destroyed trust in the Needs-a-decision list. The backend now records
+`cap_status: UNREADABLE` on the readability refusals, and on the COMPARABILITY refusals reports the
+figure that was actually read (`document_side()`), so a reader sees "12 MONTHS" beside the
+standard's "12 MONTHS of FEES_PAID" and understands that only the basis is unrecognised. No score,
+no hedging, no "the AI thinks" (rule 12, DESIGN.md). Verified on the reported contract with
+classifications byte-identical. Does NOT decide: the three reader words (`AM-56`), untouched.
+
+### 316 — the numeric extraction vocabularies are LeapSwitch-shaped, and the AM-54 rescue is family-gated
+Measured, recorded, NOT acted on. Every numeric failure on the reported document was a wording gap:
+"one (1) year" against a DAYS/MONTHS vocabulary, "30days" against "days after receipt of written
+notice", "total fees actually received" against `FEES_PAID` phrases that all say *paid*. The
+model-assisted reading that exists for exactly this (`AM-54`) never ran, because
+`analysis/service.py` skips the semantic stage unless the standard's family equals the declared
+document type — and zero of the 32 standards are typed OTHER. Widening that gate amends `AM-54`;
+adding a basis synonym asserts a legal equivalence 45B.4 keeps distinct (rule 7). Both are owner
+decisions and are written up for approval rather than taken here.
+
+## 2026-09-13 — Constitution-driven, content-first review (AB-20, `AM-59`–`AM-62`) — BUILT in a worktree, NOT deployed
+
+### 317 — L1.10 is canonicalised with counterparty names redacted, not withheld
+The owner-supplied L1.10 names seven customer/partner/NDA counterparties as evidence (§15.5, §31). The
+repository never names one (source-material rules). Canonicalising a redacted copy keeps every position
+and cross-reference searchable and citable while adding nothing; withholding the file would have left the
+governing source outside the repository. Vendors cited for their published terms stay. The committed
+L1.5's names are reported (B-15), not rewritten — history rewriting is not a session's call.
+
+### 318 — `expected_when` is declared per standard, never inferred by section
+An automatic "same section confirmed → sibling expected" rule was simpler but blunter: §15 spans
+confidentiality, IP and non-solicitation, so one residuals clause would have made IP ownership and a
+two-year non-solicit "expected". The trigger list is written into each standard's `constitution` block
+from the Constitution's structure and reviewed as configuration. NON-SOLICIT, IP-OWNERSHIP, INDEMNITY,
+CURE-PERIOD, TERM-NOTICE, KYC-RETENTION, LATE-FEE, CLAIM-WINDOW and every DOCUMENT_ONLY standard are
+deliberately untriggered. Measured on the real mixed document: 0 false MISSING introduced.
+
+### 319 — the same Constitution position is measured once; the declared family's copy wins
+GOVLAW ×3, LIABILITY ×2, ARBITRATION ×2, RETURN-DESTRUCTION ×2 fired on one clause each. The
+signature is (section, value/unit/basis/scope) or (section, presence, scope) — so the MSA and NDA
+confidentiality-survival standards, whose bases differ, stay two positions. The kept copy's own
+mapping is evaluated; a union of evidence across copies was not built (recorded limitation).
+
+### 320 — NOT_APPLICABLE is a coverage outcome carried in the analysis audit event, not a column and not a classification
+The owner wants "not applicable" visible. 45B.26 forbids a fifth classification; a Review column is
+a schema change. The run already writes ANALYSIS_RUN_RECORDED; the per-requirement list rides in its
+`after_state` and the report reads it back. Older runs simply show an empty list.
+
+### 321 — unit conversions are two-gated: declared in the standard AND definitional in code
+Configuration cannot make thirty days a month. The Python table holds only identities of measure
+(YEARS↔MONTHS, WEEKS↔DAYS); a declared pair outside it is refused like an undeclared one. The
+conversions live in the Company Standard's own `configuration` because the importer accepts only
+the exact approved Legal Rule configuration.
+
+### 322 — the out-of-family gate was removed on measurement, not on argument
+Three extra corpus passes (OTHER, untyped, mismatched family) reproduced 0 semantic false positives
+on 38 hard negatives and 0 changed-correct results. Each of two passes lost one different variant
+— `AM-54` r6's run-to-run variance — recorded as "not applied", a new harness column, never as WRONG.
+
+### 323 — `AM-51` r5 is not implemented; registered C-21 instead of bending 49.8
+A type change cannot re-run analysis without a new Review identity. Rather than invent one, the
+gap is recorded with the exact amendment it needs. Since `AM-60` the type only adds the declared-family
+expectation, so the cost is bounded.
+
+### 324 — proposed standards live in a directory nothing reads
+Every reader of `company_standards/` globs the parent only. Ten drafts from L1.10 §16/§13/§31 sit
+in `proposed/` with `ratified: null`; ratification is the owner moving a file. No draft names a value
+its section does not state; two PO drafts are marked "no PO supplied" (rule 21).
+
+### 325 — established absence on a numeric requirement is MISSING, found live
+An applied numeric requirement with mapping NONE produced UNABLE_TO_EVALUATE with no evidence, which
+N-34 refused to persist — a silent, pre-existing gap in the declared family too. Now MISSING with zero
+evidence (45C.15), the shape PRESENCE always had.
+
+### 326 — "approved through the Constitution" is a provenance, recorded in the file, not a session's opinion
+The owner ruled that a standard restating a clearly defined section is already approved. Each such file
+carries `approval: {basis: CONSTITUTION, section, ruling}` beside its `ratified` date, so the importer, a
+reader and Counsel can see WHY it is live without asking. A draft that narrows or extends a section is
+labelled Pending Business Approval in its `status` and stays in `proposed/`.
+
+### 327 — the Constitution's own paragraphs are the first calibration text
+`verify_terminology` reproduces a Constitution-sourced standard from its section (Company Position and
+illustrative clause), since no LeapSwitch clause exists for it. It found three vocabulary gaps and one
+extraction defect on the first run — which is what calibration is for. Counterparty paper, when supplied,
+is the second calibration; its absence does not block activation (owner: PO later).
+
+### 328 — the quantity nearest the cap phrase, overlap first
+A multi-period paragraph read its first number whatever the phrase introduced. "Nearest" is chosen
+among stated numbers only: overlap (the phrase carries the unit word) beats any gap; smaller gap beats
+larger; after beats before on a tie. Single-quantity clauses are unaffected — the corpus is the proof.
+
+### 329 — §24.4 governs the word, `AM-56` governs everything §24.4 does not name
+The owner's "everything clearly defined in the Constitution is final" resolved C-20 without a separate
+question. The narrowest reading was taken: only a deviation inside a defined Unacceptable Position moves
+to "Needs a decision"; DEVIATION/MISSING otherwise keep "Requires modification".
+
+### 330 — the API keeps `contract_type`; the UI loses the control
+Removing the field would break the intake's own recording of a confident inference and the e2e/operator
+tooling that declare a type. The owner's rule is about the reader's workflow; the reader now has no type
+control anywhere, and the type is shown only as inferred context.
+
+## 2026-09-14 — the final business decisions and the production/documentation pass (331–336)
+
+### 331 — retirement is a status flip, because both alternatives were checked and both break something
+Deleting the seven rows makes every Finding that cites one serialize as nulls (`serialize_finding`
+resolves by version id). Moving the files breaks nine golden fixtures at load time (`corpus.py`
+raises `FixtureError` when a `company_standard_ref` has no file) and six directory-glob tests.
+`ConfigStatus.DEPRECATED` existed in the locked Step 29 lifecycle and in the shipped Postgres enum,
+unused, and publish already filtered on ACTIVE — so the retirement cost one line of importer code
+and one guard, with no migration.
+
+### 332 — `retired` is read from current status, never from the pinned snapshot
+The snapshot is immutable (locked 16), so a Finding written before the retirement pins the old
+configuration. Reading retirement from the snapshot would leave 184 existing Findings still
+presenting as approved. `serialize_finding` already joins `M.Requirement`, so current status costs
+no extra query and satisfies "do not show them as approved standards".
+
+### 333 — the compound requirement lives in terminology, not in a new evaluator
+`EvaluatorType` is singular by locked 42.7/N-36 and adding a compound evaluator is a domain-boundary
+change. Mapping terminology already expresses "both limbs or nothing": keyword groups score only
+when every term is present, and heading terms are deliberately worth less than the threshold so a
+one-limb clause is retained as evidence and routed to a person rather than asserted absent.
+
+### 334 — the gate refuses a pipeline mismatch, and that is how the recall gain was found
+The gate already refused a changed dataset. Applying the same argument to the pipeline identity was
+a four-line change, and the first run under it revealed that shipped recall had improved from 0.438
+to 0.625 on 2026-09-10 and nobody knew, because every release since had been compared against a
+baseline recorded under an older strategy. No floor was touched.
+
+### 335 — the calibration harness prints aggregates, never text
+Real counterparty paper cannot enter the repository (54.6) and counterparty names cannot be written
+anywhere in it. The harness derives an anonymised handle from the filename's document-type words,
+reports counts only, and rolls back everything it writes — so its output is safe to paste into a
+report while the documents stay in a gitignored directory.
+
+### 336 — documentation gaps were closed by writing the missing canonical file, not by cross-linking
+Three required topics (the LLM/RAG flow, applicability, the reader's three words) existed only
+inside lock records. Cross-referencing `all_lock.md` would have been cheaper and would have left the
+next reader reading lock records. Two new documents and one extended section now own those topics,
+and a test keeps every document reachable from the index so the class of drift that produced eight
+orphans cannot recur silently.
+

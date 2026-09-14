@@ -10,6 +10,343 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — release preparation for AB-20: the branch is pushed, green, and rehearsed (2026-09-14)
+
+**The push was never blocked.** `ssh -T git@github.com` authenticates and `git ls-remote`
+lists every head; earlier sessions recorded an infrastructure blocker that does not exist.
+`feat/constitution-content-first` is pushed and open as **PR #36**, CI **fully green**
+(`mergeable=MERGEABLE`, `mergeStateStatus=CLEAN`).
+
+Two gates failed first and both were real, not flakes. Gate 7 refused a changed corpus
+expectation without the `specification-change` label — correct: `CLS-AUTORENEW-MSA-001`
+moved from the MSA template's six-month renewal period to the Constitution §31.15
+non-renewal notice under `AM-59` r4. Labelled, with the decision named in the PR. Gate 15
+failed on `ws-report.png` at 1280×900 vs 980; the 80px is the AB-20 applicability section
+(`AM-61`), confirmed by eye against the expected/actual pair rather than accepted on the
+ratio, and the baseline adopted from CI's own actual per the owner's 2026-08-30 rule.
+
+**Deployment rehearsed against a scratch database** restored from a fresh dump — which also
+re-verified restore end to end (32 requirements / 580 findings / 58 reviews, matching
+production exactly). Two findings, each of which would have broken the real deployment; both
+are now in [ops/production/README.md](ops/production/README.md):
+
+1. **The import leaves eight standards inert.** A newly created Requirement imports as
+   `DRAFT`, and publishing pins only `ACTIVE` — so importing alone ships nothing new. The
+   eight include `SERVICE-DISCONTINUATION-MSA-001`, the compound requirement `AM-66` exists
+   to deliver. `POST /configuration/publish` is what promotes them.
+2. **The code list the import tool prints would be refused.** It names all 40; publishing a
+   retired code raises `BusinessRuleRejected` by design (`AM-65`), failing the whole call.
+   The runbook now carries the correct 33.
+
+Existing data is untouched by all of it: 580 findings and 58 reviews unchanged, the 152 that
+cite a retired standard keeping their evidence and reading as retired, and **no Legal
+Decision exists anywhere in the database**. The database is already at migration head
+`e9f2b6c4a173`, so the deployment has no migration step.
+
+**Tier-2 assist gate: SHIPPABLE** — all six quantities held, and faithfulness and citation
+precision are now genuinely measured at 1.0 rather than blocked.
+
+**Two findings recorded rather than fixed**, both pre-existing and neither a release blocker:
+`verify_terminology` reports 34 PASS / 6 FAIL where the source documents live — the six are
+exactly the AB-14 reconciled standards, checked against paper that states their superseded
+position by design, and the same six fail on `main`. And the egress allow-list cannot be
+expressed as a packet filter: the permitted Gemini endpoint shares Google's rotating
+front-end ranges with Drive and Gmail, so an address-based rule would block nothing it aims
+at while breaking login and certificate renewal. Both need an owner ruling.
+
+Also moved `Legal_Mind_Legal_Constitution.md` (212 KB) out of the repository root into the
+gitignored `legal-docs/`: it was untracked *and* un-ignored, one broad `git add` away from
+putting legal source text into version control against locked 54.6.
+
+### Changed — production hardening on the live host: every preflight FAIL closed (2026-09-14)
+
+**Preflight 11 PASS / 3 FAIL / 1 BLOCKED → 17 PASS / 8 ATTEST / 0 FAIL / 0 BLOCKED.** Every
+remaining row is an attestation about the platform that the application cannot observe from
+inside itself.
+
+**Credentials.** The database credential was rotated to a generated 40-character secret and
+`LEGALMIND_DATABASE_URL` injected; the built-in development default with the
+`legalmind:legalmind` pair is gone, and the old credential is confirmed dead.
+
+**Role separation, not a cosmetic revoke.** `legalmind_migrate` now owns the schema and
+`legalmind` holds DML only. Revoking `CREATE` alone would have left the runtime role able to
+`ALTER` and `DROP` what it owned. Rehearsed on a restored copy first: `SELECT`/`INSERT` work,
+`CREATE TABLE`, `DROP findings` and `ALTER findings` are all refused, and the append-only
+audit trigger still refuses an `UPDATE`. **Recorded for anyone repeating it:** `REASSIGN
+OWNED` also moves *shared* objects, so it reassigned all 21 `legalmind*` databases
+cluster-wide; production was correct throughout, and ownership of every non-production
+database was returned to `legalmind`.
+
+**Worker and broker.** Redis started, the worker installed and proven consuming *before* the
+broker URL was set — reversed, every analysis would enqueue with nothing to run it. A
+dispatched task was transported through Redis and executed in the worker process.
+
+**Security.** Five response headers added at nginx (all six were absent), present on error
+responses too. Both services gained isolation — `NoNewPrivileges`, `PrivateTmp`,
+`ProtectSystem=full`, `PrivateDevices`, `MemoryMax=3G`, `TasksMax=512` — where they
+previously ran as root with none while parsing attacker-supplied PDFs and shelling out to
+OCR. A real PDF still parses to 235 segments COMPLETE.
+
+**Malware scanning: `accepted-absent`, decided on evidence.** ClamAV was assessed and
+rejected: it adds a service outside the locked Step 39 stack, `freshclam` needs egress that
+contradicts the locked allow-list, and decisively it does not address the actual threat —
+parser exploitation, which is what the isolation above mitigates. Residual risk documented.
+
+**Backups and disk.** A verified restore (12 tables matched row-for-row), then a nightly
+verified backup at 02:30 with 14-day retention and weekly log rotation. Disk 85% → 67% by
+reclaiming stale VS Code server versions, the npm cache and apt caches; the journal was
+capped at 500 MB with 30-day retention, down from 1.6 GB uncapped.
+
+**Verified:** 1,765 backend tests pass. Live site, OIDC start, worker and all five services
+healthy after every change. Developer note: a test run now needs
+`LEGALMIND_TEST_DATABASE_URL` and must not see `LEGALMIND_BROKER_URL` — both documented in
+`ops/production/README.md`.
+
+### Changed — production configuration hardened on the live host (2026-09-14)
+
+Measured against the deployment preflight on the live server rather than inferred.
+**Applied and verified:** `LEGALMIND_ENVIRONMENT=production` — the service had declared
+none, so it ran as `development` while serving real legal documents; the only runtime
+consumer is the `AM-31` egress gate, which is RELEASED, confirmed before restarting. The
+`legalmind_assist` PostgreSQL role now exists (`AM-25` r2), `NOLOGIN` so it creates no
+credential, holding SELECT on `public`, full DML on `assist`, and **no INSERT or UPDATE on
+any of the ten authoritative tables**, asserted table by table. `redis-server` enabled and
+started, listening on loopback only. A real backup was taken and **restore-verified** into
+a scratch database — 12 tables matched row-for-row across both schemas, including 580
+findings and 7,567 assist chunks; the scratch database was dropped and the live database
+never written to (locked 55.2: "restore is verified, not assumed").
+
+Preflight moved from **11 PASS / 1 BLOCKED / 3 FAIL** to **13 PASS / 0 BLOCKED / 3 FAIL**.
+
+**Corrected:** the previous report listed OIDC identity-provider registration as a
+production blocker. It is not, and never was — Google SSO is configured, the redirect URI
+is registered and validated, and six accounts have signed in through it, most recently
+2026-09-11. That claim came from reading the code path instead of running the check.
+
+**Prepared, not applied** (each needs an operator or an owner decision):
+`ops/production/legalmind-worker.service` with the ordering constraint that the worker
+must run before the broker URL is set; the database-URL injection, which needs a password
+on the role; and the DDL separation, which needs a distinct owner/migration role because
+the application role owns all 49 tables. See `ops/production/README.md`.
+
+### Changed — the final business decisions, a production-quality pass, and the documentation set (AB-20: `AM-65`, `AM-66`; 2026-09-14; NOT deployed)
+
+**Retirement.** The seven standards the current Constitution does not define are retired
+(`AM-65`): FORCE-MAJEURE-MSA/TOS, WARRANTY-DISCLAIMER-MSA, COMPELLED-DISCLOSURE-NDA,
+RETURN-DESTRUCTION-MSA/NDA, LIAB-CARVEOUTS-MSA. **It is seven, not the eight reported** — the
+earlier figure came from `AM-43` r5's older list, which also counted AUTORENEW-* and
+TERM-NOTICE-NDA-001, both of which L1.10 does state; `AM-59` r5 is corrected in the same batch.
+Measured before acting: **184 of 580 live Findings (32%) cite one of the seven, and zero Legal
+Decisions rest on them.** The mechanism is `Requirement.status = DEPRECATED` — the locked Step 29
+value nothing had ever produced — so a retired standard leaves every future snapshot with no code
+change; publish refuses to re-activate one. Deleting the rows would make every citing Finding
+serialize as nulls and moving the files would break nine golden fixtures: both were checked, not
+assumed. Files keep their `ratified` date and source; a Finding reports `retired` from the
+requirement's **current** status so an old Finding says so too while staying byte-identical; five
+`expected_when` lists drop the retired codes so a retired standard can no longer drive a MISSING.
+
+**Service discontinuation is one compound requirement** (`AM-66`, Constitution §31.14 A). Expressed
+in terminology rather than a new evaluator — `EvaluatorType` is singular by locked 42.7/N-36.
+Measured against the real mapper before ratification: the Constitution's own compound sentence
+scores 7 (MATCH), a one-limb "30 days' notice" clause scores 2 (below threshold, evidence retained,
+a person decides), a non-payment clause −3 (vetoed by §31.14's own carve-out). The notice limb is
+never evaluated alone. LegalMind holds no contract dates, so what it checks is that the *clause*
+provides the compound protection.
+
+**The release gate was measuring against a stale bar.** `baseline.json` recorded
+`hybrid-rrf-gate-1` while the code shipped `-3`: the gate refused a changed dataset hash but never
+a changed pipeline identity. It now refuses the mismatch and names the drifted field — and the
+first honest measurement showed the shipped pipeline is **strictly better**: recall@10
+0.438 → **0.625**, hit@1 0.281 → 0.375, answered 24 → 33, with wrongly-answered unchanged at 1/13,
+**0 wrong answers reaching a user**, faithfulness 1.0 and both floors untouched at 0.50. Re-baselined.
+
+**Retention (41.26) is answered by the Constitution, not invented.** Asked, the owner said "check in
+constitution": L1.10 §26.1 requires superseded versions to stay "archived and accessible, not
+deleted" and every historical Review to stay linked to the configuration active when it ran. That is
+the policy — no automatic expiry, removal only by an explicit human act (`AM-55`). §28.2 records the
+DPDP retention rules as not in force until 13 May 2027, and the check names that date. Preflight
+moves BLOCKED → PASS with no period invented.
+
+**Also fixed**: three truncated-stem terms (`terminat`, `invoic`) that whole-word matching could
+never hit, with a guard test across every standard; `RRF_K = 60` given one home instead of three
+literals; `tools/verify_terminology` wired into CI, where it had never run despite being the only
+check that each standard reproduces its Constitution position.
+
+**New**: `tools/calibrate_historical.py` measures the published configuration against real signed
+counterparty paper — gitignored input, anonymised handles, aggregates only, everything rolled back.
+First run on three real documents: 0 findings without evidence, 0 duplicate positions; an AUP
+correctly produced 3 findings and 29 recorded NOT_APPLICABLE, an MSA 26 findings across five
+classifications.
+
+**Documentation** (the owner's mandatory item). Root `README.md` rewritten as a real entry point —
+it had stopped at AB-2, repeated the stale "28 fixtures" triple and printed a risk score the product
+forbids. Two documents created for topics that had no canonical home at all:
+`docs/05-architecture/ASSIST_LANE_AND_RAG.md` (the LLM/RAG lane end to end) and
+`docs/04-analysis-engine/APPLICABILITY.md`. `ARCHITECTURE_REFERENCE.md` — the designated end-to-end
+document, frozen at AB-1 — gained a current §0.1 naming exactly which later sections it supersedes.
+`FINDING_CLASSIFICATION.md` gained the reader's three words and `AM-53`'s superseded triple;
+`COMPANY_STANDARDS.md` the provenance vocabulary, the retired seven and the PO calibration process.
+`frontend/README.md`'s "no CSS framework" claim and build-state assertions fixed;
+`backend/README.md`'s stale OIDC block removed; `AUTH_IMPLEMENTATION_COMPLETE.md` and
+`reference docs/` bannered as superseded and linked rather than left orphaned; `docs/README.md`
+gained the eight unlinked files and lost a stale conflict count. A new
+`test_documentation_index.py` keeps every document reachable and every index link alive.
+
+**Verified**: 1,655+ backend tests, 398 frontend, ruff and mypy clean, Tier-2 gate green against the
+re-baselined bar, `verify_terminology` 34 PASS (the 6 FAILs are the `AM-43` r4 reconciled standards
+whose live paper deviates by design), reproducibility digest unchanged. Not deployed.
+
+### Changed — the owner's business clarification applied (AB-20 continued: `AM-59` r6'/r9, `AM-62` r5, `AM-63`, `AM-64`, 2026-09-13; NOT deployed)
+
+Five rulings, each with a consequence. **The Constitution is final** — a standard restating a
+clearly defined section is *approved through the Constitution*: seven of the ten drafts are
+ratified this way (§16: 21-day payment, 15-day dispute window, 30-day price-change notice,
+notice-and-cure before suspension, GST exclusive; §13: 30-day convenience notice; §31.14:
+30-day change-of-control notice), each reproduced from its section's own text by
+`tools.verify_terminology` (33 PASS · the 6 `AM-43` live-paper deviations). Two PO drafts stay
+deferred — **no PO exists to calibrate against and that blocks nothing**; one draft is
+**Pending Business Approval** because it narrows a compound position. Four provenances are
+kept distinct in every file: approved through the Constitution · ratified from a LeapSwitch
+document (eight, no Constitution position — listed for the owner to confirm or retire) ·
+proposed by the system · pending business approval. **§24.4 is final** — a deviation inside a
+defined Unacceptable Position (an unlimited or one-sided cap; an export window under 30 days)
+is "Needs a decision", not "Requires modification" (`AM-63`; C-20 resolved). **The reader never
+selects a document type** — the type controls are gone from Edit details and the client upload;
+the intake records the assist lane's confident inference, audited, and the review is
+content-first either way (`AM-64`; C-21 moot). Reproducing the Constitution's own §16
+paragraph exposed that the extractor read the *first* number in a multi-period clause: the
+quantity is now the one nearest its cap phrase (`AM-62` r5) — a deterministic choice among
+stated numbers, never a guess. **Not invented:** §11's credit schedule, §12/§19 statute rows,
+§17 takedowns, §31.9/§31.10 "should" rules — reported, not drafted.
+
+### Changed — the review is Constitution-driven and content-first (AB-20: `AM-59`–`AM-62`, 2026-09-13; BUILT in a worktree, NOT deployed)
+
+**What the owner asked.** A single agreement may mix MSA, NDA, PO and tax clauses; the label must
+not control the analysis; MISSING must rest on evidence the requirement is expected; NOT_APPLICABLE
+and UNCLEAR must not hide as MISSING; the Legal Constitution — now **L1.10**, supplied today — is the
+source of truth. Full ownership granted to amend any blocking lock.
+
+**What the R&D found (traced, not assumed).** Applicability was already content-first (`AM-51`);
+recognition was not: `AM-54` r4 switched the semantic stage off outside the declared family, and no
+standard is typed OTHER, so on an OTHER-typed or untyped document a Constitution position in
+different wording produced **no finding at all**. Time units never converted ("one (1) year" vs a
+MONTHS standard stayed Unclear forever). Absence was asserted by declared family only, and a
+non-applicable requirement was invisible. L1.10 changed no number in §§9–22 but added §24.4, §31 and
+Appendix B; §31.15 contradicts `AUTORENEW-MSA-001`'s fixed 6-month period.
+
+**Changed.**
+- `analysis/service.py` — the semantic stage runs for every pinned requirement (`AM-60`; gate
+  measured live in four declared-type modes: 0 semantic FP / 38 negatives, 0 changed-correct, each
+  time); `applicable_by_content` returns a reason per requirement — APPLIED (confirmed · declared ·
+  expected through a declared Constitution sibling), NOT_APPLICABLE, SAME_POSITION — written to the
+  analysis audit event and the report (`AM-61`); the same Constitution position is measured once;
+  mapping NONE on an applied numeric requirement is MISSING, not a dropped cardinality failure.
+- `evaluation/numeric.py` — declared, definitional unit conversion (`AM-62`): YEARS↔MONTHS,
+  WEEKS↔DAYS only, both gates required; the document's unit stays in `actual_value`.
+- `evaluation/constitution_block.py` (new) — the `constitution` block validated at publish and import.
+- 32 standards — `constitution` {section, topic, basis, expected_when}; `AUTORENEW-MSA-001` measures
+  the 30-day non-renewal notice (L1.10 §31.15; the period is negotiable — `_history` keeps the old
+  reading); six declare a conversion; three drop phrase-shaped unit terms. Golden fixture
+  `CLS-AUTORENEW-MSA-001` and the corpus variants follow.
+- `company_standards/proposed/` (new, read by nothing) — ten drafts from L1.10 §16/§13/§31.11/§31.14.
+- API — `requirement.constitution` on every Finding; `coverage.applicability` on the report.
+- Frontend — "What was measured, and what was not" on the report; "Constitution, Section 9 ·
+  Liability" (or "No Constitution position") on the card. No `§` added anywhere (owner, 2026-09-10).
+- Docs — `LEGAL_CONSTITUTION_L1.10.md` (redacted), L1.5 superseded, `CONSTITUTION_RECONCILIATION_2026-09-13.md`,
+  C-20 (§24.4 vs `AM-56`), C-21 (`AM-51` r5), registry rows, catalogue.
+- Merged `fix/not-recorded-precision` (`e7da39c`).
+
+**Measured, live, rolled back.** Real OTHER distribution agreement: 21 findings before and after,
+but 21 distinct positions instead of 15 + six duplicates; NON-SOLICIT "twelve (12) months" → 1
+year vs 2 → DEVIATION; AUTORENEW notice → DEVIATION; CURE-PERIOD both cure periods read → CONFLICT;
+two NDA positions recognised on the OTHER document; LIABILITY still Needs review on the
+unrecognised basis — by design. Real mixed document, untyped: 7 → 8 findings, 0 duplicates,
+dispute resolution MISSING because governing law is present, 23 NOT_APPLICABLE each with a reason.
+Synthetic mixed agreement (`test_mixed_agreement.py`): identical content verdicts under OTHER,
+untyped and MSA; PO and payment clauses surface as unmatched provisions.
+
+**Verified.** Backend 1,605 passed (110 skipped, live-only), frontend 398 passed, ruff and mypy
+clean. Labelled corpus, live, four declared-type modes (104 variants): 0 semantic FP / 38 hard
+negatives and 0 changed-correct in every mode; final run with the rewritten AUTORENEW variants
+(107 variants, 69 positives): 69/69 recognised, 50 correct, 16 fail-safe, 0 wrong, 125 calls.
+`test_mixed_agreement.py` passes lexical-only under three labels and live with the semantic stage.
+Browser suite (workspace, reviews, analysis, legal-access): 34/34 — one test needed re-running
+without a generation credential, as the suite assumes. Reproducibility gate PASS; its legal record
+under `main` and under this branch is field-for-field identical (the digest differs across runs
+only by the randomised `REPRO-…` requirement code the gate mints, which the record includes).
+`tools.verify_terminology`: 26 PASS · 6 FAIL — the six are the `AM-43` r4 Constitution-reconciled
+standards whose live paper deviates by design; `AUTORENEW-MSA-001` reproduces its new 30-day
+position from the MSA template.
+
+**Not changed, deliberately.** `FEES_PAID` vs "fees actually received" (45B.4). Family detection
+(the declared type only). `AM-56`'s mapping (C-20). No fifth classification. Nothing deployed;
+`AM-59`'s standards need re-import + publish to reach the live database.
+
+### Fixed — "Not recorded" told the reader nothing, and part of it was false (owner investigation, 2026-09-13)
+
+Reported on a distribution agreement (contract type **OTHER**): five findings under *Needs a
+decision* showed **"? Not recorded"** in BOTH the Contract and the Company standard column, while
+the clauses were plainly in the document. Investigated before touching anything; the cause is not
+where the report suggested.
+
+**What the review pipeline actually does** — traced, because the brief asked for it rather than an
+assumption. `analysis/` and `evaluation/` read **no** assist corpus: not `assist.chunks`, not
+`assist.statute_chunks`, and not the Legal Constitution as a document. They read snapshot-pinned
+configuration plus the document's own evidence rows. That is `AM-43` working as locked — the
+Constitution is *configuration source, not runtime corpus*, and its positions enter as ratified
+standard files. Statutes are Domain C and reach Ask only. The card wording "Constitution match" is a
+label over `MATCH`, not a retrieval claim. **No MSA-to-MSA restriction remains in applicability**:
+`AM-51` admitted MSA, TOS *and* NDA standards against this OTHER-typed document, and 21 of 32 were
+evaluated.
+
+**The real split, and it is not about document type.** All 15 `PRESENCE` standards matched and wrote
+both values. All 5 `NUMERIC_COMPARISON` standards failed closed with **both values NULL**. Every one
+of the five had evidence attached, so retrieval and mapping succeeded. The same clause that made
+`AUTORENEW-TOS-001` a MATCH made `AUTORENEW-MSA-001` unclear — the difference was the evaluator.
+
+The evaluator's own stored reason separates two causes: three were *"cap could not be reliably
+interpreted"*, two were *"no configured conversion rule permits comparing basis None with
+FEES_PAID"*. Against the wording: the document renews "for successive periods of **one (1) year**"
+while that standard's extraction vocabulary lists only DAYS and MONTHS; it says "fails to cure such
+breach within **30days**" (no space) against phrases expecting "days after receipt of written
+notice"; it caps at "the total fees **actually received**" where the configured `FEES_PAID` phrases
+all say *paid*. **The clause was found, cited and read — its figure or its basis could not be
+interpreted with vocabularies written from LeapSwitch's own paper.** Failing closed there is correct
+(rule 15), and for liability it is legally correct: an unrecognised basis must not be assumed
+equivalent to `FEES_PAID` (45B.4).
+
+**So two reporting defects, fixed here; the evaluation logic is unchanged.**
+
+1. **The Company standard column was stating something false.** Those standards *do* record a
+   position — 6 months, 30 days, 12 months — and the fail-closed branches simply never copied it.
+   `evaluation/numeric.py` now reports the standard on every refusal (`standard_side`), returning
+   nothing only when the standard genuinely declares no value, so "Not recorded" keeps exactly one
+   meaning.
+2. **The Contract column conflated three different facts.** It now distinguishes *Not recorded* (we
+   hold no value), *Not found* (the document says nothing) and **"Stated, but not readable"** (the
+   clause is there and its figure could not be read). Where the refusal is about **comparability
+   rather than readability, the figure that WAS read is now shown** — the two liability rows now
+   read "12 MONTHS" beside the standard's "12 MONTHS of FEES_PAID", so a reader sees at once that
+   the periods agree and only the basis is unrecognised. That is the decision they are being asked
+   to make.
+
+**Verified end to end on the reported contract**, by re-running the real analysis inside a
+transaction that was rolled back: classifications **byte-identical** (15 MATCH, 1 MISSING, 5
+UNABLE_TO_EVALUATE), **zero** rows blank on both sides, production review untouched. Backend 1,588
+tests, frontend 392, ruff and mypy clean, and the 55.4 reproducibility gate passes with an identical
+digest — no evaluation drift.
+
+**Two things deliberately NOT changed, because they are the owner's to decide, not mine.**
+
+- **The `AM-54` semantic gate.** Model-assisted quantity reading is the thing that would have read
+  "one (1) year", and it never ran on this document: `analysis/service.py` skips it unless the
+  standard's family equals the declared type, and **zero** of the 32 standards are typed OTHER
+  (18 MSA, 12 TOS, 9 NDA, 2 SLA). Widening that gate is the single highest-value precision change
+  available and it amends `AM-54`, so it needs an appended lock record.
+- **Extraction vocabulary.** Adding a YEARS unit is arguably clerical, but adding "fees actually
+  received" as a `FEES_PAID` synonym asserts a legal equivalence that 45B.4 keeps deliberately
+  distinct. Rule 7 territory.
+
 ### Changed — Ask stage 3: the context follows the reader (2026-09-11)
 
 Third of three stages (owner instruction, 2026-09-11), on top of the stage 1 backend. Recorded as

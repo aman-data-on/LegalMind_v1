@@ -275,7 +275,11 @@ def test_every_ratified_standard_is_publishable_as_written():
         MappingRules.from_config(payload.get("mapping_rules"))   # raises if unusable
         assert payload.get("evaluation_rules"), (
             f"{path.name}: no evaluation_rules — the publish gate would refuse")
-        assert payload.get("source_file"), (
+        # AM-59 r6' (2026-09-13): a standard approved THROUGH the Constitution
+        # cites its section instead of a LeapSwitch document; verify_terminology
+        # reproduces it from that section's own text.
+        section = (payload.get("configuration", {}).get("constitution") or {}).get("section")
+        assert payload.get("source_file") or section, (
             f"{path.name}: no source_file — verify_terminology cannot locate "
             "the document this standard cites")
         if payload.get("evaluator_type", "NUMERIC_COMPARISON") != "PRESENCE":

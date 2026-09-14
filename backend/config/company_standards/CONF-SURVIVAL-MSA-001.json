@@ -1,6 +1,6 @@
 {
   "_about": [
-    "RATIFIED Company Standard CONF-SURVIVAL-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard CONF-SURVIVAL-MSA-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
@@ -9,11 +9,24 @@
   "requirement_code": "CONF-SURVIVAL-MSA-001",
   "description": "Confidentiality obligations keep applying for a set period after the agreement ends.",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
-  "source_clause": "12.3 Confidentiality \u2014 survival",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+  "source_clause": "12.3 Confidentiality — survival",
   "source_quote": "Obligations under this Clause shall survive for a period of three (3) years post-termination.",
   "configuration": {
     "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "RESIDUALS-NDA-001",
+          "TRADE-SECRET-CARVEOUT-NDA-001",
+          "CONF-SURVIVAL-NDA-001"
+        ]
+      }
+    },
     "preferred": 3,
     "unit": "YEARS",
     "basis": "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION",
@@ -27,6 +40,10 @@
         "YEARS": [
           "years",
           "year"
+        ],
+        "MONTHS": [
+          "months",
+          "month"
         ]
       },
       "bases": {
@@ -38,7 +55,13 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "unit_conversions": [
+      {
+        "from_unit": "MONTHS",
+        "to_unit": "YEARS"
+      }
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -107,5 +130,26 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_history": [
+    {
+      "date": "2026-09-13",
+      "record": "AM-62",
+      "added": {
+        "unit_conversions": [
+          {
+            "from_unit": "MONTHS",
+            "to_unit": "YEARS"
+          }
+        ],
+        "units": {
+          "MONTHS": [
+            "months",
+            "month"
+          ]
+        }
+      },
+      "why": "a month is a fixed number of years by definition; the engine performs the arithmetic only because the standard declares the pair (45C.23, 44.29)."
+    }
   ]
 }

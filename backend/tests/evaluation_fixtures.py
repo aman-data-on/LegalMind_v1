@@ -99,7 +99,9 @@ def numeric_input(caps, *, standard=None, rule=_UNSET, required=True,
     """`rule=None` means "no Legal Rule configured" (Step 20 r4); omitting it
     supplies the structural default. The sentinel keeps those distinct."""
     from legalmind.domain.enums import ExtractionStatus
-    facts = LiabilityFacts(
+    # `caps=None` means "no facts were supplied at all" — the shape the analysis
+    # layer passes when mapping delivered no clause for this Requirement.
+    facts = None if caps is None else LiabilityFacts(
         caps=tuple(caps),
         extraction_status=extraction_status or ExtractionStatus.COMPLETE,
         extraction_diagnostics=tuple(diagnostics))

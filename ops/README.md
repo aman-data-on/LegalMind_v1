@@ -117,6 +117,13 @@ system.
 
 ## 10 · The worker (row: `analysis_worker`)
 
+> **2026-09-14:** Redis is now running and the unit file is prepared at
+> [`production/legalmind-worker.service`](production/legalmind-worker.service), but the
+> worker is **not installed** — analysis still runs inline. Install the worker BEFORE
+> setting `LEGALMIND_BROKER_URL`, or every analysis enqueues with nothing consuming it.
+> Current production configuration and what remains:
+> [`production/README.md`](production/README.md).
+
 Production analysis must run through the queue: set `LEGALMIND_BROKER_URL` (Redis) and
 run the worker from the same image/version as the API — a version-skewed worker
 refuses jobs by design (55.1).

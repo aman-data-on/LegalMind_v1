@@ -356,3 +356,69 @@ EDIT
  ↓
 REWRITE HISTORY
 ```
+
+---
+
+## Provenance — how a standard comes to be live, and how it stops
+
+Every ratified file declares which of four things it is. They are never mixed, and the card tells
+the reader which one it is looking at.
+
+| Provenance | Declared by | Live? |
+|---|---|---|
+| **Approved through the Constitution** | `approval.basis: CONSTITUTION` + the section it restates | Yes. The owner ruled on 2026-09-13 that a standard restating a clearly defined Constitution section, without changing its meaning, is already approved — no separate ratification is asked for. |
+| **Ratified from a LeapSwitch document** | `source_document` + `source_clause`, `constitution.basis` one of `STAKEHOLDER_CONFIRMED` · `APPLICABLE_LAW` · `COMPANY_APPROVED` · `LEGALMIND_RULE` | Yes, under the 2026-08-19/20 owner rulings. |
+| **Proposed by the system** | lives in `company_standards/proposed/`, `ratified: null` | No. Nothing reads that directory. |
+| **Pending business approval** | in `proposed/`, with `status` saying exactly what is unresolved | No. It changes or narrows a Constitution meaning and needs a ruling. |
+| **Retired** | a `retired` block carrying the marker *"RETIRED — NOT PRESENT IN CURRENT CONSTITUTION"* | No. `Requirement.status = DEPRECATED` keeps it out of every future snapshot (`AM-65`). |
+
+A **`LEGALMIND_RULE`** basis marks a §31 position the Constitution itself labels practice-based
+rather than company-evidenced. §24.4(3) forbids forcing such a rule to "Acceptable", so the card
+qualifies it: *"analysis rule, not company-evidenced"*.
+
+A **`DOCUMENT_ONLY`** basis meant "no Constitution position". As of `AM-65` no live standard carries
+it: the seven that did are retired.
+
+### Historical evidence is not a position
+
+Older signed counterparty documents (the owner's Drive folder, supplied 2026-09-14) are
+**historical evidence and calibration material only**. Some of their terms have since changed. They
+never establish a company position, are always validated against the current Constitution, and live
+in `legal-docs/historical/` — gitignored, outside version control (locked 54.6). No counterparty
+name and no clause text from them enters this repository.
+
+`tools/calibrate_historical.py` measures the published configuration against them and prints
+aggregates only, under anonymised handles.
+
+---
+
+## Calibration — and the Purchase Order that is still outstanding
+
+Locked 35.10 requires a standard's terminology to be calibrated against representative contracts
+before it is trusted. In practice that is two passes:
+
+1. **Reproduce its own position.** `tools/verify_terminology.py` runs each standard's terminology
+   over the source it cites — the LeapSwitch document, or, for a Constitution-approved standard,
+   the text of the Constitution section itself — and requires it to recover the ratified value.
+2. **Meet counterparty drafting.** The same terminology is run over real signed paper, which is
+   where paraphrase, different unit words and different basis phrasing actually appear.
+
+### The PO process, when a Purchase Order arrives
+
+Two standards are drafted against §31.11 and are **deferred, not pending approval** — the
+Constitution already states them; there is simply no PO to calibrate against, and locked 35.10 does
+not let a standard go live untested. When the owner supplies a real or anonymised PO:
+
+1. Place it in `legal-docs/historical/` (gitignored).
+2. Run `python3 -m tools.calibrate_historical` and read the `HIST-PO-01` row: does the PO's own
+   wording confirm `PO-MSA-REFERENCE-ORDER_FORM-001` and `PO-PRECEDENCE-ORDER_FORM-001`, and does
+   anything false-confirm?
+3. Widen the terminology to the PO's actual words where it missed, re-run, and record the before and
+   after in the file's `_calibration` block.
+4. Move both files up one directory with `ratified` set. They are approved through the Constitution;
+   no further business approval is required.
+5. Re-import and publish a snapshot.
+
+Until then a PO uploaded to LegalMind is reviewed against whatever Constitution positions its
+clauses confirm, and its PO-specific clauses surface as unmatched provisions. **This blocks
+nothing** — the owner's ruling of 2026-09-14.

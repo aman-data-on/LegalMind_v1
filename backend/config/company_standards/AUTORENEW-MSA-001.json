@@ -1,42 +1,57 @@
 {
   "_about": [
-    "RATIFIED Company Standard AUTORENEW-MSA-001 \u2014 extracted verbatim from the LeapSwitch",
+    "RATIFIED Company Standard AUTORENEW-MSA-001 — extracted verbatim from the LeapSwitch",
     "document cited below, under the manager's standing rule that whatever is",
     "stated in our approved legal documents is the final position (recorded",
     "2026-08-19). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md. It is",
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "requirement_code": "AUTORENEW-MSA-001",
-  "description": "The agreement renews automatically for a set period each time, on the same terms.",
+  "description": "The agreement renews automatically on the same conditions unless a party gives written notice of non-renewal a set period before the end of the current term.",
   "ratified": "2026-08-19",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
-  "source_clause": "7.3 Automatic Renewal",
-  "source_quote": "this Agreement shall automatically renew for successive periods of six (6) months each on the same terms and conditions",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.15 Renewal (Auto-Renewal)",
+  "source_quote": "Agreements with a fixed Initial Term automatically renew for successive additional terms on the same conditions, unless either party gives written notice of non-renewal at least 30 days before the end of the then-current term.",
   "configuration": {
     "document_type": "MSA",
-    "preferred": 6,
-    "unit": "MONTHS",
-    "basis": "AUTO_RENEWAL_TERM",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.15",
+      "topic": "Renewal (Auto-Renewal)",
+      "basis": "COMPANY_APPROVED",
+      "expected_when": {
+        "confirmed_any": [
+          "EARLY-TERM-RESTRICTION-MSA-001",
+          "AUTORENEW-TOS-001"
+        ]
+      }
+    },
+    "preferred": 30,
+    "unit": "DAYS",
+    "basis": "NON_RENEWAL_NOTICE",
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "automatically renew for successive periods of",
-        "automatic renewal period"
+        "prior to the expiry of",
+        "prior to the end of",
+        "before the end of",
+        "before the expiry of",
+        "notice of non-renewal",
+        "not to renew",
+        "intention not to renew",
+        "to stop the services, at least"
       ],
       "unlimited_phrases": [],
       "units": {
-        "MONTHS": [
-          "months",
-          "month"
-        ],
         "DAYS": [
-          "days terms",
-          "day terms"
+          "days",
+          "calendar days"
         ]
       },
       "bases": {
-        "AUTO_RENEWAL_TERM": [
-          "renew"
+        "NON_RENEWAL_NOTICE": [
+          "renew",
+          "renewal"
         ]
       },
       "exceptions": []
@@ -53,12 +68,29 @@
       "automatic renewal period"
     ],
     "aliases": [
-      "automatic renewal"
+      "automatic renewal",
+      "non-renewal",
+      "notice of non-renewal",
+      "renewal term",
+      "automatically commence",
+      "shall automatically renew"
     ],
     "keyword_groups": [
       [
         "renew",
         "successive"
+      ],
+      [
+        "renew",
+        "notice"
+      ],
+      [
+        "renewal",
+        "notice"
+      ],
+      [
+        "renewal term",
+        "notice"
       ]
     ],
     "negative_patterns": [],
@@ -76,7 +108,8 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "2026-09-13 (AM-59 r4): terms re-drawn from L1.10 §31.15's wording and the three live MSAs it cites ('at least thirty (30) days prior to the expiry of the Initial Term'); the unit terms are bare ('days') and the phrase context lives in cap_phrases."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",
@@ -95,5 +128,20 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_history": [
+    {
+      "date": "2026-09-13",
+      "record": "AM-59 r4 (Constitution L1.10 §31.15)",
+      "was": {
+        "preferred": 6,
+        "unit": "MONTHS",
+        "basis": "AUTO_RENEWAL_TERM",
+        "source_clause": "7.3 Automatic Renewal",
+        "source_quote": "this Agreement shall automatically renew for successive periods of six (6) months each on the same terms and conditions",
+        "description": "The agreement renews automatically for a set period each time, on the same terms."
+      },
+      "why": "§31.15: the renewal period 'is treated as a negotiable commercial term, not a fixed Constitution value'; 'the 30-day non-renewal notice requirement ... is adopted as the standard position'. Under AM-43 r1 the Constitution outranks the template clause this standard was extracted from."
+    }
   ]
 }

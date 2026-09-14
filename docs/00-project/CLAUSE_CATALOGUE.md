@@ -15,6 +15,15 @@ clause**, never invented. Rule 7/21 satisfied: the positions are the documents' 
 > records the drafting corrections as "in progress"). The previous source clause and value are
 > preserved in each standard file's `_history`. Every other row is unchanged.
 
+> **⚖️ 2026-09-13 — AB-20 / `AM-59`.** The Constitution is now **L1.10** (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md`).
+> Every standard's `configuration.constitution` names its section, Appendix B topic and basis
+> (`STAKEHOLDER_CONFIRMED` · `APPLICABLE_LAW` · `COMPANY_APPROVED` · `LEGALMIND_RULE` · `NOT_ADOPTED` ·
+> `DOCUMENT_ONLY` for the eight with no Constitution position), plus `expected_when` for the
+> positions a confirmed sibling makes expected (`AM-61`). Six standards declare `unit_conversions`
+> (`AM-62`). One row changed value (AUTORENEW-MSA-001, below). Ten further positions the Constitution
+> states are DRAFTED, not ratified, under `backend/config/company_standards/proposed/` — see that
+> directory's README and [CONSTITUTION_RECONCILIATION_2026-09-13.md](../02-legal-domain/CONSTITUTION_RECONCILIATION_2026-09-13.md).
+
 Register note: the owner's conflict register was located at
 `/root/LegalMind/docs/CONFLICT_GAP_ANALYSIS.md` (owner authorized that location,
 2026-08-19). Its own tracker marks C-01/C-04/C-05/C-07/C-23 "Needs owner decision" and
@@ -49,7 +58,7 @@ goes to Legal with the evidence.
 | CONF-SURVIVAL-MSA-001 | Confidentiality survival | **3 years** post-termination | §12.3 | NUMERIC |
 | FORCE-MAJEURE-MSA-001 | FM termination trigger | **60 consecutive days** | §18.3 | NUMERIC |
 | CURE-PERIOD-MSA-001 | Breach cure period | **30 days** | §7.4 | NUMERIC |
-| AUTORENEW-MSA-001 | Auto-renewal term | **6 months** | §7.3 | NUMERIC |
+| AUTORENEW-MSA-001 ⚖️2026-09-13 | Auto-renewal — non-renewal notice | **30 days' notice of non-renewal** (Constitution L1.10 §31.15: the renewal PERIOD is "a negotiable commercial term, not a fixed Constitution value"; was **6 months** term from §7.3 — kept in `_history`, `AM-59` r4) | Constitution §31.15 | NUMERIC |
 | DATA-PURGE-MSA-001 ⚖️2026-09-08 | Post-termination data purge | **30 days** (Constitution §13: deletion only after the 30-day retrieval window; was 15 days from §7.6.6 — now a DEVIATION) | Constitution §13 | NUMERIC |
 | GOVLAW-MSA-001 | Governing law clause | present (laws of India) | §19.1 | PRESENCE |
 | ARBITRATION-MSA-001 | Arbitration clause | present (Mumbai, ACA 1996) | §19.3–19.4 | PRESENCE |
@@ -140,6 +149,47 @@ derived from this one.
 Liability remains **not applicable** to NDA (owner Q4=A, unchanged). Note the per-type
 model resolving the register's C-07 cleanly: MSA survival = 3 years, NDA survival = 2
 years — two document types, two positions, no contradiction.
+
+### Approved through the Constitution — 7 Requirements (L1.10 §16, §13, §31.14; owner ruling 2026-09-13)
+
+Ratified by the owner's rule that a standard restating a clearly defined Constitution position
+is approved through the Constitution (`AM-59` r6'). Reproduced from the section's own text by
+`tools.verify_terminology`; counterparty paper is the second calibration when supplied.
+
+| Code | Clause | Standard | Source | Evaluator |
+|---|---|---|---|---|
+| PAYMENT-PERIOD-MSA-001 | Invoice payment period | **21 days** of invoice date | Constitution §16 | NUMERIC |
+| DISPUTE-WINDOW-MSA-001 | Billing-dispute window | **15 days** of invoice date | Constitution §16 | NUMERIC |
+| PRICE-CHANGE-NOTICE-MSA-001 | Price-change notice | **30 days'** written notice | Constitution §16 | NUMERIC |
+| SUSPENSION-NOTICE-CURE-MSA-001 | Notice and cure before non-payment suspension | present | Constitution §16 | PRESENCE |
+| GST-EXCLUSIVE-MSA-001 | Fees exclusive of GST | present | Constitution §16 | PRESENCE |
+| CONVENIENCE-NOTICE-MSA-001 | Termination for convenience notice | **30 days'** written notice (non-fixed-term) | Constitution §13 | NUMERIC |
+| CHANGE-OF-CONTROL-NOTICE-MSA-001 | Change-of-control notice | **30 days** | Constitution §31.14 | NUMERIC |
+| SERVICE-DISCONTINUATION-MSA-001 ⚖️2026-09-14 | Service discontinuation | **compound**: advance notice AND continuation to the end of the committed term, whichever is later — one requirement, never the notice limb alone (`AM-66`) | Constitution §31.14 A | PRESENCE |
+
+Left in `proposed/`: PO-MSA-REFERENCE and PO-PRECEDENCE (approved through §31.11, deferred — no PO
+to calibrate against; the owner will supply one), SERVICE-DISCONTINUATION-NOTICE (**Pending Business
+Approval** — a compound position the draft would narrow).
+
+### Retired — 7 Requirements (`AM-65`, 2026-09-14)
+
+The current Constitution states no position for these, so they are **RETIRED — NOT PRESENT IN
+CURRENT CONSTITUTION**: withdrawn from active review, never shown as approved, history preserved.
+Their files remain with their original `ratified` date and source clause; `Requirement.status` is
+`DEPRECATED`, so they enter no future snapshot. The 184 existing Findings that cite them stay
+readable and now report `retired`.
+
+| Code | Was measured | Why the Constitution does not state it |
+|---|---|---|
+| FORCE-MAJEURE-MSA-001 | 60 days | §31.14-C names force majeure only as one of six circumstances permitting shorter notice, and fixes no period |
+| FORCE-MAJEURE-TOS-001 | 60 days | same |
+| WARRANTY-DISCLAIMER-MSA-001 | present | no warranty position appears in §§9–22 or §31 |
+| COMPELLED-DISCLOSURE-NDA-001 | present | §15 states the confidentiality position and says nothing about compelled disclosure |
+| RETURN-DESTRUCTION-MSA-001 | present | §15 states no return/destruction position; the only such wording is §31.8(e), which governs Partner Agreement termination |
+| RETURN-DESTRUCTION-NDA-001 | present | same |
+| LIAB-CARVEOUTS-MSA-001 | present | §9 states the opposite kind of position — "No separate multiplier or super-cap has been approved" — and `AM-43` r5 already recorded the two as different subjects |
+
+They return only through a Constitution update or an explicit business approval.
 
 ### AUP / Privacy Policy / Order Form / Amendment / DPA — no Requirements in V1
 

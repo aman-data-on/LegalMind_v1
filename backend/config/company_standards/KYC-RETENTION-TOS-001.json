@@ -14,6 +14,12 @@
   "source_quote": "All KYC records and subscriber information shall be maintained for a minimum period of five (5) years after the cancellation or withdrawal of the subscriber's registration",
   "configuration": {
     "document_type": "TOS",
+    "constitution": {
+      "version": "L1.10",
+      "section": "12",
+      "topic": "Data Protection & Privacy",
+      "basis": "APPLICABLE_LAW"
+    },
     "preferred": 5,
     "unit": "YEARS",
     "basis": "KYC_RECORD_RETENTION",
@@ -27,6 +33,10 @@
         "YEARS": [
           "years",
           "year"
+        ],
+        "MONTHS": [
+          "months",
+          "month"
         ]
       },
       "bases": {
@@ -35,7 +45,13 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "unit_conversions": [
+      {
+        "from_unit": "MONTHS",
+        "to_unit": "YEARS"
+      }
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -101,5 +117,26 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_history": [
+    {
+      "date": "2026-09-13",
+      "record": "AM-62",
+      "added": {
+        "unit_conversions": [
+          {
+            "from_unit": "MONTHS",
+            "to_unit": "YEARS"
+          }
+        ],
+        "units": {
+          "MONTHS": [
+            "months",
+            "month"
+          ]
+        }
+      },
+      "why": "a month is a fixed number of years by definition; the engine performs the arithmetic only because the standard declares the pair (45C.23, 44.29)."
+    }
   ]
 }

@@ -569,3 +569,39 @@ Documented at: [test_import_boundaries.py](../../backend/tests/test_import_bound
 **Why not resolved here:** an axis is a column on `contracts` and a scope on every standard — a schema change with consequences for all 32 standards' applicability, outside `IMPL-01` without its own record. It needs the owner to decide the shape (brand on the contract? on the standard? both? a product list?).
 
 **Until decided:** nothing infers a brand. The workspace shows the declared type only. No standard is silently narrowed or widened.
+
+## C-20 — L1.10 §24.4's status mapping vs `AM-56` r2
+
+## ✅ RESOLVED 2026-09-13 — `AM-63`
+
+The owner ruled the same day that everything clearly defined in the Constitution is approved and final; §24.4 is. A deviation inside a defined Unacceptable Position is "Needs a decision"; every other mapping keeps `AM-56`.
+
+### Original finding (retained for the record)
+
+**Registered 2026-09-13.** The Constitution L1.10 §24.4 maps a
+*Negotiable — Approval Required* deviation to "Requires Modification" and a *Not Negotiable /
+Unacceptable* one to "Needs a Decision". `AM-56` r2 (owner instruction, 2026-09-09) maps EVERY
+DEVIATION to "Requires modification" and explicitly stopped the Constitution citation moving
+the word. Both are owner instructions; §24.4(4) itself calls the mapping "a product/UI
+presentation layer". `AM-56` stands until the owner rules. Resolving it in the §24.4 direction
+needs per-standard negotiability from each section's "Negotiable / Approval Required" and
+"Unacceptable Position" text — checkable today for only the two `constitution_boundaries.py`
+entries. Not resolved here (rule 5).
+
+## C-21 — `AM-51` r5 ("a type change re-runs the analysis") vs 43.28 and 49.8
+
+## ✅ RESOLVED (moot) 2026-09-13 — `AM-64`
+
+The reader never selects or changes a document type; the only type is the assist lane's confident inference at intake. There is no type change to re-run.
+
+### Original finding (retained for the record)
+
+**Registered 2026-09-13.** `AM-51` r5 says a document type set in Edit
+details "runs a fresh analysis". `contracts.py` records the type and stops, because an analysed
+Review refuses re-analysis (43.28, `assert_analysable`) and a new Review on the same document
+version, snapshot and creator IS the same Review under 49.8's idempotency key — a Review does
+not record the declared type it was analysed under. Implementing r5 needs the key (or the
+Review) to carry the declared type at analysis — a schema-visible change. Since `AM-51`/`AM-60`
+the type is one optional signal and recognition is content-first, so the cost of the gap is
+the declared-family expectation only; a reader re-analyses by uploading a new version. Owner
+decision required.
