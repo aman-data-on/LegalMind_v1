@@ -10,6 +10,54 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — release preparation for AB-20: the branch is pushed, green, and rehearsed (2026-09-14)
+
+**The push was never blocked.** `ssh -T git@github.com` authenticates and `git ls-remote`
+lists every head; earlier sessions recorded an infrastructure blocker that does not exist.
+`feat/constitution-content-first` is pushed and open as **PR #36**, CI **fully green**
+(`mergeable=MERGEABLE`, `mergeStateStatus=CLEAN`).
+
+Two gates failed first and both were real, not flakes. Gate 7 refused a changed corpus
+expectation without the `specification-change` label — correct: `CLS-AUTORENEW-MSA-001`
+moved from the MSA template's six-month renewal period to the Constitution §31.15
+non-renewal notice under `AM-59` r4. Labelled, with the decision named in the PR. Gate 15
+failed on `ws-report.png` at 1280×900 vs 980; the 80px is the AB-20 applicability section
+(`AM-61`), confirmed by eye against the expected/actual pair rather than accepted on the
+ratio, and the baseline adopted from CI's own actual per the owner's 2026-08-30 rule.
+
+**Deployment rehearsed against a scratch database** restored from a fresh dump — which also
+re-verified restore end to end (32 requirements / 580 findings / 58 reviews, matching
+production exactly). Two findings, each of which would have broken the real deployment; both
+are now in [ops/production/README.md](ops/production/README.md):
+
+1. **The import leaves eight standards inert.** A newly created Requirement imports as
+   `DRAFT`, and publishing pins only `ACTIVE` — so importing alone ships nothing new. The
+   eight include `SERVICE-DISCONTINUATION-MSA-001`, the compound requirement `AM-66` exists
+   to deliver. `POST /configuration/publish` is what promotes them.
+2. **The code list the import tool prints would be refused.** It names all 40; publishing a
+   retired code raises `BusinessRuleRejected` by design (`AM-65`), failing the whole call.
+   The runbook now carries the correct 33.
+
+Existing data is untouched by all of it: 580 findings and 58 reviews unchanged, the 152 that
+cite a retired standard keeping their evidence and reading as retired, and **no Legal
+Decision exists anywhere in the database**. The database is already at migration head
+`e9f2b6c4a173`, so the deployment has no migration step.
+
+**Tier-2 assist gate: SHIPPABLE** — all six quantities held, and faithfulness and citation
+precision are now genuinely measured at 1.0 rather than blocked.
+
+**Two findings recorded rather than fixed**, both pre-existing and neither a release blocker:
+`verify_terminology` reports 34 PASS / 6 FAIL where the source documents live — the six are
+exactly the AB-14 reconciled standards, checked against paper that states their superseded
+position by design, and the same six fail on `main`. And the egress allow-list cannot be
+expressed as a packet filter: the permitted Gemini endpoint shares Google's rotating
+front-end ranges with Drive and Gmail, so an address-based rule would block nothing it aims
+at while breaking login and certificate renewal. Both need an owner ruling.
+
+Also moved `Legal_Mind_Legal_Constitution.md` (212 KB) out of the repository root into the
+gitignored `legal-docs/`: it was untracked *and* un-ignored, one broad `git add` away from
+putting legal source text into version control against locked 54.6.
+
 ### Changed — production hardening on the live host: every preflight FAIL closed (2026-09-14)
 
 **Preflight 11 PASS / 3 FAIL / 1 BLOCKED → 17 PASS / 8 ATTEST / 0 FAIL / 0 BLOCKED.** Every
