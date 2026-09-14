@@ -14,6 +14,30 @@ Last synchronized against `all_lock.md` at **19,072 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — AB-20, as of 2026-09-14
+
+**PREPARED · REHEARSED · NOT DEPLOYED.** `feat/constitution-content-first` is pushed and
+open as **PR #36**; CI reports `mergeable=MERGEABLE`, `mergeStateStatus=CLEAN`. The live
+service still runs `main` at `68d4486` from `/root/Legalmind.v1`, with **32 requirements,
+all ACTIVE**, and is unchanged by any of this session's work.
+
+| Gate | State |
+|---|---|
+| Backend · frontend · browser suites | REUSED — 1,765 / 401 / 34, valid because no application file differs between the verified commit and the release head |
+| CI on PR #36 | PASS — every job, including the corpus-expectation and visual-regression gates that failed first and were each resolved on their merits |
+| Production preflight | 17 PASS · 8 ATTEST · 0 FAIL · 0 BLOCKED, against the live environment |
+| Tier-2 assist gate (`AM-28`) | **SHIPPABLE** — all six quantities held; faithfulness and citation precision now measured at 1.0 rather than blocked |
+| Migrations | AT HEAD `e9f2b6c4a173` — the deployment has **no** migration step |
+| Backup / restore | VERIFIED 2026-09-14 by restoring a fresh dump into a scratch database (32 / 580 / 58 recovered exactly); the nightly cron path executed successfully rather than merely configured |
+| Deployment rehearsal | COMPLETE against a scratch copy — see [ops/production/README.md](../../ops/production/README.md) for the two findings that would otherwise have broken it |
+| `verify_terminology` (full run) | 34 PASS · **6 FAIL** — the six AB-14 reconciled standards, failing identically on `main`; **pre-existing, not a release regression**, and awaiting an owner ruling |
+| Egress allow-list | **NOT SATISFIABLE as specified** — measured; needs a hostname-aware proxy, which needs approval under rule 19 |
+| Encryption at rest | ATTESTATION OUTSTANDING — no OS-level encryption exists (`lsblk`: plain `ext4`); only the hosting provider can attest the volume |
+
+Deploying additionally requires the standards imported **and** the 33 non-retired codes
+published through `POST /configuration/publish` — the import alone leaves eight new
+requirements `DRAFT` and therefore inert.
+
 | Unit | Basis | State | Evidence |
 |---|---|---|---|
 | 1 · Database schema & migrations | Steps 41–42, AB-1, AB-2, Step 47, **AB-12** | IMPLEMENTED · TESTED | **30 application tables, 201 columns as of 2026-09-05** (AB-12 added `departments` and `users.department_id`, renamed `contracts.deleted_at` → `archived_at`; migration `b7c3d9e1f2a4`, exercised on a clone of the development database — the live database is NOT migrated). *Earlier:* **29 application tables** (+ `alembic_version` — the 30 counted by `AM-27` r2; see **C-14**); **196 columns** (195 until 2026-09-01, when `contracts.deleted_at` was added under `AM-37`/AB-10 — migration, lock record and snapshot moved in one change, which is the only procedure that may move this number); 21 invariant tests + **33 locked-column snapshot tests** (`test_locked_schema_columns.py`, new 2026-08-25 — `AM-27` r2 cites the invariant tests as its evidence that no locked table changed, and until this file existed none of them was sensitive to a column) | **2026-09-10 — Client Profiles (owner instruction):** migration `e9f2b6c4a173` widens `counterparties` from 7 to **19 columns** (total **209 → 221**) with the profile fields a client page shows — all nullable but `status` (NOT NULL, server default `ACTIVE`), and **nothing backfilled** (rule 21). **No table added** (application tables stay at **31**, so C-14 is untouched) and **no enum type added**: `status` and the three version roles are validated strings in `domain/client_profile.py`, the owner-Q2 `D-3` route. The version role (`COMPANY_DRAFT` / `CLIENT_MODIFIED` / `FINAL_SIGNED`) lives in locked 42.4's existing `metadata` JSONB — no column. `test_locked_schema_columns.py`'s snapshot moved in the same commit, which its docstring names as the only permitted way. ⚠️ **No `all_lock.md` record exists for this addition** — see the CHANGELOG's *Owner approval still owed*.
