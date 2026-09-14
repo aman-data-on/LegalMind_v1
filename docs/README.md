@@ -233,6 +233,7 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [UI_PATTERNS.md](design/UI_PATTERNS.md) | The deliberately unusual patterns (confidential omission, the refusal state) — why they look wrong and are right, with real screenshots in [assets/](design/assets/) |
 | [USABILITY_TEST_PLAN.md](design/USABILITY_TEST_PLAN.md) | Five-person think-aloud plan (2 personas, 4 tasks incl. a permission probe), observation checklist, feedback form |
 | [UX_ROADMAP.md](design/UX_ROADMAP.md) | Phase sequencing and page-by-page implementation order, with dependencies |
+| [UX_AUDIT_2026-09-14.md](design/UX_AUDIT_2026-09-14.md) | 📁 What rendering Administration, Legal configuration and Ask at 1366 and 1920 found that reading their source could not — three of the five causes were CSS rules nobody had written |
 | [DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md) | The concrete tokens and primitives, as implemented in Phase 1 (foundation) + Phase 2 (shell) |
 
 ### [09-implementation/](09-implementation/) — the target build
