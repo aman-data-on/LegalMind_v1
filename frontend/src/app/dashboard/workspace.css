@@ -858,10 +858,15 @@
 .ws-ask__answer p { margin: 0; font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6; }
 .ws-ask__answer--routed { padding-left: var(--ws-s3); border-left: 2px dashed var(--ws-ink-300); }
 .ws-ask__assessment { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); margin-top: var(--ws-s2) !important; }
-/* A wide column (document hidden) keeps the conversation at a reading measure. */
+/* A wide column (document hidden) keeps the conversation at a reading measure,
+   and sits at the BOTTOM next to the input rather than floating at the top of
+   a 700px void — the reading order of every chat surface, and what the owner
+   asked for when they said Ask should feel like one. `margin-top: auto`
+   resolves to 0 once the log overflows, so scrolling is unaffected. */
 .ws-dock__log > .ws-ask__turns, .ws-dock__log > .ws-dock__empty, .ws-dock__log > .ws-ask__empty {
   width: 100%; max-width: 72ch; margin-inline: auto;
 }
+.ws-dock__log > :first-child { margin-top: auto; }
 /* A refusal and an answer share the surface — same border, same weight; only the
  * words differ (AM-29 r4). Nothing red, nothing iconic. */
 .ws-ask__answer--refusal p { color: var(--ws-ink-700); }
@@ -1033,6 +1038,13 @@
   padding: var(--ws-s3) var(--ws-s3) var(--ws-s3) var(--ws-s4);
   border-top: 1px solid var(--ws-ink-100);
 }
+/* With the document hidden Ask owns the whole column, and the conversation above
+   is capped at 72ch — but the input row was not, so a 1900px field sat under a
+   650px column with its send button a screen away from the words being typed.
+   The input tracks the same measure, so the two read as one column. */
+.ws-dock__form, .ws-dock__note {
+  width: 100%; max-width: calc(72ch + var(--ws-s4) + var(--ws-s3)); margin-inline: auto;
+}
 .ws-dock__form input {
   flex: 1; font: inherit; font-size: var(--ws-text-base); padding: 9px 0;
   border: 0; min-width: 0; outline: none; background: transparent;
@@ -1048,7 +1060,9 @@
 .ws-dock__send:hover:not(:disabled) { background: var(--ws-accent-strong); }
 .ws-dock__send:disabled { opacity: 0.5; cursor: not-allowed; }
 .ws-dock__note {
-  flex: none; margin: 0; padding: 0 var(--ws-s4) var(--ws-s3);
+  /* `margin: 0` here silently overrode the centring rule above — the note stayed
+     pinned to the far left while the input it captions sat centred. */
+  flex: none; margin: 0 auto; padding: 0 var(--ws-s4) var(--ws-s3);
   font-size: 10.5px; color: var(--ws-ink-500);
 }
 
@@ -2657,14 +2671,87 @@
    new type scale, no component library. The only new shapes are the two the
    area actually needs — a list-plus-detail split, and a role card.
    ========================================================================== */
-.ws-admin { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s4); }
+/* ==========================================================================
+ * UX audit pass, 2026-09-14 — four defects found by rendering these screens at
+ * 1366 and 1920 rather than by reading their source.
+ *
+ * Every one of them is a rule that was never written, not a rule that was
+ * wrong: `.ws-admin` had no measure, `.ws-filter-bar` had no CSS at all, and
+ * `.ws-adminnav .ws-tab` carried `text-decoration: none` and nothing else — so
+ * the section links rendered as one run-on blue sentence, the five filters
+ * stacked full-width and pushed the table 370px down, and at 1920 the whole
+ * screen ran edge to edge while every other screen sits in a 72rem column.
+ * ========================================================================== */
+
+/* Legal configuration had NO container element at all — it returned a bare
+   fragment — so at 1920 the heading started at x=0 and its explanatory
+   paragraphs ran the full 1900px, far past any readable measure. Same column
+   as every other screen; prose keeps its own measure inside it. */
+.ws-config {
+  padding: var(--ws-s5) var(--ws-s4) var(--ws-s7);
+  max-width: 72rem; width: 100%; margin-inline: auto;
+  display: flex; flex-direction: column; gap: var(--ws-s4);
+}
+.ws-config > h1 { margin: 0; font-size: var(--ws-text-lg); font-weight: 600; }
+.ws-config > .hint, .ws-config .card > .hint { max-width: 80ch; }
+/* Two `button.link` actions sat as adjacent siblings with JSX's newline
+   whitespace stripped, so they printed as "Show stored valuesDraft a new
+   version". They are two different actions and now read as two. */
+.ws-config .card .link { display: inline-flex; margin: var(--ws-s2) var(--ws-s4) 0 0; }
+/* A comma-separated code list does not want 1780px of input. */
+.ws-config .form-row .ws-field, .ws-config .form-row .field { max-width: 46rem; }
+
+/* The same measure the Dashboard (`.ws-docs`) and the report already use, so
+   Administration stops being the one screen that touches both viewport edges. */
+.ws-admin {
+  padding: var(--ws-s5) var(--ws-s4) var(--ws-s7);
+  /* Wider than the 72rem prose column: this is a seven-column roster, and at
+     72rem the timestamp cells broke mid-token ("2026-09-" / "14"). A measure
+     is for reading sentences; a table is sized by its columns. */
+  max-width: 90rem; width: 100%; margin-inline: auto;
+  display: flex; flex-direction: column; gap: var(--ws-s4);
+}
+/* Dates are one token to a reader — never split across lines. */
+.ws-admin td { white-space: normal; }
+.ws-admin td:nth-last-child(-n+2) { white-space: nowrap; }
 .ws-admin__head {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: var(--ws-s4); flex-wrap: wrap;
 }
 .ws-admin__head h1 { margin: 0 0 2px; font-size: var(--ws-text-lg); font-weight: 600; }
 .ws-adminnav { margin: 0 calc(-1 * var(--ws-s4)); }
-.ws-adminnav .ws-tab { text-decoration: none; }
+/* These are `<Link>`s carrying `.ws-tab` + `aria-current`, so the `.ws-tabs`
+   child rules — which select `[role="tab"]` and `[aria-pressed]` — never
+   matched them. They inherited the 4px flex gap and nothing else, which is why
+   "Users Departments Roles & permissions Audit log" read as one sentence. */
+.ws-adminnav .ws-tab {
+  text-decoration: none;
+  font-size: var(--ws-text-sm); padding: 6px 12px; min-height: 36px;
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-surface); color: var(--ws-ink-700);
+  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
+}
+.ws-adminnav .ws-tab:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); }
+.ws-adminnav .ws-tab[aria-current="page"] {
+  background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: #fff;
+}
+
+/* `.ws-filter-bar` was in the markup with no rule anywhere, so five `.ws-field`
+   columns stacked at full width and the roster began below the fold. A filter
+   row is a row: it wraps by content width, and each control keeps a sane cap
+   rather than growing to the viewport. */
+.ws-filter-bar {
+  display: flex; flex-wrap: wrap; gap: var(--ws-s3) var(--ws-s4);
+  align-items: flex-end;
+}
+.ws-filter-bar .ws-field { flex: 1 1 13rem; min-width: 11rem; max-width: 20rem; }
+/* The free-text search earns more room than the four selects beside it. */
+.ws-filter-bar .ws-field:first-child { flex: 2 1 20rem; max-width: 30rem; }
+@media (max-width: 720px) {
+  .ws-filter-bar .ws-field,
+  .ws-filter-bar .ws-field:first-child { flex: 1 1 100%; max-width: none; }
+}
 
 /* List and detail sit side by side on a wide screen and stack on a narrow one;
    the detail never becomes a modal, because an administrator compares it with

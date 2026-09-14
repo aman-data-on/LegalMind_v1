@@ -108,7 +108,7 @@ export default function ConfigurationPage() {
   }
 
   return (
-    <>
+    <div className="ws-config">
       <h1>Legal configuration</h1>
       <p className="hint">
         Requirements, Company Standards, Legal Rules, mapping rules and evaluation
@@ -165,9 +165,15 @@ export default function ConfigurationPage() {
             that silently skips it.
           </p>
           <form className="form-row" onSubmit={publish}>
-            <Field id="publish-codes" label="Requirement codes to activate (comma separated; blank to publish current active configuration only)" grow>
+            <Field
+              id="publish-codes"
+              label="Requirement codes to activate"
+              hint="Comma separated. Leave blank to publish the current active configuration only."
+              grow
+            >
               <input
                 id="publish-codes"
+                aria-describedby="publish-codes-hint"
                 value={publishCodes}
                 onChange={(event) => setPublishCodes(event.target.value)}
               />
@@ -189,7 +195,7 @@ export default function ConfigurationPage() {
           ) : null}
         </section>
       </PermissionGate>
-    </>
+    </div>
   );
 }
 
