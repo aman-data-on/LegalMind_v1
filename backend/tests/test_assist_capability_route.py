@@ -59,12 +59,20 @@ def test_a_legal_question_is_never_a_capability_question(question):
 # --------------------------------------------------------------------------
 # The flag — PROPOSED means nothing changes yet
 # --------------------------------------------------------------------------
-def test_the_route_is_off_by_default_so_no_answer_changes(monkeypatch):
+def test_the_route_is_on_by_default_since_am_68_was_approved(monkeypatch):
     monkeypatch.delenv("LEGALMIND_CAPABILITY_ROUTE", raising=False)
     plan = routing.plan("What can you help me with in LegalMind?",
                         has_document=False, permissions=PERMS)
+    assert plan.capability is True
+
+
+def test_the_flag_is_the_rollback_and_still_works(monkeypatch):
+    """Turning the route off restores the pre-`AM-68` behaviour — defect included, the
+    unconditional POSITIONS fallback — without a deploy. That is why the flag stays."""
+    monkeypatch.setenv("LEGALMIND_CAPABILITY_ROUTE", "off")
+    plan = routing.plan("What can you help me with in LegalMind?",
+                        has_document=False, permissions=PERMS)
     assert plan.capability is False
-    # Today's behaviour, defect included: the unconditional POSITIONS fallback.
     assert plan.fallback == (routing.Domain.POSITIONS,)
 
 
