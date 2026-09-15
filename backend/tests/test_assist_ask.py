@@ -872,10 +872,16 @@ def test_document_and_statute_answers_stay_in_separate_sections(db, user, indexe
     contract, version = indexed_contract
     payloads = []
     def fake(question, chunks, **k):
-        # Grounded by construction: the first sentence of the first excerpt, cited.
+        # Grounded by construction: the first sentence of the first excerpt that
+        # actually says something, cited. NOT `split(".")[0]` — a statute chunk opens
+        # with its section number, so that returned "3" and the "answer" was "3 [1].",
+        # a claim with no content words that only passed because the grounding check
+        # used to admit unreadable claims by default.
         payloads.append(list(chunks))
+        first = next((p.strip() for p in chunks[0].split(".") if len(p.split()) > 2),
+                     chunks[0].strip().rstrip("."))
         return generation.GenerationResult(
-            text=chunks[0].split(".")[0].strip() + " [1].",
+            text=first + " [1].",
             model="fake", prompt_version="grounded-answer-1", payload_sha256="0" * 64,
             latency_ms=1)
     monkeypatch.setattr(generation, "generate", fake)
