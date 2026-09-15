@@ -132,3 +132,52 @@ test.describe("Company Standard editor", () => {
     await expect(form.locator(".field__error")).toContainText("not valid JSON");
   });
 });
+
+/**
+ * Publishing a snapshot.
+ *
+ * This replaced one text field reading "Requirement codes to activate (comma
+ * separated)". Activating the AB-20 batch meant pasting 33 codes into it, with
+ * nothing on screen saying which Requirements were waiting, which were already
+ * active, or which would be refused — and one typo produced `unknown Requirement
+ * code` only after the request came back.
+ */
+test.describe("publishing a configuration snapshot", () => {
+  test.use({ storageState: storageStatePath("admin") });
+
+  test("the screen says what publishing will do, before it is asked to", async ({ page }) => {
+    await page.goto("/dashboard/configuration");
+    const section = page.locator("section.card").filter({ hasText: "Publish a configuration snapshot" });
+
+    // The button carries the outcome, not the verb.
+    const button = section.getByRole("button", { name: /Publish \d+ Requirement/ });
+    await expect(button).toBeEnabled();
+
+    // The three groups are named with their counts, and the active group says why
+    // it is not selectable.
+    await expect(section.getByText("Already active —")).toBeVisible();
+    await expect(section.getByRole("heading", { name: /Waiting to be activated/ })).toBeVisible();
+  });
+
+  test("a draft with no version is listed but cannot be ticked", async ({ page }) => {
+    const code = `E2E-EMPTY-${Date.now()}`;
+    await page.goto("/dashboard/configuration");
+    await page.getByLabel("New Requirement code").fill(code);
+    await page.getByRole("button", { name: "Create draft Requirement" }).click();
+
+    const section = page.locator("section.card").filter({ hasText: "Publish a configuration snapshot" });
+    const item = section.locator("li.chip").filter({ hasText: code });
+    await expect(item).toBeVisible();
+    // Activating it would make it ACTIVE, and the publish then fails on "no
+    // version" — refusing the WHOLE snapshot, not just this Requirement.
+    await expect(item.getByRole("checkbox")).toBeDisabled();
+    await expect(item).toContainText("no version yet");
+  });
+
+  test("publishing with nothing ticked pins the active configuration", async ({ page }) => {
+    await page.goto("/dashboard/configuration");
+    const section = page.locator("section.card").filter({ hasText: "Publish a configuration snapshot" });
+    await section.getByRole("button", { name: /Publish \d+ Requirement/ }).click();
+    await expect(section.getByText(/Snapshot/)).toBeVisible();
+  });
+});

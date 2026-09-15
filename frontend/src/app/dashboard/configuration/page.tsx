@@ -45,10 +45,12 @@ import { Plus, Upload } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
 import { StandardForm } from "@/components/configuration/StandardForm";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
+import { publishPlan } from "@/lib/publishPlan";
 import { useSession } from "@/lib/session";
 import type {
   ConfigurationSnapshot,
@@ -62,7 +64,8 @@ export default function ConfigurationPage() {
   const [error, setError] = useState<unknown>(null);
   const [code, setCode] = useState("");
   const [snapshot, setSnapshot] = useState<ConfigurationSnapshot | null>(null);
-  const [publishCodes, setPublishCodes] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [publishing, setPublishing] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -77,6 +80,8 @@ export default function ConfigurationPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const plan = publishPlan(requirements, selected);
 
   if (!can(P.CONFIGURATION_VIEW)) return <AccessRestricted what="legal configuration" />;
 
@@ -96,15 +101,16 @@ export default function ConfigurationPage() {
     event.preventDefault();
     setError(null);
     setSnapshot(null);
+    setPublishing(true);
     try {
-      const codes = publishCodes
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean);
+      const codes = plan.selectable.filter((code) => selected.includes(code));
       setSnapshot(await api.publishConfiguration(codes.length > 0 ? codes : undefined));
+      setSelected([]);
       await load();
     } catch (cause) {
       setError(cause);
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -165,18 +171,111 @@ export default function ConfigurationPage() {
             evaluation rules, publishing is refused rather than producing a snapshot
             that silently skips it.
           </p>
-          <form className="form-row" onSubmit={publish}>
-            <Field id="publish-codes" label="Requirement codes to activate (comma separated; blank to publish current active configuration only)" grow>
-              <input
-                id="publish-codes"
-                value={publishCodes}
-                onChange={(event) => setPublishCodes(event.target.value)}
-              />
-            </Field>
-            <button type="submit" className="btn btn--primary btn-icon">
-              <Upload size={18} />
-              Publish
-            </button>
+          {/*
+            A checkbox list, not a comma-separated field. Activating the AB-20 batch
+            meant pasting 33 codes into a text input with nothing on screen saying
+            which Requirements were waiting, which were already active, or which
+            would be refused — and one typo produced `unknown Requirement code` after
+            the fact. Every Requirement with its status is already loaded here, so
+            this is a group-by (`lib/publishPlan.ts`), not a new endpoint.
+          */}
+          <form onSubmit={publish}>
+            <section className="form-section">
+              <h5>
+                Waiting to be activated{plan.drafts.length > 0 ? ` — ${plan.drafts.length}` : ""}
+              </h5>
+              {plan.drafts.length === 0 ? (
+                <p className="hint">
+                  Nothing is in draft. Publishing now re-pins the{" "}
+                  {plan.active.length} already-active Requirement
+                  {plan.active.length === 1 ? "" : "s"} into a fresh snapshot.
+                </p>
+              ) : (
+                <>
+                  <p className="hint">
+                    Ticking a Requirement activates it (DRAFT &rarr; ACTIVE) and pins it
+                    into this snapshot. Leaving everything unticked publishes the
+                    active configuration as it stands.
+                  </p>
+                  <ul className="checks">
+                    {plan.drafts.map((requirement) => {
+                      const blocked = plan.versionless.some((r) => r.code === requirement.code);
+                      return (
+                        <li key={requirement.id} className="chip">
+                          <Checkbox
+                            id={`publish-${requirement.code}`}
+                            checked={selected.includes(requirement.code)}
+                            disabled={blocked || publishing}
+                            onCheckedChange={(checked) =>
+                              setSelected((current) =>
+                                checked === true
+                                  ? [...current, requirement.code]
+                                  : current.filter((c) => c !== requirement.code),
+                              )
+                            }
+                          />
+                          <label htmlFor={`publish-${requirement.code}`} className="chip__text">
+                            {requirement.code}
+                            {blocked ? (
+                              /* Activating this makes it ACTIVE, and the publish then
+                                 fails on "no version" — refusing the WHOLE snapshot,
+                                 not just this one. */
+                              <span className="hint"> — no version yet, so publishing it would be refused</span>
+                            ) : null}
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </section>
+
+            <details className="form-section">
+              <summary>Already active — {plan.active.length}</summary>
+              <p className="hint">
+                Every one is pinned into the snapshot whether or not anything above is
+                ticked. That is what makes a snapshot the whole configuration rather
+                than a diff.
+              </p>
+              <ul className="checks">
+                {plan.active.map((requirement) => (
+                  <li key={requirement.id} className="chip">
+                    <span className="chip__text">{requirement.code}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+
+            {plan.retired.length > 0 ? (
+              <details className="form-section">
+                <summary>Retired — {plan.retired.length}</summary>
+                <p className="hint">
+                  These cannot be published, and publishing does not bring one back:
+                  reversing a retirement is an owner decision that goes through the
+                  standard file and the record (<code>AM-65</code>).
+                </p>
+                <ul className="checks">
+                  {plan.retired.map((requirement) => (
+                    <li key={requirement.id} className="chip">
+                      <span className="chip__text">{requirement.code}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+
+            <section className="form-section">
+              {plan.blocked ? <p className="field__error" role="alert">{plan.blocked}</p> : null}
+              <button
+                type="submit"
+                className="btn btn--primary btn-icon"
+                disabled={publishing || plan.blocked !== null}
+              >
+                <Upload size={18} />
+                {publishing ? "Publishing…" : plan.action}
+              </button>
+            </section>
           </form>
           {snapshot ? (
             <p>
