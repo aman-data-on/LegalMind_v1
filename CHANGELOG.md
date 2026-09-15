@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — the 33 Constitution Standards are published (2026-09-15)
+
+Imported 11:09, published **11:15:24 by `aman.singh@leapswitch.com`** via
+`POST /configuration/publish`, audited as `config.published`. Snapshot **`5c85b87c`**: **33
+items, all ACTIVE**. Requirements now 40 — 33 ACTIVE, 0 DRAFT, **7 DEPRECATED**.
+
+Every safety property held. **Zero** retired standards entered the snapshot — publish refuses
+them by design (`AM-65`). Findings and reviews unchanged at **580 / 58**: 428 cite active
+standards, **152 cite the retired seven**, still resolving with their evidence and now reading
+*"Retired — not present in the current Constitution"*. The three prior snapshots are untouched at
+32 items with 44 / 6 / 8 reviews still pinned (rule 16). A verified backup was taken first
+(`legalmind_v1_dev-20260915-1109-pre-standards-import.dump`, 429 TOC entries).
+
+**Publish authority, recorded because it cost time to discover.** `configuration.publish` comes
+from **Department Lead** or **Developer** — **never Platform Admin**, which holds only
+`user.manage`, `role.manage`, `platform.manage`, `audit.view` (SEC-02 / ROLE-05 deliberately keep
+it out of legal configuration). `ROLE_DEVELOPER` is every permission except
+`LEGAL_AUTHORITY_PERMISSIONS`, which is why a Google/OIDC account could publish while the five
+Department User accounts could not — one of them hit `authz.permission_denied` first.
+
+
 ### Added — off-server encrypted backups, and AB-20 deployed to production (2026-09-14, later)
 
 **AB-20 is live.** PR #36 merged as `a1b23e1d5277ea2f43b794a039d8e13cdd45d21e` and deployed:

@@ -14,6 +14,28 @@ Last synchronized against `all_lock.md` at **19,072 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — AB-20 COMPLETE: the 33 standards are published (2026-09-15)
+
+Supersedes the sections below, which recorded earlier states accurately and stand as written.
+
+**The Constitution Standards are live.** Imported 2026-09-15 11:09 and published 11:15:24 by
+`aman.singh@leapswitch.com` through `POST /configuration/publish` (audited as
+`config.published`). Snapshot **`5c85b87c`** carries **33 items, all ACTIVE**.
+
+| | |
+|---|---|
+| Requirements | **40** — 33 `ACTIVE`, 0 `DRAFT`, **7 `DEPRECATED`** |
+| Retired standards in the new snapshot | **0** — all seven correctly refused |
+| Findings / reviews | **580 / 58 — unchanged**; 428 cite active standards, **152 cite the retired seven** and still resolve, reading "Retired — not present in the current Constitution" |
+| Prior snapshots | untouched — 32 items each, 44 / 6 / 8 reviews still pinned (rule 16) |
+| Services | all six active, 0 errors after the publish |
+
+**Publish authority, for the record.** `configuration.publish` comes from **Department Lead** or
+**Developer**, never Platform Admin — `ROLE_PLATFORM_ADMIN` holds only `user.manage`,
+`role.manage`, `platform.manage`, `audit.view` (SEC-02 / ROLE-05 keep it out of legal
+configuration). `ROLE_DEVELOPER` is every permission except `LEGAL_AUTHORITY_PERMISSIONS`, which
+is why the Google/OIDC account could publish while the five Department User accounts could not.
+
 ### Release state — AB-20 code DEPLOYED, standards publish PENDING (2026-09-14, later)
 
 Supersedes the section below, which recorded the state before the merge. That record stands as

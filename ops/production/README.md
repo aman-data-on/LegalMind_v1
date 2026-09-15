@@ -246,11 +246,15 @@ Exercised end to end on this host, production untouched throughout:
   deployment needs the shared Redis behind it — Redis is now running, so this is a small
   change when a second worker appears.
 
-## Deploying AB-20 — code DEPLOYED 2026-09-14; standards publish PENDING
+## Deploying AB-20 — COMPLETE (code 2026-09-14, standards published 2026-09-15)
 
-**Status.** The code is live: PR #36 merged as `a1b23e1d5277ea2f43b794a039d8e13cdd45d21e`,
-deployed and verified healthy. **The standards import and snapshot publish have NOT run** —
-production still holds 32 requirements, all ACTIVE, 3 snapshots, 580 findings.
+**Status: DONE.** Code deployed 2026-09-14 (PR #36,
+`a1b23e1d5277ea2f43b794a039d8e13cdd45d21e`). Standards imported and published **2026-09-15**:
+snapshot `5c85b87c`, **33 ACTIVE / 7 DEPRECATED**, published by `aman.singh@leapswitch.com`.
+Findings and reviews unchanged at 580 / 58; the seven retired were refused entry to the snapshot.
+
+The procedure below is kept as the runbook for the next configuration release — both findings it
+records were confirmed true in the live run.
 
 They are deliberately left as **one atomic operator step**. Publishing writes `actor_id` into
 the append-only audit trail, no API token is stored, and locked **55.3** makes creating a
