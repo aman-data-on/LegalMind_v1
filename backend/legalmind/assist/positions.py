@@ -117,6 +117,57 @@ def public_source_name(source_document: object) -> str:
     return " — ".join(kept).strip(" ,;:")
 
 
+class PositionEgressRefused(Exception):
+    """A position span carries an internal locator and must not be sent anywhere.
+
+    `AM-67` r7 / `AM-30` t4/t5. Raised rather than sanitised at the seam on purpose: a
+    locator reaching this point means the corpus was NOT re-chunked after the 2026-09-15
+    fix, and quietly cleaning it up would hide that. The correct response is to refuse
+    the call, fall back to the verbatim quote (r8), and re-chunk.
+    """
+
+
+# The egress screen is NARROWER than `_INTERNAL_LOCATOR`, and the difference is load
+# bearing. The sanitizer inspects `source_document` alone — a field that never contains
+# prose — so it can treat any path separator as a locator. This screen inspects the
+# COMPOSED span, which includes the ratified legal text, and measured against the real
+# corpus a bare slash appears three times in perfectly ordinary legal English:
+#
+#     "§11 SLA / Service Levels"
+#     "subject to the legal/compliance retention carve-out"
+#     "31.14 A. Planned Full Service Discontinuation / Retirement"
+#
+# Refusing those would block the feature on the organization's own wording. What is
+# actually diagnostic of an internal locator is an environment-variable token, a
+# filename with a document extension, or the reviewer's repository note — none of which
+# occurs in ratified prose. A repo path reaching here would carry an extension
+# (`…LEGAL_CONSTITUTION_L1.10.md`) and is caught; an extensionless one is caught earlier
+# by the sanitizer, which does screen bare separators.
+_EGRESS_LOCATOR = re.compile(
+    r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b"                    # ENV_VAR_STYLE token
+    r"|\b\w+\.(?i:md|pdf|docx?|txt|json|ya?ml|html?|csv)\b"  # a filename
+    r"|\b(?i:not named in this repositor(?:y|ies))\b")       # the reviewer's note
+
+
+def screen_for_egress(spans: list[str]) -> None:
+    """Refuse any span carrying an internal locator, before it can leave.
+
+    This is `AM-67` r7 made structural. The runbook says to re-chunk before enabling
+    synthesis; this makes a stale corpus fail closed instead of relying on the runbook
+    having been followed.
+
+    One dirty span refuses the whole batch: there is no partial send, because the
+    caller's fallback is to quote verbatim, which costs the reader nothing.
+    """
+    for span in spans:
+        match = _EGRESS_LOCATOR.search(span or "")
+        if match:
+            raise PositionEgressRefused(
+                f"position span carries an internal locator ({match.group()!r}) — the "
+                "corpus has not been re-chunked since the 2026-09-15 sanitizer; run "
+                "tools.chunk_standards before enabling AM-67 synthesis")
+
+
 def _compose_content(payload: dict) -> str:
     """The chunk text — the ratified file's own verbatim fields, nothing authored.
 

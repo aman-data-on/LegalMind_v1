@@ -212,6 +212,52 @@ def _forbidden_payload_check(payload: str) -> None:
                 "LEGAL-02 governs egress (AM-30 t3)")
 
 
+POSITION_PROMPT_VERSION = "position-reading-aid-1"
+POSITION_PROMPT_TEMPLATE = """You are explaining an organization's own approved legal \
+position to a colleague who is not a lawyer. Use ONLY the numbered excerpts below, which \
+are the organization's ratified standards. Rules, all mandatory:
+1. Every sentence of your answer MUST end with citation markers like [1] or [2][3] \
+naming the excerpt(s) that support it.
+2. Use nothing but the excerpts. No outside knowledge, no assumptions, no legal advice.
+3. If the excerpts do not answer the question, reply exactly: NOT FOUND
+4. Describe what the organization's position IS. Never say whether any document, clause \
+or contract meets it, complies with it, deviates from it, or is acceptable — that \
+judgement is made elsewhere and is not yours to state.
+5. Do not recommend, approve, or advise whether to sign anything.
+
+APPROVED POSITIONS:
+{evidence}
+
+QUESTION: {question}
+
+EXPLANATION:"""
+
+
+def generate_position_reading_aid(question: str, spans: list[str], *,
+                                  environment: str,
+                                  request_id: str | None = None) -> GenerationResult:
+    """`AM-67` r1 — a reading aid over the organization's own ratified positions.
+
+    The ONLY Domain A content permitted to egress: the `source_quote` and citation
+    fields of a PUBLISHED company_standard_version. `AM-30` t3 stands in full for every
+    other configuration-lane value, and `_forbidden_payload_check` still runs unchanged
+    (r6) — this function narrows what may be sent, it does not disable the screen.
+
+    The caller screens the spans for internal locators first (`positions.screen_for_egress`,
+    r7). That is deliberately the caller's job: this module must not import `positions`,
+    which would give the egress seam a dependency on the corpus it is meant to be
+    ignorant of.
+
+    Rule 4 of the prompt carries `AM-67` r4 into the model's instructions, and
+    `intent.is_verdict_statement` enforces it mechanically afterwards regardless — a
+    prompt is a request, not a guarantee (`AM-28` r2).
+    """
+    numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(spans, start=1))
+    prompt = POSITION_PROMPT_TEMPLATE.format(evidence=numbered, question=question)
+    return generate_raw(prompt, prompt_version=POSITION_PROMPT_VERSION,
+                        environment=environment, request_id=request_id)
+
+
 def generate(question: str, evidence: list[str], *,
              environment: str, request_id: str | None = None,
              prior_questions: tuple[str, ...] | list[str] = ()) -> GenerationResult:

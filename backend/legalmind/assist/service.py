@@ -966,6 +966,50 @@ def _context_kwargs(prior_questions: list[str] | None) -> dict:
     return {"prior_questions": tuple(prior_questions)} if prior_questions else {}
 
 
+
+def _position_reading_aid(question: str, hits: list, request_id: str | None) -> str | None:
+    """`AM-67` — a plain-language explanation of the organization's own positions,
+    rendered BESIDE the verbatim quote and never instead of it (r3).
+
+    Returns None on every failure path, and None means the caller emits exactly what it
+    emitted before this existed: the fixed sentence plus the quotes (r8). A reading aid
+    that cannot be produced safely is simply absent — it never degrades the answer.
+
+    Order matters. The locator screen runs BEFORE the model is reached (r7), because a
+    stale corpus is a disclosure problem, not a quality one.
+    """
+    if not config.position_synthesis_enabled() or not hits:
+        return None
+    spans = [h.content for h in hits]
+    try:
+        positions.screen_for_egress(spans)
+    except positions.PositionEgressRefused as exc:
+        # The corpus was not re-chunked. Loud in the log, invisible to the reader.
+        log_event("assist.position_synthesis.refused_stale_corpus",
+                  request_id=request_id, reason=str(exc)[:200])
+        return None
+    try:
+        result = generation.generate_position_reading_aid(
+            question, spans, environment=config.environment(), request_id=request_id)
+    except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
+        log_event("assist.position_synthesis.unavailable", request_id=request_id,
+                  reason=type(exc).__name__)
+        return None
+    text_out = (result.text or "").strip()
+    if not text_out or text_out.upper().startswith("NOT FOUND"):
+        return None
+    # r5 — the same two screens a document answer passes, unchanged.
+    verification = guardrails.verify_answer(text_out, spans)
+    if verification.state is not AssistAnswerState.ANSWERED:
+        log_event("assist.position_synthesis.ungrounded", request_id=request_id)
+        return None
+    # r4 — never a statement about how a document stands. The prompt asks; this enforces.
+    if intent.is_verdict_statement(text_out):
+        log_event("assist.position_synthesis.verdict_blocked", request_id=request_id)
+        return None
+    return text_out
+
+
 def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
                           run_id: UUID | None, position_hits: list, route, domains,
                           state: AssistAnswerState, request_id: str | None, *,
@@ -1003,6 +1047,13 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     else:
         wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else POSITIONS_ONLY_TEXT)
+        # `AM-67` r3 — the synthesis is PREPENDED to the fixed sentence, so the
+        # verbatim quote and its citation still follow in `positions`, unchanged and
+        # in their own field. A response carrying a synthesis without its quote is a
+        # defect; this shape makes that impossible.
+        aid = _position_reading_aid(question, position_hits, request_id)
+        if aid:
+            wording = f"{aid}\n\n{wording}"
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
     answer_id = _persist_answer(

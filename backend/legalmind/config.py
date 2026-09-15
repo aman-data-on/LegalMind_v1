@@ -248,3 +248,21 @@ def capability_route_enabled() -> bool:
     about the product.
     """
     return os.environ.get("LEGALMIND_CAPABILITY_ROUTE", "on").lower() in {"1", "true", "on"}
+
+
+def position_synthesis_enabled() -> bool:
+    """Whether `AM-67`'s Domain A reading aid is live. OFF by default.
+
+    `AM-67` r7 is a PREREQUISITE, not a preference: 8 of the 40 ratified standards
+    carried a counterparty note and 24 an environment path inside `source_document`,
+    composed into the chunk text. Egressing those would breach `AM-30` t4 and t5 on the
+    first call. The record forbids enabling r1 in any environment until THAT
+    environment's position corpus has been re-chunked and verified locator-free.
+
+    A deploy does not satisfy that — a re-chunk does, and it is a separate operation on
+    live data. So this stays off until an operator turns it on, after running
+    `tools.chunk_standards` and confirming zero locators. `positions.screen_for_egress`
+    is the second line: even with this on, a chunk carrying a locator is refused rather
+    than sent.
+    """
+    return os.environ.get("LEGALMIND_POSITION_SYNTHESIS", "").lower() in {"1", "true", "on"}
