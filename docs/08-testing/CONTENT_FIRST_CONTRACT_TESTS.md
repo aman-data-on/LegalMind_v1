@@ -172,8 +172,35 @@ second as a successful `POST /auth/login` returned `401` while the session row e
 and succeeded on the next attempt. Reproduced across several runs; the harness now polls
 `/auth/session` and reports which attempt succeeded rather than hiding it.
 
-Not diagnosed further here — it is an authentication-path question, not an analysis one,
-and it is recorded so the next person meets a note instead of a mystery.
+**Diagnosed 2026-09-15 by a parallel session, and it is not an authentication bug — it is
+product-wide.** The request transaction **commits after the response is sent**, so it affects
+every write endpoint, not just login. Measured on an isolated API against the e2e database:
+
+| | |
+|---|---|
+| Session row present when the client already holds the 200 | **11 / 60** |
+| Row missing | **49 / 60** (35 appeared on a second look) |
+| `GET /auth/session` immediately after login returning 401 | **3 / 60** |
+| With one explicit `db.commit()` before `login` returns | **60 / 60 present, 60 / 60 probes 200** |
+
+Mechanism: `get_db` in `api/deps.py` commits in a `yield` dependency's teardown, and FastAPI
+keeps that exit stack in `request.scope` (`fastapi_inner_astack`) **above the route**, so it
+closes as the response goes out. A client can therefore hold a `201` for a write whose
+transaction has not yet committed.
+
+Two blind alleys already eliminated, so nobody repeats them: it is **not** `BaseHTTPMiddleware`
+(all three disabled, still 47/60 missing), and setting `route_class` on the `v1` router does
+nothing because `include_router` preserves the *source* router's class (measured: 0 routes
+wrapped) — it would have to be set per router module.
+
+**Not fixed here.** Changing when every endpoint's transaction commits, in a system under
+append-only audit, is not a bolt-on; and `tests/conftest.py` overrides `get_db` entirely, so
+the backend suite would not cover it either way. It needs its own change with a real-HTTP
+regression test.
+
+⚠️ **A trap for anyone measuring this:** the cookies are `Secure`, so a plain-HTTP client
+stores them and never sends them — an early run showed 40/40 401 and meant nothing. Send the
+cookie explicitly, or you are measuring the transport rather than the commit.
 
 Two harness lessons worth keeping: `analyze` returns `mode="queued"` in production and the
 work goes to the Celery worker, so reading findings immediately reports **"0 findings" for
