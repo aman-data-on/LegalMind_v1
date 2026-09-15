@@ -20,7 +20,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
@@ -40,7 +40,7 @@ from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
-router = APIRouter(tags=["configuration"])
+router = APIRouter(tags=["configuration"], route_class=CommitBeforeResponse)
 
 
 @router.get("/requirements")

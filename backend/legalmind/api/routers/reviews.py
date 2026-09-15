@@ -21,7 +21,7 @@ from sqlalchemy import or_, select
 
 from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.api import ratelimit
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params, run
@@ -34,7 +34,7 @@ from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 
-router = APIRouter(tags=["reviews"])
+router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
 
 # Module-level so a deployment can swap in the Redis-backed limiter without
 # touching a route (see ratelimit.InProcessRateLimiter).

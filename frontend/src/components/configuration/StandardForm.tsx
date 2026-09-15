@@ -33,7 +33,6 @@
 import { useId, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
-import { Field } from "@/components/Primitives";
 import { PhraseList } from "@/components/configuration/PhraseList";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -103,7 +102,7 @@ export function StandardForm({
   function FieldError({ name }: { name: string }) {
     if (!errors[name]) return null;
     return (
-      <p className="field__error" id={errorId(name)} role="alert">
+      <p className="ws-field__error" id={errorId(name)} role="alert">
         {errors[name]}
       </p>
     );
@@ -159,9 +158,9 @@ export function StandardForm({
   const errorKeys = Object.keys(errors);
 
   return (
-    <form className="card" onSubmit={submit}>
-      <h4>Company Standard — from v{version.version_number}</h4>
-      <p className="hint">
+    <form className="ws-stdform" onSubmit={submit}>
+      <h4 className="ws-intake__title">Company Standard — from v{version.version_number}</h4>
+      <p className="ws-pane__note">
         Saving appends a new Requirement version carrying the mapping rules,
         evaluation rules and Legal Rule forward unchanged. No existing version is
         modified, so every historical Review stays reproducible, and the change
@@ -172,7 +171,7 @@ export function StandardForm({
 
       {errorKeys.length > 0 ? (
         <div
-          className="banner banner--error error-summary"
+          className="ws-state ws-state--error ws-errsum"
           role="alert"
           tabIndex={-1}
           ref={summaryRef}
@@ -182,7 +181,7 @@ export function StandardForm({
               ? "One field needs attention before this can be saved."
               : `${errorKeys.length} fields need attention before this can be saved.`}
           </p>
-          <ul className="banner__fields">
+          <ul className="ws-errsum__list">
             {errorKeys.map((key) => (
               <li key={key}>
                 <a href={`#${fieldId(key)}`}>{FIELD_LABELS[key] ?? key}</a>: {errors[key]}
@@ -193,14 +192,15 @@ export function StandardForm({
       ) : null}
 
       {/* ── What this standard applies to ─────────────────────────────── */}
-      <section className="form-section">
+      <section className="ws-formsec">
         <h5>What this standard applies to</h5>
-        <p className="hint">
+        <p className="ws-pane__note">
           Applicability is decided by the document&rsquo;s content (<code>AM-51</code>); the
           type below names this standard&rsquo;s family and is one signal, never a gate.
         </p>
-        <div className="form-grid">
-          <Field id={fieldId("document_type")} label={<>Document type <span className="field__required" aria-hidden="true">*</span><span className="visually-hidden">(required)</span></>}>
+        <div className="ws-formgrid">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("document_type")}><>Document type <span className="ws-field__req" aria-hidden="true">*</span><span className="ws-visually-hidden">(required)</span></></label>
             <Select
               value={draft.document_type}
               onValueChange={set("document_type")}
@@ -219,9 +219,10 @@ export function StandardForm({
               </SelectContent>
             </Select>
             <FieldError name="document_type" />
-          </Field>
+          </div>
 
-          <Field id={fieldId("scope_key")} label={<>Scope key <span className="field__required" aria-hidden="true">*</span><span className="visually-hidden">(required)</span></>}>
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("scope_key")}><>Scope key <span className="ws-field__req" aria-hidden="true">*</span><span className="ws-visually-hidden">(required)</span></></label>
             <input
               id={fieldId("scope_key")}
               value={draft.scope_key}
@@ -229,14 +230,15 @@ export function StandardForm({
               aria-describedby={errors.scope_key ? errorId("scope_key") : `${uid}-scope-hint`}
               onChange={(event) => set("scope_key")(event.target.value)}
             />
-            <p className="field__hint" id={`${uid}-scope-hint`}>
+            <p className="ws-field__help" id={`${uid}-scope-hint`}>
               Decides what this position is compared against. Changing it changes
               which clause the evaluator measures.
             </p>
             <FieldError name="scope_key" />
-          </Field>
+          </div>
 
-          <Field id={fieldId("applicability")} label="Applicability">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("applicability")}>Applicability</label>
             <Select
               value={draft.applicability}
               onValueChange={set("applicability")}
@@ -254,34 +256,36 @@ export function StandardForm({
                 ))}
               </SelectContent>
             </Select>
-            <p className="field__hint" id={`${uid}-applicability-hint`}>
+            <p className="ws-field__help" id={`${uid}-applicability-hint`}>
               Left unset, the server treats this standard as required — it fails
               closed rather than assuming it is optional.
             </p>
             <FieldError name="applicability" />
-          </Field>
+          </div>
         </div>
       </section>
 
       {/* ── Where the position comes from ─────────────────────────────── */}
-      <section className="form-section">
+      <section className="ws-formsec">
         <h5>Where this position comes from</h5>
-        <p className="hint">
+        <p className="ws-pane__note">
           The Legal Constitution governs company positions (<code>AM-43</code>). These
           fields are what an explanation cites, and publish refuses a block that
           does not hold together.
         </p>
-        <div className="form-grid">
-          <Field id={fieldId("constitution_version")} label="Constitution version">
+        <div className="ws-formgrid">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("constitution_version")}>Constitution version</label>
             <input
               id={fieldId("constitution_version")}
               value={draft.constitution_version}
               disabled={disabled}
               onChange={(event) => set("constitution_version")(event.target.value)}
             />
-          </Field>
+          </div>
 
-          <Field id={fieldId("constitution_section")} label="Section">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("constitution_section")}>Section</label>
             <input
               id={fieldId("constitution_section")}
               value={draft.constitution_section}
@@ -291,14 +295,15 @@ export function StandardForm({
               }
               onChange={(event) => set("constitution_section")(event.target.value)}
             />
-            <p className="field__hint" id={`${uid}-section-hint`}>
+            <p className="ws-field__help" id={`${uid}-section-hint`}>
               The section as the Constitution numbers it. Only a document-only or
               retired standard may leave this blank.
             </p>
             <FieldError name="constitution_section" />
-          </Field>
+          </div>
 
-          <Field id={fieldId("constitution_topic")} label="Topic">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("constitution_topic")}>Topic</label>
             <input
               id={fieldId("constitution_topic")}
               value={draft.constitution_topic}
@@ -309,9 +314,10 @@ export function StandardForm({
               onChange={(event) => set("constitution_topic")(event.target.value)}
             />
             <FieldError name="constitution_topic" />
-          </Field>
+          </div>
 
-          <Field id={fieldId("constitution_basis")} label="Basis">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("constitution_basis")}>Basis</label>
             <Select
               value={draft.constitution_basis}
               onValueChange={set("constitution_basis")}
@@ -332,21 +338,22 @@ export function StandardForm({
               </SelectContent>
             </Select>
             <FieldError name="constitution_basis" />
-          </Field>
+          </div>
         </div>
       </section>
 
       {/* ── The position itself ───────────────────────────────────────── */}
-      <section className="form-section">
+      <section className="ws-formsec">
         <h5>The position</h5>
         {evaluator === "NUMERIC_COMPARISON" ? (
           <>
-            <p className="hint">
+            <p className="ws-pane__note">
               What this organization requires, and the words its extractor reads a
               counterparty&rsquo;s clause by.
             </p>
-            <div className="form-grid">
-              <Field id={fieldId("preferred")} label="Value">
+            <div className="ws-formgrid">
+              <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("preferred")}>Value</label>
                 <input
                   id={fieldId("preferred")}
                   type="number"
@@ -357,9 +364,10 @@ export function StandardForm({
                   onChange={(event) => set("preferred")(event.target.value)}
                 />
                 <FieldError name="preferred" />
-              </Field>
+              </div>
 
-              <Field id={fieldId("unit")} label="Unit">
+              <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("unit")}>Unit</label>
                 <input
                   id={fieldId("unit")}
                   value={draft.unit}
@@ -368,9 +376,10 @@ export function StandardForm({
                   onChange={(event) => set("unit")(event.target.value)}
                 />
                 <FieldError name="unit" />
-              </Field>
+              </div>
 
-              <Field id={fieldId("basis")} label="Measured against">
+              <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("basis")}>Measured against</label>
                 <input
                   id={fieldId("basis")}
                   value={draft.basis}
@@ -379,14 +388,11 @@ export function StandardForm({
                   onChange={(event) => set("basis")(event.target.value)}
                 />
                 <FieldError name="basis" />
-              </Field>
+              </div>
             </div>
 
-            <Field
-              id={fieldId("cap_phrases")}
-              label="Phrases that state a limit"
-              grow
-            >
+            <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("cap_phrases")}>Phrases that state a limit</label>
               <PhraseList
                 id={fieldId("cap_phrases")}
                 value={draft.cap_phrases}
@@ -394,18 +400,15 @@ export function StandardForm({
                 disabled={disabled}
                 describedBy={`${uid}-cap-count`}
               />
-              <p className="chips__count" id={`${uid}-cap-count`}>
+              <p className="ws-phrases__count" id={`${uid}-cap-count`}>
                 {draft.cap_phrases.length === 1
                   ? "1 phrase"
                   : `${draft.cap_phrases.length} phrases`}
               </p>
-            </Field>
+            </div>
 
-            <Field
-              id={fieldId("unlimited_phrases")}
-              label="Phrases that state no limit"
-              grow
-            >
+            <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("unlimited_phrases")}>Phrases that state no limit</label>
               <PhraseList
                 id={fieldId("unlimited_phrases")}
                 value={draft.unlimited_phrases}
@@ -413,15 +416,16 @@ export function StandardForm({
                 disabled={disabled}
                 describedBy={`${uid}-unlimited-count`}
               />
-              <p className="chips__count" id={`${uid}-unlimited-count`}>
+              <p className="ws-phrases__count" id={`${uid}-unlimited-count`}>
                 {draft.unlimited_phrases.length === 1
                   ? "1 phrase"
                   : `${draft.unlimited_phrases.length} phrases`}
               </p>
-            </Field>
+            </div>
           </>
         ) : (
-          <Field id={fieldId("expected_presence")} label="Expected">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("expected_presence")}>Expected</label>
             <Select
               value={draft.expected_presence}
               onValueChange={set("expected_presence")}
@@ -442,7 +446,7 @@ export function StandardForm({
               </SelectContent>
             </Select>
             <FieldError name="expected_presence" />
-          </Field>
+          </div>
         )}
 
         {/*
@@ -453,9 +457,9 @@ export function StandardForm({
           SEC-07/LEGAL-02) — absence is indistinguishable from having none.
         */}
         {version.legal_rule ? (
-          <p className="stated">
+          <p className="ws-stated">
             Legal Rule{" "}
-            <span className="stated__value">{version.legal_rule.rule_type}</span> —
+            <span className="ws-stated__value">{version.legal_rule.rule_type}</span> —
             carried forward unchanged. The zero-tolerance rule is the only approved
             one (owner ruling, 2026-08-20) and is not edited here.
           </p>
@@ -463,21 +467,22 @@ export function StandardForm({
       </section>
 
       {/* ── Advanced ──────────────────────────────────────────────────── */}
-      <details className="form-section">
+      <details className="ws-formsec">
         <summary>Advanced</summary>
 
-        <Field id={fieldId("unit_conversions")} label="Unit conversions the engine may apply">
-          <p className="field__hint" id={`${uid}-conversions-hint`}>
+        <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("unit_conversions")}>Unit conversions the engine may apply</label>
+          <p className="ws-field__help" id={`${uid}-conversions-hint`}>
             Only these are definitional identities of measure (<code>AM-62</code>). Days
             and months are deliberately absent and cannot be added: a month is not
             thirty days by definition, and the engine would refuse the pair.
           </p>
-          <ul className="checks" aria-describedby={`${uid}-conversions-hint`}>
+          <ul className="ws-checks" aria-describedby={`${uid}-conversions-hint`}>
             {DEFINITIONAL_UNIT_PAIRS.map((pair) => {
               const key = unitPairKey(pair);
               const id = fieldId(`conv-${key}`);
               return (
-                <li key={key} className="chip">
+                <li key={key} className="ws-check">
                   <Checkbox
                     id={id}
                     checked={draft.unit_conversions.includes(key)}
@@ -490,7 +495,7 @@ export function StandardForm({
                       )
                     }
                   />
-                  <label htmlFor={id} className="chip__text">
+                  <label htmlFor={id} className="ws-check__label">
                     {pair.from} → {pair.to}
                   </label>
                 </li>
@@ -498,14 +503,15 @@ export function StandardForm({
             })}
           </ul>
           <FieldError name="unit_conversions" />
-        </Field>
+        </div>
 
-        <Field id={fieldId("not_applicable_to")} label="Never applies to these document types">
-          <ul className="checks">
+        <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("not_applicable_to")}>Never applies to these document types</label>
+          <ul className="ws-checks">
             {DOCUMENT_TYPES.map((type) => {
               const id = fieldId(`na-${type.code}`);
               return (
-                <li key={type.code} className="chip">
+                <li key={type.code} className="ws-check">
                   <Checkbox
                     id={id}
                     checked={draft.not_applicable_to.includes(type.code)}
@@ -518,21 +524,22 @@ export function StandardForm({
                       )
                     }
                   />
-                  <label htmlFor={id} className="chip__text">{type.label}</label>
+                  <label htmlFor={id} className="ws-check__label">{type.label}</label>
                 </li>
               );
             })}
           </ul>
-        </Field>
+        </div>
 
-        <Field id={fieldId("raw")} label="Edit the stored JSON directly">
-          <p className="field__hint" id={`${uid}-raw-hint`}>
+        <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("raw")}>Edit the stored JSON directly</label>
+          <p className="ws-field__help" id={`${uid}-raw-hint`}>
             For the parts of a standard this form does not model — the extractor&rsquo;s
             unit and basis vocabularies, for instance. While this is on, the JSON is
             what gets saved and the fields above are disabled, so a change cannot be
             made in one place and silently lost in the other.
           </p>
-          <label className="chip" htmlFor={fieldId("raw-toggle")} style={{ marginBottom: "0.5rem" }}>
+          <label className="ws-check" htmlFor={fieldId("raw-toggle")} style={{ marginBottom: "0.5rem" }}>
             <Checkbox
               id={fieldId("raw-toggle")}
               checked={rawMode}
@@ -547,11 +554,11 @@ export function StandardForm({
                 setRawMode(on);
               }}
             />
-            <span className="chip__text">Use the JSON below instead of the fields above</span>
+            <span className="ws-check__label">Use the JSON below instead of the fields above</span>
           </label>
           <textarea
             id={fieldId("raw")}
-            className="code-input"
+            className="ws-codearea"
             rows={12}
             value={rawText}
             disabled={!rawMode || busy}
@@ -559,18 +566,15 @@ export function StandardForm({
             onChange={(event) => setRawText(event.target.value)}
           />
           {rawError ? (
-            <p className="field__error" id={`${uid}-raw-error`} role="alert">{rawError}</p>
+            <p className="ws-field__error" id={`${uid}-raw-error`} role="alert">{rawError}</p>
           ) : null}
-        </Field>
+        </div>
       </details>
 
       {/* ── Why ───────────────────────────────────────────────────────── */}
-      <section className="form-section">
-        <Field
-          id={fieldId("reason")}
-          label={<>Reason for the change <span className="field__required" aria-hidden="true">*</span><span className="visually-hidden">(required)</span></>}
-          grow
-        >
+      <section className="ws-formsec">
+        <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("reason")}><>Reason for the change <span className="ws-field__req" aria-hidden="true">*</span><span className="ws-visually-hidden">(required)</span></></label>
           <input
             id={fieldId("reason")}
             value={reason}
@@ -579,17 +583,17 @@ export function StandardForm({
             aria-describedby={`${uid}-reason-hint`}
             onChange={(event) => setReason(event.target.value)}
           />
-          <p className="field__hint" id={`${uid}-reason-hint`}>
+          <p className="ws-field__help" id={`${uid}-reason-hint`}>
             Recorded in the audit trail. A standard change is a change of legal
             position, so the record says why.
           </p>
-        </Field>
+        </div>
       </section>
 
-      <button type="submit" className="btn btn--primary" disabled={busy}>
+      <button type="submit" className="ws-btn ws-btn--primary" disabled={busy}>
         {busy ? "Saving…" : "Save as a new version"}
       </button>{" "}
-      <button type="button" className="link" onClick={onClose} disabled={busy}>
+      <button type="button" className="ws-btn ws-btn--link" onClick={onClose} disabled={busy}>
         Cancel
       </button>
     </form>

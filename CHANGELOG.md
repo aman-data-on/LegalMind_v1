@@ -22,6 +22,107 @@ changed; nothing here is locked or authorizes a build (rule 4). The standing blo
 *positions* (Company Standards) for review, not vetted issuable prose with a marked fixed/variable
 boundary (rule 21). See [docs/architecture/DOCUMENT_BUILDER_RND.md](docs/architecture/DOCUMENT_BUILDER_RND.md).
 
+### Fixed — a request's transaction now commits BEFORE its response is sent (2026-09-15)
+
+A client could hold a `200` or `201` for a write whose transaction had not committed, so its very
+next request read a database that did not contain it. This was reported as "a session can be
+briefly unusable immediately after login" and turns out not to be an authentication problem at all:
+**every write endpoint had the same window.**
+
+Measured on an isolated API against the e2e database — log in, then read the session row directly
+from Postgres on a fresh connection with no delay:
+
+| | row present when the client held the 200 | next `GET /auth/session` |
+|---|---|---|
+| before | **11 / 60** | **3 × 401** |
+| after | **60 / 60** | **60 × 200** |
+
+**Cause.** `get_db` is a dependency with `yield`, and FastAPI keeps the exit stack that closes it in
+`request.scope["fastapi_inner_astack"]` — above the route — so the commit lands as the response goes
+out. `deps.CommitBeforeResponse` is an `APIRoute` that commits the request's session after the
+endpoint returns and before the response leaves, which is inside that stack. `get_db` publishes the
+session on `request.state` for it to find.
+
+**`get_db` still commits in its own teardown, deliberately.** A router added without the route class
+then keeps working exactly as it did rather than silently persisting nothing: the old race returns
+for that one route, which is survivable; losing its writes is not.
+
+Two hypotheses were eliminated by measurement rather than reasoning, and are recorded so nobody
+repeats them. It is **not** `BaseHTTPMiddleware` — all three of ours were disabled and 47 of 60 rows
+were still missing. And setting `route_class` on the aggregating `v1` router does **nothing**,
+because `include_router` preserves each source route's own class; it has to be set where each
+`APIRouter` is constructed, which is what `test_commit_before_response.py` pins for all twelve.
+
+A trap for anyone measuring this: the session cookies are `Secure`, so a plain-HTTP client stores
+them and never sends them. The first reproduction showed 40/40 `401` and meant nothing.
+
+`tests/conftest.py` overrides `get_db`, so the test client never sets `request.state.db` and the
+suite cannot cover the behaviour either way — which is why the behaviour was verified against a real
+API and a real database, and the tests pin the wiring. Full backend suite: 1822 passed, 112 skipped.
+
+**This is not the other job-10 flake.** That one shows `FileNotFoundError:
+sentence-transformers/all-MiniLM-L6-v2` under onnxruntime and then a hang exactly 30s later; it is a
+separate fault sharing a symptom, and it is untouched here.
+### Added — a class with no CSS rule now fails the build (2026-09-15)
+
+`.ws-filter-bar` was written into Administration's markup and its rule was never written anywhere.
+Nothing failed: the build was green, the types were clean, and five filter controls stacked at full
+width on production for a day until someone opened the page. **A class with no rule is invisible to
+every other check this project runs** — that is the defect class, not the one class.
+
+Scanning every literal `className` in the app against every rule in both stylesheets turned up
+**sixteen** of them. `frontend/src/__tests__/styled-classes.test.ts` now holds that number as a
+floor: it may shrink, never grow. Verified to fail both when a new unstyled class is introduced
+(naming the class and the file) and when a listed one is fixed but left in the list, so the list
+cannot rot into a permanent excuse.
+
+Two of the sixteen are gone already, and provably inertly: `ws-btn--share` and `ws-field--type` are
+modifiers whose base class carries all the styling, with no rule and no JS or test consumer, so
+removing them from the markup changes nothing that renders.
+
+The remaining thirteen are listed in the test with what each one is. They are real elements
+rendering with no rule of their own, and several sit in families that are otherwise complete —
+`.ws-turn--user` exists while `.ws-turn` does not; `.ws-evidence__group`, `__how`, `__loc` and
+`__more` exist while `__item` does not. Writing those rules is a visual judgement on the Ask,
+Findings and Evidence surfaces and will move baselines, so it belongs to a pass that can look at
+those screens rather than to the test that found them.
+
+`DecisionHistory.tsx` is imported by nothing and accounts for two of the thirteen. It is left in
+place rather than deleted — removing someone's component is their call.
+
+### Changed — Standards joins the list format every other screen already uses (2026-09-15)
+
+A non-technical person should be shown this screen once and then be able to use it. The question
+was which format to standardise on, and it did not need inventing: measured across every
+`page.tsx`, **every screen was already on the `ws-*` vocabulary except this one** — Standards had 1
+`ws-*` class against 13 legacy ones, while Administration had 58 against 0.
+
+So it now has Administration's shape: a head with its actions, a filter bar, and one dense table
+whose rows expand in place. Search matches the code and every version name; Status and Evaluator
+narrow it; Sort by orders it. The nav has always called this screen "Standards" — the page called
+itself "Legal configuration", so the one word a reader arrives with did not appear on the page they
+arrived at.
+
+Publishing moved into the head. It lived at the bottom, so reaching it meant scrolling past every
+standard.
+
+A second pass measured rather than looked, and that is what found the rest. Rows were **62px
+against Administration's 44.5px**, because the clickable code was a `ws-btn` and a button inside a
+table cell brings its 38px min-height with it; now 46.75px. **`.ws-link` had no CSS rule anywhere**
+— it is used in four Administration files and only looked right where `.ws-admin__name` happened to
+sit beside it; found by scanning every `className` in the app against every rule in both
+stylesheets, which returned **sixteen class names with no rule at all**. Also fixed: the raw enum
+`NUMERIC_COMPARISON` in a column whose own filter says "Numeric comparison"; two columns reading
+"1" and the same date on every row, now one reading `v1 · 2026-09-15`; a raw ISO timestamp
+(`2026-09-15T13:38:56.145775+05:30`); two actions rendering as one word
+(`Show stored valuesDraft a new version`); no expand affordance; and no sticky header on a list
+four screens tall.
+
+Document type is deliberately **not** a filter: it lives on the separately-gated detail response,
+and reading it out of the code's naming convention would be a guess that silently hides standards.
+
+See [DD-25](docs/design/DESIGN_DECISIONS.md).
+
 ### Changed — publishing a configuration snapshot is a checkbox list (2026-09-15)
 
 The publish control was one text input: *"Requirement codes to activate (comma separated)"*.
