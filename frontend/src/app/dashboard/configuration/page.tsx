@@ -44,6 +44,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Upload } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
+import { StandardForm } from "@/components/configuration/StandardForm";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
@@ -324,7 +325,7 @@ function RequirementCard({
       ) : null}
 
       {editing ? (
-        <StandardEditor
+        <StandardForm
           requirementId={requirement.id}
           version={editing}
           onClose={() => setEditing(null)}
@@ -425,80 +426,11 @@ export function ValueCell({ version }: { version: RequirementVersion }) {
   );
 }
 
-/**
- * "Edit and save" a Company Standard — which the server implements by APPENDING a
- * new version (locked rule 16). The form is pre-filled with the chosen version's
- * stored values, so restoring an older version is the same operation as changing the
- * current one; there is deliberately no separate rollback control and no in-place
- * edit anywhere on this screen.
- *
- * Values are the organization's own material and are passed through exactly as
- * written (rule 21, ENG-09): nothing here defaults, normalizes or suggests a value.
- * `reason` is required by the API and by the form, because the audit trail records
- * why a legal position changed.
+/*
+ * The Company Standard editor moved to `components/configuration/StandardForm.tsx`
+ * on 2026-09-15: it is a form now, not a JSON textarea, and at ~450 lines it is its
+ * own component rather than a third of this file. The rules it enforces are
+ * unchanged — saving APPENDS a version (rule 16), a `reason` is mandatory because a
+ * standard change is a change of legal position, and nothing defaults or suggests a
+ * value (rule 21).
  */
-function StandardEditor({
-  requirementId,
-  version,
-  onClose,
-  onSaved,
-}: {
-  requirementId: string;
-  version: RequirementVersion;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setBusy(true);
-    const form = new FormData(event.currentTarget);
-    try {
-      await api.updateCompanyStandard(requirementId, {
-        company_standard: JSON.parse(String(form.get("company_standard") || "{}")),
-        reason: String(form.get("reason") ?? ""),
-      });
-      onSaved();
-    } catch (cause) {
-      setError(cause);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form className="card" onSubmit={submit}>
-      <h4>Company Standard — from v{version.version_number}</h4>
-      <p className="hint">
-        Saving appends a new Requirement version carrying the mapping rules,
-        evaluation rules and Legal Rule forward unchanged. No existing version is
-        modified, so every historical Review stays reproducible, and the change
-        affects no Review until it is published into a snapshot. The standard must
-        declare a <code>document_type</code>; the server refuses one that does not.
-      </p>
-      <ErrorBanner error={error} />
-      <label>
-        Company Standard (JSON)
-        <textarea
-          name="company_standard"
-          rows={10}
-          required
-          defaultValue={JSON.stringify(version.company_standard ?? {}, null, 2)}
-        />
-      </label>
-      <label>
-        Reason for the change (required — recorded in the audit trail)
-        <input name="reason" required />
-      </label>
-      <button type="submit" className="btn btn--primary" disabled={busy}>
-        {busy ? "Saving…" : "Save as a new version"}
-      </button>{" "}
-      <button type="button" className="link" onClick={onClose}>
-        Cancel
-      </button>
-    </form>
-  );
-}

@@ -10,6 +10,46 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — a Company Standard is edited as a form, not as JSON (2026-09-15)
+
+Changing the organization's legal position on `/dashboard/configuration` meant hand-editing one
+`<textarea>` holding the whole `company_standard` object: to move a period from 21 to 30, find the
+right key inside a nested object and retype it without breaking the syntax. Nothing checked the
+result — `RequirementVersionCreate` takes `dict[str, Any]`, so a malformed standard **saved cleanly
+and failed days later at publish**. The `JSON.parse` was unguarded, so a stray comma surfaced as a
+raw `SyntaxError`.
+
+It is now a form with labelled fields, help text and validation that mirrors the server, so the
+publish refusal is unreachable by accident. Rule 21 is unchanged and still governs: every control
+renders empty when the stored value is absent, with no preselected option and no example — and
+`draftFromStandard({})` returning an all-empty draft is asserted by a test, so that is mechanical
+rather than a convention. Rule 21 forbids inventing legal *content*, not *structure*.
+
+The safety property that makes a partial form shippable: `toStandard(draft, original)` spreads the
+stored standard first at **every level of nesting**, so keys with no control — `extraction.units`,
+`extraction.bases`, `general_scope`, `composite_phrases` — survive byte-identical. The form cannot
+delete a position it does not display. An advanced section still hands over the raw JSON for those,
+and takes over completely while it is on, disabling the fields above: two editable sources of truth
+for one object is how a change gets made in one place and lost in the other.
+
+Extraction phrases are chips rather than one-per-line text (owner's choice): `LIABILITY-MSA-001`
+carries eight, and as a blob a stray newline splits a phrase in half with nothing on screen saying
+how many there are. `unit_conversions` offers exactly the four definitional pairs (`AM-62`) —
+DAYS↔MONTHS is absent and cannot be added.
+
+Two defects were found by rendering the screen, not by reading the diff: three hints printed
+`` `AM-51` `` literally, because JSX does not render markdown; and the shadcn Checkbox rendered as
+a 28×18 rectangle because it declares `size-4` (width and height only) while `globals.css`'s
+`button` rule supplies `padding: .4rem .8rem` — padding wider than the width wins. Both fixed, the
+checkbox measured back at exactly 16×16 in a real browser. **Every future shadcn primitive built on
+`<button>` needs its own padding utility** — recorded in DD-23.
+
+37 unit tests over the pure functions, 5 Playwright tests against the real backend (including a
+save round-trip proving rule 16 appends rather than edits), and two backend tests pinning the
+frontend's `CONSTITUTION_BASES` and `DEFINITIONAL_UNIT_PAIRS` to their sources — both verified to
+fail under a deliberate drift.
+
+See [DD-23](docs/design/DESIGN_DECISIONS.md).
 ### Fixed — two recognition gaps found by running five synthetic contracts (2026-09-15)
 
 `AM-51`/`AM-60` made applicability content-first, but nothing exercised it on a realistic

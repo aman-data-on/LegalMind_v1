@@ -987,3 +987,88 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
  * recorded (52.7). */
 .decision__conflict { margin-top: var(--space-3); }
 .decision__conflict .btn { margin-top: var(--space-2); }
+
+/*
+ * --- Company Standard form (2026-09-15) ---
+ *
+ * Added for the screen that replaces a raw JSON textarea with labelled controls.
+ * All class subjects, so all unlayered: these keep outranking every Tailwind
+ * utility, exactly like the rest of the design system (DD-22).
+ */
+
+/* Field groups. Deliberately a heading and a rule, NOT a nested card — the
+   form already sits inside `.card`, and DESIGN.md rejects a box inside a box. */
+.form-section { margin: var(--space-5) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.form-section:first-of-type { margin-top: var(--space-4); }
+.form-section > h5 {
+  margin: 0 0 var(--space-2); font-size: var(--text-md);
+  font-weight: var(--weight-medium); color: var(--ink);
+}
+.form-section > .hint { margin: 0 0 var(--space-4); max-width: 68ch; }
+
+/* Two columns once there is room for two readable ones, one column below.
+   `auto-fit` rather than a breakpoint: the form is rendered inside panes of
+   several widths on this screen and a fixed breakpoint guesses wrong in one. */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0 var(--space-4); }
+.form-grid .field--wide { grid-column: 1 / -1; }
+
+/* Required marker — the skill's "mark required fields clearly", as a word for a
+   screen reader and a glyph for everyone else. */
+.field__required { color: var(--error); margin-left: 0.15rem; }
+
+/* Validation summary at the top of the form. Complements the inline errors and
+   never replaces them; each item focuses its own field. */
+.error-summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.error-summary a { color: var(--error); }
+
+/* A read-only value the form shows but never lets anyone edit, with its citation
+   — used for the Legal Rule, which has exactly one approved value. Shown rather
+   than hidden so the screen stays honest about what will be saved. */
+.stated {
+  background: var(--page); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem; margin: 0 0 var(--space-4);
+}
+.stated__value { font-weight: var(--weight-medium); }
+
+/*
+ * Chips — an editable collection of extraction phrases.
+ *
+ * Reads as one form control: the box carries the input's border and radius and
+ * takes the focus ring when anything inside it has focus, so it does not look
+ * like a panel that happens to contain a field.
+ */
+.chips {
+  display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+  padding: 0.3rem; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.chips:focus-within { box-shadow: var(--focus-ring); }
+.chips[data-disabled] { background: var(--page); }
+/* The list WRAPS and never scrolls or truncates: a clipped legal phrase reads as
+   a different phrase (ui-ux-pro-max, "Chip Collection Reflow"). */
+.chips__list { display: contents; margin: 0; padding: 0; list-style: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  max-width: 100%; padding: 0.1rem 0.2rem 0.1rem 0.45rem;
+  background: var(--page); border: 1px solid var(--line);
+  border-radius: var(--radius-xs); font-size: var(--text-sm);
+}
+.chip__text { overflow-wrap: anywhere; }
+.chip__remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.1rem; border: none; background: none; border-radius: var(--radius-xs);
+  color: var(--muted); cursor: pointer;
+}
+.chip__remove:hover:not(:disabled) { color: var(--error); background: var(--error-bg); }
+/* The input takes the rest of the row, and a whole row of its own once the chips
+   have filled one. */
+.chips__input { flex: 1 1 12rem; min-width: 8rem; border: none; padding: 0.2rem 0.25rem; }
+.chips__input:focus-visible { outline: none; box-shadow: none; }
+.chips__count { color: var(--muted); font-size: var(--text-sm); margin: 0.25rem 0 0; }
+
+/* A row of checkboxes that wraps. Distinct from `.chips__list`, which is
+   `display: contents` because it lives inside the `.chips` control; this one IS
+   the container. Each item keeps the chip's shape so the two read as one family. */
+.checks { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.checks .chip { padding: 0.25rem 0.5rem; gap: 0.4rem; }
+.checks .chip label { margin: 0; cursor: pointer; }
