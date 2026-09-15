@@ -149,6 +149,24 @@ describe("the compiled stylesheet", () => {
     expect(strays, "utilities emitted from outside the allow-list").toEqual([]);
   });
 
+  it("declares a base rule before the variant that overrides it", () => {
+    // `.ws-link` and `.ws-admin__name` have the same specificity, so ORDER is the
+    // only thing deciding which colour an account name gets. Appending `.ws-link`
+    // at the end of the file repainted every name in Administration accent-blue —
+    // measured in a real browser at rgb(37,99,235) where it had been rgb(14,20,32).
+    // Administration chose ink-900 deliberately: a roster where every row shouts
+    // is a roster nobody scans.
+    // Read `workspace.css` directly: both rules live there, this file's `root`
+    // is the compiled `globals.css`, and for plain CSS the SOURCE order is the
+    // thing under test anyway.
+    const css = readFileSync("src/app/dashboard/workspace.css", "utf8");
+    const base = css.indexOf(".ws-link {");
+    const variant = css.indexOf(".ws-admin__name {");
+    expect(base, ".ws-link must exist — four Administration files rely on it").toBeGreaterThan(-1);
+    expect(variant).toBeGreaterThan(-1);
+    expect(base, ".ws-link must come BEFORE .ws-admin__name").toBeLessThan(variant);
+  });
+
   it("lets LegalMind's values win the seven shared token names", () => {
     // Tailwind's theme layer declares --text-* and --radius-* too. LegalMind's
     // :root must stay UNLAYERED so its values win and shadcn primitives inherit
