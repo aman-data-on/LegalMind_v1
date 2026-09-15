@@ -3,6 +3,23 @@
 **Status: 📁 record of a measurement. Decides nothing on its own; the decision is DD-20.**
 Taken 2026-09-11, on `origin/main` at `e0bb565`.
 
+> ⚠️ **Superseded in part by DD-22 (2026-09-15).** Everything below is an accurate record of the
+> 2026-09-11 measurement and is left exactly as written. Two of its statements no longer describe
+> the repository, and one of them was never quite right:
+>
+> * **The merge condition at the end no longer applies.** It was written for *that* change, whose
+>   goal was Tailwind sitting beside the app without touching it. DD-22 has a different,
+>   owner-instructed goal — make shadcn primitives actually work — which cannot be met without
+>   moving four bare-element rules in `globals.css` into `@layer base`. That move is measured in
+>   DD-22 the same way this file measures its own: rule by rule, semantically.
+> * **"`@source` limits scanning" is not true on its own.** Measured 2026-09-15: with `@source`
+>   present and its directory EMPTY, the stylesheet still compiled 30 utilities scavenged from
+>   unrelated markup. Automatic source detection runs beside `@source`; only `source(none)` turns
+>   it off. The isolation this file measured was real, but it came from the `tw:` prefix, not from
+>   `@source`.
+> * The `tw:`-prefixed `ai.css` this file describes has been retired — zero utilities were ever
+>   written through it — and replaced by one unprefixed Tailwind instance in `globals.css`.
+
 ## Why this document exists
 
 The owner approved Tailwind for the Ask surface on one condition: **existing screens untouched**.

@@ -58,3 +58,42 @@ def test_frontend_client_statuses_match_the_backend_exactly():
     states = re.findall(r'\{\s*state:\s*"([A-Z_]+)"', FRONTEND_FILE.read_text())
     assert tuple(states) == CLIENT_STATUSES, (
         "frontend/src/lib/documentTypes.ts drifted from the client-status vocabulary")
+
+
+STANDARD_FORM_FILE = (pathlib.Path(__file__).resolve().parents[2]
+                      / "frontend" / "src" / "lib" / "companyStandard.ts")
+
+
+def test_frontend_constitution_bases_match_the_backend_exactly():
+    """The Company Standard form offers `constitution.basis` as a select.
+
+    `constitution_block_error` refuses anything outside `BASES` at publish, so a
+    frontend list that drifts would offer a choice the server rejects days later —
+    exactly the failure the form exists to make unreachable. A frozenset has no
+    order, so this compares sets.
+    """
+    if not STANDARD_FORM_FILE.exists():
+        pytest.skip("frontend tree not present in this checkout")
+    from legalmind.evaluation.constitution_block import BASES
+
+    source = STANDARD_FORM_FILE.read_text()
+    block = source[source.index("CONSTITUTION_BASES"):source.index("SECTION_OPTIONAL_BASES")]
+    codes = re.findall(r'\{\s*code:\s*"([A-Z_]+)"', block)
+    assert set(codes) == set(BASES), (
+        "frontend/src/lib/companyStandard.ts drifted from constitution_block.BASES")
+
+
+def test_frontend_unit_conversions_match_am_62_exactly():
+    """AM-62: the engine performs exactly four conversions, and DAYS<->MONTHS is
+    deliberately absent (a month is not thirty days by definition, rule 7). The
+    form must not offer a pair the engine would silently refuse — nor omit one it
+    would accept."""
+    if not STANDARD_FORM_FILE.exists():
+        pytest.skip("frontend tree not present in this checkout")
+    from legalmind.evaluation.numeric import DEFINITIONAL_UNIT_FACTORS
+
+    source = STANDARD_FORM_FILE.read_text()
+    block = source[source.index("DEFINITIONAL_UNIT_PAIRS"):source.index("APPLICABILITY_OPTIONS")]
+    pairs = re.findall(r'\{\s*from:\s*"([A-Z]+)",\s*to:\s*"([A-Z]+)"\s*\}', block)
+    assert set(pairs) == set(DEFINITIONAL_UNIT_FACTORS), (
+        "frontend/src/lib/companyStandard.ts drifted from AM-62's definitional pairs")

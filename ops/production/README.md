@@ -88,6 +88,19 @@ the machine is encrypted first.
 
 ### Credentials and permissions
 
+⚠️ **Paste the values with no leading space, and never `source` this file by hand.**
+On 2026-09-15 a secret key was pasted as `LEGALMIND_S3_SECRET_ACCESS_KEY= <secret>` — one
+leading space. Because `backup.sh` loaded the file with `.` (source), bash set the variable
+empty and **ran the secret as a command**, printing it in the `command not found` error. The
+credential leaked by being read, and was rotated.
+
+`backup.sh` now **parses** the file instead: `KEY=VALUE`, surrounding whitespace and one layer
+of quotes stripped, only `LEGALMIND_S3_*` and `LEGALMIND_BACKUP_*` exported, and **nothing
+executed** — so a value containing `$(…)`, backticks, quotes or spaces is treated as the
+arbitrary bytes a secret is. Pinned by `backend/tests/test_backup_credentials.py`, which also
+fails the build if anyone reintroduces `source`.
+
+
 `backup.sh` runs **as root** and drops to `postgres` only for `pg_dump`, so the credential file
 stays root-only and postgres never reads it. Settings live in **`/root/.legalmind-backup.env`,
 mode 600**, and are referenced by name only — never printed, never committed, never logged:
@@ -246,11 +259,15 @@ Exercised end to end on this host, production untouched throughout:
   deployment needs the shared Redis behind it — Redis is now running, so this is a small
   change when a second worker appears.
 
-## Deploying AB-20 — code DEPLOYED 2026-09-14; standards publish PENDING
+## Deploying AB-20 — COMPLETE (code 2026-09-14, standards published 2026-09-15)
 
-**Status.** The code is live: PR #36 merged as `a1b23e1d5277ea2f43b794a039d8e13cdd45d21e`,
-deployed and verified healthy. **The standards import and snapshot publish have NOT run** —
-production still holds 32 requirements, all ACTIVE, 3 snapshots, 580 findings.
+**Status: DONE.** Code deployed 2026-09-14 (PR #36,
+`a1b23e1d5277ea2f43b794a039d8e13cdd45d21e`). Standards imported and published **2026-09-15**:
+snapshot `5c85b87c`, **33 ACTIVE / 7 DEPRECATED**, published by `aman.singh@leapswitch.com`.
+Findings and reviews unchanged at 580 / 58; the seven retired were refused entry to the snapshot.
+
+The procedure below is kept as the runbook for the next configuration release — both findings it
+records were confirmed true in the live run.
 
 They are deliberately left as **one atomic operator step**. Publishing writes `actor_id` into
 the append-only audit trail, no API token is stored, and locked **55.3** makes creating a

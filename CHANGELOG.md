@@ -10,6 +10,133 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — a Company Standard is edited as a form, not as JSON (2026-09-15)
+
+Changing the organization's legal position on `/dashboard/configuration` meant hand-editing one
+`<textarea>` holding the whole `company_standard` object: to move a period from 21 to 30, find the
+right key inside a nested object and retype it without breaking the syntax. Nothing checked the
+result — `RequirementVersionCreate` takes `dict[str, Any]`, so a malformed standard **saved cleanly
+and failed days later at publish**. The `JSON.parse` was unguarded, so a stray comma surfaced as a
+raw `SyntaxError`.
+
+It is now a form with labelled fields, help text and validation that mirrors the server, so the
+publish refusal is unreachable by accident. Rule 21 is unchanged and still governs: every control
+renders empty when the stored value is absent, with no preselected option and no example — and
+`draftFromStandard({})` returning an all-empty draft is asserted by a test, so that is mechanical
+rather than a convention. Rule 21 forbids inventing legal *content*, not *structure*.
+
+The safety property that makes a partial form shippable: `toStandard(draft, original)` spreads the
+stored standard first at **every level of nesting**, so keys with no control — `extraction.units`,
+`extraction.bases`, `general_scope`, `composite_phrases` — survive byte-identical. The form cannot
+delete a position it does not display. An advanced section still hands over the raw JSON for those,
+and takes over completely while it is on, disabling the fields above: two editable sources of truth
+for one object is how a change gets made in one place and lost in the other.
+
+Extraction phrases are chips rather than one-per-line text (owner's choice): `LIABILITY-MSA-001`
+carries eight, and as a blob a stray newline splits a phrase in half with nothing on screen saying
+how many there are. `unit_conversions` offers exactly the four definitional pairs (`AM-62`) —
+DAYS↔MONTHS is absent and cannot be added.
+
+Two defects were found by rendering the screen, not by reading the diff: three hints printed
+`` `AM-51` `` literally, because JSX does not render markdown; and the shadcn Checkbox rendered as
+a 28×18 rectangle because it declares `size-4` (width and height only) while `globals.css`'s
+`button` rule supplies `padding: .4rem .8rem` — padding wider than the width wins. Both fixed, the
+checkbox measured back at exactly 16×16 in a real browser. **Every future shadcn primitive built on
+`<button>` needs its own padding utility** — recorded in DD-23.
+
+37 unit tests over the pure functions, 5 Playwright tests against the real backend (including a
+save round-trip proving rule 16 appends rather than edits), and two backend tests pinning the
+frontend's `CONSTITUTION_BASES` and `DEFINITIONAL_UNIT_PAIRS` to their sources — both verified to
+fail under a deliberate drift.
+
+See [DD-23](docs/design/DESIGN_DECISIONS.md).
+
+### Added — shadcn/ui works here now: layers, not preflight (2026-09-15)
+
+shadcn/ui was approved for incremental adoption on 2026-09-10, but nothing could actually be
+adopted, and the reason was a cascade fact rather than a decision. `globals.css` carried five
+**unlayered bare-element rules** — `button`, `label`, `input, select, textarea` among them — and
+every shadcn primitive is built on exactly those elements (Select's trigger is a `<button>`,
+Checkbox is a `<button role="checkbox">`). An unlayered rule beats a layered one whatever the
+selectors say, so Tailwind utilities lost silently and the primitives rendered with the legacy
+chrome.
+
+Those four rules moved into `@layer base`, **verbatim**. Everything else in `globals.css` stays
+unlayered and still outranks every utility; `workspace.css` is untouched and entirely unlayered, so
+`.ws` keeps beating everything.
+
+**Preflight is still not imported.** `shadcn init` would have written `@import "tailwindcss"` and
+reset `ul`/`ol`/`a`/`blockquote` on every screen — measured at 17 `<ul>`, 14 `<ol>` and 38 links,
+which moves the `ws-admin` baseline. The one behaviour shadcn genuinely needs from it
+(`border-style: solid`, without which every shadcn border is invisible) is supplied by hand.
+
+**`Select` and `Checkbox` were adopted; Button, Input, Textarea, Label and Badge deliberately were
+not** — each would have created a second system beside one that is already correct. Checkbox also
+fixes a real defect: `input, select, textarea { width: 100% }` stretches a native checkbox, visible
+today on `dashboard/admin/audit`.
+
+Verified by compiling `globals.css` on `main` and on the branch and comparing **rule by rule,
+semantically**: 216 LegalMind rules before, 217 after, **zero removed**, one added (the border
+default), and one changed safely — the plugin now wraps `.shortcuts-overlay`'s `color-mix()` in
+`@supports` with a fallback. `workspace.css` compiles byte-identical.
+`frontend/src/__tests__/css-foundation.test.ts` pins the whole contract, and every assertion in it
+was verified to fail under the mutation it guards.
+
+Two corrections to the record, not resolved quietly: DD-20 stated `@source` as the isolation
+mechanism — measured 2026-09-15, `@source` alone restricts nothing and still compiled 30 stray
+utilities from an empty directory; only `source(none)` turns automatic detection off. And the
+`tw:`-prefixed `src/app/dashboard/ask/ai.css` was retired, because **zero** utilities were ever
+written through it. Both recorded in DD-22 and banner-annotated on TAILWIND_ISOLATION.md.
+
+The shadcn CLI also needed three corrections worth knowing before the next `shadcn add`: it wrote
+`import { cn } from "cn"` and installed an unrelated npm package literally named `cn`; it installed
+the `radix-ui` umbrella beside the individual `@radix-ui/*` packages `Dialog.tsx` already uses; and
+it added `class-variance-authority`, which neither component uses. All three removed.
+
+See [DD-22](docs/design/DESIGN_DECISIONS.md).
+
+### Fixed — the backup credentials file is parsed, never sourced (2026-09-15)
+
+A CloudPe secret key was pasted into `/root/.legalmind-backup.env` with one leading space:
+
+    LEGALMIND_S3_SECRET_ACCESS_KEY= <40-char secret>
+
+`backup.sh` loaded it with `set -a; . "$CREDS"`. **Sourcing executes the file**, so bash set the
+variable to empty and ran the secret as a command — printing the whole key in the resulting
+`command not found` error. The credential leaked *by being read*. It was cleared from the file
+and rotated at the provider.
+
+Whitespace was the trigger; the defect is that a credentials file was being executed as root. It
+is now **parsed**: `KEY=VALUE`, surrounding whitespace and one layer of quotes stripped, only
+`LEGALMIND_S3_*` and `LEGALMIND_BACKUP_*` exported, nothing evaluated. A value containing
+`$(…)`, backticks, quotes or spaces survives byte-for-byte, which is the point — a secret is
+arbitrary bytes, not shell. A credentials file also can no longer set `PATH` or `LD_PRELOAD`.
+
+Eight tests in `backend/tests/test_backup_credentials.py` pin it, including a guard that fails
+the build if `source`/`.` is ever reintroduced for this file.
+
+
+### Added — the 33 Constitution Standards are published (2026-09-15)
+
+Imported 11:09, published **11:15:24 by `aman.singh@leapswitch.com`** via
+`POST /configuration/publish`, audited as `config.published`. Snapshot **`5c85b87c`**: **33
+items, all ACTIVE**. Requirements now 40 — 33 ACTIVE, 0 DRAFT, **7 DEPRECATED**.
+
+Every safety property held. **Zero** retired standards entered the snapshot — publish refuses
+them by design (`AM-65`). Findings and reviews unchanged at **580 / 58**: 428 cite active
+standards, **152 cite the retired seven**, still resolving with their evidence and now reading
+*"Retired — not present in the current Constitution"*. The three prior snapshots are untouched at
+32 items with 44 / 6 / 8 reviews still pinned (rule 16). A verified backup was taken first
+(`legalmind_v1_dev-20260915-1109-pre-standards-import.dump`, 429 TOC entries).
+
+**Publish authority, recorded because it cost time to discover.** `configuration.publish` comes
+from **Department Lead** or **Developer** — **never Platform Admin**, which holds only
+`user.manage`, `role.manage`, `platform.manage`, `audit.view` (SEC-02 / ROLE-05 deliberately keep
+it out of legal configuration). `ROLE_DEVELOPER` is every permission except
+`LEGAL_AUTHORITY_PERMISSIONS`, which is why a Google/OIDC account could publish while the five
+Department User accounts could not — one of them hit `authz.permission_denied` first.
+
+
 ### Added — off-server encrypted backups, and AB-20 deployed to production (2026-09-14, later)
 
 **AB-20 is live.** PR #36 merged as `a1b23e1d5277ea2f43b794a039d8e13cdd45d21e` and deployed:
