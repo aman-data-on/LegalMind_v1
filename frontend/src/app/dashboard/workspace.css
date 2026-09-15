@@ -4604,3 +4604,29 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 /* The expanded detail belongs to the row above it, and should read that way. */
 .ws-std__detail { background: color-mix(in srgb, var(--ws-ink-100) 35%, transparent); }
 .ws-publish__acts { margin-top: var(--ws-s4); }
+
+/* The roster's way in. Right-aligned and held to its content so the data columns
+   keep the width; `white-space: nowrap` so "Manage access" never wraps to two
+   lines in a table row.
+
+   The cells beside it stop wrapping for the same reason. Adding this column
+   squeezed the roster enough that "E2E Department" broke across two lines and
+   every row went from 45px to 64px — a 40% taller list, which is the density
+   mistake this product's tables avoid. These values are short and predictable,
+   and `.ws-docs__table` already scrolls horizontally when they genuinely do not
+   fit, which is the right trade for a roster. */
+.ws-docs__table td.ws-admin__dept,
+.ws-docs__table td.ws-mono { white-space: nowrap; }
+
+/* The way in never scrolls out of reach. Once the cells stop wrapping the roster
+   is wider than the viewport at 1280 and `.ws-docs__table` scrolls it — which put
+   "Manage access" half off the right edge, and an action you have to go looking
+   for is the problem this column was added to solve. Pinned right, with the
+   surface behind it so the columns pass underneath. */
+.ws-admin__rowact {
+  position: sticky; right: 0; z-index: 1;
+  width: 1%; white-space: nowrap; text-align: right;
+  background: var(--ws-surface);
+  box-shadow: inset 1px 0 0 var(--ws-ink-100);
+}
+tr.ws-tr--selected .ws-admin__rowact { background: inherit; }

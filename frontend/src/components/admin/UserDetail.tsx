@@ -119,7 +119,11 @@ export function UserDetail({
                 <button
                   type="button"
                   className="ws-rolechip__revoke ws-rolechip__revoke--icon"
-                  aria-label={`Revoke ${code} from ${user.email}`}
+                  // WCAG 2.5.3 — the chip reads "Department Lead" while this said
+                  // "Revoke DEPARTMENT_LEAD", so the visible label was not part of
+                  // the accessible name and voice control could not reach it. The
+                  // code stays in `title`, where the precision is still useful.
+                  aria-label={`Revoke ${roleName(code)} from ${user.email}`}
                   disabled={busy}
                   onClick={() => void act(() => api.revokeRole(user.id, code))}
                   title={`Revoke ${code}`}
