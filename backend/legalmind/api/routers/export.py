@@ -25,7 +25,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response
 
 from legalmind.api import ratelimit
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.export_render import (
     MEDIA_TYPES,
     RENDERERS,
@@ -43,7 +43,7 @@ from legalmind.db import models as M
 from legalmind.security import audit
 from legalmind.security import permissions as P
 
-router = APIRouter(tags=["export"])
+router = APIRouter(tags=["export"], route_class=CommitBeforeResponse)
 
 _limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
 

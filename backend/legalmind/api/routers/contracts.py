@@ -24,7 +24,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import Select, false, func, select
 
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
@@ -52,7 +52,7 @@ from legalmind.security.authorization import (
 from legalmind.security.errors import Forbidden
 from legalmind.worker.dispatch import dispatch_indexing, dispatch_ocr
 
-router = APIRouter(tags=["contracts"])
+router = APIRouter(tags=["contracts"], route_class=CommitBeforeResponse)
 
 
 #: Implementation addition (2026-09-01, owner-directed Documents redesign): the

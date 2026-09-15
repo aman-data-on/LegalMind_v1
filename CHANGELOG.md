@@ -10,6 +10,48 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — a request's transaction now commits BEFORE its response is sent (2026-09-15)
+
+A client could hold a `200` or `201` for a write whose transaction had not committed, so its very
+next request read a database that did not contain it. This was reported as "a session can be
+briefly unusable immediately after login" and turns out not to be an authentication problem at all:
+**every write endpoint had the same window.**
+
+Measured on an isolated API against the e2e database — log in, then read the session row directly
+from Postgres on a fresh connection with no delay:
+
+| | row present when the client held the 200 | next `GET /auth/session` |
+|---|---|---|
+| before | **11 / 60** | **3 × 401** |
+| after | **60 / 60** | **60 × 200** |
+
+**Cause.** `get_db` is a dependency with `yield`, and FastAPI keeps the exit stack that closes it in
+`request.scope["fastapi_inner_astack"]` — above the route — so the commit lands as the response goes
+out. `deps.CommitBeforeResponse` is an `APIRoute` that commits the request's session after the
+endpoint returns and before the response leaves, which is inside that stack. `get_db` publishes the
+session on `request.state` for it to find.
+
+**`get_db` still commits in its own teardown, deliberately.** A router added without the route class
+then keeps working exactly as it did rather than silently persisting nothing: the old race returns
+for that one route, which is survivable; losing its writes is not.
+
+Two hypotheses were eliminated by measurement rather than reasoning, and are recorded so nobody
+repeats them. It is **not** `BaseHTTPMiddleware` — all three of ours were disabled and 47 of 60 rows
+were still missing. And setting `route_class` on the aggregating `v1` router does **nothing**,
+because `include_router` preserves each source route's own class; it has to be set where each
+`APIRouter` is constructed, which is what `test_commit_before_response.py` pins for all twelve.
+
+A trap for anyone measuring this: the session cookies are `Secure`, so a plain-HTTP client stores
+them and never sends them. The first reproduction showed 40/40 `401` and meant nothing.
+
+`tests/conftest.py` overrides `get_db`, so the test client never sets `request.state.db` and the
+suite cannot cover the behaviour either way — which is why the behaviour was verified against a real
+API and a real database, and the tests pin the wiring. Full backend suite: 1822 passed, 112 skipped.
+
+**This is not the other job-10 flake.** That one shows `FileNotFoundError:
+sentence-transformers/all-MiniLM-L6-v2` under onnxruntime and then a hang exactly 30s later; it is a
+separate fault sharing a symptom, and it is untouched here.
+
 ### Changed — publishing a configuration snapshot is a checkbox list (2026-09-15)
 
 The publish control was one text input: *"Requirement codes to activate (comma separated)"*.

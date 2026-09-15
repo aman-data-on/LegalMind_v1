@@ -30,7 +30,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import CompoundSelect, Select, func, or_, select
 
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
@@ -48,7 +48,7 @@ from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
-router = APIRouter(tags=["counterparties"])
+router = APIRouter(tags=["counterparties"], route_class=CommitBeforeResponse)
 
 #: The one version role that means "executed". Named once: the Client Profile's
 #: "signed documents" count, the per-document signed flag and the version list's

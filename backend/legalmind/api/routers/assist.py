@@ -19,7 +19,7 @@ from sqlalchemy import select, text
 
 from legalmind import config
 from legalmind.api import ratelimit
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
@@ -31,7 +31,7 @@ from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
 from legalmind.security.errors import NotVisible
 
-router = APIRouter(tags=["assist"])
+router = APIRouter(tags=["assist"], route_class=CommitBeforeResponse)
 
 # In-process for a single worker; a multi-worker deployment backs this with the
 # shared Redis (see ratelimit.InProcessRateLimiter's docstring).

@@ -20,7 +20,7 @@ from legalmind.analysis.version_comparison import (
     ComparisonNotPossible,
     compare_versions,
 )
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
@@ -42,7 +42,7 @@ from legalmind.worker.dispatch import (
     version_lock_key,
 )
 
-router = APIRouter(tags=["documents"])
+router = APIRouter(tags=["documents"], route_class=CommitBeforeResponse)
 
 
 @router.get("/document-versions/{document_version_id}")

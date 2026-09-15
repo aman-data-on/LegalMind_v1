@@ -33,7 +33,7 @@ from legalmind.api.context import (
     new_csrf_token,
     request_id_of,
 )
-from legalmind.api.deps import Guard, get_db, get_guard, get_principal
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_db, get_guard, get_principal
 from legalmind.api.envelope import data
 from legalmind.api.schemas import LoginRequest
 from legalmind.api.serializers import serialize_session_identity
@@ -52,7 +52,7 @@ from legalmind.security.sessions import (
     revoke_session,
 )
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], route_class=CommitBeforeResponse)
 
 # Module-level so a deployment can swap it for the Redis-backed limiter without
 # touching a route (see ratelimit.InProcessRateLimiter's docstring).
