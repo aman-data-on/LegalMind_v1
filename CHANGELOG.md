@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — the backup credentials file is parsed, never sourced (2026-09-15)
+
+A CloudPe secret key was pasted into `/root/.legalmind-backup.env` with one leading space:
+
+    LEGALMIND_S3_SECRET_ACCESS_KEY= <40-char secret>
+
+`backup.sh` loaded it with `set -a; . "$CREDS"`. **Sourcing executes the file**, so bash set the
+variable to empty and ran the secret as a command — printing the whole key in the resulting
+`command not found` error. The credential leaked *by being read*. It was cleared from the file
+and rotated at the provider.
+
+Whitespace was the trigger; the defect is that a credentials file was being executed as root. It
+is now **parsed**: `KEY=VALUE`, surrounding whitespace and one layer of quotes stripped, only
+`LEGALMIND_S3_*` and `LEGALMIND_BACKUP_*` exported, nothing evaluated. A value containing
+`$(…)`, backticks, quotes or spaces survives byte-for-byte, which is the point — a secret is
+arbitrary bytes, not shell. A credentials file also can no longer set `PATH` or `LD_PRELOAD`.
+
+Eight tests in `backend/tests/test_backup_credentials.py` pin it, including a guard that fails
+the build if `source`/`.` is ever reintroduced for this file.
+
+
 ### Added — the 33 Constitution Standards are published (2026-09-15)
 
 Imported 11:09, published **11:15:24 by `aman.singh@leapswitch.com`** via
