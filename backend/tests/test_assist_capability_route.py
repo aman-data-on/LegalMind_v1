@@ -164,11 +164,32 @@ def test_the_verdict_screen_is_the_wrong_instrument_for_a_manifest(monkeypatch):
 
 
 def test_the_capability_module_reaches_no_legal_corpus():
-    """r2, structurally. If this module could import retrieval, a later edit could
-    quietly give a product answer a legal source."""
+    """r2/r3, structurally. If this module could import retrieval or generation, a later
+    edit could quietly give a product answer a legal source or an egress path.
+
+    Parsed rather than grepped. An earlier version of this test searched the raw file
+    for the substring "generation" and went red the moment the module's own docstring
+    explained WHY it makes no generation call — a test that punishes documentation is a
+    test that will be weakened. `ast` sees imports and calls, and reads no prose.
+    """
+    import ast
     import pathlib
-    source = pathlib.Path(capability.__file__).read_text()
-    for forbidden in ("from legalmind.assist import store", "import positions",
-                      "import statutes", "search_positions", "search_hybrid",
-                      "generation"):
-        assert forbidden not in source, forbidden
+
+    tree = ast.parse(pathlib.Path(capability.__file__).read_text())
+    forbidden_modules = {"store", "positions", "statutes", "generation",
+                         "legalmind.assist.store", "legalmind.assist.positions",
+                         "legalmind.assist.statutes", "legalmind.assist.generation"}
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {a.name for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported.add(node.module or "")
+            imported |= {a.name for a in node.names}
+    assert not (imported & forbidden_modules), imported & forbidden_modules
+
+    # No attribute access onto a retrieval or generation namespace either, in case one
+    # is ever reached without an import statement.
+    reached = {node.value.id for node in ast.walk(tree)
+               if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)}
+    assert not (reached & forbidden_modules), reached & forbidden_modules
