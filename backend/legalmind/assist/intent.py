@@ -31,20 +31,58 @@ from __future__ import annotations
 
 import re
 
-_WORD = re.compile(r"[a-z]+")
+# Devanagari is matched alongside ASCII. Before this, `[a-z]+` tokenized
+# "हमारे मानक से तुलना करें" ("compare with our standard") to the EMPTY list, so
+# `is_comparison_question` was False and the evaluator's own question — the one
+# `AM-25` r4 says is never answered generatively — went to the model instead.
+# A safety screen that answers "no" for everything it cannot read is not a screen.
+_WORD = re.compile(r"[a-z]+|[ऀ-ॿ]+")
 
 # Stems, not words: prefix-matched against each normalized token.
 # Exact matches — a prefix would let "use" and "were" through.
-_ORG_PRONOUNS = frozenset({"our", "ours", "us", "we"})
+# Hindi first-person possessives are the exact equivalent of "our", and appear both
+# romanized and in Devanagari in real questions ("hamare standard", "हमारे मानक").
+_ORG_PRONOUNS = frozenset({
+    "our", "ours", "us", "we",
+    "hamara", "hamare", "hamari", "humara", "humare", "humari",
+    "hum", "humein", "hamein",
+    "हमारा", "हमारे", "हमारी", "हम", "हमें",
+})
 # Exact words, not stems: "follow-up" and "following our call" are not comparisons.
 _VERB_WORDS = frozenset({"follow", "follows", "adhere", "adheres", "honour", "honor"})
 _ORG_STEMS = ("compan", "approv", "standard", "position", "polic",
-              "constitution", "baseline", "playbook", "template", "leapswitch", "cloudpe")
+              "constitution", "baseline", "playbook", "template", "leapswitch", "cloudpe",
+              # Hindi: मानक standard · नीति policy · संविधान constitution · कंपनी company
+              "मानक", "नीति", "संविधान", "कंपनी")
 _VERB_STEMS = ("compar", "against", "compl", "conform", "align", "meet", "meets",
                "satisf", "deviat", "match", "differ", "accept", "unaccept", "approv",
-               "violat", "breach", "consistent", "inconsistent", "conflict")
+               "violat", "breach", "consistent", "inconsistent", "conflict",
+               # Hindi: तुलना compare · अनुसार/अनुरूप according to · पालन comply ·
+               # उल्लंघन violate · विपरीत contrary · मेल match
+               "तुलना", "अनुसार", "अनुरूप", "पालन", "उल्लंघन", "विपरीत", "मेल")
 _NOUN_STEMS = ("deviation", "gap", "missing", "acceptab", "unacceptab", "compliance",
                "compliant", "noncompliant", "redline", "attention", "modif", "risk")
+
+# Romanized Hindi comparison is POSTPOSITIONAL — "X ke according", "X ke hisaab se",
+# "X ke mutabik" — so it is matched as a BIGRAM, not as a bare stem. Matching
+# "according" alone would misread the ordinary English "according to our agreement,
+# what is the notice period?" (a document question) as a compliance verdict request.
+_COMPARISON_BIGRAMS = frozenset({
+    ("ke", "according"), ("ke", "hisaab"), ("ke", "hisab"), ("ke", "mutabik"),
+    ("ke", "mutaabik"), ("ke", "anusaar"), ("ke", "anusar"), ("ke", "anuroop"),
+    ("se", "alag"), ("ke", "khilaf"),
+})
+
+# Single romanized tokens that are unambiguously comparison signals on their own.
+_COMPARISON_WORDS = frozenset({"tulna", "palan", "ullanghan", "anupalan"})
+
+# Signing-readiness. `AM-25` r4 already forbids the assistant deciding whether a
+# document meets the standard; "should we sign this?" asks for strictly more than
+# that, so until Phase 3 gives it its own structured route it is treated as a
+# comparison and handed to the evaluator — which answers with Findings rather than
+# a yes/no, exactly what the question should get. Exact words: "sign" as a stem
+# would swallow "significant" and "signatory".
+_SIGNING_WORDS = frozenset({"sign", "signing", "हस्ताक्षर"})
 
 # "approv" appears in both groups on purpose: "our approved position" is an organization
 # reference; "can we approve this" is a comparison verb. One token cannot serve as both,
@@ -59,14 +97,26 @@ def _hits(tokens: list[str], stems: tuple[str, ...]) -> set[int]:
     return {i for i, tok in enumerate(tokens) if tok.startswith(stems)}
 
 
+def _comparison_signals(tokens: list[str]) -> set[int]:
+    """Indices of tokens that signal a comparison, in any supported script."""
+    signal = _hits(tokens, _VERB_STEMS) | _hits(tokens, _NOUN_STEMS)
+    signal |= {i for i, t in enumerate(tokens) if t in _VERB_WORDS}
+    signal |= {i for i, t in enumerate(tokens) if t in _COMPARISON_WORDS}
+    signal |= {i for i, t in enumerate(tokens) if t in _SIGNING_WORDS}
+    # Postpositional bigrams: the second token carries the signal, so "ke according"
+    # marks the index of "according".
+    signal |= {i + 1 for i, t in enumerate(tokens[:-1])
+               if (t, tokens[i + 1]) in _COMPARISON_BIGRAMS}
+    return signal
+
+
 def is_comparison_question(question: str) -> bool:
     """True when the question asks how the document stands against the organization's
     position — the evaluator's question, never the model's."""
     tokens = _stems(question or "")
     org = _hits(tokens, _ORG_STEMS)
     org |= {i for i, t in enumerate(tokens) if t in _ORG_PRONOUNS}
-    signal = _hits(tokens, _VERB_STEMS) | _hits(tokens, _NOUN_STEMS)
-    signal |= {i for i, t in enumerate(tokens) if t in _VERB_WORDS}
+    signal = _comparison_signals(tokens)
     # A signal token that is NOT itself an organization token is required: "our
     # approved position" is a position LOOKUP (Domain A), not a comparison, even
     # though "approved" is also a verb stem. "match our approved position" has one.
@@ -112,10 +162,17 @@ def is_statute_question(question: str) -> bool:
 # is not a signal here. Real verdicts — "this clause complies with our approved
 # standard", "the cap deviates from the company's position" — are still caught.
 _POSITION_STEMS = ("standard", "position", "polic", "approv", "constitution",
-                   "baseline", "playbook", "template")
+                   "baseline", "playbook", "template",
+                   "मानक", "नीति", "संविधान")
 _VERDICT_STEMS = ("compl", "conform", "align", "meet", "meets", "satisf", "deviat",
                   "match", "accept", "unaccept", "violat", "consistent", "inconsistent",
-                  "noncompliant", "compliant", "compliance")
+                  "noncompliant", "compliant", "compliance",
+                  "अनुसार", "अनुरूप", "पालन", "उल्लंघन", "स्वीकार्य", "विपरीत")
+# Romanized verdict vocabulary. "sahi"/"theek" (correct/fine) and "alag" (different)
+# are how a Hinglish verdict is actually phrased — "yeh clause hamari policy ke
+# hisaab se sahi hai" — and none of the English stems above touch them.
+_VERDICT_WORDS = frozenset({"sahi", "theek", "thik", "alag", "galat", "swikarya",
+                            "anurup", "palan", "ullanghan"})
 
 
 def is_verdict_statement(text: str) -> bool:
@@ -125,6 +182,9 @@ def is_verdict_statement(text: str) -> bool:
     tokens = _stems(text or "")
     position = _hits(tokens, _POSITION_STEMS)
     signal = _hits(tokens, _VERDICT_STEMS)
+    signal |= {i for i, t in enumerate(tokens) if t in _VERDICT_WORDS}
+    signal |= {i + 1 for i, t in enumerate(tokens[:-1])
+               if (t, tokens[i + 1]) in _COMPARISON_BIGRAMS}
     return bool(position) and bool(signal - position)
 
 
@@ -138,7 +198,21 @@ def is_verdict_statement(text: str) -> bool:
 # No model rewrites anything: the test is a stop-word count and a small anaphora list,
 # so the same question always resolves the same way and the record can say why.
 _ANAPHORA = frozenset({"this", "that", "it", "its", "those", "these", "same", "previous",
-                       "above", "earlier", "there", "then", "latter", "former"})
+                       "above", "earlier", "there", "then", "latter", "former",
+                       # Hinglish demonstratives — "isko samjhao", "ismein kya hai",
+                       # "yeh sahi hai?". Without these a Hinglish follow-up carried
+                       # no anaphora, so no prior question widened its retrieval and
+                       # it went to the index cold.
+                       # NOT the bare forms "is", "us", "use": romanized इस/उस/उसे
+                       # collide with the English verb, pronoun and verb respectively,
+                       # and "What IS the notice period in this agreement?" became a
+                       # follow-up. The inflected forms carry the same meaning and are
+                       # unambiguous, so the bare ones are simply not worth their cost.
+                       "isko", "ismein", "isme", "iska", "iski", "ise",
+                       "usko", "usme", "usmein", "uska", "uski",
+                       "yeh", "ye", "woh", "wo", "vah", "yah", "upar", "uper",
+                       "इसको", "इसमें", "इसका", "इसकी", "इसे", "उसको", "उसमें",
+                       "उसका", "यह", "ये", "वह", "वो", "ऊपर", "पिछला", "पिछले"})
 _OPENERS = frozenset({"and", "also", "but", "so", "plus"})
 _STOP = frozenset({
     "what", "about", "how", "is", "are", "the", "a", "an", "of", "in", "on", "for", "to",
@@ -151,10 +225,20 @@ _STOP = frozenset({
 })
 
 
+# Demonstratives that can introduce a noun rather than point back — "this Agreement",
+# "yeh agreement". Anything here is exempted from the anaphora rule when a document
+# noun follows it, in every script.
+_DEMONSTRATIVES = frozenset({"this", "that", "these", "those",
+                             "yeh", "ye", "woh", "wo", "is", "us", "yah", "vah",
+                             "यह", "ये", "वह", "वो", "इस", "उस"})
+
 # "this Agreement", "that document": a determiner in front of the thing being asked
 # about, not a reference to an earlier turn.
 _DETERMINED = frozenset({"agreement", "contract", "document", "clause", "section",
-                         "msa", "nda", "sla", "policy", "version", "act", "provision"})
+                         "msa", "nda", "sla", "policy", "version", "act", "provision",
+                         # Hindi nouns that take the same determiners
+                         "samjhauta", "dastavez", "anubandh",
+                         "समझौता", "दस्तावेज", "अनुबंध", "खंड", "धारा"})
 
 
 def is_follow_up(question: str) -> bool:
@@ -167,7 +251,7 @@ def is_follow_up(question: str) -> bool:
     if tokens[0] in _OPENERS:
         return True
     for i, tok in enumerate(tokens):
-        if tok in _ANAPHORA and not (tok in {"this", "that", "these", "those"}
+        if tok in _ANAPHORA and not (tok in _DEMONSTRATIVES
                                      and i + 1 < len(tokens)
                                      and tokens[i + 1] in _DETERMINED):
             return True
