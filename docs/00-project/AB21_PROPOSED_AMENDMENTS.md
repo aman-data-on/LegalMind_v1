@@ -167,6 +167,36 @@ r8  AM-46 STILL HOLDS. Its own candidate set, deterministic in the question's sh
     dependent on no object's existence — not an existence oracle.
 ```
 
+### Evidence bearing on the generate-vs-render choice (measured 2026-09-15)
+
+The capability route was built dark on `feat/capability-route` (flag
+`LEGALMIND_CAPABILITY_ROUTE`, **off**; 23 tests). Building it surfaced a fact the owner
+should have before choosing r5's generated wording over r6's deterministic rendering:
+
+**`intent.is_verdict_statement` fires on the rendered manifest.** The two entries that
+trip it are `c3`, which names the product's own classification vocabulary ("a match, a
+deviation, missing, a conflict"), and `L1` — the **disclaimer**: *"I do not decide
+whether a document is acceptable, approve it, or advise whether to sign."* The sentence
+that makes the answer safe is the one flagged as a verdict.
+
+That is not a defect in the screen. It asks "does this text state how a DOCUMENT stands
+against the organisation's position?" and answers on whole text by design (`AM-28` r2). A
+static manifest names the vocabulary without applying it to anything — a case it was
+never built to judge.
+
+Two consequences:
+
+* r7's guarantee for this route is **structural, not screened** — zero retrieval plus
+  owner-approved static evidence means it cannot state a position about any document.
+  Pinned by the zero-retrieval and import-boundary tests, not by the verdict screen.
+* **A generated capability answer would very likely be rejected by that same screen and
+  fall back every time.** So r5's generation would, in practice, often deliver r6's
+  output anyway — while adding an egress call and a failure mode.
+
+This is real evidence for the deterministic option. It does not decide the question: a
+rendered manifest still reads as a feature list rather than an answer, which is the
+original argument for generating. **Recorded, not resolved.**
+
 ---
 
 ## `AM-70` — A multilingual embedding model *(deferred, not yet proposed for decision)*
