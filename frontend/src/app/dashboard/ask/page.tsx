@@ -12,8 +12,6 @@ import { Suspense } from "react";
 
 import { AskWorkspace } from "@/components/workspace/AskWorkspace";
 
-import "./ai.css";
-
 export default function AskPage() {
   return (
     <Suspense fallback={null}>

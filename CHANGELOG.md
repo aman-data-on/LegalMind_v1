@@ -10,6 +10,50 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — shadcn/ui works here now: layers, not preflight (2026-09-15)
+
+shadcn/ui was approved for incremental adoption on 2026-09-10, but nothing could actually be
+adopted, and the reason was a cascade fact rather than a decision. `globals.css` carried five
+**unlayered bare-element rules** — `button`, `label`, `input, select, textarea` among them — and
+every shadcn primitive is built on exactly those elements (Select's trigger is a `<button>`,
+Checkbox is a `<button role="checkbox">`). An unlayered rule beats a layered one whatever the
+selectors say, so Tailwind utilities lost silently and the primitives rendered with the legacy
+chrome.
+
+Those four rules moved into `@layer base`, **verbatim**. Everything else in `globals.css` stays
+unlayered and still outranks every utility; `workspace.css` is untouched and entirely unlayered, so
+`.ws` keeps beating everything.
+
+**Preflight is still not imported.** `shadcn init` would have written `@import "tailwindcss"` and
+reset `ul`/`ol`/`a`/`blockquote` on every screen — measured at 17 `<ul>`, 14 `<ol>` and 38 links,
+which moves the `ws-admin` baseline. The one behaviour shadcn genuinely needs from it
+(`border-style: solid`, without which every shadcn border is invisible) is supplied by hand.
+
+**`Select` and `Checkbox` were adopted; Button, Input, Textarea, Label and Badge deliberately were
+not** — each would have created a second system beside one that is already correct. Checkbox also
+fixes a real defect: `input, select, textarea { width: 100% }` stretches a native checkbox, visible
+today on `dashboard/admin/audit`.
+
+Verified by compiling `globals.css` on `main` and on the branch and comparing **rule by rule,
+semantically**: 216 LegalMind rules before, 217 after, **zero removed**, one added (the border
+default), and one changed safely — the plugin now wraps `.shortcuts-overlay`'s `color-mix()` in
+`@supports` with a fallback. `workspace.css` compiles byte-identical.
+`frontend/src/__tests__/css-foundation.test.ts` pins the whole contract, and every assertion in it
+was verified to fail under the mutation it guards.
+
+Two corrections to the record, not resolved quietly: DD-20 stated `@source` as the isolation
+mechanism — measured 2026-09-15, `@source` alone restricts nothing and still compiled 30 stray
+utilities from an empty directory; only `source(none)` turns automatic detection off. And the
+`tw:`-prefixed `src/app/dashboard/ask/ai.css` was retired, because **zero** utilities were ever
+written through it. Both recorded in DD-22 and banner-annotated on TAILWIND_ISOLATION.md.
+
+The shadcn CLI also needed three corrections worth knowing before the next `shadcn add`: it wrote
+`import { cn } from "cn"` and installed an unrelated npm package literally named `cn`; it installed
+the `radix-ui` umbrella beside the individual `@radix-ui/*` packages `Dialog.tsx` already uses; and
+it added `class-variance-authority`, which neither component uses. All three removed.
+
+See [DD-22](docs/design/DESIGN_DECISIONS.md).
+
 ### Fixed — the backup credentials file is parsed, never sourced (2026-09-15)
 
 A CloudPe secret key was pasted into `/root/.legalmind-backup.env` with one leading space:

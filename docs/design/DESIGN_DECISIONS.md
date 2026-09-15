@@ -1128,3 +1128,142 @@ title and costs nothing. A source or mode selector: `AM-45` r1 forbids it, and t
 decides. A finer citation anchor: `chunks.start_offset` exists but is never selected into a hit,
 so clause and page is the real resolution and the UI will not imply more precision than the data
 carries.
+
+## DD-22 — shadcn/ui works here now: layers, not preflight (2026-09-15)
+
+**Status: recorded. Presentation-layer tooling only; locks nothing and amends no `AM-*`.** Extends
+the owner's 2026-09-10 approval of shadcn/ui + Tailwind for incremental adoption. **Supersedes
+DD-20 on the isolation mechanism only** — DD-20's three reasons for adopting no AI Elements all
+still stand, and nothing about the Ask surface's markup changes here.
+
+The owner's instruction was *"use shadcn for components and the ui-ux plugin for design"*, and the
+first question was why shadcn had never actually worked in this repository.
+
+### What was blocking it was a cascade fact, not a decision
+
+`globals.css` carried five **unlayered bare-element rules** — `button`, `button:disabled`,
+`button.link`, `label`, `input, select, textarea`. Every shadcn primitive is built on exactly those
+elements: Select's trigger is a `<button>`, Checkbox is a `<button role="checkbox">`, Label is a
+`<label>`. **An unlayered rule beats a layered one whatever the selectors say**, so Tailwind
+utilities in `@layer utilities` lost silently and the primitives rendered with the legacy chrome.
+This is the same fact DD-20 recorded for `workspace.css`, reaching a different file.
+
+### Preflight is still not imported, and that is what keeps the change cheap
+
+`shadcn init` writes `@import "tailwindcss"`, which pulls preflight onto every screen. Measured
+against this app rather than assumed:
+
+| Preflight resets | Re-styled by globals.css? | Occurrences | Consequence |
+|---|---|---|---|
+| `button`, `input/select/textarea`, `table`, `th/td`, `h1-h3` | yes | — | harmless |
+| `* { box-sizing: border-box }` | yes, already at the top of the file | — | redundant |
+| `ul, ol { list-style: none; margin: 0; padding: 0 }` | **no** | 17 `<ul>`, 14 `<ol>` — `admin/roles`, `admin/departments` | **moves the `ws-admin` baseline** |
+| `a { color: inherit; text-decoration: inherit }` | only 3 scoped rules | 38 links | drift |
+| `blockquote { margin: 0 }` | **no** | 9 | drift |
+| `img`, `hr`, `fieldset`, `h4-h6` | no | 0, 0, 0, 1 | negligible |
+
+Preflight buys exactly one thing shadcn needs — Tailwind's `border` utility sets border-*width*
+only and relies on preflight for `border-style: solid`, without which every shadcn border is
+invisible. That one behaviour is supplied by hand, with its `border-width: 0` partner, because
+`border-style: solid` alone gives every element the initial `medium` width: a 3px border around
+everything. **Everything else preflight would do is either already done or unwanted.**
+
+### The architecture
+
+```
+@layer theme, base, utilities;                            /* utilities last = utilities win */
+@import "tailwindcss/theme.css"     layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "../components/ui";
+```
+
+* **`@layer base`** — the four bare-element rules, moved **verbatim**, plus the border default.
+* **`@layer utilities`** — Tailwind's utilities, last in the order.
+* **unlayered** — everything else in `globals.css`, and the whole of `workspace.css`. The design
+  system still outranks every utility; utilities exist to override element *defaults*, never it.
+
+Two consequences, stated rather than left to be discovered. The unlayered `:focus-visible` block
+beats shadcn's own `focus-visible:ring-*`, so every adopted primitive wears LegalMind's focus ring
+— the intended outcome, one product with one ring. And `workspace.css` is untouched and entirely
+unlayered, so `.ws` keeps beating everything, exactly as DD-20 intended.
+
+### `source(none)` is load-bearing — and DD-20's claim about `@source` does not hold alone
+
+DD-20 recorded "`@source` limited to the Ask route" as the isolation mechanism. **`@source` alone
+restricts nothing**: Tailwind's automatic source detection still scans the whole project beside it.
+Measured here — with `@source` present and the allow-listed directory **empty**, the file still
+compiled **30 utilities**, `.flex` and `.collapse` among them, scavenged out of unrelated markup,
+any of which could have claimed an existing class name. With `source(none)` the same compile emits
+**zero**, and with one probe component exactly that component's ten classes.
+
+DD-20's conclusion was not wrong in effect — the `tw:` prefix made every emitted utility
+unmatchable anyway — but the stated mechanism was, and the correction is recorded rather than left
+for the next session to trip over.
+
+### The token collision, and why it is the feature
+
+shadcn's CSS-variables mode wants `--background`/`--foreground`/`--primary`/`--muted`/`--accent`/
+`--border`/`--input`/`--ring` on `:root`. **Two of those names are already taken here and mean
+something else**: `--muted` is body-text grey (22 uses), shadcn's is a *background*; `--accent` is
+the link blue (9 uses), shadcn's is a hover *background*. Declaring them shadcn's way would have
+silently repainted the app.
+
+Avoided by mapping through Tailwind v4's `@theme`, which namespaces everything `--color-*`. Tailwind's
+theme layer does still declare seven names this file also declares — `--text-xs/sm/base/lg` and
+`--radius-xs/sm/md` — and that collision is deliberately kept: `:root` is **unlayered** and wins, so
+`text-sm` resolves to 0.86rem and `rounded-md` to 6px. The primitives speak LegalMind's type and
+radius scale for free, with nothing to keep in sync. It depends on `:root` never being wrapped in a
+layer, which `src/__tests__/css-foundation.test.ts` asserts.
+
+### What was adopted, and what was deliberately not
+
+**Adopted: `Select` and `Checkbox` only.** Both earn their place by behaviour, not looks — Select
+brings listbox keyboard navigation, typeahead and portal positioning; Checkbox is a `<button>`, which
+is also the fix for a real defect, since `input, select, textarea { width: 100% }` stretches a native
+checkbox (visible today on `dashboard/admin/audit`, the app's only one).
+
+**Not adopted: Button, Input, Textarea, Label, Badge.** Each would have created a second system beside
+one that is already correct — `.btn` with its documented variant rule, `Field()` binding label to
+control, native inputs styled minimally. CLAUDE.md's term is "only where it genuinely improves
+consistency, accessibility or maintainability over the hand-rolled equivalent", and none of these does.
+
+Both adopted primitives were restyled to the tokens: the Select trigger is matched to
+`input, select, textarea` value for value, and the redundant focus rings and dead `dark:` variants
+were removed.
+
+### Three corrections to what the shadcn CLI produced
+
+Recorded because they are not obvious and the next `shadcn add` will reproduce them:
+
+1. It wrote `import { cn } from "cn"` and installed **an unrelated npm package literally named
+   `cn`**, instead of the configured `@/lib/utils` alias. Removed.
+2. It installed the **`radix-ui` umbrella package** while `Dialog.tsx` already uses individual
+   `@radix-ui/react-*` packages — two copies of Radix internals. Rewritten to the individual
+   packages.
+3. It added `class-variance-authority`, which neither generated component uses. Removed.
+
+`@radix-ui/react-select` and `@radix-ui/react-checkbox` are the only dependencies this adds.
+
+### Verification
+
+`globals.css` was compiled through the real PostCSS pipeline on `main` and on this branch and the
+two were compared **rule by rule, semantically** rather than as text (the plugin reformats every
+declaration onto its own line, so a line diff is meaningless):
+
+* **216 LegalMind rules before, 217 after. Zero removed. One added** — the border default.
+* **One changed**, and it is safe: the plugin wraps `.shortcuts-overlay`'s `color-mix()` background
+  in `@supports` and emits `background: var(--ink)` as a fallback before it. Browsers that support
+  `color-mix` — Chromium, so every baseline — render the original value; older ones now get an
+  opaque scrim instead of none. This newly applies because the plugin previously skipped
+  `globals.css`, which carried no Tailwind directive.
+* `workspace.css` compiles **byte-identical**, 234,644 bytes.
+
+`src/__tests__/css-foundation.test.ts` asserts the contract against the compiled stylesheet — no
+preflight, the border default complete with its width partner, the element rules in `base`, the
+design system unlayered, utilities last, the allow-list honoured, and LegalMind winning the seven
+shared token names. Each assertion was verified to **fail** under the mutation it guards against.
+
+`src/app/dashboard/ask/ai.css` was retired: it held the earlier `tw:`-prefixed import, and
+`grep -ro "tw:[a-zA-Z0-9_-]*" src` returned **zero** — not one utility was ever used through it.
+Two Tailwind entry points with different prefixes is a bug waiting to happen; one unprefixed
+instance in `globals.css` replaces it and no markup migrated.
