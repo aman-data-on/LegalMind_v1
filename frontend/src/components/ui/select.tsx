@@ -32,13 +32,16 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        // Matched to `input, select, textarea` in globals.css, value for value —
-        // a Select sits in the same `.field` column as native controls and any
-        // difference in height, radius or padding reads as a mistake.
+        // Matched to `.ws-field input, .ws-field select` in workspace.css, value
+        // for value: 38px tall, 8px/10px padding. A Select sits in the same
+        // column as native controls and any difference in height, radius or
+        // padding reads as a mistake. (DD-22 first matched this to globals.css's
+        // native metrics; the only screen that uses it now speaks `ws-*`.)
         // No focus ring here: the unlayered `button:focus-visible` in globals.css
-        // beats any utility and already draws LegalMind's ring (DD-22).
-        "flex w-full items-center justify-between gap-2 p-[0.4rem] text-base",
-        "rounded-sm border border-input bg-transparent whitespace-nowrap outline-none",
+        // beats any utility and already draws LegalMind's ring.
+        "flex w-full items-center justify-between gap-2 px-[10px] py-[8px]",
+        "min-h-[38px] text-[0.8125rem] leading-[1.35]",
+        "rounded-[6px] border border-input bg-transparent whitespace-nowrap outline-none",
         "disabled:cursor-not-allowed disabled:text-muted-foreground",
         "aria-invalid:border-destructive data-[placeholder]:text-muted-foreground",
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex",

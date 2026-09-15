@@ -4383,3 +4383,97 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
   .ws-chat__railhead { display: none; }
   .ws-chat__welcome h2 { font-size: var(--ws-text-md); }
 }
+
+/* ==========================================================================
+ * Standards — the Company Standard form and the phrase collections
+ * (2026-09-15). These live here, not in globals.css, because the screen now
+ * speaks the same vocabulary as Administration: `ws-field`, `ws-btn`,
+ * `ws-intake`, `ws-chip`. Everything below is what that vocabulary did not
+ * already have a word for.
+ * ========================================================================== */
+
+/* The form inside an expanded row. Deliberately NOT a card: it is already inside
+   the table's row, and DESIGN.md rejects a box inside a box. */
+.ws-stdform { padding: var(--ws-s4) 0 var(--ws-s3); max-width: 78rem; }
+
+/* Field groups: a heading and a rule, for the same reason. */
+.ws-formsec { margin-top: var(--ws-s5); padding-top: var(--ws-s4); border-top: 1px solid var(--ws-ink-100); }
+.ws-formsec:first-of-type { margin-top: var(--ws-s3); }
+.ws-formsec > h5 { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.ws-formsec > summary { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); cursor: pointer; }
+.ws-formsec > .ws-pane__note { margin: 0 0 var(--ws-s3); max-width: 78ch; }
+
+/* Two columns once there is room for two readable ones. `auto-fit` rather than a
+   breakpoint: this form renders inside a table row whose width varies with the
+   screen, and a fixed breakpoint guesses wrong at one of them. */
+.ws-formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: var(--ws-s3) var(--ws-s4); align-items: start; }
+.ws-formgrid > .ws-field { min-width: 0; }
+
+/* Validation summary. Complements the inline errors and never replaces them
+   (ui-ux-pro-max, "Focusable Error Summary"); each item focuses its own field. */
+.ws-errsum { max-width: none; margin-bottom: var(--ws-s3); }
+.ws-errsum:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-errsum__list { margin: var(--ws-s2) 0 0; padding-left: 1.1rem; font-size: var(--ws-text-sm); }
+
+/* A value the form shows but never lets anyone edit, with its citation — the
+   Legal Rule. Shown rather than hidden so the screen stays honest about what
+   will be saved. */
+.ws-stated {
+  background: var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+  padding: var(--ws-s2) var(--ws-s3); margin: var(--ws-s3) 0 0;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
+.ws-stated__value { font-family: var(--ws-mono); font-weight: 600; color: var(--ws-ink-900); }
+
+/* A monospace area for stored JSON — the advanced escape hatch, and the
+   create-a-version form until that is a form too. */
+.ws-codearea {
+  width: 100%; font-family: var(--ws-mono); font-size: var(--ws-text-sm);
+  padding: var(--ws-s2) var(--ws-s3); border: 1px solid var(--ws-ink-300);
+  border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-ink-900);
+}
+
+/* A row of checkboxes that wraps. */
+.ws-checks { display: flex; flex-wrap: wrap; gap: var(--ws-s2); margin: 0; padding: 0; list-style: none; }
+.ws-check {
+  display: inline-flex; align-items: center; gap: var(--ws-s2);
+  padding: 4px 9px; border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
+.ws-check__label { cursor: pointer; }
+.ws-check__label .ws-pane__note { display: inline; }
+
+/*
+ * Phrases — an editable collection of the words the extractor matches on.
+ *
+ * NOT `.ws-chip`: that is a nowrap mono label for a status, and a legal phrase
+ * must WRAP. `ui-ux-pro-max` "Chip Collection Reflow" — the collection wraps, it
+ * never scrolls horizontally and never truncates, because a clipped legal phrase
+ * reads as a different phrase.
+ *
+ * The box reads as one form control: it carries the input's border and radius and
+ * takes the focus ring when anything inside it has focus.
+ */
+.ws-phrases {
+  display: flex; flex-wrap: wrap; gap: var(--ws-s1, 4px); align-items: center;
+  padding: 5px; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+}
+.ws-phrases:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ws-accent) 22%, transparent); }
+.ws-phrases[data-disabled] { background: var(--ws-ink-100); }
+.ws-phrases__list { display: contents; margin: 0; padding: 0; list-style: none; }
+.ws-phrase {
+  display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
+  padding: 2px 3px 2px 8px; background: var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm); font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+}
+.ws-phrase__text { overflow-wrap: anywhere; }
+.ws-phrase__remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 2px; border: none; background: none; border-radius: 3px;
+  color: var(--ws-ink-500); cursor: pointer;
+}
+.ws-phrase__remove:hover:not(:disabled) { color: var(--ws-error); background: var(--ws-surface); }
+.ws-phrases__input { flex: 1 1 12rem; min-width: 8rem; border: none; background: none; padding: 4px 5px; font: inherit; font-size: var(--ws-text-sm); min-height: 0; }
+.ws-phrases__input:focus-visible { outline: none; }
+.ws-phrases__count { margin: 4px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
