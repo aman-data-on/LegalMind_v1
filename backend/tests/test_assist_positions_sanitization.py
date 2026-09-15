@@ -24,6 +24,9 @@ import json
 
 import pytest
 
+from sqlalchemy import text as sql_text
+
+from legalmind import config
 from legalmind.assist.positions import (RATIFIED_STANDARDS_DIR, _compose_content,
                                         public_source_name)
 
@@ -126,3 +129,74 @@ def test_the_sanitised_name_is_what_gets_indexed():
         assert public_source_name(payload["source_document"]) in content
         assert payload["source_document"] not in content or \
             payload["source_document"] == public_source_name(payload["source_document"])
+
+
+# --------------------------------------------------------------------------
+# The DB round trip — the sanitizer is a WRITE-TIME fix, so the thing that
+# actually matters is what lands in position_chunks and what comes back out
+# --------------------------------------------------------------------------
+def test_the_real_corpus_chunks_into_the_database_carrying_no_locator(db, user):
+    """Chunk the REAL 40 ratified standards and read the rows back.
+
+    `_compose_content` is unit-tested above, but the defect shipped through
+    persistence: the leaked string lived in `position_chunks.content` and was rendered
+    from there. A fix proven only on the composer would still leave that untested, and
+    re-chunking is the step that actually removes the stale rows — so this exercises
+    chunk -> store -> read and asserts on what a reader would receive.
+    """
+    import tools.import_ratified_standards as imp
+    from legalmind.assist.positions import (RATIFIED_STANDARDS_DIR,
+                                            chunk_ratified_standards)
+    from tools.import_ratified_standards import import_standards
+
+    original = imp.RATIFIED_STANDARDS_DIR
+    imp.RATIFIED_STANDARDS_DIR = RATIFIED_STANDARDS_DIR
+    try:
+        import_standards(db, actor_email=user.email)
+    finally:
+        imp.RATIFIED_STANDARDS_DIR = original
+    chunk_ratified_standards(db)
+
+    rows = db.execute(sql_text(
+        f'SELECT standard_code, content FROM "{config.assist_schema()}".position_chunks'
+    )).all()
+    assert len(rows) >= 40, f"expected the whole corpus, chunked {len(rows)}"
+
+    leaked = [(code, tok) for code, content in rows
+              for tok in FORBIDDEN if tok in content.lower()]
+    assert leaked == [], f"internal locator persisted into position_chunks: {leaked[:5]}"
+
+    # And the counterparty note, which `AM-30` t4 would forbid egressing under AM-67.
+    assert not [c for c, content in rows if "not named in" in content.lower()]
+
+
+def test_the_leaked_tokens_are_no_longer_searchable(db, user):
+    """The chunk text IS the lexical index (`content_tsv` is generated from it), so the
+    leak also inflated the two-shared-lexeme floor: `docs`, `pdf` and `md` were matchable
+    words. A question about repositories should now reach no company position at all."""
+    import tools.import_ratified_standards as imp
+    from legalmind.assist.positions import (RATIFIED_STANDARDS_DIR,
+                                            chunk_ratified_standards, search_positions)
+    from tools.import_ratified_standards import import_standards
+    from legalmind.security import permissions as P
+
+    original = imp.RATIFIED_STANDARDS_DIR
+    imp.RATIFIED_STANDARDS_DIR = RATIFIED_STANDARDS_DIR
+    try:
+        import_standards(db, actor_email=user.email)
+    finally:
+        imp.RATIFIED_STANDARDS_DIR = original
+    chunk_ratified_standards(db)
+
+    perms = frozenset({P.ASSIST_ASK, P.CONFIGURATION_VIEW})
+    # ONLY the removed tokens. An earlier draft of this test used "docs legal
+    # constitution md" and failed — correctly: "legal" and "constitution" are part of
+    # the document's real public name ("Legal Constitution, Lawyer Review Version
+    # L1.10") and MUST stay searchable. The claim is narrow — the internal locator is
+    # gone from the index — not that the source document became invisible.
+    for query in ("docs md pdf",
+                  "legalmind_source_material_dir",
+                  "repository docs md"):
+        hits = search_positions(db, query=query, permissions=perms, limit=5,
+                                embed_query=lambda _q: None)
+        assert hits == [], f"{query!r} still retrieves a position: {[h.standard_code for h in hits]}"
