@@ -15,12 +15,13 @@ layer built in step 2, so the two cannot disagree.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Coroutine, Iterator
 from functools import cached_property
 from typing import Any
 from uuid import UUID, uuid5
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
+from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.api.context import SESSION_COOKIE, request_id_of
@@ -49,7 +50,7 @@ from legalmind.security.resolver import effective_permissions
 from legalmind.security.sessions import Principal, resolve_session
 
 
-def get_db() -> Iterator[DBSession]:
+def get_db(request: Request) -> Iterator[DBSession]:
     """One transaction per request — locked 43.26.
 
     The whole request commits or none of it does, so a partially written Finding
@@ -59,8 +60,16 @@ def get_db() -> Iterator[DBSession]:
     two halves of the same image (55.1) cannot resolve the database differently. It
     is built on first use, so importing the app opens no connection and the test
     harness — which overrides this dependency — never touches it.
+
+    **The session is published on ``request.state`` so ``CommitBeforeResponse`` can
+    commit it while the request is still being handled.** The ``db.commit()`` below
+    stays as well, and deliberately: it is what a route that is NOT wrapped still
+    relies on, so a router added without the route class keeps working exactly as it
+    did rather than silently persisting nothing. When the route did commit, this one
+    is a no-op.
     """
     db = new_session()
+    request.state.db = db
     try:
         yield db
         db.commit()
@@ -69,6 +78,53 @@ def get_db() -> Iterator[DBSession]:
         raise
     finally:
         db.close()
+
+
+class CommitBeforeResponse(APIRoute):
+    """Commit the request's transaction BEFORE its response is sent.
+
+    WHY THIS EXISTS. ``get_db`` is a dependency with ``yield``, and FastAPI keeps
+    the exit stack that closes it in ``request.scope["fastapi_inner_astack"]`` —
+    above the route — so the commit lands as the response goes out, not before it.
+    A client can therefore hold a ``200``/``201`` for a write whose transaction has
+    not committed yet, and its very next request reads a database that does not
+    contain it.
+
+    Measured on an isolated API against the e2e database: logging in and then
+    reading the session row directly from Postgres on a fresh connection found the
+    row present **11 times in 60**, and a following ``GET /auth/session`` over HTTP
+    returned **401 three times in 60**. That 401 is the "session briefly unusable
+    after login" recorded in CONTENT_FIRST_CONTRACT_TESTS.md, and it is not
+    confined to authentication: every write endpoint has the same window.
+
+    A route handler runs INSIDE that exit stack, so committing here is before both
+    the teardown and the response. With this in place the same measurement is
+    60/60 rows present and 60/60 probes ``200``.
+
+    TWO THINGS THAT ARE NOT THE CAUSE, checked rather than assumed, so nobody
+    repeats them: it is not ``BaseHTTPMiddleware`` (all three of ours were disabled
+    and the window stayed — 47 of 60 rows still missing), and setting
+    ``route_class`` on the ``v1`` router does nothing, because ``include_router``
+    preserves each source route's own class (measured: 0 routes wrapped). It has to
+    be set where each ``APIRouter`` is constructed, which is what
+    ``test_commit_before_response.py`` pins.
+
+    On a raised exception the wrapper never runs, ``get_db`` rolls back, and the
+    paths that must survive an abort keep their own explicit ``commit`` — the audit
+    row written before a ``Forbidden`` is raised, for one.
+    """
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        original = super().get_route_handler()
+
+        async def handler(request: Request) -> Response:
+            response = await original(request)
+            db = getattr(request.state, "db", None)
+            if db is not None:
+                db.commit()
+            return response
+
+        return handler
 
 
 def get_principal(request: Request,

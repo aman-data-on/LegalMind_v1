@@ -18,7 +18,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
 from legalmind.api.schemas import EscalationCreate
 from legalmind.api.serializers import serialize_evaluation, serialize_finding
@@ -31,7 +31,7 @@ from legalmind.workflow.escalation import (
     withdraw_escalation,
 )
 
-router = APIRouter(tags=["findings"])
+router = APIRouter(tags=["findings"], route_class=CommitBeforeResponse)
 
 
 @router.get("/findings/{finding_id}")

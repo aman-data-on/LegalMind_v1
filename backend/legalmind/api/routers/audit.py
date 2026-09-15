@@ -18,7 +18,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import paginated
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.serializers import (
@@ -29,7 +29,7 @@ from legalmind.api.serializers import (
 from legalmind.db import models as M
 from legalmind.security import permissions as P
 
-router = APIRouter(tags=["audit"])
+router = APIRouter(tags=["audit"], route_class=CommitBeforeResponse)
 
 
 @router.get("/audit-events")

@@ -19,7 +19,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from legalmind.api.deps import Guard, get_guard
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
 from legalmind.api.schemas import DecisionCreate
 from legalmind.api.serializers import serialize_decision, serialize_decision_chain
@@ -33,7 +33,7 @@ from legalmind.workflow.review_lifecycle import (
     transition,
 )
 
-router = APIRouter(tags=["decisions"])
+router = APIRouter(tags=["decisions"], route_class=CommitBeforeResponse)
 
 
 @router.post("/evaluations/{evaluation_id}/decisions", status_code=201)
