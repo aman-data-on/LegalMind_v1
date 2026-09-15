@@ -92,6 +92,18 @@ while IFS= read -r _line || [ -n "$_line" ]; do
 done < "$CREDS"
 unset _line _key _val
 
+# The file can exist and still not be filled in — the template ships with
+# PASTE_* placeholders. Treat that as "not configured yet", exactly like a
+# missing file, rather than sending the placeholder to the provider as a
+# credential and failing the nightly job with a 403 traceback every night.
+case "${LEGALMIND_S3_ACCESS_KEY_ID:-}${LEGALMIND_S3_SECRET_ACCESS_KEY:-}" in
+    *PASTE_*|"")
+        echo "OFF-SERVER UPLOAD SKIPPED: $CREDS still has placeholder credentials —" \
+             "this backup exists only on the machine it protects." >&2
+        exit 0
+        ;;
+esac
+
 : "${LEGALMIND_BACKUP_PASSPHRASE_FILE:?set LEGALMIND_BACKUP_PASSPHRASE_FILE in $CREDS}"
 if [ ! -r "$LEGALMIND_BACKUP_PASSPHRASE_FILE" ]; then
     echo "OFF-SERVER UPLOAD FAILED: passphrase file unreadable" >&2
