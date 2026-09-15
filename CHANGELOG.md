@@ -10,6 +10,18 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Template-Driven Document Builder R&D (2026-09-15)
+
+Research/recommendation document for a new feature: pick an approved template (MSA, NDA, …), fill
+only the permitted variable fields, preview, generate a watermarked draft PDF — never free-form
+generation. Grounded in two research passes over the live backend and frontend (storage, document
+types, Company Standards/Constitution handling, RBAC, the existing `export_render.py` PDF/DOCX
+renderer, the Gemini Flash egress seam, the AM-57 workspace UI, the Ask AI routing layer). No code
+changed; nothing here is locked or authorizes a build (rule 4). The standing blocker: no approved
+*output* template exists yet in any form — the supplied `legal-docs/` material encodes required
+*positions* (Company Standards) for review, not vetted issuable prose with a marked fixed/variable
+boundary (rule 21). See [docs/architecture/DOCUMENT_BUILDER_RND.md](docs/architecture/DOCUMENT_BUILDER_RND.md).
+
 ### Fixed — a request's transaction now commits BEFORE its response is sent (2026-09-15)
 
 A client could hold a `200` or `201` for a write whose transaction had not committed, so its very
