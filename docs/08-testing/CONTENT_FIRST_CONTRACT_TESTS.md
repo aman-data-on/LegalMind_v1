@@ -114,7 +114,22 @@ before:  [('ABSENT',    None, None, None)]
 after :  [('UNLIMITED', None, None, None)]
 ```
 
-**Fix:** seven ordinary phrasings added to `unlimited_phrases`. No position changed.
+**Fix, in two parts — and the second was only found by the full-set run.**
+
+Seven phrasings were added to `extraction.unlimited_phrases`, and the extraction unit test
+passed. It passed because it handed the clause straight to `extract_liability_facts`. The
+live pipeline **maps first**, and there the uncapped clause scored **2 against a confirm
+threshold of 5** — the only thing it matched was the section heading. So the clause was never
+recognised as a liability clause, extraction never ran on it, and the Finding came back
+MISSING.
+
+An uncapped liability term was therefore **invisible, not merely misread**. The same phrasings
+were added to `mapping_rules.exact_phrases`, and precision was checked in both directions: a
+normally capped clause still confirms, an unrelated clause still does not.
+
+This is the clearest argument in this record for running the whole pipeline rather than the
+unit under test: a green unit test sat on top of a defect that made a Not-Negotiable term
+disappear.
 
 ### 2 · "following the termination" left the basis unattributed — FIXED
 
