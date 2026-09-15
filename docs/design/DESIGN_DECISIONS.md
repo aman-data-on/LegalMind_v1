@@ -1487,6 +1487,16 @@ removing the phrase "shall not exceed" from its `cap_phrases`, which is the exac
 journey's document. The publish test then pinned the damage into a snapshot. Each test now builds
 its own throwaway Requirement.
 
+### One regression this nearly shipped, caught by measuring rather than looking
+
+Writing the missing `.ws-link` rule at the END of `workspace.css` **repainted every account name in
+Administration accent-blue** — measured in a real browser at `rgb(37,99,235)` where it had been
+`rgb(14,20,32)`. `.ws-link` and `.ws-admin__name` have the same specificity, so source order is the
+only thing deciding, and Administration chose ink-900 deliberately: a roster where every row shouts
+is a roster nobody scans. `.ws-link` is the base rule and now sits immediately before the variant
+that overrides it, which is where a base rule belongs. `css-foundation.test.ts` asserts that order
+and was verified to fail when it is flipped.
+
 ### Verification
 
 15 unit tests over the filter and sort (`src/__tests__/requirement-filter.test.ts`) and 17

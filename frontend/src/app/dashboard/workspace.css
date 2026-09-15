@@ -2759,6 +2759,26 @@
 .ws-admin__body { display: flex; gap: var(--ws-s4); align-items: flex-start; }
 .ws-admin__main { flex: 1 1 auto; min-width: 0; display: flex;
                   flex-direction: column; gap: var(--ws-s3); }
+/*
+ * `.ws-link` — a clickable name inside a table, with no button chrome.
+ *
+ * THIS RULE WAS MISSING. The class is used in four Administration files
+ * (`admin/page.tsx`, `departments`, `roles`, `audit`) and had no rule anywhere,
+ * so those controls fell back to the global `button {}` — border, background,
+ * 0.4rem/0.8rem padding — and only looked right where `.ws-admin__name` happened
+ * to be applied beside it. Found by scanning every className in the app against
+ * every rule in the two stylesheets; sixteen classes came back with no rule at
+ * all, and this is the one that mattered most.
+ *
+ * Modelled on `.ws-admin__name`, which is the same idea under an
+ * Administration-specific name and can now draw from this.
+ */
+.ws-link {
+  font: inherit; background: none; border: 0; padding: 0;
+  color: var(--ws-accent); cursor: pointer; text-align: left;
+}
+.ws-link:hover { text-decoration: underline; }
+
 .ws-admin__name {
   font: inherit; font-weight: 500; background: none; border: 0; padding: 0;
   color: var(--ws-ink-900); cursor: pointer; text-align: left;
@@ -4565,25 +4585,6 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 .ws-phrases__input:focus-visible { outline: none; }
 .ws-phrases__count { margin: 4px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 
-/*
- * `.ws-link` — a clickable name inside a table, with no button chrome.
- *
- * THIS RULE WAS MISSING. The class is used in four Administration files
- * (`admin/page.tsx`, `departments`, `roles`, `audit`) and had no rule anywhere,
- * so those controls fell back to the global `button {}` — border, background,
- * 0.4rem/0.8rem padding — and only looked right where `.ws-admin__name` happened
- * to be applied beside it. Found by scanning every className in the app against
- * every rule in the two stylesheets; sixteen classes came back with no rule at
- * all, and this is the one that mattered most.
- *
- * Modelled on `.ws-admin__name`, which is the same idea under an
- * Administration-specific name and can now draw from this.
- */
-.ws-link {
-  font: inherit; background: none; border: 0; padding: 0;
-  color: var(--ws-accent); cursor: pointer; text-align: left;
-}
-.ws-link:hover { text-decoration: underline; }
 
 /* The standards table: a row is a name, not a control, so it keeps the list's
    density rather than the button's. Measured against Administration's 44.5px. */
