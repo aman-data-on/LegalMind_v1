@@ -10,6 +10,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — publishing a configuration snapshot is a checkbox list (2026-09-15)
+
+The publish control was one text input: *"Requirement codes to activate (comma separated)"*.
+Activating the AB-20 batch meant pasting **33 codes** into it, with nothing on screen saying which
+Requirements were waiting, which were already active, or which would be refused — and one typo
+produced `unknown Requirement code: …` only after the request came back.
+
+The screen already loads every Requirement with its `status`, so this is a group-by
+(`lib/publishPlan.ts`), not a new endpoint. Drafts appear as checkboxes; already-active
+Requirements are listed but not selectable, because every one is pinned whether or not anything is
+ticked; retired ones are listed with the reason they cannot be published (`AM-65`). **The button
+carries the outcome, not the verb** — "Publish 33 Requirements", or "Activate 8 and publish 41
+Requirements" — and when the publish would be refused for having nothing to pin it is disabled and
+shows the server's own sentence instead of sending a request that fails.
+
+It also surfaces a trap that was invisible before: a DRAFT with **no version** is listed but cannot
+be ticked, because activating one makes it ACTIVE and the publish then fails on `no version`,
+refusing **the whole snapshot** rather than just that Requirement.
+
+The screen reports only what the list response carries. Whether an active Requirement is missing
+its Company Standard or rules lives in the detail response, so it does not claim to know that — the
+server's fail-closed refusal (ENG-09) stays the authority. A `busy` state was added at the same
+time: publishing is a global act (Step 29 activates Requirements), so a double submit is two
+activations racing over what "the latest ACTIVE configuration" means.
+
+10 unit tests including the owner's own case (8 drafts against 33 active), plus 3 Playwright tests
+against the real backend. See [DD-24](docs/design/DESIGN_DECISIONS.md).
+
 ### Changed — a Company Standard is edited as a form, not as JSON (2026-09-15)
 
 Changing the organization's legal position on `/dashboard/configuration` meant hand-editing one

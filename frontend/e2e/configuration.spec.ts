@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { fixture, storageStatePath } from "./support";
+import { fixture, postOk, storageStatePath } from "./support";
 
 /**
  * Editing a Company Standard as a form, against the real backend.
@@ -20,20 +20,52 @@ import { fixture, storageStatePath } from "./support";
 test.describe("Company Standard editor", () => {
   test.use({ storageState: storageStatePath("admin") });
 
-  const code = fixture().configuration.requirement_code;
+  /**
+   * These tests EDIT a standard, so they must not edit the SHARED one.
+   *
+   * The suite is serial over one database and one configuration namespace, and
+   * `auth.setup.ts` publishes `STRUCTURAL-E2E-001` for every other spec to analyse
+   * against. Driving the form at that fixture removed the phrase "shall not
+   * exceed" from its `cap_phrases` — the exact phrase in `journey.spec.ts`'s
+   * document — so the cap stopped being recognised and that spec's DEVIATION
+   * became MISSING. Publishing then pinned the damage into a snapshot for
+   * everything downstream. Measured in CI, not theorised.
+   *
+   * So each test builds its own throwaway Requirement from the same fixture
+   * payload, and nothing here touches the shared one.
+   */
+  async function ownStandard(page: import("@playwright/test").Page): Promise<string> {
+    const config = fixture().configuration;
+    const code = `E2E-FORM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const requirement = await postOk(page, "/requirements", { code });
+    await postOk(page, `/requirements/${requirement.id}/versions`, {
+      name: config.name,
+      evaluator_type: config.evaluator_type,
+      company_standard: config.company_standard,
+      mapping_rules: config.mapping_rules,
+      evaluation_rules: config.evaluation_rules,
+      legal_rule: config.legal_rule,
+    });
+    return code;
+  }
 
   /** Open the requirement's stored values and start editing the current version. */
   async function openEditor(page: import("@playwright/test").Page) {
     await page.goto("/dashboard/configuration");
+    const code = await ownStandard(page);
+    await page.reload();
     const card = page.locator("section.card").filter({ hasText: code });
     await expect(card.getByRole("heading", { name: new RegExp(code) })).toBeVisible();
     await card.getByRole("button", { name: "Show stored values" }).click();
     await card.getByRole("button", { name: "Change these values" }).first().click();
-    return card.locator("form.card").filter({ hasText: "Company Standard — from v" });
+    return {
+      form: card.locator("form.card").filter({ hasText: "Company Standard — from v" }),
+      card,
+    };
   }
 
   test("the stored standard arrives in labelled fields, not as JSON", async ({ page }) => {
-    const form = await openEditor(page);
+    const { form } = await openEditor(page);
 
     // The values are the organization's own, read back from the ratified standard.
     await expect(form.getByLabel(/^Value/)).toHaveValue("6");
@@ -52,8 +84,7 @@ test.describe("Company Standard editor", () => {
   });
 
   test("a changed value is saved as a NEW version, leaving the old one intact", async ({ page }) => {
-    const form = await openEditor(page);
-    const card = page.locator("section.card").filter({ hasText: code });
+    const { form, card } = await openEditor(page);
     const versionsBefore = await card.locator("tbody tr").count();
 
     await form.getByLabel(/^Value/).fill("9");
@@ -82,7 +113,7 @@ test.describe("Company Standard editor", () => {
   });
 
   test("a required field that is empty is caught here, not days later at publish", async ({ page }) => {
-    const form = await openEditor(page);
+    const { form } = await openEditor(page);
 
     await form.getByLabel(/Scope key/).fill("");
     await form.getByLabel(/Reason for the change/).fill("e2e: should not save");
@@ -101,7 +132,7 @@ test.describe("Company Standard editor", () => {
   });
 
   test("a malformed Constitution section is refused with the reason, not a stack trace", async ({ page }) => {
-    const form = await openEditor(page);
+    const { form } = await openEditor(page);
     await form.getByRole("group").filter({ hasText: "Advanced" }); // exists, unopened
 
     await form.getByLabel(/^Section/).fill("1.2.3");
@@ -114,7 +145,7 @@ test.describe("Company Standard editor", () => {
   });
 
   test("the raw JSON escape hatch disables the fields while it is in charge", async ({ page }) => {
-    const form = await openEditor(page);
+    const { form } = await openEditor(page);
     await form.getByRole("group").filter({ hasText: "Advanced" }).locator("summary").click();
 
     const json = form.getByLabel("Edit the stored JSON directly");
@@ -130,5 +161,54 @@ test.describe("Company Standard editor", () => {
     await form.getByLabel(/Reason for the change/).fill("e2e: bad json");
     await form.getByRole("button", { name: "Save as a new version" }).click();
     await expect(form.locator(".field__error")).toContainText("not valid JSON");
+  });
+});
+
+/**
+ * Publishing a snapshot.
+ *
+ * This replaced one text field reading "Requirement codes to activate (comma
+ * separated)". Activating the AB-20 batch meant pasting 33 codes into it, with
+ * nothing on screen saying which Requirements were waiting, which were already
+ * active, or which would be refused — and one typo produced `unknown Requirement
+ * code` only after the request came back.
+ */
+test.describe("publishing a configuration snapshot", () => {
+  test.use({ storageState: storageStatePath("admin") });
+
+  test("the screen says what publishing will do, before it is asked to", async ({ page }) => {
+    await page.goto("/dashboard/configuration");
+    const section = page.locator("section.card").filter({ hasText: "Publish a configuration snapshot" });
+
+    // The button carries the outcome, not the verb.
+    const button = section.getByRole("button", { name: /Publish \d+ Requirement/ });
+    await expect(button).toBeEnabled();
+
+    // The three groups are named with their counts, and the active group says why
+    // it is not selectable.
+    await expect(section.getByText("Already active —")).toBeVisible();
+    await expect(section.getByRole("heading", { name: /Waiting to be activated/ })).toBeVisible();
+  });
+
+  test("a draft with no version is listed but cannot be ticked", async ({ page }) => {
+    const code = `E2E-EMPTY-${Date.now()}`;
+    await page.goto("/dashboard/configuration");
+    await page.getByLabel("New Requirement code").fill(code);
+    await page.getByRole("button", { name: "Create draft Requirement" }).click();
+
+    const section = page.locator("section.card").filter({ hasText: "Publish a configuration snapshot" });
+    const item = section.locator("li.chip").filter({ hasText: code });
+    await expect(item).toBeVisible();
+    // Activating it would make it ACTIVE, and the publish then fails on "no
+    // version" — refusing the WHOLE snapshot, not just this Requirement.
+    await expect(item.getByRole("checkbox")).toBeDisabled();
+    await expect(item).toContainText("no version yet");
+  });
+
+  test("publishing with nothing ticked pins the active configuration", async ({ page }) => {
+    await page.goto("/dashboard/configuration");
+    const section = page.locator("section.card").filter({ hasText: "Publish a configuration snapshot" });
+    await section.getByRole("button", { name: /Publish \d+ Requirement/ }).click();
+    await expect(section.getByText(/Snapshot/)).toBeVisible();
   });
 });
