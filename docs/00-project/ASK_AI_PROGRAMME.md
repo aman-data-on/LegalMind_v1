@@ -155,6 +155,76 @@ Not a contradiction of the 2026-09-04 prior art — a refinement. Hinglish rides
 legal **nouns**, so the outcome swings on phrasing alone. Same intent, different words,
 different answer.
 
+### D.7 DB-backed validation (2026-09-15, after the test credential was supplied)
+
+**⚠️ How to run the suite — do NOT source the whole env file.** `/root/.legalmind.env`
+sets `LEGALMIND_BROKER_URL` and `LEGALMIND_GEMINI_API_KEY`. Sourcing it wholesale makes
+indexing queue to a worker that is not running (every retrieval test then fails with
+`NO_EVIDENCE_RETRIEVED`) and puts a **live Gemini key** in reach of any test that does not
+fake generation. Six tests "failed" on clean `main` for exactly this reason before the
+environment was narrowed. Run with the test DB only:
+
+```bash
+TESTURL="$(set -a; . /root/.legalmind.env; set +a; \
+           echo "${LEGALMIND_DATABASE_URL/legalmind_v1_dev/legalmind_v1_test}")"
+env -u LEGALMIND_BROKER_URL -u LEGALMIND_GEMINI_API_KEY -u LEGALMIND_DATABASE_URL \
+    LEGALMIND_TEST_DATABASE_URL="$TESTURL" \
+    LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs \
+    python3 -m pytest tests/ -q -p no:randomly
+```
+
+The URL substitution is positional: if the env file ever stops containing
+`legalmind_v1_dev` it becomes a silent no-op and the "test" URL points at whatever the file
+holds. Worth pinning `LEGALMIND_TEST_DATABASE_URL` explicitly instead of deriving it.
+
+| Run | Result |
+|---|---|
+| `main`, assist suite, minimal env | **57 passed, 0 failed** (baseline) |
+| `fix/ask-source-leak` — positions + ask + sanitization | **97 passed, 0 failed** — the two new SQL joins execute |
+| `fix/language-safety-screens` — six assist suites | **198 passed, 0 failed** (after the fix below) |
+
+**Two tests were green because of the bug.** `test_D_a_statutory_question_is_answered_from_the_statute_corpus`
+and `test_document_and_statute_answers_stay_in_separate_sections` failed on the language-safety
+branch and passed on main. Both use a generation double returning
+`evidence[0].split(".")[0] + " [1]."`; a statute chunk opens with its section number, so the
+"answer" was the string `"3 [1]."` — a claim with an **empty** content-word set, admitted
+vacuously by the old `overlap = ... if claim_words else 1.0`. The same hole that passed a
+Devanagari hallucination. The doubles now return the first sentence that says something;
+**no assertion changed**. Fixed in `a6d6078`.
+
+### D.8 AC-12 — the 77-question release gate (2026-09-15)
+
+Run on `fix/language-safety-screens` with `LEGALMIND_GEMINI_API_KEY` **deliberately unset**,
+so no payload egressed and no cost was incurred. The harness degrades honestly: it skips the
+two generation-dependent metrics and still measures retrieval through the shipped
+`search_hybrid`.
+
+Two things had to be resolved first, neither of them a defect: the gate uses its own
+`legalmind_v1_tier2_gate` database (it **exists** — the first failure was authentication,
+not absence), and it reads `LEGALMIND_BENCH_DATABASE_URL`, which was falling back to a
+default password.
+
+```
+wrongly answered   1/13   (N-11)
+correct refusals   12/13
+retained           43/64   (false refusals 21)
+recall@10          0.625
+hit@1              0.375
+faithfulness       BLOCKED — no API key, by choice
+citation precision BLOCKED — same
+
+pass   wrongly-answered rate held: 1 <= baseline 1
+pass   recall_at_10 held: 0.625 >= baseline 0.625
+pass   retained held: 43 >= baseline 43
+
+SHIPPABLE — the measurable half of the AM-28 gate holds.
+```
+
+**AC-12 is met for this branch**: the language-safety change does not raise wrongly-answered,
+and neither recall nor retention regressed. Faithfulness and citation precision remain
+unmeasured; scoring them needs real Gemini calls on the owner's key, which is an explicit
+approval item.
+
 ### D.6 What has NOT been tested
 
 - **907 DB-backed tests** — no `LEGALMIND_TEST_DATABASE_URL`.
