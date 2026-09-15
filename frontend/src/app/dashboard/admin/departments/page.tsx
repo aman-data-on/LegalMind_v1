@@ -129,7 +129,7 @@ function DepartmentsScreen() {
               <input required value={code} placeholder="SALES" disabled={busy}
                      onChange={(event) => setCode(event.target.value)} />
             </label>
-            <label className="ws-field ws-field--type">
+            <label className="ws-field">
               <span className="ws-field__label">
                 Department name <span className="ws-field__req">(required)</span>
               </span>
