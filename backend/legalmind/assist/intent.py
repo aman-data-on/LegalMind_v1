@@ -139,6 +139,61 @@ _STATUTE = re.compile(
     re.IGNORECASE)
 
 
+# --------------------------------------------------------------------------
+# The capability question (`AM-68` r1) — PROPOSED, disabled by default
+# --------------------------------------------------------------------------
+# "What can you help me with in LegalMind?" is not a legal question, and answering it
+# from the Constitution is how the reported defect looked: three unrelated standards,
+# because the POSITIONS fallback is unconditional and a document-less Ask has no
+# primary route at all.
+#
+# The shape: a reference to the PRODUCT or to the assistant itself, plus a capability
+# signal, and — the leg that does the real work — NO legal anchor. "Can you find the
+# termination clause?" has the first two and is a document question; the third
+# separates them. Deterministic, no model (`AM-68` r1).
+_SELF_WORDS = frozenset({"legalmind", "legal mind", "you", "your", "yourself",
+                         "tum", "tumhara", "aap", "aapka", "आप", "तुम"})
+_CAPABILITY_WORDS = frozenset({
+    "help", "helps", "capable", "capabilities", "capability", "features", "feature",
+    "support", "supports", "able", "abilities", "purpose", "use", "uses", "usage",
+    "work", "works", "offer", "offers", "provide", "provides", "assist",
+    # "what can LegalMind DO?" — the plainest phrasing of the question, and the one
+    # the first draft missed. Safe because a legal anchor already excludes
+    # "can you find the termination clause?" and "what does our standard say?".
+    "do", "does", "can", "could",
+    # Hinglish: "kya kar sakta hai", "kaam", "madad", "istemaal"
+    "kar", "sakta", "sakte", "sakti", "kaam", "madad", "istemaal", "faayda",
+    "क्या", "मदद", "काम", "सकता", "सकते",
+})
+# A legal anchor means the question is about legal CONTENT, not about the product.
+# Kept deliberately wide: a false negative here is a capability question answered the
+# old way, which is today's behaviour; a false positive is a legal question diverted
+# to a product answer, which is worse.
+_LEGAL_ANCHOR_STEMS = ("clause", "contract", "agreement", "liabilit", "indemnit",
+                       "terminat", "confidential", "warrant", "arbitrat", "jurisdict",
+                       "notice", "renew", "payment", "breach", "sla", "nda", "msa",
+                       "tos", "cap", "deviat", "finding", "standard", "constitution",
+                       "polic", "statut", "act", "section", "obligat", "penalt",
+                       "अनुबंध", "खंड", "धारा", "मानक", "नीति", "संविधान")
+
+
+def is_capability_question(question: str) -> bool:
+    """True when the question asks what the PRODUCT can do, not what the law says.
+
+    `AM-68` is not approved, so nothing routes on this yet — `routing.plan` consults it
+    only when the capability route is explicitly enabled. Shipping the classifier dark
+    keeps it measurable and reviewable without changing a single answer.
+    """
+    tokens = _stems(question or "")
+    if not tokens:
+        return False
+    if _hits(tokens, _LEGAL_ANCHOR_STEMS):
+        return False
+    self_ref = {i for i, t in enumerate(tokens) if t in _SELF_WORDS}
+    capability = {i for i, t in enumerate(tokens) if t in _CAPABILITY_WORDS}
+    return bool(self_ref) and bool(capability - self_ref)
+
+
 def is_statute_question(question: str) -> bool:
     """True when the question asks about the law itself — a section number, an Act,
     a set of Rules. The Domain C candidate signal."""

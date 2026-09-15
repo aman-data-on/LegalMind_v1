@@ -1,0 +1,30 @@
+{
+  "_status": "DRAFT — NOT APPROVED. AM-68 is a proposed amendment; nothing reads this file while LEGALMIND_CAPABILITY_ROUTE is unset. See docs/00-project/CAPABILITY_MANIFEST_PROPOSAL.md and AB21_PROPOSED_AMENDMENTS.md.",
+  "_rule": "AM-68 r4 — every entry names behaviour that is BUILT and covered by a test. No future, planned, roadmap, partial or speculative capability. Rule 7's discipline: an invented capability is as bad as an invented legal rule.",
+  "version": 1,
+  "capabilities": [
+    {"id": "c1", "text": "Read a contract you upload as PDF or DOCX, keeping the document's own clause numbering rather than inventing one.", "evidence": "ingestion/parsing.py; test_ingestion_*.py"},
+    {"id": "c2", "text": "Compare an uploaded document against the organisation's ratified Company Standards.", "evidence": "POST /reviews/{id}/analyze; test_analysis_*.py"},
+    {"id": "c3", "text": "Classify each Finding as a match, a deviation, missing, a conflict, or not evaluable — and show the evidence, fact, standard and rule behind it.", "evidence": "evaluation engine; test_findings_*.py"},
+    {"id": "c4", "text": "Summarise a review in three plain words — Accepted, Needs review, Not accepted.", "evidence": "GET /reviews/{id}/findings; test_reader_status*.py"},
+    {"id": "c5", "text": "Answer questions about an uploaded document, pointing at the passage each sentence came from.", "evidence": "POST /conversations/{id}/messages; test_assist_ask.py"},
+    {"id": "c6", "text": "Quote the organisation's approved position word for word, with its standard code, version and source clause.", "evidence": "Domain A retrieval; test_positions.py"},
+    {"id": "c7", "text": "Answer questions about the approved statute corpus, cited by Act and section.", "evidence": "Domain C retrieval; test_assist_statutes.py"},
+    {"id": "c8", "text": "Follow a conversation, so a follow-up like \"what does that mean?\" is understood as being about the previous question.", "evidence": "conversation memory; test_assist_conversation_memory.py"},
+    {"id": "c9", "text": "Say plainly when the available material does not answer a question, instead of guessing.", "evidence": "refusal path; test_assist_source_matrix.py"},
+    {"id": "c10", "text": "Record a Legal Decision on an evaluation, made by a person authorised to make one.", "evidence": "POST /evaluations/{id}/decisions; test_workflow_decisions.py"},
+    {"id": "c11", "text": "Escalate a Finding for a human ruling, and withdraw that escalation.", "evidence": "POST/DELETE /findings/{id}/escalate; test_escalation*.py"},
+    {"id": "c12", "text": "Compare two versions of the same contract, clause by clause.", "evidence": "GET /contracts/{id}/version-comparison; test_version_comparison.py"},
+    {"id": "c13", "text": "Export a review as a PDF or DOCX report.", "evidence": "GET /reviews/{id}/report; test_api_export.py"},
+    {"id": "c14", "text": "List a document's key obligations as a description of what it says.", "evidence": "POST /document-versions/{id}/extract-obligations; test_assist_obligations.py"},
+    {"id": "c15", "text": "Archive, restore, transfer or delete a contract, with every such act recorded in the audit trail.", "evidence": "contract lifecycle endpoints; test_rbac_*.py"},
+    {"id": "c16", "text": "Publish a configuration snapshot so past reviews stay reproducible against the configuration they ran under.", "evidence": "POST /configuration/publish; test_configuration_*.py"}
+  ],
+  "limits": [
+    {"id": "L1", "text": "I do not decide whether a document is acceptable, approve it, or advise whether to sign. I show the findings and the approved position; a person decides."},
+    {"id": "L2", "text": "I do not draft or generate agreements."},
+    {"id": "L3", "text": "I work with one document per conversation, and cannot compare two uploaded documents with each other."},
+    {"id": "L4", "text": "I state no legal position that is not already in a ratified Company Standard, a published Legal Rule or an approved template."},
+    {"id": "L5", "text": "Where no approved source answers a question, I say so rather than guessing."}
+  ]
+}

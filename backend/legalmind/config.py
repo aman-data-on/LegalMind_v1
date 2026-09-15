@@ -233,3 +233,18 @@ def oidc_jit_roles() -> tuple[str, ...]:
 def oidc_jit_enabled() -> bool:
     return os.environ.get("LEGALMIND_OIDC_JIT_ROLES",
                           JIT_ROLES_DEFAULT).strip().upper() != "DISABLED"
+
+
+def capability_route_enabled() -> bool:
+    """Whether the `AM-68` capability question route is live. ON since 2026-09-15.
+
+    `AM-68` was approved that day, with the owner choosing option (b): the manifest is
+    rendered directly and no generation call is made. The route was built behind this
+    flag while the amendment was pending and is now on by default.
+
+    The flag stays rather than being deleted, because it is the rollback: the route can
+    be turned off with an environment variable and a restart, without a deploy. Set
+    `LEGALMIND_CAPABILITY_ROUTE=off` to return to searching the corpora for a question
+    about the product.
+    """
+    return os.environ.get("LEGALMIND_CAPABILITY_ROUTE", "on").lower() in {"1", "true", "on"}

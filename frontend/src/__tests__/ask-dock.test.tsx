@@ -252,3 +252,35 @@ describe("a position beside the document's answer (owner, 2026-09-10)", () => {
     expect(html).not.toContain("Assessment");
   });
 });
+
+describe("the dock lays an answer out the same way the transcript does", () => {
+  const view = (text: string) =>
+    renderToStaticMarkup(
+      <HighlightProvider>
+        <WsAnswerView result={result({ text })} contractId="c-1" />
+      </HighlightProvider>,
+    );
+
+  it("renders paragraphs as paragraphs, not as one wall of text", () => {
+    // The dock used to render `result.text` in a single flat <p> while the Ask page
+    // and the replay used AnswerProse — so the SAME answer was laid out one way while
+    // being read and another way on reload.
+    const html = view("The notice period is ninety days [1].\n\nIt runs from receipt.");
+    expect(html.match(/ws-ask__text/g)?.length).toBe(2);
+  });
+
+  it("renders a bulleted block as a list", () => {
+    const html = view("Here is what I can help with.\n\n- Read a contract\n- Compare it");
+    expect(html).toContain("ws-ask__bullets");
+    expect(html).toContain("<li>Read a contract</li>");
+    // The bullet marker is structure, not content: it must not survive into the text.
+    expect(html).not.toContain("- Read a contract");
+  });
+
+  it("invents no markup from prose punctuation", () => {
+    const html = view("Clause 7.2 applies. See *emphasis* and # hash [1].");
+    expect(html).not.toContain("<em>");
+    expect(html).not.toContain("<h1");
+    expect(html).toContain("*emphasis*");
+  });
+});
