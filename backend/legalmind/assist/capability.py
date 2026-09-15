@@ -17,10 +17,16 @@ built and covered by a test (r4). Rule 7's discipline carries over directly: an 
 capability is as bad as an invented legal rule, and "what can you help me with?" is
 exactly the question a model will happily answer with features the product lacks.
 
-WHAT IS NOT HERE YET. `AM-68` r5 permits constrained wording over the manifest, and r6
-requires a deterministic fallback. Only r6 is implemented: the owner has not yet chosen
-between a generated answer and a rendered one, and the deterministic path is needed
-under either. Generation hangs off `render()`'s caller when that is settled.
+NO GENERATION, BY DECISION. The owner chose option (b) when `AM-68` was locked on
+2026-09-15: the manifest is RENDERED directly and no generation call is made. `AM-25`
+r5 is therefore not engaged — there is no model output to ground and no payload
+egresses — and the locked r3 amends it not at all. A generated variant would need a
+further record; this module deliberately imports nothing that could make one.
+
+Part of what decided that: `intent.is_verdict_statement` fires on the rendered
+manifest, tripped by the entry naming the product's classification vocabulary and by
+the DISCLAIMER itself. A generated answer over this text would likely be rejected by
+the same screen and fall back here every time.
 """
 
 from __future__ import annotations

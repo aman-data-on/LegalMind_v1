@@ -111,8 +111,9 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # a fallback. Returning here rather than emptying the sets afterwards is the point —
     # there is no later branch that could add one back.
     #
-    # PROPOSED, not approved: `config.capability_route_enabled()` is False by default,
-    # so until the owner rules on `AM-68` this is dead weight that changes no answer.
+    # `AM-68` locked 2026-09-15, option (b): the manifest is RENDERED, not generated.
+    # `config.capability_route_enabled()` defaults to on; setting the env var to "off"
+    # is the rollback, restoring the pre-amendment behaviour without a deploy.
     if config.capability_route_enabled() and intent.is_capability_question(question):
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), capability=True)

@@ -35,6 +35,11 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-17 | `AM-30` t10 says *"The provider call is the only external call in the stack"*, but locked 47.1.3 (OD-9) makes corporate SSO via OIDC the **primary** authentication mechanism — and no OIDC flow can exist without a server-to-server call to the identity provider | ⏳ Open (LOW) — **blocks nothing**; the code implements 47.1.3 and the egress is registered in the allow-list naming this conflict. One owner reading required: is t10 scoped to the document path (its own first sentence) or to the whole process? |
 | C-18 | Six ratified Company Standards (`LIABILITY-MSA-001`, `LATE-FEE-TOS-001`, `CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`, `DATA-PURGE-MSA-001`, `CONF-SURVIVAL-NDA-001`) state what LeapSwitch's live paper says; the Legal Constitution L1.5 (§9, §11, §13, §15, §16) states a different company position on each | ✅ **RESOLVED 2026-09-08** — owner: the Constitution governs (`AM-43` r4). Files reconciled with `_history`; the live clauses now evaluate as DEVIATION |
 | C-19 | Constitution §4/§5.2 require Entity → Brand → Product/Service → Document Type resolution and forbid substituting a Leapswitch rule for a CloudPe one; the data model resolves Document Type only, so a CloudPe contract is measured against a Leapswitch-scoped standard silently | ⏳ Open (MEDIUM) — `AM-43` r7 registers it; needs a schema decision (a brand/entity axis on contracts and standards), not resolvable in code alone |
+| C-22 | Fifteen ratified standards name a Legal Constitution version in `source_document` and split 7/8 between **L1.5** (superseded) and **L1.10** (canonical). The split falls on the AB-14/AB-20 date line, so each file may accurately record the version its position was ratified against — or may point a reader at a superseded document | ⏳ Open (LOW) — **blocks nothing**; needs an owner provenance decision (canonical citation, whether the file needs correcting, whether re-ratification follows). Nothing edited: these are ratified configuration files |
+
+*Index note: `C-20` and `C-21` are recorded in full below but were never given a row in this
+table. Both are resolved (`AM-63`, `AM-64`); left for their author to index rather than
+edited here.*
 
 ---
 
@@ -605,3 +610,46 @@ Review) to carry the declared type at analysis — a schema-visible change. Sinc
 the type is one optional signal and recognition is content-first, so the cost of the gap is
 the declared-family expectation only; a reader re-analyses by uploading a new version. Owner
 decision required.
+
+## C-22 — The ratified standards cite two different Constitution versions
+
+**Registered 2026-09-15. Open (LOW — blocks nothing). Needs an owner provenance decision.**
+
+Found while tracing the Global Ask source leak (the `source_document` field is composed into
+each Domain A chunk). Fifteen ratified standards name a Legal Constitution version in
+`source_document`, and they split:
+
+| Cites | Standards |
+|---|---|
+| Cites **L1.5** (the document L1.5, superseded as a Constitution version by `AM-59`) | `LIABILITY-MSA-001` · `LATE-FEE-TOS-001` · `DATA-PURGE-MSA-001` · `CLAIM-WINDOW-SLA-001` · `CONF-SURVIVAL-NDA-001` · `DATA-RETRIEVAL-TOS-001` · `DISPUTE-WINDOW-MSA-001` |
+| Cites **L1.10** (the current canonical Constitution version) | `AUTORENEW-MSA-001` · `GST-EXCLUSIVE-MSA-001` · `PAYMENT-PERIOD-MSA-001` · `CONVENIENCE-NOTICE-MSA-001` · `PRICE-CHANGE-NOTICE-MSA-001` · `SUSPENSION-NOTICE-CURE-MSA-001` · `SERVICE-DISCONTINUATION-MSA-001` · `CHANGE-OF-CONTROL-NOTICE-MSA-001` |
+
+CLAUDE.md and `AM-59` make **L1.10** canonical and record L1.5 as superseded.
+
+**Why this may not be an error.** The split falls along a date line, not at random: the L1.5
+citations are the six reconciled by `AM-43` r4 on 2026-09-08 (when L1.5 *was* canonical) plus
+one sibling; the L1.10 citations are standards ratified under AB-20 from 2026-09-13. Read that
+way each file accurately records **the Constitution version its position was ratified
+against**, which is exactly what provenance is for — and rewriting them to L1.10 would assert
+a ratification that did not happen.
+
+Read the other way, a reader asking "show me the source" is pointed at a superseded document.
+
+**Neither group is classified as stale or as correct — that is the owner's call, not this
+register's.** The two readings below are recorded side by side precisely so the entry does not
+pre-judge it; no standard is marked wrong, and no correction is implied or scheduled.
+
+**Not resolved here, and nothing edited.** These are ratified configuration files; correcting
+a citation is a legal-provenance act, not a bug fix (rule 5, rule 21). Three questions for the
+owner:
+
+1. **Which citation is canonical per standard** — L1.10 throughout, or L1.5 where that is the
+   version the position was actually ratified against?
+2. **Does the source file need correcting**, or is the citation right and only the reader's
+   view of it misleading?
+3. **Does a correction require re-ratification** of the affected standards, or is it a
+   provenance annotation that leaves the ratified position untouched?
+
+**Independent of the Ask source-leak fix.** That fix removes the repository *path* from
+user-facing text; the version question survives it unchanged, because the version string is
+part of the document's public name, not the internal locator.

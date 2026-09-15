@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -56,6 +57,64 @@ class PositionHit:
     source_clause: str | None
     content: str
     score: float
+    # `AM-32` r4 names a Domain A citation as "standard code, VERSION, source clause".
+    # The code carried the first and third and silently dropped the second, so a reader
+    # could not tell which version of a position they were being shown, nor whether it
+    # was still current. Joined from company_standard_versions / requirements rather
+    # than duplicated onto the chunk — the ratified standard stays the single source of
+    # truth (r3). Optional so an un-joined hit (tests, older callers) stays constructible.
+    standard_version: int | None = None
+    ratification_status: str | None = None
+
+
+# A `source_document` names the paper a position came from, and 34 of the 40 ratified
+# files append an INTERNAL locator to that name — a repo path, the
+# `LEGALMIND_SOURCE_MATERIAL_DIR` env var, or a reviewer's note. Composed into the chunk
+# it reached the reader verbatim (`AskDock` renders `position.content` in a blockquote),
+# so "what is our liability cap?" answered with
+# "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08". Measured
+# live 2026-09-15. It is also INDEXED, so `docs`, `pdf` and `md` are matchable lexemes.
+#
+# The locator is provenance metadata, never ratified legal text — it is not part of
+# `source_quote`, so removing it changes no legal position and leaves `AM-32` r4's
+# verbatim requirement untouched. The ratified files are NOT edited: they are
+# configuration, and this is a display concern.
+# The four locator shapes, kept general rather than enumerating the six strings the
+# current corpus happens to use — a seventh ratified file must not reopen the leak.
+# A first draft matched only `/`, `.md`, `.pdf` and `LEGALMIND_*`; measured against the
+# edge matrix it let `C:\Users\legal\Documents\MSA` and `\\fileserver\legal\MSA` through.
+_INTERNAL_LOCATOR = re.compile(
+    r"[/\\]"                                                # POSIX, Windows, UNC separators
+    r"|\b\w+\.(?i:md|pdf|docx?|txt|json|ya?ml|html?|csv)\b"  # a filename with an extension
+    r"|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b"                   # an ENV_VAR_STYLE token
+    r"|\b(?i:repositor(?:y|ies))\b")                        # a reviewer's note
+
+
+def public_source_name(source_document: object) -> str:
+    """The reader-facing name of the paper, with every internal locator removed.
+
+    Order matters and is the whole subtlety. Parentheticals are dropped FIRST,
+    because `LIABILITY-MSA-001` reads "Legal Mind — Legal Constitution, Lawyer Review
+    Version L1.5 (docs/…​.md; owner ruling …)" — an em-dash split first would see the
+    marker in segment two and truncate the name to "Legal Mind". Only then is the
+    em-dash tail dropped, at the first segment carrying a locator, which is where
+    "— MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR" lives.
+
+    Non-string input returns "" rather than raising: `chunk_ratified_standards`
+    validates the field's presence and type before calling this, so "" is unreachable
+    in practice and is a belt, not the brace.
+    """
+    if not isinstance(source_document, str):
+        return ""
+    name = re.sub(r"\s*\([^()]*\)",
+                  lambda m: "" if _INTERNAL_LOCATOR.search(m.group()) else m.group(),
+                  source_document)
+    kept: list[str] = []
+    for segment in name.split(" — "):
+        if _INTERNAL_LOCATOR.search(segment):
+            break
+        kept.append(segment)
+    return " — ".join(kept).strip(" ,;:")
 
 
 def _compose_content(payload: dict) -> str:
@@ -63,13 +122,14 @@ def _compose_content(payload: dict) -> str:
 
     The identifying prefix (code, clause, type) is what makes "what is our
     arbitration policy?" findable by lexical search; the quote is the answer a
-    Domain A result renders verbatim (r4).
+    Domain A result renders verbatim (r4). The source document is named by its
+    public name only — see `public_source_name`.
     """
     parts = [
         f"{payload['requirement_code']}",
         f"{payload['source_clause']}",
         f"({payload['configuration']['document_type']})",
-        f"— {payload['source_document']}:",
+        f"— {public_source_name(payload['source_document'])}:",
         payload["source_quote"],
     ]
     return " ".join(p for p in parts if p)
@@ -116,11 +176,16 @@ def chunk_ratified_standards(db: DBSession, *,
         code = payload.get("requirement_code")
         for field in ("requirement_code", "source_quote", "source_clause",
                       "source_document"):
-            if not payload.get(field):
+            value = payload.get(field)
+            # The type check is not pedantry: a non-string `source_document` used to
+            # reach `public_source_name` and raise TypeError deep in the chunker.
+            # Refusing here keeps the house rule — a malformed file is refused by name,
+            # never skipped and never half-chunked.
+            if not value or not isinstance(value, str):
                 raise PositionChunkingRefused(
-                    f"{path.name}: missing {field!r} — a position chunk is composed "
-                    "of the ratified file's own verbatim fields and cannot be "
-                    "invented (rule 21)")
+                    f"{path.name}: missing or malformed {field!r} — a position chunk "
+                    "is composed of the ratified file's own verbatim fields and "
+                    "cannot be invented (rule 21)")
         document_type = (payload.get("configuration") or {}).get("document_type")
         if not document_type:
             raise PositionChunkingRefused(
@@ -242,7 +307,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
             SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
         ), scored AS (
             SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause,
-                   pc.content,
+                   pc.content, csv.version_number, r.status::text AS ratification,
                    (SELECT count(*)
                       FROM q, unnest(tsvector_to_array(pc.content_tsv)) l
                      WHERE l = ANY(q.lex)) AS matched,
@@ -250,9 +315,13 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            to_tsquery('english', (SELECT array_to_string(lex, ' | ')
                                                     FROM q))) AS score
               FROM "{schema}".position_chunks pc
+              JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
+              JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
+              JOIN requirements r ON r.id = rv.requirement_id
              WHERE (SELECT cardinality(lex) FROM q) > 0
         )
-        SELECT id, standard_code, document_type, source_clause, content, score, matched
+        SELECT id, standard_code, document_type, source_clause, content, score, matched,
+               version_number, ratification
           FROM scored
          WHERE matched >= LEAST(2, (SELECT cardinality(lex) FROM q))
          ORDER BY matched DESC, score DESC, standard_code
@@ -260,7 +329,9 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     """), {"q": query, "limit": limit}).all()
     lexical = [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                            document_type=r.document_type, source_clause=r.source_clause,
-                           content=r.content, score=float(r.score))
+                           content=r.content, score=float(r.score),
+                           standard_version=r.version_number,
+                           ratification_status=r.ratification)
                for r in rows]
     vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
     hits = _fuse(lexical, vector, limit)
@@ -286,9 +357,13 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
     literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
     rows = db.execute(sql_text(f"""
         SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause, pc.content,
+               csv.version_number, r.status::text AS ratification,
                1 - (pe.embedding {op} CAST(:q AS {vtype})) AS cosine
           FROM "{schema}".position_chunk_embeddings pe
           JOIN "{schema}".position_chunks pc ON pc.id = pe.position_chunk_id
+          JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
+          JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
+          JOIN requirements r ON r.id = rv.requirement_id
          ORDER BY pe.embedding {op} CAST(:q AS {vtype}), pc.standard_code
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
@@ -297,7 +372,9 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
         return []
     return [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                         document_type=r.document_type, source_clause=r.source_clause,
-                        content=r.content, score=float(r.cosine))
+                        content=r.content, score=float(r.cosine),
+                        standard_version=r.version_number,
+                        ratification_status=r.ratification)
             for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
 
 
