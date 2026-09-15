@@ -1359,3 +1359,57 @@ real backend (`e2e/configuration.spec.ts`) covering the load, a full save round-
 16 appends rather than edits, the validation summary, and the escape hatch. Two backend tests pin
 the frontend's `CONSTITUTION_BASES` and `DEFINITIONAL_UNIT_PAIRS` against their sources, and both
 were verified to fail under a deliberate drift.
+
+## DD-24 — publishing is a checkbox list, not 33 pasted codes (2026-09-15)
+
+**Status: recorded. Presentation-layer only; locks nothing and amends no `AM-*`.** Same screen and
+same session as [DD-23](#dd-23--a-company-standard-is-edited-as-a-form-not-as-json-2026-09-15).
+
+The publish control was one text input: *"Requirement codes to activate (comma separated; blank to
+publish current active configuration only)"*. Activating the AB-20 batch meant pasting **33 codes**
+into it. Nothing on screen said which Requirements were waiting, which were already active, or
+which would be refused, and a single typo produced `unknown Requirement code: …` only after the
+request came back.
+
+Every Requirement with its `status` is already loaded by this screen, so the fix is a **group-by**,
+not a new endpoint. `lib/publishPlan.ts` sorts them into Step 29's three lifecycle states and works
+out what a publish would do:
+
+* **Waiting to be activated** — the DRAFTs, as checkboxes.
+* **Already active** — collapsed, not selectable, and it says why: every one is pinned whether or
+  not anything is ticked, which is what makes a snapshot the whole configuration rather than a diff.
+* **Retired** — collapsed and unselectable, with the reason. The server refuses these outright, and
+  publishing does not bring one back: reversing a retirement is an owner decision that goes through
+  the standard file and the record (`AM-65`).
+
+**The button carries the outcome, not the verb** — "Publish 33 Requirements", or "Activate 8 and
+publish 41 Requirements" once drafts are ticked. When the publish would be refused for having
+nothing to pin, the button is disabled and carries the server's own sentence instead of sending a
+request that fails.
+
+### The trap this surfaces
+
+A DRAFT with **no version** is listed but cannot be ticked. Activating one makes it ACTIVE, and the
+publish then fails on `<code>: no version` — which refuses **the whole snapshot**, not just that
+Requirement (`api/routers/configuration.py`). That is invisible in a comma-separated field and is
+exactly the kind of thing the screen should say before the request, not after.
+
+### What it deliberately does not do
+
+It reports **only what the list response carries** — status, and whether any version exists. Whether
+an active Requirement is missing its Company Standard, mapping rules or evaluation rules lives in
+the detail response, so the screen does not claim to know it; the server's fail-closed refusal
+(ENG-09) remains the authority and names the Requirement. Nothing here decides anything: every
+refusal the screen shows is one the server already performs.
+
+A `busy` state was added at the same time. Publishing is a global act — Step 29 activates
+Requirements — so a double submit is two activations racing over what "the latest ACTIVE
+configuration" means.
+
+### Verification
+
+10 unit tests over `publishPlan` (`src/__tests__/publish-plan.test.ts`), including the owner's own
+case — 8 drafts against 33 active — singular/plural wording, a retired code that must never become
+selectable, an already-active code that must not be counted twice, and the version-less draft.
+Three Playwright tests against the real backend cover the grouped display, the disabled
+version-less draft with its reason, and a publish that produces a snapshot.
