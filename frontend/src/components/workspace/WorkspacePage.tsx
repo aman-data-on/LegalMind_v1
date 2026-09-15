@@ -439,7 +439,7 @@ function ShareControl() {
   return (
     <button
       type="button"
-      className="ws-btn ws-btn--primary ws-btn--share"
+      className="ws-btn ws-btn--primary"
       onClick={() => {
         void navigator.clipboard.writeText(window.location.href).then(
           () => {

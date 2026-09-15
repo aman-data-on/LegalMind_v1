@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — a class with no CSS rule now fails the build (2026-09-15)
+
+`.ws-filter-bar` was written into Administration's markup and its rule was never written anywhere.
+Nothing failed: the build was green, the types were clean, and five filter controls stacked at full
+width on production for a day until someone opened the page. **A class with no rule is invisible to
+every other check this project runs** — that is the defect class, not the one class.
+
+Scanning every literal `className` in the app against every rule in both stylesheets turned up
+**sixteen** of them. `frontend/src/__tests__/styled-classes.test.ts` now holds that number as a
+floor: it may shrink, never grow. Verified to fail both when a new unstyled class is introduced
+(naming the class and the file) and when a listed one is fixed but left in the list, so the list
+cannot rot into a permanent excuse.
+
+Two of the sixteen are gone already, and provably inertly: `ws-btn--share` and `ws-field--type` are
+modifiers whose base class carries all the styling, with no rule and no JS or test consumer, so
+removing them from the markup changes nothing that renders.
+
+The remaining thirteen are listed in the test with what each one is. They are real elements
+rendering with no rule of their own, and several sit in families that are otherwise complete —
+`.ws-turn--user` exists while `.ws-turn` does not; `.ws-evidence__group`, `__how`, `__loc` and
+`__more` exist while `__item` does not. Writing those rules is a visual judgement on the Ask,
+Findings and Evidence surfaces and will move baselines, so it belongs to a pass that can look at
+those screens rather than to the test that found them.
+
+`DecisionHistory.tsx` is imported by nothing and accounts for two of the thirteen. It is left in
+place rather than deleted — removing someone's component is their call.
+
 ### Changed — Standards joins the list format every other screen already uses (2026-09-15)
 
 A non-technical person should be shown this screen once and then be able to use it. The question
