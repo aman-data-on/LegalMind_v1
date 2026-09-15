@@ -37,6 +37,14 @@ in the tooltip, where its precision is still useful.
 Two Playwright tests now start where the person reporting this started — at the roster, looking for
 a way in — and grant then revoke a role without ever assuming a name is clickable.
 
+**The first attempt at this made the roster worse, and the visual baseline caught it.** A bordered
+button in the row took every row from **45px to 64px** — a 40% taller list, which is the density
+mistake this product's tables exist to avoid. Making it a link recovered nothing on its own: the
+real cause was the new column squeezing "E2E Department" onto two lines. The cells beside it now
+hold one line, and the action column is **pinned to the right** so it never scrolls out of reach
+when the roster is wider than the viewport. Measured at 1280, 1440 and 1024: **44.5px rows, action
+fully on screen at every width.**
+
 ### Added — Template-Driven Document Builder R&D (2026-09-15)
 
 Research/recommendation document for a new feature: pick an approved template (MSA, NDA, …), fill

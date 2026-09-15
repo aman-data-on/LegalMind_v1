@@ -201,7 +201,7 @@ function DepartmentsScreen() {
                     {/* Same missing door as the account roster: the only way into
                         the panel that renames a department and appoints its lead
                         was clicking a name that does not look clickable. */}
-                    <th scope="col"><span className="ws-visually-hidden">Actions</span></th>
+                    <th scope="col" className="ws-admin__rowact"><span className="ws-visually-hidden">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -227,7 +227,12 @@ function DepartmentsScreen() {
                       <td className="ws-admin__rowact">
                         <button
                           type="button"
-                          className="ws-btn ws-btn--sm"
+                          // `ws-link`, not a bordered button: a button's chrome
+                          // took the roster's rows from 45px to 64px, and a list
+                          // where every row is 40% taller is the density mistake
+                          // this product's own tables avoid. The audit log already
+                          // uses `ws-link` for its in-row action.
+                          className="ws-link"
                           aria-expanded={department.id === selectedId}
                           onClick={() => select(department.id === selectedId
                             ? null : department.id)}
