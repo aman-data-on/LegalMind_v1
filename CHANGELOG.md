@@ -10,6 +10,39 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Standards joins the list format every other screen already uses (2026-09-15)
+
+A non-technical person should be shown this screen once and then be able to use it. The question
+was which format to standardise on, and it did not need inventing: measured across every
+`page.tsx`, **every screen was already on the `ws-*` vocabulary except this one** — Standards had 1
+`ws-*` class against 13 legacy ones, while Administration had 58 against 0.
+
+So it now has Administration's shape: a head with its actions, a filter bar, and one dense table
+whose rows expand in place. Search matches the code and every version name; Status and Evaluator
+narrow it; Sort by orders it. The nav has always called this screen "Standards" — the page called
+itself "Legal configuration", so the one word a reader arrives with did not appear on the page they
+arrived at.
+
+Publishing moved into the head. It lived at the bottom, so reaching it meant scrolling past every
+standard.
+
+A second pass measured rather than looked, and that is what found the rest. Rows were **62px
+against Administration's 44.5px**, because the clickable code was a `ws-btn` and a button inside a
+table cell brings its 38px min-height with it; now 46.75px. **`.ws-link` had no CSS rule anywhere**
+— it is used in four Administration files and only looked right where `.ws-admin__name` happened to
+sit beside it; found by scanning every `className` in the app against every rule in both
+stylesheets, which returned **sixteen class names with no rule at all**. Also fixed: the raw enum
+`NUMERIC_COMPARISON` in a column whose own filter says "Numeric comparison"; two columns reading
+"1" and the same date on every row, now one reading `v1 · 2026-09-15`; a raw ISO timestamp
+(`2026-09-15T13:38:56.145775+05:30`); two actions rendering as one word
+(`Show stored valuesDraft a new version`); no expand affordance; and no sticky header on a list
+four screens tall.
+
+Document type is deliberately **not** a filter: it lives on the separately-gated detail response,
+and reading it out of the code's naming convention would be a guess that silently hides standards.
+
+See [DD-25](docs/design/DESIGN_DECISIONS.md).
+
 ### Changed — publishing a configuration snapshot is a checkbox list (2026-09-15)
 
 The publish control was one text input: *"Requirement codes to activate (comma separated)"*.

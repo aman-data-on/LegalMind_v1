@@ -176,6 +176,7 @@ test.describe("publishing a configuration snapshot", () => {
 
   test("the screen says what publishing will do, before it is asked to", async ({ page }) => {
     await page.goto("/dashboard/configuration");
+    await page.getByRole("button", { name: "Publish snapshot" }).click();
     const section = page.locator("section.ws-intake").filter({ hasText: "Publish a configuration snapshot" });
 
     // The button carries the outcome, not the verb.
@@ -194,6 +195,7 @@ test.describe("publishing a configuration snapshot", () => {
     await page.getByRole("button", { name: "New standard" }).click();
     await page.getByLabel(/Requirement code/).fill(code);
     await page.getByRole("button", { name: "Create draft" }).click();
+    await page.getByRole("button", { name: "Publish snapshot" }).click();
 
     const section = page.locator("section.ws-intake").filter({ hasText: "Publish a configuration snapshot" });
     const item = section.locator("li.ws-check").filter({ hasText: code });
@@ -206,8 +208,81 @@ test.describe("publishing a configuration snapshot", () => {
 
   test("publishing with nothing ticked pins the active configuration", async ({ page }) => {
     await page.goto("/dashboard/configuration");
+    await page.getByRole("button", { name: "Publish snapshot" }).click();
     const section = page.locator("section.ws-intake").filter({ hasText: "Publish a configuration snapshot" });
     await section.getByRole("button", { name: /Publish \d+ Requirement/ }).click();
     await expect(section.getByText(/Snapshot/)).toBeVisible();
+  });
+});
+
+/**
+ * Finding one standard among forty — the reason this screen has a filter bar and
+ * a table rather than a card per standard.
+ */
+test.describe("the standards list", () => {
+  test.use({ storageState: storageStatePath("admin") });
+
+  test("filters by name, by status and by evaluator, and says how many are shown", async ({ page }) => {
+    const cfg = fixture().configuration;
+    const mine = `E2E-LIST-${Date.now()}`;
+    const r = await (async () => {
+      await page.goto("/dashboard/configuration");
+      const created = await postOk(page, "/requirements", { code: mine });
+      await postOk(page, `/requirements/${created.id}/versions`, {
+        name: "Findable by this name",
+        evaluator_type: "PRESENCE",
+        company_standard: cfg.company_standard,
+        mapping_rules: cfg.mapping_rules,
+        evaluation_rules: cfg.evaluation_rules,
+      });
+      return created;
+    })();
+    expect(r.id).toBeTruthy();
+    await page.reload();
+
+    const rows = page.locator("table tbody tr");
+    // Count AFTER the list has loaded: the table renders empty for a beat and a
+    // count taken then is 0, which makes the "filter cleared" assertion meaningless.
+    await expect(page.getByText(/\d+ standards\./)).toBeVisible();
+    const total = await rows.count();
+    expect(total).toBeGreaterThan(1);
+
+    // The code.
+    await page.getByLabel("Search standards").fill(mine);
+    await expect(page.getByRole("button", { name: mine, exact: true })).toBeVisible();
+    await expect(page.getByText(/Showing 1 of \d+ standards/)).toBeVisible();
+
+    // The version NAME, which is what a reader actually remembers.
+    await page.getByLabel("Search standards").fill("Findable by this name");
+    await expect(page.getByRole("button", { name: mine, exact: true })).toBeVisible();
+
+    // A filter that matches nothing says so, and says it is a filter.
+    await page.getByLabel("Search standards").fill("no-standard-has-this");
+    await expect(page.getByRole("heading", { name: "No standard matches." })).toBeVisible();
+
+    await page.getByLabel("Search standards").fill("");
+    await expect(rows).toHaveCount(total);
+
+    // Status and evaluator narrow it without hiding anything they should not.
+    await page.getByLabel("Filter standards by status").selectOption("DRAFT");
+    await expect(page.getByText(/Showing \d+ of \d+ standards/)).toBeVisible();
+    await page.getByLabel("Filter standards by status").selectOption("");
+    await page.getByLabel("Filter standards by evaluator").selectOption("PRESENCE");
+    await expect(page.getByRole("button", { name: mine, exact: true })).toBeVisible();
+  });
+
+  test("a row expands in place, and the words match the ones in the filters", async ({ page }) => {
+    await page.goto("/dashboard/configuration");
+    const first = page.locator("table tbody tr").first();
+    const name = await first.locator(".ws-link").innerText();
+
+    // The list never shows a raw enum: the filter says "Presence", so the row must.
+    await expect(first).not.toContainText("NUMERIC_COMPARISON");
+    await expect(first).not.toContainText("PRESENCE");
+
+    await first.locator(".ws-link").click();
+    await expect(first.locator(".ws-link")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("tr.ws-std__detail")).toBeVisible();
+    expect(name.length).toBeGreaterThan(0);
   });
 });

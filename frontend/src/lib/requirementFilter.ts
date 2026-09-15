@@ -50,6 +50,21 @@ export const STATUS_LABELS: ReadonlyArray<{ code: string; label: string }> = [
   { code: DEPRECATED, label: "Retired" },
 ];
 
+/**
+ * The two locked evaluator types (`AM-16`) as words. The raw enum reads as a
+ * database column, not as what the standard does, and the screen already has to
+ * name them in the filter — one vocabulary, one place.
+ */
+export const EVALUATOR_LABELS: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "NUMERIC_COMPARISON", label: "Numeric comparison" },
+  { code: "PRESENCE", label: "Presence" },
+];
+
+export function evaluatorLabel(evaluator: string | null | undefined): string {
+  if (!evaluator) return "\u2014";
+  return EVALUATOR_LABELS.find((e) => e.code === evaluator)?.label ?? evaluator;
+}
+
 export function statusLabel(status: string): string {
   return STATUS_LABELS.find((s) => s.code === status)?.label ?? status;
 }
@@ -59,6 +74,21 @@ export function latestVersion(requirement: Requirement) {
   return requirement.versions.length > 0
     ? requirement.versions[requirement.versions.length - 1]
     : null;
+}
+
+/** Orders the list. Code is the default because it is how every other record —
+ *  a fixture, a snapshot item, an explanation — refers to a standard. */
+export const SORTS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "code", label: "Code" },
+  { value: "recent", label: "Recently changed" },
+];
+
+export function sortRequirements(rows: Requirement[], sort: string): Requirement[] {
+  if (sort !== "recent") return [...rows].sort((a, b) => a.code.localeCompare(b.code));
+  const changed = (r: Requirement) => latestVersion(r)?.created_at ?? "";
+  // Newest first; a standard with no version sorts last rather than first, because
+  // "never changed" is not "changed just now".
+  return [...rows].sort((a, b) => changed(b).localeCompare(changed(a)) || a.code.localeCompare(b.code));
 }
 
 export function filterRequirements(

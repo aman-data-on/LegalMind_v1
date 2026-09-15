@@ -4564,3 +4564,42 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 .ws-phrases__input { flex: 1 1 12rem; min-width: 8rem; border: none; background: none; padding: 4px 5px; font: inherit; font-size: var(--ws-text-sm); min-height: 0; }
 .ws-phrases__input:focus-visible { outline: none; }
 .ws-phrases__count { margin: 4px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/*
+ * `.ws-link` — a clickable name inside a table, with no button chrome.
+ *
+ * THIS RULE WAS MISSING. The class is used in four Administration files
+ * (`admin/page.tsx`, `departments`, `roles`, `audit`) and had no rule anywhere,
+ * so those controls fell back to the global `button {}` — border, background,
+ * 0.4rem/0.8rem padding — and only looked right where `.ws-admin__name` happened
+ * to be applied beside it. Found by scanning every className in the app against
+ * every rule in the two stylesheets; sixteen classes came back with no rule at
+ * all, and this is the one that mattered most.
+ *
+ * Modelled on `.ws-admin__name`, which is the same idea under an
+ * Administration-specific name and can now draw from this.
+ */
+.ws-link {
+  font: inherit; background: none; border: 0; padding: 0;
+  color: var(--ws-accent); cursor: pointer; text-align: left;
+}
+.ws-link:hover { text-decoration: underline; }
+
+/* The standards table: a row is a name, not a control, so it keeps the list's
+   density rather than the button's. Measured against Administration's 44.5px. */
+.ws-std__name { display: inline-flex; align-items: center; gap: var(--ws-s2); font-weight: 500; }
+.ws-std__twist { flex-shrink: 0; transition: transform 120ms ease; color: var(--ws-ink-500); }
+[aria-expanded="true"] > .ws-std__twist { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .ws-std__twist { transition: none; } }
+.ws-std__count { margin: 0 0 var(--ws-s2); }
+
+/* A long list keeps its header. Forty standards is four screens of scrolling,
+   and a column you cannot name is a column you cannot read. */
+.ws-admin__main .ws-docs__table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--ws-surface); box-shadow: inset 0 -1px 0 var(--ws-ink-100);
+}
+
+/* The expanded detail belongs to the row above it, and should read that way. */
+.ws-std__detail { background: color-mix(in srgb, var(--ws-ink-100) 35%, transparent); }
+.ws-publish__acts { margin-top: var(--ws-s4); }
