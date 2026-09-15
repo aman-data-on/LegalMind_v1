@@ -33,7 +33,13 @@ from legalmind.api.context import (
     new_csrf_token,
     request_id_of,
 )
-from legalmind.api.deps import CommitBeforeResponse, Guard, get_db, get_guard, get_principal
+from legalmind.api.deps import (
+    CommitBeforeResponse,
+    Guard,
+    get_db,
+    get_guard,
+    get_principal,
+)
 from legalmind.api.envelope import data
 from legalmind.api.schemas import LoginRequest
 from legalmind.api.serializers import serialize_session_identity
