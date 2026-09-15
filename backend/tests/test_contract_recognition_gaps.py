@@ -21,7 +21,7 @@ from legalmind.extraction.liability import (
     LiabilityExtractionConfig,
     extract_liability_facts,
 )
-from legalmind.mapping.engine import Clause
+from legalmind.mapping.engine import Clause, map_requirement
 
 STANDARDS = Path(__file__).resolve().parents[1] / "config" / "company_standards"
 _NS = uuid.UUID("00000000-0000-0000-0000-00000000045e")
@@ -132,3 +132,58 @@ def test_a_billing_dispute_window_collides_with_the_payment_period():
     values = sorted(f[1] for f in got if f[1] is not None)
     assert values == [15.0, 21.0], f"collision changed shape: {got}"
     assert all(f[3] == "INVOICE_PAYMENT_PERIOD" for f in got), got
+
+
+# --------------------------------------------------------------------------
+# FIXED — the MAPPER must see an uncapped clause before the extractor can.
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("code", ["LIABILITY-MSA-001", "LIABILITY-TOS-001"])
+def test_an_uncapped_liability_clause_is_mapped_at_all(code):
+    """The full-set run caught what the extraction test could not.
+
+    Widening `extraction.unlimited_phrases` fixed the extractor, and the unit
+    test above passed — because it handed the clause straight to
+    `extract_liability_facts`. The live pipeline maps first, and an uncapped
+    clause scored **2 against a confirm threshold of 5**: the only thing it
+    matched was the section heading. So the clause was never recognised as a
+    liability clause, extraction never ran on it, and the Finding came back
+    MISSING — "Requires modification" for an agreement accepting unlimited
+    liability.
+
+    An uncapped liability term was, in other words, invisible rather than
+    merely misread. The mapping vocabulary needs the phrasings too.
+    """
+    from legalmind.mapping.rules import MappingRules
+    cfg = json.loads((STANDARDS / f"{code}.json").read_text())
+    rules = MappingRules.from_config(cfg["mapping_rules"])
+    clause = Clause(
+        evidence_id=uuid.uuid5(_NS, f"uncapped-{code}"),
+        section_number="7", section_title="Limitation of Liability", page_number=1,
+        content="Each party accepts unlimited liability for any loss or damage "
+                "arising out of or in connection with this Agreement. The "
+                "liability of the Supplier is not capped and shall not be "
+                "subject to any financial limit.")
+    result = map_requirement(uuid.uuid5(_NS, code), rules, [clause])
+    assert result.state.value == "CONFIRMED", \
+        f"{code}: {result.state.value} — {'; '.join(result.explanation)}"
+
+
+@pytest.mark.parametrize("code", ["LIABILITY-MSA-001", "LIABILITY-TOS-001"])
+def test_widening_the_mapper_did_not_make_it_promiscuous(code):
+    """The other half: a clause about nothing in particular must still not map.
+
+    Adding phrases to buy recall is only safe if precision holds, and a
+    liability standard that confirms on an unrelated clause would put a cap
+    finding on a document that states no cap at all.
+    """
+    from legalmind.mapping.rules import MappingRules
+    cfg = json.loads((STANDARDS / f"{code}.json").read_text())
+    rules = MappingRules.from_config(cfg["mapping_rules"])
+    clause = Clause(
+        evidence_id=uuid.uuid5(_NS, f"unrelated-{code}"),
+        section_number="2", section_title="Scope of Services", page_number=1,
+        content="The Supplier shall perform the Services with reasonable skill "
+                "and care in accordance with industry standards, and shall "
+                "allocate suitably qualified personnel.")
+    result = map_requirement(uuid.uuid5(_NS, code), rules, [clause])
+    assert result.state.value != "CONFIRMED", f"{code} confirmed on an unrelated clause"
