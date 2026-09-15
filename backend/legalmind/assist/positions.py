@@ -57,6 +57,14 @@ class PositionHit:
     source_clause: str | None
     content: str
     score: float
+    # `AM-32` r4 names a Domain A citation as "standard code, VERSION, source clause".
+    # The code carried the first and third and silently dropped the second, so a reader
+    # could not tell which version of a position they were being shown, nor whether it
+    # was still current. Joined from company_standard_versions / requirements rather
+    # than duplicated onto the chunk — the ratified standard stays the single source of
+    # truth (r3). Optional so an un-joined hit (tests, older callers) stays constructible.
+    standard_version: int | None = None
+    ratification_status: str | None = None
 
 
 # A `source_document` names the paper a position came from, and 34 of the 40 ratified
@@ -299,7 +307,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
             SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
         ), scored AS (
             SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause,
-                   pc.content,
+                   pc.content, csv.version_number, r.status::text AS ratification,
                    (SELECT count(*)
                       FROM q, unnest(tsvector_to_array(pc.content_tsv)) l
                      WHERE l = ANY(q.lex)) AS matched,
@@ -307,9 +315,13 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            to_tsquery('english', (SELECT array_to_string(lex, ' | ')
                                                     FROM q))) AS score
               FROM "{schema}".position_chunks pc
+              JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
+              JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
+              JOIN requirements r ON r.id = rv.requirement_id
              WHERE (SELECT cardinality(lex) FROM q) > 0
         )
-        SELECT id, standard_code, document_type, source_clause, content, score, matched
+        SELECT id, standard_code, document_type, source_clause, content, score, matched,
+               version_number, ratification
           FROM scored
          WHERE matched >= LEAST(2, (SELECT cardinality(lex) FROM q))
          ORDER BY matched DESC, score DESC, standard_code
@@ -317,7 +329,9 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     """), {"q": query, "limit": limit}).all()
     lexical = [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                            document_type=r.document_type, source_clause=r.source_clause,
-                           content=r.content, score=float(r.score))
+                           content=r.content, score=float(r.score),
+                           standard_version=r.version_number,
+                           ratification_status=r.ratification)
                for r in rows]
     vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
     hits = _fuse(lexical, vector, limit)
@@ -343,9 +357,13 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
     literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
     rows = db.execute(sql_text(f"""
         SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause, pc.content,
+               csv.version_number, r.status::text AS ratification,
                1 - (pe.embedding {op} CAST(:q AS {vtype})) AS cosine
           FROM "{schema}".position_chunk_embeddings pe
           JOIN "{schema}".position_chunks pc ON pc.id = pe.position_chunk_id
+          JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
+          JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
+          JOIN requirements r ON r.id = rv.requirement_id
          ORDER BY pe.embedding {op} CAST(:q AS {vtype}), pc.standard_code
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
@@ -354,7 +372,9 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
         return []
     return [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                         document_type=r.document_type, source_clause=r.source_clause,
-                        content=r.content, score=float(r.cosine))
+                        content=r.content, score=float(r.cosine),
+                        standard_version=r.version_number,
+                        ratification_status=r.ratification)
             for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
 
 

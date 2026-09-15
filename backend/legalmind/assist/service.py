@@ -497,6 +497,11 @@ def _position_views(hits: list[positions.PositionHit],
     return [{"position_chunk_id": str(h.position_chunk_id),
              "standard_code": h.standard_code, "document_type": h.document_type,
              "source_clause": h.source_clause, "content": h.content,
+             # `AM-32` r4's citation is "standard code, version, source clause". The
+             # version was being dropped, so a reader could not tell WHICH version of a
+             # position they were shown; the status says whether it is still current.
+             "standard_version": h.standard_version,
+             "ratification_status": h.ratification_status,
              "retrieval_score": round(h.score, 4),
              "finding": (findings or {}).get(h.standard_code)} for h in hits]
 
