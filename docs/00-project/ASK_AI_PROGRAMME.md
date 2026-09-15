@@ -16,10 +16,10 @@ inspect → implement → test → document loop.
 |---|---|---|---|
 | **0a** | Protect uncommitted source-leak work | ✅ **DONE** | `fix/ask-source-leak` `f5fc324` |
 | **0b** | Rebase + merge `feat/p1-rag-quality` | ⛔ **BLOCKED** — needs owner approval to merge; branch is another session's work | — |
-| **1** | Language safety screens (F-1, F-2) | ✅ **CODE DONE**, DB tests unrun | `fix/language-safety-screens` `d3b9985` |
-| **2** | Source leak + citation quality (F-5, F-6) | 🟡 **CODE DONE**, re-chunk outstanding | `fix/ask-source-leak` `f5fc324`, `c82f5ff` |
-| **3** | Answer-type routing, capability shape (F-4) | ⛔ **BLOCKED** — needs `AM-68` approval | — |
-| **4** | Retrieval quality / reranker | ⛔ **BLOCKED** — needs benchmark, needs DB | — |
+| **1** | Language safety screens (F-1, F-2) | ✅ **DONE + VALIDATED** — 1873 passed, AC-12 green | `fix/language-safety-screens` `d3b9985`, `a6d6078` |
+| **2** | Source leak + citation quality (F-5, F-6) | 🟡 **CODE DONE + DB-VALIDATED**; live re-chunk outstanding (needs approval) | `fix/ask-source-leak` `f5fc324` … `6b77f20` |
+| **3** | Answer-type routing, capability shape (F-4) | 🟡 **BUILT, SHIPPED DARK** — flag off; needs `AM-68` to *enable* | `feat/capability-route` `00090ef` |
+| **4** | Retrieval quality / reranker | 🟡 benchmark now runs (AC-12 green); reranker not started | — |
 | **5** | Template drafting | ⛔ **BLOCKED** — no approved output template (rule 21) | — |
 
 ### Phase 2 is not complete until the corpus is re-chunked
@@ -237,7 +237,12 @@ approval item.
 
 ## Next actions
 
-**Unblocked, proceeding:** AB-21 amendment drafts · capability manifest draft · CHANGELOG.
+**Deployment is prepared**: [ASK_AI_DEPLOYMENT_RUNBOOK.md](../09-implementation/ASK_AI_DEPLOYMENT_RUNBOOK.md)
+carries the order, the staging evidence, the mandatory re-chunk, rollback per failure mode
+and post-deploy checks. No migration is required by any branch.
+
+**Unblocked, still to do:** the reranker (Phase 4's one untried lever) · the remaining
+answer types from the brief's §2 that do not need an amendment · F-9's dead-citation paths.
 
 **Needs the owner:** the test DB URL (unblocks the most) · merge approval · `AM-67`/`AM-68`/
 `AM-69` wording · C-22 provenance · OD-A multi-document · an approved MSA/NDA template.
