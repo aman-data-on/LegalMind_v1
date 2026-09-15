@@ -51,7 +51,13 @@
           "post-termination",
           "post termination",
           "from the date of termination",
-          "after termination"
+          "after termination",
+          "following the termination",
+          "following termination",
+          "following the termination or expiry",
+          "survive the termination",
+          "survives the termination",
+          "after the termination or expiry"
         ]
       },
       "exceptions": []

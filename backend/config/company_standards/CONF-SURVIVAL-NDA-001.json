@@ -101,7 +101,13 @@
         "CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END": [
           "underlying partnership relationship",
           "whichever is later",
-          "or of the underlying"
+          "or of the underlying",
+          "following the termination",
+          "following termination",
+          "following the termination or expiry",
+          "survive the termination",
+          "survives the termination",
+          "after the termination or expiry"
         ]
       },
       "exceptions": []

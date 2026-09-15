@@ -111,6 +111,49 @@ frontend's `CONSTITUTION_BASES` and `DEFINITIONAL_UNIT_PAIRS` to their sources �
 fail under a deliberate drift.
 
 See [DD-23](docs/design/DESIGN_DECISIONS.md).
+### Fixed — two recognition gaps found by running five synthetic contracts (2026-09-15)
+
+`AM-51`/`AM-60` made applicability content-first, but nothing exercised it on a realistic
+agreement. Five synthetic four-to-five-page contracts now do, through the **live API**.
+Generator and harness are committed; the `.docx` files are written to gitignored
+`legal-docs/`, as `e2e_bootstrap.py` already does. Full record:
+[docs/08-testing/CONTENT_FIRST_CONTRACT_TESTS.md](docs/08-testing/CONTENT_FIRST_CONTRACT_TESTS.md).
+
+**Applicability itself was right.** The same clauses under an `OTHER` label and an `MSA`
+label produced **25 findings each with identical statuses** — the label decided nothing,
+which is what `AM-51` requires and had never been shown on a realistic document.
+
+**The gaps were vocabulary, not logic**, and one of them mattered:
+
+* **An uncapped liability term was not recognised.** `unlimited_phrases` held only
+  `"shall be unlimited"` and `"liability shall not be limited"`, so *"accepts unlimited
+  liability"* and *"is not capped"* extracted as `ABSENT`. Since
+  `constitution_boundaries` §9 fires only on `UNLIMITED`, an agreement accepting unlimited
+  liability — the exact term the Constitution calls Not Negotiable — was classified
+  MISSING and shown as **"Requires modification" instead of "Needs a decision"**. Seven
+  phrasings added.
+* **`"following the termination"` left the survival basis unattributed.** The value read
+  correctly (3 years); only the basis came back `null`, which is `UNABLE_TO_EVALUATE` and
+  fails closed — so a clause exactly on the Constitution's number was sent to a human as
+  unreadable. Six phrasings added.
+
+**No position changed.** `preferred`, `unit`, `basis` and `scope_key` were asserted equal
+before and after each edit, and `verify_terminology` reports **34 PASS · 6 FAIL**,
+identical to `main` — the six being the pre-existing AB-14 reconciliation failures.
+**Production is unaffected until the standards are re-imported and a snapshot published**;
+the live snapshot `5c85b87c` pins the old terminology and existing reviews keep it (rule 16).
+
+**Recorded, not fixed:** `PAYMENT-PERIOD-MSA-001` claims any *"within N days … invoice"*
+construction (`cap_phrases` covers three variants; the only basis term is `"invoice"`), so
+an ordinary billing-dispute window collides with the payment period and the evaluator
+classifies `CONFLICT`. That is fail-closed and safe (rule 15), and narrowing the vocabulary
+would trade a false alarm for **missed payment clauses** — a recall loss in the unsafe
+direction, and an owner decision about ratified configuration rather than a session's.
+
+Also observed and recorded: a `GET` issued in the same second as a successful login can
+return `401` while the session row exists, succeeding on retry. Unrelated to analysis; the
+harness now polls and reports which attempt succeeded rather than hiding it.
+
 
 ### Added — shadcn/ui works here now: layers, not preflight (2026-09-15)
 
