@@ -1,13 +1,15 @@
-# AB-21 — PROPOSED amendments (NOT approved, NOT in force)
+# AB-21 — APPROVED 2026-09-15, superseded by the lock records
 
-📁 **PROPOSAL. Decides nothing, locks nothing, authorizes no build.**
+✅ **APPROVED by the owner on 2026-09-15** and appended to
+[all_lock.md](../../all_lock.md) as `AM-67`, `AM-68` and `AM-69` (lines 19073–19261;
+the prior 19072 are byte-identical, verified by checksum). The registry entries are in
+[LOCKED_DECISIONS.md](LOCKED_DECISIONS.md).
 
-**Nothing here has been appended to [all_lock.md](../../all_lock.md), no approval is
-recorded, and no date is backdated.** These are drafts for owner review. On approval each
-becomes an appended lock record (rule 22 — appended, never edited) together with the
-synchronized registry, status and specification updates.
-
-Numbering follows the current maximum: AB-20, `AM-66`.
+**This file is now a working record of how the drafts were reached, not the decision.**
+The locked text is in `all_lock.md` and wins on any divergence. One substantive change
+between draft and lock: the owner chose **option (b)** for `AM-68` — the manifest is
+rendered directly with **no generation call** — so the locked r3 does not amend `AM-25`
+r5 at all, where the draft had proposed to.
 
 ---
 

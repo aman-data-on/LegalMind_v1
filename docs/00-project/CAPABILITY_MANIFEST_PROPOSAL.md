@@ -1,6 +1,11 @@
-# Capability manifest — PROPOSAL for owner approval
+# Capability manifest — APPROVED 2026-09-15
 
-📁 **PROPOSAL. Not in force. Nothing reads this file.**
+✅ **APPROVED by the owner on 2026-09-15**, together with `AM-68` and option (b): the
+manifest is **rendered directly, with no generation call**. It lives as
+`backend/config/capability_manifest.json`; changing it is a configuration change needing
+owner approval (`AM-68` r4).
+
+📁 This file records how the entries were verified. The data is the JSON.
 
 `AM-68` r3 makes this manifest the **only** evidence a capability answer may be generated
 over, and r4 restricts it to *"behaviour that is built and covered by a test"*. Rule 7's
