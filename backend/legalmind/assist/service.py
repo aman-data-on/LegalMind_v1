@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.assist import (
+    capability,
     embedding_runtime,
     generation,
     guardrails,
@@ -629,6 +630,30 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                          permissions=permissions,
                          statutes_available=statutes.available(db))
     domains = tuple(d.value for d in route.domains)
+    # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
+    # enforcement: nothing below this line can reach a document, a position, a statute
+    # or a Finding, so the guarantee is structural rather than a promise. Disabled by
+    # default; `routing.plan` only sets `capability` when the flag is on, and the
+    # amendment is not approved.
+    if getattr(route, "capability", False):
+        try:
+            text_out = capability.answer()
+        except capability.CapabilityManifestUnavailable:
+            # r4/r6: no manifest means no grounded capability answer exists. Fall
+            # through to the ordinary route rather than inventing one — today's
+            # behaviour, which is wrong but not fabricated.
+            log_event("assist.ask.capability_manifest_unavailable",
+                      request_id=request_id, conversation_id=str(conversation_id))
+        else:
+            reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
+                                     text_out)
+            _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
+                            model=None, prompt_version_id=None, latency_ms=None)
+            log_event("assist.ask.capability", request_id=request_id,
+                      conversation_id=str(conversation_id))
+            return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                              answer_state=AssistAnswerState.ANSWERED, text=text_out,
+                              domains=())
     log_event("assist.ask.routed", request_id=request_id,
               conversation_id=str(conversation_id), domains=",".join(domains),
               comparison=str(route.comparison),

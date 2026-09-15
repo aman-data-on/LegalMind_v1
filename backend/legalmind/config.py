@@ -233,3 +233,15 @@ def oidc_jit_roles() -> tuple[str, ...]:
 def oidc_jit_enabled() -> bool:
     return os.environ.get("LEGALMIND_OIDC_JIT_ROLES",
                           JIT_ROLES_DEFAULT).strip().upper() != "DISABLED"
+
+
+def capability_route_enabled() -> bool:
+    """Whether the `AM-68` capability question route is live.
+
+    OFF by default, and it stays off until that amendment is approved. The classifier,
+    the route and their tests ship dark on purpose: a feature that only exists on a
+    branch rots and is re-derived, while one that ships disabled is reviewable,
+    measurable and one flag from working. Nothing about an answer changes while this
+    returns False.
+    """
+    return os.environ.get("LEGALMIND_CAPABILITY_ROUTE", "").lower() in {"1", "true", "on"}

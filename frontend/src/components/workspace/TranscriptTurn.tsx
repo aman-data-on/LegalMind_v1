@@ -22,47 +22,12 @@ import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
+import { AnswerProse } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
  *  the shared helper — that shadowing is how this file kept its own `§` prefix
  *  when the other five callers were converted. */
-/**
- * The answer, as paragraphs and bullets — owner request, 2026-09-11 ("proper
- * paragraph spacing, bullets when useful").
- *
- * Deliberately NOT a markdown renderer: the generator's output is prose over
- * retrieved passages, and a parser that invented headings, links or emphasis
- * from stray punctuation would be putting formatting into a legal answer that
- * nobody wrote. Blank lines separate paragraphs; a run of lines opening with a
- * bullet or a number becomes a list. Nothing else is interpreted, and every
- * character of the original text survives.
- */
-export function AnswerProse({ text }: { text: string }) {
-  const blocks = text.split(/\n{2,}/).filter((block) => block.trim().length > 0);
-  return (
-    <>
-      {blocks.map((block, index) => {
-        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
-        const bullets = lines.every((line) => /^([-*\u2022]|\d+[.)])\s+/.test(line));
-        if (bullets && lines.length > 1) {
-          return (
-            <ul key={index} className="ws-ask__bullets">
-              {lines.map((line, item) => (
-                <li key={item}>{line.replace(/^([-*\u2022]|\d+[.)])\s+/, "")}</li>
-              ))}
-            </ul>
-          );
-        }
-        return (
-          <p key={index} className="ws-ask__text">
-            {lines.join(" ")}
-          </p>
-        );
-      })}
-    </>
-  );
-}
 
 function citeLabel(ref: string | null, pageNumber: number | null): string {
   return (
@@ -164,3 +129,5 @@ export function TranscriptTurn({
     </div>
   );
 }
+
+export { AnswerProse } from "./AnswerProse";

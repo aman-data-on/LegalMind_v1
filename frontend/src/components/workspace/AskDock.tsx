@@ -72,6 +72,7 @@ import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, 
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
+import { AnswerProse } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -521,7 +522,7 @@ export function WsAnswerView({
 
   return (
     <div className="ws-ask__answer" data-state="ANSWERED">
-      <p className="ws-ask__text">{result.text}</p>
+      <AnswerProse text={result.text} />
       {result.citations.length > 0 ? (
         <ol className="ws-ask__citations" aria-label="Sources in this document">
           <li className="ws-ask__routed-label" aria-hidden="true">Sources — this document</li>
