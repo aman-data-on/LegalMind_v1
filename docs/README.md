@@ -199,6 +199,7 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [GOLDEN_CORPUS_45E.md](08-testing/GOLDEN_CORPUS_45E.md) | ⏳ Step 45E — the 64 specified fixtures |
 | [GOLDEN_CORPUS.md](08-testing/GOLDEN_CORPUS.md) | 🔒 44.34 — the original corpus requirement |
 | [REGRESSION_TESTING.md](08-testing/REGRESSION_TESTING.md) | 🔒 44.35 — regression protection when the evaluator changes |
+| [CONTENT_FIRST_CONTRACT_TESTS.md](08-testing/CONTENT_FIRST_CONTRACT_TESTS.md) | 📁 Five synthetic agreements exercising `AM-51`/`AM-60` applicability — results, three recognition gaps, two fixed |
 | [INDEPENDENT_VERIFICATION.md](08-testing/INDEPENDENT_VERIFICATION.md) | 📁 Record — each critical guarantee re-checked by a mechanism *other than* the test that asserts it, and what that found |
 | [TEST_STRATEGY.md](08-testing/TEST_STRATEGY.md) | Step 39 tooling extract — superseded by Step 54 |
 
