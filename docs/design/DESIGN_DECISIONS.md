@@ -1413,3 +1413,93 @@ case — 8 drafts against 33 active — singular/plural wording, a retired code 
 selectable, an already-active code that must not be counted twice, and the version-less draft.
 Three Playwright tests against the real backend cover the grouped display, the disabled
 version-less draft with its reason, and a publish that produces a snapshot.
+
+## DD-25 — Standards joins the list format every other screen already uses (2026-09-15)
+
+**Status: recorded. Presentation-layer only; locks nothing and amends no `AM-*`.** Completes the
+Standards work begun in [DD-22](#dd-22--shadcnui-works-here-now-layers-not-preflight-2026-09-15),
+DD-23 and DD-24.
+
+The owner's instruction was that a non-technical person should be shown this once and then be able
+to use it — *"sab structured ho, filter sab, koi ek format jo best ho"*. The question was which
+format. It did not need inventing: **the product already had one**, and this screen was the only
+one not using it.
+
+Measured, not assumed — every `page.tsx` under `src/app`, counting `ws-*` classes against the
+legacy `.card`/`.btn`/`.field` ones:
+
+| Screen | ws-* | legacy |
+|---|---|---|
+| Dashboard, Administration (×4), Legal, Reviews, Research | 19–151 | **0** |
+| **Standards (`/dashboard/configuration`)** | 1 | **13** |
+
+So the answer was Administration's shape — `ws-admin__head`, `ws-filter-bar`, `ws-intake`, one
+`ws-docs__table` — applied here.
+
+### What was wrong, beyond the vocabulary
+
+* **The nav said "Standards"; the page called itself "Legal configuration".** The one word a reader
+  arrives with did not appear on the page they arrived at.
+* **One card per standard.** At 40 ratified standards that is a scroll, not a screen, with no
+  search and no filter anywhere.
+* **Two actions rendered as one word** — `Show stored valuesDraft a new version`, adjacent JSX
+  siblings whose separating newline is stripped at compile time, with nothing between them in the
+  common case.
+* **A raw ISO timestamp** in the version table: `2026-09-15T13:38:56.145775+05:30`.
+* **Publishing lived at the bottom**, so reaching it meant scrolling past every standard.
+
+### What a second pass found, by measuring rather than looking
+
+The first conversion produced a table whose rows were **62px against Administration's 44.5px** —
+because the clickable code was a `ws-btn ws-btn--link`, and a button inside a table cell brings its
+38px min-height with it. DESIGN.md rejects airier table density for this product, and a list that
+is 40% taller than the one next to it is the difference between work that reads as considered and
+work that reads as assembled. Now 46.75px, using `.ws-link`.
+
+**`.ws-link` had no rule anywhere.** It is used in four Administration files and fell back to the
+global `button {}`; it only looked right where `.ws-admin__name` happened to be applied beside it.
+Found by scanning every `className` in the app against every rule in both stylesheets — **sixteen
+class names came back with no rule at all**, `ws-filter-bar` among them until DD-21's branch
+finally merged. The rule is now written, which fixes those four call sites too.
+
+Also from that pass: the raw enum `NUMERIC_COMPARISON` in a column whose own filter says "Numeric
+comparison"; `Versions` and `Latest` as two columns reading "1" and the same date on every row,
+now one column reading `v1 · 2026-09-15`; no expand affordance; no sticky header on a list four
+screens tall; a count only when filtered; and no sort, which Administration has.
+
+### The screen now
+
+`Standards` · one-line note · **Publish snapshot** and **New standard** in the head · Search,
+Status, Evaluator and Sort by on one row · a count · a dense table whose rows expand in place.
+
+**Document type is deliberately not a filter.** `GET /requirements` returns code, status and
+versions; `document_type` lives inside the Company Standard on the detail response, which is
+separately gated. The code usually carries a type by convention (`LIABILITY-MSA-001`) but reading
+a legal filter out of a naming convention is a guess — `STRUCTURAL-E2E-001` alone disproves it —
+and a filter that silently hides a standard is worse than one that does not exist.
+
+### A test defect this work exposed, which CI caught and I had shipped
+
+`journey.spec.ts` began failing with DEVIATION where it expected MISSING. Not a flake: the suite is
+serial over one database and one configuration namespace, and the form tests added in DD-23 drove
+the editor at `STRUCTURAL-E2E-001` — the fixture `auth.setup.ts` publishes for every other spec —
+removing the phrase "shall not exceed" from its `cap_phrases`, which is the exact phrase in
+journey's document. The publish test then pinned the damage into a snapshot. Each test now builds
+its own throwaway Requirement.
+
+### One regression this nearly shipped, caught by measuring rather than looking
+
+Writing the missing `.ws-link` rule at the END of `workspace.css` **repainted every account name in
+Administration accent-blue** — measured in a real browser at `rgb(37,99,235)` where it had been
+`rgb(14,20,32)`. `.ws-link` and `.ws-admin__name` have the same specificity, so source order is the
+only thing deciding, and Administration chose ink-900 deliberately: a roster where every row shouts
+is a roster nobody scans. `.ws-link` is the base rule and now sits immediately before the variant
+that overrides it, which is where a base rule belongs. `css-foundation.test.ts` asserts that order
+and was verified to fail when it is flipped.
+
+### Verification
+
+15 unit tests over the filter and sort (`src/__tests__/requirement-filter.test.ts`) and 17
+Playwright tests against the real backend, run together with `journey.spec.ts` to prove the shared
+fixture survives. Row density measured in a real browser against Administration's. Rendered and
+compared by eye at 1440, 1280, 1920 and 900 — no horizontal scroll at any of them.

@@ -64,14 +64,14 @@ export function PhraseList({
   }
 
   return (
-    <div className="chips" data-disabled={disabled ? "" : undefined}>
-      <ul className="chips__list">
+    <div className="ws-phrases" data-disabled={disabled ? "" : undefined}>
+      <ul className="ws-phrases__list">
         {value.map((phrase) => (
-          <li key={phrase} className="chip">
-            <span className="chip__text">{phrase}</span>
+          <li key={phrase} className="ws-phrase">
+            <span className="ws-phrase__text">{phrase}</span>
             <button
               type="button"
-              className="chip__remove"
+              className="ws-phrase__remove"
               disabled={disabled}
               // The phrase itself is in the name, so a screen reader announces
               // WHICH one is being removed — "Remove" alone is eleven identical
@@ -90,7 +90,7 @@ export function PhraseList({
       <input
         ref={inputRef}
         id={id}
-        className="chips__input"
+        className="ws-phrases__input"
         type="text"
         value={pending}
         disabled={disabled}
