@@ -44,11 +44,18 @@ export function StatePill({
 export function Field({
   id,
   label,
+  hint,
   grow,
   children,
 }: {
   id: string;
   label: React.ReactNode;
+  /** The instruction a label should not carry. `.field__hint` already existed in
+   *  globals.css with no way to render it, so long "(comma separated; blank
+   *  to…)" parentheticals were being crammed into the bold label instead —
+   *  found rendering the Standards screen, 2026-09-14. Described by
+   *  `aria-describedby`, so it reaches a screen reader as help, not as a name. */
+  hint?: React.ReactNode;
   grow?: boolean;
   children: React.ReactNode;
 }) {
@@ -57,6 +64,11 @@ export function Field({
       <label className="field__label" htmlFor={id}>
         {label}
       </label>
+      {hint ? (
+        <p className="field__hint" id={`${id}-hint`}>
+          {hint}
+        </p>
+      ) : null}
       {children}
     </div>
   );
