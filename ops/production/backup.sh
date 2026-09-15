@@ -64,7 +64,33 @@ if [ ! -f "$CREDS" ]; then
     exit 0
 fi
 
-set -a; . "$CREDS"; set +a
+# Parse, never `source`. Sourcing a credentials file EXECUTES it as root, so a
+# stray character turns a secret into a command: on 2026-09-15 a key pasted as
+# `KEY= <secret>` — one leading space — made bash set the variable empty and run
+# the secret as a command, printing it in the "command not found" error. The
+# credential leaked into a terminal log by being read.
+#
+# So: read KEY=VALUE lines, strip surrounding whitespace and one layer of
+# quotes, export nothing else, and execute nothing. Values may contain spaces,
+# `$`, backticks and quotes without consequence, which is the point — a secret
+# is arbitrary bytes, not shell.
+while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in ''|'#'*) continue ;; esac
+    [ "${_line#*=}" = "$_line" ] && continue          # no '=' — not a setting
+    _key="${_line%%=*}"
+    _val="${_line#*=}"
+    _key="${_key#"${_key%%[![:space:]]*}"}"; _key="${_key%"${_key##*[![:space:]]}"}"
+    _val="${_val#"${_val%%[![:space:]]*}"}"; _val="${_val%"${_val##*[![:space:]]}"}"
+    case "$_val" in
+        \"*\") _val="${_val#\"}"; _val="${_val%\"}" ;;
+        \'*\') _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_key" in
+        LEGALMIND_S3_*|LEGALMIND_BACKUP_*) export "$_key=$_val" ;;
+        *) echo "ignoring unexpected setting in $CREDS: $_key" >&2 ;;
+    esac
+done < "$CREDS"
+unset _line _key _val
 
 : "${LEGALMIND_BACKUP_PASSPHRASE_FILE:?set LEGALMIND_BACKUP_PASSPHRASE_FILE in $CREDS}"
 if [ ! -r "$LEGALMIND_BACKUP_PASSPHRASE_FILE" ]; then

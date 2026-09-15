@@ -88,6 +88,19 @@ the machine is encrypted first.
 
 ### Credentials and permissions
 
+⚠️ **Paste the values with no leading space, and never `source` this file by hand.**
+On 2026-09-15 a secret key was pasted as `LEGALMIND_S3_SECRET_ACCESS_KEY= <secret>` — one
+leading space. Because `backup.sh` loaded the file with `.` (source), bash set the variable
+empty and **ran the secret as a command**, printing it in the `command not found` error. The
+credential leaked by being read, and was rotated.
+
+`backup.sh` now **parses** the file instead: `KEY=VALUE`, surrounding whitespace and one layer
+of quotes stripped, only `LEGALMIND_S3_*` and `LEGALMIND_BACKUP_*` exported, and **nothing
+executed** — so a value containing `$(…)`, backticks, quotes or spaces is treated as the
+arbitrary bytes a secret is. Pinned by `backend/tests/test_backup_credentials.py`, which also
+fails the build if anyone reintroduces `source`.
+
+
 `backup.sh` runs **as root** and drops to `postgres` only for `pg_dump`, so the credential file
 stays root-only and postgres never reads it. Settings live in **`/root/.legalmind-backup.env`,
 mode 600**, and are referenced by name only — never printed, never committed, never logged:
