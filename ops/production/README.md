@@ -68,6 +68,35 @@ python3 -m pytest tests -q
 
 Verified 2026-09-14: **1,765 passed, 0 failed.**
 
+## Configuration snapshot history — what is live, and why a new one is ever needed
+
+Publishing **appends**. A snapshot is immutable, every Review stays pinned to the one it
+ran under (rule 16), and the application uses the **newest** one for new analyses
+(`snapshots.items[0]`, newest first).
+
+| Snapshot | Published | By | Items |
+|---|---|---|---|
+| `abc61a1b` | 2026-09-01 11:37 | analyst@leapswitch.com | 32 |
+| `8b7e5c17` | 2026-09-09 12:59 | analyst@leapswitch.com | 32 |
+| `4f409150` | 2026-09-09 17:15 | analyst@leapswitch.com | 32 |
+| **`5c85b87c`** | **2026-09-15 11:15** | **aman.singh@leapswitch.com** | **33** ← AB-20, the 33 active standards |
+
+**A second publish is not a repeat of the first.** The list of 33 codes does not change; what
+changes is the *version* of a standard that the snapshot pins. Editing a standard file — a
+value, or recognition vocabulary — changes nothing live until the file is **imported** (which
+appends a new `RequirementVersion`) and then **published** (which pins that version into a new
+snapshot). Until both happen the previous snapshot keeps serving the previous version.
+
+So: a publish is needed **whenever a standard file changes**, not only when the set of
+standards changes.
+
+**Publish authority.** `configuration.publish` comes from **Department Lead** or **Developer**,
+never Platform Admin, which holds only `user.manage`, `role.manage`, `platform.manage` and
+`audit.view` (SEC-02 / ROLE-05 keep platform administration out of legal configuration).
+`ROLE_DEVELOPER` is every permission except `LEGAL_AUTHORITY_PERMISSIONS`, which is why a
+Google/OIDC account can publish while a Department User account cannot — `user@leapswitch.com`
+is Department User and is refused.
+
 ## Backups and disaster recovery
 
 Two copies with two different jobs. Run by `ops/production/backup.sh`, installed at
