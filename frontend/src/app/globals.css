@@ -3,10 +3,11 @@
  * internationalisation as NOT YET SPECIFIED: "None is determined by a locked
  * decision; each is an implementation-phase choice."
  *
- * This stylesheet is therefore deliberately plain and dependency-free. No design
- * system is invented and no CSS framework is added — rule 19 forbids adding a
- * technology without approval, and choosing one here would quietly make it the
- * project's answer to a question the owner has not decided.
+ * This stylesheet was therefore deliberately plain and dependency-free. That
+ * sentence stood until 2026-09-10, when the owner approved shadcn/ui + Tailwind
+ * for incremental adoption; Tailwind now enters here under the terms recorded in
+ * DD-22, and the hand-authored design system below remains the product's voice.
+ * Rule 19 is satisfied by that approval, not bypassed.
  *
  * What the styling DOES carry is the one presentational rule that is locked:
  * 52.5 requires an Evaluation needing a decision to be visually distinct. There
@@ -29,6 +30,130 @@
  * This file still ends where the Application Shell begins: `.shell`, `.topbar`,
  * `.content`, `.footer`, `.shell--bare` are untouched here and belong to Phase 2.
  */
+
+/*
+ * --- Tailwind, for shadcn/ui primitives only (2026-09-15, DD-22) ---
+ *
+ * Read this before adding a utility anywhere, and before "fixing" the missing
+ * preflight import.
+ *
+ * WHY THE THREE ENTRY POINTS ARE IMPORTED SEPARATELY. `@import "tailwindcss"`
+ * — what `shadcn init` writes — also pulls `preflight.css`. That was measured
+ * against this app rather than assumed, and it is not acceptable here:
+ *
+ *   ul, ol { list-style: none; margin: 0; padding: 0 }   17 <ul> / 14 <ol>, and
+ *       nothing below re-styles them -> the admin roster and roles screens lose
+ *       their bullets and indentation, which moves the ws-admin baseline.
+ *   a { color: inherit; text-decoration: inherit }        38 links, and only
+ *       `.topbar__nav a`, `.login a` and `.table-card a` are styled below.
+ *   blockquote { margin: 0 }                              9 occurrences.
+ *   * { box-sizing: border-box }                          already set at the
+ *       top of this file, so preflight's copy is pure redundancy.
+ *
+ * Preflight buys exactly ONE thing shadcn genuinely needs: Tailwind's `border`
+ * utility sets border-WIDTH only and relies on preflight for `border-style:
+ * solid`, so without it every shadcn border is invisible. That one behaviour is
+ * supplied by hand in the @layer base block further down. Everything else
+ * preflight does is either already done or actively unwanted.
+ *
+ *   preflight.css is NEVER IMPORTED. Not commented out — absent.
+ *
+ * WHY LAYERS, AND WHAT IS IN WHICH. Cascade layers outrank specificity: a rule
+ * in ANY @layer loses to an unlayered rule, whatever the selectors say. That is
+ * the whole reason shadcn could not work here before — `button`, `label` and
+ * `input, select, textarea` below are unlayered bare-element rules, and every
+ * shadcn primitive is built on those elements (Select's trigger is a <button>,
+ * Checkbox is a <button role="checkbox">, Label is a <label>). So:
+ *
+ *   @layer base       the four bare-element rules, moved here VERBATIM, plus the
+ *                     border-style default. Utilities now beat them.
+ *   @layer utilities  Tailwind's utilities. Last in the order, so they win.
+ *   (unlayered)       EVERYTHING ELSE in this file — .card, .btn, .field,
+ *                     .login, .table-card, the focus-visible ring. These keep
+ *                     beating every utility, deliberately: utilities are here to
+ *                     override element DEFAULTS, never the design system.
+ *
+ * Two consequences worth stating out loud rather than discovering later. The
+ * unlayered `:focus-visible` block still beats shadcn's own `focus-visible:ring-*`
+ * utilities, so every adopted primitive gets LegalMind's focus ring — that is the
+ * intended outcome, one product with one ring, not an accident. And
+ * `workspace.css` is untouched and stays entirely unlayered, so `.ws` continues
+ * to beat everything (DD-20's original point); no shadcn primitive is used
+ * inside `.ws`.
+ *
+ * `source(none)` IS LOAD-BEARING — DO NOT DROP IT. `@source` alone does not
+ * restrict anything: Tailwind's automatic source detection still scans the whole
+ * project beside it. Measured here, not assumed — with `@source` present and the
+ * allow-listed directory EMPTY, this file still compiled 30 utilities, `.flex`
+ * and `.collapse` among them, scavenged out of unrelated markup. Any one of them
+ * could have silently claimed an existing class name. `source(none)` turns
+ * detection off so `@source` becomes a real allow-list: the same compile then
+ * emits zero, and with one probe component it emits exactly that component's ten
+ * classes and nothing else.
+ *
+ * (DD-20 recorded "`@source` limited to the Ask route" as the isolation
+ * mechanism for `ai.css`. That claim does not hold on its own — it held there
+ * only because the `tw:` prefix made every emitted utility unmatchable anyway.
+ * Noted in DD-22 rather than left for someone to trip over.)
+ *
+ * Widen the allow-list deliberately, one directory at a time, or not at all.
+ *
+ * THE SHARED TOKEN NAMES, AND WHY THAT IS DELIBERATE. Tailwind's theme layer
+ * declares `--text-xs/sm/base/lg` and `--radius-xs/sm/md` on `:root` — seven
+ * names this file also declares, with LegalMind's own values. They are not
+ * renamed, because the collision is the feature: `:root` below is UNLAYERED and
+ * therefore wins, so shadcn's `text-sm` resolves to 0.86rem and its `rounded-md`
+ * to 6px — the primitives speak LegalMind's type and radius scale for free,
+ * with nothing to keep in sync.
+ *
+ * That outcome depends on one thing: `:root` below must never be wrapped in a
+ * layer. If it is, Tailwind's defaults silently win and every adopted primitive
+ * quietly changes size. `src/__tests__/css-foundation.test.ts` asserts all of
+ * this against the real compiled stylesheet, so the trap fails a build instead
+ * of reaching a screen.
+ */
+@layer theme, base, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@source "../components/ui";
+
+/*
+ * shadcn's CSS-variables mode wants --background/--foreground/--primary/--muted/
+ * --accent/--border/--input/--ring on :root. TWO OF THOSE NAMES ARE ALREADY
+ * TAKEN HERE AND MEAN SOMETHING ELSE: --muted is body-text grey (22 uses below),
+ * shadcn's is a BACKGROUND; --accent is the link blue (9 uses below), shadcn's is
+ * a hover BACKGROUND. Defining them shadcn's way would silently repaint the app.
+ *
+ * Mapping through @theme avoids the collision by construction — Tailwind v4
+ * namespaces these as --color-*, which nothing here uses. The primitives then
+ * draw from LegalMind's palette because of where their colours come from, not
+ * because someone patched them afterwards (CLAUDE.md: "restyle every adopted
+ * primitive to the current tokens so the result reads as one product").
+ */
+@theme {
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--page);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--page);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--page);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--error);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+  --radius: var(--radius-sm);
+}
 
 :root {
   /* Base palette — unchanged values, now the single source every token below draws from. */
@@ -234,12 +359,40 @@ th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04e
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); }
 
-button { font: inherit; padding: 0.4rem 0.8rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
-button:disabled { color: var(--muted); cursor: not-allowed; }
+/*
+ * These four rules are in @layer base ONLY so Tailwind utilities can beat them
+ * (see the Tailwind block at the top of this file). Their declarations are
+ * unchanged, byte for byte — this is a cascade move, not a restyle.
+ *
+ * Nothing else moved. Every class-subject rule in this file stays unlayered and
+ * still outranks every utility; that is the point of the split.
+ */
+@layer base {
+  /*
+   * The one preflight behaviour shadcn depends on, and the only one imported in
+   * spirit: Tailwind's `border` utility sets border-WIDTH and leaves style to
+   * this default, so without it every shadcn border is invisible. `border-width:
+   * 0` is not optional company for it — `border-style: solid` alone would give
+   * every element on the page the initial `medium` width, i.e. a 3px border
+   * around everything. Both lines, exactly as preflight has them.
+   *
+   * Being layered, this loses to every unlayered rule at any specificity, so it
+   * reaches only elements whose border comes from a BROWSER default. In this app
+   * that is button/input/select/textarea — all four restyled below, in this same
+   * layer and after it — and `fieldset`, which the app never renders.
+   */
+  *, ::before, ::after { border-width: 0; border-style: solid; }
+
+  button { font: inherit; padding: 0.4rem 0.8rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
+  button:disabled { color: var(--muted); cursor: not-allowed; }
+  label { display: block; margin-bottom: 0.6rem; font-size: var(--text-md); }
+  input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+}
+
+/* Class subjects — unlayered, and still beating both @layer base above and every
+   utility. `button.link` in particular must keep overriding the `button` rule. */
 button.link { border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; }
 .icon-link { display: inline-flex; align-items: center; justify-content: center; padding: 0; gap: 0.25rem; }
-label { display: block; margin-bottom: 0.6rem; font-size: var(--text-md); }
-input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 
 /*
  * Keyboard focus — new. Every existing interactive element already reachable by
