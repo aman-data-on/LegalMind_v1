@@ -94,3 +94,41 @@ def test_backup_sh_never_sources_the_credentials_file():
             continue
         assert not re.match(r'^(\.|source)\s+"?\$CREDS', stripped), \
             f"credentials must be parsed, never sourced: {line!r}"
+
+
+def _stage_b_guard() -> str:
+    """The placeholder check that decides whether stage B runs at all."""
+    script = BACKUP_SH.read_text()
+    block = re.search(r'^case "\$\{LEGALMIND_S3_ACCESS_KEY_ID.*?^esac$',
+                      script, re.S | re.M)
+    assert block, "the placeholder guard moved — update this test"
+    return block.group(0)
+
+
+@pytest.mark.parametrize("access,secret,expect_skip", [
+    ("PASTE_NEW_ACCESS_KEY_ID_HERE", "PASTE_NEW_SECRET_ACCESS_KEY_HERE", True),
+    ("AKIAreal0000000000AA", "PASTE_NEW_SECRET_ACCESS_KEY_HERE", True),
+    ("", "", True),
+    ("AKIAreal0000000000AA", "arealsecret0000000000000000000000000000", False),
+])
+def test_placeholder_credentials_skip_instead_of_calling_the_provider(
+    access, secret, expect_skip, tmp_path
+):
+    """The template ships with PASTE_* placeholders, and a file that exists but
+    is unfilled must behave like a missing one — otherwise the nightly job sends
+    the placeholder as a credential and fails with a 403 every night at 02:30."""
+    runner = tmp_path / "guard.sh"
+    runner.write_text(
+        f'CREDS=/tmp/fake.env\n'
+        f'LEGALMIND_S3_ACCESS_KEY_ID="{access}"\n'
+        f'LEGALMIND_S3_SECRET_ACCESS_KEY="{secret}"\n'
+        f'{_stage_b_guard()}\n'
+        f'echo REACHED_UPLOAD\n'
+    )
+    done = subprocess.run(["bash", str(runner)], capture_output=True, text=True)
+    assert done.returncode == 0
+    if expect_skip:
+        assert "REACHED_UPLOAD" not in done.stdout
+        assert "SKIPPED" in done.stderr
+    else:
+        assert "REACHED_UPLOAD" in done.stdout

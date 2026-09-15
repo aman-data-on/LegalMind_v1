@@ -114,7 +114,25 @@ def main(argv: list[str]) -> int:
     # writing anything — the probe backup.sh runs before it bothers encrypting.
     if command == "check":
         cfg = _config()
-        _client(cfg).head_bucket(Bucket=cfg["LEGALMIND_S3_BUCKET"])
+        try:
+            _client(cfg).head_bucket(Bucket=cfg["LEGALMIND_S3_BUCKET"])
+        except Exception as exc:                        # botocore ClientError etc.
+            # A raw botocore traceback at 02:30 tells an operator nothing about
+            # WHICH of the four things is wrong, and the useful detail (the HTTP
+            # status) is buried. Say it plainly instead — and never echo a key.
+            status = getattr(exc, "response", {}).get(
+                "ResponseMetadata", {}).get("HTTPStatusCode")
+            hint = {
+                403: "credentials rejected, or the key has no access to this bucket",
+                404: "the bucket does not exist at this endpoint — "
+                     "check bucket and region",
+            }.get(status, "could not reach the bucket — check the endpoint URL")
+            print(f"OFF-SERVER CHECK FAILED "
+                  f"({status or type(exc).__name__}): {hint}. "
+                  f"bucket={cfg['LEGALMIND_S3_BUCKET']} "
+                  f"region={cfg['LEGALMIND_S3_REGION']} "
+                  f"endpoint={cfg['LEGALMIND_S3_ENDPOINT']}", file=sys.stderr)
+            return 1
         print(f"bucket reachable: {cfg['LEGALMIND_S3_BUCKET']} "
               f"({cfg['LEGALMIND_S3_REGION']})")
         return 0
