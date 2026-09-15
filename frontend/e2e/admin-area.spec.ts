@@ -54,7 +54,9 @@ test.describe("users", () => {
     await expect(detail).toBeVisible();
 
     // Revoke the role: the account keeps existing and can no longer act.
-    await detail.getByRole("button", { name: `Revoke USER from ${email}` }).click();
+    // The accessible name carries the role's DISPLAY name, so it contains the
+    // words the chip shows (WCAG 2.5.3); the code stays in the tooltip.
+    await detail.getByRole("button", { name: `Revoke Department User from ${email}` }).click();
     await expect(detail).toContainText("No roles");
 
     // Disable: the control inverts, and the roster agrees.
@@ -205,5 +207,56 @@ test.describe("everyone else", () => {
     // the server refuses regardless, which is what the API tests assert).
     await page.goto("/dashboard");
     await expect(page.locator('nav a[href="/dashboard/admin"]')).toHaveCount(0);
+  });
+});
+
+/**
+ * The roster has to show that access can be changed.
+ *
+ * Reported by the owner: "I saw the administration page and I want to change the
+ * role of tasniya but I do not have the option." The option existed — grant,
+ * revoke, department, account status, all of it — behind a name rendered in
+ * ink-900 with no underline, indistinguishable from the email beside it. A
+ * complete feature with no door.
+ *
+ * These tests start where a person starts: at the roster, looking for a way in.
+ */
+test.describe("changing someone's access", () => {
+  test.use({ storageState: storageStatePath("admin") });
+
+  test("every row offers a visible way in, without knowing the name is clickable", async ({ page }) => {
+    await page.goto("/dashboard/admin");
+    const rows = page.locator("table tbody tr");
+    await expect(rows.first()).toBeVisible();
+    // One per row, by an accessible name that says what it leads to.
+    await expect(page.getByRole("button", { name: "Manage access" }))
+      .toHaveCount(await rows.count());
+  });
+
+  test("a role is granted and revoked starting from that button alone", async ({ page }) => {
+    const email = `access-${Date.now()}@e2e.test`;
+    await page.goto("/dashboard/admin");
+    await page.getByRole("button", { name: "Add account" }).click();
+    await page.getByLabel(/Full name/).fill("Access Test");
+    await page.getByLabel(/Work email/).fill(email);
+    await page.getByLabel("Department for the new account").selectOption({ label: "E2E Department" });
+    await page.getByRole("button", { name: "Create account" }).click();
+
+    const row = page.locator(`tr[data-user-email="${email}"]`);
+    await expect(row).toBeVisible();
+
+    // Creating opens the panel; close it so the journey starts from the roster,
+    // which is where the person reporting this actually was.
+    await row.getByRole("button", { name: "Close" }).click();
+    await row.getByRole("button", { name: "Manage access" }).click();
+
+    const panel = page.locator(".ws-detail, .ws-admin__side").first();
+    await panel.getByLabel(new RegExp(`Role to grant to ${email}`)).selectOption({ label: "Department Lead" });
+    await panel.getByRole("button", { name: "Grant", exact: true }).click();
+    await expect(row).toContainText("Department Lead");
+
+    // And back off again, which is the other half of "change the role".
+    await panel.getByRole("button", { name: /Revoke Department Lead/ }).click();
+    await expect(row).not.toContainText("Department Lead");
   });
 });

@@ -4604,3 +4604,8 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 /* The expanded detail belongs to the row above it, and should read that way. */
 .ws-std__detail { background: color-mix(in srgb, var(--ws-ink-100) 35%, transparent); }
 .ws-publish__acts { margin-top: var(--ws-s4); }
+
+/* The roster's way in. Right-aligned and held to its content so the data columns
+   keep the width; `white-space: nowrap` so "Manage access" never wraps to two
+   lines in a table row. */
+.ws-admin__rowact { width: 1%; white-space: nowrap; text-align: right; }

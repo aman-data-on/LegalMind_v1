@@ -299,6 +299,12 @@ function UsersScreen() {
                     <th scope="col">Status</th>
                     <th scope="col">Last sign-in</th>
                     <th scope="col">Created</th>
+                    {/* The roster showed a name, an email and role chips and NOTHING
+                        that said any of it could be changed. The only way into the
+                        panel that grants and revokes roles was clicking a name
+                        rendered in ink-900 with no underline — indistinguishable
+                        from the email beside it. A complete feature with no door. */}
+                    <th scope="col"><span className="ws-visually-hidden">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -335,6 +341,16 @@ function UsersScreen() {
                         {user.last_login_at ? dateTime(user.last_login_at) : "Never"}
                       </td>
                       <td className="ws-mono">{dateOnly(user.created_at)}</td>
+                      <td className="ws-admin__rowact">
+                        <button
+                          type="button"
+                          className="ws-btn ws-btn--sm"
+                          aria-expanded={user.id === selectedId}
+                          onClick={() => select(user.id === selectedId ? null : user.id)}
+                        >
+                          {user.id === selectedId ? "Close" : "Manage access"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

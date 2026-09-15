@@ -198,6 +198,10 @@ function DepartmentsScreen() {
                     <th scope="col">Members</th>
                     <th scope="col">Active</th>
                     <th scope="col">Created</th>
+                    {/* Same missing door as the account roster: the only way into
+                        the panel that renames a department and appoints its lead
+                        was clicking a name that does not look clickable. */}
+                    <th scope="col"><span className="ws-visually-hidden">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -220,6 +224,17 @@ function DepartmentsScreen() {
                       <td className="ws-mono">{department.members ?? 0}</td>
                       <td className="ws-mono">{department.active_members ?? 0}</td>
                       <td className="ws-mono">{dateOnly(department.created_at)}</td>
+                      <td className="ws-admin__rowact">
+                        <button
+                          type="button"
+                          className="ws-btn ws-btn--sm"
+                          aria-expanded={department.id === selectedId}
+                          onClick={() => select(department.id === selectedId
+                            ? null : department.id)}
+                        >
+                          {department.id === selectedId ? "Close" : "Manage"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

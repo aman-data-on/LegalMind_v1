@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — the account roster now shows that access can be changed (2026-09-15)
+
+Reported by the owner: *"I saw the administration page and I want to change the role of tasniya but
+I do not have the option."*
+
+The option existed. Granting a role, revoking one, moving a department, disabling an account — all
+of it, complete and working, in a panel whose **only** entry point was clicking an account name
+rendered in ink-900 with no underline, at weight 500, sitting beside an email that looks identical.
+Measured in a browser: `color: rgb(14, 20, 32)`, `text-decoration: none`. The single clue was
+`cursor: pointer`, which a reader finds only by happening to hover over the right word.
+
+**A complete feature with no door.** The permissions were never the problem — both Platform Admin
+and Developer hold `role.manage`, and the panel renders its controls correctly once it is open.
+
+Every row now carries a **Manage access** button, and the same was missing on Departments, which had
+the identical pattern and now carries **Manage**. Roles & permissions is a read-only catalogue and
+needs none.
+
+Also fixed while in there: the revoke control's accessible name used the role CODE while the chip
+beside it shows the role's NAME — `"Revoke DEPARTMENT_LEAD from …"` against a chip reading
+`Department Lead`. The visible label was not part of the accessible name, so voice control could not
+reach it (WCAG 2.5.3 — a rule this screen's own create-form comment already cites). The code stays
+in the tooltip, where its precision is still useful.
+
+Two Playwright tests now start where the person reporting this started — at the roster, looking for
+a way in — and grant then revoke a role without ever assuming a name is clickable.
+
 ### Added — Template-Driven Document Builder R&D (2026-09-15)
 
 Research/recommendation document for a new feature: pick an approved template (MSA, NDA, …), fill
