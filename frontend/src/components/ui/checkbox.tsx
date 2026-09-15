@@ -18,7 +18,12 @@ function Checkbox({
         // is also the fix for the defect this replaces — `input, select, textarea
         // { width: 100% }` stretches a native checkbox, which is why the one at
         // dashboard/admin/audit renders as a wide box.
-        "peer size-4 shrink-0 rounded-sm border border-input outline-none",
+        // `p-0` is NOT cosmetic: `button` in globals.css's @layer base sets
+        // `padding: .4rem .8rem`, this component declares no padding of its own,
+        // and padding wider than `size-4` wins — the control renders as a wide
+        // rectangle rather than a box. Every shadcn primitive built on <button>
+        // needs its own padding utility here (DD-22).
+        "peer size-4 shrink-0 p-0 rounded-sm border border-input outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "aria-invalid:border-destructive",
         "data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
