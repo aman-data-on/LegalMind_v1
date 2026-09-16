@@ -3706,8 +3706,21 @@
   padding: var(--ws-s5) var(--ws-s5) var(--ws-s7);
   display: flex; flex-direction: column; gap: var(--ws-s4);
   /* Wide, but not unbounded: eight columns want room, and a table stretched
-     across a 4K display puts the action column a head-turn from the name. */
-  max-width: 104rem; width: 100%;
+     across a 4K display puts the action column a head-turn from the name.
+
+     `margin-inline: auto` because a cap without one is not a column, it is a
+     left edge: past 104rem (1664px) the bound stopped the content growing but
+     nothing recentred it, so a 1920 display put 24px of gutter on the left and
+     280px on the right. Every other capped container in this stylesheet
+     already pairs the two — `.ws-docs`, `.ws-main > .ws-state` and three more
+     — and this one simply missed it. Owner-reported 2026-09-16 against the
+     first-run screen, where a centred composition inside a left-hung card is
+     most obvious; the fix is the container's, so the populated table recentres
+     with it rather than the two views disagreeing about where the page sits.
+
+     Not DD-18 §2's "full bleed": that describes `.ws-cl--work`, the rail and
+     document workspace, which sets no cap at all. The index chose a bound. */
+  max-width: 104rem; width: 100%; margin-inline: auto;
 }
 
 .ws-cl__toolbar {
