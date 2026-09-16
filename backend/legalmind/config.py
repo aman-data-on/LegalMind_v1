@@ -282,7 +282,8 @@ def general_knowledge_generation_enabled() -> bool:
     Standards, which is the defect. The reader is told plainly what this system can and
     cannot answer instead of being handed three unrelated standards.
 
-    Turning this on requires the amendment drafted as `AM-71`.
+    Turning this on requires the amendment drafted as `AM-72` (renumbered from
+    `AM-71`, which is now the locked `AB-23` record on retired standards).
     """
     value = os.environ.get("LEGALMIND_GENERAL_KNOWLEDGE", "")
     return value.lower() in {"1", "true", "on"}

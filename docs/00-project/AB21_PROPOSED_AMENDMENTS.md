@@ -201,7 +201,10 @@ original argument for generating. **Recorded, not resolved.**
 
 ---
 
-## `AM-70` — A multilingual embedding model *(deferred, not yet proposed for decision)*
+## `AM-73` — A multilingual embedding model *(deferred, not yet proposed for decision)*
+
+> ⚠️ **RENUMBERED 2026-09-16 from `AM-70`**, which is now a locked record (a client
+> profile with no documents may be permanently deleted). Nothing here touches it.
 
 *Would amend:* `AM-26` r4's model pin. **Consequence: a full re-embed of every corpus and a
 re-baseline of the 77-question evaluation set.**
@@ -217,7 +220,14 @@ that would be tuning ahead of evidence.
 
 ---
 
-# `AM-71` (PROPOSED, NOT APPROVED) — The general-knowledge answer type
+# `AM-72` (PROPOSED, NOT APPROVED) — The general-knowledge answer type
+
+> ⚠️ **RENUMBERED 2026-09-16, and the reason matters.** This draft was written as
+> `AM-71`. That number is now taken by a **different and locked** decision — `AB-23`
+> `AM-71`, *"A retired standard is not retrievable in Ask"*, the owner's ruling of
+> 2026-09-16 which closed the `AM-65` gap this session surfaced. That record is
+> approved, implemented, deployed and verified; nothing here reopens or qualifies it.
+> Renumbered to `AM-72` so the two never collide again.
 
 📁 **PROPOSAL.** Nothing appended to `all_lock.md`, no approval recorded, and the
 feature is off: `LEGALMIND_GENERAL_KNOWLEDGE` is unset and nothing reads it.
