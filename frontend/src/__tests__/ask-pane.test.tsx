@@ -75,7 +75,7 @@ describe("multi-source answers (2026-09-08)", () => {
     const html = render(result({
       text: "The document says ninety days [1].",
       positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
-        source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.", retrieval_score: 0.5 }],
+        source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.", standard_version: 1, ratification_status: "ACTIVE", retrieval_score: 0.5 }],
     }));
     expect(html).toContain("Company standard");
     expect(html).toContain("TESTPOS-MSA-001");

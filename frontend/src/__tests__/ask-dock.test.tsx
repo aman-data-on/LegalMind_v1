@@ -229,7 +229,7 @@ describe("a position beside the document's answer (owner, 2026-09-10)", () => {
   const position = {
     position_chunk_id: "pc-1", standard_code: "TERM-NOTICE-NDA-001", document_type: "NDA",
     source_clause: "9 Term", content: "Either party may terminate on thirty (30) days' written notice.",
-    retrieval_score: 0.5,
+    standard_version: 1, ratification_status: "ACTIVE", retrieval_score: 0.5,
   };
 
   it("labels the standard as the company's, and the assessment as the evaluator's Finding — never a score", () => {
