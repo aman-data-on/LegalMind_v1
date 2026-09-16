@@ -235,6 +235,45 @@ and neither recall nor retention regressed. Faithfulness and citation precision 
 unmeasured; scoring them needs real Gemini calls on the owner's key, which is an explicit
 approval item.
 
+### D.9 The evidence-rescue judge — the recall result (2026-09-16)
+
+The gate, not retrieval, was the bottleneck. Measured on the ratified 77-question set:
+of 64 answerable questions it refused 21, and **15 of those already had the gold chunk
+retrieved**. Recall could reach 0.859 by fixing the decision alone.
+
+Three cheaper fixes were measured and rejected first:
+
+| Lever | Result |
+|---|---|
+| 35-combination sweep of `COSINE_FLOOR` × `PEAK_MARGIN` | **no** configuration raises recall without raising wrongly-answered; the frontier is monotonic |
+| A second feature — IDF-weighted question/chunk overlap | false refusals **0.185**, unanswerable **0.196**; top-cosine 0.443 vs 0.447. Indistinguishable |
+| A different embedding model | 2026-08-26 bake-off: `gte-small` 11/13 · 45/64 against MiniLM's 12/13 · 41/64 — the same trade |
+
+`calibration.py` had already recorded why: *"those score INSIDE the answerable
+distribution, so no similarity feature separates them, for any candidate."*
+
+**Result, with the real model, calling the judge on the 33 refused questions:**
+
+```
+baseline   retained 43/64   recall 0.625   wrongly answered 1/13
+rescued    13 correct        0 wrongly opened
+result     recall 0.828      wrongly answered 1/13  — UNCHANGED
+```
+
+The judge refused all twelve genuinely unanswerable questions it was shown. This is the
+first lever measured that satisfies the owner's 2026-09-14 rule — recall improves
+without a rise in wrongly-answered.
+
+Two questions (`Q-09`, `Q-38`) were rescued onto non-gold chunks. Neutral rather than
+harmful: the attempt still faces the grounding screens, which is what rejects an answer
+that does not resolve to its evidence.
+
+**Caveat on the official gate.** `verify_assist_quality.measure()` calls
+`store.search_hybrid` directly, so it does not exercise the rescue, which lives in
+`service.ask`. The figures above come from a direct measurement over the same ratified
+dataset with the same model. The harness should grow a service-level path before its
+printed recall can be read as the user-facing number.
+
 ### D.6 What has NOT been tested
 
 - **907 DB-backed tests** — no `LEGALMIND_TEST_DATABASE_URL`.

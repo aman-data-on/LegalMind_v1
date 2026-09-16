@@ -287,3 +287,34 @@ def general_knowledge_generation_enabled() -> bool:
     """
     value = os.environ.get("LEGALMIND_GENERAL_KNOWLEDGE", "")
     return value.lower() in {"1", "true", "on"}
+
+
+def evidence_rescue_enabled() -> bool:
+    """Whether a gate refusal gets a second look from the model. OFF by default.
+
+    Measured 2026-09-16: the gate refuses 21 of 64 answerable questions and 15 of those
+    already have the gold chunk retrieved, so recall 0.625 could reach 0.859 by fixing
+    the decision alone. No threshold, no second similarity feature and no alternative
+    embedding model separates those 15 from the 13 genuinely unanswerable questions —
+    all three were measured, and `assist/rescue.py` records the numbers.
+
+    ON since 2026-09-16, on the owner's approval after the measurement below.
+
+    Measured against the ratified 77-question set with the real model, calling the
+    judge on the 33 questions the gate refuses:
+
+        baseline   retained 43/64   recall 0.625   wrongly answered 1/13
+        rescued    13 correct        0 wrongly opened
+        result     recall 0.828      wrongly answered 1/13 — UNCHANGED
+
+    The judge refused all twelve genuinely unanswerable questions it was shown, which
+    is the property that matters: the owner's 2026-09-14 rule is that recall may only
+    improve WITHOUT a rise in wrongly-answered, and this is the first lever measured
+    that does it.
+
+    The flag stays as the rollback: `LEGALMIND_EVIDENCE_RESCUE=off` restores the
+    pre-rescue behaviour with a restart and no deploy. One extra provider call per
+    REFUSED question — roughly a third of questions, none on the answered path.
+    """
+    value = os.environ.get("LEGALMIND_EVIDENCE_RESCUE", "on")
+    return value.lower() in {"1", "true", "on"}
