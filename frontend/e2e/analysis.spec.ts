@@ -55,10 +55,15 @@ test.describe("The analysis surface", () => {
     await expect(page.getByText("Awaiting legal decision").first()).toBeVisible();
     // The requirement code moved into "How this was determined" (2026-09-08,
     // third pass): a raw identifier is exactly the "internal ID" the manager's
-    // report asked off the default-visible surface. Expanding the disclosure
-    // is the same one click a reader would make to confirm it, and proves the
-    // right requirement actually fired — the property this assertion exists for.
+    // report asked off the default-visible surface. It moved one level further
+    // in on 2026-09-16, behind "Technical details", after a UX review found a
+    // paralegal opening that disclosure met "PRESENCE-v1", "0 evidence
+    // references" and this code before anything they could act on. Two clicks
+    // now — and the assertion is unchanged in substance: the code is still
+    // reachable, and still proves the right requirement fired, which is the
+    // property this exists for.
     await page.locator(".ws-determined > summary").first().click();
+    await page.locator(".ws-determined__more > summary").first().click();
     await expect(page.getByText(f.configuration.requirement_code)).toBeVisible();
   });
 

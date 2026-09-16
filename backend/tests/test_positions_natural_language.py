@@ -52,7 +52,10 @@ TERMINATION_QUESTIONS = (
 def real_corpus(db, user):
     """The ratified standards, imported and chunked exactly as production does."""
     import tools.import_ratified_standards as imp
-    from legalmind.assist.positions import RATIFIED_STANDARDS_DIR, chunk_ratified_standards
+    from legalmind.assist.positions import (
+        RATIFIED_STANDARDS_DIR,
+        chunk_ratified_standards,
+    )
     from tools.import_ratified_standards import import_standards
 
     original = imp.RATIFIED_STANDARDS_DIR
