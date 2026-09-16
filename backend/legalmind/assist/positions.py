@@ -84,8 +84,8 @@ class PositionHit:
 # A first draft matched only `/`, `.md`, `.pdf` and `LEGALMIND_*`; measured against the
 # edge matrix it let `C:\Users\legal\Documents\MSA` and `\\fileserver\legal\MSA` through.
 _INTERNAL_LOCATOR = re.compile(
-    r"[/\\]"                                                # POSIX, Windows, UNC separators
-    r"|\b\w+\.(?i:md|pdf|docx?|txt|json|ya?ml|html?|csv)\b"  # a filename with an extension
+    r"[/\\]"                                               # POSIX/Windows/UNC separator
+    r"|\b\w+\.(?i:md|pdf|docx?|txt|json|ya?ml|html?|csv)\b"  # filename + extension
     r"|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b"                   # an ENV_VAR_STYLE token
     r"|\b(?i:repositor(?:y|ies))\b")                        # a reviewer's note
 
@@ -95,7 +95,7 @@ def public_source_name(source_document: object) -> str:
 
     Order matters and is the whole subtlety. Parentheticals are dropped FIRST,
     because `LIABILITY-MSA-001` reads "Legal Mind — Legal Constitution, Lawyer Review
-    Version L1.5 (docs/…​.md; owner ruling …)" — an em-dash split first would see the
+    Version L1.5 (docs/…\u200b.md; owner ruling …)" — an em-dash split first would see the
     marker in segment two and truncate the name to "Legal Mind". Only then is the
     em-dash tail dropped, at the first segment carrying a locator, which is where
     "— MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR" lives.

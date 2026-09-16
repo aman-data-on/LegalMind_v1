@@ -243,10 +243,10 @@ def generate_position_reading_aid(question: str, spans: list[str], *,
     other configuration-lane value, and `_forbidden_payload_check` still runs unchanged
     (r6) — this function narrows what may be sent, it does not disable the screen.
 
-    The caller screens the spans for internal locators first (`positions.screen_for_egress`,
-    r7). That is deliberately the caller's job: this module must not import `positions`,
-    which would give the egress seam a dependency on the corpus it is meant to be
-    ignorant of.
+    The caller screens the spans for internal locators first — r7,
+    `positions.screen_for_egress`. That is deliberately the caller's job: this
+    module must not import `positions`, which would give the egress seam a
+    dependency on the corpus it is meant to be ignorant of.
 
     Rule 4 of the prompt carries `AM-67` r4 into the model's instructions, and
     `intent.is_verdict_statement` enforces it mechanically afterwards regardless — a

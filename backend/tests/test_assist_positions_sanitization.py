@@ -23,12 +23,14 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from sqlalchemy import text as sql_text
 
 from legalmind import config
-from legalmind.assist.positions import (RATIFIED_STANDARDS_DIR, _compose_content,
-                                        public_source_name)
+from legalmind.assist.positions import (
+    RATIFIED_STANDARDS_DIR,
+    _compose_content,
+    public_source_name,
+)
 
 # What must never reach a reader. Checked case-insensitively against composed output.
 FORBIDDEN = ("docs/", ".md", ".pdf", "legalmind_source_material_dir",
@@ -145,8 +147,10 @@ def test_the_real_corpus_chunks_into_the_database_carrying_no_locator(db, user):
     chunk -> store -> read and asserts on what a reader would receive.
     """
     import tools.import_ratified_standards as imp
-    from legalmind.assist.positions import (RATIFIED_STANDARDS_DIR,
-                                            chunk_ratified_standards)
+    from legalmind.assist.positions import (
+        RATIFIED_STANDARDS_DIR,
+        chunk_ratified_standards,
+    )
     from tools.import_ratified_standards import import_standards
 
     original = imp.RATIFIED_STANDARDS_DIR
@@ -175,10 +179,13 @@ def test_the_leaked_tokens_are_no_longer_searchable(db, user):
     leak also inflated the two-shared-lexeme floor: `docs`, `pdf` and `md` were matchable
     words. A question about repositories should now reach no company position at all."""
     import tools.import_ratified_standards as imp
-    from legalmind.assist.positions import (RATIFIED_STANDARDS_DIR,
-                                            chunk_ratified_standards, search_positions)
-    from tools.import_ratified_standards import import_standards
+    from legalmind.assist.positions import (
+        RATIFIED_STANDARDS_DIR,
+        chunk_ratified_standards,
+        search_positions,
+    )
     from legalmind.security import permissions as P
+    from tools.import_ratified_standards import import_standards
 
     original = imp.RATIFIED_STANDARDS_DIR
     imp.RATIFIED_STANDARDS_DIR = RATIFIED_STANDARDS_DIR

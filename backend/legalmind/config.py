@@ -247,7 +247,8 @@ def capability_route_enabled() -> bool:
     `LEGALMIND_CAPABILITY_ROUTE=off` to return to searching the corpora for a question
     about the product.
     """
-    return os.environ.get("LEGALMIND_CAPABILITY_ROUTE", "on").lower() in {"1", "true", "on"}
+    value = os.environ.get("LEGALMIND_CAPABILITY_ROUTE", "on")
+    return value.lower() in {"1", "true", "on"}
 
 
 def position_synthesis_enabled() -> bool:
@@ -265,4 +266,5 @@ def position_synthesis_enabled() -> bool:
     is the second line: even with this on, a chunk carrying a locator is refused rather
     than sent.
     """
-    return os.environ.get("LEGALMIND_POSITION_SYNTHESIS", "").lower() in {"1", "true", "on"}
+    value = os.environ.get("LEGALMIND_POSITION_SYNTHESIS", "")
+    return value.lower() in {"1", "true", "on"}

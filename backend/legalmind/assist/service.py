@@ -967,7 +967,8 @@ def _context_kwargs(prior_questions: list[str] | None) -> dict:
 
 
 
-def _position_reading_aid(question: str, hits: list, request_id: str | None) -> str | None:
+def _position_reading_aid(question: str, hits: list,
+                          request_id: str | None) -> str | None:
     """`AM-67` — a plain-language explanation of the organization's own positions,
     rendered BESIDE the verbatim quote and never instead of it (r3).
 
