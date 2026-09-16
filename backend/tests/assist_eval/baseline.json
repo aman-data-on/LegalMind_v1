@@ -7,30 +7,34 @@
  },
  "pipeline": {
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2@main",
-  "strategy_version": "hybrid-rrf-gate-3 (redirect 2026-09-10; gate 2026-08-26)",
+  "strategy_version": "hybrid-rrf-gate-4 (multi-query 2026-09-17; gate 2026-08-26)",
   "cosine_floor": 0.5,
   "evidence_cosine_floor": 0.5,
   "peak_margin": 0.059,
   "top_k": 10,
-  "evidence_rescue": true
+  "evidence_rescue": true,
+  "query_planner": false
  },
  "metrics": {
   "answerable": 64,
   "unanswerable": 13,
   "wrongly_answered": 1,
   "correct_refusals": 12,
-  "retained": 61,
-  "false_refusals": 3,
+  "retained": 60,
+  "false_refusals": 4,
   "routed_to_evaluator": 0,
   "recall_at_10": 0.891,
-  "hit_at_1": 0.609,
-  "generated_answers": 52,
-  "user_answered": 52,
+  "hit_at_1": 0.594,
+  "mrr": 0.701,
+  "gold_in_top_3": 0.797,
+  "evidence_precision": 0.39,
+  "generated_answers": 47,
+  "user_answered": 47,
   "user_wrongly_answered": 0,
   "faithfulness": 1.0,
   "unfaithful_answers": 0,
   "citation_precision": 1.0,
-  "claims_scored": 131
+  "claims_scored": 105
  },
  "not_yet_measurable": {}
 }

@@ -10,6 +10,120 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Ask Phase 1: the question is understood before it is searched (2026-09-17)
+
+Phase 1 of the Ask target architecture (`docs/00-project/ASK_TARGET_ARCHITECTURE.md`).
+Until now the lane knew a question's SHAPE — comparison, capability, statute, follow-up
+— and nothing about its SUBJECT: "what is the termination notice period?" and "what is
+the liability cap?" ran the identical unconstrained scan, differing only by embedding
+distance, and Domain A searched all forty position chunks for every position question.
+
+**`assist/planner.py` — one planning call, advisory, fail-closed.** After every
+deterministic screen has had its say and never for the evaluator's question, the model
+is asked what the question is about: a Constitution Appendix-B topic (read off the
+ratified standards — 14 topics, nothing authored), a subject, whose position it concerns,
+which source it points at, and up to three short search phrases a lawyer would use. The
+plan may narrow Domain A to its topic and add reformulated queries that are embedded
+LOCALLY. It may not add a domain the caller is not authorized for (`routing.plan` still
+decides that from permissions first), may not touch the comparison decision (`AM-25` r4
+stays code — `intent.is_comparison_question` runs and returns before the planner is
+reached, pinned by test), may not open the gate, and is never cited. On any failure —
+flag off, refusal, a 4-second timeout, an unparseable reply — the plan is None and
+retrieval runs byte-for-byte as before. Recorded on `retrieval_runs.filters.plan`.
+
+**Egress.** The payload is the question, the same prior USER questions `AM-58` r1
+already admits, and the planning template — a subset of what `AM-30` t2 (as amended)
+permits for generation. No chunk, no position, no statute text. A new PURPOSE for the
+single seam, as the rescue was; its own prompt version (`query-plan-1`), hash-audited
+under t5. **No new category of data leaves and no locked decision is amended.**
+
+**Targeted retrieval.**
+- Domain A (`positions.search_positions(topic=)`): the topic is a further WHERE clause
+  INSIDE both the lexical and the vector query, joined from the standard's own
+  `configuration.constitution.topic` — nothing denormalised onto the chunk (`AM-27` r4).
+  Authorization (r5) and the `AM-71` exclusion are unchanged and still inside the query.
+  A topic that matches nothing falls back to the unfiltered search: narrowing may never
+  turn an answer into a refusal.
+- Document (`store.search_hybrid(extra_queries=)`): one local vector pass per
+  reformulation beside the question, the lists rank-fused. **The gate is unchanged**: it
+  decides on the question's own raw top-K exactly as calibrated on 2026-08-26 — a
+  reformulation widens and re-orders the EVIDENCE once the gate is open, and widens the
+  candidate pool a shut gate carries for the rescue, but cannot open the gate (pinned by
+  `test_extra_queries_never_change_the_gate_decision`). No topic filter on documents:
+  there is no reliable per-chunk tagging and a hard filter would create false refusals.
+  Strategy version `hybrid-rrf-gate-4`.
+
+**One composition, shared with the release gate.** `service.plan_question` and
+`service.retrieve_document` (search → pin a Finding's cited rows → reconsider) are the
+two calls `service.ask` makes and the two calls `tools/verify_assist_quality.py` now
+makes — so a step added to the product cannot go missing from the measurement, which is
+how yesterday's 0.625-vs-0.828 gap arose. Three targeting measures join the gate,
+computed from the dataset's existing `section` anchors: **MRR**, **gold-in-top-3**,
+**evidence precision**. Reported, never gating.
+
+**What the measurement found — reported as measured, not as hoped.**
+
+- **The planner is slow, and that is the provider, not the prompt.** A ~150-token JSON plan
+  from `gemini-3.6-flash` at `thinkingLevel: MINIMAL` takes **2.4–8.0 s**, bimodal (about
+  2.4 s or about 7.9 s). The proposal assumed 300–500 ms; that was wrong by an order of
+  magnitude. The first Phase 1 gate run used a 4 s cap and **only 26 of 79** document
+  retrievals received a plan — the run measured a 4-second penalty, not a planner, and is
+  not reported. The cap is now 10 s so every measured call completes; the latency cost is
+  in the numbers below.
+- **Reformulations cannot fix a false refusal — by design.** The gate decides on the
+  question's own scores (the calibrated safety control, unchanged). On the real MSA, "how
+  much time do we get to fix a breach?" produced exactly the right plan ("cure period for
+  breach of contract", "written notice to remedy default days") and was still refused when
+  the rescue judge said NO: the reformulations widened the judge's pool, but nothing else
+  may open the gate. Letting a reformulation open it would be a widening of the calibrated
+  control that has to be measured against the 13 unanswerable questions first — the owner's
+  rule is that recall may only improve WITHOUT wrongly-answered rising. Held for the reranker
+  phase, which was always the lever meant for this.
+- **Domain A narrowing works, and the gap it exposes is ranking, not targeting.** With a
+  plan, "what is the termination period of LeapSwitch?" returned the one Termination-topic
+  standard clearing the evidence floor instead of three standards from three topics. The
+  standard that answers it — `CONVENIENCE-NOTICE-MSA-001`, *"Either party may terminate for
+  convenience with 30 days' written notice"* — was reached by neither configuration, and the
+  reason is measured on the live corpus: its cosine against the question is **0.288** (the
+  cure-period standard: 0.651 — the embedding reads "termination period" as a cure period);
+  against the planner's best reformulation **0.467**, still under the 0.50 evidence floor; a
+  phrasing that says "notice" ("how much notice to end the agreement") scores 0.607.
+  Applying the reformulations to Domain A's vector branch would therefore NOT have fixed this
+  example and is not proposed on the strength of it. A cross-encoder reading the standard's
+  own text against the question is the lever this points at — the held reranker phase.
+
+```
+same tool, same 77 questions, same anchors      planner OFF    planner ON (75/77 planned)
+wrongly answered (13 unanswerable)                 1/13           1/13
+user-visible wrongly answered                      0/13           0/13
+retained / false refusals                         60/64 · 4      62/64 · 2
+recall@10                                          0.891          0.922
+hit@1                                              0.594          0.609
+MRR                                                0.701          0.728
+gold-in-top-3                                      0.797          0.828
+evidence precision (gold share of chunks sent)     0.390          0.358      ← down
+faithfulness / citation precision                  1.0 / 1.0      1.0 / 1.0
+Gemini calls per question                          1.23           2.25
+prompt / output tokens (77 q)                 119,572 / 4,699  147,115 / 13,745
+planning p50 / p95 ms                                 —          4,788 / 8,296
+generation p50 / p95 ms                         3,930 / 9,748   5,340 / 9,921
+retrieval p50 / p95 ms                             12 / 33         27 / 42
+total p50 / p95 ms                              5,945 / 13,416  10,558 / 17,070
+```
+
+Reading it: the four targeting and recall movements are each about **one question of 64** — inside the
+evidence rescue's run-to-run swing, which has read 60, 61 and 62 retained on identical code today
+— while the one metric with a consistent mechanism behind it, evidence precision, **fell** (wider
+unions hand generation more non-gold chunks) and latency nearly **doubled**. Safety held throughout.
+No targeting gain is demonstrated; a real latency and cost is.
+
+**Shipped OFF by default, on the measurement.** The mechanism is built, tested and
+fail-closed; `LEGALMIND_QUERY_PLANNER=on` enables it with a restart and no deploy, for an
+environment with a faster planner or once the reranker exists to use the wider candidate
+pool. The baseline's `pipeline` block records the flag so a planner-off run is never
+compared against a planner-on bar. 32 new tests; backend suite green.
+
+
 ### Fixed — Ask Phase 0: what the reader sees matches what was verified (2026-09-17)
 
 Phase 0 of the Ask target architecture (`docs/00-project/ASK_TARGET_ARCHITECTURE.md`

@@ -29,10 +29,12 @@ file marks where.
 --------------------------------------------------------------------------
 Why this measures the SHIPPED path, not a mirror of it
 --------------------------------------------------------------------------
-Every question runs through `store.search_hybrid` itself — the production SQL, the
-production RRF fusion, the production `gate_is_open` — against a database populated by
-the production ingestion and indexing pipeline (`ingest_document` →
-`index_document_version`, which writes `chunk_embeddings` through `embedding_runtime`).
+Every question runs through `service.plan_question` and `service.retrieve_document` —
+the two calls `service.ask` itself makes: the query planner, the production SQL, the
+production RRF fusion, the production `gate_is_open`, the Finding pin and the rescue —
+against a database populated by the production ingestion and indexing pipeline
+(`ingest_document` → `index_document_version`, which writes `chunk_embeddings` through
+`embedding_runtime`). The generated half drives `service.ask` whole.
 The earlier calibration harness (`benchmark_retrieval.py --eval`) ranks candidates from
 an in-memory cache because it compares models that are not installed; a RELEASE gate has
 the opposite job — proving the one pipeline that ships still meets its recorded bar —
@@ -75,11 +77,9 @@ from legalmind.assist import (
     embedding_runtime,
     generation,
     guardrails,
-    rescue,
     routing,
     service,
     statutes,
-    store,
 )
 from legalmind.assist.state import AssistAnswerState
 from legalmind.ingestion.storage import LocalFilesystemStorage
@@ -190,7 +190,22 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
                        a refusal (`guardrails.evidence_is_sufficient`, `AM-29` r3).
 
     Every one of those is now the production function itself, called here — not a
-    re-implementation of it. What is NOT here is generation and the screens after it;
+    re-implementation of it. Since 2026-09-17 the two retrieval stages are
+    `service.plan_question` and `service.retrieve_document` — the SAME two calls
+    `service.ask` makes — so the query planner's reformulations and Domain A topic
+    filter are measured exactly as shipped, and a step added to one cannot go
+    missing from the other.
+
+    Three TARGETING measures were added the same day, computed from the dataset's
+    existing `section` anchors (nothing new was authored):
+
+        MRR                 1 / rank of the first gold chunk, 0 when absent — over
+                            every answerable question, like recall@10
+        gold-in-top-3       the gold chunk among the first three — "the right passage
+                            is first", not merely present in ten
+        evidence precision  the share of chunks handed to generation that ARE gold,
+                            over the questions that reached generation — fewer, better
+                            chunks is what "targeted" means What is NOT here is generation and the screens after it;
     those need the model and live in `measure_generated`, which drives `service.ask`
     whole. So this half stays runnable without a credential, and the rescue degrades
     to a no-op when the model is unreachable — which is recorded in the baseline's
@@ -208,8 +223,9 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
     permissions = frozenset({P.ASSIST_ASK})
     statutes_available = statutes.available(db)
 
-    answerable = wrongly_answered = refused = retained = hits10 = hits1 = 0
+    answerable = wrongly_answered = refused = retained = hits10 = hits1 = hits3 = 0
     evaluator_answerable = 0
+    mrr_sum = precision_sum = 0.0
     wrong_ids: list[str] = []
     for q in questions:
         route = routing.plan(q["question"], has_document=True,
@@ -221,11 +237,10 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
             # to score. Counted, printed, and never credited as a retrieval hit.
             outcome = None
         else:
-            outcome = rescue.reconsider(
-                store.search_hybrid(
-                    db, document_version_id=versions[q["document"]],
-                    query=q["question"], embed_query=embedding_runtime.embed_query),
-                q["question"])
+            made = service.plan_question(q["question"], (), request_id="tier2-gate")
+            outcome, _ = service.retrieve_document(
+                db, document_version_id=versions[q["document"]],
+                retrieval_query=q["question"], plan=made, request_id="tier2-gate")
         opened = outcome is not None and outcome.gate_open and \
             guardrails.evidence_is_sufficient([h.content for h in outcome.hits])
 
@@ -245,10 +260,16 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         retained += 1
         exp = expected.get(q["id"], set())
         ranked = [h.chunk_id for h in outcome.hits]
-        if any(cid in exp for cid in ranked):
+        gold_ranks = [i for i, cid in enumerate(ranked, start=1) if cid in exp]
+        if gold_ranks:
             hits10 += 1
+            mrr_sum += 1.0 / gold_ranks[0]
+            if gold_ranks[0] <= 3:
+                hits3 += 1
         if ranked and ranked[0] in exp:
             hits1 += 1
+        if ranked:
+            precision_sum += len(gold_ranks) / len(ranked)
 
     unanswerable = refused + wrongly_answered
     return {
@@ -267,6 +288,12 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         # gate should hold steady.
         "recall_at_10": round(hits10 / answerable, 3) if answerable else None,
         "hit_at_1": round(hits1 / answerable, 3) if answerable else None,
+        # Targeting (2026-09-17). MRR and gold@3 over ANSWERABLE like recall@10 (a
+        # refused or evaluator-routed question is 0); precision over the questions
+        # that reached generation, because it describes what the model was handed.
+        "mrr": round(mrr_sum / answerable, 3) if answerable else None,
+        "gold_in_top_3": round(hits3 / answerable, 3) if answerable else None,
+        "evidence_precision": round(precision_sum / retained, 3) if retained else None,
     }
 
 
@@ -477,6 +504,11 @@ def _baseline_payload(metrics: dict, dataset_sha: str, n_questions: int) -> dict
             # recorded rather than assumed from the flag alone.
             "evidence_rescue": bool(config.evidence_rescue_enabled()
                                     and generation_available()[0]),
+            # Same reasoning for the planner (2026-09-17): its reformulations and topic
+            # filter change what is retrieved, so a planner-off run and a planner-on
+            # run are different pipelines and the drift check must keep them apart.
+            "query_planner": bool(config.query_planner_enabled()
+                                  and generation_available()[0]),
         },
         "metrics": {k: v for k, v in metrics.items()
                     if not k.endswith("_ids")
@@ -547,6 +579,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  recall@10          {metrics['recall_at_10']}   (end-to-end: a "
           f"gate-refused answerable counts as a miss)")
     print(f"  hit@1              {metrics['hit_at_1']}")
+    print(f"  mrr                {metrics['mrr']}   gold@3 {metrics['gold_in_top_3']}   "
+          f"evidence precision {metrics['evidence_precision']}   (targeting)")
     if gen_ok:
         print(f"  user-visible wrong {metrics['user_wrongly_answered']}"
               f"/{metrics['unanswerable']}"
@@ -657,8 +691,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"{metrics['user_wrongly_answered']} <= "
                 f"baseline {base['user_wrongly_answered']}")
 
-    for name in ("recall_at_10", "retained"):
-        if base.get(name) is not None and metrics[name] < base[name]:
+    for name in ("recall_at_10", "retained", "mrr", "gold_in_top_3", "evidence_precision"):
+        if base.get(name) is None or metrics.get(name) is None:
+            verdicts.append(f"n/a    {name}: {metrics.get(name)} (no baseline value)")
+        elif metrics[name] < base[name]:
             verdicts.append(
                 f"WARN   {name} regressed: {base[name]} -> {metrics[name]} "
                 f"(reported, not blocking — AM-28's gate names faithfulness and "

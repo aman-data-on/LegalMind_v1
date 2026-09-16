@@ -192,4 +192,23 @@ def test_neither_the_service_nor_the_quality_gate_applies_the_judge_itself():
                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
         assert "rescue_indices" not in called, \
             f"{path} applies the judge itself instead of calling rescue.reconsider"
-        assert "reconsider" in called, f"{path} never reconsiders a refusal"
+    # Since 2026-09-17 the ONE reconsideration lives in `service.retrieve_document`,
+    # which the gate calls; the service is the only module that reconsiders directly.
+    service_tree = ast.parse(pathlib.Path("legalmind/assist/service.py").read_text())
+    assert "reconsider" in {n.func.attr for n in ast.walk(service_tree)
+                            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+
+def test_the_quality_gate_retrieves_through_the_service_composition():
+    """2026-09-17: the gate no longer calls `search_hybrid` or `reconsider` itself —
+    it calls `service.retrieve_document`, the same function `service.ask` calls, so a
+    step added to the product cannot go missing from the measurement. The AST test
+    above keeps `rescue_indices` out of both; this pins the composition."""
+    import ast
+    import pathlib
+
+    tree = ast.parse(pathlib.Path("tools/verify_assist_quality.py").read_text())
+    called = {n.func.attr for n in ast.walk(tree)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert "retrieve_document" in called and "plan_question" in called
+    assert "search_hybrid" not in called, "the gate re-implements retrieval"

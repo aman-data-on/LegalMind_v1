@@ -325,7 +325,8 @@ def embed_positions(db: DBSession) -> int:
 
 
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
-                     limit: int = 10, embed_query=None) -> list[PositionHit]:
+                     limit: int = 10, embed_query=None,
+                     topic: str | None = None) -> list[PositionHit]:
     """Domain A hybrid retrieval, authorization inside the function (r5).
 
     Without assist.ask AND (configuration.view OR legal_position.view) the result is
@@ -339,6 +340,15 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     depends on it; what it adds is recall for a paraphrase.
 
     ``embed_query`` is injectable for tests; by default the runtime's own callable.
+
+    ``topic`` (2026-09-17) — a Constitution Appendix-B topic from the query planner.
+    Applied INSIDE both queries as a further WHERE clause on the standard's own
+    `configuration.constitution.topic` (the ratified file already carries it; nothing is
+    denormalised onto the chunk — `AM-27` r4), so "what standards do we require for
+    liability?" searches the liability standards rather than all forty. Authorization
+    (r5) and the `AM-71` exclusion are unchanged and still inside the query. A topic
+    that matches nothing falls back to the unfiltered search: narrowing may never turn
+    an answer into a refusal.
     """
     # `AM-32` r5 as amended by `AM-44` (2026-09-08): `configuration.view` OR
     # `legal_position.view` — see `routing.positions_permitted` for the reasoning.
@@ -379,6 +389,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                -- stay for explicit version, history and audit use, which is why
                -- this is a read-side filter rather than a narrower chunker.
                AND r.status <> 'DEPRECATED'
+               AND (CAST(:topic AS text) IS NULL
+                    OR csv.configuration->'constitution'->>'topic' = :topic)
         )
         SELECT id, standard_code, document_type, source_clause, content, score, matched,
                version_number, ratification
@@ -386,14 +398,15 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
          WHERE matched >= LEAST(2, (SELECT cardinality(lex) FROM q))
          ORDER BY matched DESC, score DESC, standard_code
          LIMIT :limit
-    """), {"q": query, "limit": limit}).all()
+    """), {"q": query, "limit": limit, "topic": topic}).all()
     lexical = [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                            document_type=r.document_type, source_clause=r.source_clause,
                            content=r.content, score=float(r.score),
                            standard_version=r.version_number,
                            ratification_status=r.ratification)
                for r in rows]
-    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
+    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                topic=topic)
     # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
     #
     # Measured on the live 40-standard corpus, 2026-09-16: within the lexical branch
@@ -412,13 +425,20 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # for, and keeps lexical as the fallback it is, without comparing two score scales
     # that were never comparable.
     hits = _fuse([] if vector else lexical, vector, limit)
+    if topic is not None and not hits:
+        # Narrowing may never turn an answer into a refusal (rule 15's direction is
+        # the other way). A topic the corpus does not hold — or a plan that misread the
+        # question — simply costs one more query.
+        log_event("assist.positions.topic_fallback", topic=topic, level=logging.DEBUG)
+        return search_positions(db, query=query, permissions=permissions, limit=limit,
+                                embed_query=embed_query, topic=None)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
-              vector=len(vector), level=logging.DEBUG)
+              vector=len(vector), topic=topic or "", level=logging.DEBUG)
     return hits
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
-                       embed_query=None) -> list[PositionHit]:
+                       embed_query=None, topic: str | None = None) -> list[PositionHit]:
     """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
     is available, when nothing is embedded, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -444,9 +464,12 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
          -- `AM-71` — the same exclusion as the lexical path. Both, or a retired
          -- position returns through whichever one is not filtered.
          WHERE r.status <> 'DEPRECATED'
+           AND (CAST(:topic AS text) IS NULL
+                OR csv.configuration->'constitution'->>'topic' = :topic)
          ORDER BY pe.embedding {op} CAST(:q AS {vtype}), pc.standard_code
          LIMIT :lim
-    """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
+    """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K),
+           "topic": topic}).all()
     scores = [float(r.cosine) for r in rows]
     if not calibration.gate_is_open(False, scores):
         return []

@@ -289,6 +289,37 @@ def general_knowledge_generation_enabled() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def query_planner_enabled() -> bool:
+    """Whether a question is PLANNED before retrieval — `assist/planner.py`. OFF.
+
+    One provider call that returns what the question is about (a Constitution Appendix-B
+    topic, a subject, up to three reformulated search phrases). It aims retrieval; it
+    decides nothing: routing, the comparison screen, the gate and every guardrail run
+    exactly as without it, and on any failure the plan is None and retrieval is the
+    pre-planner path. The payload is the question and the prior questions `AM-58`
+    already admits — a subset of what generation sends.
+
+    OFF by default after measurement (2026-09-17, ratified 77-question set, production
+    path, 75 of 77 questions planned): the call takes 2.4–8.0 s from this provider and
+    the ask's total p50 went 5.9 s → 10.6 s (p95 13.4 → 17.1 s), Gemini calls per question
+    1.23 → 2.25, while MRR (0.701 → 0.728), gold@3 (0.797 → 0.828) and hit@1 (0.594 →
+    0.609) each moved by about one question of 64 — inside the rescue's run-to-run swing —
+    and the share of gold chunks handed to generation FELL (0.390 → 0.358) as the
+    reformulations widened the evidence. The
+    plans themselves are accurate — topic right in every spot check, reformulations a
+    lawyer would use — but by design they cannot open the gate (`AM-25`'s calibrated
+    refusal decides on the question's own scores), so on this corpus they buy ranking
+    at best, and they did not. Wrongly-answered (1/13) and faithfulness (1.0) held.
+
+    `LEGALMIND_QUERY_PLANNER=on` enables it — a restart, no deploy — for an environment
+    with a faster planner, or once the reranker exists to make use of the wider
+    candidate pool. The Tier-2 gate records the flag in its pipeline block so a
+    planner-off run is never compared against a planner-on bar.
+    """
+    value = os.environ.get("LEGALMIND_QUERY_PLANNER", "off")
+    return value.lower() in {"1", "true", "on"}
+
+
 def evidence_rescue_enabled() -> bool:
     """Whether a gate refusal gets a second look from the model. OFF by default.
 
