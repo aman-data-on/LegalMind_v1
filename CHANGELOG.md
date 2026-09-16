@@ -39,8 +39,10 @@ all seven standards `AM-65` retired became retrievable in Ask. AB-21's citation 
 them "Superseded" — a reader is told rather than misled, which is a mitigation, not an answer.
 Whether a retired position should surface at all remains open.
 
-Verified: 102 client-profile and API tests, full backend suite 1833 passed / 0 failed, frontend
-477/477, `tsc` and `ruff` clean.
+Verified on the merged base (`ad025f1`, which carries AB-21): 102 client-profile and API
+tests, full backend suite **1958 passed / 0 failed**, frontend **483/483**, `tsc` and `ruff`
+clean. The earlier figures of 1833 and 477 were true against the pre-AB-21 base and are not
+carried forward — a count is only meaningful against the base it was measured on.
 
 
 ### Fixed — the account roster now shows that access can be changed (2026-09-15)
