@@ -79,9 +79,11 @@ Every measured value lives in `backend/legalmind/assist/calibration.py`, whose d
 that *"nothing in this module is a preference"*. The floors are a safety control: weakening one to
 improve recall is a decision with a recorded cost, not a tuning knob.
 
-**Known limitation, measured and recorded**: at these settings recall@10 is **0.797** against a
+**Known limitation, measured and recorded**: at these settings recall@10 is **0.891** against a
 measured vector ceiling of 0.938. Of 64 answerable questions **3** are refused for want of
-evidence and **7** are routed to the deterministic evaluator by the comparison screen. Nothing
+evidence and **0** are misrouted to the deterministic evaluator (**7** were, until
+`is_comparison_question` was rebuilt on 2026-09-16 around a position REFERENCE rather than a
+co-occurring organization-flavoured word). Nothing
 that has been answered has been wrong (faithfulness 1.0, citation precision 1.0, 0 wrong answers
 reaching a user; 1 of 13 unanswerable questions opens the retrieval gate and none survives to a
 reader).
@@ -93,8 +95,11 @@ reader).
 > same dataset reads **0.797**; with the rescue unreachable it reads **0.547**. The three
 > steps move it in both directions, which is why the old number was not a worse measurement
 > of the same quantity but a measurement of something else. The **7** evaluator-routed
-> questions are a defect in `is_comparison_question`, not a retrieval miss — see the
-> CHANGELOG entry for 2026-09-16.
+> questions were a defect in `is_comparison_question`, not a retrieval miss; fixed the same
+> day, taking recall to **0.891** (0.906 on a second run of the identical build — the rescue judge picks which chunks reopen the gate, so this line is not
+> deterministic; every blocking quantity was identical in both) with the
+> wrongly-answered rate unmoved. See the CHANGELOG
+> entries for 2026-09-16.
 
 > Corrected 2026-09-15. This paragraph read *"0.438 … 23 of 64"* — the figures from the
 > 2026-09-02 audit — and was written on 2026-09-14, the same day the number moved. Recall

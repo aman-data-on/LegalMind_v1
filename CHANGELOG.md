@@ -10,6 +10,93 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — a factual question was being answered with "run a Review" (2026-09-16)
+
+`intent.is_comparison_question` is the `AM-25` r4 screen: a question asking how a
+document stands against the organization's position belongs to the deterministic
+evaluator, never to the model. It was implemented as **co-occurrence** — an
+organization-flavoured word anywhere in the sentence AND a comparison-flavoured word
+anywhere — with nothing requiring the two to be related.
+
+Measured through the corrected Tier-2 gate, that misrouted **7 of the 64 answerable
+questions** in the ratified set. Every one fired on an unrelated pair:
+
+| Question | Fired on |
+|---|---|
+| How much time do **we** get to fix a **breach** before the provider can terminate? | `we` + `breach` — a contract EVENT |
+| Can **we** deduct … a claim we have **against** the provider? | `we` + `against` |
+| Why do **we** have to **complete** identity verification? | `we` + the stem `compl` reaching **complete** |
+| What conditions must **our** marketing emails **meet** to be **acceptable**? | `our` possessing the emails |
+| Which security **standard** is recognised as **satisfying** …? | not *our* standard |
+| Can a **company** be made to pay damages for a data **breach**? | `company` + `breach` |
+| Who can validly **sign** contracts on behalf of a **company**? | signature rules in the abstract |
+
+**What replaced it.** The evaluator's question is one where the comparison verb takes
+*the organization's position* as its object — "comply with **our approved standard**",
+"deviate from **the company standard**". So the screen now requires a position
+REFERENCE: a position noun (standard, position, policy, constitution, baseline,
+playbook, template, मानक, नीति, संविधान) qualified within its own noun phrase by a
+first-person possessive or by the organization. Three shapes route:
+
+- **(A) comparison against our position** — a position reference plus a comparison
+  signal from *outside* that reference, so "what is our approved position on X?" stays
+  a position lookup rather than comparing with itself.
+- **(B) signing readiness** — a first-person *subject* plus an acceptance word plus a
+  reference to *this document*. Grammatical case is what separates it from the false
+  positives: "**our** marketing emails" is a possessive determiner owning a non-position
+  noun, while "acceptable to **us**" and "should **we** sign" are the party deliberating.
+  All three legs are required, or "how do we accept delivery of the hardware?" routes.
+- **(C) an unambiguous comparison verb** — compare, comply, deviate, conform, redline,
+  तुलना — which need no object: "please compare and tell me what is acceptable for us"
+  names no position and is still the evaluator's question.
+
+Also fixed: `compl` as a comparison stem, which matched **complete**, complex and
+complicated. Replaced by the comply family as exact words.
+
+**Before / after**, ratified 77-question set through the production measurement path:
+
+```
+                                  before      after
+false comparison routes              7          0
+genuine comparison routes         13/13      13/13     (and 14/14 unseen)
+recall@10                         0.797      0.891     (0.906 on a second run)
+hit@1                             0.516      0.609
+retained                          54/64      61/64
+false refusals                       3          3
+wrongly answered                  1/13       1/13
+user-visible wrongly answered     0/13       0/13
+faithfulness / citation precision  1.0 / 1.0  1.0 / 1.0
+```
+
+**A property of the gate worth knowing**: with the rescue on, `recall@10` is no longer
+deterministic. The judge chooses *which* retrieved chunks to reopen the gate on, so the
+gold chunk may or may not be among the ones it names. Measured across two consecutive
+runs of the identical build: **0.891 and 0.906** — one question of 64. `retained` was
+61 in both, and every blocking quantity was identical in both (wrongly-answered 1/13,
+user-visible wrong 0/13, faithfulness 1.0, citation precision 1.0). So the `AM-28` gate
+still blocks on stable numbers; it is the WARN-only recall line that carries the noise,
+and a recall move under ~0.02 should not be read as a regression on its own. The
+baseline records the lower of the two.
+
+The recall gain is **not** a threshold move: no floor, margin or top-k changed, and
+those 7 questions had never reached retrieval at all. `false_refusals` is unchanged at
+3, which is the check that no evidence rule was loosened.
+
+**Safety.** The dangerous direction is the other one — a missed comparison is a
+compliance verdict handed to the model. All 16 phrasings pinned since 2026-09-08 still
+route, plus 14 unseen ones written after the rule (including Hinglish and Devanagari).
+`mentions_organization` is untouched and `_ORG_PRONOUNS` is byte-identical to what
+shipped, so Domain A candidacy is unchanged. The generated-answer screen
+`is_verdict_statement` is untouched and still catches a verdict that slips through —
+it had already been narrowed this same way on 2026-09-09, for answers; this applies the
+same relation to questions. 42 new tests; backend suite 2046 passed, 0 failed.
+
+**Deliberately not changed:** `_VERDICT_STEMS` still carries the `compl` stem with the
+same "complete" problem. Over-firing there withholds an answer, which fails closed,
+where over-firing in the router hands the user the wrong product. Narrowing a screen on
+generated text is its own change with its own faithfulness measurement.
+
+
 ### Fixed — the quality gate was measuring a pipeline nobody ships (2026-09-16)
 
 `tools/verify_assist_quality.measure()` called `store.search_hybrid` and scored what
