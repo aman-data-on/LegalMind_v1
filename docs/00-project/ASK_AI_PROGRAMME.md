@@ -328,3 +328,23 @@ number of citations, or the union as it stands, each against the 77-question gat
 and false-refusal counts. **Owner-facing.** Raised beside the `AM-67` enable rather than left
 between sessions.
 
+---
+
+## Recorded 2026-09-17 — the evidence rescue's cost, visible for the first time
+
+Phase 0's stage timings went live at `663971f` and within a minute the other session read this
+from the production journal for one Ask:
+
+    assist.ask.timings   total 4783 ms   rescue 4372 ms   retrieval 8 ms   positions 394 ms
+
+The rescue judge was **91 %** of that request's latency. Beside it: `assist.ask.rescued` has fired
+**zero** times in the entire production journal — the judge has cost a provider call on roughly a
+third of questions (every shut gate) and has not yet changed a single outcome for a real user. The
+Tier-2 gate measured the same judge lifting recall 0.625 → 0.828 with wrongly-answered unchanged
+(2026-09-16). Both are true: the gain is real on the ratified set; the cost is real on every
+refusal; single-digit live traffic proves nothing about the gain. This is **not** an argument to
+turn it off — it is the trade recorded as a trade, now that Phase 0 made the cost a number rather
+than an estimate. The reranker phase is where the same recall is expected from a local,
+deterministic step at a few hundred milliseconds; when that is measured, the rescue's remaining
+value is what it adds *on top of* the reranker, and that is the comparison to run.
+
