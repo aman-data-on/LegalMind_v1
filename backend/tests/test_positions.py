@@ -268,14 +268,43 @@ def test_a_lexical_hit_and_a_vector_hit_fuse_into_one_deterministic_ranking(
     ids = _ids(db)
     _plant(db, ids["TESTPOS-MSA-001"], 0)
     _plant(db, ids["TESTPOS-TOS-001"], 1)
+    # CHANGED 2026-09-16, deliberately and at a cost worth stating.
+    #
     # Lexically the GADGET standard matches ("gadgets", "returned"); the vector points
-    # at the WIDGET standard. Both are evidence; the ranking is fixed and repeatable.
+    # at the WIDGET standard. This used to admit BOTH and fuse them. It no longer does:
+    # when the gated semantic branch has found anything, it decides alone.
+    #
+    # Why, measured on the live 40-standard corpus: within the lexical branch `ts_rank`
+    # is flat and non-discriminating. For "what is the termination notice period?"
+    # FORCE-MAJEURE-MSA-001 scored 0.0608 — identical to CURE-PERIOD-MSA-001 and above
+    # the genuinely relevant CONVENIENCE-NOTICE-MSA-001 at 0.0456. Shared-lexeme count
+    # does not separate them either: 3 of 3 query lexemes for the noise and for the
+    # signal alike. The 2026-09-02 retrieval audit found the same from the other side —
+    # the lexical branch alone recovers 0.016. Fused into a gated semantic result it
+    # therefore adds rank noise, and RRF promotes that noise into the three positions a
+    # reader is shown.
+    #
+    # THE COST, stated rather than hidden: a lexical-only EXACT match that the embedding
+    # ranks below its gate is now lost while any vector hit exists — which is precisely
+    # what this synthetic case is. On the live corpus no such case was found, but a
+    # future corpus of rarer terms could contain one. The lever if that happens is a
+    # lexical-appropriate floor (IDF-weighted, not `ts_rank`), not re-fusing two scales.
     a = positions.search_positions(db, query="gadgets returned", permissions=BOTH,
                                    embed_query=_axis(0))
     b = positions.search_positions(db, query="gadgets returned", permissions=BOTH,
                                    embed_query=_axis(0))
-    assert {h.standard_code for h in a} == {"TESTPOS-MSA-001", "TESTPOS-TOS-001"}
+    assert {h.standard_code for h in a} == {"TESTPOS-MSA-001"}
     assert [h.standard_code for h in a] == [h.standard_code for h in b]
+
+
+def test_lexical_still_answers_when_there_is_no_semantic_signal(db, user, ratified_dir):
+    """The other half of the rule, and the reason lexical is kept at all: with no model
+    provisioned — or with the calibrated gate shut — the lexical branch is the only
+    retrieval there is, and it still answers."""
+    _indexed(db, user, ratified_dir)
+    hits = positions.search_positions(db, query="gadgets returned", permissions=BOTH,
+                                      embed_query=lambda _q: None)
+    assert {h.standard_code for h in hits} == {"TESTPOS-TOS-001"}
 
 
 def test_chunking_embeds_every_position_when_the_model_is_available(db, user, ratified_dir):

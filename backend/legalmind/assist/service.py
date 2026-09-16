@@ -545,6 +545,20 @@ def _findings_for_standards(db: DBSession, document_version_id: UUID | None,
             for code, fid, cls in rows}
 
 
+# `AM-25` r5 permits no generated general knowledge, so this says what the system can
+# answer instead of answering. It is a redirect, not a refusal: the reader asked a
+# reasonable question and is told where the boundary is and what to ask next.
+GENERAL_KNOWLEDGE_TEXT = (
+    "That is a general legal question. I answer only from your own approved material — "
+    "the documents you upload and your organisation's ratified standards — so this is "
+    "not your company's position on it, and I have not looked anything up.\n\n"
+    "What I can do instead:\n\n"
+    "- Tell you what your organisation's approved standards say about it.\n"
+    "- Tell you what an uploaded document says about it.\n"
+    "- Compare an uploaded document against your standards.\n\n"
+    "Ask me about your standards or open a document, and I will answer from the text."
+)
+
 POSITIONS_ONLY_TEXT = ("The organization's approved position relevant to this question "
                        "is quoted below, verbatim from the ratified standard.")
 POSITIONS_BESIDE_TEXT = (
@@ -640,6 +654,20 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     # or a Finding, so the guarantee is structural rather than a promise. Disabled by
     # default; `routing.plan` only sets `capability` when the flag is on, and the
     # amendment is not approved.
+    # `AM-25` r5 — a general explanation resolves to no retrieved evidence, so it is not
+    # generated. The question is still RECOGNISED, which is the fix: it no longer falls
+    # through to the POSITIONS fallback and comes back as three Company Standards.
+    if getattr(route, "general_knowledge", False):
+        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
+                                 GENERAL_KNOWLEDGE_TEXT)
+        _persist_answer(db, reply_id, None, AssistAnswerState.NO_EVIDENCE_RETRIEVED,
+                        model=None, prompt_version_id=None, latency_ms=None)
+        log_event("assist.ask.general_knowledge", request_id=request_id,
+                  conversation_id=str(conversation_id))
+        return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                          answer_state=AssistAnswerState.NO_EVIDENCE_RETRIEVED,
+                          text=GENERAL_KNOWLEDGE_TEXT, domains=())
+
     if getattr(route, "capability", False):
         try:
             text_out = capability.answer()

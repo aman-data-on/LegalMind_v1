@@ -214,3 +214,80 @@ nouns, and does so by as little as 0.009.
 **Not put forward for decision yet.** Phase 4 first measures whether a reranker — the one
 untried lever, and no lock change — closes enough of the gap. Raising the model pin before
 that would be tuning ahead of evidence.
+
+---
+
+# `AM-71` (PROPOSED, NOT APPROVED) — The general-knowledge answer type
+
+📁 **PROPOSAL.** Nothing appended to `all_lock.md`, no approval recorded, and the
+feature is off: `LEGALMIND_GENERAL_KNOWLEDGE` is unset and nothing reads it.
+
+*Would amend:* `AM-25` r5, narrowly. *Would not amend:* `AM-25` r1–r4, r6–r9;
+`AM-30` t3/t4; `AM-32`; `AM-45`; `AM-46`.
+
+## The exact conflict
+
+`AM-25` r5, verbatim:
+
+> No answer reaches a user unless every claim in it resolves to retrieved evidence.
+> Enforcement is mechanical and sits outside the model. Where evidence is insufficient,
+> the response is an explicit statement that the information was not found.
+
+"What is an NDA?" has an answer, and it resolves to **no retrieved evidence** — no
+authorised source holds the definition of a non-disclosure agreement. Generating one is
+precisely what r5 forbids. The conflict is real and not a matter of interpretation.
+
+## What shipped WITHOUT the amendment, because it needs none
+
+The question is now **recognised and searched nowhere**. Before, it fell through to the
+unconditional POSITIONS fallback and came back as three Company Standards — measured
+live 2026-09-16, "What is an NDA?" returned `NON-SOLICIT-NDA-001`, `GOVLAW-NDA-001` and
+`RESIDUALS-NDA-001`, presenting the organization's positions as though they defined the
+term. That was the defect, and not searching is always safe.
+
+The reader is told what this system answers from and what to ask instead. That is r5's
+own remedy — "an explicit statement that the information was not found" — phrased as a
+redirect rather than a dead end.
+
+## What the amendment would add
+
+```
+r1   A GENERAL-KNOWLEDGE ANSWER IS NOT A LEGAL POSITION AND IS LABELLED AS ONE THING
+     IT IS NOT. It is rendered in its own field, visually and structurally separate
+     from any Company Standard or document citation, and carries a standing statement
+     that it is not the organization's position. AM-25 r3 is unchanged: it states no
+     organizational legal position, because it states none at all.
+
+r2   NO DOCUMENT AND NO STANDARD IN THE PAYLOAD. The route performs zero retrieval,
+     so the payload carries the question and the prompt template and nothing else.
+     AM-30 t3 and t4 stand untouched — there is no clause, position, Finding,
+     counterparty or identifier to send.
+
+r3   NEVER A VERDICT, NEVER ADVICE. `intent.is_verdict_statement` runs on the output
+     unchanged, and the prompt forbids applying the explanation to any document the
+     user holds. "What is an NDA" may be answered; "is my NDA any good" may not.
+
+r4   THE SCOPE IS DEFINITIONAL. Only a question whose every content word is a legal
+     concept qualifies — the classifier excludes possessives, deictics, statute
+     references and compound terms, so "what is OUR notice period" and "what is THE
+     termination notice period" keep their existing routes. The owner's 2026-09-09
+     ruling that the second is answered from the ratified positions is unaffected.
+
+r5   FAIL CLOSED TO THE REDIRECT. If generation is unavailable or the screens reject
+     the output, the response is the non-generated redirect that ships today. The
+     amendment can only add an explanation; it can never remove the safe answer.
+
+r6   AM-25 r5 IS NARROWED, NOT SET ASIDE. Every OTHER answer — document, position,
+     statute, comparison — still requires every claim to resolve to retrieved
+     evidence. The exception is this one answer type, which retrieves nothing by
+     design and is labelled as carrying no authority.
+```
+
+## Recommendation
+
+Worth approving, but it is genuinely optional. The shipped behaviour already removes the
+defect: no reader is now handed Company Standards as the definition of a legal term. The
+amendment buys a better answer to a question the product is not obliged to answer, at the
+cost of one narrow exception to the guarantee that makes the rest of the lane
+trustworthy. **Declining it is a reasonable position**, and the system is coherent either
+way.

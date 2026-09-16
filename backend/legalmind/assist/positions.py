@@ -394,7 +394,24 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            ratification_status=r.ratification)
                for r in rows]
     vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
-    hits = _fuse(lexical, vector, limit)
+    # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
+    #
+    # Measured on the live 40-standard corpus, 2026-09-16: within the lexical branch
+    # `ts_rank` is flat and carries almost no signal. For "what is the termination
+    # notice period?" FORCE-MAJEURE-MSA-001 and CURE-PERIOD-MSA-001 both score 0.0608 —
+    # identical to each other and indistinguishable from CONVENIENCE-NOTICE-MSA-001 at
+    # 0.0456. The ordering is driven by shared-lexeme COUNT (2 or 3 for everything), not
+    # by relevance. The 2026-09-02 retrieval audit reached the same place from the other
+    # direction: the lexical branch alone recovers 0.016.
+    #
+    # So fusing it into a gated semantic result does not add recall, it adds rank noise
+    # — and RRF then promotes that noise into the three positions a reader is shown.
+    # When the gated vector branch has found anything, it decides. Lexical stands in
+    # only when there is no semantic signal at all: no model provisioned, or the
+    # calibrated gate shut. That keeps the paraphrase recall the vector branch was added
+    # for, and keeps lexical as the fallback it is, without comparing two score scales
+    # that were never comparable.
+    hits = _fuse([] if vector else lexical, vector, limit)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
               vector=len(vector), level=logging.DEBUG)
     return hits

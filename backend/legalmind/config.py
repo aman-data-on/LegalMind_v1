@@ -268,3 +268,21 @@ def position_synthesis_enabled() -> bool:
     """
     value = os.environ.get("LEGALMIND_POSITION_SYNTHESIS", "")
     return value.lower() in {"1", "true", "on"}
+
+
+def general_knowledge_generation_enabled() -> bool:
+    """Whether a general-knowledge question may be ANSWERED by the model. OFF.
+
+    `AM-25` r5: "No answer reaches a user unless every claim in it resolves to retrieved
+    evidence." A general explanation of what an NDA is resolves to no retrieved evidence
+    at all — it is the model's own knowledge — so generating one is exactly what r5
+    forbids. That is a locked safety decision and it is not mine to set aside.
+
+    What ships without it: the question is recognised and NOT answered from Company
+    Standards, which is the defect. The reader is told plainly what this system can and
+    cannot answer instead of being handed three unrelated standards.
+
+    Turning this on requires the amendment drafted as `AM-71`.
+    """
+    value = os.environ.get("LEGALMIND_GENERAL_KNOWLEDGE", "")
+    return value.lower() in {"1", "true", "on"}

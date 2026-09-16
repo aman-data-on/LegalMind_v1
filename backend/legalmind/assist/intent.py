@@ -194,6 +194,85 @@ def is_capability_question(question: str) -> bool:
     return bool(self_ref) and bool(capability - self_ref)
 
 
+# --------------------------------------------------------------------------
+# The general-knowledge question — "what IS an NDA?"
+# --------------------------------------------------------------------------
+# Distinct from every other shape, and the distinction is the article. A question about
+# a legal CONCEPT takes an indefinite or bare form — "what is an NDA", "explain force
+# majeure", "indemnity ka matlab kya hai". A question about a PARTICULAR term takes a
+# possessive or a deictic — "what is OUR notice period", "what does THIS agreement say".
+# The first has no answer in any authorised source; the second does.
+#
+# Before this, the first fell through to the unconditional POSITIONS fallback and was
+# answered with three Company Standards, as though the organization's positions defined
+# what an NDA is. Measured live 2026-09-16: "What is an NDA?" returned NON-SOLICIT,
+# GOVLAW and RESIDUALS.
+_DEFINITIONAL = re.compile(
+    r"\b(what\s+(is|are)|what\s+does\s+\w+\s+mean|explain|define|definition\s+of|"
+    r"tell\s+me\s+about|meaning\s+of)\b"
+    r"|\b(kya\s+(hai|hota|hoti|h)|matlab|samjhao|kya\s+cheez)\b"
+    r"|(क्या\s+ह|मतलब|समझा)", re.IGNORECASE)
+
+# A bare legal concept — the kind of thing a dictionary defines, not a clause.
+_CONCEPT_WORDS = frozenset({
+    "nda", "msa", "sla", "tos", "indemnity", "indemnification", "liability",
+    "arbitration", "jurisdiction", "warranty", "confidentiality", "termination",
+    "force", "majeure", "consideration", "novation", "assignment", "lien",
+    "injunction", "damages", "breach", "contract", "agreement", "clause",
+    "covenant", "waiver", "severability", "governing", "law", "tort", "privity",
+})
+# A possessive or deictic makes it a question about a PARTICULAR instrument, which the
+# document or the positions can answer. Kept separate from `_ORG_PRONOUNS` because
+# "this"/"that" are not organization references.
+_PARTICULARISERS = frozenset({
+    "our", "ours", "we", "us", "my", "company", "this", "that", "these", "those",
+    "hamara", "hamare", "hamari", "humara", "humare", "humari", "hum",
+    # NOT bare "is": romanized इस collides with the English verb, and including it
+    # made "what IS an NDA?" a particular question. The same collision cost a
+    # false follow-up detection earlier; the inflected forms are unambiguous.
+    "isme", "ismein", "iska", "yeh", "ye", "uploaded", "attached",
+    "हमारा", "हमारे", "हमारी", "इस", "यह", "ये",
+})
+
+
+# Words that carry the question's FORM rather than its subject, stripped before the
+# concept test so "what is an NDA" reduces to {nda}.
+_DEFINITION_FRAME = frozenset({
+    "what", "is", "are", "does", "do", "mean", "means", "meaning", "explain", "define",
+    "definition", "of", "tell", "me", "about", "a", "an", "the", "please", "in",
+    "simple", "language", "terms", "words", "exactly",
+    "kya", "hai", "hota", "hoti", "h", "matlab", "samjhao", "ka", "ki", "ke", "cheez",
+    "क्या", "है", "मतलब", "समझाओ", "का", "की", "के",
+})
+
+
+def is_general_knowledge_question(question: str) -> bool:
+    """True when the question asks what a legal CONCEPT means, in general.
+
+    Deliberately narrow. A false positive sends a question about the organization's own
+    position to a general explanation, which is the worse error, so anything carrying a
+    possessive, a deictic or a statute reference is excluded.
+    """
+    text = question or ""
+    if not _DEFINITIONAL.search(text):
+        return False
+    if is_statute_question(text) or is_capability_question(text):
+        return False
+    tokens = _stems(text)
+    if any(t in _PARTICULARISERS for t in tokens):
+        return False
+    if _hits(tokens, _ORG_STEMS):
+        return False
+    # EVERY content word must be a legal concept, not merely one of them. That is what
+    # separates "what is an NDA" (content: {nda}) and "explain force majeure" (content:
+    # {force, majeure}) from "what is the termination notice period" (content:
+    # {termination, notice, period}) — the last is a compound TERM of some instrument,
+    # and the owner's 2026-09-09 ruling is that it is answered from the ratified
+    # positions. A rule that merely looked for one concept word would have swallowed it.
+    content = [t for t in tokens if t not in _DEFINITION_FRAME]
+    return bool(content) and all(t in _CONCEPT_WORDS for t in content)
+
+
 def is_statute_question(question: str) -> bool:
     """True when the question asks about the law itself — a section number, an Act,
     a set of Rules. The Domain C candidate signal."""
