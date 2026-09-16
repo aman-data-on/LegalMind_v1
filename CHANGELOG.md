@@ -91,6 +91,21 @@ shipped, so Domain A candidacy is unchanged. The generated-answer screen
 it had already been narrowed this same way on 2026-09-09, for answers; this applies the
 same relation to questions. 42 new tests; backend suite 2046 passed, 0 failed.
 
+**Also in this change**, both found by a second session reviewing the deployed result:
+
+- `rescue.py`'s module docstring still said the feature "ships behind
+  `LEGALMIND_EVIDENCE_RESCUE`, unset". It has defaulted to **on** since the owner
+  enabled it on 2026-09-16, and it is on in production now. A docstring that contradicts
+  the live default is what gets a feature blamed or exonerated wrongly during an
+  incident. Corrected, with the rollback still stated.
+- The retrieval-run ordering fix that shipped in the measurement change had **no
+  regression test**. The 77-question gate exercises it against a real database, but a
+  benchmark is not a regression test — and production has not rescued a single turn
+  since the feature went live, so nothing had exercised it there either
+  (`assist.ask.rescued`: zero occurrences in the journal). Now pinned by
+  `test_a_rescued_turn_records_the_retrieval_its_answer_was_built_on`, verified to FAIL
+  against the previous ordering rather than merely pass against this one.
+
 **Deliberately not changed:** `_VERDICT_STEMS` still carries the `compl` stem with the
 same "complete" problem. Over-firing there withholds an answer, which fails closed,
 where over-firing in the router hands the user the wrong product. Narrowing a screen on
