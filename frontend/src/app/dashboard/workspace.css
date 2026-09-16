@@ -3723,6 +3723,30 @@
   max-width: 104rem; width: 100%; margin-inline: auto;
 }
 
+/* The first-run state sits in the MIDDLE of the space below the header, not at
+   the top of it (owner, 2026-09-16: the card was top-aligned with a large grey
+   area under it — 24px above and 364px below at 1920x1080).
+
+   `.ws-main` is already `flex: 1` in a column, so it owns the height below the
+   header; the index was simply stacking at its start. `margin-block: auto` in a
+   flex column hands the FREE space to the item, split above and below — so the
+   position follows the viewport at any desktop height with no fixed offset and
+   no absolute positioning. Where the content is taller than the space, there is
+   no free space to hand out, the auto margins resolve to zero and nothing moves.
+   The header is the first child and keeps its own margins, so it stays put.
+
+   ⚠️ SCOPED WITH `:has()` TO THE EMPTY STATE, DELIBERATELY. The populated view
+   shares this container, and a table must grow from the top — vertically
+   centring a two-row list would float it mid-page and read as a layout bug. The
+   same reasoning the stylesheet already applies in `.ws:has(.ws-askglobal)` and
+   `.ws-pane--side:has(> .ws-dock[data-open="true"])`.
+
+   The card lands a little above true centre because this container's own
+   padding is asymmetric — 24px top against 48px plus the 44px the Ask launcher
+   reserves at the bottom. That is the optical centre rather than a defect, and
+   nothing here changes the card itself. */
+.ws-cl--index:has(.ws-cl__zero) { margin-block: auto; }
+
 .ws-cl__toolbar {
   display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap;
 }
@@ -4212,8 +4236,15 @@
 .ws-cl__zero {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center;
-  min-height: 620px;
-  padding: var(--ws-s7) var(--ws-s7) var(--ws-s6);
+  /* A floor, not a driver. At 620 it was neither: the natural content is ~572,
+     so the floor stretched the card and `justify-content: center` split the
+     surplus into 12px of dead space at each end — on top of a bottom padding
+     that was already a step wider than it needed to be. 520 sits below the
+     natural height, so the card is content-sized here and the floor only does
+     its original job: keeping the state from collapsing to a thin strip for a
+     caller who sees no CTA (no `contract.update`). */
+  min-height: 520px;
+  padding: var(--ws-s7) var(--ws-s7) var(--ws-s5);
   background: var(--ws-surface);
   border: 1px solid var(--ws-ink-100);
   border-radius: var(--ws-radius-card);
@@ -4297,7 +4328,11 @@
 /* Three equal columns, told apart by hairlines rather than by cards — DD-17 r6
    ("one card, then whitespace and hairlines") applied inside this one card. */
 .ws-cl__zero-benefits {
-  width: 100%; margin: var(--ws-s6) 0 0; padding: var(--ws-s5) 0 0;
+  /* One token step in on both sides of the hairline (was s6 above / s5 below),
+     so the row reads as the tail of this composition rather than a second block
+     floating below it. The narrow rules already used the tighter pair; this
+     brings the wide layout to the same rhythm. */
+  width: 100%; margin: var(--ws-s5) 0 0; padding: var(--ws-s4) 0 0;
   border-top: 1px solid var(--ws-ink-100);
   list-style: none;
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
