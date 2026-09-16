@@ -106,7 +106,17 @@ LEXICAL_ALONE_AT_10 = 1 / 64        # the branch contributes no unique recall
 # search -> `rescue.reconsider` -> `evidence_is_sufficient` reads 0.797, and 0.547 with
 # the rescue unreachable. Not a better number for the same thing: a number for the
 # thing users actually meet.
-SHIPPED_RECALL_AT_10 = 0.797
+# 0.797 -> 0.891 on 2026-09-16 when `is_comparison_question` stopped misrouting 7 of
+# the 64 answerable questions to the evaluator. No floor moved and no threshold was
+# touched: those 7 had never reached retrieval at all.
+#
+# Recorded as the LOWER of two consecutive runs of the identical build, 0.891 and
+# 0.906. With the evidence rescue on, this line is not deterministic: the judge names
+# WHICH retrieved chunks reopen the gate, so the gold chunk may or may not be among
+# them. `retained` was 61 in both runs and every quantity the AM-28 gate blocks on was
+# identical in both, so the noise sits exactly where it does no harm — but a recall
+# move under ~0.02 is not on its own evidence of anything.
+SHIPPED_RECALL_AT_10 = 0.891
 HISTORICAL_SHIPPED_AT_10 = RECALL_AT_10[(True, True)]
 
 
@@ -133,11 +143,11 @@ def test_neither_threshold_application_is_a_fix_on_its_own():
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "RE-MEASURED 2026-09-16: shipped recall@10 0.797 against a 0.938 vector "
+    "RE-MEASURED 2026-09-16: shipped recall@10 0.891 against a 0.938 vector "
     "ceiling, through the production path rather than `search_hybrid` alone, "
     "with no floor weakened and no increase in wrong answers. Of the remaining "
-    "gap, 7 of 64 are misrouted by `is_comparison_question` and only 3 are "
-    "evidence refusals. The older diagnosis still attributes those to "
+    "remaining gap, all of it is evidence refusals — the 7 the comparison "
+    "screen misrouted are fixed. The older diagnosis still attributes those to "
     "COSINE_FLOOR being applied at two points, the refusal gate and the per-hit "
     "evidence filter; fusion accounts for zero. The owner ruled on 2026-09-14 "
     "that the dial moves only where recall improves WITHOUT a rise in wrongly- "

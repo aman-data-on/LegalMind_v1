@@ -19,18 +19,18 @@
   "unanswerable": 13,
   "wrongly_answered": 1,
   "correct_refusals": 12,
-  "retained": 54,
+  "retained": 61,
   "false_refusals": 3,
-  "routed_to_evaluator": 7,
-  "recall_at_10": 0.797,
-  "hit_at_1": 0.516,
-  "generated_answers": 47,
-  "user_answered": 47,
+  "routed_to_evaluator": 0,
+  "recall_at_10": 0.891,
+  "hit_at_1": 0.609,
+  "generated_answers": 52,
+  "user_answered": 52,
   "user_wrongly_answered": 0,
   "faithfulness": 1.0,
   "unfaithful_answers": 0,
   "citation_precision": 1.0,
-  "claims_scored": 123
+  "claims_scored": 131
  },
  "not_yet_measurable": {}
 }
