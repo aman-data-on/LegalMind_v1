@@ -414,6 +414,20 @@ export const api = {
     request<Counterparty>("/counterparties", { method: "POST", body }),
   updateCounterparty: (id: string, patch: Record<string, string | null>) =>
     request<Counterparty>(`/counterparties/${id}`, { method: "PATCH", body: patch }),
+  /**
+   * Remove an EMPTY client profile (`AM-70` (AB-22), owner-approved 2026-09-16).
+   *
+   * Deletes the profile row and nothing else — the server refuses with 409
+   * while any document is still filed under the client, archived ones included,
+   * and that refusal is the only thing standing between a caller and the
+   * database's own `ON DELETE RESTRICT`. It never cascades, so no document,
+   * version, finding or decision is ever destroyed by this call.
+   *
+   * Takes `contract.archive`, not `contract.update`: the same grant
+   * `deleteContract` uses, because the same kind of act.
+   */
+  deleteClient: (id: string) =>
+    request<void>(`/counterparties/${id}`, { method: "DELETE" }),
   declareVersion: (id: string, patch: Record<string, string | null>) =>
     request<DocumentVersion>(`/document-versions/${id}`, { method: "PATCH", body: patch }),
   /**

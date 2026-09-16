@@ -10,6 +10,39 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — a client profile with no documents can be permanently deleted (`AM-70`, AB-22) (2026-09-16)
+
+Owner-approved 2026-09-16, after the capability was flagged as needing a decision rather than
+riding in on an implementation. Built by the Client Profiles work; verified here before the
+record was written.
+
+**Deliberately the narrowest destructive operation in the product.** One `counterparties` row
+and the profile information it carries. No document, no version, no Review, no Finding, no
+Evaluation, no Legal Decision. No cascade.
+
+**Rule 17 is untouched, and that is the whole difference from `AM-55`.** `AM-55` restored
+`DELETE /contracts/{id}` only because the owner accepted that historical Reviews stop being
+reproducible. This needs no such acceptance — a profile with no documents carries nothing that
+could become irreproducible. **`AM-55` is not a precedent that extends itself.**
+
+Any attached contract blocks it, **archived included** — archived is not empty. For a profile
+that has documents, Mark Inactive remains the way to retire it. No new permission: it reuses
+`contract.archive`. The deletion is audited.
+
+**Corrected before landing:** five source comments asserted `"owner-authorised 2026-09-15"` — an
+authorisation that did not exist when they were written. Each now cites `AM-70`. A record, not
+a claim. The committed OpenAPI snapshot was regenerated, since the route changes the contract.
+
+**`AM-70` explicitly does NOT settle what survives retirement.** `tools.chunk_standards` chunks
+by file rather than requirement status, so a re-chunk took `position_chunks` from 32 to 40 and
+all seven standards `AM-65` retired became retrievable in Ask. AB-21's citation work renders
+them "Superseded" — a reader is told rather than misled, which is a mitigation, not an answer.
+Whether a retired position should surface at all remains open.
+
+Verified: 102 client-profile and API tests, full backend suite 1833 passed / 0 failed, frontend
+477/477, `tsc` and `ruff` clean.
+
+
 ### Fixed — the account roster now shows that access can be changed (2026-09-15)
 
 Reported by the owner: *"I saw the administration page and I want to change the role of tasniya but

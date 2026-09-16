@@ -19070,3 +19070,64 @@ ownership if any locked decision blocked you update that decision") and the busi
 quoted above.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+AMENDMENT BATCH AB-22 — `AM-70`
+A client profile with no documents may be permanently deleted
+================================================================================
+
+**Owner decision, 2026-09-16.** A Client Profile that has **no documents or
+contracts associated with it** may be permanently deleted. Approved on the
+owner's explicit instruction after the capability was flagged as requiring a
+decision rather than riding in on an implementation.
+
+r1. **The narrowest destructive operation in the product.** Deletion removes ONE
+    `counterparties` row and the profile information it carries — company
+    details, contacts, notes. It removes no document, no document version, no
+    Review, no Finding, no Evaluation, and no Legal Decision. There is no
+    cascade, and none may be added without a further decision.
+
+r2. **Rule 17 is untouched, and that is the whole difference from `AM-55`.**
+    `AM-55` (AB-17) restored `DELETE /contracts/{id}` only because the owner
+    explicitly accepted that historical Reviews stop being reproducible for what
+    is deleted that way. This decision requires no such acceptance: a client
+    profile with no documents carries no Finding, Evaluation or Legal Decision
+    that could become irreproducible. **`AM-55` is not a precedent that extends
+    itself** — a counterparty is a different object with a different history,
+    and a future reader must not read one as covering the other.
+
+r3. **Any document blocks it, including an archived one.** Deletion is refused
+    while the profile has a contract attached in any state. Archived is not
+    empty. For a profile that has documents, `AM-39`–`AM-41`'s Mark Inactive
+    remains the way to retire it, exactly as before.
+
+r4. **No new permission.** The operation uses the existing `contract.archive`
+    permission. No role gains anything it did not already hold, and `SEC-02` /
+    `ROLE-05` are unamended: no super-role reaches `legal.decision` or
+    `legal.approve_customization` through this or any other path.
+
+r5. **The deletion is audited.** Who deleted which profile, and when, is written
+    to the append-only audit trail. The profile's content does not survive; the
+    fact of its deletion does.
+
+r6. **WHAT THIS DECISION DOES NOT SETTLE.** It says nothing about what survives
+    the RETIREMENT of a Company Standard. `AM-65` retired seven standards the
+    Constitution does not define; it did not answer whether a retired position
+    remains retrievable in the assist lane, because nobody asked. Measured
+    2026-09-16: `tools.chunk_standards` chunks by FILE rather than by
+    requirement status, so a re-chunk took `position_chunks` from 32 to 40 and
+    **all seven retired standards became retrievable in Ask**. AB-21's citation
+    work renders them "Superseded", so a reader is told rather than misled —
+    a genuine mitigation, not an answer. Whether a retired position should
+    surface at all remains an OPEN question for the owner. A reader inferring
+    that `AM-70` settled it would be wrong.
+
+**Recorded 2026-09-16.** Implementation verified before the record was written,
+not after: the client-profile and API suites pass, the full backend suite passes
+with zero failures, the frontend suite and `tsc` are clean, `ruff` is clean, and
+the committed OpenAPI snapshot was regenerated because the route changes the
+API contract. Five source comments previously asserted "owner-authorised
+2026-09-15" — an authorisation that did not exist when they were written; each
+now cites this record instead. A record, not a claim.
+
+--------------------------------------------------------------------------------

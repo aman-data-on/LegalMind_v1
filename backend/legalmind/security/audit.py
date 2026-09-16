@@ -90,6 +90,14 @@ CONTRACT_TYPE_DECLARED = "contract.type_declared"
 # AB-13 r8 — a profile several people may edit is exactly what AUD-01 is for.
 COUNTERPARTY_CREATED = "counterparty.created"
 COUNTERPARTY_UPDATED = "counterparty.updated"
+#: An EMPTY client profile removed (2026-09-15, owner-authorised). The row goes;
+#: this audit event does not — `audit_events.entity_id` is polymorphic and holds
+#: no FK to `counterparties`, so "a client profile existed and X deleted it at T"
+#: stays answerable afterwards, exactly as `CONTRACT_DELETED` does for contracts.
+#: Reachable ONLY for a profile with no linked contracts, so unlike
+#: `CONTRACT_DELETED` nothing legal is destroyed alongside it: no document, no
+#: version, no Review, no Finding, no Legal Decision. Rule 17 is untouched here.
+COUNTERPARTY_DELETED = "counterparty.deleted"
 CONTRACT_COUNTERPARTY_LINKED = "contract.counterparty_linked"
 # Phase 5 (2026-09-06): a version re-read in place with the current parser (Option C).
 DOCUMENT_REPROCESSED = "document.reprocessed"

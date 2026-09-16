@@ -29,7 +29,14 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.client_profile import CLIENT_STATUSES, VERSION_ROLES
 from legalmind.security import permissions as P
-from tests.conftest import grant_role, make_user, sign_in, sign_out
+from tests.conftest import (
+    bespoke_role,
+    grant,
+    grant_role,
+    make_user,
+    sign_in,
+    sign_out,
+)
 
 V1 = "/api/v1"
 
@@ -562,3 +569,192 @@ def test_an_account_owner_outside_the_callers_department_is_refused(api, db, own
                              "account_owner_id": str(outsider.id)})
     assert refused.status_code == 422
     assert "department" in refused.json()["error"]["message"]
+
+
+# ==========================================================================
+# Deleting an empty client profile — `AM-70` (AB-22), owner-approved 2026-09-16
+#
+# The narrowest destructive operation in the product: one `counterparties` row,
+# and only when nothing points at it. Everything below exists to keep it that
+# narrow. In particular `test_a_client_with_documents_cannot_be_deleted` and
+# `test_an_archived_document_still_blocks_deletion` are the two that stop this
+# from ever quietly becoming a cascade.
+# ==========================================================================
+def _deleter(db, api, *, permissions=None):
+    """A signed-in caller. With no `permissions` given they hold ROLE_USER,
+    which carries `contract.archive`; pass a list to withhold it."""
+    user = make_user(db)
+    if permissions is None:
+        grant_role(db, user, P.ROLE_USER)
+    else:
+        grant(db, user, bespoke_role(db, f"CPD-{uuid.uuid4().hex[:6]}", permissions))
+    sign_in(api, db, user)
+    return user
+
+
+def test_a_client_with_no_documents_can_be_deleted(api, db, seeded):
+    _deleter(db, api)
+    client = make_client(api, "Dormant Holdings")
+
+    assert api.delete(f"{V1}/counterparties/{client['id']}").status_code == 204
+
+    db.expire_all()
+    assert db.get(M.Counterparty, uuid.UUID(client["id"])) is None
+    # And it is gone from the directory the screen reads, not merely hidden.
+    listing = api.get(f"{V1}/counterparties").json()
+    assert all(row["id"] != client["id"] for row in listing["data"])
+    assert listing["pagination"]["total"] == 0
+
+
+def test_deleting_a_client_records_an_audit_event(api, db, seeded):
+    """AUD-01: the row goes, the fact that it existed does not. `audit_events`
+    has no FK to `counterparties` (polymorphic `entity_id`), which is what lets
+    this survive the delete."""
+    from legalmind.security import audit
+
+    actor = _deleter(db, api)
+    client = make_client(api, "Audited Co")
+
+    assert api.delete(f"{V1}/counterparties/{client['id']}").status_code == 204
+
+    db.expire_all()
+    event = (db.query(M.AuditEvent)
+             .filter_by(action=audit.COUNTERPARTY_DELETED).one())
+    assert event.entity_type == "counterparty"
+    assert str(event.entity_id) == client["id"]
+    assert event.actor_id == actor.id
+    # `before` carries what was destroyed, so the trail can say WHAT went.
+    assert event.before_state["name"] == "Audited Co"
+    assert event.after_state is None
+
+
+def test_deletion_requires_the_contract_archive_permission(api, db, seeded):
+    """`contract.update` creates and edits a profile (AB-13 r5); destroying one
+    takes the narrower grant, exactly as `DELETE /contracts/{id}` does."""
+    _deleter(db, api, permissions=[P.CONTRACT_VIEW, P.CONTRACT_UPDATE,
+                                   P.CONTRACT_CREATE])
+    client = make_client(api, "Protected Co")
+
+    assert api.delete(f"{V1}/counterparties/{client['id']}").status_code == 403
+
+    db.expire_all()
+    assert db.get(M.Counterparty, uuid.UUID(client["id"])) is not None
+
+
+def test_a_client_with_documents_cannot_be_deleted(api, db, seeded):
+    """409, not a 500 from the RESTRICT constraint, and not a cascade."""
+    _deleter(db, api)
+    client = make_client(api, "Busy Industries")
+    document = make_document(api, "MSA v1", counterparty_id=client["id"])
+
+    refused = api.delete(f"{V1}/counterparties/{client['id']}")
+    assert refused.status_code == 409
+    message = refused.json()["error"]["message"]
+    assert "Inactive" in message          # the alternative is offered
+    assert "Busy Industries" not in message
+
+    db.expire_all()
+    assert db.get(M.Counterparty, uuid.UUID(client["id"])) is not None
+    # Nothing was archived, cascaded or otherwise touched on the way.
+    contract = db.get(M.Contract, uuid.UUID(document["id"]))
+    assert contract is not None
+    assert contract.archived_at is None
+    assert str(contract.counterparty_id) == client["id"]
+
+
+def test_an_archived_document_still_blocks_deletion(api, db, seeded):
+    """AB-12 r6 takes an archived contract off the working lists and destroys
+    nothing — so the foreign key still points at the client, and so must the
+    refusal. The screen's own count includes archived documents for exactly
+    this reason (`_readable_contracts`)."""
+    _deleter(db, api)
+    client = make_client(api, "Shelved Co")
+    document = make_document(api, "Old MSA", counterparty_id=client["id"])
+    assert api.post(f"{V1}/contracts/{document['id']}/archive").status_code == 200
+
+    assert api.delete(f"{V1}/counterparties/{client['id']}").status_code == 409
+
+    db.expire_all()
+    assert db.get(M.Counterparty, uuid.UUID(client["id"])) is not None
+
+
+def test_a_document_the_caller_cannot_see_still_blocks_deletion(api, db, seeded):
+    """The emptiness check is UNSCOPED on purpose.
+
+    `_client_stats` derives the screen's document count through the caller's own
+    read scope, so another department's contract is absent from it — but the
+    foreign key does not care about scope. Counting only what the caller can see
+    would let the check pass and hand them the RESTRICT error as a 500.
+
+    The refusal must also not disclose what it is protecting: `LEGAL-02`/
+    `SEC-07` keep the existence of another department's deal inside that scope,
+    so the message says documents remain and never whose.
+    """
+    stranger = make_user(db)
+    grant_role(db, stranger, P.ROLE_USER)
+    sign_in(api, db, stranger)
+    client = make_client(api, "Shared Co")
+    hidden = make_document(api, "Their MSA", counterparty_id=client["id"])
+    sign_out(api)
+
+    # A second caller who created nothing here cannot even see the client.
+    outsider = _deleter(db, api)
+    assert api.get(f"{V1}/counterparties/{client['id']}").status_code == 404
+    assert api.delete(f"{V1}/counterparties/{client['id']}").status_code == 404
+
+    # And the author, who CAN see it, is refused for the honest reason.
+    sign_out(api)
+    sign_in(api, db, stranger)
+    refused = api.delete(f"{V1}/counterparties/{client['id']}")
+    assert refused.status_code == 409
+    assert "Their MSA" not in refused.json()["error"]["message"]
+
+    db.expire_all()
+    assert db.get(M.Contract, uuid.UUID(hidden["id"])) is not None
+    assert outsider is not None
+
+
+def test_the_database_restriction_is_the_final_backstop(api, db, seeded):
+    """Concurrency: a contract linked between the emptiness check and the flush.
+
+    The check cannot close that window — only the FK can. This drives the
+    constraint directly to prove RESTRICT is really on the column, so the
+    endpoint's `IntegrityError` branch is guarding something real rather than
+    something assumed.
+    """
+    import sqlalchemy
+
+    owner = _deleter(db, api)
+    client = make_client(api, "Racy Co")
+    contract = M.Contract(owner_id=owner.id, name="Late Arrival",
+                          status=E.ContractStatus.DRAFT,
+                          counterparty_id=uuid.UUID(client["id"]))
+    db.add(contract)
+    db.flush()
+
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        db.execute(sqlalchemy.text(
+            "DELETE FROM counterparties WHERE id = :cid"
+        ), {"cid": client["id"]})
+    db.rollback()
+
+
+def test_deleting_a_client_leaves_every_other_client_alone(api, db, seeded):
+    """The narrowness, stated as a test: one row, and only the named one."""
+    _deleter(db, api)
+    doomed = make_client(api, "Going Co")
+    keeper = make_client(api, "Staying Co")
+    kept_doc = make_document(api, "Their MSA", counterparty_id=keeper["id"])
+
+    assert api.delete(f"{V1}/counterparties/{doomed['id']}").status_code == 204
+
+    db.expire_all()
+    assert db.get(M.Counterparty, uuid.UUID(doomed["id"])) is None
+    assert db.get(M.Counterparty, uuid.UUID(keeper["id"])) is not None
+    assert db.get(M.Contract, uuid.UUID(kept_doc["id"])) is not None
+
+
+def test_deleting_a_client_that_does_not_exist_is_a_404(api, db, seeded):
+    """Byte-identical to one outside the caller's scope (49.5 r1)."""
+    _deleter(db, api)
+    assert api.delete(f"{V1}/counterparties/{uuid.uuid4()}").status_code == 404

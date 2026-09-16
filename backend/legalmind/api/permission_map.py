@@ -230,6 +230,18 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/counterparties/industries"): P.CONTRACT_VIEW,
     ("GET", f"{API_PREFIX}/counterparties/{{counterparty_id}}/activity"):
         P.CONTRACT_VIEW,
+    # Deleting an EMPTY client profile (`AM-70` (AB-22), owner-approved 2026-09-16).
+    #
+    # `contract.archive`, NOT `contract.update`. AB-13 r5 assigns `contract.view`
+    # to reading and `contract.update` to "creating or editing" a counterparty —
+    # it is silent on destroying one, because nothing could be destroyed when it
+    # was written. This follows the codebase's only precedent for a destructive
+    # act on this data instead: `DELETE /contracts/{id}` (AM-55), which takes
+    # `contract.archive`. No new permission is introduced, so r5's actual holding
+    # is untouched, and an installation that grants `contract.update` while
+    # withholding `contract.archive` withholds deletion too.
+    ("DELETE", f"{API_PREFIX}/counterparties/{{counterparty_id}}"):
+        P.CONTRACT_ARCHIVE,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 
