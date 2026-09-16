@@ -68,6 +68,12 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       // At least 70% of the viewport up to the 88rem measure — no 1024px strip
       // in the middle of a 1920px screen.
       expect(analysis).toBeGreaterThanOrEqual(Math.min(viewport.width * 0.7, 1380));
+      // Wait for a tile before measuring tiles. `.all()` returns what matches NOW, so
+      // without this the next line can measure an empty list and assert a Set size of
+      // 0 against 1 — which is what it did at 1536×864 on 2026-09-16 while passing at
+      // 1366×768 and 1920×1080 in the same run. The sibling test above already waits
+      // on `.ws-tiles`; this waits on the tile itself, which is what is measured.
+      await expect(page.locator(".ws-tile").first()).toBeVisible();
       const tops = await Promise.all((await page.locator(".ws-tile").all()).map(async (t) => (await t.boundingBox())!.y));
       expect(new Set(tops.map((y) => Math.round(y))).size).toBe(1);
 
