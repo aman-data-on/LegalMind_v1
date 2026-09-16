@@ -35,11 +35,27 @@ from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pyt
 )
 
 
+def _first_sentence_that_says_something(text: str) -> str:
+    """The first sentence of an excerpt that carries actual content.
+
+    `split(".")[0]` is not good enough and the difference is not cosmetic: a statute
+    chunk begins with its section number, so the naive split returns "3" and the fake
+    answer becomes "3 [1]." — a claim with NO content words. That used to pass
+    verification vacuously (`overlap = ... if claim_words else 1.0`), which is exactly
+    the hole that let a Devanagari hallucination through, so these doubles were green
+    for the wrong reason. They now produce what a model would actually return.
+    """
+    for part in text.split("."):
+        if len(part.split()) > 2:
+            return part.strip()
+    return text.strip().rstrip(".")
+
+
 def _grounded_generation(monkeypatch):
     def fake(question, evidence, **kwargs):
         return generation.GenerationResult(
-            text=evidence[0].split(".")[0].strip() + " [1].", model="fake",
-            prompt_version="test", payload_sha256="0" * 64, latency_ms=1)
+            text=_first_sentence_that_says_something(evidence[0]) + " [1].",
+            model="fake", prompt_version="test", payload_sha256="0" * 64, latency_ms=1)
     monkeypatch.setattr(service.generation, "generate", fake)
 
 

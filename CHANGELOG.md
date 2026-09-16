@@ -158,6 +158,84 @@ those screens rather than to the test that found them.
 `DecisionHistory.tsx` is imported by nothing and accounts for two of the thirteen. It is left in
 place rather than deleted — removing someone's component is their call.
 
+### Security — The Ask safety screens were weaker in Hindi than in English (2026-09-15)
+
+`AM-25` r4 ("the assist lane NEVER answers *does this document meet our standard?*
+generatively") and r5 ("no answer reaches a user unless every claim resolves to retrieved
+evidence, enforced mechanically") did not hold for a question asked in Hindi or Hinglish.
+Measured live against the shipped code, with a document attached, three independent causes:
+
+* `intent._WORD` was `[a-z]+`, so Devanagari tokenized to the **empty list** and every
+  classifier built on it returned False. "हमारे मानक से तुलना करें" — *compare with our
+  standard* — was answered generatively instead of routing to the evaluator.
+* `guardrails._content_words` matches `[A-Za-z]` and digits, and the overlap read
+  `... if claim_words else 1.0`, so a Devanagari sentence produced an empty set and was
+  admitted **unconditionally**. A fabricated ₹50 lakh cap *and* a compliance verdict passed
+  against an English confidentiality clause; the English equivalent was correctly rejected.
+* `_SENTENCES` did not know the danda `।`, so a whole Hindi answer was one "sentence" and a
+  single marker anywhere satisfied the citation check for every claim in it.
+
+The grounding check now **fails closed**: a claim it cannot read has not been verified. The
+classifiers and the anaphora set carry Hindi and romanized-Hindi forms, so Hinglish follow-ups
+("isko samjhao") resolve their referent. Signing-readiness routes to the evaluator as a
+holding position, answering with Findings rather than a generated yes/no.
+
+**No locked decision is relaxed.** The locks are written without reference to language and the
+code quietly assumed one; this restores guarantees already asserted. `AM-69` is drafted to say
+so — [AB21_PROPOSED_AMENDMENTS.md](docs/00-project/AB21_PROPOSED_AMENDMENTS.md), **not approved**.
+
+50 new cases in `test_assist_language_safety.py`, both directions across English, romanized
+Hinglish and Devanagari; the existing 96-case English matrix is unchanged.
+
+### Fixed — Ask answered "what is our liability cap?" with a repository path (2026-09-15)
+
+A Domain A chunk composes the ratified file's own fields, and `source_document` carries an
+internal locator beside the paper's name. Of the 40 ratified standards, **24 embed
+`LEGALMIND_SOURCE_MATERIAL_DIR`, 15 a `docs/…​.md` path, and 8 the note "(counterparty
+deliberately not named in this repository)"** — all rendered verbatim in the reader's
+blockquote. Neither existing screen catches it: log redaction guards log records by key, and
+the egress screen guards only the generation payload, which Domain A never enters.
+
+Sanitized on the way out; **the ratified files are not edited** — they are configuration and
+the locator is provenance metadata, not ratified legal text, so `source_quote` and `AM-32`
+r4's verbatim requirement are untouched. The chunk text is also the lexical index, so this
+removes `docs`, `pdf` and `md` as matchable lexemes.
+
+⚠️ **Write-time fix: not complete until the corpus is re-chunked.** Rows already in
+`position_chunks` keep the old text, so the leak is closed in code and **open in the running
+system** until `chunk_ratified_standards` and `embed_positions` re-run.
+
+Also registers **C-22** (fifteen standards split 7/8 between citing Constitution L1.5 and
+L1.10, deliberately unclassified pending an owner provenance decision).
+
+### Fixed — A position citation never said which version it was quoting (2026-09-15)
+
+`AM-32` r4 defines a Domain A citation as "standard code, **version**, source clause". The
+version was silently dropped, so a reader could not tell which version of a company position
+they were shown, nor whether it was still current. Both are now joined from the existing rows
+and rendered: the version always, the ratification status **only when it is not ACTIVE** —
+stamping ACTIVE on every citation trains the eye to skip the field, which is exactly when a
+DRAFT or superseded position needs to be noticed.
+
+### Added — Ask AI quality programme working documents (2026-09-15)
+
+[ASK_AI_PROGRAMME.md](docs/00-project/ASK_AI_PROGRAMME.md) carries phase status, the decision
+log, the risk register and per-command test evidence;
+[AB21_PROPOSED_AMENDMENTS.md](docs/00-project/AB21_PROPOSED_AMENDMENTS.md) carries the drafts
+of `AM-67`–`AM-70`. Both are working documents: nothing is appended to `all_lock.md` and no
+approval is recorded.
+
+Corrected a stale figure in [ASSIST_LANE_AND_RAG.md](docs/05-architecture/ASSIST_LANE_AND_RAG.md):
+it read recall@10 **0.438 / 23 refused**; `baseline.json` has recorded **0.625 / 21** since
+2026-09-14. Also notes that faithfulness 1.0 is scored on the 33 answers reaching generation,
+not on all 64 answerable questions.
+
+**Coordination note.** All of the above sits on `fix/ask-source-leak` and
+`fix/language-safety-screens`, **unmerged and undeployed** — the deploy tree still carries all
+three defects. `feat/p1-rag-quality` (another session's branch, 51 commits behind) already
+contains an authorization-replay fix and grounding normalization that should land before any
+further retrieval work, to avoid re-implementing them.
+
 ### Changed — Standards joins the list format every other screen already uses (2026-09-15)
 
 A non-technical person should be shown this screen once and then be able to use it. The question

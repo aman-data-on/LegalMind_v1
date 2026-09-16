@@ -75,13 +75,49 @@ describe("multi-source answers (2026-09-08)", () => {
     const html = render(result({
       text: "The document says ninety days [1].",
       positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
-        source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.", retrieval_score: 0.5 }],
+        source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.", standard_version: 1, ratification_status: "ACTIVE", retrieval_score: 0.5 }],
     }));
     expect(html).toContain("Company standard");
     expect(html).toContain("TESTPOS-MSA-001");
     expect(html).toContain("9.9 Widget Handling");
     expect(html).toContain("Widgets shall be handled with care.");
     expect(html).not.toContain("confidence");
+  });
+
+  it("names the standard's version, because a citation without one does not say WHICH position", () => {
+    const html = render(result({
+      positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
+        source_clause: "9.9 Widget Handling", content: "Widgets shall be handled with care.",
+        standard_version: 3, ratification_status: "ACTIVE", retrieval_score: 0.5 }],
+    }));
+    expect(html).toContain("v3");
+    // ACTIVE is the common case: stamping it on every citation is noise that trains
+    // the eye to skip the field, which is precisely when a DRAFT needs to be seen.
+    expect(html).not.toContain("ACTIVE");
+    expect(html).not.toContain("Superseded");
+  });
+
+  it("marks a position that is NOT the active one, so a reader is never quoted a superseded standard silently", () => {
+    for (const [status, word] of [["DRAFT", "Draft"], ["DEPRECATED", "Superseded"]] as const) {
+      const html = render(result({
+        positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
+          source_clause: "9.9", content: "Widgets shall be handled with care.",
+          standard_version: 2, ratification_status: status, retrieval_score: 0.5 }],
+      }));
+      expect(html).toContain(word);
+      expect(html).toContain("ws-ask__standard-state");
+    }
+  });
+
+  it("an older record with no version recorded degrades quietly rather than rendering a hole", () => {
+    const html = render(result({
+      positions: [{ position_chunk_id: "p-1", standard_code: "TESTPOS-MSA-001", document_type: "MSA",
+        source_clause: "9.9", content: "Widgets shall be handled with care.",
+        standard_version: null, ratification_status: null, retrieval_score: null }],
+    }));
+    expect(html).toContain("TESTPOS-MSA-001");
+    expect(html).not.toContain("vnull");
+    expect(html).not.toContain("· v");
   });
 
   it("a comparison handoff shows the Findings by classification in words and links to them — no dead end", () => {

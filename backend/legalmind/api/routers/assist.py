@@ -361,11 +361,14 @@ def get_conversation(conversation_id: UUID,
     """), {"c": conversation_id}).all()
     positioned = guard.db.execute(text(f"""
         SELECT ac.answer_id, pc.id, pc.standard_code, pc.document_type,
-               pc.source_clause, pc.content
+               pc.source_clause, pc.content, csv.version_number, r.status::text
           FROM "{schema}".answer_citations ac
           JOIN "{schema}".ai_answers a ON a.id = ac.answer_id
           JOIN "{schema}".messages m ON m.id = a.message_id
           JOIN "{schema}".position_chunks pc ON pc.id = ac.position_chunk_id
+          JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
+          JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
+          JOIN requirements r ON r.id = rv.requirement_id
          WHERE m.conversation_id = :c
          ORDER BY ac.claim_ordinal
     """), {"c": conversation_id}).all()
@@ -392,6 +395,17 @@ def get_conversation(conversation_id: UUID,
         positions_by_answer.setdefault(row[0], []).append({
             "position_chunk_id": str(row[1]), "standard_code": row[2],
             "document_type": row[3], "source_clause": row[4], "content": row[5],
+            "standard_version": row[6], "ratification_status": row[7],
+            # ponytail: `retrieval_score` stays None on replay for positions and
+            # statutes while document scores are recovered from the run's JSONB.
+            # Deliberate, not an oversight: `_persist_retrieval` records `hits` and
+            # `statute_hits` but no `position_hits`, so the number was never written
+            # and cannot be recovered — and the score is NEVER RENDERED (rule 12;
+            # `ask-pane.test.tsx` asserts "retrieval score" and "confidence" appear
+            # nowhere). Adding a JSONB key and a recovery join for a value no reader
+            # sees is cost without a reader. Upgrade path if an audit ever needs it:
+            # add `position_hits: [{position_chunk_id, score}]` in `_persist_retrieval`
+            # and mirror the document subquery here.
             "retrieval_score": None})
     by_answer: dict = {}
     for row in cited:

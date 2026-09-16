@@ -19071,6 +19071,195 @@ quoted above.
 
 --------------------------------------------------------------------------------
 
+# AB-21 — Ask AI: language safety, the capability route, and Domain A as a reading aid (Owner Instruction — 2026-09-15)
+
+Approved by the owner on 2026-09-15, in response to a decision sheet naming each amendment's
+existing decision, proposed change, reason, impact, what remains prohibited, and rollback.
+The owner's words: *"Proceed with the approved AM-67, AM-68, and AM-69 work."* Option (b) was
+chosen for `AM-68`'s wording — the manifest is rendered directly, with no generation call.
+
+The three records are independent. `AM-69` describes a defect already in production; `AM-68`
+and `AM-67` add behaviour.
+
+--------------------------------------------------------------------------------
+
+# `AM-69` — Language is not a safety boundary
+
+**Clarifies:** `AM-25` r4, `AM-25` r5, `AM-28` r2. **Amends:** nothing — it states what those
+records already mean. **Does not amend:** `AM-30`, `AM-32`, `AM-45`, `AM-46`, `AM-29`'s state
+vocabulary.
+
+## Why this record exists
+
+`AM-25` r4 and r5 are written without reference to language. The implementation was not.
+Measured on 2026-09-15 against the shipped code, with a document attached:
+
+```text
+is_comparison_question("हमारे मानक से तुलना करें")             -> False   (tokenized to [])
+is_verdict_statement("Yeh clause Company Standard ke
+                      according nahi hai.")                   -> False
+verify_answer("यह क्लॉज हमारे मानक के अनुसार है और देयता की
+               सीमा पचास लाख रुपये है [1]", [english_chunk])   -> ANSWERED
+```
+
+The third is the serious one. `guardrails._content_words` matches `[A-Za-z]` and digits, so a
+Devanagari sentence produced an empty content-word set and the overlap expression read
+`... if claim_words else 1.0` — admitting the claim unconditionally. A fabricated liability
+figure and a compliance verdict both passed, while the English equivalent was rejected.
+
+Two existing tests were green BECAUSE of this: both used a generation double returning
+`evidence[0].split(".")[0] + " [1]."`, and a statute chunk opens with its section number, so
+the "answer" was the string `"3 [1]."` — a claim with no content words, admitted vacuously.
+
+```text
+r1   A GUARANTEE WORDED AS UNIVERSAL IS UNIVERSAL. AM-25 r4 and r5, AM-28 r2 and every
+     mechanical screen they require apply identically whatever language or script a
+     question or an answer is written in. Language is not a scope limit on a safety
+     guarantee, and a screen enforced in one language only does not satisfy them.
+
+r2   A SCREEN THAT CANNOT EVALUATE AN INPUT FAILS CLOSED. Where a mechanical check cannot
+     read a claim — an unsupported script, an empty comparable set, any input it has no
+     basis to judge — the outcome is REFUSAL, never a default that admits it. AM-25 r5's
+     "enforcement is mechanical and sits outside the model" is not satisfied by a check
+     that returns "grounded" for what it did not read.
+
+r3   THE REMEDY IS A CHECK THAT CAN READ IT. r2 is a floor, not a destination: refusing
+     every question in a language the product is used in is a defect of its own. Where a
+     language is supported, its screens are extended to cover it, and the test matrix runs
+     BOTH directions in that language — a screen widened until it fires on everything has
+     moved the defect, not fixed it.
+
+r4   NO NEW STATE, NO NEW VOCABULARY. A claim refused under r2 is CLAIM_UNSUPPORTED,
+     already AM-29 r3's third outcome. No fifth assist-lane state is added.
+
+r5   THIS RECORD RELAXES NOTHING. It records that the guarantees were already stronger
+     than the code, and that the code was brought up to them.
+```
+
+**Implemented ahead of this record** on the owner's "hotfix immediately, separately"
+instruction of 2026-09-15, and recorded here rather than backdated.
+
+--------------------------------------------------------------------------------
+
+# `AM-68` — The capability question shape
+
+**Amends:** `AM-45` r1 (a fourth route that is not a retrieval domain); `AM-46` r1 (a new
+candidate set). **Does not amend:** `AM-25` r1–r9 — see r3; `AM-30` t3/t4; `AM-32`.
+
+## Why this record exists
+
+"What can you help me with in LegalMind?" returned three unrelated Company Standards. A
+document-less Ask has no primary route, the POSITIONS fallback is unconditional, and a
+standard clears the lexical bar on two shared words. The question is about the product, not
+the law, and no locked record contemplated such a question.
+
+```text
+r1   DETERMINISTIC DETECTION. The capability shape is decided by a deterministic
+     classifier; no model decides whether a question is a capability question. The
+     decision is recorded on the retrieval run like every other routing decision.
+
+r2   ZERO RETRIEVAL, OF ANY KIND. No retrieval over documents, Constitution positions,
+     statutes, Findings, Evaluations or Reviews. Not primary, not fallback, not "just to
+     check". The route reaches no legal corpus at all, and this is structural: the router
+     RETURNS on a capability question, so no later branch can add a domain back.
+
+r3   THE MANIFEST IS THE ONLY EVIDENCE, AND IT IS NOT GENERATED. The owner chose option
+     (b) on 2026-09-15: the manifest is rendered directly and NO generation call is made.
+     AM-25 r5 is therefore not engaged and not amended — there is no model output to
+     ground, and no payload egresses. A generated variant would require a further record.
+
+r4   IMPLEMENTED AND TESTED FEATURES ONLY. Each manifest entry names behaviour that is
+     built and covered by a test, and carries its evidence. No future, planned, roadmap,
+     partial or speculative capability. Rule 7's discipline: an invented capability is as
+     bad as an invented legal rule. Changing the manifest is a configuration change
+     needing owner approval.
+
+r5   THE MANIFEST STATES ITS LIMITS. It says in terms that LegalMind does not decide
+     acceptability, approve a document, or advise whether to sign; does not draft
+     agreements; works with one document per conversation; states no legal position absent
+     from an approved source; and says so where no approved source answers.
+
+r6   NEVER A LEGAL-ANSWER ROUTE. It states no legal position (AM-25 r3), produces no
+     Finding or classification (r1), answers no question about a document or a standard,
+     and confers no authority (r8, SEC-01/SEC-02). A question genuinely about legal
+     content is NOT a capability question, and the classifier's negative matrix pins that
+     boundary.
+
+r7   AM-46 STILL HOLDS. The capability route is its own candidate set, deterministic in
+     the question's shape and dependent on no object's existence — not an existence oracle.
+```
+
+**Recorded engineering note.** `intent.is_verdict_statement` fires on the rendered manifest:
+the entries that trip it are the one naming the product's classification vocabulary and the
+DISCLAIMER itself — *"I do not decide whether a document is acceptable, approve it, or advise
+whether to sign."* The screen asks whether text states how a DOCUMENT stands against the
+organisation's position and answers on whole text by design; a static manifest names the
+vocabulary without applying it to anything. r6's guarantee is therefore structural — zero
+retrieval plus fixed approved text — and is pinned by the zero-retrieval and import-boundary
+tests, not by that screen. This measurement is part of why option (b) was chosen: a generated
+answer over this text would likely be rejected by the same screen and fall back every time.
+
+--------------------------------------------------------------------------------
+
+# `AM-67` — Domain A as a controlled reading aid
+
+**Amends:** `AM-32` r4; `AM-30` t3 for published Company Standard clause text ONLY; `AM-30`
+t2 to admit position spans. **Does not amend:** `AM-30` t1, t4–t10; `AM-25` r1–r4, r6–r9;
+`AM-32` r1, r3, r5–r10; `AM-45` r2; LEGAL-02 as a display rule.
+
+## Why this record exists
+
+A verbatim quote is not an answer for a non-lawyer, and "summarize the relevant liability
+standard" could not be served at all. Synthesis and source authority are compatible when
+synthesis is confined to a reading aid: the quote stays, the synthesis sits beside it, and
+authority is preserved by construction rather than by trusting the model.
+
+The cost is stated plainly and was accepted by the owner: ratified Company Standard clause
+text leaves LeapSwitch-controlled infrastructure and reaches the provider.
+
+```text
+r1   ONLY PUBLISHED, RATIFIED COMPANY STANDARD TEXT. The source_quote and citation fields
+     of a published company_standard_version may enter a generation payload. Nothing else
+     from the configuration lane: no Legal Rule, no legal_rule.configuration, no threshold
+     key, no Rule Outcome, no Evaluation, no Finding, no Mapping State, no classification.
+     AM-30 t3 stands in full for every one of those.
+
+r2   DRAFTS NEVER. AM-32 r3 unchanged: only published, ratified versions are chunked, so
+     only published text can be retrieved and therefore sent.
+
+r3   THE ORIGINAL QUOTE IS THE SOURCE OF TRUTH AND STAYS VISIBLE, UNCHANGED. A synthesis
+     never replaces, edits, paraphrases over, truncates or reorders the ratified text. The
+     verbatim quote is rendered with its citation BESIDE the synthesis, always, in its own
+     field (AM-45 r2, AM-32 r1). A response carrying a synthesis without its quote is a
+     defect.
+
+r4   SYNTHESIS CREATES NO LEGAL RULE AND NO LEGAL OUTCOME. It never creates, modifies,
+     extends, narrows or restates-as-new any legal rule or company position, and never
+     produces MATCH, DEVIATION, MISSING, CONFLICT, an approval, or an acceptability
+     decision. AM-25 r1/r3/r4 and Step 38 rule 21 are reaffirmed, not weakened.
+
+r5   THE EXISTING GUARDRAILS APPLY UNCHANGED. Citation verification and the verdict screen
+     run on every synthesized sentence exactly as they run on a document answer. AM-25 r5
+     holds in full: every sentence cites a retrieved position span or the answer is
+     rejected.
+
+r6   THE FORBIDDEN-PAYLOAD SCREEN IS NARROWED, NOT REMOVED.
+     generation._forbidden_payload_check keeps refusing every key it refuses today.
+
+r7   AM-30 t4 STANDS. No counterparty name, signatory, contract or user identifier. This
+     has a PREREQUISITE: 8 of the 40 ratified standards carried a counterparty note and 24
+     an environment path inside source_document, composed into the chunk text. Egressing
+     those would breach t4 and t5 on the first call. The sanitizer landed on 2026-09-15;
+     r1 may not be enabled in an environment until its position corpus has been re-chunked
+     and verified to hold no locator.
+
+r8   FAIL CLOSED TO THE QUOTE. If generation is unavailable, or the guardrail rejects the
+     synthesis, the response is the verbatim quote and its citation alone — the behaviour
+     that shipped before this record. A rejected synthesis never degrades the answer.
+```
+
+--------------------------------------------------------------------------------
+
 ================================================================================
 AMENDMENT BATCH AB-22 — `AM-70`
 A client profile with no documents may be permanently deleted

@@ -30,6 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from legalmind import config
 from legalmind.assist import intent
 from legalmind.security import permissions as P
 
@@ -83,6 +84,9 @@ class RoutePlan:
     #: statute corpus are still authorized knowledge and are searched. The document
     #: itself is never a fallback: without one attached it cannot be searched at all.
     fallback: tuple[Domain, ...] = ()
+    #: `AM-68` — the question asks what the PRODUCT does, not what the law says. When
+    #: true, `domains` and `fallback` are both empty and no corpus is searched at all.
+    capability: bool = False
 
     def has(self, domain: Domain) -> bool:
         return domain in self.domains
@@ -102,6 +106,17 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     question = question or ""
     comparison = has_document and intent.is_comparison_question(question)
     statute_shaped = intent.is_statute_question(question)
+    # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal
+    # corpus at all: not the document, not the positions, not the statutes, and not as
+    # a fallback. Returning here rather than emptying the sets afterwards is the point —
+    # there is no later branch that could add one back.
+    #
+    # `AM-68` locked 2026-09-15, option (b): the manifest is RENDERED, not generated.
+    # `config.capability_route_enabled()` defaults to on; setting the env var to "off"
+    # is the rollback, restoring the pre-amendment behaviour without a deploy.
+    if config.capability_route_enabled() and intent.is_capability_question(question):
+        return RoutePlan(comparison=False, domains=(), statute_shaped=False,
+                         fallback=(), capability=True)
     candidates: set[Domain] = set()
     if has_document and P.ASSIST_ASK in permissions:
         candidates.add(Domain.DOCUMENT)
@@ -125,7 +140,8 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     return RoutePlan(comparison=comparison,
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,
-                     fallback=tuple(d for d in _ORDER if d in fallback))
+                     fallback=tuple(d for d in _ORDER if d in fallback),
+                     capability=False)
 
 
 # --------------------------------------------------------------------------

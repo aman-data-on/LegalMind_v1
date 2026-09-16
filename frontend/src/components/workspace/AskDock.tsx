@@ -72,6 +72,7 @@ import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, 
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
+import { AnswerProse } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -521,7 +522,7 @@ export function WsAnswerView({
 
   return (
     <div className="ws-ask__answer" data-state="ANSWERED">
-      <p className="ws-ask__text">{result.text}</p>
+      <AnswerProse text={result.text} />
       {result.citations.length > 0 ? (
         <ol className="ws-ask__citations" aria-label="Sources in this document">
           <li className="ws-ask__routed-label" aria-hidden="true">Sources — this document</li>
@@ -611,6 +612,18 @@ export function PositionsSection({
               <span className="ws-mono">{position.standard_code}</span>
               {position.source_clause ? ` · ${position.source_clause}` : ""}
               {` · ${position.document_type}`}
+              {position.standard_version != null ? ` · v${position.standard_version}` : ""}
+              {/* Status appears ONLY when it is not ACTIVE. Stamping "ACTIVE" on every
+                  citation is noise on the common case and trains the eye to skip the
+                  field, which is exactly when a DRAFT or DEPRECATED position needs to
+                  be noticed. Silence when normal, a word when it matters — not urgency
+                  theater, just the fact. `nowrap` keeps the compact label whole, and it
+                  is real text, never a hover-only tooltip. */}
+              {position.ratification_status && position.ratification_status !== "ACTIVE" ? (
+                <span className="ws-ask__standard-state">
+                  {position.ratification_status === "DRAFT" ? "Draft" : "Superseded"}
+                </span>
+              ) : null}
             </span>
             <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
             {/* The ASSESSMENT is the deterministic evaluator's existing Finding

@@ -233,3 +233,38 @@ def oidc_jit_roles() -> tuple[str, ...]:
 def oidc_jit_enabled() -> bool:
     return os.environ.get("LEGALMIND_OIDC_JIT_ROLES",
                           JIT_ROLES_DEFAULT).strip().upper() != "DISABLED"
+
+
+def capability_route_enabled() -> bool:
+    """Whether the `AM-68` capability question route is live. ON since 2026-09-15.
+
+    `AM-68` was approved that day, with the owner choosing option (b): the manifest is
+    rendered directly and no generation call is made. The route was built behind this
+    flag while the amendment was pending and is now on by default.
+
+    The flag stays rather than being deleted, because it is the rollback: the route can
+    be turned off with an environment variable and a restart, without a deploy. Set
+    `LEGALMIND_CAPABILITY_ROUTE=off` to return to searching the corpora for a question
+    about the product.
+    """
+    value = os.environ.get("LEGALMIND_CAPABILITY_ROUTE", "on")
+    return value.lower() in {"1", "true", "on"}
+
+
+def position_synthesis_enabled() -> bool:
+    """Whether `AM-67`'s Domain A reading aid is live. OFF by default.
+
+    `AM-67` r7 is a PREREQUISITE, not a preference: 8 of the 40 ratified standards
+    carried a counterparty note and 24 an environment path inside `source_document`,
+    composed into the chunk text. Egressing those would breach `AM-30` t4 and t5 on the
+    first call. The record forbids enabling r1 in any environment until THAT
+    environment's position corpus has been re-chunked and verified locator-free.
+
+    A deploy does not satisfy that — a re-chunk does, and it is a separate operation on
+    live data. So this stays off until an operator turns it on, after running
+    `tools.chunk_standards` and confirming zero locators. `positions.screen_for_egress`
+    is the second line: even with this on, a chunk carrying a locator is refused rather
+    than sent.
+    """
+    value = os.environ.get("LEGALMIND_POSITION_SYNTHESIS", "")
+    return value.lower() in {"1", "true", "on"}

@@ -713,6 +713,13 @@ export interface AssistPosition {
   document_type: string;
   source_clause: string | null;
   content: string;
+  /** `AM-32` r4's citation is "standard code, version, source clause". Null only for
+   *  a record written before the join existed. */
+  standard_version: number | null;
+  /** The configuration lifecycle state of the standard this position came from —
+   *  ACTIVE / DRAFT / DEPRECATED. A reader quoting a position is entitled to know
+   *  whether it is still the current one. */
+  ratification_status: string | null;
   retrieval_score: number | null;
   /** The deterministic engine's existing Finding for this standard on the asked
    *  version — READ, never produced, by Ask (the `AM-45` r4 precedent). Absent
