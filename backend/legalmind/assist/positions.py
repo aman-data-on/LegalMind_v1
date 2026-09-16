@@ -370,6 +370,15 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
               JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
               JOIN requirements r ON r.id = rv.requirement_id
              WHERE (SELECT cardinality(lex) FROM q) > 0
+               -- `AM-71` (AB-23, owner 2026-09-16): Ask retrieves ONLY currently
+               -- active ratified standards. A retired standard is not a weaker
+               -- answer to be labelled and shown; it is not an answer. Labelling
+               -- it "Superseded" tells the reader, which is a mitigation, not the
+               -- decision — the owner ruled it must not surface in normal
+               -- retrieval at all. The chunks are deliberately NOT deleted: they
+               -- stay for explicit version, history and audit use, which is why
+               -- this is a read-side filter rather than a narrower chunker.
+               AND r.status <> 'DEPRECATED'
         )
         SELECT id, standard_code, document_type, source_clause, content, score, matched,
                version_number, ratification
@@ -415,6 +424,9 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
           JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
           JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
           JOIN requirements r ON r.id = rv.requirement_id
+         -- `AM-71` — the same exclusion as the lexical path. Both, or a retired
+         -- position returns through whichever one is not filtered.
+         WHERE r.status <> 'DEPRECATED'
          ORDER BY pe.embedding {op} CAST(:q AS {vtype}), pc.standard_code
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()

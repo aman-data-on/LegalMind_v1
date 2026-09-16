@@ -19259,3 +19259,55 @@ r8   FAIL CLOSED TO THE QUOTE. If generation is unavailable, or the guardrail re
 ```
 
 --------------------------------------------------------------------------------
+
+================================================================================
+AMENDMENT BATCH AB-23 — `AM-71`
+A retired standard is not retrievable in Ask
+================================================================================
+
+**Owner decision, 2026-09-16**, in the owner's own words:
+
+> "Superseded/retired standards should NOT appear in normal Ask retrieval, even
+> if they are labelled 'Superseded'. Ask should retrieve only the currently
+> active/ratified Company Standards. Historical/superseded standards may remain
+> available only for explicit version/history/audit use cases."
+
+r1. **Ask retrieves only currently ACTIVE ratified Company Standards.** A
+    Requirement whose status is `DEPRECATED` is excluded from Domain A retrieval
+    — from the lexical path and the vector path alike. Both, or a retired
+    position simply returns through whichever one was left unfiltered.
+
+r2. **Labelling is not sufficient, and that is the substance of this decision.**
+    AB-21's citation work renders a superseded position as "Superseded", so a
+    reader is told rather than misled. The owner ruled that telling is not the
+    remedy: a retired position is not a weaker answer to be shown with a caveat,
+    it is not an answer. This amends nothing in AB-21 — the labelling stays and
+    is still correct for the history surfaces; it stops being the whole control.
+
+r3. **Answers `AM-65`'s open question.** `AM-65` retired seven standards the
+    Constitution does not define and said what happens to Findings and snapshots.
+    It did not say whether a retired position stays SEARCHABLE, because nobody
+    asked. Measured 2026-09-16: `tools.chunk_standards` chunks by FILE rather
+    than by requirement status, so a re-chunk took `position_chunks` from 32 to
+    40 and all seven retired standards became retrievable. `AM-70` r6 recorded
+    this as open rather than implying it was settled; this record closes it.
+
+r4. **The chunks are NOT deleted, deliberately.** The owner's ruling preserves
+    superseded standards "for explicit version/history/audit use cases", so the
+    exclusion is a READ-SIDE filter and not a narrower chunker. Retirement
+    removes a position from normal retrieval; it does not erase the record of
+    what the organisation once held. Pinned by
+    `test_retiring_does_not_delete_the_chunk`.
+
+r5. **Rule 15 direction.** The filter is an exclusion, not a re-ranking: a
+    retired position cannot be surfaced by a high score, a strong embedding, or
+    an empty result set. Ask returning nothing is the correct answer where the
+    only match is retired.
+
+**Recorded 2026-09-16.** Implemented and verified before the record was written:
+`legalmind/assist/positions.py` filters `r.status <> 'DEPRECATED'` in both the
+lexical and vector queries, which already joined `requirements` and read that
+status without acting on it. Three tests added, and each was confirmed to FAIL
+with the filter removed — a test that passes without the fix proves nothing.
+
+--------------------------------------------------------------------------------

@@ -10,6 +10,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — a retired standard is no longer retrievable in Ask (`AM-71`, AB-23) (2026-09-16)
+
+Owner ruling: *"Superseded/retired standards should NOT appear in normal Ask retrieval, even if
+they are labelled 'Superseded'. Ask should retrieve only the currently active/ratified Company
+Standards."*
+
+`AM-65` retired seven standards the Constitution does not define. It said what happens to
+Findings and snapshots; it never said whether a retired position stays **searchable**, because
+nobody asked. `tools.chunk_standards` chunks by **file** rather than requirement status, so a
+re-chunk took `position_chunks` from 32 to 40 and **all seven became retrievable in Ask**.
+
+AB-21's citation work rendered them "Superseded", so a reader was told rather than misled. The
+owner ruled that telling is not the remedy: **a retired position is not a weaker answer to be
+shown with a caveat — it is not an answer.**
+
+Both retrieval paths now exclude `DEPRECATED` requirements. Both, or a retired position simply
+returns through whichever one was left unfiltered. Notably, both queries already joined
+`requirements` and selected `r.status` — they read it and did not act on it.
+
+**The chunks are deliberately not deleted.** The ruling preserves superseded standards for
+explicit version, history and audit use, so this is a read-side filter rather than a narrower
+chunker. Retirement removes a position from retrieval; it does not erase what the organisation
+once held.
+
+Three tests, **each confirmed to fail with the filter removed** — a test that passes without the
+fix proves nothing.
+
+
 ### Fixed — the account roster now shows that access can be changed (2026-09-15)
 
 Reported by the owner: *"I saw the administration page and I want to change the role of tasniya but

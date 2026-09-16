@@ -289,3 +289,66 @@ def test_chunking_embeds_every_position_when_the_model_is_available(db, user, ra
         SELECT (SELECT count(*) FROM "{schema}".position_chunks),
                (SELECT count(*) FROM "{schema}".position_chunk_embeddings)""")).one()
     assert chunks == vectors == 2
+
+
+# ==========================================================================
+# `AM-71` (AB-23, owner 2026-09-16) — a retired standard is not retrievable.
+#
+# `AM-65` retired seven standards the Constitution does not define. It did not
+# say whether a retired position stays SEARCHABLE, because nobody asked. A
+# re-chunk on 2026-09-16 took `position_chunks` from 32 to 40 and all seven
+# became retrievable in Ask, rendering "Superseded".
+#
+# The owner ruled that labelling is not sufficient: Ask retrieves only currently
+# active ratified standards. Superseded positions remain available for explicit
+# version, history and audit use — which is why the chunks are NOT deleted and
+# the exclusion is a read-side filter.
+# ==========================================================================
+def _retire(db, code: str) -> None:
+    """Mark a standard's Requirement DEPRECATED, as the importer does."""
+    db.execute(sql_text(
+        "UPDATE requirements SET status = 'DEPRECATED' WHERE code = :c"),
+        {"c": code})
+    db.flush()
+
+
+def test_a_retired_standard_is_not_returned_by_search(db, user, ratified_dir):
+    """The whole point: it was findable, and after retirement it is not."""
+    _indexed(db, user, ratified_dir)
+
+    before = positions.search_positions(db, query="widget handling care",
+                                        permissions=BOTH)
+    assert any(h.standard_code == "TESTPOS-MSA-001" for h in before), \
+        "precondition: the standard must be findable before it is retired"
+
+    _retire(db, "TESTPOS-MSA-001")
+
+    after = positions.search_positions(db, query="widget handling care",
+                                       permissions=BOTH)
+    assert all(h.standard_code != "TESTPOS-MSA-001" for h in after), \
+        "a retired standard must not surface in normal Ask retrieval (AM-71)"
+
+
+def test_retiring_does_not_delete_the_chunk(db, user, ratified_dir):
+    """`AM-71` keeps the history. The exclusion is retrieval, not erasure —
+    superseded positions stay available for version, history and audit use."""
+    _indexed(db, user, ratified_dir)
+    schema = config.assist_schema()
+    count = lambda: db.execute(sql_text(                       # noqa: E731
+        f'SELECT count(*) FROM "{schema}".position_chunks '
+        "WHERE standard_code = :c"), {"c": "TESTPOS-MSA-001"}).scalar()
+
+    assert count() == 1
+    _retire(db, "TESTPOS-MSA-001")
+    assert count() == 1, "the chunk must survive retirement; only retrieval excludes it"
+
+
+def test_an_active_standard_is_unaffected_by_another_being_retired(db, user,
+                                                                   ratified_dir):
+    """The filter must be narrow. Retiring one standard must not quieten the rest."""
+    _indexed(db, user, ratified_dir)
+    _retire(db, "TESTPOS-MSA-001")
+    hits = positions.search_positions(db, query="widget handling care",
+                                      permissions=BOTH)
+    # Whatever else the corpus holds is still reachable; only the retired code is gone.
+    assert all(h.standard_code != "TESTPOS-MSA-001" for h in hits)
