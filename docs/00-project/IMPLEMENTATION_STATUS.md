@@ -14,9 +14,49 @@ Last synchronized against `all_lock.md` at **19,072 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — AB-22 and AB-23 DEPLOYED (2026-09-16)
+
+| Work | Merged as | Build state |
+|---|---|---|
+| `AM-70` — `DELETE /counterparties/{id}` for a Client Profile with no documents | PR #54 `10113e0` | **IMPLEMENTED · TESTED · DEPLOYED** |
+| `AM-71` — Ask retrieval excludes a `DEPRECATED` Requirement (lexical **and** vector) | PR #55 `6c8af71` | **IMPLEMENTED · TESTED · DEPLOYED** |
+
+No migration was required by either. `legalmind-api`, `legalmind-worker` and
+`legalmind-frontend` restarted clean — `NRestarts=0` on each — and the deploy tree is at
+`6c8af71`, equal to `origin/main`.
+
+**`AM-71` was verified against live production data, not only in tests.** Six probes through
+the deployed `search_positions` returned **zero** retired standards while active standards
+returned normally. The counterfactual matters more than the pass: the same lexical query with
+the filter removed ranks `FORCE-MAJEURE-TOS-001` (`DEPRECATED`) **first** and
+`FORCE-MAJEURE-MSA-001` fourth. The defect was live, not theoretical.
+
+`position_chunks` still holds **40 rows — 33 `ACTIVE` + 7 `DEPRECATED`**, deliberately: the
+ruling preserves superseded positions for explicit version, history and audit use, so the
+exclusion is read-side. Retirement removes a position from retrieval; it does not erase it.
+
+Each of the three new tests in `tests/test_positions.py` was confirmed to FAIL with the filter
+removed (2 failed / 16 passed disabled; 18 passed restored). CI on the merge head: **27 checks
+pass, 3 skip, 0 fail**, including job 13 (whole suite) and job 10 (browser workflows).
+
+⚠️ **One CI attempt on PR #54 failed job 10 and was not a regression.** The API process died
+mid-run (`ECONNRESET` at 06:45:19, no traceback) after 104 tests had passed; the 23 subsequent
+`POST /contracts failed: 500` are the frontend proxy reporting a dead socket. The same commit
+passed job 10 on another attempt, and PR #55 passed it. This is the recorded nondeterministic
+job-10 flake — it was diagnosed from the log, not assumed, and no retry was added to mask it.
+
 ### Release state — Ask AI safety and citation fixes BUILT, NOT DEPLOYED (2026-09-15, later)
 
 Supersedes nothing below; it records work that exists only on unmerged branches.
+
+⚠️ **SUPERSEDED 2026-09-16 — this work is now MERGED and DEPLOYED.** It landed as PR #53
+(`ad025f1`) and reached the running system with the 2026-09-16 deploys recorded above. The
+three "still carries every defect" statements below were true when written and are no longer
+true. The corpus **has** been re-chunked: `position_chunks` was rebuilt 2026-09-16 10:26 and
+**0 of its 40 rows contain a repository path or filename**, so the sanitizer's write-time fix
+is in force in production. The verification gap below is also closed — the DB-backed suite
+now runs (CI job 13 green on both merge heads). Left unedited below as the record of what was
+true on 2026-09-15.
 
 **The deploy tree still carries every defect named here.** Verified 2026-09-15 against
 `/root/Legalmind.v1`: `guardrails.py` still has the `else 1.0` grounding default,
@@ -350,7 +390,7 @@ limitations section is frozen at 2026-08-18. Each entry names where the evidence
 | Limitation | Evidence |
 |---|---|
 | **Ask retrieval recall is 0.625 against a measured 0.938 vector ceiling**; 21 of 64 answerable questions are refused. Nothing answered has been wrong (faithfulness 1.0, 0 wrong answers reaching a user). The cause is `COSINE_FLOOR` applied at two points; the owner ruled 2026-09-14 that the dial moves only where recall improves without a rise in wrongly-answered. | `tests/test_assist_retrieval_fusion.py` (xfail strict), `RETRIEVAL_RECALL_AUDIT_2026-09-02.md`, `tests/assist_eval/baseline.json` |
-| **Ask is effectively unusable in Hindi and Hinglish, and its safety screens were weaker there** — measured 2026-09-15: a Devanagari comparison question was answered generatively instead of routing to the evaluator, and a Devanagari claim passed the grounding check vacuously. Fixed on `fix/language-safety-screens`, **not deployed**. Retrieval itself remains marginal: Hinglish clears the 0.50 gate by as little as 0.009 and only because it carries English legal nouns; Devanagari scores 0.037. | [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §D.5, `tests/test_assist_language_safety.py`, `RESEARCH_DOMAIN_C_RD_2026-09-04.md` §2 |
+| **Ask is effectively unusable in Hindi and Hinglish, and its safety screens were weaker there** — measured 2026-09-15: a Devanagari comparison question was answered generatively instead of routing to the evaluator, and a Devanagari claim passed the grounding check vacuously. Fixed on `fix/language-safety-screens`, **merged as PR #53 and DEPLOYED 2026-09-16**. Retrieval itself remains marginal: Hinglish clears the 0.50 gate by as little as 0.009 and only because it carries English legal nouns; Devanagari scores 0.037. | [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §D.5, `tests/test_assist_language_safety.py`, `RESEARCH_DOMAIN_C_RD_2026-09-04.md` §2 |
 | **Faithfulness 1.0 is measured on the answerable half only** — the 21 false refusals never reach generation, so the figure is scored on 33 of 64 answerable questions, not all of them. | `tests/assist_eval/baseline.json` vs the 64/13 split |
 | **A capability question ("what can LegalMind do?") searches the Constitution and returns unrelated standards.** No capability question shape exists; the POSITIONS fallback is unconditional. Needs `AM-68`. | [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §C, `assist/routing.py` |
 | **Multi-document conversations do not exist** — one contract per conversation, permanently; "compare document A with document B" is structurally impossible. A product decision (OD-A), not a defect. | `assist/service.py` `attach_contract`, `conversations.contract_id` |
