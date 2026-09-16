@@ -23,6 +23,37 @@ wanting CI to go green is not a reason to use it.
 Do feature work in your own worktree (`git worktree add`, see CLAUDE.md § *Working
 alongside other sessions*) so the deploy tree stays clean and deployable.
 
+### Deploying without an administrator — `sudo legalmind-deploy`
+
+**Owner decision, 2026-09-16.** A developer ships their own merged work without an
+administrator present for every change. Members of group `legalmind-dev` may run
+exactly one command as root:
+
+```bash
+sudo legalmind-deploy       # takes no arguments, and accepts none
+```
+
+It fast-forwards `/root/Legalmind.v1` to `origin/main` and runs `ops/deploy.sh`. It
+refuses a dirty deploy tree, logs the invoking account to
+`/var/log/legalmind-deploy.log`, and deploys nothing but `origin/main` — the caller
+cannot point it at a branch, commit, tag or directory. So the only route onto the
+live site is still a reviewed pull request whose CI passed.
+
+⚠️ **The grant's safety rests entirely on one thing: `/root/Legalmind.v1` and
+`/usr/local/sbin/legalmind-deploy` are writable by root ONLY.** Anyone who can write
+either can execute arbitrary code as root through it — `.git/config` alone is enough,
+via `core.hooksPath`. When the grant was made, **13,480 paths in the deploy tree were
+group-writable** by `legalmind-dev`, which would have turned a deploy-only rule into
+full root; group write was removed in the same change. Group **read** is kept
+deliberately, so a developer can still read the tree they deploy.
+
+**Do not re-add group write to the deploy tree**, and do not widen the sudoers rule to
+a directory, a wildcard or a second command. If a developer needs something else as
+root, that is a new owner decision, not an edit to this one.
+
+Rollback remains an administrator's job: `git checkout <sha>` in the deploy tree, then
+`bash ops/deploy.sh`.
+
 **Status: 📁 DERIVED — an operator runbook. It decides nothing.** Prepared 2026-08-27.
 The authoritative register of what a deployment owes is the code, not this page:
 
