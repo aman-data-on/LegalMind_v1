@@ -41,6 +41,7 @@ import {
   FileCheck,
   FileText,
   History,
+  Lightbulb,
   Link2,
   Lock,
   Maximize2,
@@ -79,6 +80,11 @@ export const IconUsers = decorative(Users);
  *  page's own header, so reusing it for the document's mark would say the same
  *  word twice in one composition. */
 export const IconBuilding = decorative(Building2);
+/** The Add-a-client companion panel's Tips heading (2026-09-16). A bulb,
+ *  deliberately NOT `IconSparkle`: DESIGN.md's anti-patterns rule out sparkle
+ *  icons because they read as an AI-generated result, which `AI-01` forbids
+ *  this interface from ever implying. */
+export const IconLightbulb = decorative(Lightbulb);
 export const IconChevronUp = decorative(ChevronUp);
 export const IconChevronDown = decorative(ChevronDown);
 export const IconChevronRight = decorative(ChevronRight);
