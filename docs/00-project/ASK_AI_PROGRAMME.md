@@ -300,3 +300,31 @@ wanted · whether `LEGALMIND_POSITION_SYNTHESIS` is turned on (it begins real eg
 **Closed since this document was written:** the test DB URL was supplied; `AM-67`, `AM-68`
 and `AM-69` are locked and deployed; `AM-71` (another session's record) settled the
 retired-standard question this programme raised; `F-4` is fixed and live.
+
+---
+
+## Recorded 2026-09-17 — union grounding in `verify_answer` was never a decision
+
+**Surfaced while verifying Phase 0's re-verification fix; not changed.** `guardrails.verify_answer`
+grounds a sentence against the **union** of the content words of every chunk it cites
+(`set().union(*(_content_words(c) for c in cited_chunks))`). The code carries no comment on the
+choice and nothing in `docs/` or `all_lock.md` records it. Consequences, measured on the gate
+database:
+
+- A sentence citing `[1][2]` can clear the 0.5 floor while grounding in **neither** chunk alone —
+  one live answer's sentence overlapped its own first cited chunk at **0.42** and passed only
+  through the union.
+- The floor does not scale: 0.5 against a union of five chunks is a far weaker claim than 0.5
+  against one, and the model chooses how many chunks to cite.
+- This is the shape of one hallucination the screen exists to catch — half a fact from A joined to
+  half from B into a claim neither supports — and it would pass, quietly. `AM-69` r2 made a screen
+  that *cannot* evaluate refuse; a screen that evaluates against an ever-larger union is not
+  failing closed, it is passing on weaker evidence.
+
+Union grounding is also **right for the ordinary case**: a sentence that legitimately draws on two
+clauses would be rejected by a per-chunk floor. So this is not a bug to patch; it is a grounding
+rule that needs deciding and then measuring — per-chunk minimum, a floor that tightens with the
+number of citations, or the union as it stands, each against the 77-question gate's faithfulness
+and false-refusal counts. **Owner-facing.** Raised beside the `AM-67` enable rather than left
+between sessions.
+

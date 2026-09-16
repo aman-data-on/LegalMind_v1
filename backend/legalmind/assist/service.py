@@ -20,10 +20,15 @@ its cause, because a distinguishable refusal is an oracle (`AM-25` r6/r7).
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import dataclasses
 import logging
+import re
+import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -95,6 +100,49 @@ class AskOutcome:
     # Domain C (`AM-32` r7/r8, `AM-47`): the statute answer, generated over statute
     # evidence ONLY and cited Act + section — its own field, never merged (`AM-45` r2).
     statutes: dict | None = None
+    # Stage durations in milliseconds (2026-09-17), for the release gate and the log
+    # — never serialised to a reader. `ai_answers.latency_ms` keeps its meaning (the
+    # provider call alone); this is the whole ask, stage by stage.
+    timings: dict = field(default_factory=dict)
+
+
+# Stage timing (2026-09-17). Before this, the only latency anywhere in the lane was
+# the provider call, so a slow ask could not say WHICH of retrieval, generation,
+# verification or the fallbacks was slow. A context variable rather than a threaded
+# argument, so no helper's signature changes and a helper that is not inside an ask
+# simply records nothing. Accumulates, because positions can be searched twice.
+_TIMINGS: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "assist_timings", default=None)
+
+
+@contextlib.contextmanager
+def _stage(name: str):
+    timings = _TIMINGS.get()
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        if timings is not None:
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            timings[name] = timings.get(name, 0) + elapsed_ms
+
+
+_MARKER = re.compile(r"\[(\d{1,2})\]")
+
+
+def _renumber_markers(text_out: str, cited_indexes: list[int]) -> str:
+    """Make the reader's [n] and the citation list's [n] the same number.
+
+    The model cites evidence by its 1-based position in the list it was shown; the
+    response lists only the chunks that were actually cited, in ascending order. So an
+    answer citing only the third excerpt read "[3]" beside a list whose single entry
+    was rendered "[1]" (`AskDock.tsx` numbers by list index). Renumbered AFTER
+    verification, which still runs on the model's own indices; display only.
+    """
+    position = {index: k for k, index in enumerate(cited_indexes, start=1)}
+    return _MARKER.sub(
+        lambda m: f"[{position[int(m.group(1))]}]" if int(m.group(1)) in position
+        else m.group(0), text_out)
 
 
 def _persist_turn(db: DBSession, conversation_id: UUID, ordinal: int,
@@ -361,43 +409,49 @@ def _persist_answer(db: DBSession, message_id: UUID, retrieval_run_id: UUID | No
     return answer_id
 
 
-def _prompt_version_id(db: DBSession) -> UUID:
-    """Idempotently register the current prompt template — `AM-27`'s registry."""
+def _prompt_version_id(db: DBSession, code: str | None = None,
+                       template: str | None = None) -> UUID:
+    """Idempotently register a prompt template — `AM-27`'s registry.
+
+    Defaults to the document prompt. Until 2026-09-17 this registered ONLY that one,
+    so every `AM-67` reading aid was persisted with `prompt_version_id = NULL` — an
+    answer whose prompt the registry could not name.
+    """
+    code = code or generation.PROMPT_VERSION
+    template = template or generation.PROMPT_TEMPLATE
     schema = config.assist_schema()
     existing = db.execute(text(f"""
         SELECT id FROM "{schema}".prompt_versions
          WHERE code = :c ORDER BY version_number DESC LIMIT 1
-    """), {"c": generation.PROMPT_VERSION}).scalar()
+    """), {"c": code}).scalar()
     if existing:
         return existing
     prompt_id = uuid.uuid4()
     db.execute(text(f"""
         INSERT INTO "{schema}".prompt_versions (id, code, version_number, template)
         VALUES (:i, :c, 1, :t)
-    """), {"i": prompt_id, "c": generation.PROMPT_VERSION,
-           "t": generation.PROMPT_TEMPLATE})
+    """), {"i": prompt_id, "c": code, "t": template})
     return prompt_id
 
 
-def _persist_citations(db: DBSession, answer_id: UUID,
-                       verification: guardrails.Verification,
+def _persist_citations(db: DBSession, answer_id: UUID, cited_indexes: list[int],
                        hits: list) -> None:
     """One row per VERIFIED claim-to-chunk link — the row's existence IS the
-    verification (`AM-27`: no `verified` flag exists on purpose)."""
+    verification (`AM-27`: no `verified` flag exists on purpose).
+
+    `claim_ordinal` is the position in `cited_indexes` — the order the live response
+    lists citations in and the order `_renumber_markers` numbers them. Replay orders
+    by this column, so a replayed "[2]" names the same passage the reader first saw.
+    """
     schema = config.assist_schema()
-    seen: set[tuple[int, UUID]] = set()
-    for ordinal, citation in enumerate(c for c in verification.citations if c.grounded):
-        chunk_id = hits[citation.chunk_index - 1].chunk_id
-        key = (citation.chunk_index, chunk_id)
-        if key in seen:
-            continue
-        seen.add(key)
+    for ordinal, index in enumerate(cited_indexes):
         db.execute(text(f"""
             INSERT INTO "{schema}".answer_citations
                 (id, answer_id, chunk_id, claim_ordinal)
             VALUES (:i, :a, :c, :o)
             ON CONFLICT ON CONSTRAINT uq_answer_citations_claim_chunk DO NOTHING
-        """), {"i": uuid.uuid4(), "a": answer_id, "c": chunk_id, "o": ordinal})
+        """), {"i": uuid.uuid4(), "a": answer_id, "c": hits[index - 1].chunk_id,
+               "o": ordinal})
 
 
 def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
@@ -469,9 +523,11 @@ def _answer_statutes(db: DBSession, conversation_id: UUID, question: str,
         return {"answer_state": AssistAnswerState.EVIDENCE_INSUFFICIENT.value,
                 "text": None, "citations": []}
     try:
-        result = generation.generate(question, texts, environment=config.environment(),
-                                     request_id=request_id,
-                                     **_context_kwargs(prior_questions))
+        with _stage("statute_generation"):
+            result = generation.generate(question, texts,
+                                         environment=config.environment(),
+                                         request_id=request_id,
+                                         **_context_kwargs(prior_questions))
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
         log_event("assist.ask.statutes_refused", request_id=request_id,
                   cause=type(exc).__name__, conversation_id=str(conversation_id))
@@ -489,7 +545,8 @@ def _answer_statutes(db: DBSession, conversation_id: UUID, question: str,
     if not verification.passed:
         return {"answer_state": verification.state.value, "text": None, "citations": []}
     cited = sorted({c.chunk_index for c in verification.citations if c.grounded})
-    return {"answer_state": AssistAnswerState.ANSWERED.value, "text": result.text,
+    return {"answer_state": AssistAnswerState.ANSWERED.value,
+            "text": _renumber_markers(result.text, cited),
             "citations": _statute_views(hits, cited), "_cited": cited,
             "_model": result.model, "_latency_ms": result.latency_ms}
 
@@ -597,6 +654,30 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         question: str, permissions: frozenset[str] = frozenset(),
         request_id: str | None = None,
         finding_id: UUID | None = None) -> AskOutcome:
+    """`_ask`, timed stage by stage. One `assist.ask.timings` event per question and
+    the same numbers on the outcome, so the release gate can report p50/p95 per
+    stage through the production path rather than the provider call alone."""
+    timings: dict[str, int] = {}
+    token = _TIMINGS.set(timings)
+    started = time.monotonic()
+    try:
+        outcome = _ask(db, conversation_id=conversation_id,
+                       document_version_id=document_version_id, question=question,
+                       permissions=permissions, request_id=request_id,
+                       finding_id=finding_id)
+    finally:
+        _TIMINGS.reset(token)
+    timings["total"] = int((time.monotonic() - started) * 1000)
+    stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
+    log_event("assist.ask.timings", request_id=request_id,
+              conversation_id=str(conversation_id), **stage_fields)
+    return dataclasses.replace(outcome, timings=dict(timings))
+
+
+def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
+         question: str, permissions: frozenset[str] = frozenset(),
+         request_id: str | None = None,
+         finding_id: UUID | None = None) -> AskOutcome:
     """Answer a question from the authorized sources it needs, or refuse honestly.
 
     The caller (the API layer) has already authorized the conversation and, when there
@@ -698,13 +779,15 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     # first because it is cheap, local, and never touches the model.
     position_hits: list[positions.PositionHit] = []
     if route.has(routing.Domain.POSITIONS):
-        position_hits = positions.search_positions(
-            db, query=resolved, permissions=permissions, limit=POSITION_LIMIT)
+        with _stage("positions"):
+            position_hits = positions.search_positions(
+                db, query=resolved, permissions=permissions, limit=POSITION_LIMIT)
     # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
     statute_hits: list[statutes.StatuteHit] = []
     if route.has(routing.Domain.STATUTES):
-        statute_hits = statutes.search_statutes(db, query=resolved,
-                                                permissions=permissions)
+        with _stage("statutes"):
+            statute_hits = statutes.search_statutes(db, query=resolved,
+                                                    permissions=permissions)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.
     if route.comparison:
@@ -739,9 +822,10 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                                      prior_questions=prior_texts,
                                      follow_up_of=follow_up_of)
 
-    retrieval = store.search_hybrid(
-        db, document_version_id=document_version_id, query=resolved,
-        embed_query=embedding_runtime.embed_query)
+    with _stage("retrieval"):
+        retrieval = store.search_hybrid(
+            db, document_version_id=document_version_id, query=resolved,
+            embed_query=embedding_runtime.embed_query)
     if cited_evidence:
         # A question about a Finding can always see the clause that Finding cites.
         # These rows are ADDED to whatever search found, never substituted for it,
@@ -769,7 +853,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     # sufficiency, citation verification, the grounding floor and the verdict screen.
     # `AM-25` r5 is untouched: the judge decides whether to TRY, the mechanical checks
     # still decide what a reader sees. Off by default.
-    rescued = rescue.reconsider(retrieval, resolved, request_id=request_id)
+    with _stage("rescue"):
+        rescued = rescue.reconsider(retrieval, resolved, request_id=request_id)
     if rescued is not retrieval:
         retrieval = rescued
         log_event("assist.ask.rescued", request_id=request_id,
@@ -806,10 +891,11 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
 
     try:
         # Document chunks ONLY reach the model. Position text never does (AM-32 r4).
-        result = generation.generate(question, chunk_texts,
-                                     environment=config.environment(),
-                                     request_id=request_id,
-                                     **_context_kwargs(prior_texts))
+        with _stage("generation"):
+            result = generation.generate(question, chunk_texts,
+                                         environment=config.environment(),
+                                         request_id=request_id,
+                                         **_context_kwargs(prior_texts))
     except generation.GenerationRefused as exc:
         # Gate closed, or no credential: an operational condition, surfaced to the
         # user as the one refusal wording (r4) and logged with its real cause.
@@ -846,7 +932,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                "payload_sha256": result.payload_sha256,
                "evidence_chunks": len(chunk_texts)})
 
-    verification = guardrails.verify_answer(result.text, chunk_texts)
+    with _stage("verification"):
+        verification = guardrails.verify_answer(result.text, chunk_texts)
     if verification.passed and intent.is_verdict_statement(result.text):
         # A grounded sentence can still be a VERDICT — a document that says "this
         # clause complies with our approved standard" is grounded and is exactly
@@ -884,20 +971,24 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     # caller who may read positions, and the domain is recorded whenever it was
     # SEARCHED, whether or not anything matched (`AM-46`).
     if routing.Domain.POSITIONS in route.fallback and not position_hits:
-        position_hits = positions.search_positions(
-            db, query=resolved, permissions=permissions, limit=POSITION_LIMIT)
+        with _stage("positions"):
+            position_hits = positions.search_positions(
+                db, query=resolved, permissions=permissions, limit=POSITION_LIMIT)
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
         db, document_version_id, {h.standard_code for h in position_hits}, permissions)
 
+    cited_indexes = sorted({c.chunk_index for c in verification.citations
+                            if c.grounded})
+    answer_text = _renumber_markers(result.text, cited_indexes)
     ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", result.text)
+    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", answer_text)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
                                 model=result.model,
                                 prompt_version_id=_prompt_version_id(db),
                                 latency_ms=result.latency_ms)
-    _persist_citations(db, answer_id, verification, retrieval.hits)
+    _persist_citations(db, answer_id, cited_indexes, retrieval.hits)
     _persist_position_citations(db, answer_id, position_hits)
     statute_section = None
     if statute_hits:
@@ -909,8 +1000,6 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         statute_section = {k: v for k, v in statute_section.items()
                            if not k.startswith("_")}
 
-    cited_indexes = sorted({c.chunk_index for c in verification.citations
-                            if c.grounded})
     citations = [
         CitationView(
             chunk_id=retrieval.hits[i - 1].chunk_id,
@@ -926,7 +1015,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
               positions=str(len(position_hits)))
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED,
-                      text=result.text, citations=citations,
+                      text=answer_text, citations=citations,
                       positions=_position_views(position_hits, position_findings),
                       domains=domains, statutes=statute_section)
 
@@ -1022,7 +1111,7 @@ def _context_kwargs(prior_questions: list[str] | None) -> dict:
 
 
 def _position_reading_aid(question: str, hits: list,
-                          request_id: str | None) -> str | None:
+                          request_id: str | None) -> generation.GenerationResult | None:
     """`AM-67` — a plain-language explanation of the organization's own positions,
     rendered BESIDE the verbatim quote and never instead of it (r3).
 
@@ -1062,7 +1151,8 @@ def _position_reading_aid(question: str, hits: list,
     if intent.is_verdict_statement(text_out):
         log_event("assist.position_synthesis.verdict_blocked", request_id=request_id)
         return None
-    return text_out
+    # The verified text, with the model identity and latency the audit row needs.
+    return dataclasses.replace(result, text=text_out)
 
 
 def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
@@ -1081,9 +1171,10 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     been consulted."""
     statute_hits = list(statute_hits or [])
     retrieval_query = retrieval_query or question
-    domains, position_hits, statute_hits = _consult_fallbacks(
-        db, conversation_id, retrieval_query, route, tuple(domains), position_hits,
-        statute_hits, permissions, request_id)
+    with _stage("fallbacks"):
+        domains, position_hits, statute_hits = _consult_fallbacks(
+            db, conversation_id, retrieval_query, route, tuple(domains), position_hits,
+            statute_hits, permissions, request_id)
     run_id = _record_fallthrough(db, message_id, run_id, retrieval_query, domains,
                                  statute_hits, follow_up_of=follow_up_of)
     statute_section = None
@@ -1096,6 +1187,7 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     statute_answered = answered_section is not None
     if not position_hits and not statute_answered:
         return _refusal(db, conversation_id, message_id, run_id, state, route)
+    aid: generation.GenerationResult | None = None
     if statute_answered:
         wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else STATUTES_ONLY_TEXT)
@@ -1106,16 +1198,30 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
         # verbatim quote and its citation still follow in `positions`, unchanged and
         # in their own field. A response carrying a synthesis without its quote is a
         # defect; this shape makes that impossible.
-        aid = _position_reading_aid(question, position_hits, request_id)
+        with _stage("position_aid"):
+            aid = _position_reading_aid(question, position_hits, request_id)
         if aid:
-            wording = f"{aid}\n\n{wording}"
+            wording = f"{aid.text}\n\n{wording}"
+    # The answer row names the prompt that produced its generated part — the statute
+    # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
+    # so `prompt_version_id` was NULL on every `AM-67` answer.
+    model: str | None = None
+    prompt_id: UUID | None = None
+    latency: int | None = None
+    if answered_section is not None:
+        model = answered_section.get("_model")
+        prompt_id = _prompt_version_id(db)
+        latency = answered_section.get("_latency_ms")
+    elif aid is not None:
+        model = aid.model
+        prompt_id = _prompt_version_id(db, generation.POSITION_PROMPT_VERSION,
+                                       generation.POSITION_PROMPT_TEMPLATE)
+        latency = aid.latency_ms
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
-    answer_id = _persist_answer(
-        db, reply_id, run_id, AssistAnswerState.ANSWERED,
-        model=answered_section.get("_model") if answered_section else None,
-        prompt_version_id=_prompt_version_id(db) if statute_answered else None,
-        latency_ms=answered_section.get("_latency_ms") if answered_section else None)
+    answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
+                                model=model, prompt_version_id=prompt_id,
+                                latency_ms=latency)
     _persist_position_citations(db, answer_id, position_hits)
     if statute_section is not None:
         _persist_statute_citations(db, answer_id, statute_hits or [],

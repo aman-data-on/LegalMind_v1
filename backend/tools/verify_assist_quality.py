@@ -298,21 +298,64 @@ def generation_available() -> tuple[bool, str]:
 
 
 def _generation_evidence(db, assistant_message_id, chunk_text: dict) -> list[str]:
-    """The chunk texts this answer was generated over, from its own retrieval run."""
-    import json as _json
+    """The chunks the answer's markers INDEX — `answer_citations` in display order.
 
+    Since Phase 0 (2026-09-17) the persisted text carries display numbering: `[k]`
+    names the k-th cited chunk, and `_persist_citations` writes `claim_ordinal` in that
+    same order. This used to return the retrieval run's full hit list, which scored a
+    renumbered "[1]" against the FIRST RETRIEVED chunk — and read faithfulness 0.758 on
+    a run whose every answer had passed verification (measured 2026-09-17, then proven
+    on the gate database: 50/50 pass against the citations, 39/50 against the run).
+    Verifying the text a reader sees against the citations a reader is shown is also
+    the property Phase 0 exists to guarantee.
+    """
     schema = config.assist_schema()
-    results = db.execute(text(
-        f'SELECT r.results FROM "{schema}".ai_answers a '
-        f'JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id '
-        "WHERE a.message_id = :m"), {"m": assistant_message_id}).scalar()
-    if not results:
-        return []
-    if isinstance(results, str):
-        results = _json.loads(results)
-    return [chunk_text[uuid.UUID(h["chunk_id"])]
-            for h in results.get("hits", [])
-            if uuid.UUID(h["chunk_id"]) in chunk_text]
+    rows = db.execute(text(
+        f'SELECT ac.chunk_id FROM "{schema}".answer_citations ac '
+        f'JOIN "{schema}".ai_answers a ON a.id = ac.answer_id '
+        "WHERE a.message_id = :m AND ac.chunk_id IS NOT NULL "
+        "ORDER BY ac.claim_ordinal"), {"m": assistant_message_id}).all()
+    return [chunk_text[r[0]] for r in rows if r[0] in chunk_text]
+
+
+class _ProviderMeter:
+    """Counts calls and provider-reported tokens through `generation.generate_raw`
+    for the duration of a measurement — every prompt (answer, statutes, reading aid,
+    rescue, planner) goes through that one seam (`AM-30` t1), so wrapping it counts
+    them all. Read-only instrumentation; the wrapped function is restored on exit."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.prompt_tokens = 0
+        self.output_tokens = 0
+        self._real = None
+
+    def __enter__(self):
+        self._real = generation.generate_raw
+
+        def counted(*args, **kwargs):
+            self.calls += 1
+            result = self._real(*args, **kwargs)
+            self.prompt_tokens += result.prompt_tokens or 0
+            self.output_tokens += result.output_tokens or 0
+            return result
+
+        generation.generate_raw = counted
+        return self
+
+    def __exit__(self, *exc):
+        generation.generate_raw = self._real
+
+
+def _percentiles(values: list[int]) -> dict:
+    if not values:
+        return {"p50": None, "p95": None}
+    ordered = sorted(values)
+
+    def at(q: float) -> int:
+        return ordered[min(len(ordered) - 1, round(q * (len(ordered) - 1)))]
+
+    return {"p50": at(0.50), "p95": at(0.95)}
 
 
 def measure_generated(db, versions: dict, questions: list[dict],
@@ -359,6 +402,8 @@ def measure_generated(db, versions: dict, questions: list[dict],
     answered_attempts = unfaithful_answers = 0
     user_wrongly_answered: list[str] = []
     user_answered = 0
+    stage_ms: dict[str, list[int]] = {}
+    meter = _ProviderMeter()
 
     for q in questions:
         conversation_id = uuid.uuid4()
@@ -367,10 +412,13 @@ def measure_generated(db, versions: dict, questions: list[dict],
                         "VALUES (:i, :u, NULL, now())"),
                    {"i": conversation_id, "u": user_id})
         db.commit()
-        outcome = service.ask(db, conversation_id=conversation_id,
-                              document_version_id=versions[q["document"]],
-                              question=q["question"], request_id="tier2-gate")
+        with meter:
+            outcome = service.ask(db, conversation_id=conversation_id,
+                                  document_version_id=versions[q["document"]],
+                                  question=q["question"], request_id="tier2-gate")
         db.commit()
+        for stage, ms in outcome.timings.items():
+            stage_ms.setdefault(stage, []).append(ms)
 
         answered = outcome.answer_state is AssistAnswerState.ANSWERED
         if q["expected"] == "NOT_FOUND":
@@ -402,6 +450,12 @@ def measure_generated(db, versions: dict, questions: list[dict],
         "unfaithful_answers": unfaithful_answers,
         "citation_precision": round(grounded / emitted, 3) if emitted else None,
         "claims_scored": claims,
+        # Latency and cost (2026-09-17) — REPORTED, never gated, never in the baseline.
+        # Per-stage p50/p95 over every question, through the production path.
+        "stage_latency_ms": {stage: _percentiles(ms) for stage, ms in sorted(stage_ms.items())},
+        "gemini_calls_per_question": round(meter.calls / len(questions), 2),
+        "gemini_prompt_tokens": meter.prompt_tokens,
+        "gemini_output_tokens": meter.output_tokens,
     }
 
 
@@ -425,7 +479,8 @@ def _baseline_payload(metrics: dict, dataset_sha: str, n_questions: int) -> dict
                                     and generation_available()[0]),
         },
         "metrics": {k: v for k, v in metrics.items()
-                    if not k.endswith("_ids")},
+                    if not k.endswith("_ids")
+                    and not k.startswith(("stage_latency", "gemini_"))},
         "not_yet_measurable": ({} if "faithfulness" in metrics else {
             "faithfulness": "requires generated answers; see generation_available()",
             "citation_precision": "same blocker",
@@ -503,7 +558,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  faithfulness       {metrics['faithfulness']}"
               f"   (claims with a valid supporting span, {metrics['claims_scored']}"
               f" scored across {metrics['generated_answers']} answers)")
-        print(f"  citation precision {metrics['citation_precision']}\n")
+        print(f"  citation precision {metrics['citation_precision']}")
+        print(f"  gemini calls/q     {metrics['gemini_calls_per_question']}   "
+              f"(prompt tokens {metrics['gemini_prompt_tokens']}, "
+              f"output tokens {metrics['gemini_output_tokens']})")
+        print("  latency ms p50/p95 " + "  ".join(
+            f"{stage}={v['p50']}/{v['p95']}"
+            for stage, v in metrics["stage_latency_ms"].items()) + "\n")
     else:
         print(f"  faithfulness       BLOCKED — {gen_why}")
         print("  citation precision BLOCKED — same blocker\n")
