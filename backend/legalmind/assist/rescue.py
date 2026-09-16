@@ -33,8 +33,13 @@ retrieved and already authorised — not whether its output is trusted.
 
 EGRESS: this sends the question and the retrieved chunk spans, which is precisely what
 `AM-30` t2 already permits for generation. No new category of data leaves. It is a new
-PURPOSE for that egress and one extra call per refused question, which is why it ships
-behind `LEGALMIND_EVIDENCE_RESCUE`, unset.
+PURPOSE for that egress and one extra call per refused question.
+
+FLAG STATE — `LEGALMIND_EVIDENCE_RESCUE` defaults to **ON** (`config.py`). It shipped
+behind the flag unset, and the owner turned it on on 2026-09-16 after the measurement
+above; this docstring went on saying "unset" for a day, which is exactly the mismatch
+that gets a feature blamed or exonerated wrongly in an incident. Setting the variable
+to "off" is still the rollback: a restart, no deploy.
 """
 
 from __future__ import annotations

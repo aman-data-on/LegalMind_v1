@@ -33,6 +33,7 @@ credential, a permission — including the things that leave no commit behind.
 | #59 | One deploy at a time (`flock` on `ops/deploy.sh`) | ✅ `8625f0a` |
 | #62 | Client Profiles empty state: vertical rhythm and position | ✅ `4485174` |
 | #64 | The quality gate was measuring a pipeline nobody ships | ✅ `c16cdaf` |
+| #65 | A factual question was being answered with "run a Review" — comparison-intent routing | ✅ `be8d97c` |
 
 No migration was required by any of them. Services restarted clean each time — `NRestarts=0` on
 `legalmind-api`, `legalmind-worker` and `legalmind-frontend`.
@@ -104,9 +105,9 @@ tree silently re-opens root.**
   from the mode. Clean everywhere that matters more: all 3,095 git blobs including unreachable
   ones, the deployed bundle, `/var/log`, the journal, nginx and systemd config, and CI (which
   actively asserts no provider credential is present). The cache files are disposable.
-- **PR #65** (Ask comparison-intent routing) is prepared and held on its branch deliberately:
-  on this repository a merge now schedules a deploy, because the deploy command ships
-  `origin/main`.
+- ~~PR #65 held on its branch~~ — **merged and deployed on the owner's go**, CI 27 pass / 0 fail.
+  It was held deliberately until then: on this repository a merge now schedules a deploy, because
+  the deploy command ships `origin/main`.
 - **CI job 10 (Playwright) failed 2 of 4 runs**, each time the API process dying mid-run with
   `ECONNRESET` during document processing, no traceback. A re-run of identical code passed. A
   required check that fails half the time is one people learn to ignore.

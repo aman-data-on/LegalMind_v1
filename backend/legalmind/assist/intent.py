@@ -42,24 +42,27 @@ _WORD = re.compile(r"[a-z]+|[ऀ-ॿ]+")
 # Exact matches — a prefix would let "use" and "were" through.
 # Hindi first-person possessives are the exact equivalent of "our", and appear both
 # romanized and in Devanagari in real questions ("hamare standard", "हमारे मानक").
-_ORG_PRONOUNS = frozenset({
-    "our", "ours", "us", "we",
-    "hamara", "hamare", "hamari", "humara", "humare", "humari",
-    "hum", "humein", "hamein",
-    "हमारा", "हमारे", "हमारी", "हम", "हमें",
-})
+# Every first-person form, either case — defined below the two case sets it unions, so
+# the vocabulary has one home. `mentions_organization` wants them all: a question saying
+# "we" or "our" may be about the organization's position and is a Domain A CANDIDATE.
+# `is_comparison_question` needs the cases apart, which is what the two sets are for.
 # Exact words, not stems: "follow-up" and "following our call" are not comparisons.
 _VERB_WORDS = frozenset({"follow", "follows", "adhere", "adheres", "honour", "honor"})
 _ORG_STEMS = ("compan", "approv", "standard", "position", "polic",
               "constitution", "baseline", "playbook", "template", "leapswitch", "cloudpe",
               # Hindi: मानक standard · नीति policy · संविधान constitution · कंपनी company
               "मानक", "नीति", "संविधान", "कंपनी")
-_VERB_STEMS = ("compar", "against", "compl", "conform", "align", "meet", "meets",
+_VERB_STEMS = ("compar", "against", "conform", "align", "meet", "meets",
                "satisf", "deviat", "match", "differ", "accept", "unaccept", "approv",
                "violat", "breach", "consistent", "inconsistent", "conflict",
                # Hindi: तुलना compare · अनुसार/अनुरूप according to · पालन comply ·
                # उल्लंघन violate · विपरीत contrary · मेल match
                "तुलना", "अनुसार", "अनुरूप", "पालन", "उल्लंघन", "विपरीत", "मेल")
+# The comply family as EXACT words, not the stem "compl" it used to be matched by.
+# Measured 2026-09-16 on the ratified set: "compl" matched "complete", so "why do we
+# have to COMPLETE identity verification?" carried a comparison signal. It would have
+# matched "complex", "complicated" and "complimentary" too.
+_COMPLY_WORDS = frozenset({"comply", "complies", "complied", "complying"})
 _NOUN_STEMS = ("deviation", "gap", "missing", "acceptab", "unacceptab", "compliance",
                "compliant", "noncompliant", "redline", "attention", "modif", "risk")
 
@@ -76,17 +79,94 @@ _COMPARISON_BIGRAMS = frozenset({
 # Single romanized tokens that are unambiguously comparison signals on their own.
 _COMPARISON_WORDS = frozenset({"tulna", "palan", "ullanghan", "anupalan"})
 
-# Signing-readiness. `AM-25` r4 already forbids the assistant deciding whether a
-# document meets the standard; "should we sign this?" asks for strictly more than
-# that, so until Phase 3 gives it its own structured route it is treated as a
-# comparison and handed to the evaluator — which answers with Findings rather than
-# a yes/no, exactly what the question should get. Exact words: "sign" as a stem
-# would swallow "significant" and "signatory".
-_SIGNING_WORDS = frozenset({"sign", "signing", "हस्ताक्षर"})
+# --------------------------------------------------------------------------
+# Why this is a RELATION and not two bags of words (rewritten 2026-09-16)
+# --------------------------------------------------------------------------
+# The screen used to be: an organization word anywhere AND a comparison word anywhere.
+# That is co-occurrence, not intent, and measured on the ratified 77-question set it
+# misrouted SEVEN of 64 answerable questions to the evaluator — a user asking "how much
+# time do we get to fix a breach before the provider can terminate?" was answered with
+# "run a Review" instead of the cure period. Every one fired on an unrelated pair:
+#
+#     we ... breach          a contract EVENT, not a comparison
+#     we ... complete        the stem "compl" reaching "complete"
+#     our marketing emails ... meet ... acceptable
+#     a security standard ... satisfying
+#     a company ... data breach
+#     sign contracts on behalf of a company
+#
+# What actually distinguishes the evaluator's question is that the comparison verb takes
+# THE ORGANIZATION'S POSITION as its object: "comply with OUR APPROVED STANDARD", "match
+# OUR STANDARD POSITION", "deviate from THE COMPANY STANDARD". So the screen now asks for
+# a position REFERENCE — a position noun qualified as the organization's own — rather than
+# for any word from an organization-flavoured list. Three shapes route to the evaluator:
+#
+#   (A) COMPARISON AGAINST OUR POSITION   a position reference + a comparison signal
+#   (B) SIGNING READINESS                 first-person subject + an acceptance word +
+#                                         a reference to the document itself
+#   (C) AN UNAMBIGUOUS COMPARISON VERB    "compare", "comply", "deviate", "तुलना" — words
+#                                         with no other meaning in this domain
+#
+# Case is what separates (B) from the false positives. "OUR marketing emails" is a
+# POSSESSIVE determiner: it possesses the noun after it, and that noun is not a position.
+# "acceptable to US" and "should WE sign" are nominative/objective: the first person is
+# the party deliberating. The old set collapsed both into one bag of pronouns.
+_FIRST_PERSON_POSSESSIVE = frozenset({
+    "our", "ours",
+    "hamara", "hamare", "hamari", "humara", "humare", "humari",
+    "हमारा", "हमारे", "हमारी",
+})
+_FIRST_PERSON_SUBJECT = frozenset({
+    "we", "us",
+    "hum", "humein", "hamein",
+    "हम", "हमें",
+})
+_ORG_PRONOUNS = _FIRST_PERSON_POSSESSIVE | _FIRST_PERSON_SUBJECT
 
-# "approv" appears in both groups on purpose: "our approved position" is an organization
-# reference; "can we approve this" is a comparison verb. One token cannot serve as both,
-# so a question that only says "approved" once still needs a second signal.
+# Who is DELIBERATING, which is not the same question as whose position it is — so this
+# is its own set rather than a widening of the one above. "Should I approve this?" is a
+# signing question; "help me" and "show me" are not, which is why the dative "me" is
+# absent. Widening `_ORG_PRONOUNS` instead made `mentions_organization` fire on "what
+# can you help me with?", routing a capability question at the organization's positions
+# (caught by test_assist_capability_route on 2026-09-16).
+_DELIBERATING_SUBJECT = _FIRST_PERSON_SUBJECT | {"i"}
+
+# The nouns that can BE a position. "standard" is here; "company" and "approved" are not
+# — they qualify a position, they are not one, which is why "a security standard" and
+# "a company" no longer count as references to ours.
+_POSITION_NOUNS = ("standard", "position", "polic", "constitution", "baseline",
+                   "playbook", "template", "मानक", "नीति", "संविधान")
+# What marks a position noun as OURS rather than anyone's, besides a first-person
+# possessive: the organization, or the fact that we approved it.
+_POSITION_QUALIFIERS = ("compan", "approv", "leapswitch", "cloudpe", "कंपनी")
+# How far before the noun a qualifier may sit. Three covers a full English determiner +
+# adjective stack — "our approved legal position" — and Hindi/Hinglish put the possessive
+# adjacent. It is a noun-phrase span, not a score to tune: widening it would let a
+# qualifier from a different phrase reach across, which is the defect being fixed.
+_QUALIFIER_SPAN = 3
+
+# Verbs with no non-comparison reading in this domain. These need no object to be a
+# comparison request: "please compare and tell me what is acceptable for us" names no
+# position and is still the evaluator's question.
+_UNAMBIGUOUS_STEMS = ("compar", "deviat", "conform", "redline", "noncompliant",
+                      "तुलना")
+_UNAMBIGUOUS_WORDS = frozenset({"tulna", "anupalan"}) | _COMPLY_WORDS
+
+# (B): deciding whether to ENTER the document. `AM-25` r4 already forbids the assistant
+# deciding whether a document meets the standard; "should we sign this?" asks for
+# strictly more, so it goes to the evaluator, which answers with Findings rather than a
+# yes/no. Exact words: "sign" as a stem would swallow "significant" and "signatory".
+_ACCEPTANCE_WORDS = frozenset({
+    "sign", "signing", "accept", "accepts", "accepted", "acceptable", "unacceptable",
+    "approve", "approves", "agree", "chahiye", "हस्ताक्षर", "swikar",
+})
+# ... and it must be THIS document being signed, not signature rules in the abstract.
+# Without this leg, "what happens if we do not accept delivery?" is a signing question.
+_DOCUMENT_WORDS = frozenset({
+    "this", "these", "that", "those", "it", "contract", "contracts", "agreement",
+    "agreements", "document", "clause", "nda", "msa", "tos", "sla", "deal",
+    "yeh", "yah", "isko", "ismein", "isme", "iska", "ise", "यह", "इस", "इसे",
+})
 
 
 def _stems(text: str) -> list[str]:
@@ -100,9 +180,8 @@ def _hits(tokens: list[str], stems: tuple[str, ...]) -> set[int]:
 def _comparison_signals(tokens: list[str]) -> set[int]:
     """Indices of tokens that signal a comparison, in any supported script."""
     signal = _hits(tokens, _VERB_STEMS) | _hits(tokens, _NOUN_STEMS)
-    signal |= {i for i, t in enumerate(tokens) if t in _VERB_WORDS}
-    signal |= {i for i, t in enumerate(tokens) if t in _COMPARISON_WORDS}
-    signal |= {i for i, t in enumerate(tokens) if t in _SIGNING_WORDS}
+    signal |= {i for i, t in enumerate(tokens)
+               if t in _VERB_WORDS or t in _COMPARISON_WORDS or t in _COMPLY_WORDS}
     # Postpositional bigrams: the second token carries the signal, so "ke according"
     # marks the index of "according".
     signal |= {i + 1 for i, t in enumerate(tokens[:-1])
@@ -110,17 +189,53 @@ def _comparison_signals(tokens: list[str]) -> set[int]:
     return signal
 
 
+def _position_reference(tokens: list[str]) -> set[int]:
+    """Indices of every token forming a reference to THE ORGANIZATION'S OWN position.
+
+    A position noun qualified, within `_QUALIFIER_SPAN` tokens before it, by a
+    first-person possessive or by the organization itself. Returns the whole phrase —
+    qualifier through noun — so a caller can require a comparison signal from OUTSIDE
+    it: "what is our approved position on X?" is a position LOOKUP, and its only
+    comparison-flavoured token ("approved") is part of the reference itself.
+    """
+    reference: set[int] = set()
+    for noun in _hits(tokens, _POSITION_NOUNS):
+        for i in range(max(0, noun - _QUALIFIER_SPAN), noun):
+            if tokens[i] in _FIRST_PERSON_POSSESSIVE \
+                    or tokens[i].startswith(_POSITION_QUALIFIERS):
+                reference |= set(range(i, noun + 1))
+                break
+    return reference
+
+
 def is_comparison_question(question: str) -> bool:
     """True when the question asks how the document stands against the organization's
-    position — the evaluator's question, never the model's."""
+    position — the evaluator's question, never the model's.
+
+    Three shapes, any one of which routes (see the note above `_FIRST_PERSON_POSSESSIVE`
+    for why this is a relation between the two halves and not the co-occurrence test it
+    replaced).
+    """
     tokens = _stems(question or "")
-    org = _hits(tokens, _ORG_STEMS)
-    org |= {i for i, t in enumerate(tokens) if t in _ORG_PRONOUNS}
-    signal = _comparison_signals(tokens)
-    # A signal token that is NOT itself an organization token is required: "our
-    # approved position" is a position LOOKUP (Domain A), not a comparison, even
-    # though "approved" is also a verb stem. "match our approved position" has one.
-    return bool(org) and bool(signal - org)
+    if not tokens:
+        return False
+    present = set(tokens)
+
+    # (C) A verb that means nothing else here. No object required.
+    if _hits(tokens, _UNAMBIGUOUS_STEMS) or present & _UNAMBIGUOUS_WORDS:
+        return True
+
+    # (A) A comparison signal bearing on OUR position — the signal must come from
+    # outside the reference, or "our approved position" would compare with itself.
+    reference = _position_reference(tokens)
+    if reference and (_comparison_signals(tokens) - reference):
+        return True
+
+    # (B) Deciding whether to sign THIS document. All three legs, or "what happens if
+    # we do not accept delivery?" and "who may sign on behalf of a company?" route here.
+    return bool(present & _DELIBERATING_SUBJECT
+                and present & _ACCEPTANCE_WORDS
+                and present & _DOCUMENT_WORDS)
 
 
 def mentions_organization(question: str) -> bool:
@@ -282,19 +397,32 @@ def is_statute_question(question: str) -> bool:
 # --------------------------------------------------------------------------
 # Verdict screen for GENERATED text (2026-09-09) — narrower than the question router
 # --------------------------------------------------------------------------
-# `is_comparison_question` routes QUESTIONS, and is deliberately wide: "does this
-# comply with Leapswitch's template?" must reach the evaluator. Reused on an ANSWER it
-# over-fires: a party name ("Leapswitch") is an organization token and "breach" is a
-# comparison stem, so the grounded, verified, purely descriptive sentence "Leapswitch
-# may terminate if the breach is not cured within thirty days [3]" was thrown away as
-# a compliance verdict (measured live, 2026-09-09 — the answer to the owner's own
-# question). A VERDICT is a statement about the document's standing against the
-# organization's POSITION: it needs a reference to that position (standard, policy,
-# approved position, constitution, baseline, playbook, template — never a mere party
-# name or pronoun) and a compliance signal (comply, conform, align, meet, satisfy,
-# deviate, match, acceptable, violate, consistent). "Breach" is a document word and
-# is not a signal here. Real verdicts — "this clause complies with our approved
-# standard", "the cap deviates from the company's position" — are still caught.
+# `is_comparison_question` routes QUESTIONS; this screens ANSWERS, and the two must not
+# be the same test. Reused on an answer the router over-fired: a party name
+# ("Leapswitch") is an organization token and "breach" is a comparison stem, so the
+# grounded, verified, purely descriptive sentence "Leapswitch may terminate if the
+# breach is not cured within thirty days [3]" was thrown away as a compliance verdict
+# (measured live, 2026-09-09 — the answer to the owner's own question). A VERDICT is a
+# statement about the document's standing against the organization's POSITION: it needs
+# a reference to that position (standard, policy, approved position, constitution,
+# baseline, playbook, template — never a mere party name or pronoun) and a compliance
+# signal. "Breach" is a document word and is not a signal here. Real verdicts — "this
+# clause complies with our approved standard", "the cap deviates from the company's
+# position" — are still caught.
+#
+# This note used to add that the router is "deliberately wide" because over-routing a
+# QUESTION is harmless. Measured 2026-09-16, it was not: the router sent 7 of 64
+# answerable questions to the evaluator, so "how much time do we get to fix a breach?"
+# was answered with "run a Review". The router now requires the same relation this
+# screen already required — a position REFERENCE, not a position-flavoured word — and
+# the two are no longer wide and narrow versions of one test but the same idea applied
+# on each side. See `_FIRST_PERSON_POSSESSIVE` above.
+#
+# `_VERDICT_STEMS` below still carries the stem "compl", which also matches "complete"
+# and "complex". Left as it is deliberately: over-firing HERE withholds an answer,
+# which fails closed, whereas over-firing in the router hands the user the wrong
+# product. Narrowing a screen on generated text is its own change with its own
+# faithfulness measurement, not a line in a routing fix.
 _POSITION_STEMS = ("standard", "position", "polic", "approv", "constitution",
                    "baseline", "playbook", "template",
                    "मानक", "नीति", "संविधान")

@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import embedding_runtime, generation, guardrails, service
+from legalmind.assist import embedding_runtime, generation, guardrails, rescue, service
 from legalmind.assist.calibration import gate_is_open
 from legalmind.assist.indexing import index_document_version
 from legalmind.assist.state import REFUSAL_TEXT, AssistAnswerState
@@ -1403,3 +1403,60 @@ def test_an_or_only_lexical_match_does_not_open_the_gate(db, user, indexed_contr
                               query="notice to the party about zorbulated framblewitz",
                               embed_query=lambda q: None)
     assert out.lexical_hit is False and out.gate_open is False and out.hits == []
+
+
+def test_a_rescued_turn_records_the_retrieval_its_answer_was_built_on(
+        db, user, indexed_contract, monkeypatch):
+    """`AM-27`: `retrieval_runs` is "the retrieval record behind an answer", so it has
+    to be the record behind THAT answer.
+
+    The run used to be written before the evidence-rescue judge reconsidered the gate,
+    which left a rescued turn with an audit row reading "gate closed, zero hits" beside
+    an answer citing chunks. Reordering it fixed that in `service.ask`, and nothing
+    pinned the fix — the 77-question gate exercises it against a real database, but a
+    benchmark is not a regression test, and production has not rescued a single turn
+    since the feature went live (checked in the journal, 2026-09-16).
+    """
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    monkeypatch.delenv("LEGALMIND_EVIDENCE_RESCUE", raising=False)
+    # The judge reopens the gate on everything it was shown; generation then answers
+    # from the first chunk so the turn completes like any other.
+    monkeypatch.setattr(rescue, "rescue_indices",
+                        lambda q, chunks, **k: list(range(len(chunks))))
+    monkeypatch.setattr(generation, "generate", lambda question, chunks, **k:
+                        generation.GenerationResult(
+                            text=_first_claim(chunks[0]) + " [1].", model="fake",
+                            prompt_version="test", payload_sha256="0" * 64,
+                            latency_ms=1))
+
+    conversation = _conversation(db, user, contract)
+    outcome = service.ask(db, conversation_id=conversation,
+                          document_version_id=version.id,
+                          question="zzz unrelated maritime salvage zzz")
+
+    schema = config.assist_schema()
+    run = db.execute(text(f"""
+        SELECT r.results FROM "{schema}".retrieval_runs r
+          JOIN "{schema}".messages m ON m.id = r.message_id
+         WHERE m.conversation_id = :c ORDER BY r.created_at DESC LIMIT 1
+    """), {"c": conversation}).scalar()
+
+    if outcome.answer_state is not AssistAnswerState.ANSWERED:
+        # The question is deliberately unrelated so the gate shuts; if a later screen
+        # refuses the rescued evidence the ordering claim is untestable here, and a
+        # green assertion would be proving nothing.
+        pytest.skip(f"the rescued turn did not answer ({outcome.answer_state}); "
+                    "this test asserts the audit row of an ANSWERED rescued turn")
+    assert run["gate"]["open"] is True, \
+        "the run records a shut gate for a turn that answered — written before rescue"
+    assert run["hits"], "the run records no hits for an answer built on rescued chunks"
+
+
+def _first_claim(chunk: str) -> str:
+    """The first sentence carrying content words — a claim with an empty content-word
+    set passes grounding vacuously, which is how two tests were once green."""
+    for sentence in chunk.split("."):
+        if len([w for w in sentence.split() if w.isalpha()]) >= 4:
+            return sentence.strip()
+    return chunk[:120].strip()
