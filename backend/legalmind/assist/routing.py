@@ -87,6 +87,11 @@ class RoutePlan:
     #: `AM-68` — the question asks what the PRODUCT does, not what the law says. When
     #: true, `domains` and `fallback` are both empty and no corpus is searched at all.
     capability: bool = False
+    #: The question asks what a legal CONCEPT means, in general — not what any document
+    #: or standard says. Like `capability`, it searches nothing: no authorised source
+    #: holds the definition of "indemnity", and answering it from Company Standards
+    #: presents the organization's positions as though they were the definition.
+    general_knowledge: bool = False
 
     def has(self, domain: Domain) -> bool:
         return domain in self.domains
@@ -117,6 +122,13 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     if config.capability_route_enabled() and intent.is_capability_question(question):
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), capability=True)
+    # Same shape, same reason: nothing authorised answers it, so nothing is searched.
+    # Unlike the capability route this needs no flag — NOT searching is always safe,
+    # and it is what stops "what is an NDA?" being answered with three Company
+    # Standards. What it may SAY is a separate question (see `service`).
+    if intent.is_general_knowledge_question(question):
+        return RoutePlan(comparison=False, domains=(), statute_shaped=False,
+                         fallback=(), general_knowledge=True)
     candidates: set[Domain] = set()
     if has_document and P.ASSIST_ASK in permissions:
         candidates.add(Domain.DOCUMENT)
@@ -141,7 +153,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,
                      fallback=tuple(d for d in _ORDER if d in fallback),
-                     capability=False)
+                     capability=False, general_knowledge=False)
 
 
 # --------------------------------------------------------------------------
