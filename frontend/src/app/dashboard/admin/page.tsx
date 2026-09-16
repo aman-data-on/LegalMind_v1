@@ -299,6 +299,12 @@ function UsersScreen() {
                     <th scope="col">Status</th>
                     <th scope="col">Last sign-in</th>
                     <th scope="col">Created</th>
+                    {/* The roster showed a name, an email and role chips and NOTHING
+                        that said any of it could be changed. The only way into the
+                        panel that grants and revokes roles was clicking a name
+                        rendered in ink-900 with no underline — indistinguishable
+                        from the email beside it. A complete feature with no door. */}
+                    <th scope="col" className="ws-admin__rowact"><span className="ws-visually-hidden">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -329,12 +335,27 @@ function UsersScreen() {
                           ))
                         )}
                       </td>
-                      <td>{user.department?.name ?? <span className="ws-pane__note">—</span>}</td>
+                      <td className="ws-admin__dept">{user.department?.name ?? <span className="ws-pane__note">—</span>}</td>
                       <td><AccountStatus status={user.status} /></td>
                       <td className="ws-mono">
                         {user.last_login_at ? dateTime(user.last_login_at) : "Never"}
                       </td>
                       <td className="ws-mono">{dateOnly(user.created_at)}</td>
+                      <td className="ws-admin__rowact">
+                        <button
+                          type="button"
+                          // `ws-link`, not a bordered button: a button's chrome
+                          // took the roster's rows from 45px to 64px, and a list
+                          // where every row is 40% taller is the density mistake
+                          // this product's own tables avoid. The audit log already
+                          // uses `ws-link` for its in-row action.
+                          className="ws-link"
+                          aria-expanded={user.id === selectedId}
+                          onClick={() => select(user.id === selectedId ? null : user.id)}
+                        >
+                          {user.id === selectedId ? "Close" : "Manage access"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
