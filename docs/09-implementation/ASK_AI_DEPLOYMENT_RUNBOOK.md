@@ -50,7 +50,7 @@ Against `legalmind_v1_test`, with the Gemini key deliberately unset:
 | `fix/ask-source-leak` full suite | **1834 passed, 0 failed** (1 index test fixed since) |
 | `feat/capability-route` capability suite | **23 passed** |
 | Frontend | **474 passed**, 34 files |
-| AC-12 gate, both branches | wrongly-answered **1 (held)** · recall **0.625 (held)** · retained **43 (held)** — SHIPPABLE |
+| AC-12 gate, both branches | wrongly-answered **1 (held)** · recall **0.625** · retained **43** — SHIPPABLE. ⚠️ Superseded 2026-09-16: that gate measured `search_hybrid` alone. Through the production path the same run reads recall **0.797**, retained **54**, wrongly-answered **1**, user-visible wrong **0** |
 | Domain A round trip | 27 passed — no locator survives into `position_chunks` |
 
 Unmeasured, by choice: faithfulness and citation precision need real Gemini calls on the

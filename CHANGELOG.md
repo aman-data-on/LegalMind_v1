@@ -10,6 +10,70 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — the quality gate was measuring a pipeline nobody ships (2026-09-16)
+
+`tools/verify_assist_quality.measure()` called `store.search_hybrid` and scored what
+came back. The shipped Ask path does three more things before a user sees anything,
+and the gate did none of them:
+
+| Step | Effect on the number |
+|---|---|
+| `routing.plan` — `AM-25` r4 hands a comparison question to the deterministic evaluator and retrieves nothing | **7** answerable questions were credited as retrieval wins although no retrieval ran |
+| `rescue.reconsider` — the evidence-rescue judge reconsiders a shut gate | the gate printed the pre-rescue refusals |
+| `guardrails.evidence_is_sufficient` — an open gate over fragments is still a refusal | overstated what reaches generation |
+
+So the gate could have gone green on a pipeline nobody uses while the shipped path
+regressed. **The old 0.625 is not a worse measurement of the same quantity — it is a
+measurement of a different one**, and the same is true of the 0.828 recorded on
+2026-09-16 for the rescue, which came from the same short path. Nothing was tuned to
+move a number; the dataset, the anchors and the recall@10 definition are byte-identical,
+and the anchors were never derived from retrieval in the first place (they resolve by
+verbatim substring against the chunk table), so the expectations were not shaped by the
+path being replaced.
+
+Measured on the ratified 77-question set, same dataset hash:
+
+```
+                        old gate      production path      production path
+                     (search_hybrid)   rescue OFF           rescue ON (ships)
+recall@10                 0.625           0.547                 0.797
+hit@1                     0.375           0.312                 0.516
+retained                  43/64           38/64                 54/64
+false refusals               21              19                     3
+routed to evaluator           —               7                      7
+wrongly answered           1/13            1/13                  1/13
+user-visible wrong            —               —                  0/13
+faithfulness                1.0         BLOCKED                   1.0
+citation precision          1.0         BLOCKED                   1.0
+```
+
+Changes, all of them removals of a re-implementation rather than new logic:
+
+- **`rescue.reconsider()`** is now the single application of the judge; `service.ask`
+  and the gate both call it. A test asserts on the AST that neither applies
+  `rescue_indices` itself, so the two cannot drift apart again.
+- **`retrieval_runs` is written after the reconsideration.** Written before it, a
+  rescued turn left an audit row reading "gate closed, zero hits" beside an answer
+  citing chunks — `AM-27` calls that row "the retrieval record behind an answer".
+- **Faithfulness is scored against the persisted evidence**, not a re-run of retrieval.
+  The re-run was sound until the rescue landed: a rescued answer's second retrieval
+  returns a shut gate and no hits, so faithfulness would have been scored against an
+  empty evidence list on exactly the answers the rescue adds.
+- **The baseline records `evidence_rescue`**, so the existing pipeline-drift check
+  refuses to compare a rescue-off run against a rescue-on bar. It fired on the first
+  run, as intended.
+
+Re-baselined deliberately (`--write-baseline`), then verified: **SHIPPABLE**, all four
+`AM-28` quantities measured and held. Backend suite 2004 passed, 0 failed.
+
+**Found by the new measurement, NOT fixed here:** `intent.is_comparison_question` has
+7 false positives in 64 — it fires on contract vocabulary ("we" + "breach", "our" +
+"meet", "company" + "sign") rather than comparison vocabulary, so *"How much time do we
+get to fix a breach before the provider can terminate?"* is answered with "run a Review"
+instead of the notice period. It is an `AM-25` r4 safety screen, so narrowing it is its
+own reviewable change rather than a line in a measurement fix.
+
+
 ### Added — a developer can deploy their own merged work (2026-09-16)
 
 **Owner decision.** Members of group `legalmind-dev` may run one command as root,

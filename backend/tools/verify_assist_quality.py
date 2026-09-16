@@ -75,11 +75,15 @@ from legalmind.assist import (
     embedding_runtime,
     generation,
     guardrails,
+    rescue,
+    routing,
     service,
+    statutes,
     store,
 )
 from legalmind.assist.state import AssistAnswerState
 from legalmind.ingestion.storage import LocalFilesystemStorage
+from legalmind.security import permissions as P
 from tools.benchmark_retrieval import (
     _bench_url,
     _chunks,
@@ -169,26 +173,74 @@ def _documents(questions: list[dict]) -> list[pathlib.Path]:
 
 
 def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict:
-    """Run every question through the production `search_hybrid` and score it."""
+    """Run every question through the PRODUCTION decision path and score it.
+
+    Until 2026-09-16 this called `store.search_hybrid` and stopped there, which is
+    three steps short of what a user meets. Each omission moved the number, and in
+    opposite directions:
+
+        ROUTING        `AM-25` r4 hands a comparison question to the deterministic
+                       evaluator and retrieves nothing. Seven answerable questions
+                       take that route, and this scored all seven as retrieval wins.
+        EVIDENCE       the rescue judge reconsiders a shut gate (`assist/rescue.py`),
+        RESCUE         which is why the gate printed 0.625 while the shipped pipeline
+                       answered 0.828 — the gate was measuring a pipeline that had
+                       not shipped since the rescue landed.
+        SUFFICIENCY    an open gate over fragments too short to be evidence is still
+                       a refusal (`guardrails.evidence_is_sufficient`, `AM-29` r3).
+
+    Every one of those is now the production function itself, called here — not a
+    re-implementation of it. What is NOT here is generation and the screens after it;
+    those need the model and live in `measure_generated`, which drives `service.ask`
+    whole. So this half stays runnable without a credential, and the rescue degrades
+    to a no-op when the model is unreachable — which is recorded in the baseline's
+    `pipeline` block so a rescue-off run can never be compared against a rescue-on
+    bar.
+
+    The dataset, the anchors and the recall@10 definition are untouched: the numbers
+    move because the pipeline being measured is finally the shipped one.
+    """
     expected, failures = _resolve_anchors(questions, all_chunks)
     if failures:
         raise SystemExit("anchor resolution failed:\n  " + "\n  ".join(failures))
 
+    # What `service.ask` uses when a caller passes no permission set: document only.
+    permissions = frozenset({P.ASSIST_ASK})
+    statutes_available = statutes.available(db)
+
     answerable = wrongly_answered = refused = retained = hits10 = hits1 = 0
+    evaluator_answerable = 0
     wrong_ids: list[str] = []
     for q in questions:
-        outcome = store.search_hybrid(
-            db, document_version_id=versions[q["document"]],
-            query=q["question"], embed_query=embedding_runtime.embed_query)
+        route = routing.plan(q["question"], has_document=True,
+                             permissions=permissions,
+                             statutes_available=statutes_available)
+        if route.comparison:
+            # `AM-25` r4 — the evaluator's question. `service.ask` returns the
+            # document's Findings here and never retrieves, so there is no ranking
+            # to score. Counted, printed, and never credited as a retrieval hit.
+            outcome = None
+        else:
+            outcome = rescue.reconsider(
+                store.search_hybrid(
+                    db, document_version_id=versions[q["document"]],
+                    query=q["question"], embed_query=embedding_runtime.embed_query),
+                q["question"])
+        opened = outcome is not None and outcome.gate_open and \
+            guardrails.evidence_is_sufficient([h.content for h in outcome.hits])
+
         if q["expected"] == "NOT_FOUND":
-            if outcome.gate_open:
+            if opened:
                 wrongly_answered += 1
                 wrong_ids.append(q["id"])
             else:
                 refused += 1
             continue
         answerable += 1
-        if not outcome.gate_open:
+        if outcome is None:
+            evaluator_answerable += 1
+            continue
+        if not opened:
             continue
         retained += 1
         exp = expected.get(q["id"], set())
@@ -205,10 +257,14 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         "wrongly_answered_ids": wrong_ids,
         "correct_refusals": refused,
         "retained": retained,
-        "false_refusals": answerable - retained,
-        # End-to-end: a gate-refused answerable question is a miss here, so this is
-        # lower than the calibration's ungated hit@10 by construction — it is the
-        # recall a USER experiences, which is what a release gate should hold steady.
+        "false_refusals": answerable - retained - evaluator_answerable,
+        # Answerable questions the comparison screen routes to the evaluator. They
+        # are not refusals and not retrieval hits — a distinct outcome, reported
+        # rather than folded into either, so a change in the screen is visible here.
+        "routed_to_evaluator": evaluator_answerable,
+        # End-to-end: a refused or evaluator-routed answerable question is a miss
+        # here, so this is the recall a USER experiences — which is what a release
+        # gate should hold steady.
         "recall_at_10": round(hits10 / answerable, 3) if answerable else None,
         "hit_at_1": round(hits1 / answerable, 3) if answerable else None,
     }
@@ -241,7 +297,26 @@ def generation_available() -> tuple[bool, str]:
     return True, ""
 
 
-def measure_generated(db, versions: dict, questions: list[dict]) -> dict:
+def _generation_evidence(db, assistant_message_id, chunk_text: dict) -> list[str]:
+    """The chunk texts this answer was generated over, from its own retrieval run."""
+    import json as _json
+
+    schema = config.assist_schema()
+    results = db.execute(text(
+        f'SELECT r.results FROM "{schema}".ai_answers a '
+        f'JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id '
+        "WHERE a.message_id = :m"), {"m": assistant_message_id}).scalar()
+    if not results:
+        return []
+    if isinstance(results, str):
+        results = _json.loads(results)
+    return [chunk_text[uuid.UUID(h["chunk_id"])]
+            for h in results.get("hits", [])
+            if uuid.UUID(h["chunk_id"]) in chunk_text]
+
+
+def measure_generated(db, versions: dict, questions: list[dict],
+                      chunk_text: dict) -> dict:
     """`AM-28`'s two generation-dependent quantities, through the PRODUCTION path.
 
     Runs `service.ask` — the same function the Ask bar drives — so retrieval,
@@ -257,12 +332,16 @@ def measure_generated(db, versions: dict, questions: list[dict]) -> dict:
                            claim" — grounded citations over citations emitted.
 
     The `Verification` is reconstructed by re-running the same guardrail on the
-    persisted answer text and the same retrieval hits, because `AskOutcome`
-    deliberately does not carry the guardrail's internals into the API layer.
-    Retrieval is deterministic for a fixed query and corpus, so the chunks are the
-    ones generation actually saw. `AM-28` r2 keeps that guardrail free of prompt
-    and model imports, which is what makes re-running it a measurement rather than
-    a re-implementation.
+    persisted answer text and the evidence READ BACK FROM `retrieval_runs`, because
+    `AskOutcome` deliberately does not carry the guardrail's internals into the API
+    layer. Re-running retrieval to recover that evidence used to be sound — it is
+    deterministic for a fixed query and corpus — and stopped being sound when the
+    rescue landed: a rescued answer's second retrieval returns a shut gate and no
+    hits, so faithfulness would have been scored against an empty evidence list on
+    exactly the answers the rescue added. The persisted run is the evidence that
+    was actually sent. `AM-28` r2 keeps the guardrail free of prompt and model
+    imports, which is what makes re-running it a measurement rather than a
+    re-implementation.
 
     Also records the USER-VISIBLE refusal outcome, which is not the gate-level one:
     a question can open the retrieval gate and still be refused by the sufficiency
@@ -303,11 +382,9 @@ def measure_generated(db, versions: dict, questions: list[dict]) -> dict:
 
         user_answered += 1
         answered_attempts += 1
-        retrieval = store.search_hybrid(
-            db, document_version_id=versions[q["document"]],
-            query=q["question"], embed_query=embedding_runtime.embed_query)
         verification = guardrails.verify_answer(
-            outcome.text or "", [h.content for h in retrieval.hits])
+            outcome.text or "",
+            _generation_evidence(db, outcome.message_id, chunk_text))
         claims += len(verification.citations)
         supported += sum(1 for c in verification.citations if c.grounded)
         emitted += len(verification.citations)
@@ -340,6 +417,12 @@ def _baseline_payload(metrics: dict, dataset_sha: str, n_questions: int) -> dict
             "evidence_cosine_floor": calibration.EVIDENCE_COSINE_FLOOR,
             "peak_margin": calibration.PEAK_MARGIN,
             "top_k": calibration.RETRIEVAL_TOP_K,
+            # Whether the rescue judge could actually run. A rescue-off number and a
+            # rescue-on number describe different pipelines, and the drift check
+            # below refuses to compare them — which is the whole reason this is
+            # recorded rather than assumed from the flag alone.
+            "evidence_rescue": bool(config.evidence_rescue_enabled()
+                                    and generation_available()[0]),
         },
         "metrics": {k: v for k, v in metrics.items()
                     if not k.endswith("_ids")},
@@ -390,7 +473,10 @@ def main(argv: list[str] | None = None) -> int:
         # pipeline rather than two runs that might differ.
         gen_ok, gen_why = generation_available()
         if gen_ok:
-            metrics.update(measure_generated(db, versions, questions))
+            metrics.update(measure_generated(
+                db, versions, questions,
+                {cid: content for rows in all_chunks.values()
+                 for cid, content in rows}))
     finally:
         db.rollback(); db.close(); engine.dispose()
 
@@ -401,7 +487,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  correct refusals   {metrics['correct_refusals']}"
           f"/{metrics['unanswerable']}")
     print(f"  retained           {metrics['retained']}/{metrics['answerable']}"
-          f"   (false refusals {metrics['false_refusals']})")
+          f"   (false refusals {metrics['false_refusals']}, "
+          f"routed to evaluator {metrics['routed_to_evaluator']})")
     print(f"  recall@10          {metrics['recall_at_10']}   (end-to-end: a "
           f"gate-refused answerable counts as a miss)")
     print(f"  hit@1              {metrics['hit_at_1']}")

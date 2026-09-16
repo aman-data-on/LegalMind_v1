@@ -39,6 +39,7 @@ behind `LEGALMIND_EVIDENCE_RESCUE`, unset.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 
 from legalmind import config
@@ -98,3 +99,24 @@ def rescue_indices(question: str, chunk_texts: list[str], *,
               or list(range(len(chunk_texts))))
     log_event("assist.rescue.opened", request_id=request_id, chosen=str(len(chosen)))
     return chosen
+
+
+def reconsider(retrieval, question: str, *, request_id: str | None = None):
+    """Apply the judge to a `store.RetrievalOutcome` whose gate is shut.
+
+    THE one place the rescue is applied. `service.ask` and the Tier-2 gate both call
+    it, because a release gate that re-implements a pipeline step measures the mirror
+    rather than the product — which is exactly how the gate came to print 0.625 while
+    users experienced 0.828 (found 2026-09-16).
+
+    Returns the SAME object when nothing changed, so a caller can test identity to
+    know whether a refusal was reconsidered.
+    """
+    if retrieval.gate_open or not retrieval.candidates:
+        return retrieval
+    picked = rescue_indices(question, [c.content for c in retrieval.candidates],
+                            request_id=request_id)
+    if not picked:
+        return retrieval
+    return dataclasses.replace(retrieval, gate_open=True,
+                               hits=[retrieval.candidates[i] for i in picked])

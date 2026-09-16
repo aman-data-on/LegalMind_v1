@@ -755,12 +755,6 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
             retrieval = dataclasses.replace(
                 retrieval, gate_open=True,
                 hits=[*pinned, *[h for h in retrieval.hits if h.chunk_id not in seen]])
-    run_id = _persist_retrieval(db, user_message_id, resolved, retrieval,
-                                document_version_id=document_version_id, domains=domains,
-                                statute_hits=statute_hits, follow_up_of=follow_up_of,
-                                finding_id=finding_id)
-
-    chunk_texts = [h.content for h in retrieval.hits]
 
     # EVIDENCE RESCUE — a second look at a refusal, never at an answer.
     #
@@ -775,15 +769,22 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     # sufficiency, citation verification, the grounding floor and the verdict screen.
     # `AM-25` r5 is untouched: the judge decides whether to TRY, the mechanical checks
     # still decide what a reader sees. Off by default.
-    if not retrieval.gate_open and retrieval.candidates:
-        picked = rescue.rescue_indices(
-            resolved, [c.content for c in retrieval.candidates], request_id=request_id)
-        if picked:
-            rescued = [retrieval.candidates[i] for i in picked]
-            retrieval = dataclasses.replace(retrieval, gate_open=True, hits=rescued)
-            chunk_texts = [h.content for h in rescued]
-            log_event("assist.ask.rescued", request_id=request_id,
-                      conversation_id=str(conversation_id), chunks=str(len(rescued)))
+    rescued = rescue.reconsider(retrieval, resolved, request_id=request_id)
+    if rescued is not retrieval:
+        retrieval = rescued
+        log_event("assist.ask.rescued", request_id=request_id,
+                  conversation_id=str(conversation_id), chunks=str(len(rescued.hits)))
+
+    # Persisted AFTER the reconsideration, so `retrieval_runs` records the retrieval
+    # the answer was actually built on. Written before it, a rescued turn left an
+    # audit row reading "gate closed, zero hits" beside an answer citing chunks —
+    # `AM-27` calls this row "the retrieval record behind an answer", and it has to
+    # be the one behind THAT answer.
+    run_id = _persist_retrieval(db, user_message_id, resolved, retrieval,
+                                document_version_id=document_version_id, domains=domains,
+                                statute_hits=statute_hits, follow_up_of=follow_up_of,
+                                finding_id=finding_id)
+    chunk_texts = [h.content for h in retrieval.hits]
 
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
         # The document does not answer. AM-50 r2: the other authorized sources are

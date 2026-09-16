@@ -99,7 +99,14 @@ LEXICAL_ALONE_AT_10 = 1 / 64        # the branch contributes no unique recall
 # under the older pipeline and refused nothing when the pipeline changed. That
 # hole is closed (`verify_assist_quality` now refuses a pipeline mismatch as it
 # already refused a dataset one), which is how this measurement came to exist.
-SHIPPED_RECALL_AT_10 = 0.625
+# RE-MEASURED 2026-09-16 through the production path. The 0.625 this constant held
+# was produced by a gate that called `store.search_hybrid` and stopped there — no
+# routing, no evidence rescue, no sufficiency screen — so it described a pipeline that
+# had not shipped since the rescue landed. The same dataset through `routing.plan` ->
+# search -> `rescue.reconsider` -> `evidence_is_sufficient` reads 0.797, and 0.547 with
+# the rescue unreachable. Not a better number for the same thing: a number for the
+# thing users actually meet.
+SHIPPED_RECALL_AT_10 = 0.797
 HISTORICAL_SHIPPED_AT_10 = RECALL_AT_10[(True, True)]
 
 
@@ -126,9 +133,11 @@ def test_neither_threshold_application_is_a_fix_on_its_own():
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "MEASURED 2026-09-14: shipped recall@10 0.625 against a 0.938 vector "
-    "ceiling — up from 0.438 on 2026-09-02 with no floor weakened and no "
-    "increase in wrong answers. The remaining gap is still attributed to "
+    "RE-MEASURED 2026-09-16: shipped recall@10 0.797 against a 0.938 vector "
+    "ceiling, through the production path rather than `search_hybrid` alone, "
+    "with no floor weakened and no increase in wrong answers. Of the remaining "
+    "gap, 7 of 64 are misrouted by `is_comparison_question` and only 3 are "
+    "evidence refusals. The older diagnosis still attributes those to "
     "COSINE_FLOOR being applied at two points, the refusal gate and the per-hit "
     "evidence filter; fusion accounts for zero. The owner ruled on 2026-09-14 "
     "that the dial moves only where recall improves WITHOUT a rise in wrongly- "

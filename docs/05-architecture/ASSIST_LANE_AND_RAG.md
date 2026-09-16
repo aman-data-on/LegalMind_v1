@@ -79,9 +79,22 @@ Every measured value lives in `backend/legalmind/assist/calibration.py`, whose d
 that *"nothing in this module is a preference"*. The floors are a safety control: weakening one to
 improve recall is a decision with a recorded cost, not a tuning knob.
 
-**Known limitation, measured and recorded**: at these settings recall@10 is **0.625** against a
-measured vector ceiling of 0.938, and **21** of 64 answerable questions are refused. Nothing that
-has been answered has been wrong (faithfulness 1.0, 0 wrong answers reaching a user).
+**Known limitation, measured and recorded**: at these settings recall@10 is **0.797** against a
+measured vector ceiling of 0.938. Of 64 answerable questions **3** are refused for want of
+evidence and **7** are routed to the deterministic evaluator by the comparison screen. Nothing
+that has been answered has been wrong (faithfulness 1.0, citation precision 1.0, 0 wrong answers
+reaching a user; 1 of 13 unanswerable questions opens the retrieval gate and none survives to a
+reader).
+
+> Re-measured 2026-09-16, and the figure below it is not comparable to the 0.625 this
+> paragraph carried before. That number came from a gate that called `store.search_hybrid`
+> and stopped — no routing, no evidence rescue, no sufficiency screen — so it measured a
+> pipeline that had not shipped since the rescue landed. Through the production path the
+> same dataset reads **0.797**; with the rescue unreachable it reads **0.547**. The three
+> steps move it in both directions, which is why the old number was not a worse measurement
+> of the same quantity but a measurement of something else. The **7** evaluator-routed
+> questions are a defect in `is_comparison_question`, not a retrieval miss — see the
+> CHANGELOG entry for 2026-09-16.
 
 > Corrected 2026-09-15. This paragraph read *"0.438 … 23 of 64"* — the figures from the
 > 2026-09-02 audit — and was written on 2026-09-14, the same day the number moved. Recall
