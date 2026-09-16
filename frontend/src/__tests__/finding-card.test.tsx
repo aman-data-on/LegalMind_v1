@@ -634,6 +634,93 @@ describe("the face is only the four answers; the proof is one click away (owner,
       }
     }
   });
+
+  /**
+   * A second disclosure for the machine's own words (2026-09-16).
+   *
+   * The 2026-09-16 UX review opened "View details" as a paralegal would and met
+   * "PRESENCE-v1", "0 evidence references", "mapping layer completed and mapped no
+   * provision" and a raw requirement code — none of which a lawyer can act on. Nothing
+   * is deleted: rule 11/12 need the chain reconstructible, 45B.10/`AM-19` need
+   * provenance to survive a LEGAL-02 omission, and a support request quotes the code.
+   * They sit behind one more summary, under the plain sentences.
+   */
+  describe("the machine's own words sit behind a second summary", () => {
+    function splitAtTechnical(html: string): { plain: string; technical: string } {
+      const open = html.indexOf('<details class="ws-determined__more">');
+      if (open === -1) return { plain: html, technical: "" };
+      return { plain: html.slice(0, open), technical: html.slice(open) };
+    }
+
+    const detailed = () => card(
+      { classification: "DEVIATION", requires_decision: true, evidence: [evidence()] },
+      { classification: "DEVIATION", rule_outcome: "UNACCEPTABLE", operator: "!=",
+        evidence_refs: ["ev1"],
+        actual_value: { cap_value: 24, cap_unit: "MONTHS" },
+        expected_value: { preferred: 12, unit: "MONTHS" } },
+    );
+
+    it("puts the evaluator, the scope, the comparison and the requirement code behind it", () => {
+      const { inside } = splitAtDetails(detailed());
+      const { plain, technical } = splitAtTechnical(inside);
+      for (const jargon of ["PRESENCE-v1", "evidence reference", "RESIDUALS-NDA-001",
+                            "Scope", "Evaluator", ">GENERAL<", ">!=<", "mapping"]) {
+        expect(plain, jargon).not.toContain(jargon);
+        expect(technical, jargon).toContain(jargon);
+      }
+    });
+
+    it("keeps the plain chain and what happens next in front of it", () => {
+      const { inside } = splitAtDetails(detailed());
+      const { plain } = splitAtTechnical(inside);
+      // Evidence → Fact → Standard → Result, then the action (rule 12).
+      for (const readable of ["Requirement", "This document", "Company standard",
+                              "Result", "What happens next"]) {
+        expect(plain, readable).toContain(readable);
+      }
+    });
+
+    it("keeps the rule outcome and the finding state readable without a second click", () => {
+      /* `confidentiality.spec.ts` asserts `.ws-evaluation__outcome` is VISIBLE once the
+         disclosure is open, and a collapsed <details> is not visible — so the legal
+         outcome and the workflow state stay at the first level. They are what a legal
+         reader opened the disclosure to see. */
+      const { inside } = splitAtDetails(detailed());
+      const { plain } = splitAtTechnical(inside);
+      expect(plain).toContain("ws-evaluation__outcome");
+      expect(plain).toContain("Finding state");
+    });
+
+    it("is collapsed until asked for", () => {
+      expect(detailed()).not.toMatch(/<details[^>]*\sopen/);
+    });
+
+    it("lets no requirement code reach the reader by any path, including a tooltip", () => {
+      /* A sweep rather than a list: the review found the same identifier reaching a
+         reader through three different surfaces (the card, the document pane's reverse
+         link, and the Ask prefill, which asked "Does this document say anything about
+         Arbitration msa 001?"), so this matches the SHAPE of a ratified code —
+         WORDS-TYPE-NNN — anywhere outside the technical block, `title=` attributes
+         included. */
+      const CODE_SHAPED = /\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-(?:MSA|NDA|TOS|SLA|DPA|AUP)-\d+\b/;
+      for (const c of ["MATCH", "DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
+        const html = card(
+          { classification: c, requires_decision: true, evidence: [evidence()] },
+          { classification: c, operator: "!=", evidence_refs: ["ev1"],
+            rule_outcome: "NOT_APPLICABLE" },
+        );
+        const { before, inside } = splitAtDetails(html);
+        const { plain, technical } = splitAtTechnical(inside);
+        expect(before, `${c}: card face`).not.toMatch(CODE_SHAPED);
+        expect(plain, `${c}: plain details`).not.toMatch(CODE_SHAPED);
+        // Not merely moved out of sight: still there for the escalation that needs it.
+        expect(technical, `${c}: technical block`).toMatch(CODE_SHAPED);
+        for (const tooltip of before.match(/title="([^"]*)"/g) ?? []) {
+          expect(tooltip, `${c}: tooltip`).not.toMatch(CODE_SHAPED);
+        }
+      }
+    });
+  });
 });
 
 describe("the approved plain-English description (owner, 2026-09-09)", () => {

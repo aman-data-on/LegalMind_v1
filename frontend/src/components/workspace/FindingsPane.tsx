@@ -61,6 +61,7 @@ import {
   nextStep,
   reasoningSteps,
   requirementTitle,
+  type PresentedFinding,
   sameAsTitle,
   sideOf,
   standardSideOf,
@@ -658,7 +659,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           Legal Constitution §{prohibition.section}: “{prohibition.quote}”
         </p>
       ) : null}
-      {finding.evaluations.map((evaluation) => (
+      {finding.evaluations.map((evaluation, index) => (
         <EvaluationCard
           key={evaluation.id}
           finding={finding}
@@ -668,6 +669,9 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           evidenceById={evidenceById}
           onChanged={onChanged}
           prepared={prepared}
+          /* The folded standards are a fact about the FINDING, so they are
+             named once, on the first evaluation — not repeated under each. */
+          showFolded={index === 0}
         />
       ))}
       <div className="ws-finding__acts">
@@ -737,8 +741,9 @@ function EvaluationCard({
   evaluation,
   evidenceById,
   onChanged,
+  showFolded = false,
 }: {
-  finding: Finding;
+  finding: PresentedFinding;
   status: UserStatus;
   /** The grounded sentence the card shows, for the attribution row below. */
   grounded: FindingExplanation | null;
@@ -747,6 +752,8 @@ function EvaluationCard({
   onChanged: () => void;
   /** A keyboard prepare request from the owning card — see `FindingCard`. */
   prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
+  /** Name the standards folded into this finding — once per finding. */
+  showFolded?: boolean;
 }) {
   const { point, target } = useHighlight();
   const attention =
@@ -904,61 +911,34 @@ function EvaluationCard({
               <span>{step.text}</span>
             </li>
           ))}
-        </ol>
-        {explanation.length > 0 ? (
-          // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
-          // travels with `explanation`, which is omitted for a caller without
-          // `legal_position.view`, and `confidentiality.spec.ts` asserts the
-          // element is absent for them. Presence-tested, so that holds.
-          <div className="ws-explain">
-            <p className="ws-determined__label">The engine&apos;s own record</p>
-            <ol>
-              {explanation.map((line, index) => (
-                <li key={index}>{line}</li>
-              ))}
-            </ol>
-          </div>
-        ) : null}
-        {/* The requirement code lives here now, not on the card face
-            (2026-09-08, third pass) — a raw identifier is exactly the
-            "internal ID" the manager's report asked off the default-visible
-            surface. A legal reviewer who needs it for an escalation or a
-            support request is already one click into this disclosure by the
-            time they need to quote it.
-
-            The rule outcome and the provenance line both moved IN here
-            (2026-09-08, second pass): both used to sit on the visible card by
-            default — "No rule covers this" in the header, "PRESENCE-v1 · 0
-            evidence references" just above the evidence — and both are
-            exactly the "internal/engineering information" the manager's
-            report named. Neither is deleted: rule 11/12 still require the
-            chain to be reconstructible, and 45B.10/AM-19 still require
-            provenance to survive a LEGAL-02 omission. They are simply no
-            longer competing with the plain-language NEXT STEP for the
-            reader's first look. `.ws-evaluation__outcome` and
-            `.ws-evaluation__provenance` are UNCHANGED as elements — same
-            classes, same conditional rendering on the same fields — so every
-            LEGAL-02 test (which asserts by count/text, never by position on
-            the page) holds exactly as it did. */}
-        <dl className="ws-determined__tech">
-          {/* Where the card's one sentence came from (AM-49 — source attribution
-              stays with the reader): the grounded generation, the approved
-              description, or the data-built fallback. */}
-          <dt>Explanation</dt>
-          <dd>
-            {grounded?.status === "ACCEPTED" && grounded.text
-              ? `Generated from the approved description${grounded.passages > 0
-                  ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
-              : finding.requirement.description?.trim()
-                ? "The requirement's approved description"
-                : "Built from the finding's own values"}
-          </dd>
-          {finding.requirement.code ? (
-            <>
-              <dt>Requirement</dt>
-              <dd className="ws-mono">{finding.requirement.code}</dd>
-            </>
+          {/* The chain ends where the reader acts. It is on the card face too,
+              as the third column of the comparison; a reader who opened this to
+              follow the reasoning should not have to look back up to find what
+              the reasoning asks of them. */}
+          {action ? (
+            <li key="next-step">
+              <span className="ws-determined__label">What happens next</span>
+              <span>{action}</span>
+            </li>
           ) : null}
+        </ol>
+        {/* Two standards can state one obligation — the same clause, value and
+            next step measured under an MSA and an NDA standard both. The reader
+            meets one finding (`mergeEquivalentFindings`); the standards that
+            agreed are named here, so the chain still accounts for every
+            evaluation the engine ran. */}
+        {showFolded && finding.alsoMeasuredAgainst?.length ? (
+          <p className="ws-pane__note">
+            {`Also measured against ${finding.alsoMeasuredAgainst
+              .map((other) => requirementTitle(other.requirement))
+              .join(", ")} — the same clause, the same required value and the same next step.`}
+          </p>
+        ) : null}
+        {/* The legal outcome and the workflow state stay at this level: they are
+            what the finding MEANS and what is owed on it, and a legal reader
+            opened this disclosure to see exactly them. Everything below the
+            nested summary is about the machine that produced them. */}
+        <dl className="ws-determined__tech">
           {evaluation.rule_outcome !== undefined ? (
             <>
               <dt>Rule outcome</dt>
@@ -979,6 +959,76 @@ function EvaluationCard({
               findingStatusLabel(finding.status)
             )}
           </dd>
+        </dl>
+        {/*
+          * ONE MORE CLICK FOR THE MACHINE'S OWN WORDS (2026-09-16).
+          *
+          * A UX review of the live site, reading as a paralegal would: "PRESENCE-v1",
+          * "0 evidence references", "mapping layer completed and mapped no provision"
+          * and a raw requirement code were the first things under "View details",
+          * and none of them is answerable by a lawyer. They are not deleted — rule 11
+          * and rule 12 need the chain reconstructible, 45B.10/`AM-19` need provenance
+          * to survive a LEGAL-02 omission, and a support request quotes the code — so
+          * they move behind their own summary, below the four plain sentences that
+          * answer what the contract says, what the standard requires, how it was
+          * classified and what happens next.
+          *
+          * `.ws-explain` and `.ws-evaluation__provenance` keep their classes and their
+          * conditional rendering, so the LEGAL-02 tests that assert by count and by
+          * text hold. `.ws-evaluation__outcome` stays OUTSIDE this block because
+          * `confidentiality.spec.ts` asserts it is VISIBLE once the disclosure is
+          * open, and a collapsed <details> is not visible.
+          */}
+        <details className="ws-determined__more">
+          <summary>Technical details</summary>
+          {explanation.length > 0 ? (
+            // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
+            // travels with `explanation`, which is omitted for a caller without
+            // `legal_position.view`, and `confidentiality.spec.ts` asserts the
+            // element is absent for them. Presence-tested, so that holds.
+            <div className="ws-explain">
+              <p className="ws-determined__label">The engine&apos;s own record</p>
+              <ol>
+                {explanation.map((line, index) => (
+                  <li key={index}>{line}</li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+        {/* The requirement code lives here — a raw identifier is exactly the
+            "internal ID" two reviews now have asked off the reader's path. A
+            legal reviewer who needs it for an escalation or a support request
+            is two clicks into a disclosure by the time they quote it. */}
+          <dl className="ws-determined__tech">
+          {/* Where the card's one sentence came from (AM-49 — source attribution
+              stays with the reader): the grounded generation, the approved
+              description, or the data-built fallback. */}
+          <dt>Explanation</dt>
+          <dd>
+            {grounded?.status === "ACCEPTED" && grounded.text
+              ? `Generated from the approved description${grounded.passages > 0
+                  ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
+              : finding.requirement.description?.trim()
+                ? "The requirement's approved description"
+                : "Built from the finding's own values"}
+          </dd>
+          {finding.requirement.code ? (
+            <>
+              <dt>Requirement</dt>
+              <dd className="ws-mono">{finding.requirement.code}</dd>
+            </>
+          ) : null}
+          {/* Every standard the reader's one finding stands for, by code — the
+              titles are said in plain words above; this is the audit spelling. */}
+          {showFolded && finding.alsoMeasuredAgainst?.length ? (
+            <>
+              <dt>Also measured against</dt>
+              <dd className="ws-mono">
+                {finding.alsoMeasuredAgainst
+                  .map((other) => other.requirement.code ?? "—").join(", ")}
+              </dd>
+            </>
+          ) : null}
           {/*
             * WHICH evaluator produced this, always — 2026-09-04, found by
             * porting the LEGAL-02 browser test off the legacy screen, and
@@ -1001,7 +1051,8 @@ function EvaluationCard({
           ) : null}
           <dt>Scope</dt>
           <dd className="ws-mono">{evaluation.scope_key}</dd>
-        </dl>
+          </dl>
+        </details>
       </details>
 
       {showDecision ? (

@@ -3309,6 +3309,18 @@
   font-size: var(--ws-text-sm);
 }
 .ws-determined > summary:hover { color: var(--ws-accent-strong); }
+/* The machine's own words, one more click in (2026-09-16). Deliberately quieter
+   than the disclosure above it — a legal reader should be able to see that the
+   line exists and read past it, which is the opposite of the accent-coloured
+   invitation `.ws-determined > summary` extends. */
+.ws-determined__more { margin-top: var(--ws-s3); }
+.ws-determined__more > summary {
+  cursor: pointer;
+  color: var(--ws-ink-500);
+  padding: 4px 0;
+  font-size: var(--ws-text-xs);
+}
+.ws-determined__more > summary:hover { color: var(--ws-ink-900); }
 .ws-determined__steps {
   list-style: none;
   margin: var(--ws-s2) 0;
