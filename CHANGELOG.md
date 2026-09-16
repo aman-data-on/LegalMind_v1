@@ -10,6 +10,35 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — a developer can deploy their own merged work (2026-09-16)
+
+**Owner decision.** Members of group `legalmind-dev` may run one command as root,
+`sudo legalmind-deploy`: fast-forward `/root/Legalmind.v1` to `origin/main`, then run
+the existing `ops/deploy.sh`. It takes no arguments and accepts none, so the caller
+cannot aim it at a branch, commit, tag or directory. The only route onto the live site
+is still a reviewed pull request whose CI passed.
+
+**Why it was needed.** The diagnosis in circulation — that the developer's account
+lacked permission on the repository — was wrong: `tasniyashaikh22` already held
+**write** access and her key already authenticated. What she actually hit was the
+`main` ruleset (pull request required, no direct pushes), which binds every account
+including the repository admin. The one real gap was the server: no sudo at all, so
+she could write and push code but never ship it.
+
+**The escalation this closed on the way.** A deploy-only sudo rule is only
+deploy-only if what it executes is root-writable. **13,480 paths in the deploy tree
+were group-writable** by `legalmind-dev`, `.git/config` among them — so `core.hooksPath`
+alone would have turned the rule into unrestricted root. Group write was removed in
+the same change; group read is kept, so a developer can still read what they deploy.
+Re-adding group write to that tree silently re-opens root.
+
+Invocations are logged with the invoking account to `/var/log/legalmind-deploy.log`.
+Rollback is unchanged and remains an administrator's job.
+
+Files outside version control, recorded here because nothing else records them:
+`/usr/local/sbin/legalmind-deploy` (root:root 0755) and
+`/etc/sudoers.d/legalmind-deploy` (root:root 0440).
+
 ### Fixed — a retired standard is no longer retrievable in Ask (`AM-71`, AB-23) (2026-09-16)
 
 Owner ruling: *"Superseded/retired standards should NOT appear in normal Ask retrieval, even if
