@@ -4128,6 +4128,155 @@
    screen. Two columns where there is room, one when there is not. */
 .ws-cl__form-name { grid-column: span 2; }
 @media (max-width: 640px) { .ws-cl__form-name { grid-column: span 1; } }
+
+/* ==========================================================================
+ * ADD A CLIENT — the owner's reference layout (2026-09-16)
+ *
+ * Scoped to `.ws-cl__form--add`, which only the ADD branch renders. Edit
+ * profile keeps `.ws-cl__form` alone and every rule above it, so the client
+ * detail page does not move — the redesign was scoped to Add.
+ *
+ * Grouping is visual. The three sections re-arrange the same fields; nothing is
+ * renamed, duplicated or given a different limit (see ClientForm.tsx).
+ * ========================================================================== */
+.ws-cl__form--add { padding: var(--ws-s3) var(--ws-s5) var(--ws-s4); gap: var(--ws-s3); }
+
+/* ⚠️ THE SINGLE BIGGEST HEIGHT SAVING, AND IT IS A DEFECT RATHER THAN A STYLE.
+   `.ws-pane__note` (line 371) sets a size and a colour but never a margin, so
+   as a `<p>` it keeps the user agent's `1em 0` — ~24px of dead space around
+   every note. Three section heads plus the card header carried four copies of
+   it: 67px per head where the type needs 44. Reset HERE, scoped to this
+   layout, because the class is used across the product and zeroing it globally
+   would move screens this change was told not to touch. */
+.ws-cl__form--add .ws-pane__note { margin: 0; }
+
+/* The header's mark, in the same accent-soft round the empty state and the
+   Dashboard's own empty states use — one vocabulary, not a third. */
+.ws-cl__addhead { display: flex; align-items: flex-start; gap: var(--ws-s3); }
+.ws-cl__addmark {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: var(--ws-radius-sm);
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+}
+
+/* Form and companion panel. `minmax(0, …)` on the form column so a long value
+   cannot push the grid wider than its container — the horizontal-scroll bug
+   `auto` invites. The panel is sized in `ch` so it holds its measure rather
+   than its pixel width as the viewport changes. */
+.ws-cl__addcols {
+  display: grid; gap: var(--ws-s5);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 34ch);
+  align-items: start;
+}
+.ws-cl__addmain { min-width: 0; display: flex; flex-direction: column; gap: var(--ws-s3); }
+
+.ws-cl__sect {
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s3) var(--ws-s4);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-cl__sect-head { display: flex; align-items: flex-start; gap: var(--ws-s3); }
+.ws-cl__sect-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-cl__sect-titles h3 {
+  margin: 0; font-size: var(--ws-text-base); font-weight: 650; color: var(--ws-ink-900);
+}
+/* The step number. Filled accent, because it is the one thing on the card that
+   orders the reader through it — not a state, so it borrows no state colour. */
+.ws-cl__sect-num {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--ws-accent); color: #fff;
+  font-size: var(--ws-text-xs); font-weight: 650; line-height: 1;
+}
+/* THREE columns, fixed, not `auto-fit`. The reference draws three, and the
+   sibling `.ws-cl__form-grid` records why the automatic version is wrong here:
+   "auto-fit gives SIX columns of short inputs at 1440px and the form reads as a
+   spreadsheet." Six is exactly what it gave at 1920 before this cap. */
+.ws-cl__sect-grid {
+  display: grid; gap: var(--ws-s2) var(--ws-s4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+/* Three holds far longer than it looks: at 1440 the form column is still ~1000px
+   beside the panel, which is three comfortable 320px fields. Dropping to two at
+   1500 cost a whole extra row in each section and ~350px of page height for no
+   gain. Two only once the columns would genuinely crowd. */
+@media (max-width: 900px) { .ws-cl__sect-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .ws-cl__sect-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Company name keeps ONE column, like every other field. Given the full row it
+   became a 1200px-wide input that read as a textarea — the same mistake
+   `.ws-cl__form-name`'s own note above records and corrects for the edit grid. */
+.ws-cl__form--add .ws-cl__form-name { grid-column: auto; }
+.ws-cl__form--add .ws-cl__form-acts { max-width: none; }
+/* The duplicate warning belongs under the name it is about, not in the next
+   cell along. */
+.ws-cl__form--add .ws-cl__dupe { grid-column: 1 / -1; }
+
+/* ---- the companion panel ------------------------------------------------ */
+/* Descriptive only: no control, nothing focusable, so the tab order runs from
+   the last field straight to Cancel and Add client. */
+.ws-cl__aside {
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+  padding: var(--ws-s4);
+  background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card);
+}
+.ws-cl__aside h3 {
+  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+}
+.ws-cl__aside-art {
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--ws-s2) 0;
+}
+/* A profile card, drawn from the same parts as the empty state's sheet so the
+   two illustrations read as one hand. */
+.ws-cl__aside-card {
+  display: flex; align-items: center; gap: var(--ws-s3);
+  width: 168px; padding: var(--ws-s3);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+}
+.ws-cl__aside-avatar {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: var(--ws-radius-sm);
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+}
+.ws-cl__aside-lines { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.ws-cl__aside-lines > span {
+  height: 7px; border-radius: 4px; background: var(--ws-ink-100);
+}
+.ws-cl__aside-lines > span:last-child { width: 62%; }
+
+.ws-cl__tips {
+  background: var(--ws-accent-soft); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s3) var(--ws-s4);
+  display: flex; flex-direction: column; gap: var(--ws-s2);
+}
+.ws-cl__tips-head {
+  margin: 0; display: flex; align-items: center; gap: 7px;
+  font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-accent-strong);
+}
+.ws-cl__tips ul {
+  margin: 0; padding-left: 18px;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45;
+}
+
+/* ---- narrower viewports -------------------------------------------------- */
+/* The panel stops flanking the form and follows it. It is context rather than
+   input, so it belongs after the fields once the two cannot sit side by side —
+   never between the reader and the thing they came to fill in. */
+@media (max-width: 1100px) {
+  .ws-cl__addcols { grid-template-columns: minmax(0, 1fr); }
+  .ws-cl__aside { order: 1; }
+}
+@media (max-width: 640px) {
+  .ws-cl__form--add { padding: var(--ws-s4); }
+  .ws-cl__sect { padding: var(--ws-s3); }
+}
 .ws-cl__form-acts { display: flex; align-items: center; gap: var(--ws-s2); justify-content: flex-end; }
 /* The actions align with the FIELDS, not with the card. The field grid is
    capped at 60rem so it does not sprawl into six columns; without the same cap
