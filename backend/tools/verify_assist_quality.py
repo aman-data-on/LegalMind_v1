@@ -298,21 +298,24 @@ def generation_available() -> tuple[bool, str]:
 
 
 def _generation_evidence(db, assistant_message_id, chunk_text: dict) -> list[str]:
-    """The chunk texts this answer was generated over, from its own retrieval run."""
-    import json as _json
+    """The chunks the answer's markers INDEX — `answer_citations` in display order.
 
+    Since Phase 0 (2026-09-17) the persisted text carries display numbering: `[k]`
+    names the k-th cited chunk, and `_persist_citations` writes `claim_ordinal` in that
+    same order. This used to return the retrieval run's full hit list, which scored a
+    renumbered "[1]" against the FIRST RETRIEVED chunk — and read faithfulness 0.758 on
+    a run whose every answer had passed verification (measured 2026-09-17, then proven
+    on the gate database: 50/50 pass against the citations, 39/50 against the run).
+    Verifying the text a reader sees against the citations a reader is shown is also
+    the property Phase 0 exists to guarantee.
+    """
     schema = config.assist_schema()
-    results = db.execute(text(
-        f'SELECT r.results FROM "{schema}".ai_answers a '
-        f'JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id '
-        "WHERE a.message_id = :m"), {"m": assistant_message_id}).scalar()
-    if not results:
-        return []
-    if isinstance(results, str):
-        results = _json.loads(results)
-    return [chunk_text[uuid.UUID(h["chunk_id"])]
-            for h in results.get("hits", [])
-            if uuid.UUID(h["chunk_id"]) in chunk_text]
+    rows = db.execute(text(
+        f'SELECT ac.chunk_id FROM "{schema}".answer_citations ac '
+        f'JOIN "{schema}".ai_answers a ON a.id = ac.answer_id '
+        "WHERE a.message_id = :m AND ac.chunk_id IS NOT NULL "
+        "ORDER BY ac.claim_ordinal"), {"m": assistant_message_id}).all()
+    return [chunk_text[r[0]] for r in rows if r[0] in chunk_text]
 
 
 class _ProviderMeter:
