@@ -103,8 +103,12 @@ RETRIEVAL_TOP_K = 10
 # fusion. The gate itself — its constants and its AND lexical signal — is unchanged
 # (the Tier-2 gate showed that letting OR open it answers 13/13 unanswerable
 # questions); the version string keeps records under either strategy distinguishable.
+# "-4" (2026-09-17): the vector branch runs once per planner reformulation beside the
+# question and the lists are rank-fused; the GATE still decides on the question's own
+# raw scores, exactly as calibrated. Candidates a shut gate carries for the rescue are
+# the fused union, so the judge reads a wider pool.
 RETRIEVAL_STRATEGY_VERSION = (
-    "hybrid-rrf-gate-3 (redirect 2026-09-10; gate 2026-08-26)")
+    "hybrid-rrf-gate-4 (multi-query 2026-09-17; gate 2026-08-26)")
 assert len(RETRIEVAL_STRATEGY_VERSION) <= 64      # retrieval_runs.strategy_version
 
 #: Reciprocal-rank-fusion damping. 60 is the value the RRF paper reports and the

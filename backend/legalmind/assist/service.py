@@ -41,6 +41,7 @@ from legalmind.assist import (
     generation,
     guardrails,
     intent,
+    planner,
     positions,
     rerank,
     rescue,
@@ -340,7 +341,8 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
                        domains: tuple[str, ...] = ("DOCUMENT",),
                        statute_hits: list | None = None,
                        follow_up_of: list[UUID] | None = None,
-                       finding_id: UUID | None = None) -> UUID:
+                       finding_id: UUID | None = None,
+                       plan: dict | None = None) -> UUID:
     """The retrieval record behind the answer — `AM-27`'s `retrieval_runs`.
 
     Chunk ids and scores only, never text (r6), plus the gate's raw features so the
@@ -385,6 +387,12 @@ def _persist_retrieval(db: DBSession, message_id: UUID, question: str,
     # rather than inferred — and so a FOLLOW-UP can inherit it (see `ask`).
     if finding_id:
         filters_dict["finding_id"] = str(finding_id)
+    # The query plan (2026-09-17): the topic that narrowed Domain A and the
+    # reformulations that ran beside the question — enums and short phrases derived
+    # from the user's own question, so the record can say WHY retrieval was aimed
+    # where it was. No chunk text, nothing a reader is shown.
+    if plan:
+        filters_dict["plan"] = plan
     filters = _json.dumps(filters_dict)
     db.execute(text(f"""
         INSERT INTO "{schema}".retrieval_runs
@@ -651,8 +659,18 @@ def _latest_review_summary(db: DBSession,
             "findings_by_classification": {k: int(v) for k, v in counts.items()}}
 
 
+def plan_question(question: str, prior_questions: list[str] | tuple[str, ...] = (), *,
+                  request_id: str | None = None) -> planner.QueryPlan | None:
+    """The planning stage (2026-09-17), timed. None means: retrieve exactly as before.
+    Runs AFTER every deterministic screen — never for a comparison, capability or
+    general-knowledge question — and steers only what `retrieve_document` and the
+    Domain A topic filter are given. Shared with `tools.verify_assist_quality`."""
+    with _stage("planning"):
+        return planner.plan(question, prior_questions, request_id=request_id)
+
+
 def retrieve_document(db: DBSession, *, document_version_id: UUID,
-                      retrieval_query: str,
+                      retrieval_query: str, plan: planner.QueryPlan | None = None,
                       pinned_evidence: list[UUID] | tuple[UUID, ...] = (),
                       request_id: str | None = None,
                       ) -> tuple[store.RetrievalOutcome, bool]:
@@ -665,7 +683,9 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
 
     Order, and it matters:
 
-      1. hybrid search, the gate deciding on its calibrated inputs (`store.search_hybrid`)
+      1. hybrid search, the gate deciding on its calibrated inputs (`store.search_hybrid`;
+         the planner's reformulations widen and re-order the evidence, never the gate,
+         which still decides on the question's own raw scores)
       2. a Finding's cited rows pinned in, opening the gate because the evaluator already
          recorded them against this version
       3. the rescue judge reconsidering a SHUT gate (`assist/rescue.py`)
@@ -678,9 +698,18 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
     Returns the outcome and whether the rescue reopened the gate.
     """
     with _stage("retrieval"):
-        retrieval = store.search_hybrid(
-            db, document_version_id=document_version_id, query=retrieval_query,
-            embed_query=embedding_runtime.embed_query)
+        # `extra_queries` only when there is something to pass, so that "no plan" is
+        # byte-for-byte the previous call — and every existing double of
+        # `search_hybrid` keeps its signature. Two explicit branches rather than a
+        # dict unpack, so the type checker can see both.
+        if plan and plan.queries:
+            retrieval = store.search_hybrid(
+                db, document_version_id=document_version_id, query=retrieval_query,
+                embed_query=embedding_runtime.embed_query, extra_queries=plan.queries)
+        else:
+            retrieval = store.search_hybrid(
+                db, document_version_id=document_version_id, query=retrieval_query,
+                embed_query=embedding_runtime.embed_query)
     if pinned_evidence:
         # A question about a Finding can always see the clause that Finding cites.
         # These rows are ADDED to whatever search found, never substituted for it,
@@ -844,13 +873,26 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
               statute_shaped=str(route.statute_shaped),
               follow_up=str(follow_up))
 
+    # QUERY PLAN (2026-09-17) — what the question is ABOUT, so retrieval can be aimed.
+    # After every deterministic screen (they returned above) and never for the
+    # evaluator's question: `AM-25` r4 stays code, and the plan cannot reach it. The
+    # plan is advisory and fails closed to None — see `assist/planner.py`. It steers
+    # exactly two things: the Domain A topic filter and the document's extra queries.
+    # The RAW question goes to the planner with the prior questions as context; the
+    # concatenated `resolved` string still drives the lexical pass unchanged.
+    made_plan = None if route.comparison else plan_question(
+        question, prior_texts, request_id=request_id)
+    topic = made_plan.topic if made_plan else None
+    plan_filters = made_plan.as_filters() if made_plan else None
+
     # Domain A — extractive, authorized inside the query (AM-32 r4/r5). Retrieved
     # first because it is cheap, local, and never touches the model.
     position_hits: list[positions.PositionHit] = []
     if route.has(routing.Domain.POSITIONS):
         with _stage("positions"):
             position_hits = positions.search_positions(
-                db, query=resolved, permissions=permissions, limit=POSITION_LIMIT)
+                db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
+                topic=topic)
     # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
     statute_hits: list[statutes.StatuteHit] = []
     if route.has(routing.Domain.STATUTES):
@@ -889,11 +931,12 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      question=question, permissions=permissions,
                                      retrieval_query=resolved,
                                      prior_questions=prior_texts,
+                                     topic=topic, plan=plan_filters,
                                      follow_up_of=follow_up_of)
 
     retrieval, was_rescued = retrieve_document(
         db, document_version_id=document_version_id, retrieval_query=resolved,
-        pinned_evidence=cited_evidence, request_id=request_id)
+        plan=made_plan, pinned_evidence=cited_evidence, request_id=request_id)
     if was_rescued:
         log_event("assist.ask.rescued", request_id=request_id,
                   conversation_id=str(conversation_id), chunks=str(len(retrieval.hits)))
@@ -906,7 +949,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     run_id = _persist_retrieval(db, user_message_id, resolved, retrieval,
                                 document_version_id=document_version_id, domains=domains,
                                 statute_hits=statute_hits, follow_up_of=follow_up_of,
-                                finding_id=finding_id)
+                                finding_id=finding_id, plan=plan_filters)
     chunk_texts = [h.content for h in retrieval.hits]
 
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
@@ -925,7 +968,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      position_hits, route, domains, state, request_id,
                                      statute_hits=statute_hits, question=question,
                                      permissions=permissions, retrieval_query=resolved,
-                                     prior_questions=prior_texts)
+                                     prior_questions=prior_texts,
+                                     topic=topic, plan=plan_filters)
 
     try:
         # Document chunks ONLY reach the model. Position text never does (AM-32 r4).
@@ -945,7 +989,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
                                      statute_hits=statute_hits, question=question,
                                      permissions=permissions, retrieval_query=resolved,
-                                     prior_questions=prior_texts)
+                                     prior_questions=prior_texts,
+                                     topic=topic, plan=plan_filters)
     except generation.GenerationUnavailable:
         log_event("assist.ask.refused", request_id=request_id,
                   cause="generation_unavailable", level=logging.WARNING,
@@ -955,7 +1000,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      AssistAnswerState.EVIDENCE_INSUFFICIENT, request_id,
                                      statute_hits=statute_hits, question=question,
                                      permissions=permissions, retrieval_query=resolved,
-                                     prior_questions=prior_texts)
+                                     prior_questions=prior_texts,
+                                     topic=topic, plan=plan_filters)
 
     # AM-30 t5 — the audit record of the egress: model, prompt version, payload
     # hash. Recorded whether or not verification later rejects the text, because the
@@ -984,7 +1030,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      AssistAnswerState.CLAIM_UNSUPPORTED, request_id,
                                      statute_hits=statute_hits, question=question,
                                      permissions=permissions, retrieval_query=resolved,
-                                     prior_questions=prior_texts)
+                                     prior_questions=prior_texts,
+                                     topic=topic, plan=plan_filters)
     if not verification.passed:
         # CLAIM_UNSUPPORTED or the model's own NOT FOUND — either way the generated
         # text never reaches the user (AM-25 r5).
@@ -997,7 +1044,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      position_hits, route, domains, state, request_id,
                                      statute_hits=statute_hits, question=question,
                                      permissions=permissions, retrieval_query=resolved,
-                                     prior_questions=prior_texts)
+                                     prior_questions=prior_texts,
+                                     topic=topic, plan=plan_filters)
 
     # The company standard BESIDE the document's answer (owner, 2026-09-10: the
     # answer should read "Agreement evidence… Company Standard… Assessment…").
@@ -1011,7 +1059,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if routing.Domain.POSITIONS in route.fallback and not position_hits:
         with _stage("positions"):
             position_hits = positions.search_positions(
-                db, query=resolved, permissions=permissions, limit=POSITION_LIMIT)
+                db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
+                topic=topic)
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
@@ -1068,7 +1117,8 @@ STATUTES_BESIDE_TEXT = (
 def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
                        route: routing.RoutePlan, domains: tuple[str, ...],
                        position_hits: list, statute_hits: list,
-                       permissions: frozenset[str], request_id: str | None):
+                       permissions: frozenset[str], request_id: str | None,
+                       topic: str | None = None):
     """Search every authorized source the primary route did not already search.
 
     The one place the "document as knowledge boundary" defect was fixed (2026-09-09).
@@ -1087,7 +1137,8 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
             continue
         if domain is routing.Domain.POSITIONS and not position_hits:
             position_hits = positions.search_positions(
-                db, query=question, permissions=permissions, limit=POSITION_LIMIT)
+                db, query=question, permissions=permissions, limit=POSITION_LIMIT,
+                topic=topic)
         elif domain is routing.Domain.STATUTES and not statute_hits:
             # Source priority, not a fixed sweep: the statute corpus is a fallback
             # for a question about the law (statute-shaped) or for one nothing
@@ -1112,7 +1163,8 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
 def _record_fallthrough(db: DBSession, message_id: UUID, run_id: UUID | None,
                         question: str, domains: tuple[str, ...],
                         statute_hits: list,
-                        follow_up_of: list[UUID] | None = None) -> UUID | None:
+                        follow_up_of: list[UUID] | None = None,
+                        plan: dict | None = None) -> UUID | None:
     """Keep the retrieval record honest about what was searched: the run row names
     every consulted domain and the statute hits (ids + scores only, `AM-27` r6)."""
     import json as _json
@@ -1128,7 +1180,7 @@ def _record_fallthrough(db: DBSession, message_id: UUID, run_id: UUID | None,
                                    strategy_version="sources-fallback-1",
                                    embedding_model=None),
             document_version_id=None, domains=domains, statute_hits=statute_hits,
-            follow_up_of=follow_up_of)
+            follow_up_of=follow_up_of, plan=plan)
     db.execute(text(f"""
         UPDATE "{schema}".retrieval_runs
            SET filters = jsonb_set(filters, '{{domains}}', CAST(:d AS jsonb)),
@@ -1201,7 +1253,9 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
                           permissions: frozenset[str] = frozenset(),
                           retrieval_query: str | None = None,
                           prior_questions: list[str] | None = None,
-                          follow_up_of: list[UUID] | None = None) -> AskOutcome:
+                          follow_up_of: list[UUID] | None = None,
+                          topic: str | None = None,
+                          plan: dict | None = None) -> AskOutcome:
     """The document did not answer (or there was none). The other authorized
     sources may still: the organization's position is quoted extractively (`AM-32`
     r4), the statute corpus is answered over its own evidence (r8). Otherwise the
@@ -1212,9 +1266,9 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     with _stage("fallbacks"):
         domains, position_hits, statute_hits = _consult_fallbacks(
             db, conversation_id, retrieval_query, route, tuple(domains), position_hits,
-            statute_hits, permissions, request_id)
+            statute_hits, permissions, request_id, topic=topic)
     run_id = _record_fallthrough(db, message_id, run_id, retrieval_query, domains,
-                                 statute_hits, follow_up_of=follow_up_of)
+                                 statute_hits, follow_up_of=follow_up_of, plan=plan)
     statute_section = None
     if statute_hits:
         statute_section = _answer_statutes(db, conversation_id, question, statute_hits,

@@ -275,15 +275,16 @@ class _ReverseScorer:
 
 
 def test_the_quality_gate_retrieves_through_the_service_composition():
-    """2026-09-17: the gate no longer calls `search_hybrid` or `reconsider` itself — it
-    calls `service.retrieve_document`, the same function `service.ask` calls, so a step
-    added to the product (the rescue, then the reranker) cannot go missing from the
-    measurement."""
+    """2026-09-17: the gate no longer calls `search_hybrid` or `reconsider` itself —
+    it calls `service.retrieve_document`, the same function `service.ask` calls, so a
+    step added to the product (the rescue, then the reranker, then the planner) cannot
+    go missing from the measurement. The AST test above keeps `rescue_indices` out of
+    both; this pins the composition."""
     import ast
     import pathlib
 
     tree = ast.parse(pathlib.Path("tools/verify_assist_quality.py").read_text())
     called = {n.func.attr for n in ast.walk(tree)
               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
-    assert "retrieve_document" in called
+    assert "retrieve_document" in called and "plan_question" in called
     assert "search_hybrid" not in called, "the gate re-implements retrieval"

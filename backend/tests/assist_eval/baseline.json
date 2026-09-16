@@ -7,13 +7,14 @@
  },
  "pipeline": {
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2@main",
-  "strategy_version": "hybrid-rrf-gate-3 (redirect 2026-09-10; gate 2026-08-26)",
+  "strategy_version": "hybrid-rrf-gate-4 (multi-query 2026-09-17; gate 2026-08-26)",
   "cosine_floor": 0.5,
   "evidence_cosine_floor": 0.5,
   "peak_margin": 0.059,
   "top_k": 10,
   "evidence_rescue": true,
-  "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2@233902d25c440f23af6f7d6e94d2946bac0bee0a"
+  "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2@233902d25c440f23af6f7d6e94d2946bac0bee0a",
+  "query_planner": false
  },
  "metrics": {
   "answerable": 64,

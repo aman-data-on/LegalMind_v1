@@ -290,7 +290,8 @@ def generate(question: str, evidence: list[str], *,
 def generate_raw(prompt: str, *, prompt_version: str, environment: str,
                  request_id: str | None = None,
                  evidence_count: int | None = None,
-                 max_output_tokens: int = 1024) -> GenerationResult:
+                 max_output_tokens: int = 1024,
+                 timeout_s: float = 60.0) -> GenerationResult:
     """The transport under every assist-lane prompt. STILL the single egress seam
     (AM-30 t1): every gate, payload screen, pin check and audit-hash rule applies
     identically whatever the prompt — a second prompt shape must never mean a
@@ -335,7 +336,7 @@ def generate_raw(prompt: str, *, prompt_version: str, environment: str,
 
     started = time.monotonic()
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
             parsed = json.load(response)
     except urllib.error.HTTPError as exc:
         # Status and hash only — never the payload, never the key (53.3, AM-30 t5).

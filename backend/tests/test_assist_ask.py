@@ -1547,3 +1547,138 @@ def test_a_second_prompt_registers_under_its_own_code(db):
     codes = {r[0] for r in db.execute(text(
         f'SELECT code FROM "{schema}".prompt_versions')).all()}
     assert {generation.PROMPT_VERSION, generation.POSITION_PROMPT_VERSION} <= codes
+
+
+# --------------------------------------------------------------------------
+# Phase 1 (2026-09-17): the query plan aims retrieval and reaches nothing else
+# --------------------------------------------------------------------------
+def test_the_planner_is_never_consulted_for_the_evaluators_question(db, user,
+                                                                    indexed_contract,
+                                                                    monkeypatch):
+    """`AM-25` r4 is decided by code before the planner exists in the request."""
+    from legalmind.assist import planner
+
+    def boom(*a, **k):
+        raise AssertionError("the planner must not run on a comparison question")
+
+    monkeypatch.setattr(planner, "plan", boom)
+    contract, version = indexed_contract
+    conversation = _conversation(db, user, contract)
+    outcome = service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                          question="Does this comply with our approved standard?")
+    assert outcome.routed_to_evaluator
+
+
+def test_the_planner_is_never_consulted_for_a_general_knowledge_question(db, user,
+                                                                         monkeypatch):
+    from legalmind.assist import planner
+
+    def boom(*a, **k):
+        raise AssertionError("the planner must not run on a general-knowledge question")
+
+    monkeypatch.setattr(planner, "plan", boom)
+    # A document-less research conversation (`contract_id` NULL is legitimate — AM-46).
+    conversation = uuid.uuid4()
+    db.execute(text(f'INSERT INTO "{config.assist_schema()}".conversations '
+                    "(id, user_id, contract_id, created_at) VALUES (:i, :u, NULL, now())"),
+               {"i": conversation, "u": user.id})
+    outcome = service.ask(db, conversation_id=conversation, document_version_id=None,
+                          question="What is an NDA?")
+    assert outcome.text == service.GENERAL_KNOWLEDGE_TEXT
+
+
+def test_the_plan_is_recorded_on_the_retrieval_run_and_steers_the_extra_queries(
+        db, user, indexed_contract, monkeypatch):
+    """`AM-27`: the run says WHY retrieval was aimed where it was. And the reformulations
+    reach `search_hybrid` as extra queries — the only place they may go."""
+    from legalmind.assist import planner, store
+
+    fixed = planner.QueryPlan(intent="FACT", topic="Termination & Suspension",
+                              subject="notice to terminate", party="EITHER",
+                              source_preference="DOCUMENT",
+                              queries=("notice to terminate", "convenience termination"),
+                              section_hint=None)
+    monkeypatch.setattr(planner, "plan", lambda *a, **k: fixed)
+    real_search = store.search_hybrid
+    seen: dict = {}
+
+    def spy(*args, **kwargs):
+        seen["extra_queries"] = tuple(kwargs.get("extra_queries", ()))
+        return real_search(*args, **kwargs)
+
+    monkeypatch.setattr(store, "search_hybrid", spy)
+    monkeypatch.setattr(generation, "generate", lambda question, chunks, **k:
+                        generation.GenerationResult(
+                            text=_first_claim(chunks[0]) + " [1].", model="fake",
+                            prompt_version="test", payload_sha256="0" * 64,
+                            latency_ms=1))
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    conversation = _conversation(db, user, contract)
+    service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                question="ninety days written notice terminate for convenience")
+    assert seen["extra_queries"] == fixed.queries
+    schema = config.assist_schema()
+    recorded = db.execute(text(f"""
+        SELECT r.filters->'plan' FROM "{schema}".retrieval_runs r
+          JOIN "{schema}".messages m ON m.id = r.message_id
+         WHERE m.conversation_id = :c ORDER BY r.created_at DESC LIMIT 1"""),
+                          {"c": conversation}).scalar()
+    assert recorded == fixed.as_filters()
+
+
+def test_no_plan_means_the_pipeline_runs_exactly_as_before(db, user, indexed_contract,
+                                                           monkeypatch):
+    from legalmind.assist import planner, store
+
+    monkeypatch.setattr(planner, "plan", lambda *a, **k: None)
+    real_search = store.search_hybrid
+    seen: dict = {}
+
+    def spy(*args, **kwargs):
+        seen["extra_queries"] = tuple(kwargs.get("extra_queries", ()))
+        return real_search(*args, **kwargs)
+
+    monkeypatch.setattr(store, "search_hybrid", spy)
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    conversation = _conversation(db, user, contract)
+    service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                question="zzz unrelated maritime salvage zzz")
+    assert seen["extra_queries"] == ()
+    schema = config.assist_schema()
+    recorded = db.execute(text(f"""
+        SELECT r.filters ? 'plan' FROM "{schema}".retrieval_runs r
+          JOIN "{schema}".messages m ON m.id = r.message_id
+         WHERE m.conversation_id = :c ORDER BY r.created_at DESC LIMIT 1"""),
+                          {"c": conversation}).scalar()
+    assert recorded is False
+
+
+def test_extra_queries_never_change_the_gate_decision(db, user, indexed_contract):
+    """The gate is calibrated on the question's own raw scores (2026-08-26). A
+    reformulation may widen or re-order the evidence and the rescue's candidate pool;
+    it may not open — or shut — the gate."""
+    from legalmind.assist import store
+
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    for question in ("what is the aggregate liability cap?",
+                     "ninety days written notice terminate for convenience",
+                     "zzz unrelated maritime salvage zzz"):
+        alone = store.search_hybrid(db, document_version_id=version.id, query=question,
+                                    embed_query=embedding_runtime.embed_query)
+        widened = store.search_hybrid(db, document_version_id=version.id, query=question,
+                                      embed_query=embedding_runtime.embed_query,
+                                      extra_queries=("termination for convenience notice",
+                                                     "limitation of liability fees"))
+        assert widened.gate_open == alone.gate_open, question
+        assert widened.vector_top_score == alone.vector_top_score, question
+        assert widened.vector_peak_gap == alone.vector_peak_gap, question
+        assert widened.lexical_hit == alone.lexical_hit, question
+        if alone.gate_open:
+            # Every chunk the question alone surfaced is still evidence; the union can
+            # only add and re-order within the same authorized version.
+            assert {h.chunk_id for h in alone.hits} <= {h.chunk_id for h in widened.hits}
+        else:
+            assert widened.hits == [] and alone.hits == []
