@@ -1580,7 +1580,24 @@ def test_no_endpoint_lists_every_counterparty(api, db, owner):
     count is per-caller for that reason.
 
     A route that cannot honestly claim that sentence does not belong in this
-    set, whatever screen wants it."""
+    set, whatever screen wants it.
+
+    **2026-09-15, DELETE — the second confrontation, recorded.** The owner
+    authorised removing an empty client profile, so a seventh route joins the
+    set. It is asked the same question as the two added in 2026-09-10, and gives
+    the same answer: `DELETE /counterparties/{id}` resolves the profile through
+    `_readable` — the SAME `_all_visible_ids` statement `GET` 404s on — so it
+    discloses no company the caller could not already open, and it can delete
+    none either. r6 forbids *widening* the visible set; it does not freeze the
+    verbs that act on it.
+
+    One deliberate asymmetry with r5 is worth naming here rather than in a
+    commit message. r5 assigns reads to `contract.view` and "creating or
+    editing" to `contract.update`, and is SILENT on deletion because nothing
+    could be deleted when it was written. This route takes `contract.archive` —
+    the permission `DELETE /contracts/{id}` (AM-55) already uses for the only
+    comparable destructive act. No new permission is introduced, so r5's holding
+    ("`IMPL-01`'s bar for a new permission is not met") is untouched."""
     from legalmind.api.permission_map import ENDPOINT_PERMISSIONS
 
     counterparty_routes = {(m, p) for (m, p) in ENDPOINT_PERMISSIONS
@@ -1592,12 +1609,19 @@ def test_no_endpoint_lists_every_counterparty(api, db, owner):
         ("GET", f"{V1}/counterparties/{{counterparty_id}}"),
         ("GET", f"{V1}/counterparties/{{counterparty_id}}/activity"),
         ("PATCH", f"{V1}/counterparties/{{counterparty_id}}"),
+        ("DELETE", f"{V1}/counterparties/{{counterparty_id}}"),
     }
     # Every one of them is a contract-scoped permission, never an admin one
     # (r5) — and in particular the activity feed is NOT `audit.view`, which
     # spans the whole system.
     assert {ENDPOINT_PERMISSIONS[route] for route in counterparty_routes} == {
-        P.CONTRACT_VIEW, P.CONTRACT_UPDATE}
+        P.CONTRACT_VIEW, P.CONTRACT_UPDATE, P.CONTRACT_ARCHIVE}
+    # Destroying a profile is gated more narrowly than editing one, and that is
+    # the point: an installation may grant `contract.update` while withholding
+    # `contract.archive`, and deletion goes with the latter.
+    assert ENDPOINT_PERMISSIONS[
+        ("DELETE", f"{V1}/counterparties/{{counterparty_id}}")
+    ] == P.CONTRACT_ARCHIVE
     assert ENDPOINT_PERMISSIONS[("GET", f"{V1}/counterparties")] == P.CONTRACT_VIEW
     assert ENDPOINT_PERMISSIONS[("POST", f"{V1}/counterparties")] == P.CONTRACT_UPDATE
     assert ENDPOINT_PERMISSIONS[

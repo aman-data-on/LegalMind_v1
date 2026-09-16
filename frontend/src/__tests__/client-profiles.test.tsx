@@ -37,6 +37,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
+import { api } from "@/lib/api";
 import { ClientAvatar, ClientStatus, Fact, websiteHref } from "@/components/clients/ClientBits";
 import { ClientDocuments } from "@/components/clients/ClientDocuments";
 import { ClientDetails } from "@/components/clients/ClientTabs";
@@ -410,5 +411,69 @@ describe("presentation helpers", () => {
     // ...while the parts a PATCH never returns are carried over.
     expect(merged.contracts).toHaveLength(1);
     expect(merged.documents).toBe(1);
+  });
+});
+
+/**
+ * Deleting an empty client profile — `AM-70` (AB-22), owner-approved 2026-09-16.
+ *
+ * What is pinned HERE is what Node can honestly answer: the request the client
+ * actually puts on the wire, and the word the audit feed uses. The menu and the
+ * confirmation dialog are browser behaviour — `Dialog` renders through Radix's
+ * `Portal`, which produces nothing under Node with no DOM (the same reason
+ * `KeyboardShortcutsHelp` keeps its own implementation; see `Dialog.tsx`) — so
+ * they are covered in a real browser rather than asserted against markup that
+ * would never render.
+ */
+describe("deleting an empty client profile", () => {
+  function stubFetch(status: number) {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fake = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), method: init?.method ?? "GET" });
+      return {
+        status,
+        ok: status < 400,
+        headers: new Headers({ "X-Request-Id": "req-1" }),
+        json: async () => ({ error: { code: "CONFLICT", message: "still has documents" } }),
+      } as unknown as Response;
+    });
+    vi.stubGlobal("fetch", fake);
+    return calls;
+  }
+
+  it("issues a real DELETE to the counterparty route, not a list splice", async () => {
+    // The failure this guards is the one AB-12 r6's note names for contracts:
+    // removing the row from a React array looks identical to the user and
+    // deletes nothing. The path must be the counterparty resource itself.
+    const calls = stubFetch(204);
+
+    await api.deleteClient("cp-1");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe("DELETE");
+    expect(calls[0]!.url).toContain("/counterparties/cp-1");
+    // It is the client route, never the contract one — deleting a profile must
+    // not be able to reach a document.
+    expect(calls[0]!.url).not.toContain("/contracts");
+    vi.unstubAllGlobals();
+  });
+
+  it("surfaces the server's refusal instead of resolving", async () => {
+    // 409 is the expected answer for a client that still has documents, and it
+    // has to reach the dialog as an error — a silent resolve would let the UI
+    // navigate away as though the profile were gone.
+    stubFetch(409);
+
+    await expect(api.deleteClient("cp-2")).rejects.toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  it("names the deletion in the reader's words for the audit trail", () => {
+    // The event outlives the row it describes (`audit_events` holds no FK to
+    // `counterparties`), so it surfaces on the system-wide audit screen and
+    // needs a non-legal reader's phrase like every other action.
+    expect(activityWords("counterparty.deleted")).toBe("Client profile deleted");
+    // And the fallback still returns the raw name rather than hiding a row.
+    expect(activityWords("counterparty.exploded")).toBe("counterparty.exploded");
   });
 });

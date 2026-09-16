@@ -107,6 +107,10 @@ export function typesPresent(contracts: readonly ClientContract[]): string[] {
 const ACTIVITY_WORDS: Record<string, string> = {
   "counterparty.created": "Client profile created",
   "counterparty.updated": "Client details updated",
+  // Only reachable for a profile that had no documents, so this can never show
+  // in a surviving client's own feed. It is named for the system-wide audit
+  // screen, where the event outlives the row it describes.
+  "counterparty.deleted": "Client profile deleted",
   "contract.counterparty_linked": "Document linked to this client",
   "contract.type_declared": "Document type recorded",
   "contract.status_changed": "Document status changed",

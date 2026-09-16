@@ -28,6 +28,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Building2,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -72,6 +73,12 @@ export const IconXCircle = decorative(CircleX);
 export const IconSearch = decorative(Search);
 /** Client Profiles' page mark (2026-09-10) — the section is about companies. */
 export const IconUsers = decorative(Users);
+/** The company itself (2026-09-15) — the mark inside the Client Profiles
+ *  first-run illustration, where the subject is one company's FILE rather than
+ *  the people in it. `IconUsers` already means "clients" in the nav and in this
+ *  page's own header, so reusing it for the document's mark would say the same
+ *  word twice in one composition. */
+export const IconBuilding = decorative(Building2);
 export const IconChevronUp = decorative(ChevronUp);
 export const IconChevronDown = decorative(ChevronDown);
 export const IconChevronRight = decorative(ChevronRight);

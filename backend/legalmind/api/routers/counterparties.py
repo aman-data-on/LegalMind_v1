@@ -29,10 +29,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import CompoundSelect, Select, func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
-from legalmind.api.errors import BusinessRuleRejected
+from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.routers.contracts import _list_summaries, _scoped_contracts
 from legalmind.api.schemas import CounterpartyCreate, CounterpartyUpdate
@@ -588,6 +589,89 @@ def update_counterparty(counterparty_id: UUID, body: CounterpartyUpdate,
                      before={f: before[f] for f in changed},
                      after={f: after[f] for f in changed})
     return data(serialize_counterparty(row))
+
+
+@router.delete("/counterparties/{counterparty_id}", status_code=204)
+def delete_counterparty(counterparty_id: UUID,
+                        guard: Guard = Depends(get_guard)) -> None:
+    """Remove an EMPTY client profile — `AM-70` (AB-22), owner-approved 2026-09-16.
+
+    Deliberately the narrowest destructive operation in the product. It deletes
+    one `counterparties` row and nothing else: no document, no version, no
+    Review, no Finding, no Legal Decision. **Rule 17 is untouched**, which is
+    what separates this from `DELETE /contracts/{id}` (`AM-55`), where the owner
+    had to accept that historical Reviews stop being reproducible. Nothing here
+    cascades, because nothing here is allowed to have anything hanging off it.
+
+    **`contract.archive`, not `contract.update`.** AB-13 r5 rules that
+    `contract.update` governs "creating or editing" a counterparty; it says
+    nothing about destroying one, because at the time nothing could be. Rather
+    than stretch r5, this follows the only precedent the codebase has for a
+    destructive act on this data — `delete_contract` — and reuses its
+    permission. No new permission is added, so r5's actual holding ("`IMPL-01`'s
+    bar for a new permission is not met") still stands. The practical gain: an
+    installation that grants `contract.update` while withholding
+    `contract.archive` withholds deletion too, which `contract.update` alone
+    could never express.
+
+    **Three gates, in the locked 43.23 order:**
+
+    1. **Visibility** — `_readable` resolves through the SAME scoped statement
+       the list and the detail use, so a profile outside the caller's scope is a
+       byte-identical 404 (49.5 r1 / `SEC-07`), never a hint that it exists.
+    2. **Permission** — `contract.archive`, 403 without it.
+    3. **Emptiness** — refused with 409 while ANY contract points at this row.
+
+    ⚠️ **The emptiness check counts contracts the caller cannot see, on
+    purpose.** `_client_stats` derives the screen's "6 documents" through the
+    caller's own read scope, so a contract owned by another department is absent
+    from it — but the foreign key does not care about scope. Counting only what
+    the caller can see would let the check pass and hand the DB error to the
+    user as a 500. So the count here is deliberately UNSCOPED, and the message
+    it produces says only *that* documents remain, never how many or whose:
+    naming them would disclose the existence of another department's deal, which
+    is exactly what `LEGAL-02`/`SEC-07` keep inside its scope.
+
+    The FK is `ON DELETE RESTRICT` (migration `c8e4a1b7d2f6`) and stays the final
+    backstop: between this check and the flush, someone else may link the first
+    contract to this company, and the database — not this function — is what
+    makes that safe.
+    """
+    row = _readable(guard, counterparty_id)
+    guard.permission(P.CONTRACT_ARCHIVE)
+
+    # Unscoped on purpose — see the docstring. `exists()` rather than a count:
+    # the number is never reported, so there is no reason to compute it.
+    linked = guard.db.execute(
+        select(M.Contract.id)
+        .where(M.Contract.counterparty_id == counterparty_id)
+        .limit(1)
+    ).first()
+    if linked is not None:
+        raise Conflict(
+            "this client still has documents filed under it. Delete or move "
+            "those documents first, or set the client to Inactive to retire "
+            "the profile while keeping its history.")
+
+    before = serialize_counterparty(row)
+    guard.db.delete(row)
+    try:
+        guard.db.flush()
+    except IntegrityError as exc:
+        # The RESTRICT backstop firing means a contract was linked after the
+        # check above and before this flush. The caller's request is simply out
+        # of date, so it gets the same answer it would have got a moment
+        # earlier — not a 500.
+        raise Conflict(
+            "this client gained a document while the deletion was in flight; "
+            "reload the profile and try again.") from exc
+
+    audit.record(
+        guard.db, action=audit.COUNTERPARTY_DELETED,
+        entity_type="counterparty", entity_id=counterparty_id,
+        actor_id=guard.user_id, request_id=guard.request_id,
+        before=before, after=None,
+    )
 
 
 def _plain(value: Any) -> Any:
