@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.assist import (
+    capability,
     embedding_runtime,
     generation,
     guardrails,
@@ -497,6 +498,11 @@ def _position_views(hits: list[positions.PositionHit],
     return [{"position_chunk_id": str(h.position_chunk_id),
              "standard_code": h.standard_code, "document_type": h.document_type,
              "source_clause": h.source_clause, "content": h.content,
+             # `AM-32` r4's citation is "standard code, version, source clause". The
+             # version was being dropped, so a reader could not tell WHICH version of a
+             # position they were shown; the status says whether it is still current.
+             "standard_version": h.standard_version,
+             "ratification_status": h.ratification_status,
              "retrieval_score": round(h.score, 4),
              "finding": (findings or {}).get(h.standard_code)} for h in hits]
 
@@ -629,6 +635,30 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                          permissions=permissions,
                          statutes_available=statutes.available(db))
     domains = tuple(d.value for d in route.domains)
+    # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
+    # enforcement: nothing below this line can reach a document, a position, a statute
+    # or a Finding, so the guarantee is structural rather than a promise. Disabled by
+    # default; `routing.plan` only sets `capability` when the flag is on, and the
+    # amendment is not approved.
+    if getattr(route, "capability", False):
+        try:
+            text_out = capability.answer()
+        except capability.CapabilityManifestUnavailable:
+            # r4/r6: no manifest means no grounded capability answer exists. Fall
+            # through to the ordinary route rather than inventing one — today's
+            # behaviour, which is wrong but not fabricated.
+            log_event("assist.ask.capability_manifest_unavailable",
+                      request_id=request_id, conversation_id=str(conversation_id))
+        else:
+            reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
+                                     text_out)
+            _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
+                            model=None, prompt_version_id=None, latency_ms=None)
+            log_event("assist.ask.capability", request_id=request_id,
+                      conversation_id=str(conversation_id))
+            return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                              answer_state=AssistAnswerState.ANSWERED, text=text_out,
+                              domains=())
     log_event("assist.ask.routed", request_id=request_id,
               conversation_id=str(conversation_id), domains=",".join(domains),
               comparison=str(route.comparison),
@@ -936,6 +966,51 @@ def _context_kwargs(prior_questions: list[str] | None) -> dict:
     return {"prior_questions": tuple(prior_questions)} if prior_questions else {}
 
 
+
+def _position_reading_aid(question: str, hits: list,
+                          request_id: str | None) -> str | None:
+    """`AM-67` — a plain-language explanation of the organization's own positions,
+    rendered BESIDE the verbatim quote and never instead of it (r3).
+
+    Returns None on every failure path, and None means the caller emits exactly what it
+    emitted before this existed: the fixed sentence plus the quotes (r8). A reading aid
+    that cannot be produced safely is simply absent — it never degrades the answer.
+
+    Order matters. The locator screen runs BEFORE the model is reached (r7), because a
+    stale corpus is a disclosure problem, not a quality one.
+    """
+    if not config.position_synthesis_enabled() or not hits:
+        return None
+    spans = [h.content for h in hits]
+    try:
+        positions.screen_for_egress(spans)
+    except positions.PositionEgressRefused as exc:
+        # The corpus was not re-chunked. Loud in the log, invisible to the reader.
+        log_event("assist.position_synthesis.refused_stale_corpus",
+                  request_id=request_id, reason=str(exc)[:200])
+        return None
+    try:
+        result = generation.generate_position_reading_aid(
+            question, spans, environment=config.environment(), request_id=request_id)
+    except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
+        log_event("assist.position_synthesis.unavailable", request_id=request_id,
+                  reason=type(exc).__name__)
+        return None
+    text_out = (result.text or "").strip()
+    if not text_out or text_out.upper().startswith("NOT FOUND"):
+        return None
+    # r5 — the same two screens a document answer passes, unchanged.
+    verification = guardrails.verify_answer(text_out, spans)
+    if verification.state is not AssistAnswerState.ANSWERED:
+        log_event("assist.position_synthesis.ungrounded", request_id=request_id)
+        return None
+    # r4 — never a statement about how a document stands. The prompt asks; this enforces.
+    if intent.is_verdict_statement(text_out):
+        log_event("assist.position_synthesis.verdict_blocked", request_id=request_id)
+        return None
+    return text_out
+
+
 def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
                           run_id: UUID | None, position_hits: list, route, domains,
                           state: AssistAnswerState, request_id: str | None, *,
@@ -973,6 +1048,13 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     else:
         wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else POSITIONS_ONLY_TEXT)
+        # `AM-67` r3 — the synthesis is PREPENDED to the fixed sentence, so the
+        # verbatim quote and its citation still follow in `positions`, unchanged and
+        # in their own field. A response carrying a synthesis without its quote is a
+        # defect; this shape makes that impossible.
+        aid = _position_reading_aid(question, position_hits, request_id)
+        if aid:
+            wording = f"{aid}\n\n{wording}"
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
     answer_id = _persist_answer(

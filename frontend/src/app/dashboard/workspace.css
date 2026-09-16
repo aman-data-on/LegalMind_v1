@@ -887,6 +887,17 @@
   font-family: var(--ws-serif); font-style: italic; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
 }
 .ws-ask__score { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* A ratified position that is no longer the ACTIVE one. Rendered only in that case,
+   so its presence is the signal; `nowrap` keeps the compact label on one line rather
+   than letting two words wrap under the citation (measured guidance: a chip label
+   that wraps reads as a broken row). Text, not an icon — nothing here is
+   hover-only. */
+.ws-ask__standard-state {
+  margin-left: var(--ws-s2); padding: 1px 6px; border-radius: 3px;
+  background: var(--ws-warn-soft); color: var(--ws-warn);
+  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.04em;
+  white-space: nowrap;
+}
 .ws-ask__empty { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); max-width: 46ch; }
 .ws-ask__form {
   display: flex; gap: var(--ws-s2); padding: var(--ws-s3) var(--ws-s4);

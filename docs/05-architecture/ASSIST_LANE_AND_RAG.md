@@ -79,9 +79,21 @@ Every measured value lives in `backend/legalmind/assist/calibration.py`, whose d
 that *"nothing in this module is a preference"*. The floors are a safety control: weakening one to
 improve recall is a decision with a recorded cost, not a tuning knob.
 
-**Known limitation, measured and recorded**: at these settings recall@10 is 0.438 against a
-measured vector ceiling of 0.938, and 23 of 64 answerable questions are refused. Nothing that has
-been answered has been wrong (faithfulness 1.0, 0 wrong answers reaching a user). The full analysis
+**Known limitation, measured and recorded**: at these settings recall@10 is **0.625** against a
+measured vector ceiling of 0.938, and **21** of 64 answerable questions are refused. Nothing that
+has been answered has been wrong (faithfulness 1.0, 0 wrong answers reaching a user).
+
+> Corrected 2026-09-15. This paragraph read *"0.438 … 23 of 64"* — the figures from the
+> 2026-09-02 audit — and was written on 2026-09-14, the same day the number moved. Recall
+> reached 0.625 on 2026-09-10 via chunk hygiene and the heading redirect, and
+> `assist_eval/baseline.json` has recorded `recall_at_10 0.625` / `false_refusals 21` since
+> 2026-09-14, with `test_assist_retrieval_fusion.py` pinning `SHIPPED_RECALL_AT_10 = 0.625`.
+> The audit's *recommendation* — relax `EVIDENCE_COSINE_FLOOR` alone — was never taken; the
+> gain arrived by a different route. **Its diagnosis of the remaining 0.625 → 0.938 gap has
+> not been re-measured since the pipeline changed, so the floors may no longer be the whole
+> story.** Note also that faithfulness 1.0 is scored on the 33 answers that reach generation,
+> not on the 64 answerable questions: the 21 false refusals never reach the model, so the
+> figure describes the answerable half only. The full analysis
 is [RETRIEVAL_RECALL_AUDIT_2026-09-02.md](../00-project/RETRIEVAL_RECALL_AUDIT_2026-09-02.md); the
 2×2 is pinned by `tests/test_assist_retrieval_fusion.py`, whose third test is `xfail(strict=True)`
 so that closing the gap **fails the run** and forces a re-baseline.

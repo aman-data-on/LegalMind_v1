@@ -36,7 +36,10 @@ _MARKER = re.compile(r"\[(\d{1,2})\]")
 
 # Sentence-ish split for grounding checks. Deliberately simple: the unit of
 # verification is "a claim with a marker", and anything unmarkered is itself a defect.
-_SENTENCES = re.compile(r"(?<=[.!?])\s+")
+# The danda `।` and double danda `॥` are Devanagari full stops: without them a whole
+# Hindi answer was ONE sentence, so a single `[1]` anywhere in it satisfied the
+# marker check for every claim it made.
+_SENTENCES = re.compile(r"(?<=[.!?।॥])\s+")
 
 # The share of a claim's content words that must appear in its cited chunk for the
 # claim to count as grounded. This is NOT a legal threshold and NOT retrieval
@@ -200,15 +203,34 @@ def verify_answer(answer: str, chunks: list[str]) -> Verification:
             continue
         claim_words = _content_words(_MARKER.sub("", sentence))
         cited_words = set().union(*(_content_words(c) for c in cited_chunks))
-        overlap = (
-            len(claim_words & cited_words) / len(claim_words) if claim_words else 1.0
-        )
-        grounded = overlap >= _GROUNDING_OVERLAP
-        if not grounded:
+        if not claim_words:
+            # FAIL CLOSED. This used to default the overlap to 1.0, which read as
+            # "a sentence with no content words asserts nothing, so it grounds
+            # vacuously". `_content_words` matches [A-Za-z] and digits only, so a
+            # Devanagari sentence yields an empty set — and every Hindi answer was
+            # therefore admitted unconditionally, fabricated numbers and compliance
+            # verdicts included. Measured 2026-09-15: "यह क्लॉज हमारे मानक के अनुसार
+            # है और देयता की सीमा पचास लाख रुपये है [1]" passed against an English
+            # confidentiality clause, while its English equivalent was rejected.
+            #
+            # `AM-25` r5 requires every claim to resolve to retrieved evidence, with
+            # enforcement mechanical and outside the model. A screen that cannot
+            # read a claim has not verified it, so it must refuse it. The remedy for
+            # a language this check cannot compare is a check that can — never a
+            # default that lets it through.
             failures.append(
-                f"claim does not ground in its cited text "
-                f"(overlap {overlap:.2f}): {sentence[:80]!r}"
+                f"claim cannot be verified against its cited text "
+                f"(no comparable content): {sentence[:80]!r}"
             )
+            grounded = False
+        else:
+            overlap = len(claim_words & cited_words) / len(claim_words)
+            grounded = overlap >= _GROUNDING_OVERLAP
+            if not grounded:
+                failures.append(
+                    f"claim does not ground in its cited text "
+                    f"(overlap {overlap:.2f}): {sentence[:80]!r}"
+                )
         for n in markers:
             if 1 <= n <= len(chunks):
                 citations.append(Citation(sentence, n, grounded))

@@ -14,6 +14,33 @@ Last synchronized against `all_lock.md` at **19,072 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask AI safety and citation fixes BUILT, NOT DEPLOYED (2026-09-15, later)
+
+Supersedes nothing below; it records work that exists only on unmerged branches.
+
+**The deploy tree still carries every defect named here.** Verified 2026-09-15 against
+`/root/Legalmind.v1`: `guardrails.py` still has the `else 1.0` grounding default,
+`intent.py` still has `_WORD = re.compile(r"[a-z]+")`, and `positions.py` still composes the
+raw `source_document`. Nothing below is merged, deployed, or reflected in the running system.
+
+| Work | Branch | Build state |
+|---|---|---|
+| Language safety screens (`AM-25` r4/r5 enforced in Hindi and Hinglish) | `fix/language-safety-screens` `d3b9985` | **IMPLEMENTED**, unit-TESTED, **not deployed** |
+| Domain A source-locator sanitizer | `fix/ask-source-leak` `f5fc324` | **IMPLEMENTED**, TESTED, **not deployed**, **corpus not re-chunked** |
+| Position citation version + ratification status | `fix/ask-source-leak` `c82f5ff` | **IMPLEMENTED**, unit-TESTED, **not deployed** |
+
+⚠️ **The sanitizer is a write-time fix and the corpus has not been re-chunked**, so
+`position_chunks` still serves the leaked text. The defect is closed in code and **open in
+the running system**.
+
+⚠️ **VERIFICATION GAP.** No DB-backed test has run against this work: no worktree has
+`LEGALMIND_TEST_DATABASE_URL`. Full backend suite = **945 passed · 115 skipped · 1 xfailed ·
+907 errors · 0 FAILED**, every error being `password authentication failed` at fixture setup.
+The 77-question release gate (`verify_assist_quality.py`) could not run, so **no claim is made
+that wrongly-answered has not risen**. Frontend: 474 passed across 34 files.
+
+Evidence per command: [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §D.
+
 ### Release state — AB-20 COMPLETE: the 33 standards are published (2026-09-15)
 
 Supersedes the sections below, which recorded earlier states accurately and stand as written.
@@ -323,6 +350,10 @@ limitations section is frozen at 2026-08-18. Each entry names where the evidence
 | Limitation | Evidence |
 |---|---|
 | **Ask retrieval recall is 0.625 against a measured 0.938 vector ceiling**; 21 of 64 answerable questions are refused. Nothing answered has been wrong (faithfulness 1.0, 0 wrong answers reaching a user). The cause is `COSINE_FLOOR` applied at two points; the owner ruled 2026-09-14 that the dial moves only where recall improves without a rise in wrongly-answered. | `tests/test_assist_retrieval_fusion.py` (xfail strict), `RETRIEVAL_RECALL_AUDIT_2026-09-02.md`, `tests/assist_eval/baseline.json` |
+| **Ask is effectively unusable in Hindi and Hinglish, and its safety screens were weaker there** — measured 2026-09-15: a Devanagari comparison question was answered generatively instead of routing to the evaluator, and a Devanagari claim passed the grounding check vacuously. Fixed on `fix/language-safety-screens`, **not deployed**. Retrieval itself remains marginal: Hinglish clears the 0.50 gate by as little as 0.009 and only because it carries English legal nouns; Devanagari scores 0.037. | [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §D.5, `tests/test_assist_language_safety.py`, `RESEARCH_DOMAIN_C_RD_2026-09-04.md` §2 |
+| **Faithfulness 1.0 is measured on the answerable half only** — the 21 false refusals never reach generation, so the figure is scored on 33 of 64 answerable questions, not all of them. | `tests/assist_eval/baseline.json` vs the 64/13 split |
+| **A capability question ("what can LegalMind do?") searches the Constitution and returns unrelated standards.** No capability question shape exists; the POSITIONS fallback is unconditional. Needs `AM-68`. | [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §C, `assist/routing.py` |
+| **Multi-document conversations do not exist** — one contract per conversation, permanently; "compare document A with document B" is structurally impossible. A product decision (OD-A), not a defect. | `assist/service.py` `attach_contract`, `conversations.contract_id` |
 | **The gate cannot catch adversarial near-misses** — topical-but-non-answering clauses score inside the answerable distribution for any model. The citation guardrail is the only defence. | `assist/calibration.py`, `assist/guardrails.py` docstrings |
 | **Two evaluation families are unmeasured, deliberately** — paraphrase similarity and legal phrasing need human-written questions; inventing them would bias the result. | `tools/benchmark_retrieval.py` |
 | **A document declares one type.** On a hybrid agreement, present clauses of every family are measured but absence is asserted only inside the declared family. | `APPLICABILITY.md` § Known limitations |
