@@ -13,6 +13,7 @@
 | Name a state value correctly | [02-legal-domain/DECISION_STATE_MODEL.md](02-legal-domain/DECISION_STATE_MODEL.md) |
 | **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
+| See what reached production, and when | [00-project/DAILY_CHANGES.md](00-project/DAILY_CHANGES.md) — the operations log: deploys, production data operations, server-side changes that leave no commit |
 - [00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md) — 📁 the owner-ordered product-intent audit behind AB-6/AM-33 and the version-lifecycle UI
 - [00-project/ASK_AI_PROGRAMME.md](00-project/ASK_AI_PROGRAMME.md) — 📁 the Ask AI quality programme: phase status, decision log, risk register and per-command test evidence. Opened 2026-09-15; records status, decides nothing
 - [09-implementation/ASK_AI_DEPLOYMENT_RUNBOOK.md](09-implementation/ASK_AI_DEPLOYMENT_RUNBOOK.md) — 📁 operational: what is being deployed, staging evidence, the **mandatory re-chunk** that completes the source-leak fix, rollback per failure mode, and post-deployment checks. Nothing in it runs without owner approval

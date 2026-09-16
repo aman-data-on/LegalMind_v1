@@ -103,6 +103,7 @@ The assist lane is documented in
 |---|---|
 | **What is built right now** | [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) — **the only document that may assert build state** |
 | **Where we stand, in plain language** | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) |
+| **What happened yesterday, and is any of it waiting on me?** | [docs/00-project/DAILY_CHANGES.md](docs/00-project/DAILY_CHANGES.md) — the operations log: deploys, production data, credentials |
 | **How the system works end to end** | [docs/00-project/ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
 | **Where do I find X?** | [docs/README.md](docs/README.md) — the documentation index |
 | What is settled | [docs/00-project/LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) |
@@ -149,11 +150,20 @@ reason the script explains — and is documented in [ops/README.md](ops/README.m
 [docs/09-implementation/STEP_55_DEPLOYMENT.md](docs/09-implementation/STEP_55_DEPLOYMENT.md).
 `backend/` and `frontend/` carry their own READMEs for the detail.
 
+Developers without root run `sudo legalmind-deploy` instead (owner decision, 2026-09-16): one
+command, **no arguments accepted**, which fast-forwards the deploy tree to `origin/main` and runs
+that same script. It refuses a dirty tree, and `ops/deploy.sh` holds a lock so a second deploy is
+refused rather than interleaved. **A deploy ships `origin/main`, not your commit** — so keep `main`
+to work you are willing to see live. The deploy tree itself is writable by root only; that is what
+makes the grant safe, and re-adding group write would undo it.
+
 **Backups** run nightly at 02:30 via `ops/production/backup.sh`: 14 days locally for fast
 recovery, plus 90 days encrypted (GPG AES-256, applied before upload) in a private CloudPe
 bucket for disaster recovery. Restore is verified into a scratch database, never assumed. See
-[ops/production/README.md](ops/production/README.md#backups-and-disaster-recovery); the
-off-server upload is credential-gated and those credentials are still outstanding.
+[ops/production/README.md](ops/production/README.md#backups-and-disaster-recovery). The
+off-server upload is **live since 2026-09-15** — each nightly run uploads, downloads the object
+back and compares SHA-256 before reporting success, because an upload that cannot be read back is
+not a backup.
 
 ---
 
