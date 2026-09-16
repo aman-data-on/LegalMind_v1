@@ -202,11 +202,16 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
               position — shown as three statuses.
             </p>
           </div>
+          {/* Points with the same field the count is taken from
+              (`requires_decision`). Pointing with the reader status
+              NEEDS_DECISION instead showed "No findings in this view" for every
+              document whose pending items read "Requires modification" — which
+              is most of them. */}
           {sideTabs && summary.needsDecision > 0 ? (
             <button
               type="button"
               className="ws-hero__cta"
-              onClick={() => sideTabs.openFindings({ status: "NEEDS_DECISION" })}
+              onClick={() => sideTabs.openFindings({ requiresDecision: true })}
             >
               Review pending decisions <b className="ws-hero__ctan">{summary.needsDecision}</b>
             </button>

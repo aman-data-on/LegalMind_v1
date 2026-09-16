@@ -23,7 +23,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { FindingsPane } from "@/components/workspace/FindingsPane";
+import { FindingsPane, findingsForView } from "@/components/workspace/FindingsPane";
+import { findingsSummary } from "@/components/workspace/model";
 import { HighlightProvider } from "@/components/workspace/highlight";
 import type { DocumentVersion, Evaluation, Finding, Review, UserStatusWord } from "@/lib/types";
 
@@ -154,5 +155,61 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f2", "DEVIATION", "NEEDS_DECISION"),
     ])).map((b) => b.label);
     expect(labels).toEqual(["All 2", "Needs a decision 2"]);
+  });
+});
+
+/**
+ * The Summary's "Review pending decisions" and the view it opens.
+ *
+ * Found in a live UX review (2026-09-16): the button counted `requires_decision`
+ * and opened `{ status: "NEEDS_DECISION" }` — two different fields — so on a
+ * document whose three pending items each read "Requires modification" the
+ * button promised three and the pane said "No findings in this view", with no
+ * chip selected to explain why. The most important control in the review
+ * workflow told the reader there was nothing to review.
+ *
+ * `requires_decision` is a WORKFLOW state and the three words are the reader's
+ * vocabulary (AM-56): separate axes, and a finding can sit in
+ * `requires_decision` while reading "Requires modification". So the fix is not
+ * to align the two axes — it is to make the button point with the field it
+ * counts, which is what these pin.
+ */
+describe("the pending-decisions view holds exactly what the Summary counted", () => {
+  function pending(id: string, user_status: UserStatusWord): Finding {
+    return { ...finding(id, "DEVIATION", user_status), requires_decision: true };
+  }
+
+  it("selects on requires_decision, not on the reader's third word", () => {
+    const findings = [
+      pending("f1", "REQUIRES_MODIFICATION"),
+      pending("f2", "REQUIRES_MODIFICATION"),
+      finding("f3", "MATCH", "ACCEPTABLE"),
+    ];
+    expect(findingsForView(findings, { requiresDecision: true }).map((f) => f.id))
+      .toEqual(["f1", "f2"]);
+    // The old target, on the same data: empty — the reported bug.
+    expect(findingsForView(findings, { status: "NEEDS_DECISION" })).toEqual([]);
+  });
+
+  it("shows as many findings as the Summary's button promises", () => {
+    // The broken invariant, stated directly: one field, both ends.
+    const findings = [
+      pending("f1", "REQUIRES_MODIFICATION"),
+      pending("f2", "NEEDS_DECISION"),
+      pending("f3", "REQUIRES_MODIFICATION"),
+      finding("f4", "MATCH", "ACCEPTABLE"),
+    ];
+    expect(findingsForView(findings, { requiresDecision: true }))
+      .toHaveLength(findingsSummary(findings).needsDecision);
+  });
+
+  it("still lets the three reader words filter on their own axis", () => {
+    const findings = [
+      pending("f1", "REQUIRES_MODIFICATION"),
+      finding("f2", "MATCH", "ACCEPTABLE"),
+    ];
+    expect(findingsForView(findings, { status: "ACCEPTABLE" }).map((f) => f.id)).toEqual(["f2"]);
+    expect(findingsForView(findings, "all")).toHaveLength(2);
+    expect(findingsForView(findings, { classification: "DEVIATION" }).map((f) => f.id)).toEqual(["f1"]);
   });
 });

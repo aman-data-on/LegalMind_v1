@@ -78,7 +78,32 @@ import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
-type View = "all" | { classification: string } | { status: UserStatus };
+/* `requiresDecision` is the workflow field (`finding.requires_decision`), NOT one
+   of the three reader words — the Summary's "Review pending decisions" counts
+   that field, so the view it opens has to filter on the same field or the count
+   and the list disagree. Keeping it a separate View arm is what stops the two
+   from being conflated again. */
+export type View =
+  | "all"
+  | { classification: string }
+  | { status: UserStatus }
+  | { requiresDecision: true };
+
+/**
+ * The findings one view shows. Exported so the pairing that broke can be
+ * asserted without a DOM: the Summary's "Review pending decisions" takes its
+ * COUNT from `findingsSummary().needsDecision` (the `requires_decision` field)
+ * and must open a view holding exactly those findings. It used to open
+ * `{ status: "NEEDS_DECISION" }` — a different field — so a document whose
+ * pending items read "Requires modification" sent the reader to an empty pane
+ * under a button promising three.
+ */
+export function findingsForView(findings: Finding[], view: View): Finding[] {
+  if (view === "all") return findings;
+  if ("requiresDecision" in view) return findings.filter((f) => f.requires_decision);
+  if ("status" in view) return findings.filter((f) => userStatus(f) === view.status);
+  return findings.filter((f) => f.classification === view.classification);
+}
 
 const ATTENTION_OUTCOMES = new Set(["APPROVAL_REQUIRED", "UNACCEPTABLE"]);
 const CALM_OUTCOMES = new Set(["ACCEPTABLE", "NOT_APPLICABLE"]);
@@ -191,6 +216,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const point = sideTabs?.findingsPoint ?? null;
   useEffect(() => {
     if (!point || point.seq === pointSeqDone.current) return;
+    if (point.requiresDecision) {
+      pointSeqDone.current = point.seq;
+      setView({ requiresDecision: true });
+      return;
+    }
     if (point.status) {
       pointSeqDone.current = point.seq;
       setView({ status: point.status });
@@ -336,12 +366,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const summary = findingsSummary(findings);
   // Review order, not engine order (P-4, 2026-09-06): what needs a decision
   // first, then the document's own order. Presentation only — see `reviewOrder`.
-  const shown = reviewOrder(
-    view === "all"
-      ? findings
-      : "status" in view
-        ? findings.filter((f) => userStatus(f) === view.status)
-        : findings.filter((f) => f.classification === view.classification));
+  const shown = reviewOrder(findingsForView(findings, view));
   /* Computed over the WHOLE finding set, not the filtered view: a title is
      ambiguous because the contract has two of them, and the qualifier must not
      appear and vanish as the reader changes filter. */
@@ -451,6 +476,14 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               {typeof view === "object" && "classification" in view ? (
                 <button type="button" aria-pressed onClick={() => setView("all")}>
                   {classificationLabel(view.classification)} ({shown.length})
+                </button>
+              ) : null}
+              {/* The Summary's "Review pending decisions" lands here. Shown
+                  pressed for the same reason as the classification chip: a
+                  filtered list with nothing pressed reads as an empty pane. */}
+              {typeof view === "object" && "requiresDecision" in view ? (
+                <button type="button" aria-pressed onClick={() => setView("all")}>
+                  Pending decisions ({shown.length})
                 </button>
               ) : null}
             </div>
@@ -740,6 +773,19 @@ function EvaluationCard({
       ? scopeLabel(evaluation.scope_key) : null);
   const scope = rawScope && !sameAsTitle(rawScope, requirementTitle(finding.requirement))
     ? rawScope : null;
+  /* The basis token (`cap_basis` / `basis`) is what makes two numbers
+     comparable or not — FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES are
+     different positions at the same number — so it stays verbatim (45B.4)
+     wherever the two sides DIFFER. Where they are identical it said the same
+     long token twice in one row and cost the comparison its width; the
+     standard side drops it, and the contract side keeps it, so the fact is
+     still stated once and a genuine mismatch still shows as two. */
+  const contractSide = sideOf(evaluation.actual_value);
+  const rawStandardSide = standardSideOf(evaluation.expected_value);
+  const standardSide: Side = rawStandardSide.detail !== undefined
+    && rawStandardSide.detail === contractSide.detail
+    ? { tone: rawStandardSide.tone, text: rawStandardSide.text }
+    : rawStandardSide;
 
   return (
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>
@@ -784,11 +830,11 @@ function EvaluationCard({
         */}
       <dl className="ws-facts ws-facts--compare">
         <dt>Contract</dt>
-        <dd><SideValue side={sideOf(evaluation.actual_value)} /></dd>
+        <dd><SideValue side={contractSide} /></dd>
         {evaluation.expected_value !== undefined ? (
           <>
             <dt>Company standard</dt>
-            <dd><SideValue side={standardSideOf(evaluation.expected_value)} /></dd>
+            <dd><SideValue side={standardSide} /></dd>
           </>
         ) : null}
         {/* "Next step" as a third fact in the SAME comparison, not a separate

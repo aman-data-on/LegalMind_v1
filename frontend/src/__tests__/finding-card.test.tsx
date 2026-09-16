@@ -454,6 +454,32 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
     expect(before).not.toContain("ws-eval__next");
   });
 
+  it("states one basis once, and a differing pair twice", () => {
+    /* The basis token is what makes two numbers comparable — FEES_PAID and
+       FEES_PAID_FOR_AFFECTED_SERVICES are different positions at the same
+       number — so where the sides DIFFER both stay verbatim (45B.4). Where they
+       are identical it printed the same 42-character token twice inside a
+       three-column row ~328px wide, which is what pushed "Next step" off screen
+       in the 2026-09-16 review. Identical: stated once. */
+    const same = card({ classification: "DEVIATION" }, {
+      classification: "DEVIATION",
+      actual_value: { cap_value: 2, cap_unit: "YEARS", cap_basis: "CONFIDENTIALITY_SURVIVAL" },
+      expected_value: { preferred: 3, unit: "YEARS", basis: "CONFIDENTIALITY_SURVIVAL" },
+    });
+    const { before: sameBefore } = splitAtDetails(same);
+    expect((sameBefore.match(/ws-side__detail/g) ?? []).length).toBe(1);
+    expect(sameBefore).toContain("CONFIDENTIALITY_SURVIVAL");
+
+    const differs = card({ classification: "DEVIATION" }, {
+      classification: "DEVIATION",
+      actual_value: { cap_value: 6, cap_unit: "MONTHS", cap_basis: "FEES_PAID_FOR_AFFECTED_SERVICES" },
+      expected_value: { preferred: 12, unit: "MONTHS", basis: "FEES_PAID" },
+    });
+    const { before: differsBefore } = splitAtDetails(differs);
+    expect((differsBefore.match(/ws-side__detail/g) ?? []).length).toBe(2);
+    expect(differsBefore).toContain("FEES_PAID_FOR_AFFECTED_SERVICES");
+  });
+
   it("answers Next step on a MATCH too — \"No action is needed.\" — never an empty cell", () => {
     // MATCH with no legal_position.view: rule_outcome is omitted, finding
     // does not require a decision -> nextStep() returns null.

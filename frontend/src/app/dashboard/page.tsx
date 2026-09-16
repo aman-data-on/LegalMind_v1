@@ -564,7 +564,7 @@ function DocumentsListView() {
               {...(summary.needs_attention > 0
                 ? { onSelect: () => filterTo("needs_attention") } : {})}
             />
-            <StatTile icon={<IconCheckCircle size={16} />} n={summary.analyzed} label="Analyzed" bucket="analyzed" />
+            <StatTile icon={<IconCheckCircle size={16} />} n={summary.analyzed} label="No Issues" bucket="analyzed" />
             <StatTile icon={<IconClock size={16} />} n={summary.draft + summary.analyzing} label="Draft / In Progress" bucket="draft" />
           </section>
         ) : null}
@@ -956,18 +956,10 @@ function DocumentsListView() {
           </div>
         ) : null}
 
-        {/*
-          The formats are already stated on the upload card; only the ceiling is
-          new information, so only the ceiling is here.
-
-          "How analysis works" is gone rather than shortened: it pointed at
-          `?guide=1`, which renders nothing. A control that does not work
-          misrepresents the product — the same reason the login screen carries no
-          "forgot password".
-        */}
-        <div className="ws-doctable__foot">
-          <span>Maximum file size 25&nbsp;MB</span>
-        </div>
+        {/* The upload ceiling used to sit here, under a table that has no file
+            picker anywhere near it; it read as a leftover. It is stated where it
+            is acted on instead — the upload panel's own hint already says "PDF
+            or DOCX, up to 25 MB", so this is a deletion, not a move. */}
         </div>
 
         {pagination && pagination.total > 0 ? (
