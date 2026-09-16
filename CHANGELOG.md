@@ -10,6 +10,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — one deploy at a time (2026-09-16)
+
+`ops/deploy.sh` takes `flock -n /var/lock/legalmind-deploy.lock` and **refuses** rather than queues
+when a deploy is already running. Two overlapping deploys are not a slow deploy, they are a broken
+one: both build the frontend into the same staging directory and both swap it into place, so what
+ends up live is a mixture of two builds and the `.next-previous` rollback copy points at neither;
+backend-side, two `alembic upgrade head` runs race on the version table.
+
+Nothing guarded against it before — not this script, not `deploy-frontend.sh`, not the
+`legalmind-deploy` wrapper. It had never bitten because exactly one person deployed, so
+serialisation was luck rather than design. `sudo legalmind-deploy` ended that on 2026-09-16.
+
+Taken on the whole script rather than inside the wrapper, so every caller is covered: the wrapper,
+an administrator running it directly, and CI. Verified by holding the lock and running the script.
+
+### Fixed — Client Profiles: the page container is centred, and the empty state's rhythm (2026-09-16)
+
+Two owner-reported layout defects, both fixed in the container rather than in the card. Nothing
+inside the card changes — no design, colour, type, wording, icon, inner spacing or behaviour.
+
+`.ws-cl--index` capped itself at `104rem` but never paired the cap with a horizontal auto-margin,
+so past 1664px the bound stopped the content growing and nothing recentred it: 24px of gutter on
+the left and 280px on the right at 1920×1080. Every other capped container in that stylesheet
+already sets both — `.ws-docs`, `.ws-main > .ws-state`, `.ws-side__panel > *` and
+`.ws-chat__composer > *` — and this one simply missed it. Then `min-height: 620px` on the empty
+state had become a driver rather than a floor (natural content is ~572px), so it stretched the card
+and `justify-content: center` split the surplus into dead space at each end.
+
+Authored by Tasniya. Both are defect fixes bringing one container in line with the rest of the
+stylesheet, so the UI freeze does not apply and no DD decision is touched.
+
 ### Fixed — the quality gate was measuring a pipeline nobody ships (2026-09-16)
 
 `tools/verify_assist_quality.measure()` called `store.search_hybrid` and scored what
