@@ -29,7 +29,9 @@ import { useSession } from "@/lib/session";
 import type { Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
 
 import { relativeTime } from "@/components/workspace/model";
-import { IconSearch, IconUsers } from "@/components/workspace/icons";
+import {
+  IconBuilding, IconClock, IconFile, IconFileCheck, IconPlus, IconSearch, IconUsers,
+} from "@/components/workspace/icons";
 
 import { ClientAvatar, ClientStatus } from "./ClientBits";
 import { ClientForm } from "./ClientForm";
@@ -63,6 +65,48 @@ const SORTS = [
   { value: "documents_desc", label: "Most documents" },
   { value: "added_desc", label: "Recently added" },
 ] as const;
+
+/**
+ * The first-run illustration: one client's file, at the moment it is started.
+ *
+ * **Decorative in full** — the stage that holds it carries `aria-hidden`, so
+ * none of it reaches assistive technology. Everything it depicts is already
+ * said in words by the heading, the body copy and the three statements below
+ * it; announcing the picture as well would read the screen out three times.
+ *
+ * Composed from the design system's own parts rather than drawn as an asset:
+ * the sheet is `--ws-surface` on `--ws-ink-100`, the letterhead tile and the
+ * badge are `--ws-accent-soft`/`--ws-accent`. So it re-tints with the tokens,
+ * adds no file to serve, and cannot drift from the product's palette.
+ *
+ * No gradient, no glow, no sparkle — DESIGN.md's anti-patterns rule out all
+ * three, and a sparkle would additionally imply an AI-generated result, which
+ * `AI-01` forbids this interface from ever suggesting. The owner's reference
+ * also carried a dashed orbit; it was dropped on the owner's instruction
+ * (2026-09-15) as decoration that states nothing.
+ */
+function ClientFileMark() {
+  return (
+    <span className="ws-cl__zero-sheet">
+      <svg className="ws-cl__zero-paper" viewBox="0 0 152 198"
+           aria-hidden="true" focusable="false">
+        {/* The page, its top-right corner turned back. */}
+        <path className="ws-cl__zero-page"
+              d="M9 1 H115 L151 37 V189 A8 8 0 0 1 143 197 H9 A8 8 0 0 1 1 189 V9 A8 8 0 0 1 9 1 Z" />
+        <path className="ws-cl__zero-fold" d="M115 1 L151 37 H123 A8 8 0 0 1 115 29 Z" />
+        {/* Where a letterhead would be, and the lines of the agreement below. */}
+        <rect className="ws-cl__zero-tile" x="24" y="30" width="62" height="62" rx="12" />
+        <rect className="ws-cl__zero-rule" x="98" y="48" width="34" height="7" rx="3.5" />
+        <rect className="ws-cl__zero-rule" x="98" y="65" width="24" height="7" rx="3.5" />
+        <rect className="ws-cl__zero-rule" x="24" y="118" width="104" height="9" rx="4.5" />
+        <rect className="ws-cl__zero-rule" x="24" y="139" width="86" height="9" rx="4.5" />
+        <rect className="ws-cl__zero-rule" x="24" y="160" width="62" height="9" rx="4.5" />
+      </svg>
+      <span className="ws-cl__zero-glyph"><IconBuilding size={30} /></span>
+      <span className="ws-cl__zero-badge"><IconPlus size={22} /></span>
+    </span>
+  );
+}
 
 export function ClientDirectory() {
   const { can } = useSession();
@@ -157,16 +201,36 @@ export function ClientDirectory() {
 
   return (
     <>
+      {/* `.ws-context` is the shell header EVERY screen uses, and it keeps
+          exactly the rules it had: the stacked title block is styled entirely
+          through the `ws-cl__*` children below, so no other page moves.
+
+          There was a second marker class here (`ws-cl__context`) carrying no
+          rule of its own — the page-local scoping is already in the child
+          names, so it did nothing. `styled-classes.test.ts` (new on main, #50)
+          catches exactly that, correctly, and it is removed rather than given a
+          no-op rule to quiet the guard.
+
+          The count stays — it is a real field, scoped to this caller (AB-13
+          r6), and the owner's reference dropping it was a mock simplification
+          rather than a decision. */}
       <div className="ws-context">
         <span className="ws-context__icon" aria-hidden="true">
           <IconUsers size={18} />
         </span>
-        <h1>Client profiles</h1>
-        {pagination ? (
-          <span className="ws-context__meta ws-mono">
-            {clientCountLabel(pagination.total)} you work with
-          </span>
-        ) : null}
+        <div className="ws-cl__titles">
+          <div className="ws-cl__titlerow">
+            <h1>Client profiles</h1>
+            {pagination ? (
+              <span className="ws-context__meta ws-mono">
+                {clientCountLabel(pagination.total)} you work with
+              </span>
+            ) : null}
+          </div>
+          <p className="ws-cl__subtitle">
+            Manage your clients and their legal documents in one place.
+          </p>
+        </div>
         <span className="ws-context__spacer" />
         {canAdd ? (
           <div className="ws-context__acts">
@@ -289,19 +353,99 @@ export function ClientDirectory() {
             ))}
           </div>
         ) : firstRun ? (
-          <div className="ws-state">
-            <h2>No client profiles yet.</h2>
-            <p>
-              Create a client profile to organise their legal documents — every
-              agreement, its versions and its review, in one place.
-            </p>
-            {canAdd && !adding ? (
-              <button type="button" className="ws-btn ws-btn--primary"
-                      onClick={() => setAdding(true)}>
-                + Add client
-              </button>
-            ) : null}
-          </div>
+          /* The invitation steps aside while the form that answers it is open.
+             It used to keep rendering underneath, so the page ended with "No
+             client profiles yet." printed below the very form for adding one.
+             Note this is a branch INSIDE `firstRun`, not `firstRun && !adding`:
+             the latter would fall through to the next arm and show "No clients
+             match these filters" to somebody who has set no filters. */
+          adding ? null : (
+            <div className="ws-cl__zero">
+              {/* Decorative in full — see `ClientFileMark`. Every word here is
+                  repeated as real text in the three statements below, so the
+                  stage is hidden from assistive technology rather than
+                  announced as four more unlabelled graphics. */}
+              <div className="ws-cl__zero-stage" aria-hidden="true">
+                <span className="ws-cl__zero-tip ws-cl__zero-tip--a">
+                  <IconFile size={18} />
+                  <span>Organise all agreements</span>
+                </span>
+                <span className="ws-cl__zero-tip ws-cl__zero-tip--b">
+                  <IconUsers size={18} />
+                  <span>Keep key contacts handy</span>
+                </span>
+                <span className="ws-cl__zero-tip ws-cl__zero-tip--c">
+                  <IconFileCheck size={18} />
+                  <span>Track status and documents</span>
+                </span>
+                {/* "Past reviews stay with the client", not the reference's
+                    "Save time on future reviews": the second promises an
+                    outcome, and DESIGN.md allows this screen to describe what
+                    the product does, never to advertise a result. */}
+                <span className="ws-cl__zero-tip ws-cl__zero-tip--d">
+                  <IconClock size={18} />
+                  <span>Past reviews stay with the client</span>
+                </span>
+                <ClientFileMark />
+              </div>
+
+              <h2>No client profiles yet</h2>
+              <p>
+                Create a client profile to organise their legal documents — every
+                agreement, its versions and its review, in one place.
+              </p>
+              {canAdd ? (
+                /* The same handler as the header's button, deliberately: one
+                   action, reachable from two places. It is the LARGER of the
+                   two so the page still has one primary call to action — the
+                   header's keeps the standard 36px height. */
+                <button type="button" className="ws-btn ws-btn--primary ws-btn--lg"
+                        onClick={() => setAdding(true)}>
+                  <IconPlus size={18} />
+                  Add client
+                </button>
+              ) : null}
+
+              {/* Three statements of what a client profile already holds. Not
+                  links, not filters, not counts — nothing here is a control,
+                  and nothing describes a capability the product lacks. */}
+              <ul className="ws-cl__zero-benefits">
+                <li>
+                  <span className="ws-cl__zero-bmark" aria-hidden="true">
+                    <IconFile size={18} />
+                  </span>
+                  <span className="ws-cl__zero-btext">
+                    <span className="ws-cl__zero-btitle">Centralised information</span>
+                    <span className="ws-cl__zero-bbody">
+                      Store all client details and documents together.
+                    </span>
+                  </span>
+                </li>
+                <li>
+                  <span className="ws-cl__zero-bmark" aria-hidden="true">
+                    <IconFileCheck size={18} />
+                  </span>
+                  <span className="ws-cl__zero-btext">
+                    <span className="ws-cl__zero-btitle">Faster reviews</span>
+                    <span className="ws-cl__zero-bbody">
+                      Quickly access past agreements and versions.
+                    </span>
+                  </span>
+                </li>
+                <li>
+                  <span className="ws-cl__zero-bmark" aria-hidden="true">
+                    <IconUsers size={18} />
+                  </span>
+                  <span className="ws-cl__zero-btext">
+                    <span className="ws-cl__zero-btitle">Better collaboration</span>
+                    <span className="ws-cl__zero-bbody">
+                      Keep your team aligned with updated information.
+                    </span>
+                  </span>
+                </li>
+              </ul>
+            </div>
+          )
         ) : clients.length === 0 ? (
           <div className="ws-state">
             <h2>No clients match these filters.</h2>

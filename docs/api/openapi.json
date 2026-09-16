@@ -2859,6 +2859,41 @@
    }
   },
   "/api/v1/counterparties/{counterparty_id}": {
+   "delete": {
+    "description": "Remove an EMPTY client profile \u2014 `AM-70` (AB-22), owner-approved 2026-09-16.\n\nDeliberately the narrowest destructive operation in the product. It deletes\none `counterparties` row and nothing else: no document, no version, no\nReview, no Finding, no Legal Decision. **Rule 17 is untouched**, which is\nwhat separates this from `DELETE /contracts/{id}` (`AM-55`), where the owner\nhad to accept that historical Reviews stop being reproducible. Nothing here\ncascades, because nothing here is allowed to have anything hanging off it.\n\n**`contract.archive`, not `contract.update`.** AB-13 r5 rules that\n`contract.update` governs \"creating or editing\" a counterparty; it says\nnothing about destroying one, because at the time nothing could be. Rather\nthan stretch r5, this follows the only precedent the codebase has for a\ndestructive act on this data \u2014 `delete_contract` \u2014 and reuses its\npermission. No new permission is added, so r5's actual holding (\"`IMPL-01`'s\nbar for a new permission is not met\") still stands. The practical gain: an\ninstallation that grants `contract.update` while withholding\n`contract.archive` withholds deletion too, which `contract.update` alone\ncould never express.\n\n**Three gates, in the locked 43.23 order:**\n\n1. **Visibility** \u2014 `_readable` resolves through the SAME scoped statement\n   the list and the detail use, so a profile outside the caller's scope is a\n   byte-identical 404 (49.5 r1 / `SEC-07`), never a hint that it exists.\n2. **Permission** \u2014 `contract.archive`, 403 without it.\n3. **Emptiness** \u2014 refused with 409 while ANY contract points at this row.\n\n\u26a0\ufe0f **The emptiness check counts contracts the caller cannot see, on\npurpose.** `_client_stats` derives the screen's \"6 documents\" through the\ncaller's own read scope, so a contract owned by another department is absent\nfrom it \u2014 but the foreign key does not care about scope. Counting only what\nthe caller can see would let the check pass and hand the DB error to the\nuser as a 500. So the count here is deliberately UNSCOPED, and the message\nit produces says only *that* documents remain, never how many or whose:\nnaming them would disclose the existence of another department's deal, which\nis exactly what `LEGAL-02`/`SEC-07` keep inside its scope.\n\nThe FK is `ON DELETE RESTRICT` (migration `c8e4a1b7d2f6`) and stays the final\nbackstop: between this check and the flush, someone else may link the first\ncontract to this company, and the database \u2014 not this function \u2014 is what\nmakes that safe.",
+    "operationId": "delete_counterparty_api_v1_counterparties__counterparty_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Counterparty",
+    "tags": [
+     "counterparties"
+    ]
+   },
    "get": {
     "description": "The profile AND its documents \u2014 this is the manager's \"related documents\"\nanswer (r3): every contract for this company, in one place, derived from the\nlink rather than from a relationship table. Scoped: the list holds only\ncontracts this caller could already open one by one (49.6).\n\nSince 2026-09-10 each contract also carries what the Client Profile's one\nunified document list shows: its versions (newest first, with the declared\nrole each was given), whether an executed version exists, and the same\npermission-layered `latest_version` / `latest_analysis` projection the\nDashboard rows use \u2014 reused from `contracts.py` rather than recomputed, so\na document cannot read one way here and another way there.\n\n\u26a0\ufe0f **One list, never grouped by type.** The API returns a flat array in one\norder and offers no per-type grouping, because the owner's instruction makes\nthat structural: document type is metadata on the row, not a folder.",
     "operationId": "get_counterparty_api_v1_counterparties__counterparty_id__get",

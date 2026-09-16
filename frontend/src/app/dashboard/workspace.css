@@ -1487,6 +1487,17 @@
 
 /* ---- the summary → category → finding → evidence drill (2026-08-31 v2) --- */
 .ws-btn--sm { padding: 3px 9px; font-size: var(--ws-text-xs); }
+/* The one step ABOVE the default, for a lone call to action that is the whole
+   point of the screen it sits on — the Client Profiles first-run invitation
+   today, and nothing else. 44px is the accessibility touch-target floor rather
+   than a decorative size; the owner's reference drew it at ~51px, which no
+   control in this product has ever been. Purely additive: no existing button
+   gains this class, so no existing screen moves. */
+.ws-btn--lg {
+  display: inline-flex; align-items: center; gap: var(--ws-s2);
+  min-height: 46px; padding: 11px 26px; font-size: var(--ws-text-base);
+  font-weight: 600;
+}
 .ws-export { display: inline-flex; gap: var(--ws-s2); align-items: center; }
 .ws-chip--link { text-decoration: none; cursor: pointer; transition: border-color var(--ws-t); }
 .ws-chip--link:hover { border-color: var(--ws-accent); }
@@ -3901,6 +3912,15 @@
   display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap;
   padding-bottom: var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100);
 }
+/* The header's overflow menu. `.ws-menu__list` carries no `position` of its own
+   — the Dashboard's copy renders through a portal and sets viewport coordinates
+   inline, to escape the table's `overflow`. Nothing clips here (`.ws-cl__head`
+   and `.ws-cl__main` set no overflow), so this anchors to the `.ws-menu`
+   wrapper instead and needs none of that machinery. Scoped to this header, so
+   the Dashboard's portal positioning is untouched. */
+.ws-cl__headmenu .ws-menu__list {
+  position: absolute; right: 0; top: calc(100% + 4px);
+}
 .ws-cl__headtext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ws-cl__headline { display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
 .ws-cl__headline h1 {
@@ -4138,6 +4158,180 @@
 .ws-cl__what { color: var(--ws-ink-900); min-width: 0; }
 .ws-cl__subject { color: var(--ws-ink-500); }
 .ws-cl__who { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+
+/* ---- the page header, stacked (owner reference, 2026-09-15) --------------
+ * `.ws-context` is the shell EVERY screen's header uses, and nothing here
+ * touches it: the title block is styled entirely through these `ws-cl__*`
+ * children, so the Dashboard, the workspace, admin and legal headers keep the
+ * rules they had and do not move a pixel.
+ * -------------------------------------------------------------------------- */
+.ws-cl__titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ws-cl__titlerow { display: flex; align-items: baseline; gap: var(--ws-s3); flex-wrap: wrap; }
+.ws-cl__subtitle { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+
+/* ==========================================================================
+ * THE FIRST RUN — "No client profiles yet" (owner reference, 2026-09-15)
+ *
+ * The screen a brand-new account meets first, and until now the one place this
+ * product fell below its own finish bar (DD-5): a left-aligned line of text
+ * against roughly 590px of empty canvas, measured at 1440x900. It is now a
+ * composition — an illustration of the thing being created, one heading, one
+ * action, and three plain statements of what a client profile already holds.
+ *
+ * ⚠️ THE THREE BENEFIT MARKS ARE ONE ACCENT, AND THAT IS THE DECISION.
+ * The owner's reference painted them blue / green / purple. Green here is
+ * `--ws-ok` — the colour this product spends on **Acceptable** — and purple is
+ * `--ws-classify`, a state-axis chip hue. Spending either on decoration would
+ * put a decorative colour into a legal channel, which is exactly the trap
+ * DD-18 §3 records for this screen: "a reader would take a green client as a
+ * reviewed one." The marks differ by ICON, never by hue. Owner-confirmed
+ * 2026-09-15.
+ *
+ * Also deliberately absent from the reference: no gradient, no glow behind the
+ * sheet, no sparkle strokes (they would imply an AI-generated result, `AI-01`),
+ * and no dashed orbit (dropped on the owner's instruction). The heading is
+ * `--ws-text-xl`, 24px — the reference drew ~30px and nothing in this product
+ * is larger than 24.
+ *
+ * NOTHING HERE IS SHARED. `.ws-state` still renders the other four states of
+ * this screen and ~40 more across the product, and is untouched.
+ * ========================================================================== */
+.ws-cl__zero {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+  min-height: 620px;
+  padding: var(--ws-s7) var(--ws-s7) var(--ws-s6);
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card);
+  box-shadow: var(--ws-card-shadow);
+}
+
+/* ---- the illustration and the four notes around it ---------------------- */
+/* A fixed stage, so the four notes can be placed against the sheet rather than
+   flowed around it. Everything inside is `aria-hidden` (see the component). */
+.ws-cl__zero-stage {
+  position: relative;
+  width: min(700px, 100%); height: 212px;
+  margin: 0 auto;
+}
+
+.ws-cl__zero-sheet {
+  position: absolute; left: 50%; top: 7px;
+  width: 152px; height: 198px;
+  transform: translateX(-50%);
+  /* The same weight as `--ws-card-shadow`, expressed as a filter because the
+     page is an SVG path with a cut corner rather than a box — a `box-shadow`
+     would trace the rectangle the fold is cut out of. Nothing deeper: DESIGN.md
+     rules out a shadow that implies a floating panel. */
+  filter: drop-shadow(0 1px 2px rgba(14, 20, 32, 0.04))
+          drop-shadow(0 1px 3px rgba(14, 20, 32, 0.06));
+}
+.ws-cl__zero-paper { display: block; width: 152px; height: 198px; overflow: visible; }
+.ws-cl__zero-page { fill: var(--ws-surface); stroke: var(--ws-ink-100); stroke-width: 1.5; }
+.ws-cl__zero-fold { fill: var(--ws-ink-100); }
+.ws-cl__zero-tile { fill: var(--ws-accent-soft); }
+.ws-cl__zero-rule { fill: var(--ws-ink-100); }
+
+/* The company's mark, centred on the letterhead tile (tile centre is 55,61 in
+   the 152x198 viewBox — kept as percentages so the two cannot drift apart). */
+.ws-cl__zero-glyph {
+  position: absolute; left: 36.2%; top: 30.8%;
+  transform: translate(-50%, -50%);
+  display: inline-flex; color: var(--ws-accent);
+}
+
+/* The one moment of solid accent: the act this screen is asking for. */
+.ws-cl__zero-badge {
+  position: absolute; left: 109px; top: 137px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--ws-accent); color: #fff;
+  box-shadow: var(--ws-card-shadow);
+}
+
+.ws-cl__zero-tip {
+  position: absolute; width: 178px;
+  display: flex; align-items: center; gap: var(--ws-s2);
+  padding: var(--ws-s3);
+  text-align: left;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card);
+  box-shadow: var(--ws-card-shadow);
+  font-size: var(--ws-text-sm); line-height: 1.35; color: var(--ws-ink-700);
+}
+.ws-cl__zero-tip svg { color: var(--ws-accent); }
+.ws-cl__zero-tip--a { left: 24px;  top: 14px; }
+.ws-cl__zero-tip--b { left: 0;     top: 126px; }
+.ws-cl__zero-tip--c { right: 24px; top: 0; }
+.ws-cl__zero-tip--d { right: 0;    top: 130px; }
+
+/* ---- the message and the action ----------------------------------------- */
+.ws-cl__zero h2 {
+  margin: var(--ws-s6) 0 0;
+  font-size: var(--ws-text-xl); font-weight: 650; letter-spacing: -0.01em;
+  color: var(--ws-ink-900);
+}
+.ws-cl__zero > p {
+  margin: var(--ws-s3) 0 0; max-width: 58ch;
+  font-size: var(--ws-text-base); line-height: 1.6; color: var(--ws-ink-500);
+  text-wrap: pretty;
+}
+.ws-cl__zero .ws-btn--lg { margin-top: var(--ws-s5); }
+
+/* ---- what a client profile holds ---------------------------------------- */
+/* Three equal columns, told apart by hairlines rather than by cards — DD-17 r6
+   ("one card, then whitespace and hairlines") applied inside this one card. */
+.ws-cl__zero-benefits {
+  width: 100%; margin: var(--ws-s6) 0 0; padding: var(--ws-s5) 0 0;
+  border-top: 1px solid var(--ws-ink-100);
+  list-style: none;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ws-cl__zero-benefits li {
+  display: flex; align-items: flex-start; gap: var(--ws-s3);
+  padding: 0 var(--ws-s5); text-align: left;
+}
+.ws-cl__zero-benefits li + li { border-left: 1px solid var(--ws-ink-100); }
+.ws-cl__zero-bmark {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+}
+.ws-cl__zero-btext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-cl__zero-btitle {
+  font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900);
+}
+.ws-cl__zero-bbody {
+  font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-500);
+  text-wrap: pretty;
+}
+
+/* ---- the first run on a shorter laptop ---------------------------------- */
+/* 1366x768 is the short viewport the Dashboard audit called out. The card stops
+   reserving height and every vertical step drops one token, so the composition
+   still lands in one screen instead of asking for a scroll on first visit. */
+@media (max-width: 1400px) {
+  .ws-cl__zero { min-height: 0; padding: var(--ws-s6) var(--ws-s6) var(--ws-s4); }
+  .ws-cl__zero h2 { margin-top: var(--ws-s5); }
+  .ws-cl__zero .ws-btn--lg { margin-top: var(--ws-s4); }
+  .ws-cl__zero-benefits { margin-top: var(--ws-s4); padding-top: var(--ws-s4); }
+}
+
+/* Below 900px the four notes cannot flank a centred sheet without crowding it.
+   They are hidden rather than reflowed, and NOTHING is lost by it: each one
+   restates what the three benefit statements below already say in real text —
+   unlike a table column carrying state, which DESIGN.md forbids dropping. */
+@media (max-width: 900px) {
+  .ws-cl__zero { padding: var(--ws-s5); }
+  .ws-cl__zero-stage { width: 152px; height: 205px; }
+  .ws-cl__zero-tip { display: none; }
+  .ws-cl__zero-benefits { grid-template-columns: minmax(0, 1fr); gap: var(--ws-s4); }
+  .ws-cl__zero-benefits li { padding: 0; }
+  .ws-cl__zero-benefits li + li { border-left: 0; }
+}
 
 /* ---- narrow viewports --------------------------------------------------
  * DESIGN.md's responsive principle: a realistic desktop/laptop range first,
