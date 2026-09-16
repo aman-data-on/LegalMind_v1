@@ -483,3 +483,25 @@ green run in a worktree.
 - Deploying still happens from `/root/Legalmind.v1` on a clean `main`, and
   `frontend/scripts/deploy-frontend.sh` refuses a dirty tree so a deploy ships a commit
   rather than whatever someone was mid-way through.
+- **The deploy tree is writable by root ONLY, as of 2026-09-16 — do not re-add group
+  write.** It had 13,480 group-writable paths, `.git/config` among them. That is fine
+  while only administrators deploy, and is a root escalation the moment anyone else can:
+  write access to `.git/config` means `core.hooksPath`, which means the next
+  `sudo legalmind-deploy` runs your script as root. Group **read** is kept, so read the
+  tree freely; edit in your own worktree, which is where feature work belonged anyway.
+- **`sudo legalmind-deploy` is the one root command a non-administrator may run** (owner
+  decision, 2026-09-16; group `legalmind-dev`). It takes **no arguments and accepts
+  none**, fast-forwards the deploy tree to `origin/main`, runs `ops/deploy.sh`, refuses a
+  dirty tree, and logs the invoking account. Never widen that sudoers rule to a directory,
+  a wildcard or a second command — the narrowness is the whole control. Details and the
+  restore procedure: [ops/README.md](ops/README.md).
+- **One deploy at a time.** `ops/deploy.sh` holds `flock -n /var/lock/legalmind-deploy.lock`
+  and REFUSES rather than queues. Two overlapping deploys build the frontend into the same
+  staging directory and both swap it live, so the result is a mixture of two builds and the
+  rollback copy points at neither. `REFUSING: another deploy is already running` is the
+  guard working — wait and re-run, never work around it.
+- **Keep `main` deployable, because a deploy ships `origin/main`, not your commit.**
+  Anything merged and not yet deployed goes out with the next person's unrelated change,
+  and since 2026-09-16 that person may be a developer shipping a CSS fix rather than an
+  administrator who knows what else is pending. Do not merge what you are not willing to
+  see deployed; if you must, say so loudly and expect it to ship with the next change.
