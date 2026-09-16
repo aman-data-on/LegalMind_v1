@@ -37,6 +37,7 @@ from legalmind.assist import (
     guardrails,
     intent,
     positions,
+    rescue,
     routing,
     statutes,
     store,
@@ -760,6 +761,30 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                                 finding_id=finding_id)
 
     chunk_texts = [h.content for h in retrieval.hits]
+
+    # EVIDENCE RESCUE — a second look at a refusal, never at an answer.
+    #
+    # Measured 2026-09-16: the calibrated gate refuses 21 of 64 answerable questions
+    # and 15 of those already hold the gold chunk. Threshold sweeps, a second
+    # similarity feature and an alternative embedding model were all measured and none
+    # separates those 15 from the 13 genuinely unanswerable ones — see
+    # `assist/rescue.py`. The only signal left is reading the chunk.
+    #
+    # This can only widen an ANSWER ATTEMPT, never narrow one: it runs solely when the
+    # gate is shut, and the rescued evidence then faces every screen unchanged —
+    # sufficiency, citation verification, the grounding floor and the verdict screen.
+    # `AM-25` r5 is untouched: the judge decides whether to TRY, the mechanical checks
+    # still decide what a reader sees. Off by default.
+    if not retrieval.gate_open and retrieval.candidates:
+        picked = rescue.rescue_indices(
+            resolved, [c.content for c in retrieval.candidates], request_id=request_id)
+        if picked:
+            rescued = [retrieval.candidates[i] for i in picked]
+            retrieval = dataclasses.replace(retrieval, gate_open=True, hits=rescued)
+            chunk_texts = [h.content for h in rescued]
+            log_event("assist.ask.rescued", request_id=request_id,
+                      conversation_id=str(conversation_id), chunks=str(len(rescued)))
+
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
         # The document does not answer. AM-50 r2: the other authorized sources are
         # consulted before any refusal — inside `_positions_or_refusal`, where

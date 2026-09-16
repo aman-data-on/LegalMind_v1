@@ -26,7 +26,7 @@ number, and rank fusion belongs with the vector half in A3/A4 where it can be me
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from sqlalchemy import Column, MetaData, Table, text
@@ -537,6 +537,12 @@ class RetrievalOutcome:
     vector_peak_gap: float | None
     strategy_version: str
     embedding_model: str | None
+    #: What retrieval FOUND before the gate decided, kept only so a refusal can be
+    #: reconsidered (`assist/rescue.py`). `hits` stays empty on a closed gate — the
+    #: invariant above is unchanged and no ordinary caller reads this. Measured
+    #: 2026-09-16: 15 of the gate's 21 false refusals already hold the gold chunk
+    #: here, which is the entire reason it is carried rather than discarded.
+    candidates: list[SearchHit] = field(default_factory=list)
 
 
 def _clause_after(db: DBSession, document_version_id: UUID,
@@ -704,11 +710,21 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     open_ = gate_is_open(lexical_hit, scores)
 
     if not open_:
+        # Gate shut: `hits` is empty, as every caller relies on. The candidates are
+        # carried separately so `rescue` can take a second look at THIS refusal —
+        # same rows, same authorization scope, simply not yet discarded.
+        refused = _redirect_fragments(db, document_version_id, [
+            SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
+                      section_number=r[4], section_title=r[5], source_type=str(r[6]),
+                      retrieval_score=float(r[7]))
+            for r in vector_rows[:limit]
+        ], limit)
         return RetrievalOutcome(hits=[], gate_open=False,
                                 lexical_hit=lexical_hit,
                                 vector_top_score=top, vector_peak_gap=gap,
                                 strategy_version=RETRIEVAL_STRATEGY_VERSION,
-                                embedding_model=model_identity)
+                                embedding_model=model_identity,
+                                candidates=refused)
 
     # Individual vector hits below the evidence-inclusion floor are never evidence,
     # gate or no gate. This is deliberately EVIDENCE_COSINE_FLOOR, not the gate's

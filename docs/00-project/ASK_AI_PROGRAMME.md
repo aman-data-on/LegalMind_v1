@@ -15,24 +15,31 @@ inspect → implement → test → document loop.
 | Phase | Scope | State | Branch |
 |---|---|---|---|
 | **0a** | Protect uncommitted source-leak work | ✅ **DONE** | `fix/ask-source-leak` `f5fc324` |
-| **0b** | Rebase + merge `feat/p1-rag-quality` | ⛔ **BLOCKED** — needs owner approval to merge; branch is another session's work | — |
-| **1** | Language safety screens (F-1, F-2) | ✅ **DONE + VALIDATED** — 1873 passed, AC-12 green | `fix/language-safety-screens` `d3b9985`, `a6d6078` |
-| **2** | Source leak + citation quality (F-5, F-6) | 🟡 **CODE DONE + DB-VALIDATED**; live re-chunk outstanding (needs approval) | `fix/ask-source-leak` `f5fc324` … `6b77f20` |
-| **3** | Answer-type routing, capability shape (F-4) | 🟡 **BUILT, SHIPPED DARK** — flag off; needs `AM-68` to *enable* | `feat/capability-route` `00090ef` |
-| **4** | Retrieval quality / reranker | 🟡 benchmark now runs (AC-12 green); reranker not started | — |
+| **0b** | Rebase + merge `feat/p1-rag-quality` | ⏳ still unmerged — another session's branch, not mine to land | — |
+| **1** | Language safety screens (F-1, F-2) | ✅ **LIVE** — `AM-69` locked, deployed | merged `980249d` |
+| **2** | Source leak + citation quality (F-5, F-6) | ✅ **LIVE** — re-chunk run in production 2026-09-16: `position_chunks` 32 → 40, **leaked 28 → 0** | merged `5044048` |
+| **3** | Answer-type routing, capability + general-knowledge shapes (F-4) | ✅ **LIVE** — `AM-68` locked and enabled; general-knowledge route deployed | merged `9c489cb` |
+| **4** | Retrieval quality | ✅ **LIVE** — lexical demoted to fallback (its `ts_rank` measured flat); noise gone. Reranker still untried | merged `9c489cb` |
 | **5** | Template drafting | ⛔ **BLOCKED** — no approved output template (rule 21) | — |
 
-### Phase 2 is not complete until the corpus is re-chunked
+### Everything below is merged, deployed and verified in production
 
-The sanitizer is a **write-time** fix. Rows already in `position_chunks` keep the leaked
-text until `chunk_ratified_standards` and `embed_positions` re-run. **Until then the leak is
-closed in code and open in the running system.** That re-run needs database access.
+Verified 2026-09-16 against the live system. `main` is `9c489cb`; the API, worker and
+frontend are running from it.
 
-### Nothing is merged or deployed
+| Check | Result |
+|---|---|
+| Re-chunk (the write-time half of the leak fix) | run in production — `position_chunks` 32 → 40, **leaked 28 → 0** |
+| Grounding fails closed on an unreadable claim | live |
+| Comparison routes to the evaluator in English, Hinglish, Devanagari | live |
+| Capability and general-knowledge routes | live, zero retrieval |
+| Retired standards excluded from retrieval (`AM-71`) | live — retired queries return nothing, 7 chunks preserved for history |
 
-Verified 2026-09-15: the deploy tree still carries `else 1.0` in `guardrails.py`,
-`_WORD = [a-z]+` in `intent.py`, and the raw `source_document` in `positions.py`. Every fix
-below is on an unmerged branch.
+> This section previously read *"Nothing is merged or deployed"* and listed the three
+> defects as still present in the deploy tree. That was true on 2026-09-15 and became
+> false on 2026-09-16. Corrected rather than deleted, because a status document that has
+> been wrong is worth knowing about — this one is read by the greeting protocol, and a
+> stale "nothing shipped" is the kind of claim a session acts on.
 
 ---
 
@@ -42,10 +49,13 @@ No locked decision has been changed. Nothing has been appended to `all_lock.md`.
 
 | ID | Status | Old | Proposed | Why | Evidence |
 |---|---|---|---|---|---|
-| `AM-67` | **PROPOSED, not approved** | `AM-32` r4: Domain A output extractive only | Domain A as a controlled reading aid — synthesis beside an unchanged verbatim quote | A quote alone is not an answer for a non-lawyer; authority is preserved structurally rather than by trusting the model | plan §4 |
-| `AM-68` | **PROPOSED, not approved** | no capability question shape exists | Manifest-grounded capability route, zero retrieval | "What can LegalMind do?" currently searches the Constitution and dumps standards | F-4 |
-| `AM-69` | **PROPOSED, not approved** | locks silent on language | Language is not a safety boundary; a screen that cannot evaluate an input fails closed | F-1/F-2 — guarantees worded as universal were enforced only in English | measured, §D |
-| `AM-70` | **PROPOSED, deferred** | `AM-26` r4 pins `all-MiniLM-L6-v2` | A multilingual embedding model | Hindi retrieves at 0.037–0.138 cosine, below the 0.50 gate | `RESEARCH_DOMAIN_C_RD_2026-09-04.md` §2 + §D below |
+| `AM-67` | ✅ **LOCKED 2026-09-15** (AB-21), deployed | `AM-32` r4: Domain A output extractive only | Domain A as a controlled reading aid — synthesis beside an unchanged verbatim quote | A quote alone is not an answer for a non-lawyer; authority is preserved structurally rather than by trusting the model | plan §4 |
+| `AM-68` | ✅ **LOCKED 2026-09-15** (AB-21), deployed — owner chose option (b), rendered not generated | no capability question shape exists | Manifest-grounded capability route, zero retrieval | "What can LegalMind do?" currently searches the Constitution and dumps standards | F-4 |
+| `AM-69` | ✅ **LOCKED 2026-09-15** (AB-21), deployed | locks silent on language | Language is not a safety boundary; a screen that cannot evaluate an input fails closed | F-1/F-2 — guarantees worded as universal were enforced only in English | measured, §D |
+| `AM-73` | **PROPOSED, deferred** (renumbered from `AM-70`, now a locked record on client-profile deletion) | `AM-26` r4 pins `all-MiniLM-L6-v2` | A multilingual embedding model | Hindi retrieves at 0.037–0.138 cosine, below the 0.50 gate | `RESEARCH_DOMAIN_C_RD_2026-09-04.md` §2 + §D below |
+
+| `AM-71` | ✅ **LOCKED 2026-09-16** (AB-23) — *another session's record, closing a gap this programme surfaced* | `AM-65` never said whether a retired standard stays searchable | **A retired standard is not retrievable in Ask.** Labelling it "Superseded" is not the remedy; it is excluded from the lexical AND vector paths, chunks preserved for history (r4) | The 32 → 40 measurement recorded here |
+| `AM-72` | **PROPOSED, not approved** (renumbered from `AM-71`) | `AM-25` r5 requires every claim to resolve to retrieved evidence | Generating a general-knowledge explanation | Off behind `LEGALMIND_GENERAL_KNOWLEDGE`; the non-generated redirect ships and needs no amendment |
 
 ### Engineering decisions taken autonomously (no lock touched)
 
@@ -69,7 +79,7 @@ No locked decision has been changed. Nothing has been appended to `all_lock.md`.
 | **F-2** | `AM-25` r4 bypassable by asking in Hindi/Hinglish | 🔴 HIGH | fixed on branch, **live in production** |
 | **F-5** | Internal paths and a counterparty note rendered to users | 🟠 | fixed in code, **live in the indexed corpus** until re-chunk |
 | **F-3** | Hinglish retrieval swings 0.315–0.537 on phrasing alone | 🟠 | open — Phase 4 |
-| **F-4** | Constitution searched for every question | 🟠 | open — Phase 3, needs `AM-68` |
+| **F-4** | Constitution searched for every question | ✅ | **CLOSED** — capability route (`AM-68`) and general-knowledge route, both live |
 | **F-7** | Faithfulness 1.0 measured on 33 of 64 answerable questions | 🟡 | **documented** in ASSIST_LANE_AND_RAG.md 2026-09-15 |
 | **F-8** | Multi-document conversations do not exist; "compare A with B" impossible | 🟠 | **OD-A** — product decision required |
 | **F-9** | Four residual dead-citation paths | 🟡 | open, low value |
@@ -225,6 +235,45 @@ and neither recall nor retention regressed. Faithfulness and citation precision 
 unmeasured; scoring them needs real Gemini calls on the owner's key, which is an explicit
 approval item.
 
+### D.9 The evidence-rescue judge — the recall result (2026-09-16)
+
+The gate, not retrieval, was the bottleneck. Measured on the ratified 77-question set:
+of 64 answerable questions it refused 21, and **15 of those already had the gold chunk
+retrieved**. Recall could reach 0.859 by fixing the decision alone.
+
+Three cheaper fixes were measured and rejected first:
+
+| Lever | Result |
+|---|---|
+| 35-combination sweep of `COSINE_FLOOR` × `PEAK_MARGIN` | **no** configuration raises recall without raising wrongly-answered; the frontier is monotonic |
+| A second feature — IDF-weighted question/chunk overlap | false refusals **0.185**, unanswerable **0.196**; top-cosine 0.443 vs 0.447. Indistinguishable |
+| A different embedding model | 2026-08-26 bake-off: `gte-small` 11/13 · 45/64 against MiniLM's 12/13 · 41/64 — the same trade |
+
+`calibration.py` had already recorded why: *"those score INSIDE the answerable
+distribution, so no similarity feature separates them, for any candidate."*
+
+**Result, with the real model, calling the judge on the 33 refused questions:**
+
+```
+baseline   retained 43/64   recall 0.625   wrongly answered 1/13
+rescued    13 correct        0 wrongly opened
+result     recall 0.828      wrongly answered 1/13  — UNCHANGED
+```
+
+The judge refused all twelve genuinely unanswerable questions it was shown. This is the
+first lever measured that satisfies the owner's 2026-09-14 rule — recall improves
+without a rise in wrongly-answered.
+
+Two questions (`Q-09`, `Q-38`) were rescued onto non-gold chunks. Neutral rather than
+harmful: the attempt still faces the grounding screens, which is what rejects an answer
+that does not resolve to its evidence.
+
+**Caveat on the official gate.** `verify_assist_quality.measure()` calls
+`store.search_hybrid` directly, so it does not exercise the rescue, which lives in
+`service.ask`. The figures above come from a direct measurement over the same ratified
+dataset with the same model. The harness should grow a service-level path before its
+printed recall can be read as the user-facing number.
+
 ### D.6 What has NOT been tested
 
 - **907 DB-backed tests** — no `LEGALMIND_TEST_DATABASE_URL`.
@@ -244,5 +293,10 @@ and post-deploy checks. No migration is required by any branch.
 **Unblocked, still to do:** the reranker (Phase 4's one untried lever) · the remaining
 answer types from the brief's §2 that do not need an amendment · F-9's dead-citation paths.
 
-**Needs the owner:** the test DB URL (unblocks the most) · merge approval · `AM-67`/`AM-68`/
-`AM-69` wording · C-22 provenance · OD-A multi-document · an approved MSA/NDA template.
+**Needs the owner:** `C-22` provenance (L1.5 vs L1.10) · `OD-A` multi-document conversations ·
+an approved MSA/NDA output template · `AM-72` if a generated general-knowledge answer is
+wanted · whether `LEGALMIND_POSITION_SYNTHESIS` is turned on (it begins real egress).
+
+**Closed since this document was written:** the test DB URL was supplied; `AM-67`, `AM-68`
+and `AM-69` are locked and deployed; `AM-71` (another session's record) settled the
+retired-standard question this programme raised; `F-4` is fixed and live.
