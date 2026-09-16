@@ -1,5 +1,5 @@
 {
- "recorded": "2026-09-14",
+ "recorded": "2026-09-16",
  "dataset": {
   "path": "tests/assist_eval/questions_draft.json",
   "sha256": "c53d249943d3adee0eaf459410ef65ff19fc7a9f2fc9dcdc6885606f243bf0a6",
@@ -11,24 +11,26 @@
   "cosine_floor": 0.5,
   "evidence_cosine_floor": 0.5,
   "peak_margin": 0.059,
-  "top_k": 10
+  "top_k": 10,
+  "evidence_rescue": true
  },
  "metrics": {
   "answerable": 64,
   "unanswerable": 13,
   "wrongly_answered": 1,
   "correct_refusals": 12,
-  "retained": 43,
-  "false_refusals": 21,
-  "recall_at_10": 0.625,
-  "hit_at_1": 0.375,
-  "generated_answers": 33,
-  "user_answered": 33,
+  "retained": 54,
+  "false_refusals": 3,
+  "routed_to_evaluator": 7,
+  "recall_at_10": 0.797,
+  "hit_at_1": 0.516,
+  "generated_answers": 47,
+  "user_answered": 47,
   "user_wrongly_answered": 0,
   "faithfulness": 1.0,
   "unfaithful_answers": 0,
   "citation_precision": 1.0,
-  "claims_scored": 76
+  "claims_scored": 123
  },
  "not_yet_measurable": {}
 }

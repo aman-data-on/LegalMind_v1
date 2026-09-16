@@ -15,6 +15,8 @@ turn a refusal into an attempt, and that attempt still faces every mechanical sc
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from legalmind.assist import generation, rescue
@@ -121,3 +123,73 @@ def test_rescue_imports_no_retrieval_and_writes_nothing():
             imported.add(node.module or "")
             imported |= {a.name for a in node.names}
     assert not (imported & {"store", "positions", "statutes", "sqlalchemy"}), imported
+
+
+# --------------------------------------------------------------------------
+# `reconsider` — ONE application of the judge, shared by the service and the gate
+# --------------------------------------------------------------------------
+# The gate re-implemented the retrieval step instead of calling it, so when the
+# rescue landed in `service.ask` the gate kept printing the pre-rescue number:
+# 0.625 against the 0.828 users were getting. A release gate that measures a
+# different pipeline than the one that ships is the defect these tests pin shut.
+def _outcome(*, gate_open: bool, candidates: list[str]):
+    from legalmind.assist.store import RetrievalOutcome, SearchHit
+
+    hits = [SearchHit(chunk_id=uuid.uuid4(), evidence_id=uuid.uuid4(), content=c,
+                      page_number=1, section_number=None, section_title=None,
+                      source_type="DOCUMENT", retrieval_score=0.4) for c in candidates]
+    return RetrievalOutcome(hits=hits if gate_open else [], gate_open=gate_open,
+                            lexical_hit=True, vector_top_score=0.44,
+                            vector_peak_gap=0.01, strategy_version="test",
+                            embedding_model="test",
+                            candidates=[] if gate_open else hits)
+
+
+def test_a_shut_gate_is_reopened_on_the_chunks_the_judge_named(monkeypatch):
+    monkeypatch.delenv("LEGALMIND_EVIDENCE_RESCUE", raising=False)
+    monkeypatch.setattr(generation, "generate_raw", lambda *a, **k: _fake("YES 1 3"))
+    shut = _outcome(gate_open=False, candidates=CHUNKS)
+    out = rescue.reconsider(shut, "what is the notice period?")
+    assert out.gate_open is True
+    assert [h.content for h in out.hits] == [CHUNKS[0], CHUNKS[2]]
+
+
+def test_an_open_gate_is_never_reconsidered(monkeypatch):
+    """The safety shape: the judge can widen an attempt, never narrow one. An open
+    gate must not even reach the provider."""
+    monkeypatch.delenv("LEGALMIND_EVIDENCE_RESCUE", raising=False)
+
+    def boom(*a, **k):
+        raise AssertionError("an answered question must not be re-judged")
+
+    monkeypatch.setattr(generation, "generate_raw", boom)
+    open_gate = _outcome(gate_open=True, candidates=CHUNKS)
+    assert rescue.reconsider(open_gate, "anything") is open_gate
+
+
+@pytest.mark.parametrize("reply", ["NO", ""])
+def test_a_refusal_the_judge_upholds_is_returned_unchanged(monkeypatch, reply):
+    monkeypatch.delenv("LEGALMIND_EVIDENCE_RESCUE", raising=False)
+    monkeypatch.setattr(generation, "generate_raw", lambda *a, **k: _fake(reply))
+    shut = _outcome(gate_open=False, candidates=CHUNKS)
+    assert rescue.reconsider(shut, "what colour is the sky?") is shut
+
+
+def test_neither_the_service_nor_the_quality_gate_applies_the_judge_itself():
+    """Both must route through `reconsider`, or they drift apart again — which is
+    exactly what happened between `service.ask` and `verify_assist_quality.measure`.
+
+    Asserted on the AST rather than on the source text so that rewording a comment
+    cannot turn this red, and so that a second copy of the logic cannot hide behind
+    a differently-spelled call.
+    """
+    import ast
+    import pathlib
+
+    for path in ("legalmind/assist/service.py", "tools/verify_assist_quality.py"):
+        tree = ast.parse(pathlib.Path(path).read_text())
+        called = {n.func.attr for n in ast.walk(tree)
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+        assert "rescue_indices" not in called, \
+            f"{path} applies the judge itself instead of calling rescue.reconsider"
+        assert "reconsider" in called, f"{path} never reconsiders a refusal"
