@@ -301,3 +301,43 @@ amendment buys a better answer to a question the product is not obliged to answe
 cost of one narrow exception to the guarantee that makes the rest of the lane
 trustworthy. **Declining it is a reasonable position**, and the system is coherent either
 way.
+
+---
+
+# Clarifying record for `AM-45` r3 (PROPOSED, NOT APPENDED) — the comparison screen's mechanism, brought current
+
+📁 **PROPOSAL.** Nothing appended to `all_lock.md`. Drafted 2026-09-17 for the owner
+to approve or edit; appended only on their word, on the `AM-69` pattern
+("implemented ahead of this record, recorded rather than backdated").
+
+**What it clarifies:** `AM-45` r3 (2026-09-08) describes the enforcement of `AM-25`
+r4 as *"a deterministic two-signal stem classifier (an organization reference AND a
+distinct comparison verb or outcome noun)"*. On 2026-09-16 (PR #65, `be8d97c`, live)
+that mechanism was replaced after it was measured, through the corrected Tier-2 gate,
+to misroute 7 of the 64 answerable ratified questions to the evaluator — "how much
+time do we get to fix a breach before the provider can terminate?" was answered with
+"run a Review". The parenthetical no longer describes the shipped screen.
+
+**What does not change:** `AM-25` r4 itself — the comparison question is never answered
+generatively. The screen remains deterministic and remains code (`AM-28` r2's spirit,
+`AM-49` r2's words). `AM-45` r1, r2, r4–r6 are untouched.
+
+**Proposed text:**
+
+> `AM-45` r3 — CLARIFIED 2026-09-17. Detection remains `assist.intent.
+> is_comparison_question`, deterministic and pinned by a phrase matrix in both
+> directions. Its mechanism is a RELATION, not a co-occurrence: the question routes when
+> (A) a comparison signal bears on a reference to THE ORGANIZATION'S OWN position — a
+> position noun qualified within its noun phrase by a first-person possessive or by the
+> organization; or (B) a first-person subject asks whether to sign or accept THIS
+> document; or (C) an unambiguous comparison verb (compare, comply, deviate, conform,
+> redline, तुलना) appears at all. A bare first-person pronoun, a possessive owning a
+> non-position noun, or contract vocabulary such as "breach", "sign" or "meet" without a
+> position reference does not route. Measured 2026-09-16: false comparison routes 7 → 0
+> of 64; all 16 phrasings pinned on 2026-09-08 and 14 unseen ones still route; recall@10
+> 0.797 → 0.891 with wrongly-answered unchanged at 1/13 and false refusals unchanged at
+> 3. `AM-25` r4 is reaffirmed word for word.
+
+**Why a clarifying record rather than an amendment:** the rule did not move; the
+description of its implementation did. Leaving r3 as written would have the record
+describe a screen that no longer exists, which is the state rule 5 exists to prevent.

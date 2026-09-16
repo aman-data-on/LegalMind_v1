@@ -10,6 +10,43 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Ask Phase 0: what the reader sees matches what was verified (2026-09-17)
+
+Phase 0 of the Ask target architecture (`docs/00-project/ASK_TARGET_ARCHITECTURE.md`
+— proposal approved 2026-09-16, phased). Nothing here changes what is retrieved or
+generated; it makes three things the pipeline already did visible and correct.
+
+- **Prose markers and the citation list now carry the same number.** The model cites
+  evidence by its position in the list it was shown; the response lists only the chunks
+  actually cited, and the UI numbers that list by index. So an answer citing only the
+  third excerpt read "[3]" beside a list whose single entry rendered "[1]". `service.
+  _renumber_markers` relabels the prose AFTER verification (which still runs on the
+  model's own indices) and `_persist_citations` now writes `claim_ordinal` in that same
+  display order, so a replayed turn (`ORDER BY claim_ordinal`) shows the same numbers the
+  reader first saw. Applied to document answers and statute answers alike. The test pins
+  retrieval to two real chunks so it cannot pass vacuously — its first draft skipped
+  because only one chunk reached the model.
+- **`AM-67` answers now record their prompt.** `_prompt_version_id` registered only the
+  document prompt, so every reading-aid answer was persisted with `prompt_version_id =
+  NULL`. It takes a code and template now; the aid registers `position-reading-aid-1`
+  and the answer row carries the aid's model identity and latency.
+- **Every ask is timed stage by stage** — positions, statutes, retrieval, rescue,
+  generation, verification, fallbacks, statute generation, position aid, total — as one
+  `assist.ask.timings` log event and on `AskOutcome.timings` (never serialised to a
+  reader). `ai_answers.latency_ms` keeps its meaning: the provider call alone. Before
+  this, a slow ask could not say which stage was slow.
+- **Provider usage is measured, not estimated.** `GenerationResult` carries the
+  provider-reported prompt and output token counts; the Tier-2 gate reports per-stage
+  p50/p95 latency and Gemini calls and tokens per question through the production path.
+  Reported, never gated, never written into the baseline.
+
+Backend suite 2052 passed, 0 failed. No locked decision touched; no schema change; no
+flag default changed. The production enablement of `LEGALMIND_POSITION_SYNTHESIS`
+(`AM-67`, approved 2026-09-15; r7's re-chunk prerequisite verified on the live corpus
+2026-09-17: 40 chunks, 0 locators) is an operator step recorded in DAILY_CHANGES.md
+when it happens, not a code change.
+
+
 ### Added — one deploy at a time (2026-09-16)
 
 `ops/deploy.sh` takes `flock -n /var/lock/legalmind-deploy.lock` and **refuses** rather than queues

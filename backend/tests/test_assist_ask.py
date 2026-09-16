@@ -1460,3 +1460,90 @@ def _first_claim(chunk: str) -> str:
         if len([w for w in sentence.split() if w.isalpha()]) >= 4:
             return sentence.strip()
     return chunk[:120].strip()
+
+
+# --------------------------------------------------------------------------
+# Phase 0 (2026-09-17): the reader's [n] and the citation list's [n] agree
+# --------------------------------------------------------------------------
+def test_prose_markers_are_renumbered_to_the_citation_list(db, user, indexed_contract,
+                                                           monkeypatch):
+    """The model cites evidence by its position in the list it was shown; the response
+    lists only the cited chunks. An answer citing only the LAST excerpt read "[2]"
+    beside a list whose one entry rendered "[1]". Renumbered after verification.
+
+    Retrieval is pinned to the version's two real chunks, gate open — a display-layer
+    fix must not depend on which chunks a live query happens to rank, and the first
+    draft of this test skipped for exactly that reason (one chunk reached the model).
+    """
+    from legalmind.assist import store
+
+    contract, version = indexed_contract
+    schema = config.assist_schema()
+    rows = db.execute(text(
+        f'SELECT id, evidence_id, content FROM "{schema}".chunks '
+        "WHERE document_version_id = :dv ORDER BY ordinal"), {"dv": version.id}).all()
+    assert len(rows) >= 2, "the fixture must index at least two chunks"
+    hits = [store.SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=1,
+                            section_number=None, section_title=None,
+                            source_type="DOCUMENT", retrieval_score=0.7) for r in rows[:2]]
+    pinned = store.RetrievalOutcome(hits=hits, gate_open=True, lexical_hit=True,
+                                    vector_top_score=0.7, vector_peak_gap=0.1,
+                                    strategy_version="test", embedding_model=None)
+    monkeypatch.setattr(store, "search_hybrid", lambda *a, **k: pinned)
+    monkeypatch.setattr(generation, "generate", lambda question, chunks, **k:
+                        generation.GenerationResult(
+                            text=_first_claim(chunks[1]) + " [2].", model="fake",
+                            prompt_version="test", payload_sha256="0" * 64,
+                            latency_ms=1))
+
+    conversation = _conversation(db, user, contract)
+    outcome = service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                          question="what does the second clause say")
+    assert outcome.answer_state is AssistAnswerState.ANSWERED, outcome.text
+    assert outcome.text.endswith("[1].") and "[2]" not in outcome.text
+    assert [c.chunk_id for c in outcome.citations] == [hits[1].chunk_id]
+    # The persisted turn is the renumbered text, and the persisted citation sits at
+    # ordinal 0, so replay (ORDER BY claim_ordinal) shows the same [1].
+    stored = db.execute(text(f"""
+        SELECT m.content, ac.claim_ordinal, ac.chunk_id FROM "{schema}".messages m
+          JOIN "{schema}".ai_answers a ON a.message_id = m.id
+          JOIN "{schema}".answer_citations ac ON ac.answer_id = a.id
+         WHERE m.id = :m"""), {"m": outcome.message_id}).all()
+    assert stored == [(outcome.text, 0, hits[1].chunk_id)]
+
+
+def test_renumbering_is_a_pure_relabelling():
+    from legalmind.assist.service import _renumber_markers
+    assert _renumber_markers("A [3]. B [1][3].", [1, 3]) == "A [2]. B [1][2]."
+    assert _renumber_markers("A [2].", [2]) == "A [1]."
+    assert _renumber_markers("A [1]. B [2].", [1, 2]) == "A [1]. B [2]."   # identity
+    assert _renumber_markers("no markers", [1]) == "no markers"
+
+
+def test_every_ask_reports_its_stage_timings(db, user, indexed_contract):
+    """The provider call was the only latency the lane ever recorded, so a slow ask
+    could not say which stage was slow. Retrieval is always timed; 'total' always set."""
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    conversation = _conversation(db, user, contract)
+    outcome = service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                          question="zzz unrelated maritime salvage zzz")
+    assert "total" in outcome.timings and "retrieval" in outcome.timings
+    assert all(isinstance(v, int) and v >= 0 for v in outcome.timings.values())
+
+
+def test_a_second_prompt_registers_under_its_own_code(db):
+    """`AM-67` answers were persisted with prompt_version_id NULL because only the
+    document prompt was ever registered. Idempotent per code; distinct across codes."""
+    from legalmind.assist.service import _prompt_version_id
+    document = _prompt_version_id(db)
+    assert _prompt_version_id(db) == document
+    aid = _prompt_version_id(db, generation.POSITION_PROMPT_VERSION,
+                             generation.POSITION_PROMPT_TEMPLATE)
+    assert aid != document
+    assert _prompt_version_id(db, generation.POSITION_PROMPT_VERSION,
+                              generation.POSITION_PROMPT_TEMPLATE) == aid
+    schema = config.assist_schema()
+    codes = {r[0] for r in db.execute(text(
+        f'SELECT code FROM "{schema}".prompt_versions')).all()}
+    assert {generation.PROMPT_VERSION, generation.POSITION_PROMPT_VERSION} <= codes

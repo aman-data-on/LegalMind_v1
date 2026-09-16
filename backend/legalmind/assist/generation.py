@@ -112,6 +112,10 @@ class GenerationResult:
     prompt_version: str
     payload_sha256: str
     latency_ms: int
+    # Provider-reported usage (2026-09-17), so cost is a measured quantity rather than
+    # an estimate. None when the provider omits it. Never a payload, never text.
+    prompt_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 # A credential that is present but is obviously not a credential.
@@ -351,8 +355,13 @@ def generate_raw(prompt: str, *, prompt_version: str, environment: str,
     except (KeyError, IndexError, TypeError) as exc:
         raise GenerationUnavailable("provider response had no text candidate") from exc
 
+    usage = parsed.get("usageMetadata") or {}
+    prompt_tokens = usage.get("promptTokenCount")
+    output_tokens = usage.get("candidatesTokenCount")
     log_event("assist.generation.completed", request_id=request_id, model=model,
               prompt_version=prompt_version, payload_sha256=digest,
-              latency_ms=latency_ms, evidence_count=evidence_count)
+              latency_ms=latency_ms, evidence_count=evidence_count,
+              prompt_tokens=prompt_tokens, output_tokens=output_tokens)
     return GenerationResult(text=text, model=model, prompt_version=prompt_version,
-                            payload_sha256=digest, latency_ms=latency_ms)
+                            payload_sha256=digest, latency_ms=latency_ms,
+                            prompt_tokens=prompt_tokens, output_tokens=output_tokens)

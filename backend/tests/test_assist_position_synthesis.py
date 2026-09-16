@@ -140,7 +140,9 @@ def test_a_grounded_descriptive_explanation_is_returned(monkeypatch):
         generation, "generate_position_reading_aid",
         lambda *a, **k: _fake("Liability is capped at 12 months of total fees paid [1]."))
     out = service._position_reading_aid("what is our cap?", [_hit(QUOTE)], None)
-    assert out and "12 months" in out
+    assert out and "12 months" in out.text
+    # The result carries what the answer row records (model, latency) — 2026-09-17.
+    assert out.model == "fake" and out.latency_ms == 1
 
 
 def test_generation_failure_falls_back_to_the_quote(monkeypatch):
