@@ -28,6 +28,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -667,9 +668,9 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     finally:
         _TIMINGS.reset(token)
     timings["total"] = int((time.monotonic() - started) * 1000)
+    stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
     log_event("assist.ask.timings", request_id=request_id,
-              conversation_id=str(conversation_id),
-              **{f"{k}_ms": str(v) for k, v in timings.items()})
+              conversation_id=str(conversation_id), **stage_fields)
     return dataclasses.replace(outcome, timings=dict(timings))
 
 
@@ -1204,18 +1205,18 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     # The answer row names the prompt that produced its generated part — the statute
     # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
     # so `prompt_version_id` was NULL on every `AM-67` answer.
-    if statute_answered:
-        model, prompt_id, latency = (answered_section.get("_model"),
-                                     _prompt_version_id(db),
-                                     answered_section.get("_latency_ms"))
+    model: str | None = None
+    prompt_id: UUID | None = None
+    latency: int | None = None
+    if answered_section is not None:
+        model = answered_section.get("_model")
+        prompt_id = _prompt_version_id(db)
+        latency = answered_section.get("_latency_ms")
     elif aid is not None:
-        model, prompt_id, latency = (aid.model,
-                                     _prompt_version_id(
-                                         db, generation.POSITION_PROMPT_VERSION,
-                                         generation.POSITION_PROMPT_TEMPLATE),
-                                     aid.latency_ms)
-    else:
-        model = prompt_id = latency = None
+        model = aid.model
+        prompt_id = _prompt_version_id(db, generation.POSITION_PROMPT_VERSION,
+                                       generation.POSITION_PROMPT_TEMPLATE)
+        latency = aid.latency_ms
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
