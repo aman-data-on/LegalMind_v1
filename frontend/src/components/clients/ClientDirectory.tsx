@@ -232,7 +232,14 @@ export function ClientDirectory() {
           </p>
         </div>
         <span className="ws-context__spacer" />
-        {canAdd ? (
+        {/* Hidden on the true first-run screen (owner, 2026-09-17): the
+            centered "+ Add client" button in the empty-state card is already
+            the page's one call to action there, and closing the form it opens
+            is handled by the form's own Cancel button — so this header control
+            has nothing left to do until at least one client exists. It returns
+            for every other state: populated, loading, and filtered-to-nothing
+            (a real client exists somewhere, just not on this view). */}
+        {canAdd && !firstRun ? (
           <div className="ws-context__acts">
             <button type="button" className="ws-btn ws-btn--primary"
                     aria-expanded={adding} aria-controls="ws-cl-addpanel"
