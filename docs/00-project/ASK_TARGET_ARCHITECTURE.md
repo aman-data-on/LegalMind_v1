@@ -39,11 +39,11 @@ USER QUESTION
 | Stage | Where it lives | State (2026-09-17) |
 |---|---|---|
 | 1 Conversation context | `service.ask()` step 1; ≤4 prior USER turns loaded, ≤2 sent | **SHIPPED** — bounded by `AM-58`; the prior ASSISTANT answer is never admitted (r2). Re-admitting the prior turn's *cited chunk ids* is proposed `AM-74`, owner decision |
-| 2 Query understanding | `assist/planner.py`, `query-plan-1` | **BUILT, MEASURED, SHIPS OFF** (PR #69). Plans are accurate; +2.4–8 s latency and no recall gain > 1 question, evidence precision down. Owner decision: merge flag-off or park the code. Whatever ships, it stays **advisory and after** the deterministic screens |
+| 2 Query understanding | `assist/planner.py`, `query-plan-1` | **MERGED 2026-09-17 (PR #69), SHIPS OFF** (`LEGALMIND_QUERY_PLANNER`, verified unset in production). Plans are accurate; +2.4–8 s latency and no recall gain > 1 question, evidence precision down. Owner decision: merge flag-off or park the code. Whatever ships, it stays **advisory and after** the deterministic screens |
 | 3 Knowledge router + authority policy | `assist/routing.py` `plan()`; `AM-45` r1 | **SHIPPED** — permissions decide candidate domains first, then question shape. Domains are never merged into one body of text (`AM-32` r1 / `AM-45` r2). Gemini may pick *within* authorized domains, never add one |
-| 4 Query planner | same module as stage 2 | **BUILT, OFF** — reformulations ≤3; statute alias expansion already exists and is reused |
+| 4 Query planner | same module as stage 2 | **MERGED, OFF** (same flag as stage 2) — reformulations ≤3; statute alias expansion already exists and is reused |
 | 5 Authorized targeted retrieval | `store.search_hybrid`, `positions.search_positions`, `statutes.search_statutes` | **SHIPPED, single-query.** Authorization lives **inside** every query (`AM-25` r6); retired standards excluded from both lexical and vector paths (`AM-71`). Multi-query union + Domain A `constitution.topic` filter are Phase 1, built behind the flag |
-| 6 Reranker | `backend/legalmind/assist/rerank.py` | **MERGED, ships OFF** (`LEGALMIND_RERANK`, PR #74, 2026-09-17) — `ms-marco-MiniLM-L-6-v2`, pinned + checksummed. Measured: hit@1 0.609→0.734, MRR 0.709→0.796, recall 0.891→0.906, +205ms, wrongly-answered/faithfulness unchanged. Enablement is a separate operator step (env var + restart) with its own production check, not yet done |
+| 6 Reranker | `backend/legalmind/assist/rerank.py` | **MERGED AND LIVE** — `LEGALMIND_RERANK=on` in production, verified in the running process 2026-09-17 (PR #74) — `ms-marco-MiniLM-L-6-v2`, pinned + checksummed. Measured: hit@1 0.609→0.734, MRR 0.709→0.796, recall 0.891→0.906, +205ms, wrongly-answered/faithfulness unchanged. Enablement is a separate operator step (env var + restart) with its own production check, not yet done |
 | 7 Evidence sufficiency / gate | `assist/calibration.py`, `gate_is_open`, `evidence_is_sufficient`, `assist/rescue.py` | **SHIPPED** — deterministic and calibrated, and it is the safety control: it decides on the caller's original question, which is why a rephrasing alone can never turn a refusal into an answer. A `RERANK_FLOOR` opener arrives with stage 6 |
 | 8 Grounded generation | `assist/generation.py`, `grounded-answer-2` | **SHIPPED** — the one permitted egress (`AM-30`). Payload = question + chunk spans + prompt + ≤2 prior USER questions. No Legal Rule, threshold, Finding, company position or counterparty name ever enters it; `AM-67` adds published standard clause text as a reading aid beside an unchanged verbatim quote |
 | 9 Answer verification | `assist/guardrails.py` `verify_answer`, `intent.is_verdict_statement` | **SHIPPED, fail-closed** — an answer that cannot be verified is not shown (`AM-25` r5), and a screen that cannot evaluate an input fails closed (`AM-69`). This is why token streaming is impossible by design: perceived speed must come from progress states |
@@ -56,6 +56,26 @@ code, not prompts. The map is a naming convention and a design record — it loc
 nothing and amends no decision (rules 1, 2, 4).
 
 ---
+
+**Reconciled against the code, 2026-09-17 (Phase 0).** Two places where this
+document still describes a design the measurement did not keep:
+
+* **Stage 6 runs AFTER stage 7, not before it.** §4's sketch orders
+  `RERANK → GATE`; the shipped composition in `service.retrieve_document` is
+  retrieve → pin → rescue → **reorder**, and the docstring there states why: the
+  gate and the rescue each see exactly the inputs they were calibrated on, and the
+  reranker changes the ORDER of the evidence only — never its membership, never the
+  decision to answer. Pinned by
+  `test_the_reranker_never_changes_the_gate_or_the_membership`.
+* **`RERANK_FLOOR` does not exist and was not built.** §4 and §8 specify it as a
+  second, calibrated gate opener. Measured on the 20 wrongly-refused answerable
+  questions it cannot work: their rerank scores (median −3.12) sit BELOW the 13
+  genuinely unanswerable ones (median −2.30), so no floor separates them. The
+  proposal text is left in place as the design record; the outcome is that stage 7
+  keeps exactly the openers it had, and `rescue.reconsider` remains the only one.
+
+Neither is a defect and neither amends a locked decision — stage 6 was always
+permitted to be reorder-only (`AM-26`), and the gate is code, never a prompt.
 
 ## Context
 

@@ -17,19 +17,23 @@ import pathlib
 
 import pytest
 
-from legalmind.assist import onnx_backend
+from legalmind.assist import calibration, onnx_backend
 from legalmind.assist.embedding import EmbeddingBackend, LexicalStrategy
 
 _ANY_MODEL = "sentence-transformers__all-MiniLM-L6-v2"
 
 
 def _provisioned() -> pathlib.Path | None:
-    root = onnx_backend.model_root()
-    if not root.exists():
-        return None
-    for candidate in sorted(root.glob("*/*/manifest.json")):
-        return candidate.parent
-    return None
+    # Resolve the EMBEDDING model the way production does — by the calibrated
+    # repo and revision, never "whatever sorts first" under the model root. Once
+    # the reranker was provisioned (2026-09-17) a bare `*/*/manifest.json` glob
+    # returned the cross-encoder, and feeding a (batch, 1) relevance logit to the
+    # bi-encoder's mean-pooling broke three tests on a model that was never the
+    # one under test.
+    directory = (onnx_backend.model_root()
+                 / calibration.EMBEDDING_MODEL_REPO.replace("/", "__")
+                 / calibration.EMBEDDING_MODEL_REVISION)
+    return directory if (directory / onnx_backend.MANIFEST).exists() else None
 
 
 @pytest.fixture

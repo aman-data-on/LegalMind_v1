@@ -10,6 +10,55 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Phase 0 — clean baseline and architecture reconciliation (2026-09-17)
+
+Ask AI only. No new stage was built and no experimental flag was enabled.
+
+**Fixed — a revoked grant no longer leaks a Company Position on replay.**
+`GET /conversations/{id}` checked only that the caller created the conversation,
+then served the cited clause text and the verbatim Company Position it had
+quoted. A caller whose `legal_position.view` had been revoked — or whose
+contract had been transferred away — still received `standard_code`,
+`source_clause` and the position text on reload, which is the disclosure
+`LEGAL-02` forbids. Replay now re-resolves both tests the live ask path already
+applies per request (`routing.positions_permitted`, `can_read_contract`), and
+withheld material is **omitted, not nulled** (`SEC-07`, `API-10`) — the
+frontend already renders an absent field as absent. The fix and its 13 tests
+were written and measured on `feat/p1-rag-quality` (2026-09-11) and had never
+been merged; only this item was taken. `AM-25` r5 traceability is unchanged for
+every caller who may still read the source.
+
+**Fixed — three embedding tests broken by the reranker's own provisioning.**
+`test_assist_embedding.py` resolved its model by globbing `*/*/manifest.json`
+and taking the first sorted match. Once the reranker's weights were provisioned
+(PR #74), `cross-encoder__ms-marco-MiniLM-L-6-v2` sorted ahead of
+`sentence-transformers__all-MiniLM-L6-v2`, so a cross-encoder's `(batch, 1)`
+relevance logit was fed to the bi-encoder's mean-pooling. The fixture now
+resolves the model the way production always has — by
+`calibration.EMBEDDING_MODEL_REPO`/`REVISION`. Test-only: the production path
+never globbed, which is why the live warm-up was unaffected.
+
+**Reconciled — `ASK_TARGET_ARCHITECTURE.md` §0 against the shipped code.**
+Stage 6 is recorded as live (`LEGALMIND_RERANK=on`, verified in the running
+process) and stages 2/4 as merged-and-off. Two divergences are now stated where
+the stage map is read: the reranker runs **after** the gate, not before it
+(reorder-only, so the gate and rescue keep the inputs they were calibrated on),
+and **`RERANK_FLOOR` was never built** — measured, the 20 wrongly-refused
+answerable questions score *below* the 13 unanswerable ones, so no floor
+separates them. The proposal text stays as the design record.
+
+**Unblocked — the local test database.** ~950 DB-backed tests had been erroring
+on `password authentication failed`; an isolated `lmtest` role and database now
+back them. No production role, credential or datum was touched.
+
+Parked, deliberately, and not merged: `feat/p1-rag-quality` items 2–4 (HNSW
+refused on evidence; grounding normalisation, +131 lines in `guardrails.py`;
+redirect re-scoring) — each changes shipped retrieval or verification behaviour
+and needs re-measurement against today's pipeline, which now has the reranker
+on. `chore/readme-and-fallback-test` — three wanted tests on a stale copy of
+`test_assist_ask.py` that depends on its own unmerged `service.py` change; it
+needs a rebase, not a merge.
+
 ### Consolidated — the Ask AI branch backlog merged and deployed (2026-09-17)
 
 Cleaning-up pass across four open Ask-lane PRs, at the owner's request, before any new
