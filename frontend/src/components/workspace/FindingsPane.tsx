@@ -61,6 +61,7 @@ import {
   nextStep,
   reasoningSteps,
   requirementTitle,
+  type PresentedFinding,
   sameAsTitle,
   sideOf,
   standardSideOf,
@@ -78,7 +79,32 @@ import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
-type View = "all" | { classification: string } | { status: UserStatus };
+/* `requiresDecision` is the workflow field (`finding.requires_decision`), NOT one
+   of the three reader words — the Summary's "Review pending decisions" counts
+   that field, so the view it opens has to filter on the same field or the count
+   and the list disagree. Keeping it a separate View arm is what stops the two
+   from being conflated again. */
+export type View =
+  | "all"
+  | { classification: string }
+  | { status: UserStatus }
+  | { requiresDecision: true };
+
+/**
+ * The findings one view shows. Exported so the pairing that broke can be
+ * asserted without a DOM: the Summary's "Review pending decisions" takes its
+ * COUNT from `findingsSummary().needsDecision` (the `requires_decision` field)
+ * and must open a view holding exactly those findings. It used to open
+ * `{ status: "NEEDS_DECISION" }` — a different field — so a document whose
+ * pending items read "Requires modification" sent the reader to an empty pane
+ * under a button promising three.
+ */
+export function findingsForView(findings: Finding[], view: View): Finding[] {
+  if (view === "all") return findings;
+  if ("requiresDecision" in view) return findings.filter((f) => f.requires_decision);
+  if ("status" in view) return findings.filter((f) => userStatus(f) === view.status);
+  return findings.filter((f) => f.classification === view.classification);
+}
 
 const ATTENTION_OUTCOMES = new Set(["APPROVAL_REQUIRED", "UNACCEPTABLE"]);
 const CALM_OUTCOMES = new Set(["ACCEPTABLE", "NOT_APPLICABLE"]);
@@ -191,6 +217,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const point = sideTabs?.findingsPoint ?? null;
   useEffect(() => {
     if (!point || point.seq === pointSeqDone.current) return;
+    if (point.requiresDecision) {
+      pointSeqDone.current = point.seq;
+      setView({ requiresDecision: true });
+      return;
+    }
     if (point.status) {
       pointSeqDone.current = point.seq;
       setView({ status: point.status });
@@ -336,12 +367,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const summary = findingsSummary(findings);
   // Review order, not engine order (P-4, 2026-09-06): what needs a decision
   // first, then the document's own order. Presentation only — see `reviewOrder`.
-  const shown = reviewOrder(
-    view === "all"
-      ? findings
-      : "status" in view
-        ? findings.filter((f) => userStatus(f) === view.status)
-        : findings.filter((f) => f.classification === view.classification));
+  const shown = reviewOrder(findingsForView(findings, view));
   /* Computed over the WHOLE finding set, not the filtered view: a title is
      ambiguous because the contract has two of them, and the qualifier must not
      appear and vanish as the reader changes filter. */
@@ -451,6 +477,14 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               {typeof view === "object" && "classification" in view ? (
                 <button type="button" aria-pressed onClick={() => setView("all")}>
                   {classificationLabel(view.classification)} ({shown.length})
+                </button>
+              ) : null}
+              {/* The Summary's "Review pending decisions" lands here. Shown
+                  pressed for the same reason as the classification chip: a
+                  filtered list with nothing pressed reads as an empty pane. */}
+              {typeof view === "object" && "requiresDecision" in view ? (
+                <button type="button" aria-pressed onClick={() => setView("all")}>
+                  Pending decisions ({shown.length})
                 </button>
               ) : null}
             </div>
@@ -625,7 +659,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           Legal Constitution §{prohibition.section}: “{prohibition.quote}”
         </p>
       ) : null}
-      {finding.evaluations.map((evaluation) => (
+      {finding.evaluations.map((evaluation, index) => (
         <EvaluationCard
           key={evaluation.id}
           finding={finding}
@@ -635,6 +669,9 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           evidenceById={evidenceById}
           onChanged={onChanged}
           prepared={prepared}
+          /* The folded standards are a fact about the FINDING, so they are
+             named once, on the first evaluation — not repeated under each. */
+          showFolded={index === 0}
         />
       ))}
       <div className="ws-finding__acts">
@@ -704,8 +741,9 @@ function EvaluationCard({
   evaluation,
   evidenceById,
   onChanged,
+  showFolded = false,
 }: {
-  finding: Finding;
+  finding: PresentedFinding;
   status: UserStatus;
   /** The grounded sentence the card shows, for the attribution row below. */
   grounded: FindingExplanation | null;
@@ -714,6 +752,8 @@ function EvaluationCard({
   onChanged: () => void;
   /** A keyboard prepare request from the owning card — see `FindingCard`. */
   prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
+  /** Name the standards folded into this finding — once per finding. */
+  showFolded?: boolean;
 }) {
   const { point, target } = useHighlight();
   const attention =
@@ -740,6 +780,19 @@ function EvaluationCard({
       ? scopeLabel(evaluation.scope_key) : null);
   const scope = rawScope && !sameAsTitle(rawScope, requirementTitle(finding.requirement))
     ? rawScope : null;
+  /* The basis token (`cap_basis` / `basis`) is what makes two numbers
+     comparable or not — FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES are
+     different positions at the same number — so it stays verbatim (45B.4)
+     wherever the two sides DIFFER. Where they are identical it said the same
+     long token twice in one row and cost the comparison its width; the
+     standard side drops it, and the contract side keeps it, so the fact is
+     still stated once and a genuine mismatch still shows as two. */
+  const contractSide = sideOf(evaluation.actual_value);
+  const rawStandardSide = standardSideOf(evaluation.expected_value);
+  const standardSide: Side = rawStandardSide.detail !== undefined
+    && rawStandardSide.detail === contractSide.detail
+    ? { tone: rawStandardSide.tone, text: rawStandardSide.text }
+    : rawStandardSide;
 
   return (
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>
@@ -784,11 +837,11 @@ function EvaluationCard({
         */}
       <dl className="ws-facts ws-facts--compare">
         <dt>Contract</dt>
-        <dd><SideValue side={sideOf(evaluation.actual_value)} /></dd>
+        <dd><SideValue side={contractSide} /></dd>
         {evaluation.expected_value !== undefined ? (
           <>
             <dt>Company standard</dt>
-            <dd><SideValue side={standardSideOf(evaluation.expected_value)} /></dd>
+            <dd><SideValue side={standardSide} /></dd>
           </>
         ) : null}
         {/* "Next step" as a third fact in the SAME comparison, not a separate
@@ -858,61 +911,34 @@ function EvaluationCard({
               <span>{step.text}</span>
             </li>
           ))}
-        </ol>
-        {explanation.length > 0 ? (
-          // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
-          // travels with `explanation`, which is omitted for a caller without
-          // `legal_position.view`, and `confidentiality.spec.ts` asserts the
-          // element is absent for them. Presence-tested, so that holds.
-          <div className="ws-explain">
-            <p className="ws-determined__label">The engine&apos;s own record</p>
-            <ol>
-              {explanation.map((line, index) => (
-                <li key={index}>{line}</li>
-              ))}
-            </ol>
-          </div>
-        ) : null}
-        {/* The requirement code lives here now, not on the card face
-            (2026-09-08, third pass) — a raw identifier is exactly the
-            "internal ID" the manager's report asked off the default-visible
-            surface. A legal reviewer who needs it for an escalation or a
-            support request is already one click into this disclosure by the
-            time they need to quote it.
-
-            The rule outcome and the provenance line both moved IN here
-            (2026-09-08, second pass): both used to sit on the visible card by
-            default — "No rule covers this" in the header, "PRESENCE-v1 · 0
-            evidence references" just above the evidence — and both are
-            exactly the "internal/engineering information" the manager's
-            report named. Neither is deleted: rule 11/12 still require the
-            chain to be reconstructible, and 45B.10/AM-19 still require
-            provenance to survive a LEGAL-02 omission. They are simply no
-            longer competing with the plain-language NEXT STEP for the
-            reader's first look. `.ws-evaluation__outcome` and
-            `.ws-evaluation__provenance` are UNCHANGED as elements — same
-            classes, same conditional rendering on the same fields — so every
-            LEGAL-02 test (which asserts by count/text, never by position on
-            the page) holds exactly as it did. */}
-        <dl className="ws-determined__tech">
-          {/* Where the card's one sentence came from (AM-49 — source attribution
-              stays with the reader): the grounded generation, the approved
-              description, or the data-built fallback. */}
-          <dt>Explanation</dt>
-          <dd>
-            {grounded?.status === "ACCEPTED" && grounded.text
-              ? `Generated from the approved description${grounded.passages > 0
-                  ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
-              : finding.requirement.description?.trim()
-                ? "The requirement's approved description"
-                : "Built from the finding's own values"}
-          </dd>
-          {finding.requirement.code ? (
-            <>
-              <dt>Requirement</dt>
-              <dd className="ws-mono">{finding.requirement.code}</dd>
-            </>
+          {/* The chain ends where the reader acts. It is on the card face too,
+              as the third column of the comparison; a reader who opened this to
+              follow the reasoning should not have to look back up to find what
+              the reasoning asks of them. */}
+          {action ? (
+            <li key="next-step">
+              <span className="ws-determined__label">What happens next</span>
+              <span>{action}</span>
+            </li>
           ) : null}
+        </ol>
+        {/* Two standards can state one obligation — the same clause, value and
+            next step measured under an MSA and an NDA standard both. The reader
+            meets one finding (`mergeEquivalentFindings`); the standards that
+            agreed are named here, so the chain still accounts for every
+            evaluation the engine ran. */}
+        {showFolded && finding.alsoMeasuredAgainst?.length ? (
+          <p className="ws-pane__note">
+            {`Also measured against ${finding.alsoMeasuredAgainst
+              .map((other) => requirementTitle(other.requirement))
+              .join(", ")} — the same clause, the same required value and the same next step.`}
+          </p>
+        ) : null}
+        {/* The legal outcome and the workflow state stay at this level: they are
+            what the finding MEANS and what is owed on it, and a legal reader
+            opened this disclosure to see exactly them. Everything below the
+            nested summary is about the machine that produced them. */}
+        <dl className="ws-determined__tech">
           {evaluation.rule_outcome !== undefined ? (
             <>
               <dt>Rule outcome</dt>
@@ -933,6 +959,76 @@ function EvaluationCard({
               findingStatusLabel(finding.status)
             )}
           </dd>
+        </dl>
+        {/*
+          * ONE MORE CLICK FOR THE MACHINE'S OWN WORDS (2026-09-16).
+          *
+          * A UX review of the live site, reading as a paralegal would: "PRESENCE-v1",
+          * "0 evidence references", "mapping layer completed and mapped no provision"
+          * and a raw requirement code were the first things under "View details",
+          * and none of them is answerable by a lawyer. They are not deleted — rule 11
+          * and rule 12 need the chain reconstructible, 45B.10/`AM-19` need provenance
+          * to survive a LEGAL-02 omission, and a support request quotes the code — so
+          * they move behind their own summary, below the four plain sentences that
+          * answer what the contract says, what the standard requires, how it was
+          * classified and what happens next.
+          *
+          * `.ws-explain` and `.ws-evaluation__provenance` keep their classes and their
+          * conditional rendering, so the LEGAL-02 tests that assert by count and by
+          * text hold. `.ws-evaluation__outcome` stays OUTSIDE this block because
+          * `confidentiality.spec.ts` asserts it is VISIBLE once the disclosure is
+          * open, and a collapsed <details> is not visible.
+          */}
+        <details className="ws-determined__more">
+          <summary>Technical details</summary>
+          {explanation.length > 0 ? (
+            // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
+            // travels with `explanation`, which is omitted for a caller without
+            // `legal_position.view`, and `confidentiality.spec.ts` asserts the
+            // element is absent for them. Presence-tested, so that holds.
+            <div className="ws-explain">
+              <p className="ws-determined__label">The engine&apos;s own record</p>
+              <ol>
+                {explanation.map((line, index) => (
+                  <li key={index}>{line}</li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+        {/* The requirement code lives here — a raw identifier is exactly the
+            "internal ID" two reviews now have asked off the reader's path. A
+            legal reviewer who needs it for an escalation or a support request
+            is two clicks into a disclosure by the time they quote it. */}
+          <dl className="ws-determined__tech">
+          {/* Where the card's one sentence came from (AM-49 — source attribution
+              stays with the reader): the grounded generation, the approved
+              description, or the data-built fallback. */}
+          <dt>Explanation</dt>
+          <dd>
+            {grounded?.status === "ACCEPTED" && grounded.text
+              ? `Generated from the approved description${grounded.passages > 0
+                  ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
+              : finding.requirement.description?.trim()
+                ? "The requirement's approved description"
+                : "Built from the finding's own values"}
+          </dd>
+          {finding.requirement.code ? (
+            <>
+              <dt>Requirement</dt>
+              <dd className="ws-mono">{finding.requirement.code}</dd>
+            </>
+          ) : null}
+          {/* Every standard the reader's one finding stands for, by code — the
+              titles are said in plain words above; this is the audit spelling. */}
+          {showFolded && finding.alsoMeasuredAgainst?.length ? (
+            <>
+              <dt>Also measured against</dt>
+              <dd className="ws-mono">
+                {finding.alsoMeasuredAgainst
+                  .map((other) => other.requirement.code ?? "—").join(", ")}
+              </dd>
+            </>
+          ) : null}
           {/*
             * WHICH evaluator produced this, always — 2026-09-04, found by
             * porting the LEGAL-02 browser test off the legacy screen, and
@@ -955,7 +1051,8 @@ function EvaluationCard({
           ) : null}
           <dt>Scope</dt>
           <dd className="ws-mono">{evaluation.scope_key}</dd>
-        </dl>
+          </dl>
+        </details>
       </details>
 
       {showDecision ? (

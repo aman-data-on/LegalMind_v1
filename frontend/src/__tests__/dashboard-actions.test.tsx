@@ -79,6 +79,50 @@ describe("attention discovery survives off the current page or filter", () => {
   });
 });
 
+describe("the search box searches the server, not the loaded page", () => {
+  /* A 2026-09-16 UX review reported the search box as dead. It is not: the
+     input is controlled, debounced 300 ms, and `q` is both sent and in `load`'s
+     dependency list — typing through devtools by assigning `input.value` fires
+     no React onChange, which is what the review actually observed. What had no
+     coverage either way was that `q` reaches the server, so a later tidy-up
+     could drop it and nothing would notice. Pinning the real contract instead:
+     the term is a query parameter, because the match runs over the whole
+     collection and not the 25 rows on screen. */
+  function stubFetch(): { url: string }[] {
+    const calls: { url: string }[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      calls.push({ url: String(input) });
+      return {
+        ok: true, status: 200,
+        headers: new Headers({ "X-Request-Id": "req-1" }),
+        json: async () => ({ data: [], pagination: { page: 1, page_size: 25, total: 0 } }),
+      } as unknown as Response;
+    });
+    return calls;
+  }
+
+  it("sends the term as ?q= so a match off the current page is still found", async () => {
+    const calls = stubFetch();
+
+    await api.contracts(1, 25, { q: "psm softtech", sort: "created_desc" });
+
+    expect(calls).toHaveLength(1);
+    const query = new URL(calls[0]!.url, "https://legalmind.test").searchParams;
+    expect(query.get("q")).toBe("psm softtech");
+    expect(query.get("page")).toBe("1");
+    vi.unstubAllGlobals();
+  });
+
+  it("omits q entirely when the box is empty, rather than sending a blank filter", async () => {
+    const calls = stubFetch();
+
+    await api.contracts(1, 25, { q: undefined, sort: "created_desc" });
+
+    expect(new URL(calls[0]!.url, "https://legalmind.test").searchParams.has("q")).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("archive is a server operation", () => {
   it("issues the archive call and gets the contract back marked archived", async () => {
     const spy = vi.spyOn(api, "archiveContract")

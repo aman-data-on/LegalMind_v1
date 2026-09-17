@@ -15,6 +15,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { api } from "@/lib/api";
 import type { DocumentVersion, Finding, Review } from "@/lib/types";
+import { mergeEquivalentFindings } from "./findingLanguage";
 
 export type FindingsLoad =
   | { kind: "loading" }
@@ -85,7 +86,12 @@ export function FindingsProvider({
         return;
       }
       const { items: findings } = await api.findings(review.id, { page_size: 100 });
-      setState({ kind: "ready", review, findings });
+      /* Folded HERE, at the one load, rather than inside the pane: the pane, the
+         Summary counts and the outline's status dots all read this state, and a
+         list deduplicated for one of them but not the others is exactly how a
+         count and a filter come to disagree. Nothing is discarded — a folded
+         finding is carried on the one that survives. */
+      setState({ kind: "ready", review, findings: mergeEquivalentFindings(findings) });
     } catch (error) {
       setState({ kind: "error", error });
     }

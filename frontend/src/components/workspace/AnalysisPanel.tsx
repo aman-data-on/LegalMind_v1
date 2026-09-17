@@ -13,9 +13,10 @@
  *   Breakdown        a donut of the same buckets, legend per EXACT
  *                    classification value (the vocabulary always renders
  *                    beside the color).
- *   Awaiting a decision  the findings-needing-decision set the findings pane
- *                    defaults to (one shared filter), as reference-style
- *                    cards; "View all" opens the Findings tab.
+ *   The way through  ONE button — "Review pending decisions" in the hero,
+ *                    filtered on the same `requires_decision` its count comes
+ *                    from. A separate "What needs a decision" section restated
+ *                    that identical number and is gone (2026-09-17).
  *   Key obligations  the assist lane's descriptive extraction, grouped under
  *                    the document's own party labels — facts, never judgments.
  */
@@ -41,7 +42,6 @@ import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
-  findingsNeedingDecision,
   findingsSummary,
   relativeTime,
 } from "./model";
@@ -163,7 +163,6 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
 function AnalysisSummary({ findings }: { findings: Finding[] }) {
   const sideTabs = useSideTabs();
   const summary = findingsSummary(findings);
-  const risks = findingsNeedingDecision(findings);
 
   const total = findings.length;
   const statuses = statusCounts(findings);
@@ -202,11 +201,16 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
               position — shown as three statuses.
             </p>
           </div>
+          {/* Points with the same field the count is taken from
+              (`requires_decision`). Pointing with the reader status
+              NEEDS_DECISION instead showed "No findings in this view" for every
+              document whose pending items read "Requires modification" — which
+              is most of them. */}
           {sideTabs && summary.needsDecision > 0 ? (
             <button
               type="button"
               className="ws-hero__cta"
-              onClick={() => sideTabs.openFindings({ status: "NEEDS_DECISION" })}
+              onClick={() => sideTabs.openFindings({ requiresDecision: true })}
             >
               Review pending decisions <b className="ws-hero__ctan">{summary.needsDecision}</b>
             </button>
@@ -296,43 +300,27 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
       </section>
 
       {/*
-        ⚠️ "Awaiting a decision", not "Key risks" (renamed 2026-09-01).
-        Rule 12: a Finding reconstructs as Evidence → Fact → Standard → Rule →
-        Result — there is no risk score to rank, and nothing here is scored. What
-        this list actually is, exactly, is the set of findings that need a human
-        ruling (`findingsNeedingDecision`, the same filter the Findings pane
-        defaults to). Naming it that tells the reader what to DO with it, which
-        "risk" never did.
-      */}
-      {/*
-        * ONE call to action, not a second copy of the list (2026-09-04 audit).
+        * SAID ONCE (2026-09-17). A "What needs a decision" section stood here,
+        * reading "<n> findings need a legal decision. Open the list →".
         *
-        * This section used to render a card per awaiting-decision finding — name,
-        * description, "View clause", "Open finding" — while the Findings tab beside
-        * it opens on exactly that same set by default. Two surfaces answering "what
-        * needs a decision?" in one panel is the duplication a reader notices as
-        * "why am I seeing this twice?", and every card's own buttons only led to
-        * the other tab anyway. The count and the way through remain; the second
-        * rendering is gone.
+        * Its count was `findingsNeedingDecision(findings).length` and the hero's
+        * is `summary.needsDecision`; both count `requires_decision`, so the two
+        * were always the same number. A reader met that number four times in one
+        * panel — the headline, the hero button, the ring, and here — and three
+        * buttons that all led to the Findings tab. The 2026-09-04 audit removed a
+        * card-per-finding from this section for the same reason and left the
+        * count behind; this removes what was left of the repetition.
+        *
+        * Its "Open the list →" also opened ALL findings while the sentence above
+        * it named the ones needing a decision — the same mismatch between what a
+        * control promises and what it filters that made the hero button land on
+        * an empty pane. The hero button now points at `requiresDecision` and is
+        * the one way through. "View all in Findings", beside the breakdown, is a
+        * different destination and stays.
+        *
+        * Nothing is lost when the count is zero either: `reviewHeadline` already
+        * says "Nothing is waiting on a decision."
         */}
-      <section className="ws-analysis__section" aria-label="What needs a decision">
-        <div className="ws-analysis__head">
-          <h3 className="ws-analysis__title">What needs a decision</h3>
-        </div>
-        {risks.length === 0 ? (
-          <p className="ws-pane__note">Nothing awaits a decision on this version.</p>
-        ) : (
-          <p className="ws-analysis__act">
-            <b className="ws-mono">{risks.length}</b>{" "}
-            {risks.length === 1 ? "finding needs" : "findings need"} a legal decision.{" "}
-            {sideTabs ? (
-              <button type="button" className="ws-viewall" onClick={() => sideTabs.openFindings()}>
-                Open the list →
-              </button>
-            ) : null}
-          </p>
-        )}
-      </section>
     </>
   );
 }
