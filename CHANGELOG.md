@@ -10,6 +10,42 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Consolidated — the Ask AI branch backlog merged and deployed (2026-09-17)
+
+Cleaning-up pass across four open Ask-lane PRs, at the owner's request, before any new
+work: inspect what each branch actually contains, merge what CI verified and the owner
+had authorized, leave what still needs a decision, deploy, verify.
+
+**Merged and DEPLOYED at `cbc9563`, in this order:**
+- **#76** — the Ask ten-stage architecture doc (§0 of `ASK_TARGET_ARCHITECTURE.md`)
+- **#71** — the 2026-09-16 daily log
+- **#74** — the cross-encoder reranker (built and measured by another session; see its
+  own entry above). Ships **off** (`LEGALMIND_RERANK`); enabling it in production is a
+  separate operator step, not done by this merge.
+- **#78** — citation markers as references + embedding warm-up at boot (see above)
+
+Each branch was behind a moving `main` (mid-consolidation, another session merged #74
+independently while this was in flight) and needed rebasing before it would merge;
+every conflict was in `CHANGELOG.md`'s `[Unreleased]` section, always two genuine
+entries from two different sessions, resolved by keeping both rather than picking one.
+Two CI flakes surfaced during the resync (job 12's `queue_survives_kill_9` SIGKILL
+timing, and job 10's DB-migration race under two concurrent workflow runs on one
+commit) — both diagnosed against their logs, confirmed unrelated to the one-file docs
+change they appeared on, and confirmed by a clean rerun before merging past them; ruled
+out as regressions, not waved through.
+
+**Left open, deliberately:**
+- **PR #69** (query planner) — measured, ships off, but the project record calls for an
+  owner decision (merge-off vs. park) that has not been made; not this session's call.
+- **`feat/rerank-bakeoff`** branch — no open PR; confirmed its one commit's content is
+  already fully captured in #74's own measurement table; flagged as stale rather than
+  deleted unilaterally.
+
+Verified post-deploy: `legalmind-api`, `legalmind-worker`, `legalmind-frontend` all
+active; `/login` and `/dashboard/ask` both 200; no errors in the API log. Backend ruff
++ mypy clean on merged `main`; frontend typecheck + `check:terms` + 523 tests green.
+No migration in this range, no locked decision touched.
+
 ### Added — Ask: a citation marker now takes you to its source (2026-09-17)
 
 Phase 3 of the Ask target architecture, the half of it that could be built and verified
