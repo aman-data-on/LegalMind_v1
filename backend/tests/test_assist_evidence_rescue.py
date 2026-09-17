@@ -192,4 +192,98 @@ def test_neither_the_service_nor_the_quality_gate_applies_the_judge_itself():
                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
         assert "rescue_indices" not in called, \
             f"{path} applies the judge itself instead of calling rescue.reconsider"
-        assert "reconsider" in called, f"{path} never reconsiders a refusal"
+    # Since 2026-09-17 the ONE reconsideration lives in `service.retrieve_document`,
+    # which the gate calls; the service is the only module that reconsiders directly.
+    service_tree = ast.parse(pathlib.Path("legalmind/assist/service.py").read_text())
+    assert "reconsider" in {n.func.attr for n in ast.walk(service_tree)
+                            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+
+# --------------------------------------------------------------------------
+# The reranker reorders; it decides nothing (2026-09-17)
+# --------------------------------------------------------------------------
+def test_the_reranker_never_changes_the_gate_or_the_membership(monkeypatch):
+    """`calibration.gate_is_open` keeps its calibrated inputs and its decision, and the
+    evidence list keeps its members — only the order moves. Measured 2026-09-17: a
+    rerank floor CANNOT reopen a shut gate, because the top score on the answerable
+    questions the gate wrongly refuses overlaps the 13 unanswerable almost entirely."""
+    from legalmind.assist import rerank
+
+    monkeypatch.setenv("LEGALMIND_RERANK", "on")
+    rerank.reset_for_tests()
+    shut = _outcome(gate_open=False, candidates=CHUNKS)
+    # Reversing is the most disruptive reordering available.
+    monkeypatch.setattr(rerank, "_load", lambda: _ReverseScorer())
+    open_gate = _outcome(gate_open=True, candidates=CHUNKS)
+    reordered = rerank.reorder("anything", open_gate.hits)
+    assert [h.content for h in reordered] == list(reversed(CHUNKS))
+    assert {h.chunk_id for h in reordered} == {h.chunk_id for h in open_gate.hits}
+    # A shut gate carries no hits, so there is nothing to reorder and nothing to open.
+    assert rerank.reorder("anything", shut.hits) == []
+
+
+def test_the_reranker_is_off_by_default_and_makes_no_call(monkeypatch):
+    from legalmind.assist import rerank
+
+    monkeypatch.delenv("LEGALMIND_RERANK", raising=False)
+    rerank.reset_for_tests()
+
+    def boom():
+        raise AssertionError("no model may be loaded while disabled")
+
+    monkeypatch.setattr(rerank, "_load", boom)
+    hits = _outcome(gate_open=True, candidates=CHUNKS).hits
+    assert rerank.reorder("anything", hits) is hits
+    assert rerank.available() is False
+
+
+def test_an_unavailable_reranker_leaves_the_order_untouched(monkeypatch):
+    from legalmind.assist import rerank
+
+    monkeypatch.setenv("LEGALMIND_RERANK", "on")
+    rerank.reset_for_tests()
+    monkeypatch.setattr(rerank, "_load", lambda: None)
+    hits = _outcome(gate_open=True, candidates=CHUNKS).hits
+    assert rerank.reorder("anything", hits) is hits
+
+
+def test_the_reranker_reaches_no_retrieval_and_no_network():
+    import ast
+    import pathlib
+
+    from legalmind.assist import rerank
+
+    tree = ast.parse(pathlib.Path(rerank.__file__).read_text())
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {a.name for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported.add(node.module or "")
+            imported |= {a.name for a in node.names}
+    assert not (imported & {"store", "positions", "statutes", "sqlalchemy",
+                            "urllib", "urllib.request", "requests", "calibration"}), imported
+
+
+class _ReverseScorer:
+    """Scores so that the reversal of the input order is the ranked order."""
+
+    identity = "test-reranker@0"
+
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        return [float(i) for i in range(len(passages))]
+
+
+def test_the_quality_gate_retrieves_through_the_service_composition():
+    """2026-09-17: the gate no longer calls `search_hybrid` or `reconsider` itself — it
+    calls `service.retrieve_document`, the same function `service.ask` calls, so a step
+    added to the product (the rescue, then the reranker) cannot go missing from the
+    measurement."""
+    import ast
+    import pathlib
+
+    tree = ast.parse(pathlib.Path("tools/verify_assist_quality.py").read_text())
+    called = {n.func.attr for n in ast.walk(tree)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert "retrieve_document" in called
+    assert "search_hybrid" not in called, "the gate re-implements retrieval"

@@ -1,9 +1,15 @@
-"""A local, self-hosted embedding backend — `AM-26` r1, r4, r5, and `AM-30` t1.
+"""Local, self-hosted ONNX backends — `AM-26` r1, r4, r5, and `AM-30` t1.
 
-One implementation of `EmbeddingBackend`, satisfying every admissibility constraint the
-record imposes. It names no model: the identity is a constructor argument, because
-`AM-26` r1 requires the model identity to be configuration and r2 requires the choice to
-be made by measurement.
+Two of them, sharing every admissibility constraint the record imposes: the embedding
+backend (bi-encoder, mean-pooled vectors) and the reranking backend (cross-encoder, one
+relevance score per query/passage PAIR). `AM-25`'s permitted list names "hybrid retrieval
+with reranking" and `AM-26`'s stack table names a "Reranking model | local, self-hosted,
+open-weight, cross-encoder" — so the reranker needs no amendment, only r2's
+smallest-that-passes selection and r4/r5's pin and checksum.
+
+Neither names a model: the identity is a constructor argument, because `AM-26` r1
+requires the model identity to be configuration and r2 requires the choice to be made by
+measurement.
 
 --------------------------------------------------------------------------
 The execution provider is pinned, and that is a security control
@@ -45,8 +51,8 @@ import pathlib
 # Pinned, and the only provider permitted. See the module docstring.
 EXECUTION_PROVIDERS = ["CPUExecutionProvider"]
 
-# Files an ONNX sentence-embedding model needs. `model.onnx` lives under `onnx/` in the
-# HuggingFace layout used by every candidate.
+# Files an ONNX model needs. `model.onnx` lives under `onnx/` in the HuggingFace layout
+# used by every candidate, embedding and cross-encoder alike.
 # Public, because `tools/provision_model.py` writes what this module reads and the two
 # must agree on the layout.
 MODEL_FILES = ("onnx/model.onnx", "tokenizer.json")
@@ -154,3 +160,92 @@ class OnnxEmbeddingBackend:
             norms = np.clip(np.linalg.norm(pooled, axis=1, keepdims=True), 1e-12, None)
             out.extend((pooled / norms).astype("float32").tolist())
         return out
+
+
+# Query/passage pairs per forward pass. The same memory bound as `EMBED_BATCH` and for
+# the same reason — padding takes every pair to the longest in the batch — but pairs are
+# longer than chunks (query + passage in one sequence), so the batch is smaller.
+RERANK_BATCH = 8
+
+
+class OnnxCrossEncoderBackend:
+    """A cross-encoder relevance model loaded from local, checksum-verified weights.
+
+    The difference from the embedding backend is not the plumbing, which is identical
+    (same provisioning tool, same manifest, same checksum verification, same pinned CPU
+    provider), but what the model is asked: a bi-encoder embeds a query and a passage
+    SEPARATELY and compares the vectors, so it never sees them together; a cross-encoder
+    reads the pair as one sequence and scores it. That is why it ranks better and why it
+    cannot be used to search — there is nothing to index.
+
+    Scores are raw logits: monotonic, unbounded, and **not** comparable across models or
+    calibrated to anything. They order a candidate list. Nothing here decides whether to
+    answer — the calibrated gate in `calibration.py` does that, on the retrieval scores
+    it was calibrated on — and a logit is never rendered to a reader (`AI-03` item 16).
+    """
+
+    def __init__(self, directory: pathlib.Path):
+        import numpy as np
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
+
+        self._np = np
+        self._dir = pathlib.Path(directory)
+        manifest = json.loads((self._dir / MANIFEST).read_text())
+        self._repo = manifest["repo"]
+        self._revision = manifest["revision"]
+
+        # `AM-26` r5 — verified, not assumed, exactly as for the embedding weights.
+        for name in ("model.onnx", "tokenizer.json"):
+            actual = _sha256((self._dir / name).read_bytes())
+            if actual != manifest[name]:
+                raise RuntimeError(
+                    f"{name} does not match its recorded checksum in {self._dir}; "
+                    "the weights differ from what was provisioned")
+
+        self._tokenizer = Tokenizer.from_file(str(self._dir / "tokenizer.json"))
+        self._session = ort.InferenceSession(
+            str(self._dir / "model.onnx"), providers=EXECUTION_PROVIDERS)
+        self._inputs = {i.name for i in self._session.get_inputs()}
+
+    @property
+    def identity(self) -> str:
+        return f"{self._repo}@{self._revision}"
+
+    @property
+    def providers(self) -> list[str]:
+        """The session's actual providers, so a test can assert CPU-only."""
+        return list(self._session.get_providers())
+
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        """One relevance score per passage, in the order given."""
+        np = self._np
+        if not passages:
+            return []
+
+        self._tokenizer.enable_padding()
+        self._tokenizer.enable_truncation(max_length=512)
+
+        out: list[float] = []
+        for start in range(0, len(passages), RERANK_BATCH):
+            batch = passages[start:start + RERANK_BATCH]
+            encoded = self._tokenizer.encode_batch([(query, p) for p in batch])
+
+            ids = np.array([e.ids for e in encoded], dtype=np.int64)
+            mask = np.array([e.attention_mask for e in encoded], dtype=np.int64)
+            feed = {"input_ids": ids, "attention_mask": mask}
+            if "token_type_ids" in self._inputs:
+                # A cross-encoder NEEDS these: they are what tells the model where the
+                # query ends and the passage begins. Zeroing them (as the embedding
+                # backend does, having only one segment) would silently degrade it.
+                feed["token_type_ids"] = np.array(
+                    [e.type_ids for e in encoded], dtype=np.int64)
+            feed = {k: v for k, v in feed.items() if k in self._inputs}
+
+            logits = self._session.run(None, feed)[0]
+            # A relevance cross-encoder emits one logit per pair; some export a
+            # two-column head, where the positive class is column 1.
+            column = logits[:, 0] if logits.shape[-1] == 1 else logits[:, -1]
+            out.extend(float(x) for x in column)
+        return out
+
