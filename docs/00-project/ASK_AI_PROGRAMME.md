@@ -430,3 +430,83 @@ than an estimate. The reranker phase is where the same recall is expected from a
 deterministic step at a few hundred milliseconds; when that is measured, the rescue's remaining
 value is what it adds *on top of* the reranker, and that is the comparison to run.
 
+---
+
+## Phase 2 of the target architecture — the reranker bakeoff (2026-09-17)
+
+**Outcome: it earns enablement for REORDERING, and is measured to be unusable for
+gate-opening.** Code on `feat/rerank-bakeoff`, `LEGALMIND_RERANK` default OFF; whether it
+ships is the owner's call. The planner was OFF throughout, so this isolates the reranker.
+
+**No amendment needed.** `AM-25`'s permitted list already names "hybrid retrieval with
+reranking" and `AM-26`'s stack table already names a "Reranking model | local,
+self-hosted, open-weight, cross-encoder". What applies is r2 (smallest upward, stop at
+the first that passes), r3 (real supplied material, unanswerable questions included),
+r4/r5 (pinned, checksummed, never fetched at runtime) — all satisfied by the existing
+`tools/provision_model.py` and a new `OnnxCrossEncoderBackend` beside the embedding one.
+
+### Selection — `AM-26` r2, offline bakeoff over a 30-candidate pool
+
+| candidate | recall@10 | MRR | gold@3 | hit@1 | verdict |
+|---|---|---|---|---|---|
+| none | 0.641 | 0.480 | 0.562 | 0.391 | — |
+| `ms-marco-TinyBERT-L-2-v2` (18 MB) | 0.609 ↓ | 0.480 | 0.547 ↓ | 0.406 | **fails** — worse than no reranker |
+| **`ms-marco-MiniLM-L-6-v2` (91 MB)** | 0.641 | **0.553** | **0.594** | **0.500** | **passes → selected** |
+| `ms-marco-MiniLM-L-12-v2` (134 MB) | 0.641 | 0.542 | 0.578 | 0.484 | not better, 2× the latency |
+
+Pinned at commit `233902d25c440f23af6f7d6e94d2946bac0bee0a`, SHA-256 recorded, CPU-only.
+
+### Pipeline measurement — full Tier-2 gate, planner off, TWO passes
+
+| | rerank OFF | rerank ON (pass 1 / pass 2) |
+|---|---|---|
+| wrongly answered | 1/13 | **1/13 · 1/13** |
+| user-visible wrong | 0/13 | **0/13 · 0/13** |
+| false refusals | 3 | **3 · 3** |
+| retained | 61/64 | 61 · 61 |
+| recall@10 | 0.891 | **0.906 · 0.906** |
+| hit@1 | 0.609 | **0.734 · 0.734** |
+| MRR | 0.709 | **0.796 · 0.796** |
+| gold@3 | 0.797 | **0.844 · 0.844** |
+| evidence precision | 0.400 | 0.409 · 0.408 |
+| faithfulness / citation precision | 1.0 / 1.0 | **1.0 / 1.0** both |
+| rescue usage (p95 ms) | 1501 | 1482 · 1463 — unchanged |
+| Gemini calls / question | 1.23 | 1.22 · 1.23 |
+| rerank stage p50/p95 ms | — | 116/443 · 132/511 |
+| total p50 / p95 ms | 1738 / 3321 | 1943/3401 · 2020/3465 |
+
+**The ordering gains are identical to three decimals across both passes** — the reranker
+is local and deterministic, so unlike the query planner its result carries no provider
+noise. For scale: today's five rerank-OFF runs put hit@1 in a 0.594–0.625 band; 0.734 is
+far outside it. `user_answered` (55/47/49/52/50 off, 53/51 on) swings on provider
+behaviour and is inside its own noise band either way.
+
+### The measured limit — a rerank floor CANNOT reopen a shut gate
+
+For a floor to be safe, the answerable questions the gate wrongly refuses must score
+ABOVE the 13 with no answer. Measured top rerank score by group:
+
+```
+MiniLM-L-6    false_refusal  n=20   min -10.48   median -3.12   max 1.89
+              unanswerable   n=13   min  -8.72   median -2.30   max 3.38
+```
+
+The unanswerable median is **higher**, and the ranges overlap almost entirely; L-12 and
+TinyBERT are the same shape. This is the **fourth** independent feature to fail this
+separation, after the 35-point threshold sweep, the IDF-weighted overlap and the
+embedding-model swap (2026-09-16). The reranker therefore reorders only — no floor, no
+gate change — and that boundary is enforced in code and pinned by test.
+
+### What it does not do
+
+* **It does not touch Domain A.** As wired it reorders document evidence only. Company
+  standards keep their existing lexical/vector retrieval.
+* **It does not recover a refusal.** 20 questions have the gold chunk in the pool with the
+  gate shut; only a gate change reaches those, and the paragraph above says a rerank score
+  cannot make that change safely. Those remain the rescue judge's.
+* **The key-case "termination period of LeapSwitch" is unchanged** (#18 → #20 in Domain A):
+  every cross-encoder reads "termination period" as the cure period, exactly as the
+  embedding does. ⚠️ The gold for that case is an assignment made during this work, not a
+  ratified anchor, and the models' reading is defensible — recorded as an open question
+  about the QUESTION, not a reranker failure.
+

@@ -320,6 +320,43 @@ def query_planner_enabled() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def rerank_enabled() -> bool:
+    """Whether retrieved evidence is REORDERED by the local cross-encoder. OFF.
+
+    `AM-25` and `AM-26` already permit a reranking model; this flag exists because the
+    measurement that `AM-26` r2/r3 require is what decides whether it ships, and that
+    decision is the owner's. `LEGALMIND_RERANK=on` enables it with a restart and no
+    deploy.
+
+    It REORDERS only: the calibrated gate keeps its inputs and its decision, membership
+    of the evidence list is unchanged, and the score never reaches a reader. Measured
+    2026-09-17 on the ratified 77 — a rerank floor CANNOT be used to reopen a shut gate,
+    because the top score on the answerable questions the gate wrongly refuses overlaps
+    the 13 unanswerable almost entirely.
+    """
+    value = os.environ.get("LEGALMIND_RERANK", "off")
+    return value.lower() in {"1", "true", "on"}
+
+
+def rerank_model_repo() -> str:
+    """`AM-26` r1 — the model identity is configuration, and no other code knows it.
+
+    Default selected by the bakeoff of 2026-09-17 under r2 (smallest upward, stop at the
+    first that passes): `ms-marco-TinyBERT-L-2-v2` (18 MB) FAILED — it lost recall
+    (0.641 -> 0.609) and gold@3 against no reranking at all. `ms-marco-MiniLM-L-6-v2`
+    (91 MB) passed. `ms-marco-MiniLM-L-12-v2` (134 MB) was not better (MRR 0.542 against
+    0.553, hit@1 0.484 against 0.500) at twice the latency, so r2 stops here.
+    """
+    return os.environ.get("LEGALMIND_RERANK_MODEL",
+                          "cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+
+def rerank_model_revision() -> str:
+    """`AM-26` r4 / `AM-30` t7's reasoning — a commit sha, never a floating alias."""
+    return os.environ.get("LEGALMIND_RERANK_REVISION",
+                          "233902d25c440f23af6f7d6e94d2946bac0bee0a")
+
+
 def evidence_rescue_enabled() -> bool:
     """Whether a gate refusal gets a second look from the model. OFF by default.
 

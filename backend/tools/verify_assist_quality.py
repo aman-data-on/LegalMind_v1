@@ -77,6 +77,7 @@ from legalmind.assist import (
     embedding_runtime,
     generation,
     guardrails,
+    rerank,
     routing,
     service,
     statutes,
@@ -509,6 +510,9 @@ def _baseline_payload(metrics: dict, dataset_sha: str, n_questions: int) -> dict
             # run are different pipelines and the drift check must keep them apart.
             "query_planner": bool(config.query_planner_enabled()
                                   and generation_available()[0]),
+            # The reranker reorders evidence, so a rerank-on run and a rerank-off run
+            # are different pipelines and the drift check must keep them apart.
+            "reranker": rerank.identity() if rerank.available() else False,
         },
         "metrics": {k: v for k, v in metrics.items()
                     if not k.endswith("_ids")

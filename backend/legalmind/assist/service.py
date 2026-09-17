@@ -43,6 +43,7 @@ from legalmind.assist import (
     intent,
     planner,
     positions,
+    rerank,
     rescue,
     routing,
     statutes,
@@ -714,7 +715,14 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
                 hits=[*pinned, *[h for h in retrieval.hits if h.chunk_id not in seen]])
     with _stage("rescue"):
         rescued = rescue.reconsider(retrieval, retrieval_query, request_id=request_id)
-    return rescued, rescued is not retrieval
+    # REORDER the admitted evidence, best first. After the gate and after the rescue, so
+    # neither sees a different input than it was calibrated on — the reranker changes
+    # the ORDER of what reaches generation and nothing else (`assist/rerank.py`).
+    with _stage("rerank"):
+        ordered = rerank.reorder(retrieval_query, rescued.hits, request_id=request_id)
+    if ordered is not rescued.hits:
+        rescued = dataclasses.replace(rescued, hits=ordered)
+    return rescued, rescued.gate_open and not retrieval.gate_open
 
 
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,

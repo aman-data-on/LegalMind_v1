@@ -212,3 +212,78 @@ def test_the_quality_gate_retrieves_through_the_service_composition():
               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
     assert "retrieve_document" in called and "plan_question" in called
     assert "search_hybrid" not in called, "the gate re-implements retrieval"
+
+
+# --------------------------------------------------------------------------
+# The reranker reorders; it decides nothing (2026-09-17)
+# --------------------------------------------------------------------------
+def test_the_reranker_never_changes_the_gate_or_the_membership(monkeypatch):
+    """`calibration.gate_is_open` keeps its calibrated inputs and its decision, and the
+    evidence list keeps its members — only the order moves. Measured 2026-09-17: a
+    rerank floor CANNOT reopen a shut gate, because the top score on the answerable
+    questions the gate wrongly refuses overlaps the 13 unanswerable almost entirely."""
+    from legalmind.assist import rerank
+
+    monkeypatch.setenv("LEGALMIND_RERANK", "on")
+    rerank.reset_for_tests()
+    shut = _outcome(gate_open=False, candidates=CHUNKS)
+    # Reversing is the most disruptive reordering available.
+    monkeypatch.setattr(rerank, "_load", lambda: _ReverseScorer())
+    open_gate = _outcome(gate_open=True, candidates=CHUNKS)
+    reordered = rerank.reorder("anything", open_gate.hits)
+    assert [h.content for h in reordered] == list(reversed(CHUNKS))
+    assert {h.chunk_id for h in reordered} == {h.chunk_id for h in open_gate.hits}
+    # A shut gate carries no hits, so there is nothing to reorder and nothing to open.
+    assert rerank.reorder("anything", shut.hits) == []
+
+
+def test_the_reranker_is_off_by_default_and_makes_no_call(monkeypatch):
+    from legalmind.assist import rerank
+
+    monkeypatch.delenv("LEGALMIND_RERANK", raising=False)
+    rerank.reset_for_tests()
+
+    def boom():
+        raise AssertionError("no model may be loaded while disabled")
+
+    monkeypatch.setattr(rerank, "_load", boom)
+    hits = _outcome(gate_open=True, candidates=CHUNKS).hits
+    assert rerank.reorder("anything", hits) is hits
+    assert rerank.available() is False
+
+
+def test_an_unavailable_reranker_leaves_the_order_untouched(monkeypatch):
+    from legalmind.assist import rerank
+
+    monkeypatch.setenv("LEGALMIND_RERANK", "on")
+    rerank.reset_for_tests()
+    monkeypatch.setattr(rerank, "_load", lambda: None)
+    hits = _outcome(gate_open=True, candidates=CHUNKS).hits
+    assert rerank.reorder("anything", hits) is hits
+
+
+def test_the_reranker_reaches_no_retrieval_and_no_network():
+    import ast
+    import pathlib
+
+    from legalmind.assist import rerank
+
+    tree = ast.parse(pathlib.Path(rerank.__file__).read_text())
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {a.name for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported.add(node.module or "")
+            imported |= {a.name for a in node.names}
+    assert not (imported & {"store", "positions", "statutes", "sqlalchemy",
+                            "urllib", "urllib.request", "requests", "calibration"}), imported
+
+
+class _ReverseScorer:
+    """Scores so that the reversal of the input order is the ranked order."""
+
+    identity = "test-reranker@0"
+
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        return [float(i) for i in range(len(passages))]
