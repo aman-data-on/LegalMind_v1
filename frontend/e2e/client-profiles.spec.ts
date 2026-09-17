@@ -244,6 +244,49 @@ test("a client this caller shares no contract with is not on their screen",
   await other.close();
 });
 
+test("the Add Client form replaces the open client's page, rather than sitting inside it",
+     async ({ page }) => {
+  const stamp = Date.now();
+  const client = await buildClient(page, stamp);
+  await page.goto(`/dashboard/clients?id=${client.id}`);
+  await expect(page.getByRole("heading", { name: client.name, exact: true }))
+    .toBeVisible();
+
+  // The sidebar's "+ Add" — not the directory's own "+ Add client" — is the
+  // one that used to leave the open client's header, tabs and documents
+  // rendered underneath the form for a different, not-yet-created client.
+  await page.getByRole("button", { name: "+ Add", exact: true }).click();
+
+  // The dedicated Add Client view is up...
+  await expect(page.getByRole("heading", { name: "Add a client" })).toBeVisible();
+  // ...and the open client's own detail content is gone, not just scrolled
+  // past: its header, tabs and legal documents section all disappear.
+  await expect(page.getByRole("heading", { name: client.name, exact: true }))
+    .toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Documents" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Legal documents" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit profile" })).toHaveCount(0);
+
+  // The sidebar itself survives — it is navigation, not client content.
+  await expect(page.locator(".ws-cl__rail")).toBeVisible();
+  await expect(page.locator(".ws-cl__raillist li", { hasText: client.name }))
+    .toBeVisible();
+
+  // Cancel returns to the same client, unharmed.
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("heading", { name: client.name, exact: true }))
+    .toBeVisible();
+  await expect(page.getByRole("heading", { name: "Legal documents" })).toBeVisible();
+
+  // Submitting still lands on the new client's own page (post-save navigation
+  // unchanged).
+  await page.getByRole("button", { name: "+ Add", exact: true }).click();
+  const name = `Sidecar Add ${stamp}`;
+  await page.getByLabel("Company name", { exact: false }).fill(name);
+  await page.getByRole("button", { name: "Add client" }).click();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+});
+
 /**
  * The visual review. Not an assertion suite — a reproducible way to LOOK at the
  * screens with real data in them, which is the only way to judge whether the

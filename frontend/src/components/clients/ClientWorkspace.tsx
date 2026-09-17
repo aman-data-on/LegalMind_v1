@@ -336,79 +336,16 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
         <nav className="ws-cl__crumbs" aria-label="Breadcrumb">
           <Link href="/dashboard/clients">Client profiles</Link>
           <span aria-hidden="true"><IconChevronRight size={12} /></span>
-          <span aria-current="page">{client.name}</span>
+          <span aria-current="page">{adding ? "Add client" : client.name}</span>
         </nav>
 
-        <header className="ws-cl__head">
-          <ClientAvatar name={client.name} size="lg" />
-          <div className="ws-cl__headtext">
-            <div className="ws-cl__headline">
-              <h1>{client.name}</h1>
-              <ClientStatus status={client.status} />
-            </div>
-            <p className="ws-cl__headmeta">
-              {client.industry ? <span>{client.industry}</span> : null}
-              {location ? <span>{location}</span> : null}
-              {client.legal_name && client.legal_name !== client.name ? (
-                <span>Registered as {client.legal_name}</span>
-              ) : null}
-              {!client.industry && !location && !client.legal_name ? (
-                <span className="ws-cl__absent">
-                  No company details recorded yet
-                </span>
-              ) : null}
-            </p>
-          </div>
-          <span className="ws-cl__spacer" />
-          <div className="ws-cl__headcounts">
-            <span>{documentCountLabel(documents)}</span>
-            {documents > 0 ? (
-              <span className="ws-cl__signed">{signed} signed</span>
-            ) : null}
-          </div>
-          {can(P.CONTRACT_UPDATE) ? (
-            <button type="button" className="ws-btn ws-btn--sm"
-                    aria-expanded={editing}
-                    onClick={() => { setEditing((was) => !was); setAdding(false); }}>
-              {editing ? "Cancel" : "Edit profile"}
-            </button>
-          ) : null}
-          {/*
-            Delete is offered ONLY for a profile with nothing filed under it,
-            and that is a statement about the database rather than a UI
-            preference: `contracts.counterparty_id` is `ON DELETE RESTRICT`
-            (migration c8e4a1b7d2f6), so with documents present the server can
-            only ever refuse. Offering it anyway would be a button whose whole
-            purpose is to fail.
-
-            The action does not vanish in that case — it becomes "Mark
-            inactive", which is the specified way to retire a live client
-            (`CLIENT_STATUSES`: "dormant or ended — documents stay, profile
-            stops being current"). Two states, both of which do something.
-
-            `documents` is the caller's own scoped count, so it can read 0 while
-            another department's contract still points here. That is fine: this
-            gate decides what to OFFER, and the server decides what happens —
-            it re-checks unscoped and answers 409. Presentation only (47.6).
-          */}
-          {can(P.CONTRACT_ARCHIVE) && !editing ? (
-            <ClientMenu label={`More actions for ${client.name}`}>
-              {documents === 0 ? (
-                <button type="button" role="menuitem"
-                        className="ws-menu__item ws-menu__item--bad"
-                        onClick={() => setDeleting(client)}>
-                  Delete client
-                </button>
-              ) : (
-                <button type="button" role="menuitem" className="ws-menu__item"
-                        onClick={() => { setEditing(true); setAdding(false); }}>
-                  Mark inactive…
-                </button>
-              )}
-            </ClientMenu>
-          ) : null}
-        </header>
-
+        {/* The open client's header, info strip, tabs and panel all step aside
+            while the Add Client form is open (same fix as `ClientDirectory`,
+            owner, 2026-09-17): the form used to render ABOVE this content
+            rather than instead of it, so the client being viewed stayed fully
+            visible — its header, tabs and documents — underneath a form for a
+            DIFFERENT, not-yet-created client. Wrapped once here, as there,
+            rather than adding an `adding` check to each piece individually. */}
         {adding ? (
           <ClientForm knownClients={rail ?? []} members={members}
                       onCancel={() => setAdding(false)}
@@ -416,76 +353,148 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
                         setAdding(false);
                         window.location.assign(`/dashboard/clients?id=${created.id}`);
                       }} />
-        ) : null}
+        ) : (
+          <>
+            <header className="ws-cl__head">
+              <ClientAvatar name={client.name} size="lg" />
+              <div className="ws-cl__headtext">
+                <div className="ws-cl__headline">
+                  <h1>{client.name}</h1>
+                  <ClientStatus status={client.status} />
+                </div>
+                <p className="ws-cl__headmeta">
+                  {client.industry ? <span>{client.industry}</span> : null}
+                  {location ? <span>{location}</span> : null}
+                  {client.legal_name && client.legal_name !== client.name ? (
+                    <span>Registered as {client.legal_name}</span>
+                  ) : null}
+                  {!client.industry && !location && !client.legal_name ? (
+                    <span className="ws-cl__absent">
+                      No company details recorded yet
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <span className="ws-cl__spacer" />
+              <div className="ws-cl__headcounts">
+                <span>{documentCountLabel(documents)}</span>
+                {documents > 0 ? (
+                  <span className="ws-cl__signed">{signed} signed</span>
+                ) : null}
+              </div>
+              {can(P.CONTRACT_UPDATE) ? (
+                <button type="button" className="ws-btn ws-btn--sm"
+                        aria-expanded={editing}
+                        onClick={() => { setEditing((was) => !was); setAdding(false); }}>
+                  {editing ? "Cancel" : "Edit profile"}
+                </button>
+              ) : null}
+              {/*
+                Delete is offered ONLY for a profile with nothing filed under it,
+                and that is a statement about the database rather than a UI
+                preference: `contracts.counterparty_id` is `ON DELETE RESTRICT`
+                (migration c8e4a1b7d2f6), so with documents present the server can
+                only ever refuse. Offering it anyway would be a button whose whole
+                purpose is to fail.
 
-        {editing ? (
-          <ClientForm existing={client} knownClients={rail ?? []} members={members}
-                      onCancel={() => setEditing(false)}
-                      onSaved={(saved) => {
-                        setEditing(false);
-                        // Show the saved profile at once, then refetch: the
-                        // detail endpoint owns the document list and the
-                        // derived counts, which a PATCH never returns.
-                        setClient(mergeProfile(client, saved));
-                        void load();
-                      }} />
-        ) : null}
+                The action does not vanish in that case — it becomes "Mark
+                inactive", which is the specified way to retire a live client
+                (`CLIENT_STATUSES`: "dormant or ended — documents stay, profile
+                stops being current"). Two states, both of which do something.
 
-        {/* The compact information row — a horizontal strip, never five cards.
-            Rendered only when there is something in it: a strip of five
-            "Not available" cells is worse than none, and the Details tab is
-            where the full picture (including what is missing) belongs. */}
-        {!editing && hasProfileDetail(client) ? (
-          <dl className="ws-cl__strip">
-            <Fact label="Website" value={client.website}
-                  href={websiteHref(client.website)} />
-            <Fact label="Primary contact" value={client.primary_contact_name} />
-            <Fact label="Legal contact" value={client.legal_contact_name} />
-            <Fact label="Phone" value={client.primary_contact_phone} />
-            <Fact label="Account owner" value={client.account_owner_name} />
-          </dl>
-        ) : null}
+                `documents` is the caller's own scoped count, so it can read 0 while
+                another department's contract still points here. That is fine: this
+                gate decides what to OFFER, and the server decides what happens —
+                it re-checks unscoped and answers 409. Presentation only (47.6).
+              */}
+              {can(P.CONTRACT_ARCHIVE) && !editing ? (
+                <ClientMenu label={`More actions for ${client.name}`}>
+                  {documents === 0 ? (
+                    <button type="button" role="menuitem"
+                            className="ws-menu__item ws-menu__item--bad"
+                            onClick={() => setDeleting(client)}>
+                      Delete client
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" className="ws-menu__item"
+                            onClick={() => { setEditing(true); setAdding(false); }}>
+                      Mark inactive…
+                    </button>
+                  )}
+                </ClientMenu>
+              ) : null}
+            </header>
 
-        {/* Real tabs: each one owns a panel, so `role="tab"` is honest here in
-            a way the Dashboard's scope buttons were not (2026-09-08). */}
-        <div className="ws-cl__tabs" role="tablist" aria-label="Client sections">
-          {TABS.map((entry) => (
-            <button key={entry.key} type="button" role="tab"
-                    id={`ws-cl-tab-${entry.key}`}
-                    aria-selected={tab === entry.key}
-                    aria-controls={`ws-cl-panel-${entry.key}`}
-                    tabIndex={tab === entry.key ? 0 : -1}
-                    className={`ws-cl__tab${tab === entry.key ? " ws-cl__tab--active" : ""}`}
-                    onClick={() => setTab(entry.key)}
-                    onKeyDown={(event) => {
-                      const at = TABS.findIndex((t) => t.key === tab);
-                      const to = event.key === "ArrowRight" ? (at + 1) % TABS.length
-                        : event.key === "ArrowLeft" ? (at - 1 + TABS.length) % TABS.length
-                        : -1;
-                      if (to < 0) return;
-                      event.preventDefault();
-                      const next = TABS[to]!.key;
-                      setTab(next);
-                      document.getElementById(`ws-cl-tab-${next}`)?.focus();
-                    }}>
-              {entry.label}
-            </button>
-          ))}
-        </div>
+            {editing ? (
+              <ClientForm existing={client} knownClients={rail ?? []} members={members}
+                          onCancel={() => setEditing(false)}
+                          onSaved={(saved) => {
+                            setEditing(false);
+                            // Show the saved profile at once, then refetch: the
+                            // detail endpoint owns the document list and the
+                            // derived counts, which a PATCH never returns.
+                            setClient(mergeProfile(client, saved));
+                            void load();
+                          }} />
+            ) : null}
 
-        <div id={`ws-cl-panel-${tab}`} role="tabpanel"
-             aria-labelledby={`ws-cl-tab-${tab}`} tabIndex={0}
-             className="ws-cl__panel">
-          {tab === "documents" ? (
-            <ClientDocuments client={client} onChanged={load} />
-          ) : null}
-          {tab === "details" ? <ClientDetails client={client} /> : null}
-          {tab === "notes" ? (
-            <ClientNotes client={client}
-                         onSaved={(saved) => setClient(mergeProfile(client, saved))} />
-          ) : null}
-          {tab === "activity" ? <ClientActivityFeed clientId={client.id} /> : null}
-        </div>
+            {/* The compact information row — a horizontal strip, never five cards.
+                Rendered only when there is something in it: a strip of five
+                "Not available" cells is worse than none, and the Details tab is
+                where the full picture (including what is missing) belongs. */}
+            {!editing && hasProfileDetail(client) ? (
+              <dl className="ws-cl__strip">
+                <Fact label="Website" value={client.website}
+                      href={websiteHref(client.website)} />
+                <Fact label="Primary contact" value={client.primary_contact_name} />
+                <Fact label="Legal contact" value={client.legal_contact_name} />
+                <Fact label="Phone" value={client.primary_contact_phone} />
+                <Fact label="Account owner" value={client.account_owner_name} />
+              </dl>
+            ) : null}
+
+            {/* Real tabs: each one owns a panel, so `role="tab"` is honest here in
+                a way the Dashboard's scope buttons were not (2026-09-08). */}
+            <div className="ws-cl__tabs" role="tablist" aria-label="Client sections">
+              {TABS.map((entry) => (
+                <button key={entry.key} type="button" role="tab"
+                        id={`ws-cl-tab-${entry.key}`}
+                        aria-selected={tab === entry.key}
+                        aria-controls={`ws-cl-panel-${entry.key}`}
+                        tabIndex={tab === entry.key ? 0 : -1}
+                        className={`ws-cl__tab${tab === entry.key ? " ws-cl__tab--active" : ""}`}
+                        onClick={() => setTab(entry.key)}
+                        onKeyDown={(event) => {
+                          const at = TABS.findIndex((t) => t.key === tab);
+                          const to = event.key === "ArrowRight" ? (at + 1) % TABS.length
+                            : event.key === "ArrowLeft" ? (at - 1 + TABS.length) % TABS.length
+                            : -1;
+                          if (to < 0) return;
+                          event.preventDefault();
+                          const next = TABS[to]!.key;
+                          setTab(next);
+                          document.getElementById(`ws-cl-tab-${next}`)?.focus();
+                        }}>
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+
+            <div id={`ws-cl-panel-${tab}`} role="tabpanel"
+                 aria-labelledby={`ws-cl-tab-${tab}`} tabIndex={0}
+                 className="ws-cl__panel">
+              {tab === "documents" ? (
+                <ClientDocuments client={client} onChanged={load} />
+              ) : null}
+              {tab === "details" ? <ClientDetails client={client} /> : null}
+              {tab === "notes" ? (
+                <ClientNotes client={client}
+                             onSaved={(saved) => setClient(mergeProfile(client, saved))} />
+              ) : null}
+              {tab === "activity" ? <ClientActivityFeed clientId={client.id} /> : null}
+            </div>
+          </>
+        )}
       </div>
 
       {deleting ? (
