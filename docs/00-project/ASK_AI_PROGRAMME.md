@@ -8,6 +8,8 @@ Locked decisions live in [all_lock.md](../../all_lock.md); conflicts in
 Gemini+RAG legal assistant rather than a keyword box, run as a continuous
 inspect → implement → test → document loop.
 
+**The pipeline this programme is building is the owner's ten-stage map**, recorded 2026-09-17 in [ASK_TARGET_ARCHITECTURE.md](ASK_TARGET_ARCHITECTURE.md) §0: conversation context → query understanding → knowledge router + authority policy → query planner → authorized targeted retrieval → reranker → evidence sufficiency gate → grounded generation → answer verification → response. Phases below map onto those stages; name the stage when reporting on one.
+
 ---
 
 ## A. Implementation status by phase

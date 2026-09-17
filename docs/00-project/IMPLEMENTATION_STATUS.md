@@ -81,6 +81,8 @@ that wrongly-answered has not risen**. Frontend: 474 passed across 34 files.
 
 Evidence per command: [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §D.
 
+**Ask pipeline build state, stage by stage:** the owner's ten canonical stages and what is shipped / built-but-off / not built are tabulated in [ASK_TARGET_ARCHITECTURE.md](ASK_TARGET_ARCHITECTURE.md) §0 (recorded 2026-09-17). Summarised here because this document is the only one permitted to assert build state: stages 1, 3, 5, 7, 8, 9, 10 **IMPLEMENTED and DEPLOYED**; stages 2 and 4 (Gemini query understanding + query planner) **IMPLEMENTED, MEASURED, SHIPS DISABLED** (PR #69, unmerged — no recall gain, +2.4–8 s latency, evidence precision down); stage 6 (cross-encoder reranker) **NOT IMPLEMENTED** (authorized by `AM-25`/`AM-26`; needs only an `AM-26` r4 pin record). No stage has changed what the gate admits.
+
 ### Release state — AB-20 COMPLETE: the 33 standards are published (2026-09-15)
 
 Supersedes the sections below, which recorded earlier states accurately and stand as written.
