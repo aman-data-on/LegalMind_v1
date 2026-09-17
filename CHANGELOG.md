@@ -10,6 +10,47 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — a revoked grant no longer leaks a Company Position on replay (2026-09-17)
+
+Ask AI, Phase 0. `GET /conversations/{id}` checked only that the caller created
+the conversation, then served the cited clause text and the verbatim Company
+Position it had quoted. A caller whose `legal_position.view` had been revoked —
+or whose contract had been transferred away — still received `standard_code`,
+`source_clause` and the position text on reload, which is the disclosure
+`LEGAL-02` forbids.
+
+Replay now re-resolves both tests the live ask path already applies per request
+(`routing.positions_permitted`, `can_read_contract`), and withheld material is
+**omitted, not nulled** (`SEC-07`, `API-10`) — the frontend already renders an
+absent field as absent, so it needed no change. `AM-25` r5 traceability is
+unchanged for every caller who may still read the source.
+
+The fix and its 13 tests were written and measured on `feat/p1-rag-quality`
+(2026-09-11) and had never been merged. Only this item was taken. Its other
+three — HNSW refused on evidence, grounding normalisation (+131 lines in
+`guardrails.py`), redirect re-scoring — each change shipped retrieval or
+verification behaviour and need re-measurement against a pipeline that now has
+the reranker on, so they stay parked on that branch. Also parked:
+`chore/readme-and-fallback-test`, three wanted tests on a stale
+`test_assist_ask.py` that depends on its own unmerged `service.py` change — it
+needs a rebase, not a merge.
+
+Two of the ten authorization cases assert that an authorized document IS
+retrieved and cited, which needs the local embedding model; they carry
+`needs_embedding_model`, the marker `test_assist_ask.py` already defines. The
+eight withholding cases run everywhere, and are what would have caught this
+defect in CI.
+
+The architecture reconciliation and the embedding-fixture fix this session also
+prepared landed first in PR #84 from a concurrent session; that version is
+better placed — it corrects §4's pipeline sketch in place and strikes
+`RERANK_FLOOR` from §8 — and was kept in full, this session's duplicate
+discarded.
+
+Separately, the ~950 DB-backed tests that had been erroring locally on
+`password authentication failed` now run against an isolated `lmtest` role and
+database. No production role, credential or datum was touched.
+
 ### Consolidated — the Ask AI branch backlog merged and deployed (2026-09-17)
 
 Cleaning-up pass across four open Ask-lane PRs, at the owner's request, before any new
