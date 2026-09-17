@@ -112,6 +112,31 @@ with the shipped state of every stage beside it.
 Coordination note for other sessions: this change is documentation only — no file under
 `backend/legalmind/assist/` was touched, and PR #69's planner decision is still the
 owner's.
+### Changed — the Tier-2 baseline is re-recorded under the shipped pipeline (2026-09-17)
+
+`LEGALMIND_RERANK=on` reached production at 13:08:31 IST (merge `d507f2c`, PR #74), so
+the gate's recorded bar — which still said `reranker: None` — no longer described the
+pipeline that ships, and the drift check correctly refused every run. A gate stuck in
+FAIL guards nothing, which is the rot the 2026-09-16 measurement fix exists to prevent.
+
+Re-recorded through the production path with the live configuration:
+
+```
+pipeline   embedding all-MiniLM-L6-v2 · hybrid-rrf-gate-3 · floors 0.50/0.50 · peak 0.059
+           evidence_rescue true · reranker ms-marco-MiniLM-L-6-v2@233902d2
+metrics    wrongly answered 1/13 · user-visible wrong 0/13 · faithfulness 1.0
+           citation precision 1.0 · recall@10 0.891 · hit@1 0.719 · MRR 0.778
+           gold@3 0.828 · evidence precision 0.396 · retained 60 · false refusals 4
+```
+
+⚠️ **This is one measured run, and the run-to-run spread is now documented** in
+`tests/assist_eval/README.md`: across four consecutive runs of the identical build,
+hit@1 read 0.734/0.734/0.734/0.719 and retained 61/61/61/60, because the evidence rescue
+is a model call and whether it reopens a given gate varies. The bar recorded here is the
+least favourable of the four — conservative for the WARN-only lines. Everything the gate
+BLOCKS on was identical in all four runs.
+
+
 ### Added — Ask Phase 2: a local cross-encoder reorders the evidence (2026-09-17)
 
 `AM-25`'s permitted list already named "hybrid retrieval with reranking" and `AM-26`'s
