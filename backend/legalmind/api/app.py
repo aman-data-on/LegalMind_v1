@@ -55,9 +55,40 @@ def _docs_enabled() -> bool:
     return os.environ.get("LEGALMIND_ENABLE_DOCS", "").lower() in {"1", "true", "yes"}
 
 
+def _warm_embedding_model() -> None:
+    """Load and exercise the embedding model once, off the first request's back.
+
+    `embedding_runtime` loads lazily, so before this the FIRST question of a process
+    paid for the SHA-256 verification of the weights and the ONNX session build on the
+    critical path — measured as the slowest ask of any deploy, and invisible in the
+    stage timings because it lands inside `retrieval`. A restart is exactly when a
+    reader is most likely to be waiting, so the cost is moved to a moment when nobody
+    is.
+
+    Absence stays a mode, not an error (`AM-26` r5's degradation): `embed_query`
+    returns None when no weights are provisioned, the loader has already logged
+    `assist.embedding.unavailable`, and this thread simply finds nothing to warm. It
+    changes no retrieval behaviour and no result — only when the loading happens.
+    """
+    import logging
+
+    from legalmind.assist import embedding_runtime
+    from legalmind.observability.logs import log_event, timed
+
+    try:
+        # `timed` reports the duration the next deploy's first reader no longer pays.
+        with timed("assist.embedding.warm") as stage:
+            stage["warmed"] = embedding_runtime.embed_query("warm") is not None
+            stage["model"] = embedding_runtime.identity()
+    except Exception as exc:  # never let a warm-up take the API down with it
+        log_event("assist.embedding.warm_failed", level=logging.WARNING,
+                  error=type(exc).__name__, operational_failure=True)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Re-dispatch OCR jobs a previous process left unfinished (2026-09-03).
+    """Re-dispatch OCR jobs a previous process left unfinished (2026-09-03), and warm
+    the embedding model (2026-09-17).
 
     Deferred OCR runs as a daemon thread, which dies with its process — so a
     restart or deploy mid-OCR would otherwise strand the version in PROCESSING
@@ -66,6 +97,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     `reconcile_interrupted_ocr` itself never raises. Runs when a SERVER starts
     (uvicorn drives the lifespan); a bare TestClient does not, which keeps the
     test harness quiet.
+
+    The embedding warm-up rides the same pattern for the same reason: a daemon thread,
+    so a model that is slow to verify or absent altogether cannot delay the port
+    binding or the OCR replay.
     """
     import threading
 
@@ -73,6 +108,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     threading.Thread(target=reconcile_interrupted_ocr,
                      name="legalmind-ocr-reconcile", daemon=True).start()
+    threading.Thread(target=_warm_embedding_model,
+                     name="legalmind-embedding-warm", daemon=True).start()
     yield
 
 

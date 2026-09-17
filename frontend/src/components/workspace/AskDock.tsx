@@ -496,7 +496,7 @@ export function WsAnswerView({
         <p>{result.text}</p>
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
         <PositionsSection positions={result.positions ?? []} contractId={contractId} />
-        <StatutesSection statutes={result.statutes ?? null} />
+        <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
       </div>
     );
   }
@@ -522,12 +522,21 @@ export function WsAnswerView({
 
   return (
     <div className="ws-ask__answer" data-state="ANSWERED">
-      <AnswerProse text={result.text} />
+      <AnswerProse
+        text={result.text}
+        citeCount={result.citations.length}
+        citeTargetId={(n) => `cite-${result.message_id}-${n}`}
+      />
       {result.citations.length > 0 ? (
         <ol className="ws-ask__citations" aria-label="Sources in this document">
           <li className="ws-ask__routed-label" aria-hidden="true">Sources — this document</li>
           {result.citations.map((citation, index) => (
-            <li key={citation.chunk_id} className="ws-ask__citation">
+            <li
+              key={citation.chunk_id}
+              className="ws-ask__citation"
+              id={`cite-${result.message_id}-${index + 1}`}
+              tabIndex={-1}
+            >
               {elsewhere ? (
                 <button
                   type="button"
@@ -562,22 +571,47 @@ export function WsAnswerView({
         </ol>
       ) : null}
       <PositionsSection positions={result.positions ?? []} contractId={contractId} />
-      <StatutesSection statutes={result.statutes ?? null} />
+      <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
     </div>
   );
 }
 
 /** Domain C — the statute answer, generated over statute evidence only and cited
  *  Act + section (`AM-32` r7). Its own section, never merged with document text. */
-export function StatutesSection({ statutes }: { statutes: AssistStatuteAnswer | null }) {
+export function StatutesSection({
+  statutes,
+  idPrefix,
+}: {
+  statutes: AssistStatuteAnswer | null;
+  /** Namespaces this section's source ids so a statute marker cannot jump to a
+   *  DOCUMENT source of the same number, and so two turns on one page stay apart.
+   *  Absent, the markers stay literal text. */
+  idPrefix?: string;
+}) {
   if (!statutes || statutes.citations.length === 0) return null;
   return (
     <section className="ws-ask__statutes" aria-label="From the approved statute corpus">
       <p className="ws-ask__routed-label">Applicable law — from the approved statute corpus</p>
-      {statutes.text ? <p className="ws-ask__text">{statutes.text}</p> : null}
+      {/* The statute answer is generated and renumbered against ITS OWN citation list
+          (`service._statute_views` indexes the same `cited` order `_renumber_markers`
+          uses), so its markers point here and never at the document's sources. It also
+          gets the paragraph handling every other answer has — it was a flat <p>, so a
+          two-paragraph statute answer arrived as a wall. */}
+      {statutes.text ? (
+        <AnswerProse
+          text={statutes.text}
+          citeCount={idPrefix ? statutes.citations.length : 0}
+          citeTargetId={idPrefix ? (n) => `statute-${idPrefix}-${n}` : undefined}
+        />
+      ) : null}
       <ol className="ws-ask__citations">
         {statutes.citations.map((c, index) => (
-          <li key={c.statute_chunk_id} className="ws-ask__citation">
+          <li
+            key={c.statute_chunk_id}
+            className="ws-ask__citation"
+            id={idPrefix ? `statute-${idPrefix}-${index + 1}` : undefined}
+            tabIndex={idPrefix ? -1 : undefined}
+          >
             <span className="ws-ask__cite ws-ask__cite--static">
               <span className="ws-mono">[{index + 1}]</span> {c.citation}
               {c.marginal_note ? ` — ${c.marginal_note}` : ""}
