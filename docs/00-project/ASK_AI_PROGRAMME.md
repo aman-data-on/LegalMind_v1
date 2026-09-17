@@ -440,3 +440,67 @@ multi-query fusion stay on `feat/ask-planner-p1`, parked by owner decision 2026-
 after the Phase 1 measurement showed no demonstrated targeting gain for +4.6 s p50. The
 Phase 1 FINDING is recorded above; only its code is parked.
 
+---
+
+## Recorded 2026-09-17 — a false refusal in production, and it is NOT the grounding floor
+
+**Found by the second session's verification probe after the reranker enablement; diagnosed
+here. Not fixed — false-refusal work is out of scope by owner instruction, and this is
+recorded so the fix is designed from evidence rather than from a guess.**
+
+The probe asked the NDA *"When does this agreement terminate and what survives?"* — a
+question clause 9 ("Term and Survival") plainly answers, and which the probe's own previous
+question had cited a minute earlier. Retrieval found it, the reranker ranked it, generation
+used it, and `verify_answer` rejected the answer on 3 failures. The turn fell through to
+POSITIONS and the reader got no document citation. Failing closed, so nothing wrong reached
+anyone — but a correct, cited answer was thrown away. `request_id
+d368b198045e40a18bb5affb82819a03`.
+
+**It reproduces only sometimes, which is the first finding.** Six generations, temperature
+0.0, byte-identical evidence (6 chunks), same question:
+
+```
+run 1  ANSWERED  failures=0  worst sentence overlap 0.86
+run 2  REFUSED   failures=1  worst 0.48
+run 3  REFUSED   failures=4  worst 0.48
+run 4  REFUSED   failures=2  worst 0.50
+run 5  REFUSED   failures=2  worst 0.50
+run 6  ANSWERED  failures=0  worst 0.50
+                                    2 of 6 passed
+```
+
+**The second finding is the real one, and it is not a threshold problem at all.** The
+dominant failure is `unsupported claim (no citation): 'Regarding what survives:\n1.'` and
+`'2.'` — `_SENTENCES` splits on `(?<=[.!?।॥])\s+`, so the "1." and "2." of a NUMBERED list
+are each split off as their own sentence, carry no `[n]` marker, and are counted as
+unsupported claims. Proven on a minimal case: the same content, the same evidence, one
+written with `1.`/`2.` and one with `*` bullets —
+
+```
+numbered '1.'  ->  CLAIM_UNSUPPORTED   failures=2
+bulleted '*'   ->  ANSWERED            failures=0
+```
+
+So **an answer is rejected for its list style**, not for its grounding. `grounded-answer-2`
+does not constrain formatting, so whether a given generation uses `1.` or `*` is left to the
+model — and roughly two thirds of the time on this question it chose the style the screen
+cannot parse.
+
+**Three candidate fixes, none applied, each cheap to measure against the ratified 77:**
+
+1. Do not treat a bare list marker as a sentence — require a sentence to contain at least
+   one content word before it can be an unsupported claim. Smallest change; fixes the
+   dominant cause; touches `AM-25` r5's enforcement so it needs the Tier-2 gate run and a
+   record.
+2. Constrain the prompt to one list style. Cheapest of all, but it makes a mechanical
+   guarantee depend on the model obeying a formatting instruction — which is exactly what
+   `AM-28` r2 says a guardrail must not do. **Not recommended.**
+3. Leave it and accept the refusals. Currently what happens; it fails closed and states
+   nothing false, at the cost of discarding correct answers.
+
+**Relationship to the union-grounding question already with the owner** (recorded above):
+they are the same screen and should be decided together, but they are different defects.
+Union grounding is a floor that can pass a claim no single clause supports; this is a
+splitter that rejects a claim every clause supports. The 0.48/0.50 figures above show this
+question also sits exactly on the 0.5 boundary, so both would bite here.
+
