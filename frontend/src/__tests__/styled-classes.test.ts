@@ -42,7 +42,6 @@ const KNOWN_UNSTYLED = [
   // Same shape: the `.evaluation__*` family is otherwise complete.
   "evaluation__diagnostics",
   // The `.ws-ask__*` and `.ws-dock__*` families are otherwise complete too.
-  "ws-ask__citation",
   "ws-ask__statutes",
   "ws-ask__turn",
   "ws-dock__launcher-text",

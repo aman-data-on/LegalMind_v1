@@ -882,6 +882,31 @@
 }
 .ws-ask__cite:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ws-ask__cite[aria-current="true"] { text-decoration: underline; text-underline-offset: 3px; }
+/* An in-prose citation marker (Phase 3, 2026-09-17). It is a reference, not a
+   score: same accent as the source it points at, no pill, no badge, no count, and
+   nothing that could read as confidence in the sentence carrying it (rule 12).
+   Baseline and line-height are inherited so a paragraph of legal prose keeps its
+   rhythm with three markers in it or none. */
+.ws-ask__ref {
+  font: inherit; font-family: var(--ws-mono); font-size: 0.86em;
+  color: var(--ws-accent); background: none; border: 0;
+  padding: 0 1px; margin: 0; cursor: pointer;
+  line-height: inherit; vertical-align: baseline;
+}
+.ws-ask__ref:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* The source that was just jumped to. `:focus-visible` would miss it — focus arrives
+   by script, not by keyboard — so the plain focus state carries the mark, and it is a
+   left rule in the accent rather than a background wash, which is how every other
+   pointed-at row in this workspace reads. */
+.ws-ask__citation:focus { outline: none; }
+.ws-ask__citation:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-ask__citation:focus:not(:focus-visible) {
+  box-shadow: inset 2px 0 0 var(--ws-accent);
+  padding-left: var(--ws-s2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-ask__citation { scroll-behavior: auto; }
+}
 .ws-ask__excerpt {
   margin: 4px 0; padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100);
   font-family: var(--ws-serif); font-style: italic; font-size: var(--ws-text-sm); color: var(--ws-ink-700);

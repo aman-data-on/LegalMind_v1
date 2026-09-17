@@ -68,7 +68,7 @@ export function TranscriptTurn({
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
           <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
-          <StatutesSection statutes={turn.statutes ?? null} />
+          <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
       </div>
     );
@@ -87,12 +87,29 @@ export function TranscriptTurn({
   return (
     <div className="ws-turn">
       <div className="ws-ask__answer" data-state="ANSWERED">
-        <AnswerProse text={turn.content} />
+        {/* The marker in the prose and the item in the list are one sequence — the
+            server renumbered them together after verification — so the marker can
+            carry the reader to its source. `turn.id` scopes the DOM id: a transcript
+            renders many answers on one page, and "source 1" of the third turn must
+            not steal the jump from "source 1" of the first. */}
+        <AnswerProse
+          text={turn.content}
+          citeCount={turn.citations.length}
+          citeTargetId={(n) => `cite-${turn.id}-${n}`}
+        />
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
             <li className="ws-ask__routed-label" aria-hidden="true">Sources — this document</li>
             {turn.citations.map((citation, index) => (
-              <li key={citation.chunk_id} className="ws-ask__citation">
+              <li
+                key={citation.chunk_id}
+                className="ws-ask__citation"
+                id={`cite-${turn.id}-${index + 1}`}
+                /* Focusable only by script: the marker moves focus here so the jump
+                   lands for a keyboard and a screen reader, while Tab still walks the
+                   links inside rather than stopping on every source. */
+                tabIndex={-1}
+              >
                 {contractId ? (
                   <Link
                     className="ws-ask__cite"
@@ -124,7 +141,7 @@ export function TranscriptTurn({
         {/* DD-17 r7 — the ratified position the answer touches, beside it, in its
             own section with its own citation grammar. Read, never produced. */}
         <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
-        <StatutesSection statutes={turn.statutes ?? null} />
+        <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>
   );

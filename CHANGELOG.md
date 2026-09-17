@@ -10,6 +10,45 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — Ask: a citation marker now takes you to its source (2026-09-17)
+
+Phase 3 of the Ask target architecture, the half of it that could be built and verified
+today. The server has renumbered prose markers and the source list into one sequence
+since PR #68; both halves were still inert text, so a reader on the fourth point of an
+answer counted list items to find source 4.
+
+- **`[n]` in the prose is now a reference to source `n`.** `AnswerProse` links a marker
+  only when it has somewhere to land: an out-of-range number, a bracketed aside the
+  model wrote (`[see §7.2]`), and any turn rendered without a source list all stay the
+  literal text they are today. Focus moves to the source, not just the scroll position,
+  so the jump works for a keyboard and a screen reader.
+- **Statute answers too, in their own namespace.** Domain C is generated and renumbered
+  against its own citation order (`service._statute_views` indexes the same `cited`
+  list `_renumber_markers` uses), so its markers point at the statute list and can
+  never land on a document source of the same number. The statute answer also gained
+  the paragraph handling every other answer already had — it was a flat `<p>`, so a
+  two-paragraph statute answer arrived as a wall.
+- It is a navigation aid and nothing else: no count, no strength, no "primary source",
+  nothing that could read as confidence in the sentence carrying it (rule 12).
+  `check:terms` stays clean.
+
+### Added — the embedding model is loaded at startup, not by the first reader (2026-09-17)
+
+`embedding_runtime` loads lazily, so the first question after any restart paid the
+SHA-256 verification of the weights and the ONNX session build on its own critical
+path — invisible in the stage timings because it lands inside `retrieval`, and a
+restart is exactly when someone is most likely to be waiting. A daemon thread in the
+lifespan now does it at boot, beside the OCR reconcile that already worked this way.
+
+Absence stays a mode, not an error (`AM-26` r5): with no weights provisioned the
+warm-up finds nothing to warm and the API starts unchanged. It alters no retrieval
+behaviour and no result — only when the loading happens.
+
+**Not done, and why:** SSE progress states need `service.ask()` to report stage
+boundaries — the same file PR #74's now-merged reranker and the still-open PR #69
+(planner) both rewrote — and a new auth-bearing endpoint cannot be verified while no
+test database is provisioned. Suggested follow-up chips have no deterministic source
+until the planner ships.
 ### Documented — the Ask pipeline's ten canonical stages (2026-09-17)
 
 The owner restated Ask end to end as ten stages (conversation context → query
