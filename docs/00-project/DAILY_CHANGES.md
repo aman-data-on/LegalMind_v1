@@ -20,6 +20,38 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-09-17
+
+### Reached production
+
+| Merged | What | Deployed |
+|---|---|---|
+| #63 | The 2026-09-16 UX review: nine items | ✅ `97d440d` — deployed 11:14 by another session, not this one |
+
+### In flight, and who holds it
+
+**The cross-encoder reranker** is being merged, deployed and enabled by the session that built it,
+on the owner's direct instruction to that session — **not by this one**. Recorded because the log
+should say whose hands: if something is wrong with it tomorrow, it should be findable that they
+were not mine. `LEGALMIND_RERANK` is enabled as its own env edit and its own restart, after the
+deploy is verified, so a misbehaviour afterwards attributes to one change rather than two.
+
+Measured twice, identical: hit@1 0.609 → 0.734, MRR 0.709 → 0.796, gold@3 0.797 → 0.844, recall
+0.891 → 0.906, at +205 ms p50. **Wrongly-answered 1/13, user-visible wrong 0/13, false refusals 3,
+faithfulness and citation precision 1.0 — all unchanged.** It reorders and does not change which
+evidence reaches the model: retrieval truncates to `RETRIEVAL_TOP_K = 10` inside `search_hybrid`
+before the reranker is reached, and nothing downstream drops a tail — verified in the live code
+from this session rather than taken on report.
+
+⚠️ `RERANK_CANDIDATES = 30` is the OFFLINE bakeoff's pool, not production's. Measured: 1 of 77
+questions had the gate open with gold at rank 11–30, against 20 with gold present and the gate
+shut. The deeper pool was tested and rejected on evidence.
+
+**`LEGALMIND_POSITION_SYNTHESIS` (AM-67) is untouched and unrelated**, still waiting on the owner.
+The two flags must not share a restart.
+
+---
+
 ## 2026-09-16
 
 ### Reached production
