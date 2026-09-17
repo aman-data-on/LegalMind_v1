@@ -426,9 +426,15 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
      * twice in one panel). What must survive is the PATH, so it is asserted end
      * to end here: summary → the list → the passage lit in the document.
      */
-    await expect(panel.getByText(/needs? a legal decision/)).toBeVisible();
+    /* The count and the way through are the hero's own button now. The "What
+       needs a decision" section restated the identical number — both counted
+       `requires_decision` — and its "Open the list →" opened ALL findings while
+       the sentence above it named the pending ones, so it went on 2026-09-17.
+       The PATH this test exists for is unchanged; it simply starts from the
+       button a reader actually meets first. */
+    await expect(panel.locator(".ws-analysis__headline")).toBeVisible();
     await expect(panel.locator(".ws-risk")).toHaveCount(0);
-    await panel.getByRole("button", { name: /Open the list/ }).click();
+    await panel.getByRole("button", { name: /Review pending decisions/ }).click();
     await expect(page.getByRole("tab", { name: "Findings", exact: true }))
       .toHaveAttribute("aria-selected", "true");
     // The list is the work surface: a finding's cited evidence is a button

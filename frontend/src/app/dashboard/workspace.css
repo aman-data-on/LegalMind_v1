@@ -2513,8 +2513,6 @@
 
 /* Summary's call to action — the count and the way through, in place of a
    second rendering of the findings list (2026-09-04). */
-.ws-analysis__act { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.6; }
-.ws-analysis__act .ws-viewall { margin-left: 2px; }
 
 /* The shortcut affordance (2026-09-04) — bottom-left, opposite the Ask dock so
    the two never collide, and quiet enough that a mouse user never notices it. */
