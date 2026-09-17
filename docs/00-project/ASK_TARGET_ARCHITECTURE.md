@@ -39,12 +39,12 @@ USER QUESTION
 | Stage | Where it lives | State (2026-09-17) |
 |---|---|---|
 | 1 Conversation context | `service.ask()` step 1; ≤4 prior USER turns loaded, ≤2 sent | **SHIPPED** — bounded by `AM-58`; the prior ASSISTANT answer is never admitted (r2). Re-admitting the prior turn's *cited chunk ids* is proposed `AM-74`, owner decision |
-| 2 Query understanding | `assist/planner.py`, `query-plan-1` | **MERGED 2026-09-17 (PR #69), SHIPS OFF** (`LEGALMIND_QUERY_PLANNER`, verified unset in production). Plans are accurate; +2.4–8 s latency and no recall gain > 1 question, evidence precision down. Owner decision: merge flag-off or park the code. Whatever ships, it stays **advisory and after** the deterministic screens |
+| 2 Query understanding | `assist/planner.py`, `query-plan-1` | **MERGED, ships OFF** (`LEGALMIND_QUERY_PLANNER`, PR #69, merged 2026-09-17). Plans are accurate; +2.4–8 s latency, no recall gain beyond one question, evidence precision down — a measured negative result, merged for the record rather than for use. Stays **advisory and after** the deterministic screens whenever enabled |
 | 3 Knowledge router + authority policy | `assist/routing.py` `plan()`; `AM-45` r1 | **SHIPPED** — permissions decide candidate domains first, then question shape. Domains are never merged into one body of text (`AM-32` r1 / `AM-45` r2). Gemini may pick *within* authorized domains, never add one |
-| 4 Query planner | same module as stage 2 | **MERGED, OFF** (same flag as stage 2) — reformulations ≤3; statute alias expansion already exists and is reused |
+| 4 Query planner | same module as stage 2 | **MERGED, OFF** — reformulations ≤3, fed to `store.search_hybrid(extra_queries=…)`; statute alias expansion already existed and is reused. They widen and re-order the evidence, never the gate, which still decides on the question's own raw scores |
 | 5 Authorized targeted retrieval | `store.search_hybrid`, `positions.search_positions`, `statutes.search_statutes` | **SHIPPED, single-query.** Authorization lives **inside** every query (`AM-25` r6); retired standards excluded from both lexical and vector paths (`AM-71`). Multi-query union + Domain A `constitution.topic` filter are Phase 1, built behind the flag |
-| 6 Reranker | `backend/legalmind/assist/rerank.py` | **MERGED AND LIVE** — `LEGALMIND_RERANK=on` in production, verified in the running process 2026-09-17 (PR #74) — `ms-marco-MiniLM-L-6-v2`, pinned + checksummed. Measured: hit@1 0.609→0.734, MRR 0.709→0.796, recall 0.891→0.906, +205ms, wrongly-answered/faithfulness unchanged. Enablement is a separate operator step (env var + restart) with its own production check, not yet done |
-| 7 Evidence sufficiency / gate | `assist/calibration.py`, `gate_is_open`, `evidence_is_sufficient`, `assist/rescue.py` | **SHIPPED** — deterministic and calibrated, and it is the safety control: it decides on the caller's original question, which is why a rephrasing alone can never turn a refusal into an answer. A `RERANK_FLOOR` opener arrives with stage 6 |
+| 6 Reranker | `backend/legalmind/assist/rerank.py` | **MERGED and ENABLED in production** (`LEGALMIND_RERANK=on`, verified in the running process 2026-09-17) — `ms-marco-MiniLM-L-6-v2`, pinned + checksummed, CPU-only. Measured: hit@1 0.609→0.734, MRR 0.709→0.796, recall 0.891→0.906, +205 ms, wrongly-answered and faithfulness unchanged. It runs AFTER the gate and **reorders only** — never membership, never the decision to answer (see §2 stage 6) |
+| 7 Evidence sufficiency / gate | `assist/calibration.py`, `gate_is_open`, `evidence_is_sufficient`, `assist/rescue.py` | **SHIPPED** — deterministic and calibrated, and it is the safety control: it decides on the caller's original question, which is why a rephrasing alone can never turn a refusal into an answer. **No rerank opener exists** — `RERANK_FLOOR` was measured and rejected (§2 stage 6); the rescue judge remains the only path that reopens a shut gate |
 | 8 Grounded generation | `assist/generation.py`, `grounded-answer-2` | **SHIPPED** — the one permitted egress (`AM-30`). Payload = question + chunk spans + prompt + ≤2 prior USER questions. No Legal Rule, threshold, Finding, company position or counterparty name ever enters it; `AM-67` adds published standard clause text as a reading aid beside an unchanged verbatim quote |
 | 9 Answer verification | `assist/guardrails.py` `verify_answer`, `intent.is_verdict_statement` | **SHIPPED, fail-closed** — an answer that cannot be verified is not shown (`AM-25` r5), and a screen that cannot evaluate an input fails closed (`AM-69`). This is why token streaming is impossible by design: perceived speed must come from progress states |
 | 10 Response | `assist/service.py`, `AskDock.tsx` / `AskWorkspace.tsx` | **SHIPPED** — one verified block, citations renumbered to the displayed list (Phase 0, PR #68), expandable evidence. SSE progress states and marker links are Phase 3 |
@@ -56,26 +56,6 @@ code, not prompts. The map is a naming convention and a design record — it loc
 nothing and amends no decision (rules 1, 2, 4).
 
 ---
-
-**Reconciled against the code, 2026-09-17 (Phase 0).** Two places where this
-document still describes a design the measurement did not keep:
-
-* **Stage 6 runs AFTER stage 7, not before it.** §4's sketch orders
-  `RERANK → GATE`; the shipped composition in `service.retrieve_document` is
-  retrieve → pin → rescue → **reorder**, and the docstring there states why: the
-  gate and the rescue each see exactly the inputs they were calibrated on, and the
-  reranker changes the ORDER of the evidence only — never its membership, never the
-  decision to answer. Pinned by
-  `test_the_reranker_never_changes_the_gate_or_the_membership`.
-* **`RERANK_FLOOR` does not exist and was not built.** §4 and §8 specify it as a
-  second, calibrated gate opener. Measured on the 20 wrongly-refused answerable
-  questions it cannot work: their rerank scores (median −3.12) sit BELOW the 13
-  genuinely unanswerable ones (median −2.30), so no floor separates them. The
-  proposal text is left in place as the design record; the outcome is that stage 7
-  keeps exactly the openers it had, and `rescue.reconsider` remains the only one.
-
-Neither is a defect and neither amends a locked decision — stage 6 was always
-permitted to be reorder-only (`AM-26`), and the gate is code, never a prompt.
 
 ## Context
 
@@ -143,11 +123,21 @@ service.ask()
                   fragments redirected, RRF across branches → ≤30 candidates
        STATUTES   statutes.search_statutes(query=plan.queries[0] or question) — existing
                   alias/named-Act ranking
-  5  RERANK  ── NEW ──  local cross-encoder scores (query, chunk) for ≤30 → top-10
-  6  GATE      gate_is_open(lexical_hit, raw_cosines)            (unchanged, calibrated)
-               OR rerank_top ≥ RERANK_FLOOR                      (new, calibrated, deterministic)
-               else rescue.reconsider()                          (last resort; retire if measurement says so)
+  5  GATE      gate_is_open(lexical_hit, raw_cosines)            (unchanged, calibrated)
+               else rescue.reconsider()                          (still in place; see below)
                then evidence_is_sufficient()                     (unchanged)
+  6  RERANK    local cross-encoder REORDERS what the gate admitted (`assist/rerank.py`)
+               ⚠️ AS BUILT, stages 5 and 6 run in THIS order — the reverse of the diagram
+               above — and the reranker never gates. `RERANK_FLOOR` was MEASURED AND
+               REJECTED (PR #74, 2026-09-17): a rerank floor cannot reopen a shut gate,
+               because the top rerank score on the 20 answerable questions the gate
+               wrongly refuses (median −3.12) overlaps the 13 genuinely unanswerable
+               ones (median −2.30, i.e. HIGHER) almost entirely. The fourth independent
+               feature to fail that separation, after the 35-point threshold sweep, the
+               IDF-weighted overlap and the embedding-model swap. So the gate and the
+               rescue each keep exactly the inputs they were calibrated on, and gate
+               recovery remains the rescue judge's problem. See `service.retrieve_document`,
+               whose docstring carries the same ordering and reason.
   7  PERSIST retrieval_runs after reconsideration                (fixed in #64)
   8  GENERATE  generation.generate(question, top-k, prior_questions, answer_shape=plan.intent)
                "grounded-answer-3"; payload = question + chunk spans + prompt + prior questions
@@ -307,7 +297,7 @@ All through the **production path** (`verify_assist_quality`, corrected 2026-09-
 - **Planner adds a model call to the critical path.** Mitigated: fail-closed to today's path on any error/timeout (2 s cap); flag rollback; skipped entirely on all four fast paths.
 - **Multi-query widens the candidate pool** — a reformulation could pull in a topical-but-wrong chunk. Mitigated: the reranker and the unchanged gate still decide; evidence precision (7.3) is measured.
 - **A reranker is a new model in production**: provisioning, memory (~90 MB ONNX), cold start. Mitigated: same runtime pattern as the embedder (in-process ONNX, SHA manifest, lazy load); add a startup warm-up for both (none exists today — first request pays verification + session build).
-- **`RERANK_FLOOR` is a new gate feature.** It is calibrated, deterministic and recorded with provenance like every constant in `calibration.py`; it *adds* an opener and never weakens `COSINE_FLOOR`. Still: it is the one place this proposal changes what may reach generation, and it gets its own measurement and re-baseline.
+- **`RERANK_FLOOR` was not built.** It is struck from this proposal: measured and rejected on the evidence recorded at stage 6 above (PR #74). Nothing in the shipped pipeline changes what may reach generation — the reranker reorders admitted evidence and nothing else, so `COSINE_FLOOR` and `PEAK_MARGIN` remain the only gate features.
 - **`AM-74`/`AM-75` are owner decisions**, not engineering. Everything in Phases 0–3 ships without them.
 - **The 14-topic taxonomy is the Constitution's, not a retrieval ontology.** It targets positions well; it is deliberately *not* used to hard-filter documents.
 
