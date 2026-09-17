@@ -3264,7 +3264,11 @@
    around one comparison. The grid alignment was always what made these facts
    readable; the frame added nothing the hairline and the spacing do not. */
 .ws-facts--compare {
-  grid-template-columns: max-content 1fr;
+  /* The VALUE track is `minmax(0, 1fr)`, never a bare `1fr`: `1fr` means
+     `minmax(auto, 1fr)`, and that `auto` floor is the longest unbroken basis
+     token's min-content width. The label track may stay `max-content` — those
+     are three short controlled strings. */
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 6px var(--ws-s4);
   align-items: baseline;
   padding: var(--ws-s3) 0;
@@ -3502,9 +3506,23 @@
 /* (The stacked rail variant is gone with the rail — findings keep their width.) */
 .ws-facts--compare dd { overflow-wrap: normal; }
 .ws-side { flex-wrap: wrap; }
-/* A long token still has to fit SOMETHING: allowed to break only when it alone
-   is wider than its column, which is the one case where clipping is worse. */
-.ws-side__detail { overflow-wrap: break-word; }
+/* `anywhere`, NOT `break-word`, and the difference is the whole bug (2026-09-17).
+   Both break a long word visually, but only `anywhere` reduces the element's
+   MIN-CONTENT width. `break-word` leaves min-content at the full unbroken token,
+   and a grid track sized `1fr` — which is `minmax(auto, 1fr)` — takes that
+   min-content as its floor. `CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END`
+   is 61 characters with no space or hyphen to break at, so the single stacked
+   column measured 439px inside a 324px rail and pushed "Next step" out of sight
+   behind a hidden horizontal scrollbar. The stacked rules now say
+   `minmax(0, 1fr)` so the track has no intrinsic floor, and this lets the token
+   actually break so it has somewhere to go. A shorter basis never triggered it,
+   which is why changing the column layout alone looked like a fix. */
+.ws-side__detail { overflow-wrap: anywhere; }
+/* The tracks carry `minmax(0, …)`; the ITEMS need the same release, or a grid
+   item's own automatic minimum size re-imposes the floor one level down. */
+.ws-facts--compare dt,
+.ws-facts--compare dd,
+.ws-facts--compare .ws-side { min-width: 0; }
 
 /* The Summary's opening sentence — what the counts mean, above the counts. */
 .ws-analysis__headline {
@@ -3643,7 +3661,7 @@
 .ws-facts--compare dd { font-size: var(--ws-text-sm); }
 .ws-facts--compare dd + dt { border-left: 1px solid var(--ws-ink-100); }
 @media (max-width: 720px) {
-  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Footer: the way into the document first, then Ask and Escalate. */
@@ -3676,7 +3694,7 @@
   .ws-hero .ws-tile__label { font-size: var(--ws-text-xs); padding-right: 18px; }
   .ws-hero .ws-tile .ws-status svg { width: 14px; height: 14px; }
   .ws-explain__grid { grid-template-columns: 1fr; }
-  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+  .ws-facts--compare { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: minmax(0, 1fr); }
   .ws-facts--compare dd + dt { border-left: 0; }
 }
 
