@@ -242,6 +242,61 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 test.describe("the Findings pane, slice 2", () => {
   test.use({ storageState: storageStatePath("counsel") });
 
+  /**
+   * EVERY comparison fits its column — not just the one that was reported.
+   *
+   * The first fix stacked the comparison in the rail instead of laying out three
+   * 150px tracks, which was right but incomplete: the stacked track was `1fr`,
+   * whose automatic minimum is the item's min-content width, and the longest
+   * basis in the ratified config
+   * (`CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END`, 61
+   * characters, no break point) measures 439px. Inside a 324px rail that pushed
+   * "Next step" — the only column that says what to DO — behind a hidden
+   * horizontal scrollbar. It reproduced on exactly one card, which is why a
+   * per-card spot check missed it.
+   *
+   * So this asserts the property over every finding the document produces,
+   * measured in the browser rather than reasoned about in CSS.
+   */
+  test("no finding's comparison overflows its column, whatever its basis token", async ({
+    page,
+  }) => {
+    const { contractId } = await createAnalysedReview(page);
+    await page.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(page);
+    const pane = page.locator('[data-region="findings"]');
+    await expect(pane.locator(".ws-finding").first()).toBeVisible();
+
+    const comparisons = pane.locator(".ws-facts--compare");
+    const n = await comparisons.count();
+    expect(n, "the document produced comparisons to measure").toBeGreaterThan(0);
+
+    for (let i = 0; i < n; i += 1) {
+      const measured = await comparisons.nth(i).evaluate((dl) => {
+        const next = dl.querySelector(".ws-facts__next");
+        const pane = dl.closest('[data-region="findings"]')!;
+        return {
+          scrollWidth: dl.scrollWidth,
+          clientWidth: dl.clientWidth,
+          basis: (dl.querySelector(".ws-side__detail") as HTMLElement | null)?.textContent ?? "",
+          // The instruction column must end inside the pane, not past its edge.
+          nextRight: next ? next.getBoundingClientRect().right : 0,
+          paneRight: pane.getBoundingClientRect().right,
+        };
+      });
+      expect(
+        measured.scrollWidth,
+        `comparison ${i} overflows (basis ${measured.basis || "none"})`,
+      ).toBeLessThanOrEqual(measured.clientWidth + 1);
+      if (measured.nextRight > 0) {
+        expect(
+          measured.nextRight,
+          `"Next step" of comparison ${i} is cut off (basis ${measured.basis || "none"})`,
+        ).toBeLessThanOrEqual(measured.paneRight + 1);
+      }
+    }
+  });
+
   test("findings render with axis chips, and an evidence link highlights the document", async ({
     page,
   }) => {
@@ -426,9 +481,15 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
      * twice in one panel). What must survive is the PATH, so it is asserted end
      * to end here: summary → the list → the passage lit in the document.
      */
-    await expect(panel.getByText(/needs? a legal decision/)).toBeVisible();
+    /* The count and the way through are the hero's own button now. The "What
+       needs a decision" section restated the identical number — both counted
+       `requires_decision` — and its "Open the list →" opened ALL findings while
+       the sentence above it named the pending ones, so it went on 2026-09-17.
+       The PATH this test exists for is unchanged; it simply starts from the
+       button a reader actually meets first. */
+    await expect(panel.locator(".ws-analysis__headline")).toBeVisible();
     await expect(panel.locator(".ws-risk")).toHaveCount(0);
-    await panel.getByRole("button", { name: /Open the list/ }).click();
+    await panel.getByRole("button", { name: /Review pending decisions/ }).click();
     await expect(page.getByRole("tab", { name: "Findings", exact: true }))
       .toHaveAttribute("aria-selected", "true");
     // The list is the work surface: a finding's cited evidence is a button

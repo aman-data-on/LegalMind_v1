@@ -3,9 +3,9 @@
  * derivation. Kept separate so the house static-render tests can pin them.
  */
 
-import { scopeLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
+import { requirementTitle } from "./findingLanguage";
 
 /**
  * Index readiness derived from counts the server returns. Deliberately NOT a
@@ -235,11 +235,13 @@ export function findingsByEvidenceId<T extends { evidence: Array<{ id: string }>
 export function requirementHeading(
   requirement: { code?: string | null; name?: string | null },
 ): string {
-  const name = requirement.name?.trim();
-  const code = requirement.code?.trim();
-  if (name && name !== code) return name;
-  if (code) return scopeLabel(code);
-  return "Requirement";
+  /* Delegates rather than re-deriving. This had its own `scopeLabel(code)`
+     fallback, which spells a code as addressing instead of meaning —
+     "ARBITRATION-MSA-001" came out "Arbitration msa 001", and reached a reader
+     through the Ask prefill: "Does this document say anything about Arbitration
+     msa 001?". One implementation is the only way the two spellings stay
+     identical, which is the whole promise this function exists to make. */
+  return requirementTitle(requirement);
 }
 
 /**
@@ -752,11 +754,17 @@ export function documentStatusBucket(row: {
   return hasIssue ? "needs_attention" : "analyzed";
 }
 
+/* "Analyzed" named the bucket after the step that produced it, next to a
+   "Needs attention" bucket that has been analyzed just as thoroughly — so a
+   dashboard reading "Analyzed 0" alongside an analysed contract said the
+   analysis had not run. The bucket KEY is unchanged (the server computes it);
+   only what a reader is shown says what the bucket actually holds: a finished
+   analysis with nothing but Acceptable in it. */
 export const STATUS_BUCKET_LABEL: Record<DocumentStatusBucket, string> = {
   draft: "Draft",
   analyzing: "Analyzing",
   needs_attention: "Needs attention",
-  analyzed: "Analyzed",
+  analyzed: "No issues",
 };
 
 export function analysisCell(row: {
