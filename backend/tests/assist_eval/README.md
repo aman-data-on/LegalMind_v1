@@ -57,13 +57,24 @@ signatory name appears in this dataset**; NDA questions refer to "the Disclosing
 ## The recorded quality bar — `baseline.json`
 
 `baseline.json` is the Tier-2 gate's recorded bar (`AM-28`): the metrics the shipped
-pipeline measured on this dataset on 2026-08-26, as numbers and hashes only — no document
-text (54.6). `tools/verify_assist_quality.py` re-measures against it and **blocks a
-release on a worsened wrongly-answered rate**; recall and retention regressions are
-reported without blocking, because the locked gate names faithfulness and the
-wrongly-answered rate. Faithfulness and citation precision are recorded as
-`not_yet_measurable` — they need generated answers, `AM-31` is CLOSED, and m4 forbids a
-synthetic substitute.
+pipeline measured on this dataset, as numbers and hashes only — no document text (54.6).
+`tools/verify_assist_quality.py` re-measures against it through the PRODUCTION path
+(`service.plan_question` → `service.retrieve_document` for the retrieval half;
+`service.ask` whole for the generated half) and **blocks a release on a worsened
+wrongly-answered rate, a worsened user-visible wrongly-answered rate, or worsened
+faithfulness**. Faithfulness and citation precision have been measurable since the
+`AM-31` gate release of 2026-08-31 (this paragraph said `not_yet_measurable` until
+2026-09-17; that was stale for seventeen days). Recall, retention and the three
+targeting measures added on 2026-09-17 — **MRR** of the gold chunk, **gold-in-top-3**,
+**evidence precision** (the share of chunks handed to generation that are gold), all
+computed from the existing `section` anchors — are reported without blocking, because
+the locked gate names faithfulness and the wrongly-answered rate. Stage latency
+(p50/p95) and Gemini calls and tokens per question are printed and never written into
+the baseline.
+
+The baseline's `pipeline` block records the embedding model, strategy version, every
+calibrated constant, and whether the evidence rescue and the query planner were live; a
+run under a different pipeline is refused rather than compared.
 
 **The baseline is ONE measured run, and some of its numbers are not deterministic.**
 The evidence rescue is a model call, so whether it reopens a given shut gate varies

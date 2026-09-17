@@ -332,6 +332,88 @@ between sessions.
 
 ---
 
+## Phase 1 of the target architecture — the query planner, measured (2026-09-17)
+
+**Outcome: a clean negative result on this corpus. The planner is accurate and too slow, and by
+design it cannot move the metric that matters.** Code on `feat/ask-planner-p1` (built, tested,
+type-clean, fail-closed, OFF by default); whether it merges is the owner's call — see the PR.
+
+**What was built.** `assist/planner.py`: one provider call returning what a question is ABOUT — a
+Constitution Appendix-B topic (14, read off the ratified standards), a subject, whose position,
+which source, up to three reformulated search phrases. Advisory: it narrows Domain A to its topic
+(`positions.search_positions(topic=)`, a WHERE clause inside both queries) and adds locally
+embedded reformulations to the document search (`store.search_hybrid(extra_queries=)`, rank-fused).
+It runs after every deterministic screen, never for the evaluator's question, cannot add a domain,
+cannot open the gate, is never cited, and fails closed to today's path. Payload: the question and
+the `AM-58` prior questions — a subset of what generation sends. The gate now measures through
+`service.plan_question` → `service.retrieve_document`, the same two calls `service.ask` makes, and
+reports three targeting measures from the dataset's own `section` anchors: MRR, gold-in-top-3,
+evidence precision.
+
+**What was measured** (77 ratified questions, production path, same anchors; Phase 0 run as the
+before; 75 of 77 questions planned in the after):
+
+```
+same tool, same 77 questions, same anchors      planner OFF    planner ON (75/77 planned)
+wrongly answered (13 unanswerable)                 1/13           1/13
+user-visible wrongly answered                      0/13           0/13
+retained / false refusals                         60/64 · 4      62/64 · 2
+recall@10                                          0.891          0.922
+hit@1                                              0.594          0.609
+MRR                                                0.701          0.728
+gold-in-top-3                                      0.797          0.828
+evidence precision (gold share of chunks sent)     0.390          0.358      ← down
+faithfulness / citation precision                  1.0 / 1.0      1.0 / 1.0
+Gemini calls per question                          1.23           2.25
+prompt / output tokens (77 q)                 119,572 / 4,699  147,115 / 13,745
+planning p50 / p95 ms                                 —          4,788 / 8,296
+generation p50 / p95 ms                         3,930 / 9,748   5,340 / 9,921
+retrieval p50 / p95 ms                             12 / 33         27 / 42
+total p50 / p95 ms                              5,945 / 13,416  10,558 / 17,070
+```
+
+Reading it: the four targeting and recall movements are each about **one question of 64** — inside the
+evidence rescue's run-to-run swing, which has read 60, 61 and 62 retained on identical code today
+— while the one metric with a consistent mechanism behind it, evidence precision, **fell** (wider
+unions hand generation more non-gold chunks) and latency nearly **doubled**. Safety held throughout.
+No targeting gain is demonstrated; a real latency and cost is.
+
+**Three findings, each with its number.**
+
+1. *The planner is slow, and it is the provider.* A ~150-token JSON plan from `gemini-3.6-flash`
+   at `thinkingLevel: MINIMAL` takes **2.4–8.0 s**, bimodal (~2.4 s or ~7.9 s). The proposal
+   assumed 300–500 ms — wrong by an order of magnitude. At a 4 s cap only **26 of 79** retrievals
+   received a plan and the run measured a timeout, not a planner; it is not reported. At 10 s,
+   75 of 77 planned and the ask's total p50 went **4.7 s → 10.6 s**.
+2. *A reformulation cannot fix a false refusal — by design.* The gate decides on the question's
+   own scores (`AM-25`'s calibrated refusal, unchanged). "How much time do we get to fix a breach?"
+   produced exactly the right reformulations ("cure period for breach of contract", "written notice
+   to remedy default days") and was still refused on the real MSA when the rescue judge said NO.
+   Letting a reformulation open the gate is a widening of the calibrated control and must be
+   measured against the 13 unanswerable questions first (owner rule 2026-09-14: recall may only
+   improve WITHOUT wrongly-answered rising). Held for the reranker phase.
+3. *Domain A narrowing works; the gap it exposes is ranking, not targeting.* "Termination period of
+   LeapSwitch" → the one Termination-topic standard clearing the floor instead of three standards
+   from three topics. The answering standard, `CONVENIENCE-NOTICE-MSA-001` ("terminate for
+   convenience with 30 days' written notice"), was reached by neither configuration, measured on
+   the live corpus: cosine **0.288** against the question (the cure-period standard: 0.651 — the
+   embedding reads "termination period" as a cure period), **0.467** against the planner's best
+   reformulation (under the 0.50 evidence floor), 0.607 only for a phrasing that says "notice".
+   Applying reformulations to Domain A would not have fixed it and is not proposed on this evidence.
+
+**Where the evidence points.** Three directions at once — the boundary refusal in (2), the 0.288
+in (3), and hit@1 flat with evidence precision falling as the union widened — all describe a
+ranking problem inside a correctly retrieved candidate set. That is the reranker's job, which
+`AM-25`/`AM-26` already authorise and which was always the held Phase 2. The multi-query candidate
+pool the planner builds is the input a reranker would consume; it is worth nothing without one.
+
+**Also recorded here:** the position corpus's chunk text embeds the standard code and citation
+header ("CONVENIENCE-NOTICE-MSA-001 §13 (MSA) — Legal Constitution, Lawyer Review Version L1.10:
+…") ahead of the ratified sentence, which dilutes every position embedding. Not changed; noted
+for the reranker phase, where chunk composition for Domain A should be measured.
+
+---
+
 ## Recorded 2026-09-17 — the evidence rescue's cost, visible for the first time
 
 Phase 0's stage timings went live at `663971f` and within a minute the other session read this

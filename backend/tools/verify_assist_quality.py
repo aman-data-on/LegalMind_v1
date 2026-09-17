@@ -29,11 +29,13 @@ file marks where.
 --------------------------------------------------------------------------
 Why this measures the SHIPPED path, not a mirror of it
 --------------------------------------------------------------------------
-Every question runs through `service.retrieve_document` — the SAME function
-`service.ask` calls: the production SQL, the production RRF fusion, the production
-`gate_is_open`, the Finding pin, the rescue judge and the reranker — against a database
-populated by the production ingestion and indexing pipeline (`ingest_document` →
-`index_document_version`, which writes `chunk_embeddings` through `embedding_runtime`).
+Every question runs through `service.plan_question` and `service.retrieve_document` —
+the two calls `service.ask` itself makes: the query planner, the production SQL, the
+production RRF fusion, the production `gate_is_open`, the Finding pin, the rescue judge
+and the reranker — against a database populated by the production ingestion and
+indexing pipeline (`ingest_document` → `index_document_version`, which writes
+`chunk_embeddings` through `embedding_runtime`). The generated half drives `service.ask`
+whole.
 The earlier calibration harness (`benchmark_retrieval.py --eval`) ranks candidates from
 an in-memory cache because it compares models that are not installed; a RELEASE gate has
 the opposite job — proving the one pipeline that ships still meets its recorded bar —
@@ -190,10 +192,11 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
                        a refusal (`guardrails.evidence_is_sufficient`, `AM-29` r3).
 
     Every one of those is now the production function itself, called here — not a
-    re-implementation of it. Since 2026-09-17 the retrieval stage is
-    `service.retrieve_document`, the SAME call `service.ask` makes, so the rescue judge
-    and the cross-encoder reranker are measured exactly as shipped and a step added to
-    one cannot go missing from the other.
+    re-implementation of it. Since 2026-09-17 the two retrieval stages are
+    `service.plan_question` and `service.retrieve_document` — the SAME two calls
+    `service.ask` makes — so the query planner's reformulations and Domain A topic
+    filter, the rescue judge and the cross-encoder reranker are all measured exactly
+    as shipped, and a step added to one cannot go missing from the other.
 
     Three TARGETING measures were added the same day, computed from the dataset's
     existing `section` anchors (nothing new was authored):
@@ -203,7 +206,10 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         gold-in-top-3       the gold chunk among the first three — "the right passage
                             is first", not merely present in ten
         evidence precision  the share of chunks handed to generation that ARE gold,
-                            over the questions that reached generation What is NOT here is generation and the screens after it;
+                            over the questions that reached generation — fewer, better
+                            chunks is what "targeted" means
+
+    What is NOT here is generation and the screens after it;
     those need the model and live in `measure_generated`, which drives `service.ask`
     whole. So this half stays runnable without a credential, and the rescue degrades
     to a no-op when the model is unreachable — which is recorded in the baseline's
@@ -235,9 +241,10 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
             # to score. Counted, printed, and never credited as a retrieval hit.
             outcome = None
         else:
+            made = service.plan_question(q["question"], (), request_id="tier2-gate")
             outcome, _ = service.retrieve_document(
                 db, document_version_id=versions[q["document"]],
-                retrieval_query=q["question"], request_id="tier2-gate")
+                retrieval_query=q["question"], plan=made, request_id="tier2-gate")
         opened = outcome is not None and outcome.gate_open and \
             guardrails.evidence_is_sufficient([h.content for h in outcome.hits])
 
@@ -504,6 +511,11 @@ def _baseline_payload(metrics: dict, dataset_sha: str, n_questions: int) -> dict
             # The reranker reorders evidence, so a rerank-on run and a rerank-off run
             # are different pipelines and the drift check must keep them apart.
             "reranker": rerank.identity() if rerank.available() else False,
+            # Same reasoning for the planner (2026-09-17): its reformulations and topic
+            # filter change what is retrieved, so a planner-off run and a planner-on
+            # run are different pipelines and the drift check must keep them apart.
+            "query_planner": bool(config.query_planner_enabled()
+                                  and generation_available()[0]),
         },
         "metrics": {k: v for k, v in metrics.items()
                     if not k.endswith("_ids")
@@ -686,10 +698,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"{metrics['user_wrongly_answered']} <= "
                 f"baseline {base['user_wrongly_answered']}")
 
-    for name in ("recall_at_10", "retained", "mrr", "gold_in_top_3",
-                 "evidence_precision"):
-        if base.get(name) is not None and metrics.get(name) is not None \
-                and metrics[name] < base[name]:
+    for name in ("recall_at_10", "retained", "mrr", "gold_in_top_3", "evidence_precision"):
+        if base.get(name) is None or metrics.get(name) is None:
+            verdicts.append(f"n/a    {name}: {metrics.get(name)} (no baseline value)")
+        elif metrics[name] < base[name]:
             verdicts.append(
                 f"WARN   {name} regressed: {base[name]} -> {metrics[name]} "
                 f"(reported, not blocking — AM-28's gate names faithfulness and "

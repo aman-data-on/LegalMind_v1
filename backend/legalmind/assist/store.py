@@ -630,9 +630,33 @@ def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
             for r in rows]
 
 
+def _rrf(lists: list[list[SearchHit]], limit: int, k: int) -> list[SearchHit]:
+    """Reciprocal rank fusion over any number of ranked lists, by chunk id. A chunk's
+    representation is the LAST list's that carries it (callers pass lexical first, so a
+    cosine-scored hit wins — the more interpretable score). Ties keep insertion order,
+    which is what `sorted` does with a stable key."""
+    fused: dict[UUID, float] = {}
+    by_id: dict[UUID, SearchHit] = {}
+    for hits in lists:
+        for rank, hit in enumerate(hits, start=1):
+            fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)
+            by_id[hit.chunk_id] = hit
+    ordered = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:limit]
+    return [by_id[cid] for cid in ordered]
+
+
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
-                  embed_query, limit: int | None = None) -> RetrievalOutcome:
+                  embed_query, limit: int | None = None,
+                  extra_queries: tuple[str, ...] | list[str] = ()) -> RetrievalOutcome:
     """Hybrid retrieval within ONE authorized document version, gated.
+
+    ``extra_queries`` (2026-09-17) — the query planner's reformulations. Each is
+    embedded LOCALLY and runs its own vector pass; the per-query lists are rank-fused
+    with the question's own lexical and vector lists. THE GATE IS UNCHANGED: it decides
+    on the question's own raw top-K, exactly as calibrated on 2026-08-26 — a
+    reformulation can widen and re-order the EVIDENCE once the gate is open, and widen
+    the candidate pool a shut gate carries for the rescue, but it cannot open the gate.
+    With no extras this is byte-for-byte the previous behaviour.
 
     ``embed_query`` is a callable ``str -> list[float] | None`` — the store does not
     import the model (the backend is injected), and ``None`` means "no embedding
@@ -678,10 +702,15 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                           limit=limit * 2, match="any")
     lexical_hits = _redirect_fragments(db, document_version_id, [*strict, *broad], limit)
 
-    vector_rows: list = []
+    # One vector pass per query — the question first, then the planner's
+    # reformulations. `vector_lists[0]` is the question's own list: the gate's input.
+    vector_lists: list[list] = []
     model_identity: str | None = None
-    vector = embed_query(query) if embed_query else None
-    if vector is not None:
+    for q in (query, *extra_queries):
+        vector = embed_query(q) if embed_query else None
+        if vector is None:
+            vector_lists.append([])
+            continue
         embedded, model_identity = vector
         schema = config.assist_schema()
         vschema = vector_schema(db)
@@ -691,7 +720,7 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
         # per-run search_path — hence OPERATOR("schema".<=>).
         op = f'OPERATOR("{vschema}".<=>)'
         literal = "[" + ",".join(f"{x:.6f}" for x in embedded) + "]"
-        vector_rows = list(db.execute(text(f"""
+        vector_lists.append(list(db.execute(text(f"""
             SELECT c.id, c.evidence_id, c.content,
                    e.page_number, e.section_number, e.section_title, e.source_type,
                    1 - (ce.embedding {op} CAST(:q AS {vtype})) AS cosine
@@ -701,7 +730,16 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
              WHERE c.document_version_id = :dv
              ORDER BY ce.embedding {op} CAST(:q AS {vtype})
              LIMIT :lim
-        """), {"q": literal, "dv": document_version_id, "lim": limit * 2}).all())
+        """), {"q": literal, "dv": document_version_id, "lim": limit * 2}).all()))
+    vector_rows = vector_lists[0] if vector_lists else []
+
+    def as_hits(rows, floor: float | None) -> list[SearchHit]:
+        return _redirect_fragments(db, document_version_id, [
+            SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
+                      section_number=r[4], section_title=r[5], source_type=str(r[6]),
+                      retrieval_score=float(r[7]))
+            for r in rows if floor is None or float(r[7]) >= floor
+        ], limit)
 
     # Gate features come from the raw, unpruned top-K — the calibration's input.
     scores = [float(r[7]) for r in vector_rows[:limit]]
@@ -712,13 +750,11 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     if not open_:
         # Gate shut: `hits` is empty, as every caller relies on. The candidates are
         # carried separately so `rescue` can take a second look at THIS refusal —
-        # same rows, same authorization scope, simply not yet discarded.
-        refused = _redirect_fragments(db, document_version_id, [
-            SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
-                      section_number=r[4], section_title=r[5], source_type=str(r[6]),
-                      retrieval_score=float(r[7]))
-            for r in vector_rows[:limit]
-        ], limit)
+        # same rows, same authorization scope, simply not yet discarded. With
+        # reformulations the pool is their fused union, so the judge reads what any
+        # phrasing found; without, it is the question's own top-K as before.
+        refused = _rrf([as_hits(rows[:limit], None) for rows in vector_lists],
+                       limit, RRF_K)
         return RetrievalOutcome(hits=[], gate_open=False,
                                 lexical_hit=lexical_hit,
                                 vector_top_score=top, vector_peak_gap=gap,
@@ -731,26 +767,13 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     # COSINE_FLOOR — the gate has already made its decision above, from the raw
     # `scores` list, before this prune runs. See calibration.py's "Two
     # responsibilities, two constants".
-    vector_hits = _redirect_fragments(db, document_version_id, [
-        SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
-                  section_number=r[4], section_title=r[5], source_type=str(r[6]),
-                  retrieval_score=float(r[7]))
-        for r in vector_rows if float(r[7]) >= EVIDENCE_COSINE_FLOOR
-    ], limit)
+    # Per-query evidence lists, each floored by EVIDENCE_COSINE_FLOOR, then reciprocal
+    # rank fusion with the lexical list; branch-native score reported (cosine preferred
+    # where a chunk appears in both, since it is the more interpretable of the two).
+    vector_hit_lists = [as_hits(rows, EVIDENCE_COSINE_FLOOR) for rows in vector_lists]
+    ordered = _rrf([lexical_hits, *vector_hit_lists], limit, RRF_K)
 
-    # Reciprocal rank fusion; branch-native score reported (cosine preferred where a
-    # chunk appears in both, since it is the more interpretable of the two).
-    fused: dict[UUID, float] = {}
-    by_id: dict[UUID, SearchHit] = {}
-    for rank, hit in enumerate(lexical_hits, start=1):
-        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (RRF_K + rank)
-        by_id.setdefault(hit.chunk_id, hit)
-    for rank, hit in enumerate(vector_hits, start=1):
-        fused[hit.chunk_id] = fused.get(hit.chunk_id, 0.0) + 1.0 / (RRF_K + rank)
-        by_id[hit.chunk_id] = hit   # prefer the cosine-scored representation
-    ordered = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:limit]
-
-    return RetrievalOutcome(hits=[by_id[cid] for cid in ordered], gate_open=True,
+    return RetrievalOutcome(hits=ordered, gate_open=True,
                             lexical_hit=lexical_hit,
                             vector_top_score=top, vector_peak_gap=gap,
                             strategy_version=RETRIEVAL_STRATEGY_VERSION,
