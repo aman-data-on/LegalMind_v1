@@ -17,19 +17,26 @@ import pathlib
 
 import pytest
 
-from legalmind.assist import onnx_backend
+from legalmind.assist import calibration, onnx_backend
 from legalmind.assist.embedding import EmbeddingBackend, LexicalStrategy
 
 _ANY_MODEL = "sentence-transformers__all-MiniLM-L6-v2"
 
 
 def _provisioned() -> pathlib.Path | None:
-    root = onnx_backend.model_root()
-    if not root.exists():
-        return None
-    for candidate in sorted(root.glob("*/*/manifest.json")):
-        return candidate.parent
-    return None
+    """The CALIBRATED EMBEDDING model's directory — named, never "whichever is first".
+
+    This globbed `*/*/manifest.json` and took the first match, which worked only while
+    exactly one model was provisioned. The reranker (`AM-26`, 2026-09-17) provisions a
+    second, and `cross-encoder__…` sorts before `sentence-transformers__…` — so these
+    tests began building an `OnnxEmbeddingBackend` over a cross-encoder and failing in
+    its constructor. The model under test is a property of the test, not of directory
+    order, so it is spelled out the same way `embedding_runtime._load` spells it.
+    """
+    directory = (onnx_backend.model_root()
+                 / calibration.EMBEDDING_MODEL_REPO.replace("/", "__")
+                 / calibration.EMBEDDING_MODEL_REVISION)
+    return directory if (directory / "manifest.json").exists() else None
 
 
 @pytest.fixture
