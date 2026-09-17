@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Documented — the Ask pipeline's ten canonical stages (2026-09-17)
+
+The owner restated Ask end to end as ten stages (conversation context → query
+understanding → knowledge router + authority policy → query planner → authorized
+targeted retrieval → reranker → evidence sufficiency gate → grounded generation →
+answer verification → response). It is the same design approved 2026-09-16, so nothing
+was decided, locked or amended — it is now written down once, in the canonical place,
+with the shipped state of every stage beside it.
+
+- `docs/00-project/ASK_TARGET_ARCHITECTURE.md` **§0** — the stage map, plus a per-stage
+  table naming the module that implements it and its state: stages 1, 3, 5, 7–10
+  SHIPPED; stages 2 and 4 built and shipping OFF (PR #69, unmerged — accurate plans,
+  +2.4–8 s, no recall gain, evidence precision down). **Corrected below, same day:**
+  stage 6 (cross-encoder reranker) was believed unbuilt when this was written and
+  merged (PR #74, `LEGALMIND_RERANK` off by default) a few hours later — see the
+  entry above.
+- `CLAUDE.md` — a "Start here" row and a Current-state section carrying the ten stages
+  and the three invariants no stage may weaken: stages 3 and 7 are code not prompts;
+  Gemini never decides, routes, opens the gate or is cited; stage 9 fails closed, which
+  is why there is no token streaming.
+- Pointers added in `IMPLEMENTATION_STATUS.md` (the only document asserting build
+  state — it now carries the per-stage summary), `LEGALMIND_PROJECT_STATE.md`,
+  `ASK_AI_PROGRAMME.md` and `docs/README.md`.
+
+Coordination note for other sessions: this change is documentation only — no file under
+`backend/legalmind/assist/` was touched, and PR #69's planner decision is still the
+owner's.
 ### Added — Ask Phase 2: a local cross-encoder reorders the evidence (2026-09-17)
 
 `AM-25`'s permitted list already named "hybrid retrieval with reranking" and `AM-26`'s
