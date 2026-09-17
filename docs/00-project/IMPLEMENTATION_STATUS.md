@@ -81,7 +81,14 @@ that wrongly-answered has not risen**. Frontend: 474 passed across 34 files.
 
 Evidence per command: [ASK_AI_PROGRAMME.md](ASK_AI_PROGRAMME.md) §D.
 
-**Ask pipeline build state, stage by stage:** the owner's ten canonical stages and what is shipped / built-but-off / not built are tabulated in [ASK_TARGET_ARCHITECTURE.md](ASK_TARGET_ARCHITECTURE.md) §0 (recorded 2026-09-17). Summarised here because this document is the only one permitted to assert build state: stages 1, 3, 5, 7, 8, 9, 10 **IMPLEMENTED and DEPLOYED**; stages 2 and 4 (Gemini query understanding + query planner) **IMPLEMENTED, MEASURED, SHIPS DISABLED** (PR #69, unmerged — no recall gain, +2.4–8 s latency, evidence precision down); stage 6 (cross-encoder reranker) **NOT IMPLEMENTED** (authorized by `AM-25`/`AM-26`; needs only an `AM-26` r4 pin record). No stage has changed what the gate admits.
+**Ask pipeline build state, stage by stage:** the owner's ten canonical stages and what is shipped / built-but-off / not built are tabulated in [ASK_TARGET_ARCHITECTURE.md](ASK_TARGET_ARCHITECTURE.md) §0. Summarised here because this document is the only one permitted to assert build state, current as of the 2026-09-17 consolidation (PRs #74, #76, #78 merged and DEPLOYED at `cbc9563`):
+
+- Stages 1, 3, 5, 7, 8, 9, 10 **IMPLEMENTED and DEPLOYED**.
+- Stage 6 (cross-encoder reranker, `backend/legalmind/assist/rerank.py`) **MERGED and DEPLOYED, ships OFF** (`LEGALMIND_RERANK`, PR #74). `ms-marco-MiniLM-L-6-v2`, pinned + checksummed. Measured: hit@1 0.609→0.734, MRR 0.709→0.796, recall 0.891→0.906, +205ms, wrongly-answered and faithfulness unchanged. **Enabling it in production is a separate operator step** — its own env-var edit and restart, done deliberately apart from this deploy so a misbehaviour afterwards attributes to one change, not two — not yet done as of this entry.
+- Stage 10 gained citation markers as references (`AnswerProse`, PR #78) and the embedding model now warms at boot instead of on the first reader's question (same PR) — both **DEPLOYED**.
+- Stages 2 and 4 (Gemini query understanding + query planner, `backend/legalmind/assist/planner.py`) **IMPLEMENTED, MEASURED, STILL UNMERGED** (PR #69, open) — no recall gain, +2.4–8 s latency, evidence precision down. Needs an owner decision (merge switched off, or park the code) before this cell changes again.
+
+No stage has changed what the gate admits. `LEGALMIND_POSITION_SYNTHESIS` (`AM-67`) remains a separate, still-pending owner decision, untouched by this consolidation — the two flags must not share a restart.
 
 ### Release state — AB-20 COMPLETE: the 33 standards are published (2026-09-15)
 
