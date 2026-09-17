@@ -40,6 +40,7 @@ from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pyt
     _ratified_positions,
     _synthetic_statute,
     indexed_contract,
+    needs_embedding_model,
     storage,
 )
 
@@ -59,6 +60,15 @@ def _ask(db, conv, version_id, question, permissions=USER_PERMS):
 # ==========================================================================
 # 1-2. Document and version scope — enforced in the SQL, not after it
 # ==========================================================================
+# Two of these ten cases assert that an authorized document IS retrieved and
+# cited — case 1 directly, case 4c by reading the same citation back on replay.
+# Both need a real hybrid hit, which needs the local embedding model; CI has no
+# model provisioned, so retrieval is lexical-only there and the shape cannot
+# occur (`AM-26` r5 — absence is a mode, not an error). They reuse the marker
+# `test_assist_ask.py` already defines for this, rather than asserting a
+# different engine. The eight WITHHOLDING cases carry no such dependency and
+# run everywhere — which is the half that must never regress.
+@needs_embedding_model
 def test_1_an_authorized_document_is_retrieved_and_cited(db, user, indexed_contract,
                                                          monkeypatch):
     contract, version = indexed_contract
@@ -181,6 +191,7 @@ def test_4b_replay_stops_disclosing_a_position_the_grant_no_longer_covers(
         "a revoked position grant must withhold the position on replay too"
 
 
+@needs_embedding_model
 def test_4c_replay_withholds_clause_excerpts_once_the_contract_is_out_of_scope(
         api, db, seeded, user, indexed_contract, monkeypatch):
     contract, version = indexed_contract
