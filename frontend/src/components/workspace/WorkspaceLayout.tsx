@@ -88,6 +88,11 @@ export interface FindingsPoint {
   classification?: string;
   /** The reader's three-word status (AM-50 r4) — what the Summary tiles point with. */
   status?: "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
+  /** The workflow field `finding.requires_decision` — what the Summary's
+      "Review pending decisions" counts, and so what it must point with. It is
+      not a reader status: a finding can require a decision and still read
+      "Requires modification". */
+  requiresDecision?: true;
   findingId?: string;
   seq: number;
 }

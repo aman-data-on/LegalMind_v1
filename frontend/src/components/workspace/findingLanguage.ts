@@ -128,6 +128,88 @@ export function collidingTitles(
   return twice;
 }
 
+/** A finding as the reader meets it: itself, plus any findings folded into it
+ *  because they said the same thing about the same clause. The folded ones are
+ *  kept, never dropped — the card lists them, so the audit chain still names
+ *  every standard that was measured. */
+export interface PresentedFinding extends Finding {
+  alsoMeasuredAgainst?: Finding[];
+}
+
+/**
+ * What makes two findings the SAME THING to a reader, or `null` for a finding
+ * that may never be folded into another.
+ *
+ * The Constitution can state one obligation in more than one document family,
+ * so an NDA carrying a confidentiality-survival clause is measured against both
+ * the NDA and the MSA standard for it. Under `AM-51` that is correct — content
+ * decides applicability and one document may span families — and both
+ * evaluations are real, auditable work. But the reader met it as two cards
+ * quoting one clause, one contract value, one required value and one next step:
+ * two problems to fix where there is one, and every Summary count inflated.
+ *
+ * The key is deliberately narrow, because a wrong merge HIDES an obligation:
+ *
+ *  - **A shared, non-empty set of cited evidence.** The clause is the anchor.
+ *    Two MISSING findings cite nothing and otherwise look identical to each
+ *    other — "not found", "expects present", same next step — so without this,
+ *    Arbitration-missing and Indemnity-missing would collapse into one. A
+ *    finding citing no evidence is never folded.
+ *  - **The same reader title** — two different obligations can be measured on
+ *    one clause, and they keep their own cards.
+ *  - **The same contract value, required value, classification, status and next
+ *    step** — the facts a card actually states. If any differs, the reader has
+ *    two things to know.
+ *
+ * `basis` is deliberately NOT in the key: it is what makes two numbers
+ * comparable (45B.4), and it is precisely where the MSA and NDA statements of
+ * this obligation differ, so keying on it would preserve the duplicate this
+ * exists to remove. Nothing is lost — the surviving card lists every folded
+ * finding's requirement and basis, which is why they are carried, not dropped.
+ */
+function readerIdentity(finding: Finding): string | null {
+  const lead = finding.evaluations.find((e) => e.classification === finding.classification)
+    ?? finding.evaluations[0];
+  if (!lead) return null;
+  const evidence = [...new Set(finding.evaluations.flatMap((e) => e.evidence_refs))].sort();
+  if (evidence.length === 0) return null;
+  const standard = lead.expected_value === undefined ? null : standardSideOf(lead.expected_value);
+  return JSON.stringify([
+    evidence,
+    requirementTitle(finding.requirement),
+    finding.classification,
+    userStatus(finding),
+    finding.requires_decision,
+    sideOf(lead.actual_value).text,
+    standard?.text ?? null,
+    nextStep(finding, lead),
+  ]);
+}
+
+/**
+ * One reader-facing finding per obligation, in the order the server sent them.
+ *
+ * Applied once, where findings are loaded, so the pane, the Summary counts and
+ * the document outline cannot disagree about how many there are — which is the
+ * failure a count and a filter keyed on different fields already produced once.
+ */
+export function mergeEquivalentFindings(findings: Finding[]): PresentedFinding[] {
+  const first = new Map<string, PresentedFinding>();
+  const out: PresentedFinding[] = [];
+  for (const finding of findings) {
+    const key = readerIdentity(finding);
+    const kept = key === null ? undefined : first.get(key);
+    if (!kept) {
+      const presented: PresentedFinding = { ...finding };
+      if (key !== null) first.set(key, presented);
+      out.push(presented);
+      continue;
+    }
+    kept.alsoMeasuredAgainst = [...(kept.alsoMeasuredAgainst ?? []), finding];
+  }
+  return out;
+}
+
 /** What the outcome means for the reader, in one sentence. The chip beside it
  *  still carries the canonical word. */
 const CLASSIFICATION_SENTENCES: Record<string, string> = {

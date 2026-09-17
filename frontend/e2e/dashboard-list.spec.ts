@@ -101,3 +101,51 @@ test("the menu keeps its design tokens and fully covers the row it floats over",
   }, [linkBox!.x + linkBox!.width / 2, linkBox!.y + linkBox!.height / 2] as const);
   expect(topElement).toBe(true);
 });
+
+/**
+ * The search box, typed the way a person types it.
+ *
+ * A 2026-09-16 UX review reported it dead: `xyz-nomatch` was entered and the table did
+ * not change. The input is in fact fully wired — controlled value, 300 ms debounce, `q`
+ * sent to the server and in the loader's dependency list — and the unit tests pin that
+ * `q` reaches the request. What none of that proves is the bit the review was actually
+ * exercising: a real keystroke reaching React's onChange. Setting `input.value` from
+ * devtools does NOT fire it, which is the likeliest reason the box looked dead.
+ *
+ * So this types with the keyboard, through the real component, against the real server,
+ * and asserts the whole chain: keystroke → debounce → request → rendered rows. It is
+ * deliberately an e2e test; the house has no DOM testing library, and adding one would
+ * be a rule 19 dependency decision.
+ */
+test("typing in the search box filters the table, and clearing it brings the rows back", async ({
+  page,
+}) => {
+  const { contractId } = await createAnalysedReview(page);
+  const contract = await (await page.request.get(`/api/v1/contracts/${contractId}`)).json();
+  const name: string = contract.data.name;
+
+  await page.goto("/dashboard");
+  const search = page.getByRole("textbox", { name: "Search contracts" });
+  const rows = page.locator("tbody tr");
+  await expect(rows.filter({ hasText: name })).toHaveCount(1);
+
+  // A string no contract can carry. `pressSequentially` raises real key events —
+  // `fill()` would set the value in one shot and prove less about the wiring.
+  await search.pressSequentially("xyz-nomatch", { delay: 20 });
+  // Past the 300 ms debounce, the server answers with nothing and the table says so
+  // rather than silently keeping the rows it had.
+  await expect(rows.filter({ hasText: name })).toHaveCount(0, { timeout: 5000 });
+
+  // The term survives as the reader typed it — a debounce that reset the input would
+  // look identical to a filter that worked and then undid itself.
+  await expect(search).toHaveValue("xyz-nomatch");
+
+  // And it is a filter, not a one-way trip: clearing restores the row.
+  await search.fill("");
+  await expect(rows.filter({ hasText: name })).toHaveCount(1, { timeout: 5000 });
+
+  // Finally the positive direction: typing part of the real name keeps it on screen,
+  // so the assertion above is about the query and not about an empty table.
+  await search.pressSequentially(name.slice(0, 10), { delay: 20 });
+  await expect(rows.filter({ hasText: name })).toHaveCount(1, { timeout: 5000 });
+});

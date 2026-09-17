@@ -353,15 +353,51 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # must share at least two of them (one, for a one-word question) so a single
     # common word never fetches the whole corpus. Ranked by matched lexemes, then
     # ts_rank, then code — deterministic for identical input.
-    rows = db.execute(sql_text(f"""
+    #
+    # THE FLOOR COUNTS WORDS THE CORPUS DOES NOT USE — SO A SECOND PASS COUNTS
+    # ONLY THE ONES IT DOES (2026-09-16).
+    #
+    # Reported live: "Explain our termination standard." answered "Information not
+    # found in the organization's approved positions" while termination standards
+    # are ratified and the Findings engine measures against them. The floor is
+    # taken over EVERY lexeme of the question, including those that appear nowhere
+    # in the corpus: {explain, termin, standard} is three lexemes, so two must
+    # match, and every termination chunk shares exactly one — `termin`. Measured
+    # document frequencies over the live 40 chunks: explain 0, standard 1,
+    # termin 12. "What standards do we require for liability?" only worked by
+    # accident: `LIABILITY-MSA-001`'s quote contains the word "standard".
+    #
+    # So when the strict floor finds NOTHING, the query runs again admitting a
+    # chunk that shares at least one SUBJECT lexeme — a word this corpus uses in
+    # more than one position (the `subject` CTE). That keeps the original
+    # guarantee, which was that one incidental word must not fetch a position:
+    # "Explain our standard." still retrieves nothing, because `standard` occurs
+    # in exactly one quote and so is not a subject.
+    #
+    # A second pass rather than an `OR` in the first: every question that
+    # retrieves anything today takes the identical path and gets the identical
+    # ranking, so this can only convert a miss into an answer.
+    #
+    # ponytail: the subject test is df >= 2, which needs a topic to appear in two
+    # positions. A subject held by exactly ONE standard is not rescued; upgrade to
+    # "appears in the code or clause title" if that case ever shows up.
+    sql = sql_text(f"""
         WITH q AS (
             SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
+        ), subject AS (
+            SELECT COALESCE(array_agg(l), ARRAY[]::text[]) AS lex
+              FROM q, unnest(q.lex) l
+             WHERE (SELECT count(*) FROM "{schema}".position_chunks p2
+                     WHERE tsvector_to_array(p2.content_tsv) @> ARRAY[l]) >= 2
         ), scored AS (
             SELECT pc.id, pc.standard_code, pc.document_type, pc.source_clause,
                    pc.content, csv.version_number, r.status::text AS ratification,
                    (SELECT count(*)
                       FROM q, unnest(tsvector_to_array(pc.content_tsv)) l
                      WHERE l = ANY(q.lex)) AS matched,
+                   (SELECT count(*)
+                      FROM subject, unnest(tsvector_to_array(pc.content_tsv)) l
+                     WHERE l = ANY(subject.lex)) AS subject_matched,
                    ts_rank(pc.content_tsv,
                            to_tsquery('english', (SELECT array_to_string(lex, ' | ')
                                                     FROM q))) AS score
@@ -383,10 +419,14 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
         SELECT id, standard_code, document_type, source_clause, content, score, matched,
                version_number, ratification
           FROM scored
-         WHERE matched >= LEAST(2, (SELECT cardinality(lex) FROM q))
+         WHERE CASE WHEN :relax THEN subject_matched >= 1
+                    ELSE matched >= LEAST(2, (SELECT cardinality(lex) FROM q)) END
          ORDER BY matched DESC, score DESC, standard_code
          LIMIT :limit
-    """), {"q": query, "limit": limit}).all()
+    """)
+    rows = db.execute(sql, {"q": query, "limit": limit, "relax": False}).all()
+    if not rows:
+        rows = db.execute(sql, {"q": query, "limit": limit, "relax": True}).all()
     lexical = [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                            document_type=r.document_type, source_clause=r.source_clause,
                            content=r.content, score=float(r.score),

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import type { EvidenceRow } from "@/lib/types";
 
 import { segmentContent, type Annotation } from "@/components/workspace/annotations";
+import { requirementTitle } from "@/components/workspace/findingLanguage";
 import {
   documentTextState,
   findingsByEvidenceId,
@@ -215,9 +216,23 @@ describe("the review loop, both directions (2026-09-05)", () => {
       .toBe("Limitation of liability");
     // The ratified config gives some requirements the same string for both;
     // the heading must not read as a code when a name adds nothing.
+    /* "Early termination restriction", not "Early term restriction": this used
+       to spell the code itself while the findings card expanded TERM through
+       CODE_WORDS, so the reverse link and the card it points at named one
+       requirement two ways — the exact thing this test is named for. */
     expect(requirementHeading({ code: "EARLY-TERM-RESTRICTION", name: "EARLY-TERM-RESTRICTION" }))
-      .toBe("Early term restriction");
+      .toBe("Early termination restriction");
     expect(requirementHeading({ code: null, name: null })).toBe("Requirement");
+    /* Not "Arbitration msa 001" — the sequence number and the document-type
+       token are addressing, not the requirement's words. This spelled a code
+       two ways: the card heading parsed it and this did not, and the difference
+       reached a reader through the Ask prefill, which asked "Does this document
+       say anything about Arbitration msa 001?". The second assertion is the
+       promise this function's own doc comment makes. */
+    expect(requirementHeading({ code: "ARBITRATION-MSA-001", name: "ARBITRATION-MSA-001" }))
+      .toBe("Arbitration");
+    expect(requirementHeading({ code: "ARBITRATION-MSA-001", name: "ARBITRATION-MSA-001" }))
+      .toBe(requirementTitle({ code: "ARBITRATION-MSA-001", name: "ARBITRATION-MSA-001" }));
   });
 });
 

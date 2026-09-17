@@ -2046,29 +2046,6 @@
   background: transparent;
 }
 
-.ws-doctable__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ws-s3);
-  flex-wrap: wrap;
-  padding: 11px var(--ws-s4);
-  border-top: 1px solid var(--ws-ink-100);
-  background: var(--ws-paper);
-  color: var(--ws-ink-500);
-  font-size: 11px;
-}
-
-.ws-doctable__foot a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--ws-accent);
-  text-decoration: none;
-}
-
-.ws-doctable__foot a:hover { text-decoration: underline; }
-
 /* --- Empty state inside the card ---------------------------------------- */
 .ws-docempty {
   display: flex;
@@ -2130,8 +2107,6 @@
      plate beside a 1.5rem number in a 160px column is too tight. */
   .ws-docs--index .ws-doctile { min-height: 74px; padding: var(--ws-s3); }
   .ws-docs--index .ws-doctile__n { font-size: 1.3rem; }
-
-  .ws-doctable__foot { justify-content: flex-start; }
 }
 
 @media (max-width: 420px) {
@@ -2538,8 +2513,6 @@
 
 /* Summary's call to action — the count and the way through, in place of a
    second rendering of the findings list (2026-09-04). */
-.ws-analysis__act { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.6; }
-.ws-analysis__act .ws-viewall { margin-left: 2px; }
 
 /* The shortcut affordance (2026-09-04) — bottom-left, opposite the Ask dock so
    the two never collide, and quiet enough that a mouse user never notices it. */
@@ -3146,7 +3119,6 @@
    contrast correction is untouched, this is size only. */
 .ws-status-pill { font-size: 11px; }
 .ws-docs--index .ws-doctile__label { font-size: var(--ws-text-xs); }
-.ws-doctable__foot { font-size: var(--ws-text-xs); }
 
 /* --- 7. A failed refresh is not a failed page -------------------------- */
 /* The error box said "Documents could not be loaded" directly above
@@ -3335,6 +3307,18 @@
   font-size: var(--ws-text-sm);
 }
 .ws-determined > summary:hover { color: var(--ws-accent-strong); }
+/* The machine's own words, one more click in (2026-09-16). Deliberately quieter
+   than the disclosure above it — a legal reader should be able to see that the
+   line exists and read past it, which is the opposite of the accent-coloured
+   invitation `.ws-determined > summary` extends. */
+.ws-determined__more { margin-top: var(--ws-s3); }
+.ws-determined__more > summary {
+  cursor: pointer;
+  color: var(--ws-ink-500);
+  padding: 4px 0;
+  font-size: var(--ws-text-xs);
+}
+.ws-determined__more > summary:hover { color: var(--ws-ink-900); }
 .ws-determined__steps {
   list-style: none;
   margin: var(--ws-s2) 0;
@@ -3485,8 +3469,15 @@
    side card is once again the ~380px rail, exactly the width that caused the
    comparison to cramp into "24 / months" in the third pass, so it stacks
    there instead — see the rail block below, restored from the third pass. */
+/* Scoped to doc-CLOSED (sixth pass): `@media (min-width: 900px)` measures the
+   VIEWPORT, but the width that matters is the side card's — open, that card is
+   the ~340-380px rail, and a 150px column floor times three overflowed it, so
+   "Next step" sat off-screen behind a nested horizontal scrollbar nobody finds.
+   Open, the `@container (max-width: 640px)` rule below now governs and stacks
+   them; it could not before, because `.ws-workspace--wide .ws-facts--compare`
+   (0,2,0) outranks a bare `.ws-facts--compare` (0,1,0) whatever the order. */
 @media (min-width: 900px) {
-  .ws-workspace--wide .ws-facts--compare {
+  .ws-workspace--wide[data-doc-open="false"] .ws-facts--compare {
     grid-template-columns: none; grid-auto-flow: column; grid-template-rows: auto auto;
     grid-auto-columns: minmax(150px, 1fr); align-items: start; column-gap: var(--ws-s5);
   }
