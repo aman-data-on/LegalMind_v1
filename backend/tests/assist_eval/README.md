@@ -65,6 +65,22 @@ wrongly-answered rate. Faithfulness and citation precision are recorded as
 `not_yet_measurable` — they need generated answers, `AM-31` is CLOSED, and m4 forbids a
 synthetic substitute.
 
+**The baseline is ONE measured run, and some of its numbers are not deterministic.**
+The evidence rescue is a model call, so whether it reopens a given shut gate varies
+between runs, and every ratio computed over `retained` moves with it. Measured across
+four consecutive runs of the identical build on 2026-09-17 (reranker on):
+
+    hit@1        0.734 · 0.734 · 0.734 · 0.719      retained        61 · 61 · 61 · 60
+    MRR          0.796 · 0.796 · 0.789 · 0.778      false refusals   3 ·  3 ·  3 ·  4
+    gold@3       0.844 · 0.844 · 0.828 · 0.828      recall@10    0.906 · 0.906 · 0.891 · 0.891
+
+The recorded bar is the fourth of those — the least favourable draw, which makes the
+WARN-only lines harder to trip on noise and is the conservative direction for them. What
+did NOT vary across any of the four is everything the gate BLOCKS on: wrongly-answered
+1/13, user-visible wrongly-answered 0/13, faithfulness 1.0, citation precision 1.0. Read
+a sub-0.02 movement in recall, MRR or gold@3 as noise unless it repeats; read any
+movement in the blocking four as real.
+
 Re-baselining is `--write-baseline`: a deliberate act whose diff is reviewed like any
 other. The tool refuses to compare across a changed dataset (the sha256 is part of the
 baseline), so editing questions and re-recording the bar land in the same reviewable
