@@ -42,6 +42,7 @@ from legalmind.assist import (
     guardrails,
     intent,
     positions,
+    rerank,
     rescue,
     routing,
     statutes,
@@ -650,6 +651,74 @@ def _latest_review_summary(db: DBSession,
             "findings_by_classification": {k: int(v) for k, v in counts.items()}}
 
 
+def retrieve_document(db: DBSession, *, document_version_id: UUID,
+                      retrieval_query: str,
+                      pinned_evidence: list[UUID] | tuple[UUID, ...] = (),
+                      request_id: str | None = None,
+                      ) -> tuple[store.RetrievalOutcome, bool]:
+    """THE composition of retrieve → pin → reconsider → reorder for a document question.
+
+    One function, called by `_ask` and by the Tier-2 gate, because a gate that
+    re-implements a pipeline step measures the mirror rather than the product — the
+    2026-09-16 lesson, when the gate printed 0.625 for a pipeline that had shipped the
+    rescue and answered 0.828.
+
+    Order, and it matters:
+
+      1. hybrid search, the gate deciding on its calibrated inputs (`store.search_hybrid`)
+      2. a Finding's cited rows pinned in, opening the gate because the evaluator already
+         recorded them against this version
+      3. the rescue judge reconsidering a SHUT gate (`assist/rescue.py`)
+      4. the cross-encoder REORDERING what was admitted (`assist/rerank.py`)
+
+    Step 4 is last on purpose: the gate and the rescue each see exactly the input they
+    were calibrated and measured on, and the reranker changes the ORDER of the evidence
+    and nothing else — not the membership, not the decision to answer.
+
+    Returns the outcome and whether the rescue reopened the gate.
+    """
+    with _stage("retrieval"):
+        retrieval = store.search_hybrid(
+            db, document_version_id=document_version_id, query=retrieval_query,
+            embed_query=embedding_runtime.embed_query)
+    if pinned_evidence:
+        # A question about a Finding can always see the clause that Finding cites.
+        # These rows are ADDED to whatever search found, never substituted for it,
+        # and the gate is opened because the evidence is not in doubt — the
+        # evaluator already recorded it against this document version.
+        pinned = store.chunks_for_evidence(
+            db, document_version_id=document_version_id,
+            evidence_ids=list(pinned_evidence), limit=FINDING_CITED_LIMIT)
+        if pinned:
+            seen = {h.chunk_id for h in pinned}
+            retrieval = dataclasses.replace(
+                retrieval, gate_open=True,
+                hits=[*pinned, *[h for h in retrieval.hits if h.chunk_id not in seen]])
+
+    # EVIDENCE RESCUE — a second look at a refusal, never at an answer.
+    #
+    # Measured 2026-09-16: the calibrated gate refuses 21 of 64 answerable questions
+    # and 15 of those already hold the gold chunk. Threshold sweeps, a second
+    # similarity feature and an alternative embedding model were all measured and none
+    # separates those 15 from the 13 genuinely unanswerable ones — see
+    # `assist/rescue.py`. The only signal left is reading the chunk.
+    #
+    # This can only widen an ANSWER ATTEMPT, never narrow one: it runs solely when the
+    # gate is shut, and the rescued evidence then faces every screen unchanged —
+    # sufficiency, citation verification, the grounding floor and the verdict screen.
+    # `AM-25` r5 is untouched: the judge decides whether to TRY, the mechanical checks
+    # still decide what a reader sees.
+    with _stage("rescue"):
+        rescued = rescue.reconsider(retrieval, retrieval_query, request_id=request_id)
+
+    # REORDER the admitted evidence, best first — never its membership, never the gate.
+    with _stage("rerank"):
+        ordered = rerank.reorder(retrieval_query, rescued.hits, request_id=request_id)
+    if ordered is not rescued.hits:
+        rescued = dataclasses.replace(rescued, hits=ordered)
+    return rescued, rescued.gate_open and not retrieval.gate_open
+
+
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
         question: str, permissions: frozenset[str] = frozenset(),
         request_id: str | None = None,
@@ -822,43 +891,12 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                      prior_questions=prior_texts,
                                      follow_up_of=follow_up_of)
 
-    with _stage("retrieval"):
-        retrieval = store.search_hybrid(
-            db, document_version_id=document_version_id, query=resolved,
-            embed_query=embedding_runtime.embed_query)
-    if cited_evidence:
-        # A question about a Finding can always see the clause that Finding cites.
-        # These rows are ADDED to whatever search found, never substituted for it,
-        # and the gate is opened because the evidence is not in doubt — the
-        # evaluator already recorded it against this document version.
-        pinned = store.chunks_for_evidence(
-            db, document_version_id=document_version_id,
-            evidence_ids=cited_evidence, limit=FINDING_CITED_LIMIT)
-        if pinned:
-            seen = {h.chunk_id for h in pinned}
-            retrieval = dataclasses.replace(
-                retrieval, gate_open=True,
-                hits=[*pinned, *[h for h in retrieval.hits if h.chunk_id not in seen]])
-
-    # EVIDENCE RESCUE — a second look at a refusal, never at an answer.
-    #
-    # Measured 2026-09-16: the calibrated gate refuses 21 of 64 answerable questions
-    # and 15 of those already hold the gold chunk. Threshold sweeps, a second
-    # similarity feature and an alternative embedding model were all measured and none
-    # separates those 15 from the 13 genuinely unanswerable ones — see
-    # `assist/rescue.py`. The only signal left is reading the chunk.
-    #
-    # This can only widen an ANSWER ATTEMPT, never narrow one: it runs solely when the
-    # gate is shut, and the rescued evidence then faces every screen unchanged —
-    # sufficiency, citation verification, the grounding floor and the verdict screen.
-    # `AM-25` r5 is untouched: the judge decides whether to TRY, the mechanical checks
-    # still decide what a reader sees. Off by default.
-    with _stage("rescue"):
-        rescued = rescue.reconsider(retrieval, resolved, request_id=request_id)
-    if rescued is not retrieval:
-        retrieval = rescued
+    retrieval, was_rescued = retrieve_document(
+        db, document_version_id=document_version_id, retrieval_query=resolved,
+        pinned_evidence=cited_evidence, request_id=request_id)
+    if was_rescued:
         log_event("assist.ask.rescued", request_id=request_id,
-                  conversation_id=str(conversation_id), chunks=str(len(rescued.hits)))
+                  conversation_id=str(conversation_id), chunks=str(len(retrieval.hits)))
 
     # Persisted AFTER the reconsideration, so `retrieval_runs` records the retrieval
     # the answer was actually built on. Written before it, a rescued turn left an
