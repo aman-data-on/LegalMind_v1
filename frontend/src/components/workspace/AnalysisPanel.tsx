@@ -87,9 +87,20 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
         <b>Deviation or missing → Requires modification</b>
         <span>The clause differs from the approved position, or a required clause is absent — a specific change would resolve it.</span>
       </div>
+      {/* "…or the company has no approved position yet" used to end this line,
+          and it named a case this word does not carry. A reader who opened a
+          finding's details, saw "Rule outcome: No rule covers this" and then
+          read this card concluded the badge above it was wrong (UX review,
+          2026-09-17). It is not wrong: the word follows the CLASSIFICATION alone
+          (`AM-56`, owner 2026-09-09), so a missing required clause reads
+          "Requires modification" — exactly what the card above this one already
+          describes — while whether a person must rule on it travels separately,
+          in the finding's own state and the pending-decision count. This line
+          now names what actually reaches this word: unreadable, conflicting, or
+          a position the Constitution itself calls unacceptable (`AM-63`). */}
       <div className="ws-explain__card ws-explain__card--bad">
-        <b>Unclear, not negotiable, or no position → Needs a decision</b>
-        <span>The wording is unclear or conflicting, the Constitution names the position unacceptable, or the company has no approved position yet. Never a rejection — a person decides.</span>
+        <b>Unclear, conflicting, or not negotiable → Needs a decision</b>
+        <span>The wording is unclear, two provisions conflict, the value could not be read, or the Constitution names the position unacceptable. Never a rejection — a person decides.</span>
       </div>
     </div>
   );
