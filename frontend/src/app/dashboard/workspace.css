@@ -1261,9 +1261,29 @@
 /* Key obligations — a single-open accordion (2026-09-08). Columns made the
    section as tall as its longest party and left the rest of the row empty. */
 /* Three cards side by side (owner's reference, 2026-09-09); the open one grows,
-   the others stay a header with a count. Single column below 900px. */
-.ws-obligations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s3); align-items: start; }
-@media (max-width: 900px) { .ws-obligations { grid-template-columns: 1fr; } }
+   the others stay a header with a count.
+
+   THE COLUMN COUNT FOLLOWS THIS SECTION'S OWN WIDTH, NOT THE VIEWPORT
+   (2026-09-17). It was `repeat(3, minmax(0, 1fr))` with a `max-width: 900px`
+   media query beneath it — but the Summary sits in the ~380px side rail beside
+   an open document, and that rail is not the viewport. On a laptop the media
+   query never fired, so three equal tracks divided the rail into ~118px each
+   and the single group most documents have took a third of it: every obligation
+   wrapped to one word per line, ten to fifteen lines a sentence. `auto-fit`
+   with a real floor keeps the same three across wherever three genuinely fit
+   (the document-hidden state, ~1200px of panel) and gives one column in the
+   rail.
+
+   The open group spans the whole row, which is what "the open one grows" was
+   always meant to mean: a group whose sentences are showing needs the width,
+   while the collapsed ones beside it are a name and a count. */
+.ws-obligations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--ws-s3);
+  align-items: start;
+}
+.ws-obligations__group[data-open="true"] { grid-column: 1 / -1; }
 /* Rows under a hairline, not cards (2026-09-10) — the fourth nested frame. */
 .ws-obligations__group {
   min-width: 0;
