@@ -20,6 +20,38 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-09-17
+
+### Reached production
+
+| Merged | What | Deployed |
+|---|---|---|
+| #63 | The 2026-09-16 UX review: nine items | ✅ `97d440d` — deployed 11:14 by another session, not this one |
+
+### In flight, and who holds it
+
+**The cross-encoder reranker** is being merged, deployed and enabled by the session that built it,
+on the owner's direct instruction to that session — **not by this one**. Recorded because the log
+should say whose hands: if something is wrong with it tomorrow, it should be findable that they
+were not mine. `LEGALMIND_RERANK` is enabled as its own env edit and its own restart, after the
+deploy is verified, so a misbehaviour afterwards attributes to one change rather than two.
+
+Measured twice, identical: hit@1 0.609 → 0.734, MRR 0.709 → 0.796, gold@3 0.797 → 0.844, recall
+0.891 → 0.906, at +205 ms p50. **Wrongly-answered 1/13, user-visible wrong 0/13, false refusals 3,
+faithfulness and citation precision 1.0 — all unchanged.** It reorders and does not change which
+evidence reaches the model: retrieval truncates to `RETRIEVAL_TOP_K = 10` inside `search_hybrid`
+before the reranker is reached, and nothing downstream drops a tail — verified in the live code
+from this session rather than taken on report.
+
+⚠️ `RERANK_CANDIDATES = 30` is the OFFLINE bakeoff's pool, not production's. Measured: 1 of 77
+questions had the gate open with gold at rank 11–30, against 20 with gold present and the gate
+shut. The deeper pool was tested and rejected on evidence.
+
+**`LEGALMIND_POSITION_SYNTHESIS` (AM-67) is untouched and unrelated**, still waiting on the owner.
+The two flags must not share a restart.
+
+---
+
 ## 2026-09-16
 
 ### Reached production
@@ -34,9 +66,30 @@ credential, a permission — including the things that leave no commit behind.
 | #62 | Client Profiles empty state: vertical rhythm and position | ✅ `4485174` |
 | #64 | The quality gate was measuring a pipeline nobody ships | ✅ `c16cdaf` |
 | #65 | A factual question was being answered with "run a Review" — comparison-intent routing | ✅ `be8d97c` |
+| #66 | This file, plus the deploy rules in CLAUDE.md and a stale README claim | ✅ `b390bf7` |
+| #67 | Add Client form redesign — **Tasniya's, and she did not choose the moment**; it had been merged since 13:48 and went out with the backend deploy below | ✅ `663971f` |
+| #68 | Ask Phase 0 — citation numbers in the prose now match the citation list; per-stage timings; `AM-67` answers record their prompt version | ✅ `663971f` |
 
 No migration was required by any of them. Services restarted clean each time — `NRestarts=0` on
 `legalmind-api`, `legalmind-worker` and `legalmind-frontend`.
+
+### Measured for the first time
+
+Phase 0's instrumentation reported on its first live request after the restart:
+
+```
+assist.ask.timings   total 4783ms   rescue 4372ms   retrieval 8ms   positions 394ms
+```
+
+**The evidence-rescue step is 91% of that ask's latency**, and `assist.ask.rescued` remains **zero
+in the entire journal** — the only rescue-judge call on record is a probe. So the feature costs one
+extra provider call on roughly a third of questions, is the dominant cost of a request, and has not
+yet changed a single answer a user saw.
+
+Recorded as a **trade, not a verdict.** The ratified-set benchmark has it lifting recall 0.625 →
+0.828 with wrongly-answered unchanged, and single-digit live traffic proves nothing against that.
+The measurement that would settle it is what the rescue adds **on top of** a reranker once one
+exists, not what it adds alone.
 
 ### Production data
 
@@ -108,9 +161,34 @@ tree silently re-opens root.**
 - ~~PR #65 held on its branch~~ — **merged and deployed on the owner's go**, CI 27 pass / 0 fail.
   It was held deliberately until then: on this repository a merge now schedules a deploy, because
   the deploy command ships `origin/main`.
-- **CI job 10 (Playwright) failed 2 of 4 runs**, each time the API process dying mid-run with
-  `ECONNRESET` during document processing, no traceback. A re-run of identical code passed. A
-  required check that fails half the time is one people learn to ignore.
+- **CI job 10 (Playwright) failed three times today**, each time the API process dying mid-run
+  with `ECONNRESET` during document processing, no traceback, after 77–104 tests had already
+  passed. A re-run of identical code passed every time.
+
+  ⚠️ **The failure erases itself.** Re-running a job overwrites its conclusion, so job 10 now
+  reports **18 success / 0 failures** across today's runs — including all three failures diagnosed
+  by hand. That is why this has survived as "the known flake" rather than being fixed: no evidence
+  accumulates, and each person who hits it sees a one-off. A process that dies leaving nothing in
+  its own log is being killed from outside, most likely memory — not "Playwright is flaky".
+
+- **`LEGALMIND_POSITION_SYNTHESIS` is NOT enabled.** `AM-67`'s r7 prerequisite was verified against
+  the live corpus — **0 environment paths and 0 counterparty names** across all 40 position chunks,
+  checked as two separate numbers because r7 names two kinds of locator. The flag is absent from
+  `/root/.legalmind.env` and `config.py` defaults it to off, so this is a real state change
+  awaiting the owner's word, not a formality.
+
+- **The grounding floor is an undecided gap, not a defect.** `guardrails.verify_answer` grounds a
+  sentence against the UNION of the content words of every chunk it cites, with a fixed
+  `_GROUNDING_OVERLAP = 0.5`. A sentence can therefore pass while **no single cited clause supports
+  it** — one measured case scores 0.42 against its own clause and passes only through the union —
+  and the test weakens as the citation count rises, which the model itself chooses. Nothing in
+  `docs/` or `all_lock.md` records this as a decision. Three candidate rules and the trade each
+  makes are in ASK_AI_PROGRAMME.md; the choice is the owner's because it governs what Ask may
+  assert.
+
+- **Phase 1 (the query planner) is measured and does not earn its keep** — p50 4.7s → 10.6s,
+  hit@1 flat, gold chunks reaching generation DOWN 0.407 → 0.358. PR #69 is presented to the owner
+  as a choice: merge it disabled, or merge the measurement and park the feature.
 
 ### Worth knowing
 
