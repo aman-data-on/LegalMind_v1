@@ -22,8 +22,10 @@ with the shipped state of every stage beside it.
 - `docs/00-project/ASK_TARGET_ARCHITECTURE.md` **§0** — the stage map, plus a per-stage
   table naming the module that implements it and its state: stages 1, 3, 5, 7–10
   SHIPPED; stages 2 and 4 built and shipping OFF (PR #69, unmerged — accurate plans,
-  +2.4–8 s, no recall gain, evidence precision down); stage 6 (cross-encoder reranker)
-  never built, already authorized by `AM-25`/`AM-26`.
+  +2.4–8 s, no recall gain, evidence precision down). **Corrected below, same day:**
+  stage 6 (cross-encoder reranker) was believed unbuilt when this was written and
+  merged (PR #74, `LEGALMIND_RERANK` off by default) a few hours later — see the
+  entry above.
 - `CLAUDE.md` — a "Start here" row and a Current-state section carrying the ten stages
   and the three invariants no stage may weaken: stages 3 and 7 are code not prompts;
   Gemini never decides, routes, opens the gate or is cited; stage 9 fails closed, which
@@ -35,6 +37,65 @@ with the shipped state of every stage beside it.
 Coordination note for other sessions: this change is documentation only — no file under
 `backend/legalmind/assist/` was touched, and PR #69's planner decision is still the
 owner's.
+### Added — Ask Phase 2: a local cross-encoder reorders the evidence (2026-09-17)
+
+`AM-25`'s permitted list already named "hybrid retrieval with reranking" and `AM-26`'s
+stack table already named a "Reranking model | local, self-hosted, open-weight,
+cross-encoder" — so this needed **no amendment**, only `AM-26` r2 (smallest candidate
+upward, stop at the first that passes), r3 (real supplied material including the
+unanswerable questions) and r4/r5 (pinned, checksummed, never fetched at runtime). All
+satisfied by the existing `tools/provision_model.py` and a new `OnnxCrossEncoderBackend`
+beside the embedding one.
+
+**Selection, by measurement** (offline bakeoff, `tools/benchmark_rerank.py`, 30-candidate
+pool over the ratified 77):
+
+| candidate | recall@10 | MRR | gold@3 | hit@1 | verdict |
+|---|---|---|---|---|---|
+| none | 0.641 | 0.480 | 0.562 | 0.391 | — |
+| `ms-marco-TinyBERT-L-2-v2` (18 MB) | 0.609 ↓ | 0.480 | 0.547 ↓ | 0.406 | **fails** — worse than no reranker |
+| **`ms-marco-MiniLM-L-6-v2`** (91 MB) | 0.641 | **0.553** | **0.594** | **0.500** | **passes → selected** |
+| `ms-marco-MiniLM-L-12-v2` (134 MB) | 0.641 | 0.542 | 0.578 | 0.484 | not better, 2× latency |
+
+Pinned at commit `233902d25c440f23af6f7d6e94d2946bac0bee0a`, SHA-256 recorded, CPU-only
+execution provider (the pinned provider is a security control — `AM-30` t1 permits one
+egress and an inference session must not acquire a second).
+
+**Pipeline, full Tier-2 gate, two passes, rerank off → on:**
+
+```
+wrongly answered   1/13 -> 1/13      user-visible wrong  0/13 -> 0/13
+false refusals        3 -> 3         faithfulness / citation precision  1.0 -> 1.0
+recall@10         0.891 -> 0.906     hit@1   0.609 -> 0.734
+MRR               0.709 -> 0.796     gold@3  0.797 -> 0.844
+rescue usage p95   1501 -> 1482 ms   gemini calls/q  1.23 -> 1.22
+rerank stage          — -> 116/443 ms   total p50  1738 -> 1943 ms
+```
+
+Identical to three decimals across both passes — the reranker is local and
+deterministic, so unlike the query planner its gain carries no provider noise. Today's
+five rerank-off runs put hit@1 in a 0.594–0.625 band; 0.734 is far outside it.
+
+**It REORDERS and decides nothing.** The calibrated gate keeps its inputs and its
+decision, evidence membership is unchanged, citation verification is untouched, and the
+score never reaches a reader. That boundary is not caution — it is what the measurement
+requires: a rerank floor **cannot** reopen a shut gate, because the top score on the 20
+answerable questions the gate wrongly refuses (median −3.12) overlaps the 13 with no
+answer (median −2.30, i.e. *higher*) almost entirely. The fourth independent feature to
+fail that separation, after the 35-point threshold sweep, the IDF-weighted overlap and
+the embedding-model swap. Gate recovery stays the rescue judge's problem and is not
+touched here.
+
+Also lands: `service.retrieve_document` — retrieve → pin → reconsider → reorder as ONE
+function that `service.ask` and the Tier-2 gate both call, so a step added to the product
+cannot go missing from the measurement; and three targeting measures in the gate (MRR,
+gold-in-top-3, evidence precision) computed from the dataset's existing anchors.
+
+Ships **OFF** (`LEGALMIND_RERANK`); enablement is a separate operator step with its own
+restart and its own production check. Backend suite 2058 passed, 0 failed; ruff and mypy
+clean. No schema change, no migration, no locked decision touched. **The Phase 1 query
+planner is not in this change** — parked on its branch by owner decision.
+
 
 ### Fixed — Ask Phase 0: what the reader sees matches what was verified (2026-09-17)
 
