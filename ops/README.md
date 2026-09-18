@@ -69,6 +69,17 @@ pass.
 
 ---
 
+## After a deploy that changes Domain A chunking
+
+`ops/deploy.sh` does not rebuild the position index. When `positions.CHUNKING_ALGORITHM_VERSION`
+changes (last: `positions-verbatim-2`, 2026-09-18 — provenance text removed from the searchable
+chunk), run once on the deployed tree:
+
+    cd /root/Legalmind.v1/backend && python3 -m tools.chunk_standards
+
+It is idempotent, re-chunks every ratified standard from its file and re-embeds (`embed_positions`
+is called inside). Until it runs, the live index still matches on the old boilerplate.
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql
