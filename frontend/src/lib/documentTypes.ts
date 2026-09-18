@@ -17,7 +17,7 @@ export const DOCUMENT_TYPES: ReadonlyArray<{ code: string; label: string }> = [
   { code: "DPA", label: "Data Processing Agreement" },
   { code: "AUP", label: "Acceptable Use Policy" },
   { code: "PRIVACY_POLICY", label: "Privacy Policy" },
-  { code: "ORDER_FORM", label: "Order Form / Purchase Order" },
+  { code: "ORDER_FORM", label: "Order Form" },
   { code: "AMENDMENT", label: "Amendment / Addendum" },
   // Legal Constitution L1.10 §31's own document types, added by `AM-72` (AB-24,
   // owner 2026-09-18, resolving C-23). Order must match the backend tuple exactly.
