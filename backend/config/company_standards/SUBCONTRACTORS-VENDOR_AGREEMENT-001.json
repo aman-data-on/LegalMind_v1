@@ -38,10 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "remain responsible"
+    ],
     "keyword_groups": [
       [
+        "vendor",
+        "disclose",
         "subcontractors"
+      ],
+      [
+        "remain",
+        "responsible",
+        "subcontractor"
       ]
     ],
     "negative_patterns": [],

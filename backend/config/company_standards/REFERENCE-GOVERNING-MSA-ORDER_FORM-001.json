@@ -38,8 +38,15 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "explicitly reference"
+    ],
     "keyword_groups": [
+      [
+        "every",
+        "explicitly",
+        "reference"
+      ],
       [
         "reference",
         "governing",

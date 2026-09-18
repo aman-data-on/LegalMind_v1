@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "payment terms"
+    ],
     "keyword_groups": [
       [
-        "payment",
-        "terms"
+        "reference",
+        "governing",
+        "payment"
+      ],
+      [
+        "terms",
+        "restated",
+        "independently"
       ]
     ],
     "negative_patterns": [],

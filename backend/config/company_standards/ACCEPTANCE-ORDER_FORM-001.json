@@ -38,10 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "becomes binding upon"
+    ],
     "keyword_groups": [
       [
-        "acceptance"
+        "becomes",
+        "binding",
+        "upon"
+      ],
+      [
+        "written",
+        "acceptance",
+        "receiving"
       ]
     ],
     "negative_patterns": [],

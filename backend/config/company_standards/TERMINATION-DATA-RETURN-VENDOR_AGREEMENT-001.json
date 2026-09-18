@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "export window before"
+    ],
     "keyword_groups": [
       [
         "termination",
-        "data",
-        "return"
+        "rights",
+        "cause"
+      ],
+      [
+        "convenience",
+        "defined",
+        "vendor"
       ]
     ],
     "negative_patterns": [],

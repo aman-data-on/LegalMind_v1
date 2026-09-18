@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "market territory covered"
+    ],
     "keyword_groups": [
       [
-        "distributor",
-        "appointment",
-        "territory"
+        "specify",
+        "whether",
+        "appointment"
+      ],
+      [
+        "exclusive",
+        "non-exclusive",
+        "define"
       ]
     ],
     "negative_patterns": [],

@@ -19541,3 +19541,50 @@ positions and no other type's, and a type the Constitution states nothing for
 still refuses and names what is covered.
 
 --------------------------------------------------------------------------------
+
+APPENDED RECORD — `AM-73` r8 (2026-09-18)
+Ratified terminology must reproduce its own position
+================================================================================
+
+Appended to the `AM-73` record after implementation, because the verification it
+ran into is a property of the ratification and not an implementation detail.
+
+r8. **A ratified standard must find the very clause it cites.** `AM-73` ratified
+    43 positions; the first generated pass derived their mapping terminology from
+    each position's HEADING, which scores 3 against the locked 35.8 confirm
+    threshold of 5. All 34 generated standards therefore failed
+    `tools.verify_terminology`: they could not find their own Constitution
+    section. **A standard that cannot find its own source clause can never
+    produce a Finding**, so it would have been ratified, published, retrievable
+    in Ask — Domain A retrieves chunks by an entirely different mechanism and was
+    working — and silently incapable of evaluating anything. Caught by CI job 12,
+    which exists precisely because a test and the code it guards can share a
+    wrong assumption.
+
+    Three causes, each corrected at its root rather than by lowering a threshold:
+
+    (a) Terminology is derived from the position's own QUOTE, not its heading, so
+        a standard reproduces its cited section by construction.
+
+    (b) A configured phrase must be ADJACENT IN THE SOURCE. An alias rebuilt from
+        tokens gave "capped structured consistently" where the Constitution reads
+        "capped, structured consistently"; locked 35.5's boundary matching is
+        literal, so the phrase matched nothing, silently, and cost 3 points on
+        every position it touched.
+
+    (c) `verify_terminology` skipped every line beginning with `|`, so it could
+        not see a position stated in a TABLE. §31.11 and §31.12 state theirs
+        entirely as table rows, so those thirteen standards had no clause to
+        match however good their terminology was. One clause per row now — the
+        row IS the position. This was under-verification of the Constitution
+        generally, not only of the standards ratified here.
+
+    No threshold was changed and no standard was exempted. Result: 47 PASS, 0
+    FAIL across every ratified standard (32 SKIP are the document-sourced ones,
+    whose sources are gitignored under locked 54.6 and absent in CI).
+
+    This does not amend r7: reproducing the CITED SECTION is not calibration
+    against counterparty paper, which is still not claimed for any position
+    ratified by this record.
+
+--------------------------------------------------------------------------------

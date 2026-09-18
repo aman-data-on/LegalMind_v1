@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "amendment prevails only"
+    ],
     "keyword_groups": [
       [
-        "relationship",
-        "original",
-        "agreement"
+        "amendment",
+        "prevails",
+        "only"
+      ],
+      [
+        "specific",
+        "terms",
+        "amends"
       ]
     ],
     "negative_patterns": [],

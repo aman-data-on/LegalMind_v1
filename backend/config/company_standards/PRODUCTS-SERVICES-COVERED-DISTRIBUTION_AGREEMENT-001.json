@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "specific products"
+    ],
     "keyword_groups": [
       [
+        "specific",
         "products",
-        "services",
-        "covered"
+        "services"
+      ],
+      [
+        "distributor",
+        "authorized",
+        "distribute"
       ]
     ],
     "negative_patterns": [],

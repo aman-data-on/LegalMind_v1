@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "work product ownership"
+    ],
     "keyword_groups": [
       [
-        "intellectual",
-        "property"
+        "retains",
+        "ownership",
+        "pre-existing"
+      ],
+      [
+        "background",
+        "work",
+        "product"
       ]
     ],
     "negative_patterns": [],

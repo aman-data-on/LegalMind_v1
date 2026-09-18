@@ -85,7 +85,28 @@ def _constitution_clauses(section: str) -> list[Clause]:
     title = text[start.end():].split("\n", 1)[0].strip("* ")
     clauses = []
     for i, para in enumerate(p.strip() for p in body.split("\n\n")):
-        if not para or para.startswith("#") or para.startswith("|"):
+        if not para or para.startswith("#"):
+            continue
+        if para.startswith("|"):
+            # A POSITION STATED IN A TABLE IS STILL A POSITION. §31.11 and §31.12 state
+            # theirs entirely as `| Element | Standard Position | Status |` rows, and
+            # skipping every line starting with "|" meant this verifier could not see
+            # them at all — so the thirteen standards ratified from those sections by
+            # `AM-73` failed with "no clause produced any positive mapping signal"
+            # however good their terminology was. That is under-verification, not a bad
+            # standard. One clause per ROW is the right grain: the row IS the position.
+            # Separator and header rows state none and are skipped.
+            for j, line in enumerate(para.splitlines()):
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if len(cells) < 2 or all(set(c) <= {":", "-", ""} for c in cells):
+                    continue
+                if cells[0].lower() in ("element", "po element", "category", "tier"):
+                    continue
+                row = " — ".join(c for c in cells if c).replace("**", "").replace("*", "")
+                clauses.append(Clause(
+                    evidence_id=uuid.uuid5(_NS, f"constitution:{section}:{i}:{j}"),
+                    content=row, section_number=section, section_title=title,
+                    page_number=None))
             continue
         content = para.replace("**", "").replace("*", "").replace("“", '"').replace("”", '"')
         clauses.append(Clause(evidence_id=uuid.uuid5(_NS, f"constitution:{section}:{i}"),

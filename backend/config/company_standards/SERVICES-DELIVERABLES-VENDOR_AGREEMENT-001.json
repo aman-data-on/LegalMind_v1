@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "clearly define"
+    ],
     "keyword_groups": [
       [
-        "services",
-        "deliverables"
+        "clearly",
+        "define",
+        "services"
+      ],
+      [
+        "deliverables",
+        "vendor",
+        "provide"
       ]
     ],
     "negative_patterns": [],

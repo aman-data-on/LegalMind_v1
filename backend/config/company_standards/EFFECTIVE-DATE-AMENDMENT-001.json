@@ -38,10 +38,18 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "explicitly stated"
+    ],
     "keyword_groups": [
       [
-        "effective",
+        "explicitly",
+        "stated",
+        "differ"
+      ],
+      [
+        "amendment",
+        "signature",
         "date"
       ]
     ],

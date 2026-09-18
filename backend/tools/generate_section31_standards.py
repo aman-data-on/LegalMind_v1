@@ -31,9 +31,15 @@ WHAT THIS TOOL DOES NOT DECIDE.
   a deviation in any document". The owner's 2026-09-18 ruling carves it out explicitly.
   `_SKIP_SECTIONS` enforces it, and a test pins that no ratified standard carries it.
 
-The mapping/extraction terms ARE this tool's own work, derived from each position's own
-heading. They are an implementation detail and are uncalibrated against counterparty
-paper — every generated file says so (`AM-72` r6, 35.10, rule 21).
+The mapping terms ARE this tool's own work, derived from each position's own QUOTE (and
+its heading as a fallback). They are an implementation detail and are uncalibrated
+against counterparty paper — every generated file says so (`AM-72` r6, 35.10, rule 21).
+
+They are not arbitrary, though: `tools.verify_terminology` requires every standard to
+find the very clause it cites, so terminology that cannot reproduce its own Constitution
+section fails CI job 12. A first pass used heading words alone, scored 3 against the
+threshold of 5, and failed all 34 — a standard that cannot find its own source clause
+can never produce a Finding.
 
     python -m tools.generate_section31_standards            # write the files
     python -m tools.generate_section31_standards --check     # CI: fail if stale
@@ -119,6 +125,65 @@ def _slug(heading: str, *, words: int = 3) -> str:
     return "-".join(kept) or "POSITION"
 
 
+#: Words too common in legal prose to distinguish one position from another. "LegalMind
+#: Rule" is the worst of them: it prefixes EVERY §31.9/§31.10 sub-rule, so using it would
+#: map every standard to every clause in its section.
+_FILLER = frozenset({
+    "legalmind", "rule", "should", "shall", "must", "will", "would", "may", "party",
+    "parties", "agreement", "agreements", "company", "section", "constitution",
+    "this", "that", "where", "which", "there", "here", "such", "from", "into", "than",
+    "been", "being", "have", "has", "had", "are", "was", "were", "not", "any", "all",
+    "other", "otherwise", "unless", "under", "over", "also", "both", "each", "more",
+    "less", "own", "per", "position", "positions", "applied", "applicable",
+})
+
+
+def _content_words(text: str) -> list[str]:
+    """Distinctive lower-cased words of a position, in order, de-duplicated."""
+    stripped = re.sub(r"^LegalMind Rule[^:]*:\s*", "", text)
+    out: list[str] = []
+    seen: set[str] = set()
+    for word in (w.lower() for w in re.findall(r"[A-Za-z][A-Za-z-]{3,}", stripped)):
+        if word in _FILLER or word in _STOPWORDS or word in seen:
+            continue
+        seen.add(word)
+        out.append(word)
+    return out
+
+
+def _phrase(text: str) -> str:
+    """The first run of three distinctive words that are ADJACENT IN THE TEXT.
+
+    Adjacency is the whole point, and getting it wrong is silent.
+    `scoring.contains_phrase` matches the phrase as a literal on word boundaries, so a
+    phrase rebuilt from tokens scores zero the moment punctuation sat between them:
+    "liability should be capped, structured consistently" yielded the alias "capped
+    structured consistently", which appears nowhere, and nineteen standards scored 3
+    instead of 6. So the words must be separated by a single space in the source, and
+    the returned string is the source's own span.
+    """
+    stripped = re.sub(r"^LegalMind Rule[^:]*:\s*", "", text)
+    matches = list(re.finditer(r"[A-Za-z][A-Za-z-]*", stripped))
+    # Three adjacent words first, then two. A short position — "Must be signed by an
+    # authorized representative of each party" — has no three distinctive words in a
+    # row and only three in total, so it could reach neither a second keyword group nor
+    # a three-word alias. "authorized representative" is still a phrase from the text.
+    for width in (3, 2):
+        for i in range(len(matches) - width + 1):
+            run = matches[i:i + width]
+            # Adjacent means exactly one space between each pair — no comma, no bracket.
+            if any(stripped[run[k].end():run[k + 1].start()] != " "
+                   for k in range(width - 1)):
+                continue
+            if all(m.group().lower() not in _FILLER
+                   and m.group().lower() not in _STOPWORDS
+                   and len(m.group()) > 3 for m in run):
+                return stripped[run[0].start():run[-1].end()].lower()
+    return ""
+
+
+
+
 def _topic(heading: str, section: str, fallback_heading: str) -> str:
     lowered = heading.lower()
     for needle, topic in _TOPICS:
@@ -179,6 +244,7 @@ def _standard(*, section: str, document_type: str, heading: str, quote: str,
     code = f"{_slug(heading)}-{document_type}-001"
     terms = [t.lower() for t in re.split(r"[^A-Za-z0-9]+", heading)
              if t and t.lower() not in _STOPWORDS]
+    quote_terms = _content_words(quote)
     payload = {
         "_about": [
             "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10.",
@@ -222,10 +288,38 @@ def _standard(*, section: str, document_type: str, heading: str, quote: str,
             "evaluator": "PRESENCE",
             "_note": "presence is established by the mapping layer alone (45D)",
         },
+        # THE TERMS COME FROM THE POSITION'S OWN QUOTE, NOT ITS HEADING.
+        #
+        # A first pass used heading words alone and every generated standard scored 3
+        # against the very Constitution section it cites — below the confirm threshold
+        # of 5 — so `tools.verify_terminology` failed all 34: a standard that cannot
+        # find its own source clause can never produce a Finding. Caught by CI job 12,
+        # which exists for exactly this (an invariant re-checked by a different
+        # mechanism from the unit tests).
+        #
+        # One alias (3) plus one keyword group (3) clears the threshold at 6, and both
+        # are drawn from the quote, so each reproduces its own section by construction.
+        # `exact_phrases` stays EMPTY: a 5-point phrase is the mapper's strongest claim
+        # and is a calibration judgement made against real paper, not something to
+        # synthesise from a sentence.
         "mapping_rules": {
             "exact_phrases": [],
-            "aliases": [],
-            "keyword_groups": [terms[:3]] if terms else [],
+            "aliases": [phrase] if (phrase := _phrase(quote)) else [],
+            # TWO groups, not one, and that is what makes this reliable. An alias needs
+            # three DISTINCTIVE words adjacent in the source, which 17 of the 34
+            # positions simply do not contain — those were left on a single group worth
+            # 3, under the threshold of 5, and failed verification. Two groups score 6
+            # on their own, so a position reproduces whether or not it happens to
+            # contain a quotable phrase.
+            # Quote groups first, then the heading as a third candidate, capped at two.
+            # A short table position — "Each amendment should reference the version/date
+            # of the agreement it amends" — yields only five distinctive words and no
+            # adjacent pair, so neither a second quote group nor an alias. Its ROW text
+            # begins with the element name, so the heading group matches there. In the
+            # prose sections the heading sits in a `###` line outside the paragraph, so
+            # this group simply never fires and costs nothing.
+            "keyword_groups": [g for g in (quote_terms[:3], quote_terms[3:6],
+                                           terms[:3]) if len(g) == 3][:2],
             "negative_patterns": [],
             "section_heading_terms": terms[:3],
             "confirm_threshold": 5,

@@ -38,8 +38,15 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "restated independently"
+    ],
     "keyword_groups": [
+      [
+        "reference",
+        "governing",
+        "sections"
+      ],
       [
         "confidentiality",
         "data",

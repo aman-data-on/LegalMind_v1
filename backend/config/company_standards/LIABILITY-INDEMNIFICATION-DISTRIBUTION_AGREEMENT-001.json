@@ -38,11 +38,14 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "general liability"
+    ],
     "keyword_groups": [
       [
-        "liability",
-        "indemnification"
+        "follow",
+        "general",
+        "liability"
       ]
     ],
     "negative_patterns": [],

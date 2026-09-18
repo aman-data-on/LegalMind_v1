@@ -59,6 +59,54 @@ A is already live as `SERVICE-DISCONTINUATION-MSA-001`.
 nothing for — of Step 6's thirteen, DPA, AUP, PRIVACY_POLICY and OTHER — and still names
 what *is* covered.
 
+**CI job 12 caught a defect that would have shipped 34 unusable standards.** Every
+ratified standard must reproduce its own position from the source it cites
+(`tools.verify_terminology`). The first generated pass derived mapping terms from each
+position's *heading*, which scored 3 against a confirm threshold of 5 — so all 34 failed:
+**a standard that cannot find its own source clause can never produce a Finding.** It
+would have been invisible in Ask, which retrieves chunks by a different mechanism
+entirely and was working perfectly. Three real causes, each fixed at the root:
+
+* **Terms now come from the position's own quote**, not its heading, so a standard
+  reproduces its section by construction.
+* **A phrase must be genuinely adjacent in the source.** Rebuilding an alias from tokens
+  produced `"capped structured consistently"` where the Constitution reads
+  `"capped, structured consistently"` — a comma, and the phrase matched nothing. Silent,
+  and worth 3 points each time.
+* **`verify_terminology` could not see tables at all.** It skipped every line starting
+  with `|`, so §31.11 and §31.12 — whose positions are stated *entirely* as table rows —
+  had no clause to match however good their terminology was. One clause per row now; the
+  row is the position. This was under-verification of the Constitution generally, not
+  only of the new standards.
+
+Result: **47 PASS · 0 FAIL** across every ratified standard, up from 14 PASS · 33 FAIL.
+A test now runs the same check, so the narrow loop catches it before a push.
+
+**Coverage visibly increased on a real mixed agreement.** `test_mixed_agreement` asserted
+that a Purchase Order clause surfaces as *unmeasured*, because "§31.11 drafts wait for a
+PO". §31.11 is ratified now, so `CONTENTS-ORDER_FORM-001` measures that clause and it
+leaves the unmeasured list — the same transition §16's payment clause made when the owner
+ratified it on 2026-09-13, and the assertion is updated the same way. A clause leaving
+that list is coverage arriving. The test also now asserts the list is non-empty, so the
+two negative assertions cannot start passing vacuously.
+
+📣 **Coordination note for `feat/standards-structure`** (frontend Standards screen, in
+flight on another branch at the time of writing). That work includes "Publishing is a
+checkbox list, not 33 pasted codes". **The publishable set is 72 now, not 33** — 79 files
+less the seven retired — and `tools/publish_payload.py` refuses any other shape. Nothing
+in that branch conflicts with this one (it is frontend-only and touches no standard
+file), but any hard-coded 33, or a layout assuming roughly thirty rows, needs revisiting
+against 72.
+
+⚠️ **Unrelated, pre-existing, and not touched:** run with the owner's `legal-docs`
+present, six standards fail `verify_terminology` — `LIABILITY-MSA-001`,
+`LATE-FEE-TOS-001`, `CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`,
+`DATA-PURGE-MSA-001`, `CONF-SURVIVAL-NDA-001`. These are exactly the six `AM-43` r4
+reconciled to the Constitution, so their ratified position deliberately differs from the
+LeapSwitch paper they cite (C-18, resolved). CI never sees it because the sources are
+gitignored (54.6). The new test points the source directory away so it verifies against
+the Constitution, matching CI, rather than pinning an intentional divergence as a defect.
+
 ### Added — the Constitution's own document types now answer as themselves (`AM-72`, AB-24, 2026-09-18)
 
 The follow-on to the fail-open fixed earlier the same day. That fix stopped Ask

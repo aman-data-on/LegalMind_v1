@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "explicitly defined between"
+    ],
     "keyword_groups": [
       [
-        "support",
-        "responsibilities"
+        "support-tier",
+        "responsibilities",
+        "explicitly"
+      ],
+      [
+        "defined",
+        "between",
+        "tier"
       ]
     ],
     "negative_patterns": [],

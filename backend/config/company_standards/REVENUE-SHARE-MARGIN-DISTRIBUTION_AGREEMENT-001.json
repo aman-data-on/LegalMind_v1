@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "fixed margin"
+    ],
     "keyword_groups": [
       [
-        "revenue",
-        "share",
+        "tiered",
+        "fixed",
         "margin"
+      ],
+      [
+        "discount",
+        "structure",
+        "consistent"
       ]
     ],
     "negative_patterns": [],

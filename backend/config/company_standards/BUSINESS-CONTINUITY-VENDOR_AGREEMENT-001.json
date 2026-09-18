@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "disaster recovery commitments"
+    ],
     "keyword_groups": [
       [
-        "business",
-        "continuity"
+        "address",
+        "vendor",
+        "business"
+      ],
+      [
+        "continuity",
+        "disaster",
+        "recovery"
       ]
     ],
     "negative_patterns": [],

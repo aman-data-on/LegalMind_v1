@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "general payment terms"
+    ],
     "keyword_groups": [
       [
-        "payment",
-        "terms"
+        "follow",
+        "general",
+        "payment"
+      ],
+      [
+        "terms",
+        "distribution-specific",
+        "term"
       ]
     ],
     "negative_patterns": [],

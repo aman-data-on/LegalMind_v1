@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "legal review rather"
+    ],
     "keyword_groups": [
       [
         "governing",
-        "law",
-        "dispute"
+        "venue",
+        "follow"
+      ],
+      [
+        "current",
+        "vendor",
+        "willing"
       ]
     ],
     "negative_patterns": [],

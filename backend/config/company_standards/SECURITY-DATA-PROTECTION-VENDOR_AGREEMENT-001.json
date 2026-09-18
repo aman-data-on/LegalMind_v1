@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "provide security commitments"
+    ],
     "keyword_groups": [
       [
-        "security",
-        "data",
-        "protection"
+        "vendor",
+        "provide",
+        "security"
+      ],
+      [
+        "commitments",
+        "data-protection",
+        "flow-down"
       ]
     ],
     "negative_patterns": [],

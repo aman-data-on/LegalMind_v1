@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "defined notice period"
+    ],
     "keyword_groups": [
       [
         "pricing",
-        "payment"
+        "fixed",
+        "stated"
+      ],
+      [
+        "period",
+        "defined",
+        "notice"
       ]
     ],
     "negative_patterns": [],

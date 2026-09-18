@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "trademark license mechanics"
+    ],
     "keyword_groups": [
       [
-        "confidentiality",
-        "ip",
-        "trademarks"
+        "follow",
+        "general",
+        "confidentiality"
+      ],
+      [
+        "partner",
+        "trademark",
+        "license"
       ]
     ],
     "negative_patterns": [],

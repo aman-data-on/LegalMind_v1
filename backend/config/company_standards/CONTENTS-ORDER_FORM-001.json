@@ -38,10 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "service commencement dates"
+    ],
     "keyword_groups": [
       [
-        "contents"
+        "products",
+        "services",
+        "quantity"
+      ],
+      [
+        "price",
+        "taxes",
+        "delivery"
       ]
     ],
     "negative_patterns": [],

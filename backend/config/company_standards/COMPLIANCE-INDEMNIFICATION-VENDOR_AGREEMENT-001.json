@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "represent compliance"
+    ],
     "keyword_groups": [
       [
-        "compliance",
-        "indemnification"
+        "vendor",
+        "represent",
+        "compliance"
+      ],
+      [
+        "indemnification",
+        "mutual",
+        "covering"
       ]
     ],
     "negative_patterns": [],

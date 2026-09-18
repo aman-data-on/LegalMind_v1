@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "directly solicit"
+    ],
     "keyword_groups": [
       [
-        "non",
-        "circumvention"
+        "directly",
+        "solicit",
+        "customer"
+      ],
+      [
+        "introduced",
+        "distributor",
+        "manner"
       ]
     ],
     "negative_patterns": [],

@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "capped customer-transition period"
+    ],
     "keyword_groups": [
       [
-        "compliance",
-        "termination",
-        "post"
+        "follow",
+        "general",
+        "termination"
+      ],
+      [
+        "partner",
+        "termination-consequences",
+        "structure"
       ]
     ],
     "negative_patterns": [],

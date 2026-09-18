@@ -43,6 +43,45 @@ def test_the_standard_set_is_exactly_what_the_records_ratified_and_retired():
         "RETURN-DESTRUCTION-NDA-001", "LIAB-CARVEOUTS-MSA-001"}
 
 
+def tmp_source_dir():
+    """A directory holding no source PDFs, so `verify_terminology` falls back to the
+    Constitution for every standard — CI's situation, where the sources are gitignored
+    (locked 54.6). Not a fixture: it is one path, used once."""
+    import tempfile
+
+    return tempfile.mkdtemp(prefix="lm-no-sources-")
+
+
+def test_every_constitution_sourced_standard_finds_the_clause_it_cites():
+    """A standard that cannot find its own source clause can never produce a Finding.
+
+    The first `AM-73` pass derived mapping terms from each position's heading, scored 3
+    against locked 35.8's confirm threshold of 5, and failed all 34 generated standards
+    — while Ask answered perfectly, because Domain A retrieves chunks by an entirely
+    different mechanism. Only CI job 12 saw it. Running it here too means the narrow
+    test loop catches it before a push (`AM-73` r8).
+
+    Run with the source directory pointed AWAY, which is exactly CI's situation and is
+    what scopes this to the Constitution: `verify_terminology` reproduces a standard
+    from the PDF it cites when that PDF is present, and falls back to the Constitution
+    only when it is absent. With the owner's `legal-docs` present, six standards fail
+    here by design — `AM-43` r4 reconciled them to the Constitution, so their ratified
+    position is the Constitution's while the LeapSwitch paper they cite still says
+    something else. That divergence is C-18, resolved and intentional, and must not be
+    pinned here as a defect.
+    """
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "LEGALMIND_SOURCE_MATERIAL_DIR": str(tmp_source_dir())}
+    result = subprocess.run(
+        [sys.executable, "-m", "tools.verify_terminology"],
+        cwd=STANDARDS[0].parents[2], capture_output=True, text=True, env=env)
+    failures = [ln for ln in result.stdout.splitlines() if ln.startswith("FAIL")]
+    assert not failures, "\n".join(failures)
+
+
 def test_no_generated_standard_has_drifted_from_the_constitution():
     """The §31.9-§31.12 standards are emitted from the Constitution's own words. If a
     file and its section disagree, one of them was edited by hand — and for a generated

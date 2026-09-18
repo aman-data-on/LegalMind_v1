@@ -38,8 +38,15 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "authorized representative"
+    ],
     "keyword_groups": [
+      [
+        "signed",
+        "authorized",
+        "representative"
+      ],
       [
         "written",
         "approval",

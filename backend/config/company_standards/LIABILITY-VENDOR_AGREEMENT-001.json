@@ -38,10 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "structured consistently"
+    ],
     "keyword_groups": [
       [
-        "liability"
+        "liability",
+        "capped",
+        "structured"
+      ],
+      [
+        "consistently",
+        "general",
+        "vendor"
       ]
     ],
     "negative_patterns": [],

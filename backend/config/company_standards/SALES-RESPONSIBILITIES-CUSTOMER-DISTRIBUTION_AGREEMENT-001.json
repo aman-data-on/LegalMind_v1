@@ -38,12 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "expressly define responsibility"
+    ],
     "keyword_groups": [
       [
-        "sales",
-        "responsibilities",
-        "customer"
+        "distribution",
+        "expressly",
+        "define"
+      ],
+      [
+        "responsibility",
+        "end-customer",
+        "relationship"
       ]
     ],
     "negative_patterns": [],

@@ -41,6 +41,11 @@
     "aliases": [],
     "keyword_groups": [
       [
+        "amendment",
+        "reference",
+        "version"
+      ],
+      [
         "version",
         "control",
         "requirements"

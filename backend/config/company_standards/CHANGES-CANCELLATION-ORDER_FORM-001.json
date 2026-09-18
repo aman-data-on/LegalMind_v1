@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "general change"
+    ],
     "keyword_groups": [
       [
-        "changes",
-        "cancellation"
+        "follow",
+        "general",
+        "change"
+      ],
+      [
+        "amendment",
+        "structure",
+        "specifies"
       ]
     ],
     "negative_patterns": [],

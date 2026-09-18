@@ -38,10 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "written amendment"
+    ],
     "keyword_groups": [
       [
-        "required"
+        "change",
+        "terms",
+        "signed"
+      ],
+      [
+        "documented",
+        "written",
+        "amendment"
       ]
     ],
     "negative_patterns": [],

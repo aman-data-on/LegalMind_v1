@@ -38,11 +38,19 @@
   },
   "mapping_rules": {
     "exact_phrases": [],
-    "aliases": [],
+    "aliases": [
+      "vendor-provided service levels"
+    ],
     "keyword_groups": [
       [
+        "vendor-provided",
         "service",
         "levels"
+      ],
+      [
+        "explicitly",
+        "stated",
+        "defined"
       ]
     ],
     "negative_patterns": [],
