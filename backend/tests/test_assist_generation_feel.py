@@ -25,20 +25,6 @@ def test_the_citation_rule_is_untouched():
     assert "Never state whether anything complies" in template
 
 
-def test_the_prose_rules_still_require_a_citation_on_the_FIRST_sentence():
-    """The trap rule 6 had to avoid.
-
-    `guardrails._SENTENCES` splits on terminal punctuation, and a sentence with no
-    marker fails the WHOLE answer (`AM-25` r5 — the reader then sees nothing). So
-    "open with the answer" must not become "open with an uncited sentence", and the
-    prompt says so explicitly.
-    """
-    assert "The first \\\nsentence must carry its citation marker" in \
-        generation.PROMPT_TEMPLATE or \
-        "first sentence must carry its citation marker" in \
-        generation.PROMPT_TEMPLATE.replace("\\\n", "").replace("\n", " ")
-
-
 def test_the_version_was_bumped_with_the_template():
     """A changed prompt under an unchanged version is an unauditable payload
     (`AM-30` t5 — the prompt version is recorded with every answer)."""

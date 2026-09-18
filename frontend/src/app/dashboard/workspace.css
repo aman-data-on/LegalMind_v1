@@ -3839,6 +3839,26 @@
   overflow-x: auto;
 }
 .ws-cl__table table { width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm); }
+/* `fixed`, not the default `auto` (owner, 2026-09-18): the unlabelled Actions
+   column has no header text to size itself against, and under `auto` layout
+   a caller's browser was free to over-allocate it — the buttons stayed
+   right-aligned inside a column far wider than they needed, which read as a
+   stray gap between "Last updated" and the actions. Explicit percentages
+   below give every column a deliberate share instead.
+   Scoped to `--docs`: `.ws-cl__table` alone is shared with `ClientDirectory`'s
+   own, differently-shaped list — an unscoped rule here would have resized
+   that screen's columns too. */
+.ws-cl__table--docs table { table-layout: fixed; }
+.ws-cl__table--docs th:nth-child(1) { width: 22%; }  /* Document */
+.ws-cl__table--docs th:nth-child(2) { width: 9%; }   /* Type */
+.ws-cl__table--docs th:nth-child(3) { width: 13%; }  /* Agreement stage */
+.ws-cl__table--docs th:nth-child(4) { width: 16%; }  /* Review status */
+.ws-cl__table--docs th:nth-child(5) { width: 13%; }  /* Versions */
+.ws-cl__table--docs th:nth-child(6) { width: 10%; }  /* Last updated */
+.ws-cl__table--docs th:nth-child(7) { width: 17%; }  /* Actions */
+/* Fixed layout stops truncating the document name for free — it now wraps
+   instead of overflowing, which is the readable outcome at narrower widths. */
+.ws-cl__table--docs td:first-child { overflow-wrap: break-word; }
 .ws-cl__table th {
   text-align: left; font-size: var(--ws-text-xs); font-weight: 650;
   letter-spacing: 0.02em; color: var(--ws-ink-500);
@@ -4101,7 +4121,7 @@
 
 .ws-cl__vertoggle {
   appearance: none; background: none; border: 0; cursor: pointer; font: inherit;
-  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: nowrap;
   display: inline-flex; align-items: center; gap: 5px; padding: 2px 0;
 }
 .ws-cl__vertoggle:hover { color: var(--ws-accent); }
@@ -4120,7 +4140,7 @@
 .ws-cl__verlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .ws-cl__ver {
   display: grid; align-items: center; gap: var(--ws-s3);
-  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto auto;
   padding: 8px 10px; border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
 }
@@ -4134,7 +4154,18 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-cl__ver-when { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
-.ws-cl__ver-current { color: var(--ws-ink-700); font-weight: 600; }
+/* A badge, not inline text (owner, 2026-09-18) — "the current version" is a
+   fact worth seeing at a glance among several rows, the same reason the
+   declared role gets a pill rather than a plain word. Neutral, deliberately:
+   DD-18 §3 reserves colour on this row for the executed copy alone.
+   The wrapper always occupies its grid column, present or not, so a version
+   without the badge does not pull the columns after it out of alignment with
+   the rows that have one. */
+.ws-cl__ver-current { min-width: 0; }
+.ws-cl__ver-current .ws-chip {
+  font-size: var(--ws-text-xs); font-weight: 650; white-space: nowrap;
+  background: var(--ws-ink-100); color: var(--ws-ink-700); border-color: transparent;
+}
 .ws-cl__ver-acts { display: flex; align-items: center; gap: 6px; }
 .ws-cl__ver-error { grid-column: 1 / -1; margin: 4px 0 0; }
 .ws-cl__rolepick select {
@@ -4610,7 +4641,7 @@
   .ws-cl__head { align-items: flex-start; }
   .ws-cl__headline h1 { font-size: var(--ws-text-lg); }
   .ws-cl__ver { grid-template-columns: 34px minmax(0, 1fr); }
-  .ws-cl__ver-when, .ws-cl__ver-acts { grid-column: 2; }
+  .ws-cl__ver-when, .ws-cl__ver-current, .ws-cl__ver-acts { grid-column: 2; }
   .ws-cl__timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 

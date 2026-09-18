@@ -208,7 +208,7 @@ describe("document versions", () => {
         client={client({ contracts: [doc({ versions: NEGOTIATION, signed: true })] })}
         onChanged={() => {}} />,
     );
-    expect(html).toContain("3 versions");
+    expect(html).toContain("View history (3)");
     expect(versionCountLabel(1)).toBe("1 version");
   });
 

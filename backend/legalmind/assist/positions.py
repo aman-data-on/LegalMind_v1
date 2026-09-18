@@ -39,7 +39,7 @@ from legalmind.db import models as M
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-CHUNKING_ALGORITHM_VERSION = "positions-verbatim-1"
+CHUNKING_ALGORITHM_VERSION = "positions-verbatim-2"
 
 RATIFIED_STANDARDS_DIR = (
     Path(__file__).resolve().parents[2] / "config" / "company_standards")
@@ -102,6 +102,11 @@ _TYPE_PHRASES: tuple[tuple[str, str], ...] = (
     # Legal Constitution L1.10 §31 — outside locked Step 6's ten. See the note above.
     ("channel partner agreement", "PARTNER_AGREEMENT"),
     ("partner agreement", "PARTNER_AGREEMENT"),
+    # The bare subject too: Constitution §31 defines "Partner" as a party to exactly
+    # one kind of paper, and "what does our constitution say about partners" is the
+    # live phrasing (2026-09-18). A question that ALSO names another type resolves to
+    # two and so narrows nothing — see the docstring.
+    ("partners", "PARTNER_AGREEMENT"), ("partner", "PARTNER_AGREEMENT"),
     ("vendor agreement", "VENDOR_AGREEMENT"),
     ("distribution agreement", "DISTRIBUTION_AGREEMENT"),
     ("distributor agreement", "DISTRIBUTION_AGREEMENT"),
@@ -253,14 +258,21 @@ def _compose_content(payload: dict) -> str:
 
     The identifying prefix (code, clause, type) is what makes "what is our
     arbitration policy?" findable by lexical search; the quote is the answer a
-    Domain A result renders verbatim (r4). The source document is named by its
-    public name only — see `public_source_name`.
+    Domain A result renders verbatim (r4).
+
+    The source document's name is NOT here (positions-verbatim-2, 2026-09-18). It is
+    provenance, not position, and `content_tsv` is generated from this text, so it was
+    INDEXED: "Legal Constitution, Lawyer Review Version L1.10" put `constitut` in 15
+    of 40 chunks, and "what is written about partner agreement in the constitution"
+    cleared the two-lexeme floor on that boilerplate plus `agreement` (df 21) — three
+    MSA positions dressed as the answer to a question about a paper the corpus holds
+    no position for. The name still lives in the ratified file's `source_document`,
+    and the reader's header already shows code · clause · type · version.
     """
     parts = [
         f"{payload['requirement_code']}",
         f"{payload['source_clause']}",
         f"({payload['configuration']['document_type']})",
-        f"— {public_source_name(payload['source_document'])}:",
         payload["source_quote"],
     ]
     return " ".join(p for p in parts if p)
@@ -545,6 +557,15 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # calibrated gate shut. That keeps the paraphrase recall the vector branch was added
     # for, and keeps lexical as the fallback it is, without comparing two score scales
     # that were never comparable.
+    #
+    # A SHUT GATE IS NOT (YET) A VERDICT HERE — measured 2026-09-18. Treating it as one
+    # refused "Explain our termination standard." on the live corpus: that question sits
+    # at top cosine 0.454 against four termination positions, UNDER the 0.5 floor that
+    # was calibrated for one document's chunks, not forty short standards. Real
+    # paraphrases landed at 0.45–0.47, junk at 0.29–0.39. That is a Domain A calibration
+    # gap for the owner to see, not a constant to invent from ten points. Junk on an
+    # unheld subject is stopped upstream instead: provenance is no longer indexed, and
+    # `named_document_type` filters a paper we hold no position for.
     hits = _fuse([] if vector else lexical, vector, limit)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #

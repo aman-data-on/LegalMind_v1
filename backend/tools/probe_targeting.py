@@ -23,23 +23,12 @@ import sys
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 os.environ.setdefault("LEGALMIND_SOURCE_MATERIAL_DIR", "/root/Legalmind.v1/legal-docs")
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from legalmind.assist import embedding_runtime, planner, store
-from tools.benchmark_retrieval import _chunks, _load_eval_dataset, _resolve_anchors
+from tools.benchmark_retrieval import _load_eval_dataset, probe_corpus
 from tools.verify_assist_quality import DATASET, _gate_url
-
-
-def versions(db):
-    rows = db.execute(text("""
-        SELECT dv.original_filename, dv.id
-          FROM document_versions dv
-         ORDER BY dv.created_at DESC""")).all()
-    out = {}
-    for name, dv in rows:
-        out.setdefault(name, dv)
-    return out
 
 
 def score(db, vmap, expected, questions, *, use_plan, expand):
@@ -78,9 +67,7 @@ def score(db, vmap, expected, questions, *, use_plan, expand):
 def main():
     qs = _load_eval_dataset(DATASET)
     db = sessionmaker(bind=create_engine(_gate_url(), future=True), future=True)()
-    vmap = versions(db)
-    allc = {name: _chunks(db, dv) for name, dv in vmap.items()}
-    expected, _ = _resolve_anchors(qs, allc)
+    vmap, expected = probe_corpus(db, qs)
     print(f"corpus: {len(vmap)} document versions, anchors for {len(expected)} questions\n")
     runs = (("planner OFF (production)", False, False),
             ("planner ON, aiming only", True, False),

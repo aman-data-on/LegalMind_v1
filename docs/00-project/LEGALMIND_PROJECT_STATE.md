@@ -608,6 +608,14 @@ not weakened the permission rule to get around it.
 
 ## Decisions needed from you
 
+- **C-23 — Partner Agreement positions (2026-09-18).** Ask now refuses "what does our
+  constitution say about partners" honestly instead of quoting MSA clauses — but it can
+  only refuse. Constitution L1.10 §31.3 (ending), §31.4 (tiers/commissions), §31.5
+  (non-circumvention) and §31.6 (support) are Company-approved and have no ratified
+  standard, and locked Step 6 has no Partner Agreement document type for one to declare.
+  Two rulings unblock the answer: whether Step 6 gains the §31 types (or which existing
+  type they use), and whether §31.3–31.6 are ratified into standards.
+
 **One open item, raised in session 2026-09-01 (UI review):** you asked for a status covering
 a clause the counterparty's document contains that has **no matching Requirement in our own
 Company Standard** ("extra clause on their side"). This is real and useful, but it doesn't

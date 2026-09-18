@@ -850,3 +850,226 @@ Trading a locked traceability requirement for tidiness is not a feel improvement
 corpus is forms- and accessibility-shaped), so per its own contract that is recorded as
 a miss and the decision rests on this project's recorded rules, which is the precedence
 CLAUDE.md sets anyway.
+
+# Phase 4 — The intelligence baseline (2026-09-18)
+
+**Diagnosis only. Nothing was implemented, no flag moved, and 0 Gemini calls were spent
+producing this** — every number below was recomputed from data the Phase 3 validation run
+already left in the gate database, or from deterministic code paths.
+
+## 1. What LegalMind can answer today
+
+End-to-end user outcome for all 77 questions, joined per question from `ai_answers`:
+
+| | answerable | answered | correct refusal | reader got nothing |
+|---|---|---|---|---|
+| CONTRACT (document) | 44 | **40** | 10 | 4 (9.1%) |
+| STATUTE (Indian law) | 20 | **16** | 3 | 4 (20.0%) |
+| **total** | 64 | **56** | 13 | **8** |
+
+Faithfulness 1.0, citation precision 1.0, user-visible wrong answers 0/13. **A statute
+question fails at 2.2× the rate of a document question.**
+
+## 2. THE defining characteristic: this is a quotation engine, not an explainer
+
+`guardrails._GROUNDING_OVERLAP = 0.5` — half of a claim's content words must appear in
+the clause it cites. Measured over all 126 verified claims in the 56 delivered answers:
+
+```
+floor 0.50 | min 0.57 | p10 0.71 | MEDIAN 0.90 | p90 1.00 | max 1.00
+below 0.6: 1%     below 0.7: 7%     below 0.8: 20%
+```
+
+Every answer that survives is a **near-quotation of its source**. That single fact explains
+both the strength (faithfulness 1.0 is not luck — it is structural) and the ceiling: an
+answer that *explains* rather than *quotes* necessarily introduces words the clause does
+not contain, and fails. It is also why Phase 3's prompt fix worked — deleting "Based on
+the provided excerpts," raised the overlap of the claim it was glued to.
+
+**This is the binding constraint on "clear, natural, ChatGPT-like".** Not the prompt.
+
+## 3. The eight failures, attributed to a stage
+
+| id | cat | state | stage at fault | question shape |
+|---|---|---|---|---|
+| Q-21 | CONTRACT | CLAIM_UNSUPPORTED | **9 verification** | "**Why** do we have to complete identity verification…" |
+| Q-28 | CONTRACT | CLAIM_UNSUPPORTED | **9 verification** | "**Does** emergency maintenance **count against** the uptime commitment?" |
+| Q-36 | CONTRACT | CLAIM_UNSUPPORTED | **9 verification** | "**What conditions** must our marketing emails meet…" |
+| Q-46 | STATUTE | EVIDENCE_INSUFFICIENT | **8 generation** | "penalty for ignoring an information request" |
+| Q-48 | STATUTE | EVIDENCE_INSUFFICIENT | **8 generation** | "largest fine for failing to put reasonable security" |
+| Q-44 | STATUTE | NO_EVIDENCE_RETRIEVED | 5–7 retrieval/gate | "log-keeping duties under the cyber…" |
+| Q-60 | STATUTE | NO_EVIDENCE_RETRIEVED | 5–7 retrieval/gate | "how fast must a platform deal with a complaint" |
+| Q-63 | CONTRACT | NO_EVIDENCE_RETRIEVED | 5–7 retrieval/gate | "how long until we actually receive a refund" |
+
+**5 of 8 (62%) fail at generation or verification — stages 8–9. Only 3 fail at retrieval
+or the gate.** Phases 1 and 2 spent their entire effort on stages 4–7. That is why they
+found nothing: **the work was aimed at the wrong third of the pipeline.**
+
+The three CLAIM_UNSUPPORTED failures are all "why / does-X-count / what-conditions"
+questions — exactly the inferential shapes §2 says cannot clear a lexical overlap floor.
+
+## 4. Intent understanding is the largest single defect
+
+`intent.is_statute_question` fires on **2 of 23** statute questions (8.7%):
+
+```
+Q-44 "...log-keeping duties under the cyber security directions"   statute-shaped: False
+Q-46 "What is the penalty for ignoring an information request..."  statute-shaped: False
+Q-48 "What is the largest fine for failing to put reasonable..."   statute-shaped: False
+Q-60 "How fast must an online platform deal with a user..."        statute-shaped: False
+```
+
+**All four failing statute questions are invisible to it**, and the only two it detects are
+both `N-` questions that are *supposed* to be refused.
+
+Root cause, read off `intent._STATUTE`: it matches **citation vocabulary** — `section 43A`,
+or a named Act from a fixed list (`dpdp`, `it act`, `cert-in`, `contract act`…). It is a
+**name detector, not a subject detector.** A reader who already knows the Act gets routed;
+a reader asking "how fast must a platform handle a complaint?" — the normal case, and the
+whole point of asking — does not. This is stage 2/3, and it is the cheapest thing on this
+list to improve.
+
+## 5. Where Gemini money goes
+
+~95 calls for 77 questions (1.23/question; 125,408 prompt + 5,112 output tokens):
+
+| calls | purpose | yield |
+|---|---|---|
+| 56 | generation that reached a reader | **the product** |
+| 33 | **rescue judge** (every shut gate) | recovers **19** answers, declines 14 |
+| 3 | generation discarded at verification | **nothing — paid and thrown away** |
+| 3 | generation that self-refused NOT FOUND | correct, but 2 of 3 were answerable |
+
+Two findings:
+
+1. **The rescue judge is 35% of all Gemini spend, and it is structural.** It exists only
+   because the calibrated gate cannot separate a false refusal from a correct one — and
+   Phase 2 proved seven deterministic features cannot replace it. That 35% cannot be
+   removed by tuning; it can only be removed by improving the gate's *inputs*.
+2. **1.7 Gemini calls per delivered answer.** The discarded generations are small (3%) but
+   they are pure waste, and §2/§3 say they are all the same failure: an explanatory answer
+   meeting a lexical floor.
+
+## 6. What the corpus cannot see
+
+Measured by running `routing.plan` and every `intent.*` screen over all 77 questions:
+
+| category the owner asked for | coverage | consequence |
+|---|---|---|
+| document questions | **54** | well covered |
+| general Indian legal questions | **23** | covered, but see §4 |
+| unsupported / missing-information | **13** | covered |
+| Constitution / company-standard answers | **0 scored** | 41 questions *route* to POSITIONS, but every gold anchor is a document `section`, so **the Domain A half of those retrievals is never measured.** 40 position chunks, the topic filter and the whole `AM-67` reading aid have no benchmark coverage. |
+| document vs Constitution comparison | **0** | `intent.is_comparison_question` fires on **0 of 77**. This is the safety screen that stops Ask issuing a verdict (`AM-25` r4) — and the benchmark never exercises it. |
+| capability questions | **0** | `AM-68` path untested |
+| general-knowledge concept questions | **0** | `AM-72` untested (the gap flagged in Phase 0) |
+| follow-up questions | **0** | the corpus is single-turn. `AM-58` conversation context is **shipped** and has no benchmark coverage. |
+| natural-language vs legal-term variations | **unlabeled** | present in substance (Q-01 "walk away", Q-22 "prices go up") but never *paired*, so the effect of terminology cannot be isolated |
+
+**Nothing here can be fixed by manufacturing questions** (rule 21). Domain A needs
+questions whose gold is a ratified standard; comparison needs question/verdict pairs;
+follow-ups need scripted dialogues. Those are owner inputs.
+
+## 7. Ranked: what to fix next, and why
+
+1. **Statute/legal-subject intent detection** (§4). 4 of 8 failures; 2/23 detection rate;
+   root cause is a name-matching regex. Deterministic, zero Gemini, no safety surface —
+   the router only *adds* an authorized domain. Highest impact per unit of risk on this list.
+2. **The explanation ceiling** (§2, §3). 5 of 8 failures and the direct blocker on the
+   owner's stated goal. The honest framing: a 0.5 *lexical* overlap floor is a proxy for
+   grounding, and it cannot distinguish "explains the clause correctly" from "invents".
+   Changing it touches a safety control, so it is an **owner decision with a measurement
+   attached**, not an engineering tweak. Do not touch it without one.
+3. **Score Domain A** (§6). Not a fix — a *prerequisite*. Until company-standard answers
+   are measured, stage 4's only mechanism is unmeasurable (Phase 1's finding) and the
+   product's most distinctive feature is flying blind.
+4. **Comparison-screen coverage** (§6). Zero coverage of the control that prevents legal
+   verdicts. No defect is known — that is exactly the problem.
+5. **Do not spend further effort on the gate** (Phase 2). Seven features failed; the
+   rescue judge already recovers 19 of 21; the headroom is 2 questions and the corpus
+   cannot resolve it.
+
+**What NOT to do:** tune the reranker, sweep gate thresholds, or enable the query planner.
+All three were measured at length in Phases 1–2, all three target stages 4–7, and §3 shows
+only 3 of 8 remaining failures live there.
+
+# Alignment fix — "what is written about partner agreement in the constitution" (2026-09-18)
+
+**0 Gemini calls.** Diagnosed from the production database and the code, reproduced and
+measured on a deterministic Domain A regression set, fixed in retrieval, verified end to end
+through `service.ask` with the provider monkeypatched to fail.
+
+## What was actually wrong — proven, not inherited
+
+| suspected cause | verdict | evidence |
+|---|---|---|
+| intent / routing | **not it** | the router chose POSITIONS correctly (`filters.domains = ["POSITIONS"]` on the live run) |
+| Constitution topic mapping | not reachable | Appendix B has no partner category; the planner ships off anyway |
+| section / heading awareness | not implemented | `source_clause` is stored per chunk and never used for matching — but no heading could have helped: see the last row |
+| **retrieval query construction** | **CAUSE 1** | provenance "— Legal Constitution, Lawyer Review Version L1.10:" was in the indexed text: `constitut` df 15/40, `agreement` df 21/40, `partner` **0/40**. Two boilerplate matches cleared the floor |
+| candidate ranking | symptom | `ts_rank` over boilerplate matches is arbitrary; the three shown were simply what ranked |
+| **evidence selection / relevance** | **CAUSE 2** | no relevance verdict on the lexical path; `_fuse([] if vector else lexical)` used the UNGATED lexical list exactly when the calibrated vector gate had said nothing was relevant |
+| answer synthesis | not reached | the `AM-67` reading aid is off; the fixed sentence framed junk as "the approved position relevant to this question" |
+| grounding / verification | not involved | Domain A quotes verbatim; nothing generated |
+| **missing knowledge** | **THE CEILING** | Constitution §31.3–31.6 are Company-approved and **no ratified standard carries them**; production `position_chunks`: 40 rows, 0 mention "partner". Nothing downstream can answer what is not in the corpus (C-23) |
+
+Another session had already added `named_document_type` (`2ce87e8`, 47 minutes after the
+live question, undeployed): it refuses when the question names a paper the corpus does not
+hold. It covers "partner agreement" and "how can a partner agreement be ended" and nothing
+else — "what does our constitution say about partners" and "who handles support for
+partner customers" still returned five unrelated positions on the fixture corpus.
+
+## The fix — general, no partner exception
+
+1. `_compose_content` indexes code · clause · type · quote. The source name is provenance
+   and lives in the ratified file; the reader's header already shows code · clause · type ·
+   version. `CHUNKING_ALGORITHM_VERSION = positions-verbatim-2`.
+2. **A shut-gate verdict was built, measured, and reverted.** Honouring the calibrated
+   gate when it stayed shut killed every junk answer — and refused "Explain our
+   termination standard." on the live corpus (top cosine 0.454, four termination
+   positions, under the 0.5 floor). Real paraphrases sit at 0.45–0.47, junk at
+   0.29–0.39: the floor was calibrated for one document's chunks and has never been
+   calibrated for Domain A. A constant fitted to ten points is not a calibration, so
+   the mechanism is out and the gap is recorded (below) for the owner.
+3. `named_document_type` maps the bare §31 subject ("partner", "partners") so the refusal
+   names what IS covered for the natural phrasings too.
+
+What the measurement DID establish, for whoever calibrates Domain A: the gate opened for
+**0 of 8** must-refuse questions; every answerable question it left shut had a **wrong**
+lexical top hit at cosine 0.35–0.39 **except** the natural termination phrasings, whose
+lexical hits are right at 0.45–0.47. The two regimes do not overlap in this sample. They
+also do not yet justify a constant.
+
+## Measured — `tests/test_assist_positions_regression.py -s`
+
+40 answerable questions (gold = each ratified file's own `description`; twins scored as a
+set), 8 must-refuse questions about §31 papers.
+
+| | hit@1 | gold@3 | recall@5 | MRR | junk answers |
+|---|---|---|---|---|---|
+| before, production shape (model present) | 0.775 | 0.800 | 0.800 | 0.787 | **2/8** |
+| **after, production shape** | **0.800** | **0.825** | **0.825** | **0.812** | **0/8** |
+| after, no-model degradation | 0.800 | 0.825 | 0.825 | 0.812 | 0/8 |
+
+Not one position lost its own description; recall rose because the boilerplate had been
+polluting the lexical ranking too. Two unheld subjects that name no paper ("affiliate
+commissions", "reseller onboarding") also refused — informational, since no name guard
+can catch those and the floor cannot yet be trusted to. 8 of 40
+positions are unreachable from their own one-line description in either state — a
+description-versus-quote vocabulary gap, recorded, not forced.
+
+End to end (`service.ask`, Gemini forbidden): all 8 must-refuse questions → refusal that
+names coverage, no positions, no call; "what is our liability cap" → LIABILITY quoted
+verbatim.
+
+## What this does NOT do, and why
+
+The reader still cannot be told what the Constitution says about Partner Agreements. That
+is not a retrieval or intelligence gap any more — it is a **knowledge** gap: §31.3–31.6 have
+no ratified standard, and locked Step 6 has no `PARTNER_AGREEMENT` type for one to declare
+(C-23). Two owner rulings unblock it; the verbatim positions are in L1.10 §31.3–31.6 ready
+to become standard files without a word changed (rule 21). Until then the honest answer is
+the refusal, and the refusal is now honest for every phrasing tested.
+
+**Production needs `python3 -m tools.chunk_standards` once after deploy** — deploy does not
+rebuild the position index (ops/README.md).

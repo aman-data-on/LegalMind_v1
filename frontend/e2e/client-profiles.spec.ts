@@ -145,7 +145,7 @@ test("three versions of one document all survive, each with its own role",
   await page.goto(`/dashboard/clients?id=${client.id}`);
 
   const row = page.locator("tr", { hasText: "Master Services Agreement" }).first();
-  const toggle = row.getByRole("button", { name: /3 versions/ });
+  const toggle = row.getByRole("button", { name: /View history \(3\)/ });
   await expect(toggle).toBeVisible();
   await toggle.click();
 
@@ -158,8 +158,48 @@ test("three versions of one document all survive, each with its own role",
   await expect(versions.nth(1)).toContainText("Client modified");
   await expect(versions.nth(2)).toContainText("v1");
   await expect(versions.nth(2)).toContainText("Company draft");
-  // The current version is the highest number, and it is said so.
-  await expect(versions.nth(0)).toContainText("current");
+  // The current version is the highest number, and it is said so — a
+  // dedicated "Current" badge rather than inline text (owner, 2026-09-18).
+  await expect(versions.nth(0)).toContainText("Current");
+});
+
+test("the Agreement stage column shows Final signed immediately after upload, and survives a reload",
+     async ({ page }) => {
+  const stamp = Date.now();
+  const client = await postOk(page, "/counterparties", { name: `Signed Co ${stamp}` });
+  await page.goto(`/dashboard/clients?id=${client.id}`);
+
+  // A brand-new client shows the toolbar's upload button AND the zero-state's
+  // own — same action, offered twice, so pick the toolbar's explicitly.
+  await page.getByRole("button", { name: "+ Upload document" }).first().click();
+  const f = fixture();
+  await page.locator('input[type="file"]').setInputFiles(f.document.path);
+  await page.getByLabel("Version").selectOption("FINAL_SIGNED");
+  await page.getByLabel("Document name").fill(`Signed Agreement ${stamp}`);
+  await page.getByRole("button", { name: "Upload" }).click();
+
+  const row = page.locator("tr", { hasText: `Signed Agreement ${stamp}` }).first();
+  // Visible in the MAIN row, without opening version history — the exact gap
+  // this change closes (owner, 2026-09-18): the stage used to be readable
+  // only after expanding "View history".
+  await expect(row).toContainText("Final signed", { timeout: 15_000 });
+  // ...and it stays a SEPARATE fact from the review-status pill next to it —
+  // the two columns must never merge into one compound answer (Decision 2).
+  await expect(row.locator(".ws-status-pill")).not.toContainText("Final signed");
+
+  // Reload — Part 10's explicit check that the declared stage was actually
+  // persisted (via the existing `PATCH /document-versions/{id}`) rather than
+  // only reflecting optimistic local state.
+  await page.reload();
+  const rowAfterReload = page.locator("tr", { hasText: `Signed Agreement ${stamp}` }).first();
+  await expect(rowAfterReload).toContainText("Final signed");
+
+  // Version history still expands correctly, still shows the role, and the
+  // one version present is clearly marked Current.
+  await rowAfterReload.getByRole("button", { name: /View history \(1\)/ }).click();
+  const versionRow = page.locator(".ws-cl__verlist .ws-cl__ver").first();
+  await expect(versionRow).toContainText("Final signed");
+  await expect(versionRow).toContainText("Current");
 });
 
 test("an unclassified version says so rather than being guessed at",
@@ -167,7 +207,7 @@ test("an unclassified version says so rather than being guessed at",
   const client = await buildClient(page, Date.now());
   await page.goto(`/dashboard/clients?id=${client.id}`);
   const row = page.locator("tr", { hasText: "Order Form" }).first();
-  await row.getByRole("button", { name: /1 version/ }).click();
+  await row.getByRole("button", { name: /View history \(1\)/ }).click();
   await expect(page.locator(".ws-cl__verlist .ws-cl__ver").first())
     .toContainText("Not classified");
 });
@@ -344,7 +384,7 @@ test("capture the screens for visual review", async ({ page }) => {
 
   // Versions open.
   await page.locator("tr", { hasText: "Master Services Agreement" }).first()
-    .getByRole("button", { name: /3 versions/ }).click();
+    .getByRole("button", { name: /View history \(3\)/ }).click();
   await page.screenshot({ path: join(SHOTS, "03-versions-1440.png"), fullPage: true });
 
   for (const [tab, file] of [["Details", "04-details"], ["Notes", "05-notes"],
