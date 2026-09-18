@@ -288,3 +288,55 @@ def test_the_quality_gate_retrieves_through_the_service_composition():
               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
     assert "retrieve_document" in called and "plan_question" in called
     assert "search_hybrid" not in called, "the gate re-implements retrieval"
+
+
+# ==========================================================================
+# The calibrated gate is pinned (Phase 2, 2026-09-18)
+# ==========================================================================
+def test_the_calibrated_gate_constants_are_pinned():
+    """Changing either of these is a RECALIBRATION, not an edit.
+
+    Nothing failed when these moved, which is why this test exists. They are the
+    refusal boundary: `COSINE_FLOOR` and `PEAK_MARGIN` decide, on the caller's
+    original question, whether a reader is told "I could not find this" — the
+    safety control `AM-25` r5 rests on.
+
+    Phase 2 (2026-09-18) measured seven candidate features looking for a way to
+    recover a false refusal without opening a correctly-refused question, and all
+    seven failed. The refused-answerable and correctly-refused distributions
+    overlap completely: N-13, which must be refused, carries a HIGHER top cosine
+    (0.570) than Q-61, which must be answered (0.554). The headroom is also nearly
+    gone — the raw gate refuses 21 of 64 answerable and the rescue judge already
+    recovers 18 of them, leaving 3, one of which is a retrieval miss.
+
+    So if you are here to lower a number and buy recall: it was measured, it does
+    not work, and the owner rule of 2026-09-14 is that recall may improve only
+    WITHOUT wrongly-answered rising. Re-run `tools/probe_gate.py` (zero Gemini)
+    before touching either value, and change the calibration record with them.
+    """
+    from legalmind.assist import calibration
+
+    assert calibration.COSINE_FLOOR == 0.50
+    assert calibration.PEAK_MARGIN == 0.059
+
+
+def test_the_gate_still_decides_the_way_it_was_calibrated():
+    """The shape, not just the constants: a lexical hit opens; otherwise the top
+    score must clear the floor AND stand clear of the rest by the margin."""
+    from legalmind.assist.calibration import (
+        COSINE_FLOOR,
+        PEAK_MARGIN,
+        gate_is_open,
+    )
+
+    # A lexical hit opens regardless of the vector side — including with none.
+    assert gate_is_open(True, [])
+    # No lexical hit and no vectors is a refusal, never a guess.
+    assert not gate_is_open(False, [])
+    # Below the floor stays shut however wide the gap.
+    assert not gate_is_open(False, [COSINE_FLOOR - 0.01, 0.0])
+    # Above the floor but flat — no peak — stays shut.
+    flat = COSINE_FLOOR + 0.01
+    assert not gate_is_open(False, [flat, flat - (PEAK_MARGIN / 2)])
+    # Above the floor and standing clear opens.
+    assert gate_is_open(False, [flat, flat - (PEAK_MARGIN * 2)])

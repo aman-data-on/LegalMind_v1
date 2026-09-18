@@ -12,6 +12,7 @@
 | Look up a term precisely | [00-project/GLOSSARY.md](00-project/GLOSSARY.md) |
 | Name a state value correctly | [02-legal-domain/DECISION_STATE_MODEL.md](02-legal-domain/DECISION_STATE_MODEL.md) |
 | **How to work in this repository** | [00-project/CLAUDE_WORKING_RULES.md](00-project/CLAUDE_WORKING_RULES.md) |
+| **Do a git or GitHub operation** (branch, worktree, commit, push, PR, conflict, CI) | [../AGENTS.md](../AGENTS.md) § Multi-Agent and Multi-User Development Rules |
 | Plain-language project status | [00-project/LEGALMIND_PROJECT_STATE.md](00-project/LEGALMIND_PROJECT_STATE.md) |
 | See what reached production, and when | [00-project/DAILY_CHANGES.md](00-project/DAILY_CHANGES.md) — the operations log: deploys, production data operations, server-side changes that leave no commit |
 - [00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md](00-project/PRODUCT_INTENT_AUDIT_2026-08-31.md) — 📁 the owner-ordered product-intent audit behind AB-6/AM-33 and the version-lifecycle UI

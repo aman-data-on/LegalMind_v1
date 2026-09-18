@@ -586,3 +586,485 @@ Union grounding is a floor that can pass a claim no single clause supports; this
 splitter that rejects a claim every clause supports. The 0.48/0.50 figures above show this
 question also sits exactly on the 0.5 boundary, so both would bite here.
 
+
+## Phase 1, second attempt — the cheap path, measured (2026-09-18)
+
+**Outcome: the COST problem is solved and the targeting problem is not, and the second
+half is now proven rather than suspected.** The planner stays OFF; widening gets its own
+flag and stays OFF. Nothing about this was forced into production.
+
+**What changed.** `planner.plan()` now reaches the provider only for a question it cannot
+place by itself. Three outcomes, cheapest first:
+
+1. `plan_lexical` places it — one table maps a reader's words to the legal term and to
+   the Constitution Appendix-B topic that term belongs to. No call, no latency.
+2. Nothing placed it and it reads plain and self-contained — no plan, no call, retrieval
+   exactly as today.
+3. Nothing placed it and it reads ambiguous (multi-part, conditional, comparative,
+   referential) — only here is the provider asked.
+
+The table is search vocabulary, the same kind of object as `statutes._ACT_ALIASES`, and
+an import-time assertion refuses any topic the ratified standards do not carry. It
+states no threshold, no position and no acceptance policy; a test enforces that.
+
+**The cost result, on the 77-question set through the production path:**
+
+```
+                                   planner OFF      Phase 1 (2026-09-17)   Phase 1 (this)
+planning p50 / p95 ms                 0 / 0            4,788 / 8,296          0 / 2,028
+gemini planner calls per question       0                   1.00                 0.18
+total ask p50 ms                      2,248                 ~10,600              2,252
+```
+
+44 of 77 questions are placed by the table, 19 need no plan at all, 14 reach the
+provider. The original Phase 1's whole latency cost is gone from the median.
+
+**The targeting result. The Tier-2 gate cannot answer this question, and that is the
+methodological finding of the phase.** Its recall@10, hit@1, MRR, gold@3 and evidence
+precision are all scored `if not opened: continue` — over the questions whose GATE
+OPENED — and gate opening runs through the rescue judge, a provider call. Three gate
+runs of the same code therefore disagreed by about two questions in each direction, and
+one of them made a planner-off pipeline look worse than production. Those numbers are
+noise at this n and must not be read as targeting.
+
+`tools/probe_targeting.py` (new) removes the gate from the measurement: the same anchors
+over `store.search_hybrid` directly, all 64 answerable questions, no gate, no rescue, no
+generation, nothing nondeterministic in the path. Reproducible byte-for-byte:
+
+```
+                                 recall@10   hit@1    MRR     gold@3   precision
+planner OFF (production)           0.625     0.375   0.4613   0.5312    0.1355
+planner ON, aiming only            0.625     0.375   0.4613   0.5312    0.1355   ← identical
+planner ON, aiming + widening      0.625    0.3594   0.4485   0.5156    0.1267   ← worse on 4 of 5
+```
+
+Reading it:
+
+1. **Aiming is exactly neutral for a document question, by construction.** The plan's
+   only narrowing field is the topic, and the topic narrows Domain A; document retrieval
+   never sees it. Identical is the correct and expected result, not a disappointment —
+   it means the aiming stage carries no risk. Its possible value is in Domain A, and
+   this corpus is document- and statute-shaped, so **the corpus cannot test the one
+   mechanism that could gain.** Owner input needed: position-shaped questions with known
+   gold standards. Not manufactured here (rule 21).
+2. **Widening is harmful, and this is the third independent confirmation** — the
+   2026-09-17 provider-plan gate run (precision 0.390 → 0.358), the 2026-09-18 gate run
+   (0.407 → 0.377, answers 55 → 49 of 64), and now a deterministic probe with every
+   movement negative or flat. Each reformulation runs its own vector pass and is
+   rank-fused; a list that does not move gold can only dilute the gold share, and the
+   diluted evidence then fails the sufficiency and verification screens standing between
+   a reader and an answer. It is off behind `LEGALMIND_QUERY_EXPANSION`.
+3. **The remaining injection point is closed.** Appending the term to the LEXICAL query
+   would make the existing lexical pass see the right word — but that query is the gate's
+   own calibrated input (`match="all"` → `lexical_hit`), so widening it would move the
+   refusal boundary. `AM-25`'s calibrated gate does not permit that, so this was not done.
+
+**Safety held identically across all three gate runs**: wrongly answered 1/13,
+user-visible wrongly answered 0/13, faithfulness 1.0, citation precision 1.0.
+
+**Verdict against the phase's own acceptance criteria: the planner does not improve the
+required metrics on the available corpus, so it is not enabled.** What it does now have
+is a shape that costs almost nothing, so the question can be revisited the moment there
+is a corpus that exercises Domain A.
+
+### Cost of the Phase 1 measurement, and the rule it produced
+
+Recorded because it is the phase's most reusable lesson. Three Tier-2 gate runs:
+
+| run | purpose | prompt tokens | output tokens | gemini calls/q |
+|---|---|---|---|---|
+| 1 | baseline, planner OFF | 120,309 | 5,174 | 1.25 |
+| 2 | planner ON, aiming + widening | 125,941 | 6,901 | 1.42 |
+| 3 | planner ON, aiming only | 123,890 | 6,586 | 1.40 |
+| | **total** | **370,140** | **18,661** | |
+
+`tools/probe_targeting.py` — written after run 3, **zero Gemini calls** — reproduces the
+comparison runs 2 and 3 were spent on, deterministically and in seconds. Runs 2 and 3
+(~250k prompt tokens) were avoidable, and the diagnosis was already in hand after run 2.
+
+**Owner rule, 2026-09-18, now in CLAUDE.md § Gemini cost guard:** prove it with
+deterministic/local logic first; stop Gemini calls the moment a benchmark shows no
+measurable improvement; report call count, latency and token/cost in every benchmark; do
+not advance a phase without demonstrated improvement. For this lane the order is
+`probe_targeting.py` → `benchmark_rerank.py` → the Tier-2 gate, and the gate is a
+confirmation step rather than an iteration loop.
+
+## Phase 2 — Gate recovery: the gate is UNCHANGED, and here is the evidence
+
+**Outcome: no safe deterministic recovery exists on this corpus, and almost nothing is
+left to recover. The calibrated gate is not touched.** Zero Gemini calls were spent
+reaching this conclusion (CLAUDE.md § Gemini cost guard).
+
+### First, the security item Phase 0 left open
+
+The `LEGAL-02` replay leak is **fixed, merged, deployed and tested**. Verified rather
+than assumed: the fix is in `main` (PR #85, `c5fd623`), `get_conversation` now
+re-resolves `routing.positions_permitted` and `can_read_contract` per request and OMITS
+withheld material (`SEC-07`, never nulled); the file's mtime (18:47 IST) precedes the
+running API's start (19:06 IST) and no later commit touches it, so the deployed process
+serves it; and `tests/test_assist_authorization_boundaries.py` is 13 passing tests.
+
+### The arithmetic that reframes the phase
+
+```
+raw calibrated gate, answerable questions      opens 43 of 64, refuses 21
+    of those 21: gold chunk WAS present                 20
+    of those 21: retrieval never found gold              1   <- no gate change reaches it
+end to end, after the shipped rescue judge     retains 61 of 64, false refusals 3
+```
+
+**The rescue judge already recovers 18 of the 21.** The entire remaining headroom is
+**3 questions of 64**, one of which is a retrieval miss rather than a gate decision. A
+deterministic opener would be duplicating work that is already done, and would be paid
+for in the one currency the owner rule forbids spending (2026-09-14: recall may improve
+only WITHOUT wrongly-answered rising).
+
+### Seven features have now failed to separate
+
+The refused-answerable and correctly-refused-unanswerable distributions overlap
+completely. The single sharpest illustration: **N-13, which SHOULD be refused, has the
+highest top cosine of any question in the set (0.570) — higher than Q-61, which should
+be answered (0.554).** No threshold on that axis can tell them apart.
+
+| # | feature | when | result |
+|---|---|---|---|
+| 1 | 35-point threshold sweep | 2026-09-16 | no separation |
+| 2 | second similarity feature | 2026-09-16 | no separation |
+| 3 | alternative embedding model | 2026-09-16 | no separation |
+| 4 | rerank floor | 2026-09-17 (#74) | scores overlap; answerable median −3.12 vs unanswerable −2.30 (higher) |
+| 5 | strict lexical match on the planner's canonical legal term | 2026-09-18 | **actively harmful** — fires on 3 unanswerable (N-02, N-07, N-13) to recover 2 |
+| 6 | `gap_second` (top − second) | 2026-09-18 | recovers 0 safely |
+| 7 | `ratio` (top / second), `margin3` | 2026-09-18 | recovers 0 safely |
+
+The shipped `gap_mean` remains the best of them, and a threshold above every
+unanswerable value recovers exactly **one** question (Q-63) — a threshold fitted to the
+maximum of a 12-sample set, which a thirteenth unanswerable question above 0.2401 would
+break. That is noise, not a finding, and it was not taken.
+
+Every one of the 32 questions in both sets has `lexical_hit = False`, which is why
+feature 5 was worth testing at all and why its failure closes the lexical axis too.
+
+### What Phase 2 actually delivered
+
+1. **`tools/probe_gate.py`** — the deterministic instrument for this question. No Gemini,
+   so an idea costs nothing to test. It splits refusals into *gold was present* (reachable
+   by a gate change) and *gold never found* (a retrieval defect), and searches every peak
+   feature for a threshold strictly above all unanswerable values. Seven failures are now
+   re-checkable rather than folklore.
+2. **The Tier-2 gate names its false refusals.** It reported `false refusals 3` and
+   nothing else, so this investigation had to re-derive which three from a separate probe.
+   It now emits `false_refusal_ids` and `false_refusal_gold_present_ids`, and prints them
+   with `*` marking the ones whose gold was present — symmetric with the long-standing
+   `wrongly_answered_ids`, and free.
+
+### Before / after
+
+**Identical by construction, and demonstrated rather than asserted.** Nothing in
+`calibration.py`, `store.py`, `rescue.py` or the ask path was modified — the changes are
+one new probe tool and the gate tool's own reporting. `tools/probe_targeting.py` returns
+byte-for-byte what it returned in Phase 1 (recall@10 0.625, hit@1 0.375, MRR 0.4613,
+gold@3 0.5312, precision 0.1355 on the production path), which is the free proof that the
+retrieval and gate paths are untouched. **No paid Tier-2 run was spent to re-measure a
+pipeline that did not change** — 0 Gemini calls for the whole phase.
+
+## Phase 3 — Feel: what makes a grounded answer read like a machine
+
+**Owner goal, 2026-09-18:** *"make LegalMind Ask responses feel clear, natural and
+ChatGPT-like without changing retrieval, authority, security, gate, or legal
+decisions."* That rules out the item the migration plan had queued (SSE progress
+states) and points at the answer's own prose. The change is **one prompt version and
+no frontend edit at all**.
+
+### SSE progress states: dropped, with the reason
+
+`AM-25` r5 forbids streaming the answer — nothing reaches a reader before mechanical
+verification — so SSE could only ever deliver three progress strings during a 2,248 ms
+p50 wait. Against that: the assist router is wrapped in `CommitBeforeResponse`, which
+exists because a client holding a `201` before its transaction committed was *measured*
+losing rows (present 11 times in 60; a following `GET` returning `401` three times in
+60). A streaming response sends headers before the work is done, so the audit writes
+would have to commit mid-stream. `EventSource` also cannot carry auth headers, so the
+client would need `fetch` + a stream reader. Real risk to the durability guarantee, for
+a cosmetic gain on a two-second wait. **Not built.** A client-side timer faking the
+three states was considered and rejected outright: it would claim knowledge the client
+does not have, which DESIGN.md forbids (no urgency theater, nothing that implies what
+the system does not know).
+
+### What was wrong, read off real answers rather than guessed
+
+77 assistant answers from the gate corpus were read directly out of the database — zero
+Gemini calls to diagnose. Three things made them read like a retrieval system:
+
+```
+"Based on the provided excerpts, personal data is shared with the following
+ third-party service providers and for the specified purposes:"        <- describes the evidence
+"Any disagreement or dispute ... will be resolved in the manner outlined
+ in the agreement [1]."                                                <- restates the question, says nothing
+"* **Cloudflare:** Receives IP address ... [2]."                        <- literal asterisks reach the reader
+```
+
+### The preamble was not merely ugly — it was spending answers
+
+The grounding check scores a sentence's content words against its cited chunk. "Based
+on the provided excerpts," injects `based`, `provided` and `excerpts` — words no
+contract clause contains — **into the claim sentence itself**. Measured directly:
+
+| answer | verification |
+|---|---|
+| `The cap is twelve months of total fees paid [1].` | **ANSWERED** |
+| `Based on the provided excerpts, the cap is twelve months of fees [1].` | **CLAIM_UNSUPPORTED** |
+
+Identical fact, identical evidence. The retrieval tell was costing the reader the
+answer, which makes rule 6 safety-positive rather than cosmetic. Pinned by
+`test_the_rag_preamble_was_not_merely_UGLY_it_cost_answers`.
+
+### grounded-answer-3
+
+Two rules added; **rule 1 and every safety rule are untouched**:
+
+* **6 — open with the answer itself.** No describing the excerpts, no restating the
+  question. Worded to keep the first sentence cited, because `guardrails._SENTENCES`
+  splits on terminal punctuation and one uncited sentence fails the WHOLE answer
+  (`AM-25` r5). `test_an_uncited_opening_sentence_still_fails_closed` pins that trap.
+* **7 — plain prose.** Line-leading hyphens stay (the owner asked for "bullets when
+  useful", 2026-09-11, and `AnswerProse` renders them); asterisk emphasis and headings
+  go. Fixed at the SOURCE rather than by teaching the renderer markdown: `AnswerProse`
+  is deliberately not a markdown renderer, because a parser that invented emphasis
+  from stray punctuation "would be putting formatting into a legal answer that nobody
+  wrote". `**` appeared in 1 of 77 answers, so a frontend stripper for it would have
+  been over-engineering against a recorded decision.
+
+**Grounding is still decided mechanically.** The prompt governs wording; `verify_answer`
+governs truth, and it is indifferent to how natural the prose is — which is the whole
+reason this change cannot weaken the lane.
+
+### What was NOT changed, and why
+
+**Citation density stays.** Seven consecutive `[1]`s in a list look like footnote spam,
+and the first instinct was to collapse them at display time — `_renumber_markers` is
+the precedent for a post-verification display transform. It was not done: those markers
+are **per-claim attribution**, which rules 11 and 12 require (evidence traceability is
+mandatory; a Finding reconstructs as Evidence → Fact → Standard → Rule → Result).
+Trading a locked traceability requirement for tidiness is not a feel improvement.
+`ui-ux-pro-max` was queried for guidance here and returned no verified match (its UX
+corpus is forms- and accessibility-shaped), so per its own contract that is recorded as
+a miss and the decision rests on this project's recorded rules, which is the precedence
+CLAUDE.md sets anyway.
+
+# Phase 4 — The intelligence baseline (2026-09-18)
+
+**Diagnosis only. Nothing was implemented, no flag moved, and 0 Gemini calls were spent
+producing this** — every number below was recomputed from data the Phase 3 validation run
+already left in the gate database, or from deterministic code paths.
+
+## 1. What LegalMind can answer today
+
+End-to-end user outcome for all 77 questions, joined per question from `ai_answers`:
+
+| | answerable | answered | correct refusal | reader got nothing |
+|---|---|---|---|---|
+| CONTRACT (document) | 44 | **40** | 10 | 4 (9.1%) |
+| STATUTE (Indian law) | 20 | **16** | 3 | 4 (20.0%) |
+| **total** | 64 | **56** | 13 | **8** |
+
+Faithfulness 1.0, citation precision 1.0, user-visible wrong answers 0/13. **A statute
+question fails at 2.2× the rate of a document question.**
+
+## 2. THE defining characteristic: this is a quotation engine, not an explainer
+
+`guardrails._GROUNDING_OVERLAP = 0.5` — half of a claim's content words must appear in
+the clause it cites. Measured over all 126 verified claims in the 56 delivered answers:
+
+```
+floor 0.50 | min 0.57 | p10 0.71 | MEDIAN 0.90 | p90 1.00 | max 1.00
+below 0.6: 1%     below 0.7: 7%     below 0.8: 20%
+```
+
+Every answer that survives is a **near-quotation of its source**. That single fact explains
+both the strength (faithfulness 1.0 is not luck — it is structural) and the ceiling: an
+answer that *explains* rather than *quotes* necessarily introduces words the clause does
+not contain, and fails. It is also why Phase 3's prompt fix worked — deleting "Based on
+the provided excerpts," raised the overlap of the claim it was glued to.
+
+**This is the binding constraint on "clear, natural, ChatGPT-like".** Not the prompt.
+
+## 3. The eight failures, attributed to a stage
+
+| id | cat | state | stage at fault | question shape |
+|---|---|---|---|---|
+| Q-21 | CONTRACT | CLAIM_UNSUPPORTED | **9 verification** | "**Why** do we have to complete identity verification…" |
+| Q-28 | CONTRACT | CLAIM_UNSUPPORTED | **9 verification** | "**Does** emergency maintenance **count against** the uptime commitment?" |
+| Q-36 | CONTRACT | CLAIM_UNSUPPORTED | **9 verification** | "**What conditions** must our marketing emails meet…" |
+| Q-46 | STATUTE | EVIDENCE_INSUFFICIENT | **8 generation** | "penalty for ignoring an information request" |
+| Q-48 | STATUTE | EVIDENCE_INSUFFICIENT | **8 generation** | "largest fine for failing to put reasonable security" |
+| Q-44 | STATUTE | NO_EVIDENCE_RETRIEVED | 5–7 retrieval/gate | "log-keeping duties under the cyber…" |
+| Q-60 | STATUTE | NO_EVIDENCE_RETRIEVED | 5–7 retrieval/gate | "how fast must a platform deal with a complaint" |
+| Q-63 | CONTRACT | NO_EVIDENCE_RETRIEVED | 5–7 retrieval/gate | "how long until we actually receive a refund" |
+
+**5 of 8 (62%) fail at generation or verification — stages 8–9. Only 3 fail at retrieval
+or the gate.** Phases 1 and 2 spent their entire effort on stages 4–7. That is why they
+found nothing: **the work was aimed at the wrong third of the pipeline.**
+
+The three CLAIM_UNSUPPORTED failures are all "why / does-X-count / what-conditions"
+questions — exactly the inferential shapes §2 says cannot clear a lexical overlap floor.
+
+## 4. Intent understanding is the largest single defect
+
+`intent.is_statute_question` fires on **2 of 23** statute questions (8.7%):
+
+```
+Q-44 "...log-keeping duties under the cyber security directions"   statute-shaped: False
+Q-46 "What is the penalty for ignoring an information request..."  statute-shaped: False
+Q-48 "What is the largest fine for failing to put reasonable..."   statute-shaped: False
+Q-60 "How fast must an online platform deal with a user..."        statute-shaped: False
+```
+
+**All four failing statute questions are invisible to it**, and the only two it detects are
+both `N-` questions that are *supposed* to be refused.
+
+Root cause, read off `intent._STATUTE`: it matches **citation vocabulary** — `section 43A`,
+or a named Act from a fixed list (`dpdp`, `it act`, `cert-in`, `contract act`…). It is a
+**name detector, not a subject detector.** A reader who already knows the Act gets routed;
+a reader asking "how fast must a platform handle a complaint?" — the normal case, and the
+whole point of asking — does not. This is stage 2/3, and it is the cheapest thing on this
+list to improve.
+
+## 5. Where Gemini money goes
+
+~95 calls for 77 questions (1.23/question; 125,408 prompt + 5,112 output tokens):
+
+| calls | purpose | yield |
+|---|---|---|
+| 56 | generation that reached a reader | **the product** |
+| 33 | **rescue judge** (every shut gate) | recovers **19** answers, declines 14 |
+| 3 | generation discarded at verification | **nothing — paid and thrown away** |
+| 3 | generation that self-refused NOT FOUND | correct, but 2 of 3 were answerable |
+
+Two findings:
+
+1. **The rescue judge is 35% of all Gemini spend, and it is structural.** It exists only
+   because the calibrated gate cannot separate a false refusal from a correct one — and
+   Phase 2 proved seven deterministic features cannot replace it. That 35% cannot be
+   removed by tuning; it can only be removed by improving the gate's *inputs*.
+2. **1.7 Gemini calls per delivered answer.** The discarded generations are small (3%) but
+   they are pure waste, and §2/§3 say they are all the same failure: an explanatory answer
+   meeting a lexical floor.
+
+## 6. What the corpus cannot see
+
+Measured by running `routing.plan` and every `intent.*` screen over all 77 questions:
+
+| category the owner asked for | coverage | consequence |
+|---|---|---|
+| document questions | **54** | well covered |
+| general Indian legal questions | **23** | covered, but see §4 |
+| unsupported / missing-information | **13** | covered |
+| Constitution / company-standard answers | **0 scored** | 41 questions *route* to POSITIONS, but every gold anchor is a document `section`, so **the Domain A half of those retrievals is never measured.** 40 position chunks, the topic filter and the whole `AM-67` reading aid have no benchmark coverage. |
+| document vs Constitution comparison | **0** | `intent.is_comparison_question` fires on **0 of 77**. This is the safety screen that stops Ask issuing a verdict (`AM-25` r4) — and the benchmark never exercises it. |
+| capability questions | **0** | `AM-68` path untested |
+| general-knowledge concept questions | **0** | `AM-72` untested (the gap flagged in Phase 0) |
+| follow-up questions | **0** | the corpus is single-turn. `AM-58` conversation context is **shipped** and has no benchmark coverage. |
+| natural-language vs legal-term variations | **unlabeled** | present in substance (Q-01 "walk away", Q-22 "prices go up") but never *paired*, so the effect of terminology cannot be isolated |
+
+**Nothing here can be fixed by manufacturing questions** (rule 21). Domain A needs
+questions whose gold is a ratified standard; comparison needs question/verdict pairs;
+follow-ups need scripted dialogues. Those are owner inputs.
+
+## 7. Ranked: what to fix next, and why
+
+1. **Statute/legal-subject intent detection** (§4). 4 of 8 failures; 2/23 detection rate;
+   root cause is a name-matching regex. Deterministic, zero Gemini, no safety surface —
+   the router only *adds* an authorized domain. Highest impact per unit of risk on this list.
+2. **The explanation ceiling** (§2, §3). 5 of 8 failures and the direct blocker on the
+   owner's stated goal. The honest framing: a 0.5 *lexical* overlap floor is a proxy for
+   grounding, and it cannot distinguish "explains the clause correctly" from "invents".
+   Changing it touches a safety control, so it is an **owner decision with a measurement
+   attached**, not an engineering tweak. Do not touch it without one.
+3. **Score Domain A** (§6). Not a fix — a *prerequisite*. Until company-standard answers
+   are measured, stage 4's only mechanism is unmeasurable (Phase 1's finding) and the
+   product's most distinctive feature is flying blind.
+4. **Comparison-screen coverage** (§6). Zero coverage of the control that prevents legal
+   verdicts. No defect is known — that is exactly the problem.
+5. **Do not spend further effort on the gate** (Phase 2). Seven features failed; the
+   rescue judge already recovers 19 of 21; the headroom is 2 questions and the corpus
+   cannot resolve it.
+
+**What NOT to do:** tune the reranker, sweep gate thresholds, or enable the query planner.
+All three were measured at length in Phases 1–2, all three target stages 4–7, and §3 shows
+only 3 of 8 remaining failures live there.
+
+# Alignment fix — "what is written about partner agreement in the constitution" (2026-09-18)
+
+**0 Gemini calls.** Diagnosed from the production database and the code, reproduced and
+measured on a deterministic Domain A regression set, fixed in retrieval, verified end to end
+through `service.ask` with the provider monkeypatched to fail.
+
+## What was actually wrong — proven, not inherited
+
+| suspected cause | verdict | evidence |
+|---|---|---|
+| intent / routing | **not it** | the router chose POSITIONS correctly (`filters.domains = ["POSITIONS"]` on the live run) |
+| Constitution topic mapping | not reachable | Appendix B has no partner category; the planner ships off anyway |
+| section / heading awareness | not implemented | `source_clause` is stored per chunk and never used for matching — but no heading could have helped: see the last row |
+| **retrieval query construction** | **CAUSE 1** | provenance "— Legal Constitution, Lawyer Review Version L1.10:" was in the indexed text: `constitut` df 15/40, `agreement` df 21/40, `partner` **0/40**. Two boilerplate matches cleared the floor |
+| candidate ranking | symptom | `ts_rank` over boilerplate matches is arbitrary; the three shown were simply what ranked |
+| **evidence selection / relevance** | **CAUSE 2** | no relevance verdict on the lexical path; `_fuse([] if vector else lexical)` used the UNGATED lexical list exactly when the calibrated vector gate had said nothing was relevant |
+| answer synthesis | not reached | the `AM-67` reading aid is off; the fixed sentence framed junk as "the approved position relevant to this question" |
+| grounding / verification | not involved | Domain A quotes verbatim; nothing generated |
+| **missing knowledge** | **THE CEILING** | Constitution §31.3–31.6 are Company-approved and **no ratified standard carries them**; production `position_chunks`: 40 rows, 0 mention "partner". Nothing downstream can answer what is not in the corpus (C-23) |
+
+Another session had already added `named_document_type` (`2ce87e8`, 47 minutes after the
+live question, undeployed): it refuses when the question names a paper the corpus does not
+hold. It covers "partner agreement" and "how can a partner agreement be ended" and nothing
+else — "what does our constitution say about partners" and "who handles support for
+partner customers" still returned five unrelated positions on the fixture corpus.
+
+## The fix — general, no partner exception
+
+1. `_compose_content` indexes code · clause · type · quote. The source name is provenance
+   and lives in the ratified file; the reader's header already shows code · clause · type ·
+   version. `CHUNKING_ALGORITHM_VERSION = positions-verbatim-2`.
+2. `_vector_neighbours` distinguishes **no signal** (no model, or nothing embedded → `None`)
+   from **a verdict** (a model saw candidates and the calibrated gate stayed shut → `[]`).
+   `search_positions` honours the verdict; lexical stands in only for `None`. Vector-open
+   behaviour is unchanged (the measured 2026-09-16 decision that lexical adds rank noise
+   there is respected).
+3. `named_document_type` maps the bare §31 subject ("partner", "partners") so the refusal
+   names what IS covered for the natural phrasings too.
+
+Why the verdict rule is safe, measured on the ratified corpus: the gate opened for **0 of 8**
+must-refuse questions, and for every answerable question it left shut the lexical top hit
+was **wrong** (cosine 0.35–0.39) — honouring it loses nothing correct.
+
+## Measured — `tests/test_assist_positions_regression.py -s`
+
+40 answerable questions (gold = each ratified file's own `description`; twins scored as a
+set), 8 must-refuse questions about §31 papers.
+
+| | hit@1 | gold@3 | recall@5 | MRR | junk answers |
+|---|---|---|---|---|---|
+| before, production shape (model present) | 0.775 | 0.800 | 0.800 | 0.787 | **2/8** |
+| **after, production shape** | **0.800** | **0.825** | **0.825** | **0.812** | **0/8** |
+| after, no-model degradation | 0.800 | 0.825 | 0.825 | 0.812 | 1/8 |
+
+Not one position lost its own description; recall rose because the boilerplate had been
+polluting the lexical ranking too. The one junk answer left is in the no-model degradation
+mode only (production has the model): a strict two-lexeme match on common words. 8 of 40
+positions are unreachable from their own one-line description in either state — a
+description-versus-quote vocabulary gap, recorded, not forced.
+
+End to end (`service.ask`, Gemini forbidden): all 8 must-refuse questions → refusal that
+names coverage, no positions, no call; "what is our liability cap" → LIABILITY quoted
+verbatim.
+
+## What this does NOT do, and why
+
+The reader still cannot be told what the Constitution says about Partner Agreements. That
+is not a retrieval or intelligence gap any more — it is a **knowledge** gap: §31.3–31.6 have
+no ratified standard, and locked Step 6 has no `PARTNER_AGREEMENT` type for one to declare
+(C-23). Two owner rulings unblock it; the verbatim positions are in L1.10 §31.3–31.6 ready
+to become standard files without a word changed (rule 21). Until then the honest answer is
+the refusal, and the refusal is now honest for every phrasing tested.
+
+**Production needs `python3 -m tools.chunk_standards` once after deploy** — deploy does not
+rebuild the position index (ops/README.md).

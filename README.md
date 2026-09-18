@@ -111,6 +111,7 @@ The assist lane is documented in
 | Terminology | [docs/00-project/GLOSSARY.md](docs/00-project/GLOSSARY.md) |
 | How to propose a change | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Working rules (humans and AI agents) | [CLAUDE.md](CLAUDE.md) |
+| **Git and GitHub procedure** (branch, worktree, commit, push, PR, conflict, CI) | [AGENTS.md](AGENTS.md) § Multi-Agent and Multi-User Development Rules |
 | The authoritative historical record | [all_lock.md](all_lock.md) |
 
 **`all_lock.md` is authoritative** and append-only. `docs/` is the organized reference derived from

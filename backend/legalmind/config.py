@@ -357,6 +357,40 @@ def query_planner_enabled() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def query_expansion_enabled() -> bool:
+    """Whether the plan's reformulations WIDEN document retrieval. OFF.
+
+    Separate from `query_planner_enabled` because they are two mechanisms with two
+    independent measurements, and only one of them costs:
+
+      * AIMING — the plan's topic narrows Domain A and its section hint is recorded.
+        Free, and it cannot add a non-gold chunk.
+      * WIDENING — each reformulation runs its own vector pass and is rank-fused into
+        the candidate list (`store.search_hybrid(extra_queries=)`).
+
+    WIDENING is OFF after measuring it twice, on the same 77-question set, through the
+    production path:
+
+        2026-09-17 (provider plan, every question)   precision 0.390 -> 0.358
+        2026-09-18 (lexical plan, no provider cost)  precision 0.407 -> 0.377
+
+    and in the second run recall@10, hit@1, MRR and gold-in-top-3 were BYTE-IDENTICAL
+    either way (0.906 / 0.750 / 0.802 / 0.844) while user-visible answers fell 55 -> 49
+    of 64. A fused list that does not move gold can only dilute the gold share, and the
+    diluted evidence then fails the sufficiency and verification screens that stand
+    between a reader and an answer. The one remaining injection point — appending the
+    term to the LEXICAL query — is forbidden: that query is the gate's own calibrated
+    input (`match="all"` -> `lexical_hit`), so widening it would move the refusal
+    boundary, which `AM-25`'s calibrated gate does not permit.
+
+    Kept as a flag rather than deleted because the mechanism is sound where the corpus
+    is larger than one document version, and because the capability is what the target
+    architecture's stage 4 names. It is not enabled by a merge.
+    """
+    value = os.environ.get("LEGALMIND_QUERY_EXPANSION", "off")
+    return value.lower() in {"1", "true", "on"}
+
+
 def evidence_rescue_enabled() -> bool:
     """Whether a gate refusal gets a second look from the model. OFF by default.
 

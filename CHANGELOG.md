@@ -10,6 +10,125 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Ask no longer answers a question about a paper it holds no position for with another paper's clause (2026-09-18)
+
+**Live defect.** "what is written about partner agreement in the constitution" was answered
+with three MSA positions about renewal, cure and suspension, framed as "the organization's
+approved position relevant to this question". Two general mechanisms produced it, neither
+partner-specific:
+
+1. **Provenance was indexed.** Every Domain A chunk carried "— Legal Constitution, Lawyer
+   Review Version L1.10:" in its searchable text, so `constitut` matched 15 of 40 chunks
+   and any "… in the constitution" question cleared the two-lexeme floor on boilerplate
+   plus `agreement` (df 21). `positions._compose_content` now indexes code · clause · type ·
+   quote only; the name stays in the ratified file. Algorithm `positions-verbatim-2`.
+2. **A shut gate was treated as an absence of signal.** `search_positions` fell back to the
+   ungated lexical list exactly when the calibrated vector gate had said nothing was
+   relevant — which is when that list is junk: a subject the corpus never uses
+   ("partner") contributes nothing to any lexical score, so incidental words ("support",
+   "customer") ranked. Measured on the ratified corpus: the gate opened for **0 of 8**
+   questions about papers we hold no position for, and for every answerable question it
+   left shut the lexical top hit was **wrong** (cosine 0.35–0.39). A shut gate is now the
+   verdict; lexical stands in only when there is no model (`None`), and an empty
+   embedding table is treated as no signal, not a verdict.
+
+`named_document_type` also maps the bare §31 subject ("partner", "partners"), so the
+refusal names what IS covered for the natural phrasings too.
+
+**Measured, deterministic, 0 Gemini calls** (`tests/test_assist_positions_regression.py`,
+run with `-s`): 40 answerable questions whose gold is each ratified file's own
+`description`, 8 must-refuse questions about §31 papers. Production shape (model present):
+hit@1 0.775 → **0.800**, gold@3 0.800 → **0.825**, recall@5 0.800 → **0.825**, junk answers
+**2/8 → 0/8**. Not one position lost its own description. End to end through
+`service.ask` with Gemini monkeypatched to fail: every must-refuse question yields the
+refusal naming coverage, no unrelated clause, no provider call; the liability control still
+quotes verbatim.
+
+**Not fixed, and not fixable in code:** the reader still cannot be TOLD what the
+Constitution says about Partner Agreements, because §31.3–31.6 are Company-approved in
+L1.10 but no ratified standard carries them — and locked Step 6 has no `PARTNER_AGREEMENT`
+type for one to declare (CONFLICTS.md **C-23**, owner decision). Until then the honest
+answer is the refusal.
+
+**Production needs one step after deploy:** `python3 -m tools.chunk_standards` (re-chunks
+and re-embeds; deploy does not), or `constitut` stays in the live index.
+
+### Added — the git and GitHub procedure every agent follows (2026-09-18)
+
+**Owner instruction:** multiple agents and sessions work this repository, and the losses
+have been git-shaped — conflicts, CI failures from stale branches, lost uncommitted work,
+unclear file ownership. [AGENTS.md](AGENTS.md) now carries the **Multi-Agent and
+Multi-User Development Rules**, 22 sections covering task branches, one branch per
+worktree, inspect-before-edit, never discarding unknown work, commit/push/PR discipline,
+merge-conflict and CI procedure, append-only and migration safety, session handoff, the
+completion checklist and the stop conditions. Written as the owner supplied them; nothing
+is paraphrased.
+
+**One deliberate supersession, reported not silently resolved (rule 5).**
+[CLAUDE.md § Git workflow — one owner, keep it in `main`](CLAUDE.md) told agents to commit
+straight to `main` and not to branch per task; §1 of the new rules says the opposite.
+The newer owner instruction wins, `main` is branch-protected and rejects direct pushes
+anyway, and that CLAUDE.md section now carries a banner saying so. The rest of it —
+merge promptly, delete the branch, no retry branches, the deploy tree, one deploy at a
+time — is untouched and still binds.
+
+Cross-referenced from [CLAUDE.md](CLAUDE.md) (Start here + the Git workflow banner),
+[CONTRIBUTING.md](CONTRIBUTING.md), [README.md](README.md), [docs/README.md](docs/README.md),
+[CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) §1 row 8 and
+`frontend/CLAUDE.md`, so an agent entering from any of them finds it. Documentation only:
+no code, no decision, no lock record.
+
+### Fixed — Ask no longer answers a question about one kind of paper with another kind's position (2026-09-18)
+
+Reported live with a screenshot. **"what is written about partner agreement in the
+constitution"** returned `AUTORENEW-MSA-001`, `CURE-PERIOD-MSA-001` and
+`SUSPENSION-NOTICE-CURE-MSA-001` under the sentence *"The organization's approved position
+relevant to this question is quoted below, verbatim from the ratified standard."* All three
+are **MSA** standards; the question was about a **Partner Agreement**.
+
+This was first read as a retrieval-relevance defect (the proposed fix being document-type
+tags, or a reranker). It is not. **Zero Partner Agreement standards are ratified — or even
+proposed.** All 40 ratified files are MSA (23), NDA (8), TOS (8) or SLA (1), so there was no
+better answer to rank higher. Nothing in the pipeline ever compared *the kind of paper the
+reader named* against *the kind of paper the retrieved positions govern*, so Domain A
+returned its nearest neighbours and the fixed wording asserted they were the organization's
+position on the question asked. That is a fail-open of rule 15 and of `AM-25` r4 — a wrong
+answer, not a weak one — and no reranking fixes it, because an MSA clause does not become a
+Partner Agreement position by scoring better.
+
+The guard sits in `positions.search_positions`, the one function all three Domain A call
+sites route through:
+
+* `named_document_type(question)` resolves the single document type a question names, or
+  `None` — for none named (the common case, which keeps every existing question on its
+  existing path) and for more than one named, which is not a narrowing it may guess at. The
+  generic word *"agreement"* is deliberately not a type; matching it would refuse nearly
+  every question.
+* Hits are then restricted to that type. Unlike the `topic` narrowing beside it, this one
+  **may** end in a refusal — that is the point.
+* `coverage(db)` names the document types the active corpus holds, carrying the `AM-71`
+  exclusion so a type whose only standards are retired is not advertised.
+* The refusal names what is missing and what is held: *"No approved position covers Partner
+  Agreement. The organization's ratified standards currently cover: MSA, NDA, SLA, TOS."*
+  This reuses the `statute_holdings` precedent and its `AM-46` r3 reasoning — the shape of
+  the corpus is a public fact; no position is disclosed. Without it the reader saw only
+  "Information not found", which reads as a broken search rather than as the fact it is.
+  When the named type **is** covered and retrieval merely missed, the sentence is withheld —
+  claiming otherwise would be a new falsehood.
+
+Where a type is covered, the guard only removes off-type noise: an MSA question still
+answers, and now answers from MSA standards only.
+
+**Registered, not resolved: [C-23](docs/00-project/CONFLICTS.md).** Legal Constitution L1.10
+§31 states positions for Partner, Vendor and Distribution Agreements and Purchase Orders and
+tags clauses with them, but locked Step 6's ten Document Types carry none of the four. No
+document type was added (`DOCUMENT_TYPES` is untouched) and no §31 position was ratified —
+both are owner acts (rules 6, 21). The recognition list names the four **only** so the
+refusal is accurate, which is correct under every reading of C-23.
+
+12 tests in `backend/tests/test_assist_positions_document_type.py`, including the reported
+question now retrieving nothing and an MSA question still retrieving only MSA.
+
 ### Fixed — a revoked grant no longer leaks a Company Position on replay (2026-09-17)
 
 Ask AI, Phase 0. `GET /conversations/{id}` checked only that the caller created

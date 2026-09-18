@@ -2,6 +2,8 @@
 
 How change works here. The rules themselves are in [CLAUDE.md](CLAUDE.md); this document is the procedure.
 
+**The git and GitHub procedure — branching, worktrees, commits, pushes, PRs, conflicts, CI — is in [AGENTS.md](AGENTS.md) § Multi-Agent and Multi-User Development Rules (owner instruction, 2026-09-18). Read it before you touch git.** This document covers *what* a change is allowed to be; AGENTS.md covers *how* it lands.
+
 LegalMind is **specification-first**. A decision is made in the specification, then implemented — never the reverse. The cost of a quietly-changed legal rule is not a bug; it is an incorrect legal conclusion that looks authoritative.
 
 ---

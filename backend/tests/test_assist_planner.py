@@ -84,6 +84,13 @@ def test_topics_are_exactly_the_ratified_standards_appendix_b_topics():
 
 
 # --------------------------------------------------------------------------
+#: The ONLY shape that now reaches the provider: the lexical table cannot place
+#: it (no cue, no canonical term, no section number) AND it reads ambiguous
+#: (conditional + referential). Every test below that asserts a provider call
+#: must use a question of this shape, or it is testing the cheap path.
+UNPLACED = "if that happens, what else applies?"
+
+
 # plan() — fail-closed on every path, and exactly the permitted payload
 # --------------------------------------------------------------------------
 def test_off_means_no_plan_and_no_provider_call(monkeypatch):
@@ -123,13 +130,13 @@ def test_a_provider_failure_is_no_plan(monkeypatch, failure):
         raise failure
 
     monkeypatch.setattr(generation, "generate_raw", fail)
-    assert planner.plan("what is the cure period?") is None
+    assert planner.plan(UNPLACED) is None
 
 
 def test_an_unparseable_reply_is_no_plan_at_the_seam(monkeypatch):
     monkeypatch.setenv("LEGALMIND_QUERY_PLANNER", "on")
     monkeypatch.setattr(generation, "generate_raw", lambda *a, **k: _fake("I think..."))
-    assert planner.plan("what is the cure period?") is None
+    assert planner.plan(UNPLACED) is None
 
 
 def test_an_empty_question_is_no_plan_and_no_call(monkeypatch):
@@ -155,12 +162,12 @@ def test_the_call_is_bounded_and_carries_only_the_permitted_payload(monkeypatch)
         return _fake(GOOD)
 
     monkeypatch.setattr(generation, "generate_raw", capture)
-    planner.plan("how much time do we get to fix a breach?",
+    planner.plan(UNPLACED,
                  ["what is the termination notice period?"], request_id="r-1")
     assert seen["prompt_version"] == planner.PLAN_PROMPT_VERSION == "query-plan-1"
     assert seen["timeout_s"] == planner.PLAN_TIMEOUT_S <= 10
     assert seen["max_output_tokens"] <= 256
-    assert "how much time do we get to fix a breach?" in seen["prompt"]
+    assert UNPLACED in seen["prompt"]
     assert "what is the termination notice period?" in seen["prompt"]
     assert planner.CONTEXT_HEADER in seen["prompt"]
     for topic in planner.TOPICS:
@@ -179,7 +186,7 @@ def test_no_prior_questions_means_no_context_block(monkeypatch):
         return _fake(GOOD)
 
     monkeypatch.setattr(generation, "generate_raw", capture)
-    planner.plan("what is the cure period?")
+    planner.plan(UNPLACED)
     assert planner.CONTEXT_HEADER not in seen["prompt"]
 
 
@@ -222,3 +229,120 @@ def test_routing_and_the_safety_screens_cannot_see_the_plan():
 
     for module in (routing, intent):
         assert "planner" not in _imports(pathlib.Path(module.__file__)), module.__name__
+
+
+# ==========================================================================
+# The cheap path (Phase 1, 2026-09-18) — a plan for nothing, or no plan
+# ==========================================================================
+def test_the_cheap_path_makes_no_provider_call_at_all(monkeypatch):
+    """The whole point of Phase 1: the common question costs no call and no
+    latency. Phase 1's first attempt spent 4,788 ms p50 asking about every
+    question; the table answers this one for free."""
+    monkeypatch.setenv("LEGALMIND_QUERY_PLANNER", "on")
+
+    def boom(*a, **k):
+        raise AssertionError("the cheap path reached the provider")
+
+    monkeypatch.setattr(generation, "generate_raw", boom)
+    made = planner.plan("how much time do we get to fix a breach?")
+    assert made is not None
+    assert made.topic == "Termination & Suspension"
+    assert "cure period" in made.queries
+
+
+def test_a_plain_question_the_table_cannot_place_costs_no_call_either(monkeypatch):
+    """Rung two: nothing to add, and nothing ambiguous to resolve. Retrieval
+    runs exactly as it does today — a simple question does not pay for a
+    planner."""
+    monkeypatch.setenv("LEGALMIND_QUERY_PLANNER", "on")
+
+    def boom(*a, **k):
+        raise AssertionError("a plain question reached the provider")
+
+    monkeypatch.setattr(generation, "generate_raw", boom)
+    assert planner.plan("are we allowed to recruit their staff?") is None
+
+
+def test_only_an_unplaced_ambiguous_question_reaches_the_provider(monkeypatch):
+    monkeypatch.setenv("LEGALMIND_QUERY_PLANNER", "on")
+    calls: list[str] = []
+
+    def capture(prompt, **kwargs):
+        calls.append(prompt)
+        return _fake(GOOD)
+
+    monkeypatch.setattr(generation, "generate_raw", capture)
+    assert planner.plan(UNPLACED) is not None
+    assert len(calls) == 1
+
+
+# -- the precision rule: contribute a term, never a paraphrase --------------
+def test_a_term_the_reader_already_used_is_never_added_as_a_query():
+    """The measured precision loss (0.390 -> 0.358) was extra queries adding
+    their own rank-fused lists. A reader who typed "cure period" already has
+    that lexical pass; repeating it only dilutes the gold share."""
+    made = planner.plan_lexical("what is the cure period?")
+    assert made is not None
+    assert made.queries == ()          # nothing to contribute
+    assert made.topic == "Termination & Suspension"   # but still aimed
+
+
+def test_a_term_the_reader_lacks_is_contributed_once():
+    made = planner.plan_lexical("how much time do we get to fix a breach?")
+    assert made is not None and made.queries == ("cure period",)
+
+
+@pytest.mark.parametrize("question", [
+    "what is the liability cap?",
+    "what are the payment terms?",
+    "what is the force majeure clause?",
+    "what is the governing law?",
+])
+def test_a_question_already_in_legal_terms_contributes_nothing(question):
+    made = planner.plan_lexical(question)
+    assert made is not None and made.queries == ()
+
+
+def test_the_cheap_path_never_exceeds_three_queries():
+    #  A question touching many cues at once still obeys MAX_QUERIES.
+    made = planner.plan_lexical(
+        "if they get acquired or discontinue the service, who pays, which court "
+        "hears it, and can we walk away and stop paying?")
+    assert made is not None and len(made.queries) <= planner.MAX_QUERIES
+
+
+def test_a_section_number_in_the_sentence_becomes_the_hint():
+    made = planner.plan_lexical("what does section 17.2 say about the cap?")
+    assert made is not None and made.section_hint == "17.2"
+
+
+# -- the table is vocabulary, not law --------------------------------------
+def test_every_cue_names_a_topic_the_ratified_standards_carry():
+    """The guard that keeps the table vocabulary: a topic cannot be invented
+    here, only named. Rules 7 and 21."""
+    for _, _, topic in planner._TERMS:
+        assert topic in planner.TOPICS
+
+
+def test_the_table_states_no_threshold_and_no_position():
+    """No number, no duration, no acceptance word — a search thesaurus cannot
+    smuggle in what a standard requires."""
+    forbidden = ("month", "days", "year", "acceptab", "unacceptab", "%",
+                 "shall", "must not", "deviat")
+    for cue, term, _ in planner._TERMS:
+        assert not any(ch.isdigit() for ch in term), term
+        assert not any(w in term.casefold() for w in forbidden), term
+        assert not any(ch.isdigit() for ch in cue), cue
+
+
+def test_the_cheap_path_leaves_the_recorded_fields_neutral():
+    """`party` and `source_preference` narrow nothing, so the lexical path does
+    not guess at them — routing decides domains from permissions (`AM-45` r1)."""
+    made = planner.plan_lexical("how much time do we get to fix a breach?")
+    assert made is not None
+    assert made.party == "NONE" and made.source_preference == "ANY"
+
+
+def test_the_cheap_path_still_returns_nothing_when_the_flag_is_off(monkeypatch):
+    monkeypatch.delenv("LEGALMIND_QUERY_PLANNER", raising=False)
+    assert planner.plan("how much time do we get to fix a breach?") is None
