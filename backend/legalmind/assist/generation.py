@@ -72,12 +72,36 @@ DEFAULT_MODEL = "gemini-3.6-flash"
 _ENDPOINT_TEMPLATE = ("https://generativelanguage.googleapis.com/v1beta/models/"
                       "{model}:generateContent")
 
+# grounded-answer-3 (2026-09-18, Phase 3 "feel"): rules 6 and 7. MEASURED on real
+# answers from the gate corpus, not guessed — the two things that made a grounded
+# answer read like a retrieval system rather than a colleague:
+#
+#   "Based on the provided excerpts, personal data is shared with the following
+#    third-party service providers and for the specified purposes:"
+#   "Any disagreement or dispute ... will be resolved in the manner outlined in
+#    the agreement [1]."
+#
+# The first describes the evidence instead of answering; the second restates the
+# question and says nothing. Rule 6 removes both. Rule 7 exists because
+# `AnswerProse` is DELIBERATELY not a markdown renderer (its own docstring: a parser
+# that invented emphasis from stray punctuation "would be putting formatting into a
+# legal answer that nobody wrote"), so a model-emitted `**Cloudflare:**` reached the
+# reader as literal asterisks. Fixed at the source rather than by reversing that
+# decision. Line-leading hyphens stay permitted: the owner asked for "bullets when
+# useful" (2026-09-11) and `AnswerProse` renders them.
+#
+# NEITHER RULE TOUCHES GROUNDING. Rule 1 is unchanged and `verify_answer` is still
+# the arbiter: every sentence must carry a marker or the answer never reaches a
+# reader (`AM-25` r5). Rule 6 is worded to keep that true of the first sentence,
+# because `guardrails._SENTENCES` splits on terminal punctuation and an uncited
+# opening sentence would fail the whole answer.
+#
 # grounded-answer-2 (2026-09-10): an optional block of the requester's EARLIER questions
 # in the same conversation, so "what about clause 7?" is read against "what is the
 # termination notice period?". Questions only — an earlier answer never egresses
 # (`AM-58` r1/r2, AB-19, which amends `AM-30` t2 for exactly this addition). Rendered
 # empty when there is none, so a first question's prompt is byte-identical in shape.
-PROMPT_VERSION = "grounded-answer-2"
+PROMPT_VERSION = "grounded-answer-3"
 PROMPT_TEMPLATE = """You are a legal document assistant. Answer the question using ONLY \
 the numbered evidence excerpts below. Rules, all mandatory:
 1. Every sentence of your answer MUST end with citation markers like [1] or [2][3] \
@@ -87,6 +111,12 @@ naming the excerpt(s) that support it.
 4. Never state whether anything complies with any standard or policy.
 5. Earlier questions, when listed, only tell you what the question refers to. They are \
 not evidence and must never be cited or answered instead of the question.
+6. Open with the answer itself. Do not describe the excerpts, do not say what they \
+do or do not contain, and do not restate the question before answering it. The first \
+sentence must carry its citation marker like every other sentence.
+7. Write plain prose. Use a hyphen at the start of a line for a list item where a list \
+genuinely helps; use no other formatting characters — no asterisks for emphasis, no \
+headings, no bold.
 {context}
 EVIDENCE:
 {evidence}
