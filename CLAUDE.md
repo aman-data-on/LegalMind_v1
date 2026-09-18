@@ -58,6 +58,7 @@ finished.
 | Terminology and the distinctions that matter | [docs/00-project/GLOSSARY.md](docs/00-project/GLOSSARY.md) |
 | How to propose a change, and what needs approval | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | The authoritative historical record | [all_lock.md](all_lock.md) |
+| **Git and GitHub — branches, worktrees, commits, PRs, CI** | [AGENTS.md](AGENTS.md) § Multi-Agent and Multi-User Development Rules (owner, 2026-09-18) |
 
 Reuse what is already decided. The registry, the status document and the conflicts register exist so that you do not re-derive settled questions from `all_lock.md` — read them first, and go to `all_lock.md` for the exact locked text when you need it.
 
@@ -438,6 +439,13 @@ Once implementation is authorized, the constraints in [IMPLEMENTATION_READINESS_
 ---
 
 ## Git workflow — one owner, keep it in `main`
+
+> ⚠️ **Superseded in part, 2026-09-18.** [AGENTS.md](AGENTS.md) § Multi-Agent and
+> Multi-User Development Rules is now the procedure for every git and GitHub operation,
+> and its §1 replaces "commit straight to `main`" below with **always work on a task
+> branch**. `main` is branch-protected and rejects direct pushes. The rest of this
+> section — merge promptly, delete the branch, no retry branches, the deploy tree, one
+> deploy at a time — still stands. Read AGENTS.md before any branch, commit, push or PR.
 
 **Owner instruction, 2026-09-02:** *"i am the only one who work in this project so i want everything in main."* Multiple Claude sessions may run concurrently against this repository, but there is exactly one human owner — this is not a multi-contributor project, and the branch hygiene that convention assumes is not needed here.
 
