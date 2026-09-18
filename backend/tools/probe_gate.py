@@ -37,8 +37,6 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 os.environ.setdefault("LEGALMIND_SOURCE_MATERIAL_DIR", "/root/Legalmind.v1/legal-docs")
 
-from uuid import UUID
-
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -50,14 +48,10 @@ from legalmind.assist import (
     store,
 )
 from legalmind.assist.store import vector_schema, vector_type
-from tools.benchmark_retrieval import (
-    _chunks,
-    _load_eval_dataset,
-    _resolve_anchors,
-)
+from tools.benchmark_retrieval import _load_eval_dataset, probe_corpus
 from tools.verify_assist_quality import DATASET, _gate_url
 
-FEATURES = ("gap_mean", "gap_second", "ratio", "margin3")
+FEATURES = ("gap_mean", "gap_second")
 
 
 def _features(scores: list[float]) -> dict | None:
@@ -66,25 +60,17 @@ def _features(scores: list[float]) -> dict | None:
         return None
     top, second, rest = scores[0], scores[1], scores[1:]
     return {"top": top,
-            "gap_mean": top - sum(rest) / len(rest),      # what ships
-            "gap_second": top - second,                    # peak to next
-            "ratio": top / second if second else 99.0,
-            "margin3": top - sum(scores[1:4]) / len(scores[1:4])}
+            "gap_mean": top - sum(rest) / len(rest),   # what ships
+            "gap_second": top - second}                # peak to next
 
 
 def main() -> int:
     db = sessionmaker(bind=create_engine(_gate_url(), future=True), future=True)()
     questions = _load_eval_dataset(DATASET)
-    versions: dict[str, UUID] = {}
-    for name, dv in db.execute(text(
-            "SELECT dv.original_filename, dv.id FROM document_versions dv "
-            "ORDER BY dv.created_at DESC")).all():
-        versions.setdefault(name, dv)
+    versions, expected = probe_corpus(db, questions)
     if not versions:
         print("no ingested corpus in the gate database; run the Tier-2 gate first")
         return 1
-    expected, _ = _resolve_anchors(
-        questions, {n: _chunks(db, d) for n, d in versions.items()})
 
     schema, vschema, vtype = config.assist_schema(), vector_schema(db), vector_type(db)
     op = f'OPERATOR("{vschema}".<=>)'
