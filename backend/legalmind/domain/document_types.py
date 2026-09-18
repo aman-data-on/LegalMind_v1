@@ -20,8 +20,40 @@ A DB enum would be a schema change and would pre-empt C-13's resolution.
 
 from __future__ import annotations
 
-# The ten initial V1 types, exactly as locked Step 6 lists them. Order matters
-# only for error messages; membership is what is enforced.
+# Locked Step 6's ten types, EXTENDED by the three Section 31 types (owner,
+# 2026-09-18 — see below). Order matters only for error messages; membership is what
+# is enforced.
+#
+# THE SECTION 31 EXTENSION.
+#
+# Legal Constitution L1.10 §31 "extends the Constitution's clause-wise structure to
+# Partner Agreements, Vendor Agreements, Distribution Agreements, Purchase Orders,
+# Amendments/Addenda, and Other Agreements", and tags each position with an
+# "Applicable Document Types" line naming them. Locked Step 6 carried none of the
+# first three, so no Company Standard could be typed to them and the importer refused
+# every attempt: the Constitution stated positions the system had no vocabulary to
+# hold.
+#
+# The visible consequence was a live defect (2026-09-18): "what is written about
+# partner agreement in the constitution" was answered with three MSA standards,
+# because no Partner Agreement position existed anywhere in the corpus. Registered as
+# C-23 and resolved by the owner the same day — Constitution-final text is ratified,
+# and every type the Constitution carries text for must answer from its own positions.
+#
+# Two of §31's six types needed nothing added:
+#   * Purchase Order -> ORDER_FORM, already here and already how this repository
+#     models it (the two proposed §31.11 standards are typed ORDER_FORM and coded
+#     `PO-*`). A separate PURCHASE_ORDER type would have split one concept in two.
+#   * Amendment/Addendum -> AMENDMENT, already here.
+# "Other Agreements" (§31.13) adds no clauses of its own — it routes to the existing
+# general sections — so it stays OTHER.
+#
+# EVIDENTIARY GRADE IS NOT CARRIED HERE. It lives in each standard's
+# `configuration.constitution.basis`, whose vocabulary already distinguishes
+# COMPANY_APPROVED from LEGALMIND_RULE (§31.9/§31.10's practice-based rules, "never
+# Acceptable by guess") and NOT_ADOPTED (§31.6a, "never a current rule"). A document
+# type says which paper a position governs; it never says how well evidenced that
+# position is, and adding a type here asserts nothing about the text behind it.
 DOCUMENT_TYPES: tuple[str, ...] = (
     "MSA",            # Master Services Agreement
     "NDA",            # Non-Disclosure Agreement
@@ -30,12 +62,32 @@ DOCUMENT_TYPES: tuple[str, ...] = (
     "DPA",            # Data Processing Agreement
     "AUP",            # Acceptable Use Policy
     "PRIVACY_POLICY",
-    "ORDER_FORM",
-    "AMENDMENT",      # Amendment / Addendum
+    "ORDER_FORM",     # also Constitution §31.11's Purchase Order (PO)
+    "AMENDMENT",      # Amendment / Addendum — Constitution §31.12
+    "PARTNER_AGREEMENT",       # Constitution §31.3-§31.8 (owner, 2026-09-18)
+    "VENDOR_AGREEMENT",        # Constitution §31.9
+    "DISTRIBUTION_AGREEMENT",  # Constitution §31.10
     "OTHER",
 )
 
 _DOCUMENT_TYPE_SET = frozenset(DOCUMENT_TYPES)
+
+
+def readable(document_type: str) -> str:
+    """The type as a reader sees it: `PARTNER_AGREEMENT` -> "Partner Agreement";
+    `MSA` stays `MSA`.
+
+    Needed the moment Step 6 gained a multi-word code (`AM-72`). A raw code composed
+    into reader-facing text is not just ugly — `position_chunks` carries the type into
+    the chunk body, and the Domain A egress screen reads any `WORD_WORD` token as an
+    internal locator (an env var or a repo path), so `(PARTNER_AGREEMENT)` made the
+    whole corpus refuse to egress. `ORDER_FORM` and `PRIVACY_POLICY` were the same
+    landmine, unarmed only because no ratified standard was typed to either.
+
+    Initialisms stay initialisms because that is what people call them.
+    """
+    return (document_type if document_type.isupper() and "_" not in document_type
+            else document_type.replace("_", " ").title())
 
 
 class UnknownDocumentType(ValueError):

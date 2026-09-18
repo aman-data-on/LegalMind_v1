@@ -10,6 +10,68 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — the Constitution's own document types now answer as themselves (`AM-72`, AB-24, 2026-09-18)
+
+The follow-on to the fail-open fixed earlier the same day. That fix stopped Ask
+answering a Partner Agreement question with MSA positions, but it could only make the
+question **refuse**, because no Partner Agreement position existed anywhere. The owner
+resolved [C-23](docs/00-project/CONFLICTS.md) and it now **answers**:
+
+> "Any document type whose final text already exists in the Constitution is to be
+> treated as RATIFIED… if the Constitution contains a position for a document type,
+> LegalMind must answer questions about that type using that text, with exact section
+> citations. Only refuse when the type genuinely has NO text anywhere."
+
+**Inventory first, parsed rather than read** — 21 of the Constitution's sections carry an
+explicit "Applicable Document Types" tag and 232 do not, and the tagged ones are not
+uniformly final. The Constitution grades its own text, in its own STATUS lines:
+
+| Type | Sections | Constitution's own STATUS |
+|---|---|---|
+| Partner Agreement | §31.3, §31.5, §31.6, §31.8 (+ service-change, change-of-control) | **Company-approved**, 2 of 2 historical agreements |
+| Purchase Order (→ `ORDER_FORM`) | §31.11 | Mixed — precedence + acceptance approved |
+| Amendment/Addendum | §31.12 | Mixed — written amendment + precedence approved |
+| Vendor Agreement | §31.9 | Industry/legal-practice, **subject to legal review** |
+| Distribution Agreement | §31.10 | Same |
+| L1/L2/L3 support | §31.6a | **NOT CURRENTLY ADOPTED** — "Legal Mind must NOT flag the absence… as a deviation" |
+
+**What changed.** Step 6 gains `PARTNER_AGREEMENT`, `VENDOR_AGREEMENT` and
+`DISTRIBUTION_AGREEMENT`; Purchase Order maps to the existing `ORDER_FORM`, which is
+already how the repository models §31.11 (its standards are typed `ORDER_FORM`, coded
+`PO-*`). Four Partner Agreement standards are ratified from §31.3, §31.5, §31.6 and
+§31.8, each quoting its section verbatim — this extends `AM-59` r6's established route,
+so nothing is authored (rules 7, 21). Evidentiary grade stays in
+`configuration.constitution.basis`, whose vocabulary already carried `COMPANY_APPROVED`,
+`LEGALMIND_RULE` and `NOT_ADOPTED` for exactly this purpose. **No standard is ratified
+for §31.6a, and a test pins that none ever is.**
+
+The reported question now returns §31.3, §31.5 and §31.8 — Partner Agreement only, with
+section citations — and the three MSA codes from the screenshot are pinned as never
+returning. A type with no position still refuses and names what is covered, so
+`VENDOR_AGREEMENT` exists as a type and correctly declines to answer.
+
+**Two latent bugs surfaced by the first multi-word document type**, both fixed at the
+root rather than worked around:
+
+* The Domain A **egress screen read `PARTNER_AGREEMENT` as an internal locator** — its
+  ENV_VAR_STYLE arm matches any `WORD_WORD` token, and one dirty span refuses the whole
+  batch. Every ratified standard had been typed MSA/NDA/TOS/SLA, all initialisms, so
+  this had never fired; it would have fired the day an `ORDER_FORM` standard was
+  ratified. Known document types are now excluded from the locator test.
+* `_compose_content` baked the **raw type code into reader-facing chunk text**. It now
+  renders the readable label (`document_types.readable`), which is both better for a
+  reader and what keeps the code out of the egress path.
+
+Two sanitization tests were narrowed to what they actually promise — that no retrieved
+chunk *carries* a locator, rather than that those queries retrieve nothing at all. §31.8's
+ratified quote says "trademarks/marketing materials", so `legalmind_source_material_dir`
+now shares the lexeme `material` with a legitimate position; matching a real English word
+inside ratified text is not a leak. Both tests already drew that same line for "legal"
+and "constitution".
+
+Counts: 33 → 37 active standards (+ 7 retired = 44 files), pinned in
+`tools/publish_payload.py` and `test_ratified_descriptions.py`.
+
 ### Fixed — Ask no longer answers a question about a paper it holds no position for with another paper's clause (2026-09-18)
 
 **Live defect.** "what is written about partner agreement in the constitution" was answered
@@ -81,7 +143,6 @@ Cross-referenced from [CLAUDE.md](CLAUDE.md) (Start here + the Git workflow bann
 [CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) §1 row 8 and
 `frontend/CLAUDE.md`, so an agent entering from any of them finds it. Documentation only:
 no code, no decision, no lock record.
-
 ### Fixed — Ask no longer answers a question about one kind of paper with another kind's position (2026-09-18)
 
 Reported live with a screenshot. **"what is written about partner agreement in the

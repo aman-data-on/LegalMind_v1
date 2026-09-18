@@ -17,8 +17,13 @@ export const DOCUMENT_TYPES: ReadonlyArray<{ code: string; label: string }> = [
   { code: "DPA", label: "Data Processing Agreement" },
   { code: "AUP", label: "Acceptable Use Policy" },
   { code: "PRIVACY_POLICY", label: "Privacy Policy" },
-  { code: "ORDER_FORM", label: "Order Form" },
+  { code: "ORDER_FORM", label: "Order Form / Purchase Order" },
   { code: "AMENDMENT", label: "Amendment / Addendum" },
+  // Legal Constitution L1.10 §31's own document types, added by `AM-72` (AB-24,
+  // owner 2026-09-18, resolving C-23). Order must match the backend tuple exactly.
+  { code: "PARTNER_AGREEMENT", label: "Partner Agreement" },
+  { code: "VENDOR_AGREEMENT", label: "Vendor Agreement" },
+  { code: "DISTRIBUTION_AGREEMENT", label: "Distribution Agreement" },
   { code: "OTHER", label: "Other" },
 ];
 
@@ -43,6 +48,9 @@ const TYPE_CHIP: Record<string, string> = {
   PRIVACY_POLICY: "Privacy",
   ORDER_FORM: "Order form",
   AMENDMENT: "Amendment",
+  PARTNER_AGREEMENT: "Partner",
+  VENDOR_AGREEMENT: "Vendor",
+  DISTRIBUTION_AGREEMENT: "Distribution",
 };
 
 export function documentTypeChip(code: string | null | undefined): string | null {
@@ -70,6 +78,8 @@ const TYPE_TOKENS: ReadonlyArray<[string, string]> = [
   ["msa", "MSA"], ["nda", "NDA"], ["tos", "TOS"], ["sla", "SLA"],
   ["dpa", "DPA"], ["aup", "AUP"], ["privacy", "PRIVACY_POLICY"],
   ["order", "ORDER_FORM"], ["amendment", "AMENDMENT"], ["addendum", "AMENDMENT"],
+  ["partner", "PARTNER_AGREEMENT"], ["reseller", "PARTNER_AGREEMENT"],
+  ["vendor", "VENDOR_AGREEMENT"], ["distribution", "DISTRIBUTION_AGREEMENT"],
 ];
 
 export function typeHintFromFilename(filename: string): string | null {

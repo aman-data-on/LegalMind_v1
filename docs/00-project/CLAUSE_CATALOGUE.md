@@ -171,6 +171,34 @@ Left in `proposed/`: PO-MSA-REFERENCE and PO-PRECEDENCE (approved through §31.1
 to calibrate against; the owner will supply one), SERVICE-DISCONTINUATION-NOTICE (**Pending Business
 Approval** — a compound position the draft would narrow).
 
+### Partner Agreement — 4 Requirements (`AM-72`, AB-24, 2026-09-18)
+
+The owner resolved **C-23**: a document type whose final text already exists in the Constitution is
+ratified. Locked Step 6 gained `PARTNER_AGREEMENT`, and §31's Company-approved positions are
+ratified on the same `AM-59` r6 route as the block above — each quoting its section verbatim.
+
+| Code | Clause | Standard | Source | Evaluator |
+|---|---|---|---|---|
+| CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001 | Termination for convenience | **at least 30 days'** prior written notice, either party, no early-termination fee | Constitution §31.3 | NUMERIC |
+| NON-CIRCUMVENTION-PARTNER_AGREEMENT-001 | Non-circumvention | present — no direct solicitation of a Partner-introduced End Customer that circumvents commissions | Constitution §31.5 | PRESENCE |
+| SUPPORT-RESPONSIBILITIES-PARTNER_AGREEMENT-001 | Support responsibilities | present — **two-tier** (Partner first-line, Company escalation) | Constitution §31.6 | PRESENCE |
+| TERM-CONSEQUENCES-PARTNER_AGREEMENT-001 | Termination consequences | **compound** — limbs (a)–(e) evaluated together, never one alone (the `AM-66` precedent) | Constitution §31.8 | PRESENCE |
+
+⚠️ **None is calibrated against counterparty paper.** §31's evidence is two historical Partner
+Agreements that are not in this repository; each file records this, and must be re-calibrated when
+one is supplied (35.10, rule 21).
+
+⚠️ **§31.6a is NOT ratified and may never be.** It states that the L1/L2/L3 support structure "is
+NOT a current company position" and that "Legal Mind must NOT flag the absence of an L1/L2/L3
+structure as a deviation in any document". Its basis would be `NOT_ADOPTED`, which is never a
+current rule; `test_no_standard_is_ratified_for_the_not_adopted_section` pins it.
+
+**Deliberately not ratified here:** §31.4's tier thresholds — applicability is approved, but the
+Constitution records the specific thresholds and percentages as historical evidence "not confirmed
+as current commercial values" — and §31.9/§31.10 for Vendor and Distribution Agreements. Those two
+types exist in the vocabulary, but the Constitution marks their rules `LEGALMIND_RULE`, "subject to
+legal review". A question about them correctly refuses and names what IS covered.
+
 ### Retired — 7 Requirements (`AM-65`, 2026-09-14)
 
 The current Constitution states no position for these, so they are **RETIRED — NOT PRESENT IN

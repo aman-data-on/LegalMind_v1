@@ -36,6 +36,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.db import models as M
+from legalmind.domain.document_types import DOCUMENT_TYPES
+from legalmind.domain.document_types import readable as readable_document_type
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
@@ -80,13 +82,17 @@ class PositionHit:
 # not a ranking defect. No reranker fixes it, because an MSA clause does not become a
 # Partner Agreement position by being scored better.
 #
-# RECOGNITION IS NOT ADMISSION TO THE VOCABULARY. The last five phrases name document
-# types Legal Constitution L1.10 §31 defines positions for and locked Step 6 does NOT
-# carry among its ten — `document_types.DOCUMENT_TYPES` is deliberately untouched here.
-# They are listed ONLY so that a question about them is refused with the truth instead
-# of answered with another type's position. Nothing here creates a document type, and
-# the divergence between Step 6's ten and the Constitution's §31 types is reported as a
-# conflict for the owner, not resolved (rule 5).
+# EVERY PHRASE HERE RESOLVES TO A REAL `document_types.DOCUMENT_TYPES` MEMBER, which is
+# what lets a named type actually be held, retrieved and cited. That was not true when
+# this list was first written: the §31 types sat outside locked Step 6, and were
+# recognised ONLY so the refusal could be honest. The owner resolved C-23 on 2026-09-18
+# — Constitution-final text is ratified — and Step 6 now carries PARTNER_AGREEMENT,
+# VENDOR_AGREEMENT and DISTRIBUTION_AGREEMENT, so those questions answer rather than
+# refuse. The refusal path is unchanged and still correct for a type with no positions.
+#
+# Purchase Order maps to ORDER_FORM rather than to a type of its own: that is how this
+# repository already models §31.11 (both its standards are typed ORDER_FORM and coded
+# `PO-*`), and a separate type would have split one concept across two buckets.
 _TYPE_PHRASES: tuple[tuple[str, str], ...] = (
     ("master services agreement", "MSA"), ("master service agreement", "MSA"),
     ("msa", "MSA"),
@@ -98,10 +104,12 @@ _TYPE_PHRASES: tuple[tuple[str, str], ...] = (
     ("acceptable use policy", "AUP"), ("aup", "AUP"),
     ("privacy policy", "PRIVACY_POLICY"),
     ("order form", "ORDER_FORM"),
+    ("purchase order", "ORDER_FORM"), ("po", "ORDER_FORM"),   # §31.11's own two names
     ("amendment", "AMENDMENT"), ("addendum", "AMENDMENT"),
-    # Legal Constitution L1.10 §31 — outside locked Step 6's ten. See the note above.
+    # Legal Constitution L1.10 §31's own type names. See the note above.
     ("channel partner agreement", "PARTNER_AGREEMENT"),
     ("partner agreement", "PARTNER_AGREEMENT"),
+    ("reseller agreement", "PARTNER_AGREEMENT"),     # §31.4 "Partner / Reseller"
     # The bare subject too: Constitution §31 defines "Partner" as a party to exactly
     # one kind of paper, and "what does our constitution say about partners" is the
     # live phrasing (2026-09-18). A question that ALSO names another type resolves to
@@ -110,7 +118,6 @@ _TYPE_PHRASES: tuple[tuple[str, str], ...] = (
     ("vendor agreement", "VENDOR_AGREEMENT"),
     ("distribution agreement", "DISTRIBUTION_AGREEMENT"),
     ("distributor agreement", "DISTRIBUTION_AGREEMENT"),
-    ("purchase order", "PURCHASE_ORDER"),
 )
 _TYPE_BY_PHRASE = dict(_TYPE_PHRASES)
 # Bounded by `\b` so the acronyms match words, not substrings. Alternation order is
@@ -192,11 +199,12 @@ def public_source_name(source_document: object) -> str:
     if not isinstance(source_document, str):
         return ""
     name = re.sub(r"\s*\([^()]*\)",
-                  lambda m: "" if _INTERNAL_LOCATOR.search(m.group()) else m.group(),
+                  lambda m: "" if _locator_match(_INTERNAL_LOCATOR, m.group())
+                  else m.group(),
                   source_document)
     kept: list[str] = []
     for segment in name.split(" — "):
-        if _INTERNAL_LOCATOR.search(segment):
+        if _locator_match(_INTERNAL_LOCATOR, segment):
             break
         kept.append(segment)
     return " — ".join(kept).strip(" ,;:")
@@ -234,6 +242,25 @@ _EGRESS_LOCATOR = re.compile(
     r"|\b(?i:not named in this repositor(?:y|ies))\b")       # the reviewer's note
 
 
+#: A Step 6 Document Type is SCREAMING_SNAKE too — `PARTNER_AGREEMENT`, `ORDER_FORM`,
+#: `PRIVACY_POLICY` — and appears legitimately inside a requirement code
+#: (`TERM-CONSEQUENCES-PARTNER_AGREEMENT-001`) and in composed chunk text. It is public
+#: vocabulary, not an internal locator, so the ENV_VAR_STYLE arm must not fire on it.
+#: Latent until `AM-72`: every ratified standard happened to be typed MSA/NDA/TOS/SLA,
+#: all initialisms, so the first multi-word type refused the WHOLE corpus at the egress
+#: screen (one dirty span refuses the batch) and would have done the same the day an
+#: `ORDER_FORM` standard was ratified.
+_DOCUMENT_TYPE_TOKENS = frozenset(DOCUMENT_TYPES)
+
+
+def _locator_match(pattern: re.Pattern, text: str) -> re.Match | None:
+    """The first match that is a genuine internal locator, skipping document types."""
+    for match in pattern.finditer(text or ""):
+        if match.group() not in _DOCUMENT_TYPE_TOKENS:
+            return match
+    return None
+
+
 def screen_for_egress(spans: list[str]) -> None:
     """Refuse any span carrying an internal locator, before it can leave.
 
@@ -245,7 +272,7 @@ def screen_for_egress(spans: list[str]) -> None:
     caller's fallback is to quote verbatim, which costs the reader nothing.
     """
     for span in spans:
-        match = _EGRESS_LOCATOR.search(span or "")
+        match = _locator_match(_EGRESS_LOCATOR, span or "")
         if match:
             raise PositionEgressRefused(
                 f"position span carries an internal locator ({match.group()!r}) — the "
@@ -272,7 +299,15 @@ def _compose_content(payload: dict) -> str:
     parts = [
         f"{payload['requirement_code']}",
         f"{payload['source_clause']}",
-        f"({payload['configuration']['document_type']})",
+        # The READABLE type, never the raw code: this string is rendered to a reader,
+        # and a `WORD_WORD` code trips the egress screen's internal-locator test.
+        # NOTE: the source document name is deliberately NOT composed in here — see
+        # the docstring above (positions-verbatim-2, 2026-09-18) and
+        # `test_the_source_name_is_provenance_and_is_no_longer_indexed`, which already
+        # pins `public_source_name(...) not in content`. An earlier version of this
+        # hunk (pre-rebase) appended it; dropped during the #91 rebase onto #98 to keep
+        # that already-merged, tested invariant intact — flagged in the PR, not silent.
+        f"({readable_document_type(payload['configuration']['document_type'])})",
         payload["source_quote"],
     ]
     return " ".join(p for p in parts if p)

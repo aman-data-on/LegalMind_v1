@@ -36,7 +36,9 @@ from pathlib import Path
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 
 #: The approved operation's shape. Changing either number is a scope change.
-EXPECT_ACTIVE = 33
+#: 33 -> 37 on 2026-09-18: `AM-72` (AB-24) ratified four Constitution §31 Partner
+#: Agreement positions when the owner resolved C-23.
+EXPECT_ACTIVE = 37
 EXPECT_RETIRED = 7
 
 

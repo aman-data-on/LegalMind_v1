@@ -111,9 +111,21 @@ def test_a_question_naming_no_subject_still_retrieves_nothing(real_corpus):
 
 
 def test_the_sanitized_internal_locators_stay_unsearchable(real_corpus):
-    """`test_assist_positions_sanitization` asserts these retrieve nothing at floor 2.
-    The tokens were removed from the chunk text, so they must still retrieve nothing at a
-    relaxed floor — otherwise the relaxation, rather than the chunker, is what protects
-    them."""
+    """The tokens were removed from the chunk text, so a relaxed floor must not bring
+    them back — otherwise the relaxation, rather than the chunker, is what protects
+    them.
+
+    Asserted on the CHUNK TEXT rather than on emptiness: `AM-72` ratified §31.8, whose
+    ratified quote reads "trademarks/marketing materials", so
+    `legalmind_source_material_dir` now shares the ordinary lexeme `material` with a
+    legitimate position. Matching a real English word inside ratified text is not a
+    leak; carrying a locator is. `test_assist_positions_sanitization` draws the same
+    line for "legal" and "constitution".
+    """
+    forbidden = ("docs/", ".md", ".pdf", "legalmind_source_material_dir",
+                 "repository", "\\")
     for query in ("docs md pdf", "legalmind_source_material_dir", "repository docs md"):
-        assert _search(real_corpus, query) == [], f"{query!r} retrieves a position"
+        for hit in _search(real_corpus, query):
+            lowered = hit.content.lower()
+            leaked = [token for token in forbidden if token in lowered]
+            assert not leaked, f"{query!r} -> {hit.standard_code} carries {leaked}"

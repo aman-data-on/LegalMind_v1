@@ -19372,3 +19372,94 @@ status without acting on it. Three tests added, and each was confirmed to FAIL
 with the filter removed — a test that passes without the fix proves nothing.
 
 --------------------------------------------------------------------------------
+
+AMENDMENT BATCH AB-24 — `AM-72`
+The Constitution's document types are ratified, and answer as themselves
+================================================================================
+
+**Owner decision, 2026-09-18.** Reported with a screenshot: "what is written
+about partner agreement in the constitution" was answered with three MSA
+standards under the sentence "The organization's approved position relevant to
+this question is quoted below, verbatim from the ratified standard." Diagnosed
+the same day: not a ranking defect — no Partner Agreement position existed
+anywhere in the corpus, because locked Step 6 carried no such Document Type and
+the importer refused any standard typed to one. Registered as **C-23**.
+
+The owner's ruling, in the owner's own words:
+
+> "Any document type whose final text already exists in the Constitution is to
+> be treated as RATIFIED. Do not keep an unratified-vs-ratified distinction for
+> text that is already final in the Constitution… if the Constitution contains a
+> position for a document type, LegalMind must answer questions about that type
+> using that text, with exact section citations. Only refuse when the type
+> genuinely has NO text anywhere in the Constitution/corpus."
+
+and, on the mechanism: *"jo bhi krna hein kro do not ask me."*
+
+r1. **C-23 is RESOLVED.** Legal Constitution L1.10 §31 states positions for
+    document types locked Step 6 did not carry. Step 6's vocabulary is EXTENDED
+    by three: `PARTNER_AGREEMENT` (§31.3–§31.8), `VENDOR_AGREEMENT` (§31.9) and
+    `DISTRIBUTION_AGREEMENT` (§31.10). This amends locked Step 6, which is
+    otherwise unchanged; the ten existing values keep their meaning and their
+    spelling.
+
+r2. **Purchase Order is ORDER_FORM, not a fourth new type.** §31.11's Purchase
+    Order maps to the existing `ORDER_FORM`, which is already how this
+    repository models it — both proposed §31.11 standards are typed
+    `ORDER_FORM` and coded `PO-*`. Amendment/Addendum (§31.12) maps to the
+    existing `AMENDMENT`, and "Other Agreements" (§31.13) adds no clauses of its
+    own and stays `OTHER`. A type is added only where none could hold the
+    position.
+
+r3. **This extends `AM-59` r6 rather than inventing a route.** The owner ruled
+    on 2026-09-13 that text "clearly defined in this file" is "already approved
+    through the Constitution", and standards have been drafted from the
+    Constitution's own words on that basis since. r1 extends that same ruling to
+    §31's document types. Nothing new is authored: every ratified position
+    quotes its section verbatim (rule 7, rule 21).
+
+r4. **EVIDENTIARY GRADE IS PRESERVED, AND IS NOT WHAT A DOCUMENT TYPE CARRIES.**
+    The Constitution does not mark all of its own text as final, and says so in
+    its own STATUS lines. `configuration.constitution.basis` already
+    distinguishes them and continues to govern:
+
+      * `COMPANY_APPROVED` — §31.3, §31.5, §31.6, §31.8 and the Partner
+        service-change and change-of-control sections. Ratified by this record.
+      * `LEGALMIND_RULE` — §31.9 and §31.10, which the Constitution itself calls
+        "Industry/legal-practice based analysis rules… subject to legal review
+        and to being superseded by a company-evidenced position". §31.9 directs
+        that they ARE "the applicable LegalMind benchmark for this document
+        type", so the type exists; a position ratified under this basis is never
+        Acceptable by guess.
+      * `NOT_ADOPTED` — §31.6a. **No standard may be ratified for it**, now or
+        later. §31.6a states the L1/L2/L3 structure "is NOT a current company
+        position", that it "must not be presented to LegalMind… as an existing
+        company position", and that "Legal Mind must NOT flag the absence of an
+        L1/L2/L3 structure as a deviation in any document". Ratifying it would
+        state a position the Constitution disclaims — the reported defect one
+        layer up. Pinned by
+        `test_no_standard_is_ratified_for_the_not_adopted_section`.
+
+r5. **A type with no position still refuses, and says what IS covered.** The
+    2026-09-18 document-type guard is unchanged and is not dead code: where the
+    corpus holds no position for the type a question names, Ask refuses and
+    names the types it does hold. Adding a Document Type to the vocabulary
+    asserts nothing about whether text stands behind it — `VENDOR_AGREEMENT`
+    exists as a type and still refuses, because no §31.9 standard is ratified by
+    this record.
+
+r6. **Calibration is NOT claimed.** §31's evidence is two historical Partner
+    Agreements that are not in this repository. Each standard ratified here
+    records that it is uncalibrated against counterparty paper and must be
+    re-calibrated when one is supplied (35.10, rule 21). The positions are the
+    Constitution's; the extraction and mapping terms are drawn from the
+    section's own wording and are an implementation detail, not a locked value.
+
+**Recorded 2026-09-18.** Implemented and verified before the record was written:
+`legalmind/domain/document_types.py` extended; four Partner Agreement standards
+ratified from §31.3, §31.5, §31.6 and §31.8; `legalmind/assist/positions.py`
+maps Purchase Order to `ORDER_FORM`. The reported question now returns §31.3,
+§31.5 and §31.8 — Partner Agreement only — and the three MSA codes from the
+screenshot are pinned as never returning.
+
+--------------------------------------------------------------------------------

@@ -17,12 +17,22 @@ def test_the_standard_set_is_exactly_what_the_records_ratified_and_retired():
     """Pinned on purpose: a standard enters or leaves this directory only through
     a recorded ruling. 25 ratified from LeapSwitch documents (2026-08-19/20,
     less the seven retired) + 8 approved through the Constitution L1.10
-    (`AM-59` r6' and `AM-66`) = 33 active, + 7 retired (`AM-65`) = 40 files."""
+    (`AM-59` r6' and `AM-66`) + 4 Partner Agreement positions approved through
+    Constitution §31 (`AM-72`, AB-24, owner 2026-09-18 resolving C-23) = 37
+    active, + 7 retired (`AM-65`) = 44 files."""
     payloads = _payloads()
     retired = {c for c, d in payloads.items() if "retired" in d}
-    assert len(STANDARDS) == 40
+    assert len(STANDARDS) == 44
     assert len(retired) == 7, sorted(retired)
-    assert len(payloads) - len(retired) == 33
+    assert len(payloads) - len(retired) == 37
+    # AM-72 — the four §31 Partner Agreement positions. Pinned by name so a fifth
+    # cannot arrive without a recorded ruling, the same discipline as the retired set.
+    assert {c for c, d in payloads.items()
+            if d["configuration"]["document_type"] == "PARTNER_AGREEMENT"} == {
+        "CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001",
+        "NON-CIRCUMVENTION-PARTNER_AGREEMENT-001",
+        "SUPPORT-RESPONSIBILITIES-PARTNER_AGREEMENT-001",
+        "TERM-CONSEQUENCES-PARTNER_AGREEMENT-001"}
     # AM-65 — the seven the current Constitution does not define.
     assert retired == {
         "FORCE-MAJEURE-MSA-001", "FORCE-MAJEURE-TOS-001", "WARRANTY-DISCLAIMER-MSA-001",
