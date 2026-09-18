@@ -766,3 +766,87 @@ byte-for-byte what it returned in Phase 1 (recall@10 0.625, hit@1 0.375, MRR 0.4
 gold@3 0.5312, precision 0.1355 on the production path), which is the free proof that the
 retrieval and gate paths are untouched. **No paid Tier-2 run was spent to re-measure a
 pipeline that did not change** — 0 Gemini calls for the whole phase.
+
+## Phase 3 — Feel: what makes a grounded answer read like a machine
+
+**Owner goal, 2026-09-18:** *"make LegalMind Ask responses feel clear, natural and
+ChatGPT-like without changing retrieval, authority, security, gate, or legal
+decisions."* That rules out the item the migration plan had queued (SSE progress
+states) and points at the answer's own prose. The change is **one prompt version and
+no frontend edit at all**.
+
+### SSE progress states: dropped, with the reason
+
+`AM-25` r5 forbids streaming the answer — nothing reaches a reader before mechanical
+verification — so SSE could only ever deliver three progress strings during a 2,248 ms
+p50 wait. Against that: the assist router is wrapped in `CommitBeforeResponse`, which
+exists because a client holding a `201` before its transaction committed was *measured*
+losing rows (present 11 times in 60; a following `GET` returning `401` three times in
+60). A streaming response sends headers before the work is done, so the audit writes
+would have to commit mid-stream. `EventSource` also cannot carry auth headers, so the
+client would need `fetch` + a stream reader. Real risk to the durability guarantee, for
+a cosmetic gain on a two-second wait. **Not built.** A client-side timer faking the
+three states was considered and rejected outright: it would claim knowledge the client
+does not have, which DESIGN.md forbids (no urgency theater, nothing that implies what
+the system does not know).
+
+### What was wrong, read off real answers rather than guessed
+
+77 assistant answers from the gate corpus were read directly out of the database — zero
+Gemini calls to diagnose. Three things made them read like a retrieval system:
+
+```
+"Based on the provided excerpts, personal data is shared with the following
+ third-party service providers and for the specified purposes:"        <- describes the evidence
+"Any disagreement or dispute ... will be resolved in the manner outlined
+ in the agreement [1]."                                                <- restates the question, says nothing
+"* **Cloudflare:** Receives IP address ... [2]."                        <- literal asterisks reach the reader
+```
+
+### The preamble was not merely ugly — it was spending answers
+
+The grounding check scores a sentence's content words against its cited chunk. "Based
+on the provided excerpts," injects `based`, `provided` and `excerpts` — words no
+contract clause contains — **into the claim sentence itself**. Measured directly:
+
+| answer | verification |
+|---|---|
+| `The cap is twelve months of total fees paid [1].` | **ANSWERED** |
+| `Based on the provided excerpts, the cap is twelve months of fees [1].` | **CLAIM_UNSUPPORTED** |
+
+Identical fact, identical evidence. The retrieval tell was costing the reader the
+answer, which makes rule 6 safety-positive rather than cosmetic. Pinned by
+`test_the_rag_preamble_was_not_merely_UGLY_it_cost_answers`.
+
+### grounded-answer-3
+
+Two rules added; **rule 1 and every safety rule are untouched**:
+
+* **6 — open with the answer itself.** No describing the excerpts, no restating the
+  question. Worded to keep the first sentence cited, because `guardrails._SENTENCES`
+  splits on terminal punctuation and one uncited sentence fails the WHOLE answer
+  (`AM-25` r5). `test_an_uncited_opening_sentence_still_fails_closed` pins that trap.
+* **7 — plain prose.** Line-leading hyphens stay (the owner asked for "bullets when
+  useful", 2026-09-11, and `AnswerProse` renders them); asterisk emphasis and headings
+  go. Fixed at the SOURCE rather than by teaching the renderer markdown: `AnswerProse`
+  is deliberately not a markdown renderer, because a parser that invented emphasis
+  from stray punctuation "would be putting formatting into a legal answer that nobody
+  wrote". `**` appeared in 1 of 77 answers, so a frontend stripper for it would have
+  been over-engineering against a recorded decision.
+
+**Grounding is still decided mechanically.** The prompt governs wording; `verify_answer`
+governs truth, and it is indifferent to how natural the prose is — which is the whole
+reason this change cannot weaken the lane.
+
+### What was NOT changed, and why
+
+**Citation density stays.** Seven consecutive `[1]`s in a list look like footnote spam,
+and the first instinct was to collapse them at display time — `_renumber_markers` is
+the precedent for a post-verification display transform. It was not done: those markers
+are **per-claim attribution**, which rules 11 and 12 require (evidence traceability is
+mandatory; a Finding reconstructs as Evidence → Fact → Standard → Rule → Result).
+Trading a locked traceability requirement for tidiness is not a feel improvement.
+`ui-ux-pro-max` was queried for guidance here and returned no verified match (its UX
+corpus is forms- and accessibility-shaped), so per its own contract that is recorded as
+a miss and the decision rests on this project's recorded rules, which is the precedence
+CLAUDE.md sets anyway.
