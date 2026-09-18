@@ -53,7 +53,7 @@ def test_a_changed_count_is_refused_rather_than_emitted(tmp_path):
     _write(tmp_path, "ONLY-MSA-001")
     active, retired = split(tmp_path)
     problems = validate(active, retired, EXPECT_ACTIVE, EXPECT_RETIRED)
-    assert any("expected 37" in p for p in problems)
+    assert any("expected 72" in p for p in problems)
     assert any("expected 7" in p for p in problems)
 
 

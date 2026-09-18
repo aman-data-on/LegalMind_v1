@@ -19463,3 +19463,81 @@ maps Purchase Order to `ORDER_FORM`. The reported question now returns §31.3,
 screenshot are pinned as never returning.
 
 --------------------------------------------------------------------------------
+
+AMENDMENT BATCH AB-25 — `AM-73`
+Everything in the Constitution is ratified, except what it disclaims itself
+================================================================================
+
+**Owner decision, 2026-09-18**, given after `AM-72` shipped and after reading the
+§31 inventory it produced. In the owner's own words:
+
+> "Treat EVERYTHING in the Constitution as RATIFIED, effective now. Any document
+> type, section, or position that exists in the Constitution is approved and
+> LegalMind must answer questions about it using that text, with exact section
+> citations. Do NOT hold anything back as 'subject to legal review',
+> 'industry-practice', 'draft', or 'proposed'. If it is in the Constitution, it
+> counts as the organization's official position. No more refusal for types that
+> have text in the Constitution. Refusal only when a type has ZERO text anywhere."
+
+r1. **AMENDS `AM-72` r5.** That rule left `VENDOR_AGREEMENT` and
+    `DISTRIBUTION_AGREEMENT` as types with no ratified position, refusing because
+    the Constitution marks §31.9/§31.10 "subject to legal review". They now
+    ANSWER. The refusal path is unchanged in mechanism and unchanged in
+    correctness — it simply applies only to a type the Constitution states
+    nothing for (of Step 6's thirteen, that is DPA, AUP, PRIVACY_POLICY and
+    OTHER).
+
+r2. **39 positions ratified**, all from §31's own words: §31.4 (1), §31.9 (11),
+    §31.10 (10), §31.11 (7), §31.12 (6), joining `AM-72`'s four. Active standards
+    33 → 72; 79 files counting the seven `AM-65` retired.
+
+r3. **Generated, not transcribed.** §31.9–§31.12's thirty-four positions are
+    emitted by `tools/generate_section31_standards.py`, which slices each
+    `source_quote` out of the Constitution rather than retyping it, so a
+    paraphrase cannot enter the corpus by copying error — rule 7's failure mode
+    at the scale this ruling created. A `--check` mode fails CI if a file and its
+    section have drifted apart. §31.4 is hand-written because its STATUS draws a
+    line no parser can: the APPLICABILITY is company-approved while the tier
+    thresholds are "historical evidence only, not confirmed as current commercial
+    values" — so that standard is PRESENCE and carries **no figure**.
+
+r4. **`constitution.basis` RECORDS PROVENANCE AND NEVER SUPPRESSES AN ANSWER.**
+    `AM-72` r4 kept the Constitution's own grading; this record fixes its
+    meaning. A `LEGALMIND_RULE` position answers exactly as a `COMPANY_APPROVED`
+    one does — the owner's ruling is that both are the organization's official
+    position. The grade survives because it is true, and because §31.9 itself
+    says these rules stand "unless and until the company adopts a different,
+    evidenced position"; erasing it would destroy the record of which positions
+    are awaiting that. It is not, and may not become, a reason to withhold an
+    answer.
+
+r5. **§31.6a REMAINS UNRATIFIED — the owner's own carve-out, and the single
+    exception.** The Constitution states the L1/L2/L3 structure "is NOT a current
+    company position", that it "must not be presented to LegalMind… as an
+    existing company position", and that LegalMind "must NOT flag the absence of
+    an L1/L2/L3 structure as a deviation in any document". Ratifying it would
+    make LegalMind assert a position the Constitution disclaims — the same defect
+    class as the reported bug. `_SKIP_SECTIONS` in the generator and
+    `test_no_standard_is_ratified_for_the_not_adopted_section` both enforce it.
+    §31.6 (two-tier) remains the ratified support position.
+
+r6. **`AM-66` is NOT amended, and the one remaining `proposed/` file stays
+    proposed.** `SERVICE-DISCONTINUATION-NOTICE` would measure the notice limb
+    alone, which `AM-66` forbids — service discontinuation is one compound
+    requirement. Nothing is withheld by this: §31.14 A's position IS ratified and
+    answering, as `SERVICE-DISCONTINUATION-MSA-001`. The draft is a narrower
+    duplicate of a position already live, not an unratified position.
+
+r7. **Calibration is still not claimed.** Every position ratified here is
+    uncalibrated against counterparty paper, and each file says so. The mapping
+    terms on the generated standards are derived from each position's own heading
+    and are an implementation detail (`AM-72` r6, 35.10, rule 21). Ratified means
+    the position answers in Ask; it does not mean the extraction has been
+    measured against a real document of that type.
+
+**Recorded 2026-09-18.** Implemented and verified before the record was written:
+all nine document types that carry Constitution text now retrieve their own
+positions and no other type's, and a type the Constitution states nothing for
+still refuses and names what is covered.
+
+--------------------------------------------------------------------------------

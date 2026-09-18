@@ -134,16 +134,41 @@ def test_a_named_type_we_do_hold_still_answers(corpus, db):
 def test_coverage_names_the_types_held_and_not_the_ones_missing(corpus, db):
     held = coverage(db)
     assert "MSA" in held and "NDA" in held
-    assert "PARTNER_AGREEMENT" in held          # ratified 2026-09-18 from §31
-    # No Vendor Agreement position is ratified yet, so the honest answer for that
-    # type is still the refusal that names what IS covered.
-    assert "VENDOR_AGREEMENT" not in held
+    # Every §31 document type is ratified (`AM-72`, owner 2026-09-18).
+    for document_type in ("PARTNER_AGREEMENT", "VENDOR_AGREEMENT",
+                          "DISTRIBUTION_AGREEMENT", "ORDER_FORM", "AMENDMENT"):
+        assert document_type in held, document_type
+    # Step 6 carries types the Constitution states no position for; those still refuse.
+    assert "DPA" not in held
     assert set(held) <= corpus
 
 
 def test_a_type_with_no_position_still_refuses_honestly(corpus, db):
-    """The refusal path did not become dead code when Partner Agreement started
-    answering — it is still the right answer for a type nothing is ratified for."""
-    hits = search_positions(db, query="what is our vendor agreement position",
+    """The refusal path did not become dead code when the §31 types started answering.
+
+    It is still the right answer for a type nothing is ratified for. DPA is that type:
+    Step 6 carries it, the Constitution states no position for it, so the honest reply
+    is "no approved position covers DPA" plus the list of types that ARE covered — not
+    the nearest-scoring MSA clause, which is the defect this file exists for.
+    """
+    hits = search_positions(db, query="what does our data processing agreement say",
                             permissions=PERMS, limit=3, embed_query=lambda _q: None)
     assert hits == [], [(h.standard_code, h.document_type) for h in hits]
+
+
+@pytest.mark.parametrize("question,expected_type", [
+    ("what is our vendor agreement position on subcontractors", "VENDOR_AGREEMENT"),
+    ("what does the distribution agreement say about territory",
+     "DISTRIBUTION_AGREEMENT"),
+    ("what is written about partner agreement in the constitution", "PARTNER_AGREEMENT"),
+    ("does a purchase order override the MSA", "ORDER_FORM"),
+])
+def test_every_ratified_section_31_type_answers_from_its_own_positions(
+        corpus, db, question, expected_type):
+    """The owner's requirement in one test: each §31 type answers, and answers ONLY
+    from its own positions — no MSA noise on a Partner question."""
+    hits = search_positions(db, query=question, permissions=PERMS, limit=3,
+                            embed_query=lambda _q: None)
+    assert hits, f"{question!r} retrieved nothing"
+    assert {h.document_type for h in hits} == {expected_type}, \
+        [(h.standard_code, h.document_type) for h in hits]

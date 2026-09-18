@@ -193,11 +193,39 @@ NOT a current company position" and that "Legal Mind must NOT flag the absence o
 structure as a deviation in any document". Its basis would be `NOT_ADOPTED`, which is never a
 current rule; `test_no_standard_is_ratified_for_the_not_adopted_section` pins it.
 
-**Deliberately not ratified here:** §31.4's tier thresholds — applicability is approved, but the
-Constitution records the specific thresholds and percentages as historical evidence "not confirmed
-as current commercial values" — and §31.9/§31.10 for Vendor and Distribution Agreements. Those two
-types exist in the vocabulary, but the Constitution marks their rules `LEGALMIND_RULE`, "subject to
-legal review". A question about them correctly refuses and names what IS covered.
+### The rest of §31 — 39 Requirements (`AM-73`, AB-25, 2026-09-18)
+
+The owner extended the ruling: **everything in the Constitution is ratified**, and nothing is held
+back as "subject to legal review", "industry-practice", "draft" or "proposed".
+
+| Section | Document type | Positions | How authored |
+|---|---|---|---|
+| §31.4 | `PARTNER_AGREEMENT` | 1 — tier structure applicability | hand-written, **carries no figure** |
+| §31.9 | `VENDOR_AGREEMENT` | 11 | generated |
+| §31.10 | `DISTRIBUTION_AGREEMENT` | 10 | generated |
+| §31.11 | `ORDER_FORM` | 7 | generated |
+| §31.12 | `AMENDMENT` | 6 | generated |
+
+**Generated, not transcribed.** `tools/generate_section31_standards.py` slices each `source_quote`
+out of the Constitution rather than retyping it, so a paraphrase cannot enter the corpus by copying
+error — rule 7's failure mode at this scale. `--check` fails CI if a file and its section drift
+apart. §31.4 is hand-written because its STATUS draws a line no parser can: the applicability is
+company-approved while its thresholds are "historical evidence only, not confirmed as current
+commercial values", and the section records a live monthly-vs-annual contradiction between the two
+historical agreements — so that standard is PRESENCE and carries **no figure**.
+
+⚠️ **`constitution.basis` records provenance, never a reason to withhold an answer.** A
+`LEGALMIND_RULE` position (§31.9, §31.10, most of §31.11/§31.12) answers exactly as a
+`COMPANY_APPROVED` one does. The grade survives because it is true — §31.9 itself says its rules
+stand "unless and until the company adopts a different, evidenced position".
+
+**Still not ratified, and both deliberately:** §31.6a (the Constitution disclaims it in its own
+words — the owner's single carve-out) and `proposed/SERVICE-DISCONTINUATION-NOTICE`, which would
+measure the notice limb alone and so is forbidden by `AM-66`. Nothing is withheld by the latter:
+§31.14 A's position is already live as `SERVICE-DISCONTINUATION-MSA-001`.
+
+**Refusal now applies only to a document type the Constitution states NOTHING for** — of Step 6's
+thirteen, that is DPA, AUP, PRIVACY_POLICY and OTHER.
 
 ### Retired — 7 Requirements (`AM-65`, 2026-09-14)
 

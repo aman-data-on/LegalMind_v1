@@ -10,6 +10,55 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — everything in the Constitution is ratified, except what it disclaims itself (`AM-73`, AB-25, 2026-09-18)
+
+After reading `AM-72`'s §31 inventory, the owner extended the ruling: *"Treat EVERYTHING
+in the Constitution as RATIFIED… Do NOT hold anything back as 'subject to legal review',
+'industry-practice', 'draft', or 'proposed'… Refusal only when a type has ZERO text
+anywhere."*
+
+**39 further positions ratified** — §31.4 (1), §31.9 (11), §31.10 (10), §31.11 (7),
+§31.12 (6) — joining `AM-72`'s four. Active standards **33 → 72**; 79 files with the
+seven retired. All nine document types that carry Constitution text now answer from
+their own positions:
+
+| Type | Positions | Type | Positions |
+|---|---|---|---|
+| MSA | 23 | ORDER_FORM | 7 |
+| VENDOR_AGREEMENT | 11 | AMENDMENT | 6 |
+| DISTRIBUTION_AGREEMENT | 10 | PARTNER_AGREEMENT | 5 |
+| NDA | 8 | SLA | 1 |
+| TOS | 8 | | |
+
+**Generated, not transcribed.** Thirty-four of the thirty-nine come from
+`tools/generate_section31_standards.py`, which slices each `source_quote` out of the
+Constitution rather than retyping it. Transcribing thirty-nine legal positions by hand is
+exactly where a paraphrase slips in, and a paraphrased legal position is rule 7's failure
+mode wearing a copy-editor's hat. `--check` fails CI if a file and its section drift
+apart. §31.4 is hand-written because its STATUS draws a line no parser can — the
+applicability is company-approved while the thresholds are "historical evidence only, not
+confirmed as current commercial values", and the section records a live monthly-vs-annual
+contradiction between the two historical agreements — so it is PRESENCE and carries **no
+figure**.
+
+**`constitution.basis` records provenance and never suppresses an answer.** This refines
+`AM-72` r4: a `LEGALMIND_RULE` position answers exactly as a `COMPANY_APPROVED` one does.
+The grade survives because it is true, and because §31.9 itself says its rules stand
+"unless and until the company adopts a different, evidenced position" — erasing it would
+destroy the record of which positions are awaiting that.
+
+**Two things stay unratified, both deliberately.** §31.6a — the owner's own carve-out and
+the single exception, because the Constitution says the L1/L2/L3 structure "is NOT a
+current company position" and that LegalMind "must NOT flag the absence… as a deviation";
+ratifying it would assert a position the Constitution disclaims, the same defect class as
+the reported bug. And `proposed/SERVICE-DISCONTINUATION-NOTICE`, which would measure the
+notice limb alone and is forbidden by `AM-66` — nothing is withheld by that, since §31.14
+A is already live as `SERVICE-DISCONTINUATION-MSA-001`.
+
+**Refusal is not dead code.** It now applies only to a type the Constitution states
+nothing for — of Step 6's thirteen, DPA, AUP, PRIVACY_POLICY and OTHER — and still names
+what *is* covered.
+
 ### Added — the Constitution's own document types now answer as themselves (`AM-72`, AB-24, 2026-09-18)
 
 The follow-on to the fail-open fixed earlier the same day. That fix stopped Ask

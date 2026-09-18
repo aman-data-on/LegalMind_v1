@@ -518,6 +518,17 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # ponytail: the subject test is df >= 2, which needs a topic to appear in two
     # positions. A subject held by exactly ONE standard is not rescued; upgrade to
     # "appears in the code or clause title" if that case ever shows up.
+    #
+    # THE INVERSE CASE HAS NOW SHOWN UP, and it gets worse as the corpus grows.
+    # `AM-73` took the corpus 40 -> 79 chunks, and §31.4's quote ("a standard MSA")
+    # took df(standard) from 1 to 2. `standard` is now a "subject", so "Explain our
+    # standard." returns the liability cap and the tier standard where it previously
+    # returned nothing. Two-of-seventy-nine is a much weaker claim to being a subject
+    # than two-of-forty was, and the bar is absolute rather than proportional.
+    # Measured noise, not a wrong legal answer — Domain A is extractive, so the reader
+    # gets a verbatim quote and its citation — and the document-type filter above is
+    # unaffected. Retuning this needs measurement across the whole question set, so it
+    # is recorded rather than adjusted here.
     sql = sql_text(f"""
         WITH q AS (
             SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
