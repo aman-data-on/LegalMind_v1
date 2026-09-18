@@ -60,7 +60,7 @@ import {
   IconClock,
 } from "@/components/workspace/icons";
 
-import { currentVersion, typesPresent, versionCountLabel, shortDate } from "./model";
+import { currentVersion, typesPresent, shortDate } from "./model";
 import { LinkExistingDocuments } from "./LinkExistingDocuments";
 import { UploadToClient } from "./UploadToClient";
 
@@ -71,9 +71,20 @@ const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
   analyzed: <IconCheckCircle size={13} />,
 };
 
-/** The six columns, in one place — the header renders them and so does the
- *  empty row's colspan, which must match or the table's footer detaches. */
-const COLUMNS = ["Document", "Type", "Status", "Versions", "Last updated", ""] as const;
+/** The columns, in one place — the header renders them and so does the
+ *  empty row's colspan, which must match or the table's footer detaches.
+ *
+ *  "Agreement stage" and "Review status" are deliberately separate columns
+ *  (owner, 2026-09-18): the first is what the negotiation reached — a fact
+ *  about the FILE (`version_role`, declared per version) — and the second is
+ *  what LegalMind's review found — a judgement about the CONTENT (`AM-56`'s
+ *  three reader words). A document can be `Final signed` and still `Needs
+ *  attention`; stacking those in one "Status" cell answered the wrong
+ *  question half the time. */
+const COLUMNS = [
+  "Document", "Type", "Agreement stage", "Review status", "Versions",
+  "Last updated", "",
+] as const;
 
 /**
  * The reader's three statuses for one document, exactly as the Dashboard shows
@@ -153,7 +164,12 @@ function VersionRow({
       </span>
       <span className="ws-cl__ver-when">
         {shortDate(version.created_at) ?? "—"}
-        {isCurrent ? <span className="ws-cl__ver-current"> · current</span> : null}
+      </span>
+      {/* Always occupies its grid slot, present or not — otherwise a row
+          without the badge loses a column and every row after it drifts out
+          of alignment with the ones that have it. */}
+      <span className="ws-cl__ver-current">
+        {isCurrent ? <span className="ws-chip">Current</span> : null}
       </span>
       <span className="ws-cl__ver-acts">
         <Link className="ws-btn ws-btn--sm"
@@ -247,6 +263,7 @@ function DocumentRow({ contract, onChanged }: {
   const bucket = documentStatusBucket(contract);
   const versions = contract.versions ?? [];
   const current = currentVersion(versions);
+  const currentRole = versionRoleLabel(current?.version_role);
   const panelId = `ws-cl-versions-${contract.id}`;
 
   async function analyze() {
@@ -290,6 +307,20 @@ function DocumentRow({ contract, onChanged }: {
           )}
         </td>
         <td>
+          {/* The CURRENT version's declared role — the same badge VersionRow
+              already draws below, just surfaced here so a reader never has to
+              open history to learn whether this is a draft or the executed
+              copy. Same helper, same tone rule (DD-18 §3): only `FINAL_SIGNED`
+              carries colour, the rest read by their text alone. */}
+          {current && currentRole ? (
+            <span className={`ws-cl__role ws-cl__role--${versionRoleTone(current.version_role)}`}>
+              {currentRole}
+            </span>
+          ) : (
+            <span className="ws-cl__absent">Not classified</span>
+          )}
+        </td>
+        <td>
           <span className={`ws-status-pill ws-status-pill--${bucket}`}>
             {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
           </span>
@@ -304,7 +335,10 @@ function DocumentRow({ contract, onChanged }: {
                     aria-hidden="true">
                 <IconChevronRight size={13} />
               </span>
-              {versionCountLabel(versions.length)}
+              {/* "View history" states the action; the count stays alongside it
+                  rather than replacing it — "3 versions" on its own read as a
+                  fact with no control attached (owner, 2026-09-18). */}
+              View history ({versions.length})
             </button>
           ) : (
             <span className="ws-cl__absent">No file yet</span>
@@ -452,7 +486,12 @@ export function ClientDocuments({ client, onChanged }: {
           ) : null}
         </div>
       ) : (
-        <div className="ws-cl__table">
+        /* `--docs` scopes the fixed-layout column widths below to THIS table.
+           `.ws-cl__table` is shared with `ClientDirectory`'s own list, whose
+           columns are entirely different — an unscoped width rule on the
+           shared class would have silently resized a screen this change
+           never intended to touch. */
+        <div className="ws-cl__table ws-cl__table--docs">
           <table>
             <caption className="ws-visually-hidden">
               Every legal document for {client.name}, in one list. Document type
