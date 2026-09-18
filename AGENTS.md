@@ -23,8 +23,10 @@ Minimum context before you act:
 
 # Multi-Agent and Multi-User Development Rules
 
-**Owner instruction, 2026-09-18.** Mandatory for every coding agent, developer and
-automated session working in this repository. They govern **git and GitHub operations** —
+**Owner instruction, 2026-09-18 — this is the FINAL flow for every git and GitHub
+operation, confirmed by the owner. There is no other procedure and no per-session
+variation.** Mandatory for every coding agent, developer and automated session working in
+this repository. They govern **git and GitHub operations** —
 branching, worktrees, commits, pushes, PRs, conflicts, CI. They do not touch the legal
 specification rules in [CLAUDE.md](CLAUDE.md), which still win on anything about what may
 be built or decided.
