@@ -667,6 +667,28 @@ required metrics on the available corpus, so it is not enabled.** What it does n
 is a shape that costs almost nothing, so the question can be revisited the moment there
 is a corpus that exercises Domain A.
 
+### Cost of the Phase 1 measurement, and the rule it produced
+
+Recorded because it is the phase's most reusable lesson. Three Tier-2 gate runs:
+
+| run | purpose | prompt tokens | output tokens | gemini calls/q |
+|---|---|---|---|---|
+| 1 | baseline, planner OFF | 120,309 | 5,174 | 1.25 |
+| 2 | planner ON, aiming + widening | 125,941 | 6,901 | 1.42 |
+| 3 | planner ON, aiming only | 123,890 | 6,586 | 1.40 |
+| | **total** | **370,140** | **18,661** | |
+
+`tools/probe_targeting.py` — written after run 3, **zero Gemini calls** — reproduces the
+comparison runs 2 and 3 were spent on, deterministically and in seconds. Runs 2 and 3
+(~250k prompt tokens) were avoidable, and the diagnosis was already in hand after run 2.
+
+**Owner rule, 2026-09-18, now in CLAUDE.md § Gemini cost guard:** prove it with
+deterministic/local logic first; stop Gemini calls the moment a benchmark shows no
+measurable improvement; report call count, latency and token/cost in every benchmark; do
+not advance a phase without demonstrated improvement. For this lane the order is
+`probe_targeting.py` → `benchmark_rerank.py` → the Tier-2 gate, and the gate is a
+confirmation step rather than an iteration loop.
+
 ## Phase 2 — Gate recovery: the gate is UNCHANGED, and here is the evidence
 
 **Outcome: no safe deterministic recovery exists on this corpus, and almost nothing is
