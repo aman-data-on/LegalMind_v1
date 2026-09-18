@@ -501,6 +501,20 @@ def _load_eval_dataset(path: pathlib.Path) -> list[dict]:
     return payload["questions"]
 
 
+def probe_corpus(db, questions: list[dict]) -> tuple[dict, dict]:
+    """The gate database's ingested corpus: {filename: newest version id} and the
+    resolved gold anchors. Shared by `probe_targeting` and `probe_gate`, which both
+    need exactly this and nothing else before they can score anything."""
+    versions: dict = {}
+    for name, dv in db.execute(text(
+            "SELECT dv.original_filename, dv.id FROM document_versions dv "
+            "ORDER BY dv.created_at DESC")).all():
+        versions.setdefault(name, dv)
+    expected, _ = _resolve_anchors(
+        questions, {n: _chunks(db, d) for n, d in versions.items()})
+    return versions, expected
+
+
 def _resolve_anchors(questions: list[dict], all_chunks: dict) -> tuple[dict, list[str]]:
     """Map each answerable question to the chunk ids containing its anchor.
 
