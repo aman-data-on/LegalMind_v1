@@ -465,12 +465,22 @@ def _persist_citations(db: DBSession, answer_id: UUID, cited_indexes: list[int],
 
 def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
              retrieval_run_id: UUID | None, state: AssistAnswerState,
-             route: routing.RoutePlan) -> AskOutcome:
+             route: routing.RoutePlan, question: str = "") -> AskOutcome:
     """Every refusal path converges here — one wording per candidate set, whatever
     the cause (`AM-29` r4 as amended by `AM-46`; see `routing.refusal_text`)."""
     held = (tuple(statutes.holdings(db))
             if routing.Domain.STATUTES in route.searched else ())
-    wording = routing.refusal_text(route, statute_holdings=held)
+    # The question named a kind of paper, and Domain A was consulted: if the ratified
+    # corpus holds no position for that type, the refusal says so and names what it
+    # does hold. `named in covered` stays silent — there the type IS covered and
+    # retrieval simply missed, so claiming otherwise would be a new falsehood.
+    named = (positions.named_document_type(question)
+             if routing.Domain.POSITIONS in route.searched else None)
+    covered = positions.coverage(db) if named else ()
+    unheld = named if named and named not in covered else None
+    wording = routing.refusal_text(route, statute_holdings=held,
+                                   unheld_document_type=unheld,
+                                   position_coverage=covered)
     ordinal = _next_ordinal(db, conversation_id)
     reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
     _persist_answer(db, reply_id, retrieval_run_id, state,
@@ -1278,7 +1288,7 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
                         if statute_section and statute_section.get("text") else None)
     statute_answered = answered_section is not None
     if not position_hits and not statute_answered:
-        return _refusal(db, conversation_id, message_id, run_id, state, route)
+        return _refusal(db, conversation_id, message_id, run_id, state, route, question)
     aid: generation.GenerationResult | None = None
     if statute_answered:
         wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)

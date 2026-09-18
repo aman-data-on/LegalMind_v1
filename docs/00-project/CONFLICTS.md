@@ -36,6 +36,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-18 | Six ratified Company Standards (`LIABILITY-MSA-001`, `LATE-FEE-TOS-001`, `CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`, `DATA-PURGE-MSA-001`, `CONF-SURVIVAL-NDA-001`) state what LeapSwitch's live paper says; the Legal Constitution L1.5 (§9, §11, §13, §15, §16) states a different company position on each | ✅ **RESOLVED 2026-09-08** — owner: the Constitution governs (`AM-43` r4). Files reconciled with `_history`; the live clauses now evaluate as DEVIATION |
 | C-19 | Constitution §4/§5.2 require Entity → Brand → Product/Service → Document Type resolution and forbid substituting a Leapswitch rule for a CloudPe one; the data model resolves Document Type only, so a CloudPe contract is measured against a Leapswitch-scoped standard silently | ⏳ Open (MEDIUM) — `AM-43` r7 registers it; needs a schema decision (a brand/entity axis on contracts and standards), not resolvable in code alone |
 | C-22 | Fifteen ratified standards name a Legal Constitution version in `source_document` and split 7/8 between **L1.5** (superseded) and **L1.10** (canonical). The split falls on the AB-14/AB-20 date line, so each file may accurately record the version its position was ratified against — or may point a reader at a superseded document | ⏳ Open (LOW) — **blocks nothing**; needs an owner provenance decision (canonical citation, whether the file needs correcting, whether re-ratification follows). Nothing edited: these are ratified configuration files |
+| C-23 | Legal Constitution L1.10 §31 defines company positions for **Partner Agreement, Vendor Agreement, Distribution Agreement and Purchase Order**, and tags clauses with those names under "Applicable Document Types" — but locked **Step 6's ten Document Types carry none of them**, and no ratified or proposed Company Standard covers any of the four | ⏳ Open (MEDIUM) — needs an owner decision on whether Step 6's vocabulary gains the §31 types and whether those positions are ratified into standards. Ask now REFUSES a question naming one instead of answering it with an MSA position (2026-09-18); that refusal is correct under either reading, so this blocks no code |
 
 *Index note: `C-20` and `C-21` are recorded in full below but were never given a row in this
 table. Both are resolved (`AM-63`, `AM-64`); left for their author to index rather than
@@ -653,3 +654,60 @@ owner:
 **Independent of the Ask source-leak fix.** That fix removes the repository *path* from
 user-facing text; the version question survives it unchanged, because the version string is
 part of the document's public name, not the internal locator.
+
+---
+
+## C-23 — The Constitution defines positions for document types Step 6 does not have
+
+**Registered 2026-09-18. Open (MEDIUM — blocks no code). Needs an owner scope decision.**
+
+Found from a live Ask defect: "what is written about partner agreement in the constitution"
+was answered with three MSA standards (see CHANGELOG 2026-09-18).
+
+Legal Constitution **L1.10 §31** — "this Section extends the Constitution's clause-wise
+structure to Partner Agreements, Vendor Agreements, Distribution Agreements, Purchase Orders,
+Amendments/Addenda, and Other Agreements" — states company positions for those types and tags
+each clause with an **Applicable Document Types** line naming them, e.g.:
+
+* **§31.3 Termination for Convenience — Partner Agreement**: 30 days' notice, either party, no
+  early-termination fee. *Applicable Document Types: Partner Agreement.*
+* **§31.5 Non-Circumvention — Partner Agreement** · **§31.6 Support Responsibilities**
+* **§31.4** tier structure: *Applicable Document Types: Partner Agreement, Distribution
+  Agreement. NOT applicable to MSA, NDA, SLA…*
+
+Locked **Step 6** defines exactly ten Document Types — `MSA · NDA · TOS · SLA · DPA · AUP ·
+PRIVACY_POLICY · ORDER_FORM · AMENDMENT · OTHER` (`legalmind/domain/document_types.py`). Four
+of §31's types are not among them: **Partner Agreement, Vendor Agreement, Distribution
+Agreement, Purchase Order**. (`AMENDMENT` and "Other Agreements" *are* covered.)
+
+Consequently **no ratified Company Standard covers any of the four** — all 40 ratified files
+are MSA (23), NDA (8), TOS (8) or SLA (1), and the two proposed files are `ORDER_FORM`. A
+Partner Agreement position exists in the Constitution and nowhere in the runtime corpus,
+because the Constitution is configuration source, never chunked or retrieved (`AM-43`).
+
+**Three readings, none chosen here:**
+
+1. **Step 6's vocabulary is simply narrower than the Constitution**, and the four types should
+   be added and their §31 positions ratified into standards. This is the reading §31's own
+   "Applicable Document Types" lines suggest — but adding a document type touches the locked
+   Step 6 vocabulary (rule 6) and ratifying positions is the owner's act (rule 21).
+2. **§31 is forward-looking**, describing paper the organization signs but does not yet
+   evaluate in LegalMind. Then nothing is wrong and the four types stay out of V1.
+3. **§31's types are `OTHER`** under Step 6. Then the positions could be ratified today, but
+   every one of them would share a single bucket with no way to keep a Partner Agreement
+   position from being measured against a Vendor Agreement.
+
+**Not resolved, and nothing ratified.** No document type was added, `DOCUMENT_TYPES` is
+untouched, and no §31 position was converted into a Company Standard — that is invention of
+legal configuration otherwise (rules 6, 7 and 21).
+
+**What WAS done, because it is correct under all three readings.** Ask no longer answers a
+question naming one of these types with another type's position; it refuses and names the
+types the ratified corpus does cover. Under reading 1 that refusal is a true "not ratified
+yet"; under 2 and 3 it is simply true. The recognition list in
+`legalmind/assist/positions.py` names the four §31 types **only so the refusal can be
+accurate**, and explicitly does not admit them to Step 6's vocabulary.
+
+**Open question for the owner:** should the §31 positions for Partner / Vendor / Distribution
+Agreements and Purchase Orders be ratified into Company Standards — and does that first
+require extending locked Step 6's ten Document Types?

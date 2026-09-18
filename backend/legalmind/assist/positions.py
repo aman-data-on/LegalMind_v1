@@ -67,6 +67,86 @@ class PositionHit:
     ratification_status: str | None = None
 
 
+# THE KIND OF PAPER THE READER NAMED — AND WHETHER WE HOLD A POSITION ON IT.
+#
+# A question that names a kind of paper is answerable only from positions about THAT
+# paper. Until 2026-09-18 nothing compared the two, so "what is written about partner
+# agreement in the constitution" returned three MSA standards under the sentence "The
+# organization's approved position relevant to this question is quoted below" — a
+# position the organization holds for a different document type, presented as though it
+# answered the question. Zero Partner Agreement standards are ratified, or even
+# proposed, so there was no right answer to rank higher: this is a fail-open of rule 15
+# and of `AM-25` r4 (never state a position absent from a ratified Company Standard),
+# not a ranking defect. No reranker fixes it, because an MSA clause does not become a
+# Partner Agreement position by being scored better.
+#
+# RECOGNITION IS NOT ADMISSION TO THE VOCABULARY. The last five phrases name document
+# types Legal Constitution L1.10 §31 defines positions for and locked Step 6 does NOT
+# carry among its ten — `document_types.DOCUMENT_TYPES` is deliberately untouched here.
+# They are listed ONLY so that a question about them is refused with the truth instead
+# of answered with another type's position. Nothing here creates a document type, and
+# the divergence between Step 6's ten and the Constitution's §31 types is reported as a
+# conflict for the owner, not resolved (rule 5).
+_TYPE_PHRASES: tuple[tuple[str, str], ...] = (
+    ("master services agreement", "MSA"), ("master service agreement", "MSA"),
+    ("msa", "MSA"),
+    ("non-disclosure agreement", "NDA"), ("nondisclosure agreement", "NDA"),
+    ("confidentiality agreement", "NDA"), ("nda", "NDA"),
+    ("terms of service", "TOS"), ("tos", "TOS"),
+    ("service level agreement", "SLA"), ("sla", "SLA"),
+    ("data processing agreement", "DPA"), ("dpa", "DPA"),
+    ("acceptable use policy", "AUP"), ("aup", "AUP"),
+    ("privacy policy", "PRIVACY_POLICY"),
+    ("order form", "ORDER_FORM"),
+    ("amendment", "AMENDMENT"), ("addendum", "AMENDMENT"),
+    # Legal Constitution L1.10 §31 — outside locked Step 6's ten. See the note above.
+    ("channel partner agreement", "PARTNER_AGREEMENT"),
+    ("partner agreement", "PARTNER_AGREEMENT"),
+    ("vendor agreement", "VENDOR_AGREEMENT"),
+    ("distribution agreement", "DISTRIBUTION_AGREEMENT"),
+    ("distributor agreement", "DISTRIBUTION_AGREEMENT"),
+    ("purchase order", "PURCHASE_ORDER"),
+)
+_TYPE_BY_PHRASE = dict(_TYPE_PHRASES)
+# Bounded by `\b` so the acronyms match words, not substrings. Alternation order is
+# irrelevant: where one phrase contains another ("channel partner agreement" contains
+# "partner agreement") both map to the same type, so the resolved SET is identical.
+_TYPE_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(p) for p, _ in _TYPE_PHRASES) + r")\b", re.IGNORECASE)
+
+
+def named_document_type(question: str) -> str | None:
+    """The single document type this question names, or None.
+
+    None when the question names none — the overwhelmingly common case, which keeps
+    every existing question on its existing path — and also when it names more than
+    one ("does our MSA say the same as the order form?"). Two named types is not a
+    narrowing this function is entitled to pick between, so it declines to narrow.
+    """
+    found = {_TYPE_BY_PHRASE[m.group(1).lower()]
+             for m in _TYPE_PATTERN.finditer(question or "")}
+    return found.pop() if len(found) == 1 else None
+
+
+def coverage(db: DBSession) -> tuple[str, ...]:
+    """The document types the currently-active ratified corpus holds a position for.
+
+    The Domain A analogue of `statutes.holdings`, and public in exactly the same way
+    (`AM-46` r3): it names which KINDS of paper the organization has approved standards
+    for, never what any of those standards says. Carries the `AM-71` exclusion, so a
+    type whose only standards are retired is not advertised as covered.
+    """
+    schema = config.assist_schema()
+    return tuple(r[0] for r in db.execute(sql_text(f"""
+        SELECT DISTINCT pc.document_type
+          FROM "{schema}".position_chunks pc
+          JOIN company_standard_versions csv ON csv.id = pc.standard_version_id
+          JOIN requirement_versions rv ON rv.id = csv.requirement_version_id
+          JOIN requirements r ON r.id = rv.requirement_id
+         WHERE r.status <> 'DEPRECATED'
+         ORDER BY pc.document_type""")).all())
+
+
 # A `source_document` names the paper a position came from, and 34 of the 40 ratified
 # files append an INTERNAL locator to that name — a repo path, the
 # `LEGALMIND_SOURCE_MATERIAL_DIR` env var, or a reviewer's note. Composed into the chunk
@@ -466,6 +546,17 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # for, and keeps lexical as the fallback it is, without comparing two score scales
     # that were never comparable.
     hits = _fuse([] if vector else lexical, vector, limit)
+    # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
+    #
+    # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
+    # the point: a position about another document type is not a weaker answer to be
+    # ranked lower, it is a wrong one (rule 15). Where the type IS covered this only
+    # removes off-type noise; where it is not covered at all — every Constitution §31
+    # type today — the empty result becomes the refusal that names what is covered,
+    # which is the honest answer and the one a reader can act on.
+    named = named_document_type(query)
+    if named is not None:
+        hits = [hit for hit in hits if hit.document_type == named]
     if topic is not None and not hits:
         # Narrowing may never turn an answer into a refusal (rule 15's direction is
         # the other way). A topic the corpus does not hold — or a plan that misread the
