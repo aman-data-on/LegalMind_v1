@@ -10,6 +10,54 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — a document chunk reaches Gemini with its clause label (2026-09-18)
+
+`service.ask` built the generation payload as `[h.content for h in retrieval.hits]`, dropping
+the `section_ref` every `SearchHit` already carries (joined from the evidence row, or derived
+from the chunk's own leading marker — the same label the citation view shows). A sub-clause
+therefore reached the model orphaned from the clause it lives under. Each chunk text is now
+prefixed `[Clause n]` when a ref exists, and unchanged otherwise. No schema change, no
+re-index, no parent/child retriever: the context was one join away and already fetched.
+The grounding check is unaffected (a prefix adds words to the cited chunk, removes none);
+`evidence_is_sufficient` is a length floor. Non-DB assist suites: 81 passed.
+
+### Measured — statute retrieval: embedder swap and shorter chunks are negative results (2026-09-18)
+
+Zero Gemini calls. Ratified 77-question set (23 statute — 20 answerable, 3 must-refuse —
+already present; nothing authored). Tools: `tools/benchmark_retrieval.py --eval --candidates
+…` for the vector-only comparison, plus a persistent-corpus probe over `store.search_hybrid`
+by domain, with and without `rerank.reorder`.
+
+- **Denominator.** Recorded probe/Tier-2 figures (recall ~0.89–0.93, reranked hit@1 ~0.72)
+  are over questions whose gate OPENED. Over all 64 answerable the same run reads recall@10
+  0.625, reranked hit@1 0.484. Both are stated below.
+- **Embedders (vector-only, statute / contract hit@1):** MiniLM 0.400 / 0.477 ·
+  bge-small-en-v1.5 0.400 / 0.432 · gte-small 0.450 / 0.500 (statute hit@10 0.90 → 0.85).
+  One question either way; gte-small's cosines sit at 0.80–0.94, so `calibration.py`'s
+  0.50 floor and 0.059 gap would have to be re-derived (`AM-26` r4). Nothing clears r2's
+  smallest-that-passes bar. Hosted embeddings remain forbidden (`AM-26`, `AM-30` r9).
+- **Where statutes are lost (hybrid, MiniLM):** gate shut 7/20 statute vs 14/44 contract —
+  35% vs 32%, the same; 6 of the 7 shut statute golds were in the raw top-10. Among opened
+  gates: statute recall 0.846 / reranked hit@1 0.692 vs contract 0.967 / 0.733. Q-46's gold
+  cosine 0.496 vs the 0.50 evidence floor despite a lexical hit; Q-48's gold is the DPDP
+  Schedule penalty table, flattened by the parser to amounts without breach labels.
+- **Chunk length (true MiniLM tokens):** statute median 34, 9.3% over 256, 0% over 512;
+  contract 1.6% over 256. `MAX_CHUNK_CHARS` 2000 → 1000 → 700: gate-open 43 → 44 → 48 of 64,
+  but recall among opened gates 0.930 → 0.886 → 0.792 and reranked hit@1 (all 64)
+  0.484 → 0.469 → 0.453; no statute gold recovered; refusals 12/13 throughout. Shorter
+  chunks open the gate on short near-miss fragments. Not adopted.
+- **Left for the owner:** a cross-encoder score as a third gate feature would reach the six
+  shut-but-retrieved statute golds and changes refusal behaviour (`AM-25` r5) — not built.
+  Domain C `search_statutes` (the production statute path) has no eval questions; the 23
+  above measure statutes as uploaded PDFs.
+
+**Coordination note.** The persistent Tier-2 gate database `legalmind_v1_tier2_gate`
+(lmtest-owned) was dropped and rebuilt by this measurement at ~16:00 IST — same 15 documents,
+`clause-aware-4`, MiniLM — while another session was reading it; any `assist.answers` /
+`retrieval_runs` rows from earlier gate runs are gone. `lmtest` now has `CREATEDB`. Scratch
+databases `legalmind_v1_chunkexp1000` / `_700` and provisioned `BAAI/bge-small-en-v1.5`,
+`thenlper/gte-small` weights under `~/.legalmind/models` remain; nothing entered git.
+
 ### Fixed — Ask no longer answers a question about a paper it holds no position for with another paper's clause (2026-09-18)
 
 **Live defect.** "what is written about partner agreement in the constitution" was answered

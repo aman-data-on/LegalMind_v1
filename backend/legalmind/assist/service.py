@@ -967,7 +967,14 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                 document_version_id=document_version_id, domains=domains,
                                 statute_hits=statute_hits, follow_up_of=follow_up_of,
                                 finding_id=finding_id, plan=plan_filters)
-    chunk_texts = [h.content for h in retrieval.hits]
+    # Parent-clause context for a sub-clause chunk: `section_ref` is already resolved
+    # per hit (store.py, joined from the evidence row or derived from the chunk's own
+    # leading marker) and already used for citation display below — this just puts
+    # the same label in front of the text Gemini sees, so a bare cross-reference
+    # ("as stated in Section 7") is not orphaned from the clause it lives under.
+    # No new table, no parent/child retriever: the context was already one join away.
+    chunk_texts = [f"[Clause {h.section_ref}] {h.content}" if h.section_ref else h.content
+                   for h in retrieval.hits]
 
     if not retrieval.gate_open or not guardrails.evidence_is_sufficient(chunk_texts):
         # The document does not answer. AM-50 r2: the other authorized sources are
