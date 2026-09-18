@@ -231,6 +231,15 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
     evaluator_answerable = 0
     mrr_sum = precision_sum = 0.0
     wrong_ids: list[str] = []
+    # A refusal of an ANSWERABLE question, named. The count alone sent the
+    # 2026-09-18 gate-recovery investigation to re-derive which three they were
+    # from a separate probe; symmetric with `wrong_ids`, and it costs nothing.
+    false_refusal_ids: list[str] = []
+    # Whether the GOLD chunk was present among what retrieval found for a refused
+    # answerable question. It separates "the gate refused evidence it had" from
+    # "retrieval never found it" — two different defects with two different fixes,
+    # and no gate change can touch the second.
+    false_refusal_gold_present: list[str] = []
     for q in questions:
         route = routing.plan(q["question"], has_document=True,
                              permissions=permissions,
@@ -260,6 +269,11 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
             evaluator_answerable += 1
             continue
         if not opened:
+            false_refusal_ids.append(q["id"])
+            held = expected.get(q["id"], set()) & {
+                h.chunk_id for h in (outcome.hits or outcome.candidates)}
+            if held:
+                false_refusal_gold_present.append(q["id"])
             continue
         retained += 1
         exp = expected.get(q["id"], set())
@@ -280,6 +294,8 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         "answerable": answerable, "unanswerable": unanswerable,
         "wrongly_answered": wrongly_answered,
         "wrongly_answered_ids": wrong_ids,
+        "false_refusal_ids": false_refusal_ids,
+        "false_refusal_gold_present_ids": false_refusal_gold_present,
         "correct_refusals": refused,
         "retained": retained,
         "false_refusals": answerable - retained - evaluator_answerable,
@@ -583,6 +599,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  retained           {metrics['retained']}/{metrics['answerable']}"
           f"   (false refusals {metrics['false_refusals']}, "
           f"routed to evaluator {metrics['routed_to_evaluator']})")
+    if metrics.get("false_refusal_ids"):
+        held = set(metrics.get("false_refusal_gold_present_ids") or ())
+        named = "  ".join(f"{i}{'*' if i in held else ''}"
+                          for i in metrics["false_refusal_ids"])
+        print(f"    refused answerable {named}   "
+              f"(* = the gold chunk WAS present; no gate change reaches the rest)")
     print(f"  recall@10          {metrics['recall_at_10']}   (end-to-end: a "
           f"gate-refused answerable counts as a miss)")
     print(f"  hit@1              {metrics['hit_at_1']}")

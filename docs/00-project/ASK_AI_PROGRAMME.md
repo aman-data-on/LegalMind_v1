@@ -688,3 +688,81 @@ measurable improvement; report call count, latency and token/cost in every bench
 not advance a phase without demonstrated improvement. For this lane the order is
 `probe_targeting.py` → `benchmark_rerank.py` → the Tier-2 gate, and the gate is a
 confirmation step rather than an iteration loop.
+
+## Phase 2 — Gate recovery: the gate is UNCHANGED, and here is the evidence
+
+**Outcome: no safe deterministic recovery exists on this corpus, and almost nothing is
+left to recover. The calibrated gate is not touched.** Zero Gemini calls were spent
+reaching this conclusion (CLAUDE.md § Gemini cost guard).
+
+### First, the security item Phase 0 left open
+
+The `LEGAL-02` replay leak is **fixed, merged, deployed and tested**. Verified rather
+than assumed: the fix is in `main` (PR #85, `c5fd623`), `get_conversation` now
+re-resolves `routing.positions_permitted` and `can_read_contract` per request and OMITS
+withheld material (`SEC-07`, never nulled); the file's mtime (18:47 IST) precedes the
+running API's start (19:06 IST) and no later commit touches it, so the deployed process
+serves it; and `tests/test_assist_authorization_boundaries.py` is 13 passing tests.
+
+### The arithmetic that reframes the phase
+
+```
+raw calibrated gate, answerable questions      opens 43 of 64, refuses 21
+    of those 21: gold chunk WAS present                 20
+    of those 21: retrieval never found gold              1   <- no gate change reaches it
+end to end, after the shipped rescue judge     retains 61 of 64, false refusals 3
+```
+
+**The rescue judge already recovers 18 of the 21.** The entire remaining headroom is
+**3 questions of 64**, one of which is a retrieval miss rather than a gate decision. A
+deterministic opener would be duplicating work that is already done, and would be paid
+for in the one currency the owner rule forbids spending (2026-09-14: recall may improve
+only WITHOUT wrongly-answered rising).
+
+### Seven features have now failed to separate
+
+The refused-answerable and correctly-refused-unanswerable distributions overlap
+completely. The single sharpest illustration: **N-13, which SHOULD be refused, has the
+highest top cosine of any question in the set (0.570) — higher than Q-61, which should
+be answered (0.554).** No threshold on that axis can tell them apart.
+
+| # | feature | when | result |
+|---|---|---|---|
+| 1 | 35-point threshold sweep | 2026-09-16 | no separation |
+| 2 | second similarity feature | 2026-09-16 | no separation |
+| 3 | alternative embedding model | 2026-09-16 | no separation |
+| 4 | rerank floor | 2026-09-17 (#74) | scores overlap; answerable median −3.12 vs unanswerable −2.30 (higher) |
+| 5 | strict lexical match on the planner's canonical legal term | 2026-09-18 | **actively harmful** — fires on 3 unanswerable (N-02, N-07, N-13) to recover 2 |
+| 6 | `gap_second` (top − second) | 2026-09-18 | recovers 0 safely |
+| 7 | `ratio` (top / second), `margin3` | 2026-09-18 | recovers 0 safely |
+
+The shipped `gap_mean` remains the best of them, and a threshold above every
+unanswerable value recovers exactly **one** question (Q-63) — a threshold fitted to the
+maximum of a 12-sample set, which a thirteenth unanswerable question above 0.2401 would
+break. That is noise, not a finding, and it was not taken.
+
+Every one of the 32 questions in both sets has `lexical_hit = False`, which is why
+feature 5 was worth testing at all and why its failure closes the lexical axis too.
+
+### What Phase 2 actually delivered
+
+1. **`tools/probe_gate.py`** — the deterministic instrument for this question. No Gemini,
+   so an idea costs nothing to test. It splits refusals into *gold was present* (reachable
+   by a gate change) and *gold never found* (a retrieval defect), and searches every peak
+   feature for a threshold strictly above all unanswerable values. Seven failures are now
+   re-checkable rather than folklore.
+2. **The Tier-2 gate names its false refusals.** It reported `false refusals 3` and
+   nothing else, so this investigation had to re-derive which three from a separate probe.
+   It now emits `false_refusal_ids` and `false_refusal_gold_present_ids`, and prints them
+   with `*` marking the ones whose gold was present — symmetric with the long-standing
+   `wrongly_answered_ids`, and free.
+
+### Before / after
+
+**Identical by construction, and demonstrated rather than asserted.** Nothing in
+`calibration.py`, `store.py`, `rescue.py` or the ask path was modified — the changes are
+one new probe tool and the gate tool's own reporting. `tools/probe_targeting.py` returns
+byte-for-byte what it returned in Phase 1 (recall@10 0.625, hit@1 0.375, MRR 0.4613,
+gold@3 0.5312, precision 0.1355 on the production path), which is the free proof that the
+retrieval and gate paths are untouched. **No paid Tier-2 run was spent to re-measure a
+pipeline that did not change** — 0 Gemini calls for the whole phase.
