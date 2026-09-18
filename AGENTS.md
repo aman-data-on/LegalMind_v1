@@ -511,6 +511,22 @@ git push --force-with-lease
 
 ## 13. Pull request rules
 
+**Commit without being asked. Never push, open a PR, merge or deploy without being asked.**
+Owner instruction, 2026-09-18, answering exactly this question.
+
+| Action | Needs the owner to ask for it? | Why |
+|---|---|---|
+| `git add` / `git commit` on your own task branch | **No — do it as soon as the work is verified** | Purely local. It protects the work from another session's reset (the 2026-09-04 incident) and §8 and §19 require it |
+| `git push` | **Yes** | It leaves this machine |
+| `gh pr create`, or updating a PR | **Yes** | Outward-facing, and it asks other people for review |
+| Merging a PR | **Yes** | It changes `main`, and the next deploy ships `main` |
+| `sudo legalmind-deploy` | **Yes, always** | It ships to production |
+
+"Do the work" is not "publish the work." When the task is finished and committed, **stop
+and report the branch and the commit**, then wait to be told to push. Permission to push
+or merge one line of work covers that work only; it does not carry over to the next task.
+
+
 Every PR must include:
 
 - Clear title
