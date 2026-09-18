@@ -26,6 +26,7 @@ Read in this order. Stop at the first that answers the question.
 | 5 | [CONFLICTS.md](CONFLICTS.md) | Registered contradictions. Nine are open. Resolving one needs owner approval |
 | 6 | [CONTRIBUTING.md](../../CONTRIBUTING.md) | The six kinds of change, and the procedure for amending a lock |
 | 7 | [AUTO_MODE_DECISIONS.md](AUTO_MODE_DECISIONS.md) | Technical decisions taken autonomously — `what · why · what it does NOT decide` |
+| 8 | [AGENTS.md](../../AGENTS.md) § Multi-Agent and Multi-User Development Rules | **Every git and GitHub operation** — task branches, one branch per worktree, commit/push/PR discipline, conflict and CI procedure, stop conditions (owner, 2026-09-18) |
 
 **Source hierarchy for a legal question.** Lower never overrides higher; where two sources at the
 same level conflict, **stop and register it** (rule 5) rather than choosing:
