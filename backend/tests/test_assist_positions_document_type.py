@@ -53,6 +53,11 @@ def corpus(db, user):
     ("What does our Channel Partner Agreement say about termination?",
      "PARTNER_AGREEMENT"),
     ("what is our vendor agreement position", "VENDOR_AGREEMENT"),
+    # The bare subject of a §31 family names its paper (live phrasing, 2026-09-18).
+    ("what does our constitution say about partners", "PARTNER_AGREEMENT"),
+    ("who handles support for partner customers", "PARTNER_AGREEMENT"),
+    # ...but a partner question that also names another type narrows nothing.
+    ("what does the MSA say about partner obligations", None),
     ("what is the termination notice period in the MSA", "MSA"),
     ("our master services agreement liability cap", "MSA"),
     ("what does the NDA say about residuals", "NDA"),

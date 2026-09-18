@@ -39,7 +39,7 @@ from legalmind.db import models as M
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-CHUNKING_ALGORITHM_VERSION = "positions-verbatim-1"
+CHUNKING_ALGORITHM_VERSION = "positions-verbatim-2"
 
 RATIFIED_STANDARDS_DIR = (
     Path(__file__).resolve().parents[2] / "config" / "company_standards")
@@ -102,6 +102,11 @@ _TYPE_PHRASES: tuple[tuple[str, str], ...] = (
     # Legal Constitution L1.10 §31 — outside locked Step 6's ten. See the note above.
     ("channel partner agreement", "PARTNER_AGREEMENT"),
     ("partner agreement", "PARTNER_AGREEMENT"),
+    # The bare subject too: Constitution §31 defines "Partner" as a party to exactly
+    # one kind of paper, and "what does our constitution say about partners" is the
+    # live phrasing (2026-09-18). A question that ALSO names another type resolves to
+    # two and so narrows nothing — see the docstring.
+    ("partners", "PARTNER_AGREEMENT"), ("partner", "PARTNER_AGREEMENT"),
     ("vendor agreement", "VENDOR_AGREEMENT"),
     ("distribution agreement", "DISTRIBUTION_AGREEMENT"),
     ("distributor agreement", "DISTRIBUTION_AGREEMENT"),
@@ -253,14 +258,21 @@ def _compose_content(payload: dict) -> str:
 
     The identifying prefix (code, clause, type) is what makes "what is our
     arbitration policy?" findable by lexical search; the quote is the answer a
-    Domain A result renders verbatim (r4). The source document is named by its
-    public name only — see `public_source_name`.
+    Domain A result renders verbatim (r4).
+
+    The source document's name is NOT here (positions-verbatim-2, 2026-09-18). It is
+    provenance, not position, and `content_tsv` is generated from this text, so it was
+    INDEXED: "Legal Constitution, Lawyer Review Version L1.10" put `constitut` in 15
+    of 40 chunks, and "what is written about partner agreement in the constitution"
+    cleared the two-lexeme floor on that boilerplate plus `agreement` (df 21) — three
+    MSA positions dressed as the answer to a question about a paper the corpus holds
+    no position for. The name still lives in the ratified file's `source_document`,
+    and the reader's header already shows code · clause · type · version.
     """
     parts = [
         f"{payload['requirement_code']}",
         f"{payload['source_clause']}",
         f"({payload['configuration']['document_type']})",
-        f"— {public_source_name(payload['source_document'])}:",
         payload["source_quote"],
     ]
     return " ".join(p for p in parts if p)
@@ -541,11 +553,27 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # So fusing it into a gated semantic result does not add recall, it adds rank noise
     # — and RRF then promotes that noise into the three positions a reader is shown.
     # When the gated vector branch has found anything, it decides. Lexical stands in
-    # only when there is no semantic signal at all: no model provisioned, or the
-    # calibrated gate shut. That keeps the paraphrase recall the vector branch was added
-    # for, and keeps lexical as the fallback it is, without comparing two score scales
-    # that were never comparable.
-    hits = _fuse([] if vector else lexical, vector, limit)
+    # only when there is NO semantic signal: no model provisioned. That keeps the
+    # paraphrase recall the vector branch was added for, and keeps lexical as the
+    # fallback it is, without comparing two score scales that were never comparable.
+    #
+    # A SHUT GATE IS A VERDICT, NOT AN ABSENCE OF SIGNAL (2026-09-18). Until now a model
+    # that looked and found nothing relevant fell back to the ungated lexical list —
+    # which is exactly when that list is junk. A question whose subject the corpus
+    # never uses ("partner") contributes nothing to any lexical score, so what ranks
+    # is its incidental words, and "who handles support for partner customers"
+    # answered with the cure period. Measured on the ratified corpus: the gate opened
+    # for 0 of 8 questions about papers we hold no position for, and for every
+    # answerable question it left shut the lexical top hit was WRONG (cosine
+    # 0.35–0.39). Honouring the verdict loses nothing correct.
+    # ponytail: an exact standard-code query with a flat vector gap is refused here;
+    # admit lexical hits whose own cosine >= EVIDENCE_COSINE_FLOOR if that shows up.
+    if vector is None:
+        hits = lexical
+    elif not vector:
+        hits = []
+    else:
+        hits = _fuse([], vector, limit)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
@@ -565,20 +593,22 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
         return search_positions(db, query=query, permissions=permissions, limit=limit,
                                 embed_query=embed_query, topic=None)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
-              vector=len(vector), topic=topic or "", level=logging.DEBUG)
+              vector=len(vector or ()), topic=topic or "", level=logging.DEBUG)
     return hits
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
-                       embed_query=None, topic: str | None = None) -> list[PositionHit]:
-    """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
-    is available, when nothing is embedded, or when the calibrated gate stays shut."""
+                       embed_query=None, topic: str | None = None
+                       ) -> list[PositionHit] | None:
+    """Gated nearest neighbours over `position_chunk_embeddings`. None when no model
+    is available or there is nothing to embed; [] when a model looked and the
+    calibrated gate stayed shut — `search_positions` treats those two differently."""
     from legalmind.assist import calibration, embedding_runtime, store
 
     embed = embed_query or embedding_runtime.embed_query
     embedded = embed(query) if query and query.strip() else None
     if embedded is None:
-        return []
+        return None
     vector, _identity = embedded
     schema = config.assist_schema()
     op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
@@ -602,6 +632,10 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K),
            "topic": topic}).all()
+    if not rows:
+        # Nothing embedded to compare against is an ABSENCE of signal, not a verdict
+        # — the same as no model. Only a gate that saw candidates and stayed shut is.
+        return None
     scores = [float(r.cosine) for r in rows]
     if not calibration.gate_is_open(False, scores):
         return []

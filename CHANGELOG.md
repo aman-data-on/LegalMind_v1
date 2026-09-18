@@ -10,6 +10,49 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Ask no longer answers a question about a paper it holds no position for with another paper's clause (2026-09-18)
+
+**Live defect.** "what is written about partner agreement in the constitution" was answered
+with three MSA positions about renewal, cure and suspension, framed as "the organization's
+approved position relevant to this question". Two general mechanisms produced it, neither
+partner-specific:
+
+1. **Provenance was indexed.** Every Domain A chunk carried "— Legal Constitution, Lawyer
+   Review Version L1.10:" in its searchable text, so `constitut` matched 15 of 40 chunks
+   and any "… in the constitution" question cleared the two-lexeme floor on boilerplate
+   plus `agreement` (df 21). `positions._compose_content` now indexes code · clause · type ·
+   quote only; the name stays in the ratified file. Algorithm `positions-verbatim-2`.
+2. **A shut gate was treated as an absence of signal.** `search_positions` fell back to the
+   ungated lexical list exactly when the calibrated vector gate had said nothing was
+   relevant — which is when that list is junk: a subject the corpus never uses
+   ("partner") contributes nothing to any lexical score, so incidental words ("support",
+   "customer") ranked. Measured on the ratified corpus: the gate opened for **0 of 8**
+   questions about papers we hold no position for, and for every answerable question it
+   left shut the lexical top hit was **wrong** (cosine 0.35–0.39). A shut gate is now the
+   verdict; lexical stands in only when there is no model (`None`), and an empty
+   embedding table is treated as no signal, not a verdict.
+
+`named_document_type` also maps the bare §31 subject ("partner", "partners"), so the
+refusal names what IS covered for the natural phrasings too.
+
+**Measured, deterministic, 0 Gemini calls** (`tests/test_assist_positions_regression.py`,
+run with `-s`): 40 answerable questions whose gold is each ratified file's own
+`description`, 8 must-refuse questions about §31 papers. Production shape (model present):
+hit@1 0.775 → **0.800**, gold@3 0.800 → **0.825**, recall@5 0.800 → **0.825**, junk answers
+**2/8 → 0/8**. Not one position lost its own description. End to end through
+`service.ask` with Gemini monkeypatched to fail: every must-refuse question yields the
+refusal naming coverage, no unrelated clause, no provider call; the liability control still
+quotes verbatim.
+
+**Not fixed, and not fixable in code:** the reader still cannot be TOLD what the
+Constitution says about Partner Agreements, because §31.3–31.6 are Company-approved in
+L1.10 but no ratified standard carries them — and locked Step 6 has no `PARTNER_AGREEMENT`
+type for one to declare (CONFLICTS.md **C-23**, owner decision). Until then the honest
+answer is the refusal.
+
+**Production needs one step after deploy:** `python3 -m tools.chunk_standards` (re-chunks
+and re-embeds; deploy does not), or `constitut` stays in the live index.
+
 ### Added — the git and GitHub procedure every agent follows (2026-09-18)
 
 **Owner instruction:** multiple agents and sessions work this repository, and the losses

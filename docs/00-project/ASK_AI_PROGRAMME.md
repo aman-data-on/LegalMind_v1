@@ -992,3 +992,79 @@ follow-ups need scripted dialogues. Those are owner inputs.
 **What NOT to do:** tune the reranker, sweep gate thresholds, or enable the query planner.
 All three were measured at length in Phases 1–2, all three target stages 4–7, and §3 shows
 only 3 of 8 remaining failures live there.
+
+# Alignment fix — "what is written about partner agreement in the constitution" (2026-09-18)
+
+**0 Gemini calls.** Diagnosed from the production database and the code, reproduced and
+measured on a deterministic Domain A regression set, fixed in retrieval, verified end to end
+through `service.ask` with the provider monkeypatched to fail.
+
+## What was actually wrong — proven, not inherited
+
+| suspected cause | verdict | evidence |
+|---|---|---|
+| intent / routing | **not it** | the router chose POSITIONS correctly (`filters.domains = ["POSITIONS"]` on the live run) |
+| Constitution topic mapping | not reachable | Appendix B has no partner category; the planner ships off anyway |
+| section / heading awareness | not implemented | `source_clause` is stored per chunk and never used for matching — but no heading could have helped: see the last row |
+| **retrieval query construction** | **CAUSE 1** | provenance "— Legal Constitution, Lawyer Review Version L1.10:" was in the indexed text: `constitut` df 15/40, `agreement` df 21/40, `partner` **0/40**. Two boilerplate matches cleared the floor |
+| candidate ranking | symptom | `ts_rank` over boilerplate matches is arbitrary; the three shown were simply what ranked |
+| **evidence selection / relevance** | **CAUSE 2** | no relevance verdict on the lexical path; `_fuse([] if vector else lexical)` used the UNGATED lexical list exactly when the calibrated vector gate had said nothing was relevant |
+| answer synthesis | not reached | the `AM-67` reading aid is off; the fixed sentence framed junk as "the approved position relevant to this question" |
+| grounding / verification | not involved | Domain A quotes verbatim; nothing generated |
+| **missing knowledge** | **THE CEILING** | Constitution §31.3–31.6 are Company-approved and **no ratified standard carries them**; production `position_chunks`: 40 rows, 0 mention "partner". Nothing downstream can answer what is not in the corpus (C-23) |
+
+Another session had already added `named_document_type` (`2ce87e8`, 47 minutes after the
+live question, undeployed): it refuses when the question names a paper the corpus does not
+hold. It covers "partner agreement" and "how can a partner agreement be ended" and nothing
+else — "what does our constitution say about partners" and "who handles support for
+partner customers" still returned five unrelated positions on the fixture corpus.
+
+## The fix — general, no partner exception
+
+1. `_compose_content` indexes code · clause · type · quote. The source name is provenance
+   and lives in the ratified file; the reader's header already shows code · clause · type ·
+   version. `CHUNKING_ALGORITHM_VERSION = positions-verbatim-2`.
+2. `_vector_neighbours` distinguishes **no signal** (no model, or nothing embedded → `None`)
+   from **a verdict** (a model saw candidates and the calibrated gate stayed shut → `[]`).
+   `search_positions` honours the verdict; lexical stands in only for `None`. Vector-open
+   behaviour is unchanged (the measured 2026-09-16 decision that lexical adds rank noise
+   there is respected).
+3. `named_document_type` maps the bare §31 subject ("partner", "partners") so the refusal
+   names what IS covered for the natural phrasings too.
+
+Why the verdict rule is safe, measured on the ratified corpus: the gate opened for **0 of 8**
+must-refuse questions, and for every answerable question it left shut the lexical top hit
+was **wrong** (cosine 0.35–0.39) — honouring it loses nothing correct.
+
+## Measured — `tests/test_assist_positions_regression.py -s`
+
+40 answerable questions (gold = each ratified file's own `description`; twins scored as a
+set), 8 must-refuse questions about §31 papers.
+
+| | hit@1 | gold@3 | recall@5 | MRR | junk answers |
+|---|---|---|---|---|---|
+| before, production shape (model present) | 0.775 | 0.800 | 0.800 | 0.787 | **2/8** |
+| **after, production shape** | **0.800** | **0.825** | **0.825** | **0.812** | **0/8** |
+| after, no-model degradation | 0.800 | 0.825 | 0.825 | 0.812 | 1/8 |
+
+Not one position lost its own description; recall rose because the boilerplate had been
+polluting the lexical ranking too. The one junk answer left is in the no-model degradation
+mode only (production has the model): a strict two-lexeme match on common words. 8 of 40
+positions are unreachable from their own one-line description in either state — a
+description-versus-quote vocabulary gap, recorded, not forced.
+
+End to end (`service.ask`, Gemini forbidden): all 8 must-refuse questions → refusal that
+names coverage, no positions, no call; "what is our liability cap" → LIABILITY quoted
+verbatim.
+
+## What this does NOT do, and why
+
+The reader still cannot be told what the Constitution says about Partner Agreements. That
+is not a retrieval or intelligence gap any more — it is a **knowledge** gap: §31.3–31.6 have
+no ratified standard, and locked Step 6 has no `PARTNER_AGREEMENT` type for one to declare
+(C-23). Two owner rulings unblock it; the verbatim positions are in L1.10 §31.3–31.6 ready
+to become standard files without a word changed (rule 21). Until then the honest answer is
+the refusal, and the refusal is now honest for every phrasing tested.
+
+**Production needs `python3 -m tools.chunk_standards` once after deploy** — deploy does not
+rebuild the position index (ops/README.md).

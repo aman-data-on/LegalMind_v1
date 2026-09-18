@@ -122,15 +122,16 @@ def test_the_ratified_quote_survives_byte_identical():
             f"{payload['requirement_code']}: source_quote is not verbatim in the chunk"
 
 
-def test_the_sanitised_name_is_what_gets_indexed():
-    """The chunk text IS the lexical index (`content_tsv` is generated from it), so a
-    leaked path also inflated the two-lexeme floor with `docs`, `pdf` and `md`.
-    Fixing the disclosure fixes the retrieval noise in the same edit."""
+def test_the_source_name_is_provenance_and_is_no_longer_indexed():
+    """The chunk text IS the lexical index (`content_tsv` is generated from it). The
+    sanitised source name used to be composed in — and "Legal Constitution, Lawyer
+    Review Version L1.10" then put `constitut` in 15 of 40 chunks, so "…in the
+    constitution" matched on boilerplate (positions-verbatim-2, 2026-09-18). The name
+    stays in the ratified file; the quote stays verbatim in the chunk."""
     for payload in _ratified():
         content = _compose_content(payload)
-        assert public_source_name(payload["source_document"]) in content
-        assert payload["source_document"] not in content or \
-            payload["source_document"] == public_source_name(payload["source_document"])
+        assert public_source_name(payload["source_document"]) not in content
+        assert payload["source_quote"] in content
 
 
 # --------------------------------------------------------------------------
