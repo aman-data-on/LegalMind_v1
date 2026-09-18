@@ -117,6 +117,159 @@ class QueryPlan:
                 "queries": list(self.queries), "section_hint": self.section_hint}
 
 
+# ---------------------------------------------------------------------------
+# THE CHEAP PATH (Phase 1, 2026-09-18)
+# ---------------------------------------------------------------------------
+# Phase 1's first attempt asked the provider about EVERY question: measured
+# +4,788 ms p50 for a targeting gain of about one question in 64, and evidence
+# precision FELL 0.390 -> 0.358 because every extra query adds its own
+# rank-fused list and dilutes the gold share. Both causes are addressed here
+# rather than retuned:
+#
+#   1. Most questions do not need a model to say what they are about. One
+#      lexical table answers it for nothing, so the provider is reached only
+#      for a question this table cannot place.
+#   2. A reformulation only helps when it contributes a TERM THE QUESTION DOES
+#      NOT ALREADY CONTAIN. "What is the cure period?" gains nothing from
+#      "cure period" as a second query and pays the precision for it; "How
+#      much time do we get to fix a breach?" gains the term outright. So an
+#      extra query is emitted only when the canonical term is absent.
+#
+# WHAT THIS TABLE IS: search vocabulary — the words a lawyer would type for
+# what a reader typed, plus the Constitution Appendix-B topic each belongs to.
+# It is the same kind of object as `statutes._ACT_ALIASES` ("Names only — no
+# law") and is held to the same rule: NO threshold, NO position, NO acceptance
+# policy, NO carve-out, nothing about what any standard requires (rules 7 and
+# 21). Every topic string is validated against `TOPICS` at import, which is
+# read off the ratified standards themselves — a typo here cannot invent a
+# topic, it fails the assertion.
+#
+# (cue matched in the question, canonical legal term, Constitution topic)
+_TERMS: tuple[tuple[str, str, str], ...] = (
+    (r"fix (?:a |the )?breach|cure (?:a |the )?breach|remedy (?:a |the )?(?:breach"
+      r"|default)"
+     r"|time to (?:fix|cure)|put it right",
+     "cure period", "Termination & Suspension"),
+    (r"walk away|get out of|exit early|end (?:it |the (?:contract|agreement) )?early"
+     r"|leave before|before it expires|cancel early",
+     "termination for convenience early termination",
+     "Fixed-Term Commitments & Early Exit"),
+    (r"how much notice|notice (?:period|to terminate)|how long before.*(?:terminat"
+      r"|cancel)",
+     "notice period termination", "Termination & Suspension"),
+    (r"most we (?:can|could) (?:be liable|owe|lose)|maximum (?:we|they) (?:owe|pay)"
+     r"|liability cap|cap on (?:liability|damages)|limit of liability|how much.*liable",
+     "limitation of liability cap", "Liability"),
+    (r"who pays if|cover us if|defend us|hold us harmless|third.?party claim",
+     "indemnification indemnify", "Indemnification"),
+    (r"roll(?:s|ed)? over|renew(?:s|al)? automatic|automatic(?:ally)? renew"
+      r"|keep going after",
+     "automatic renewal renewal term", "Renewal (Auto-Renewal)"),
+    (r"uptime|downtime|service credit|availability guarantee|how reliable",
+     "service level availability uptime", "SLA / Service Levels"),
+    (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data",
+     "data protection personal data", "Data Protection & Privacy"),
+    (r"keep (?:it |things )?(?:secret|confidential)|nda|non.?disclos|trade secret",
+     "confidentiality confidential information",
+     "Confidentiality & Intellectual Property"),
+    (r"which (?:court|law)|governing law|jurisdiction|arbitrat|where.*sue|dispute",
+     "governing law dispute resolution", "Governing Law & Dispute Resolution"),
+    (r"act of god|natural disaster|pandemic|strike|beyond (?:their|our) control"
+     r"|force majeure",
+     "force majeure", "Force Majeure"),
+    (r"raise (?:the )?price|increase (?:the )?(?:price|fee)|late pay|payment term"
+     r"|invoice|gst|tax",
+     "payment terms fees taxes", "Payment Terms & Taxes"),
+    (r"stop (?:providing|offering) the service|discontinu|sunset|shut (?:it )?down",
+     "service discontinuation", "Major Changes — Service Discontinuation"),
+    (r"bought|acquir|merger|change of control|sold to",
+     "change of control assignment", "Major Changes — Change of Control"),
+    (r"as.?is|no warrant|disclaim|guarantee the software",
+     "warranty disclaimer", "Warranty Disclaimer"),
+)
+
+# A cue's topic must be one the ratified standards actually carry. This is the
+# guard that keeps the table vocabulary rather than invention.
+assert not TOPICS or all(topic in TOPICS for _, _, topic in _TERMS), \
+    "planner._TERMS names a topic no ratified standard carries"
+
+_TERMS_COMPILED = tuple((re.compile(cue, re.IGNORECASE), term, topic)
+                        for cue, term, topic in _TERMS)
+
+#: A question with none of the cues and none of these hedges is taken at face
+#: value: retrieval runs exactly as it does today, with no plan and no call.
+#: These are the shapes where a reader is NOT naming the thing they want --
+#: multi-part, conditional, comparative or referential -- and where the model
+#: has something to add that a substring cannot.
+_AMBIGUOUS = re.compile(
+    r"\band\b.*\?|\bor\b.*\?"          # two questions in one
+    r"|\bif\b|\bwhen\b|\bunless\b|\bwhat happens\b"   # conditional
+    r"|\bdifference\b|\bcompared\b|\bversus\b|\bvs\b"  # comparative
+    r"|\bthis\b|\bthat\b|\bit\b|\bthey\b|\bthose\b"  # referential
+    r"|\banything else\b|\bany other\b|\bwhat about\b",
+    re.IGNORECASE)
+
+
+def plan_lexical(question: str) -> QueryPlan | None:
+    """A plan for nothing, or None. No provider call, no network, no I/O.
+
+    Returns a plan when the question names something the table places: the
+    topic narrows Domain A, and the canonical term becomes an extra query ONLY
+    if the question does not already use it.
+
+    `party` and `source_preference` stay NEUTRAL. Both are recorded fields
+    that narrow nothing -- routing decides domains from permissions (`AM-45`
+    r1) and the comparison screen is code -- so a lexical guess at either buys
+    no retrieval and would read as authority it does not have. Reading `party`
+    off `intent.mentions_organization` was tried and reverted: the boundary
+    test `test_the_planner_reaches_no_retrieval_and_no_persistence` forbids
+    this module importing a safety screen, and it is right to. The provider
+    path still fills both when it runs.
+    """
+    text_in = (question or "").strip()
+    if not text_in:
+        return None
+    lowered = text_in.casefold()
+    topic: str | None = None
+    queries: list[str] = []
+    subject = ""
+    for pattern, term, cue_topic in _TERMS_COMPILED:
+        # A question may arrive in a reader's words (the cue) or already in a
+        # lawyer's (the canonical term). Either places the TOPIC; only the
+        # first is missing the term.
+        by_cue = bool(pattern.search(text_in))
+        # "Already said it" is per DISTINCTIVE word, not the whole phrase. A
+        # reader who typed "liability" already has that lexical pass; a second
+        # near-duplicate list of "limitation of liability cap" only dilutes the
+        # gold share. Short words ("of", "cap") carry no retrieval signal.
+        has_term = any(w in lowered for w in term.casefold().split() if len(w) >= 5)
+        if not (by_cue or has_term):
+            continue
+        if topic is None:
+            topic, subject = cue_topic, term
+        # The precision rule: contribute a term, never a paraphrase. A term
+        # already in the reader's own words is already in the lexical pass,
+        # and a second list of it only dilutes the gold share (measured).
+        if not has_term and term not in queries and len(queries) < MAX_QUERIES:
+            queries.append(term)
+    hint = _SECTION_IN_QUESTION.search(text_in)
+    section_hint = hint.group(1) if hint else None
+    if topic is None and not queries and section_hint is None:
+        return None
+    return QueryPlan(
+        intent="FACT", topic=topic, subject=subject,
+        party="NONE", source_preference="ANY",
+        queries=tuple(queries[:MAX_QUERIES]),
+        section_hint=section_hint)
+
+
+#: "section 7.2", "clause 13" -- the number a reader names, for `section_hint`.
+#: `_SECTION` validates a bare token; this finds one inside a sentence.
+_SECTION_IN_QUESTION = re.compile(
+    r"(?:section|clause|article|para(?:graph)?)\s+(\d{1,3}(?:\.\d{1,3}){0,3}[a-z]?)",
+    re.IGNORECASE)
+
+
 PLAN_PROMPT_TEMPLATE = """You are planning a search over legal documents for an \
 assistant. Do NOT answer the question. Do NOT give legal advice or opinions.
 
@@ -145,11 +298,36 @@ CONTEXT_HEADER = ("EARLIER QUESTIONS IN THIS CONVERSATION (context only — the 
 
 def plan(question: str, prior_questions: tuple[str, ...] | list[str] = (), *,
          request_id: str | None = None) -> QueryPlan | None:
-    """One planning call, or None. None means: retrieve exactly as before."""
+    """A plan, or None. None means: retrieve exactly as before.
+
+    THREE OUTCOMES, cheapest first — the Phase 1 shape (2026-09-18):
+
+      1. `plan_lexical` places the question — a topic, a legal term the reader
+         did not use, or a section number. Returned immediately: no provider
+         call, no added latency. This is the common case.
+      2. Nothing placed it and it reads as a plain, self-contained question.
+         None: retrieval runs exactly as it does today, still no call. A simple
+         question does not pay for a planner (the Phase 1 measurement is why).
+      3. Nothing placed it AND it reads as ambiguous — multi-part, conditional,
+         comparative or referential. Only here is the provider asked, and only
+         here is its latency spent.
+
+    The boundary is unchanged in all three: advisory, fails closed to None,
+    never a domain, never the gate, never the comparison, never cited.
+    """
     if not config.query_planner_enabled():
         return None
     question = (question or "").strip()
     if not question:
+        return None
+    cheap = plan_lexical(question)
+    if cheap is not None:
+        log_event("assist.plan.lexical", request_id=request_id,
+                  topic=cheap.topic or "", queries=str(len(cheap.queries)),
+                  section_hint=str(bool(cheap.section_hint)))
+        return cheap
+    if not _AMBIGUOUS.search(question):
+        log_event("assist.plan.skipped", request_id=request_id, reason="plain")
         return None
     context = ""
     if prior_questions:

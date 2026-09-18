@@ -712,7 +712,14 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
         # byte-for-byte the previous call — and every existing double of
         # `search_hybrid` keeps its signature. Two explicit branches rather than a
         # dict unpack, so the type checker can see both.
-        if plan and plan.queries:
+        # WIDENING is its own flag and its own measurement — see
+        # `config.query_expansion_enabled`. The plan still AIMS (its topic narrows
+        # Domain A, its section hint is recorded) with no call and no dilution;
+        # adding its reformulations as extra fused vector passes was measured twice
+        # to cost evidence precision while leaving recall@10, hit@1, MRR and
+        # gold-in-top-3 byte-identical, so it is off by default and a merge does not
+        # turn it on.
+        if plan and plan.queries and config.query_expansion_enabled():
             retrieval = store.search_hybrid(
                 db, document_version_id=document_version_id, query=retrieval_query,
                 embed_query=embedding_runtime.embed_query, extra_queries=plan.queries)
