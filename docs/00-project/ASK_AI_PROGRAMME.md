@@ -1024,17 +1024,21 @@ partner customers" still returned five unrelated positions on the fixture corpus
 1. `_compose_content` indexes code · clause · type · quote. The source name is provenance
    and lives in the ratified file; the reader's header already shows code · clause · type ·
    version. `CHUNKING_ALGORITHM_VERSION = positions-verbatim-2`.
-2. `_vector_neighbours` distinguishes **no signal** (no model, or nothing embedded → `None`)
-   from **a verdict** (a model saw candidates and the calibrated gate stayed shut → `[]`).
-   `search_positions` honours the verdict; lexical stands in only for `None`. Vector-open
-   behaviour is unchanged (the measured 2026-09-16 decision that lexical adds rank noise
-   there is respected).
+2. **A shut-gate verdict was built, measured, and reverted.** Honouring the calibrated
+   gate when it stayed shut killed every junk answer — and refused "Explain our
+   termination standard." on the live corpus (top cosine 0.454, four termination
+   positions, under the 0.5 floor). Real paraphrases sit at 0.45–0.47, junk at
+   0.29–0.39: the floor was calibrated for one document's chunks and has never been
+   calibrated for Domain A. A constant fitted to ten points is not a calibration, so
+   the mechanism is out and the gap is recorded (below) for the owner.
 3. `named_document_type` maps the bare §31 subject ("partner", "partners") so the refusal
    names what IS covered for the natural phrasings too.
 
-Why the verdict rule is safe, measured on the ratified corpus: the gate opened for **0 of 8**
-must-refuse questions, and for every answerable question it left shut the lexical top hit
-was **wrong** (cosine 0.35–0.39) — honouring it loses nothing correct.
+What the measurement DID establish, for whoever calibrates Domain A: the gate opened for
+**0 of 8** must-refuse questions; every answerable question it left shut had a **wrong**
+lexical top hit at cosine 0.35–0.39 **except** the natural termination phrasings, whose
+lexical hits are right at 0.45–0.47. The two regimes do not overlap in this sample. They
+also do not yet justify a constant.
 
 ## Measured — `tests/test_assist_positions_regression.py -s`
 
@@ -1045,11 +1049,12 @@ set), 8 must-refuse questions about §31 papers.
 |---|---|---|---|---|---|
 | before, production shape (model present) | 0.775 | 0.800 | 0.800 | 0.787 | **2/8** |
 | **after, production shape** | **0.800** | **0.825** | **0.825** | **0.812** | **0/8** |
-| after, no-model degradation | 0.800 | 0.825 | 0.825 | 0.812 | 1/8 |
+| after, no-model degradation | 0.800 | 0.825 | 0.825 | 0.812 | 0/8 |
 
 Not one position lost its own description; recall rose because the boilerplate had been
-polluting the lexical ranking too. The one junk answer left is in the no-model degradation
-mode only (production has the model): a strict two-lexeme match on common words. 8 of 40
+polluting the lexical ranking too. Two unheld subjects that name no paper ("affiliate
+commissions", "reseller onboarding") also refused — informational, since no name guard
+can catch those and the floor cannot yet be trusted to. 8 of 40
 positions are unreachable from their own one-line description in either state — a
 description-versus-quote vocabulary gap, recorded, not forced.
 

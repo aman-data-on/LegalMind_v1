@@ -553,27 +553,20 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # So fusing it into a gated semantic result does not add recall, it adds rank noise
     # — and RRF then promotes that noise into the three positions a reader is shown.
     # When the gated vector branch has found anything, it decides. Lexical stands in
-    # only when there is NO semantic signal: no model provisioned. That keeps the
-    # paraphrase recall the vector branch was added for, and keeps lexical as the
-    # fallback it is, without comparing two score scales that were never comparable.
+    # only when there is no semantic signal at all: no model provisioned, or the
+    # calibrated gate shut. That keeps the paraphrase recall the vector branch was added
+    # for, and keeps lexical as the fallback it is, without comparing two score scales
+    # that were never comparable.
     #
-    # A SHUT GATE IS A VERDICT, NOT AN ABSENCE OF SIGNAL (2026-09-18). Until now a model
-    # that looked and found nothing relevant fell back to the ungated lexical list —
-    # which is exactly when that list is junk. A question whose subject the corpus
-    # never uses ("partner") contributes nothing to any lexical score, so what ranks
-    # is its incidental words, and "who handles support for partner customers"
-    # answered with the cure period. Measured on the ratified corpus: the gate opened
-    # for 0 of 8 questions about papers we hold no position for, and for every
-    # answerable question it left shut the lexical top hit was WRONG (cosine
-    # 0.35–0.39). Honouring the verdict loses nothing correct.
-    # ponytail: an exact standard-code query with a flat vector gap is refused here;
-    # admit lexical hits whose own cosine >= EVIDENCE_COSINE_FLOOR if that shows up.
-    if vector is None:
-        hits = lexical
-    elif not vector:
-        hits = []
-    else:
-        hits = _fuse([], vector, limit)
+    # A SHUT GATE IS NOT (YET) A VERDICT HERE — measured 2026-09-18. Treating it as one
+    # refused "Explain our termination standard." on the live corpus: that question sits
+    # at top cosine 0.454 against four termination positions, UNDER the 0.5 floor that
+    # was calibrated for one document's chunks, not forty short standards. Real
+    # paraphrases landed at 0.45–0.47, junk at 0.29–0.39. That is a Domain A calibration
+    # gap for the owner to see, not a constant to invent from ten points. Junk on an
+    # unheld subject is stopped upstream instead: provenance is no longer indexed, and
+    # `named_document_type` filters a paper we hold no position for.
+    hits = _fuse([] if vector else lexical, vector, limit)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
@@ -593,22 +586,20 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
         return search_positions(db, query=query, permissions=permissions, limit=limit,
                                 embed_query=embed_query, topic=None)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
-              vector=len(vector or ()), topic=topic or "", level=logging.DEBUG)
+              vector=len(vector), topic=topic or "", level=logging.DEBUG)
     return hits
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
-                       embed_query=None, topic: str | None = None
-                       ) -> list[PositionHit] | None:
-    """Gated nearest neighbours over `position_chunk_embeddings`. None when no model
-    is available or there is nothing to embed; [] when a model looked and the
-    calibrated gate stayed shut — `search_positions` treats those two differently."""
+                       embed_query=None, topic: str | None = None) -> list[PositionHit]:
+    """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
+    is available, when nothing is embedded, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
 
     embed = embed_query or embedding_runtime.embed_query
     embedded = embed(query) if query and query.strip() else None
     if embedded is None:
-        return None
+        return []
     vector, _identity = embedded
     schema = config.assist_schema()
     op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
@@ -632,10 +623,6 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K),
            "topic": topic}).all()
-    if not rows:
-        # Nothing embedded to compare against is an ABSENCE of signal, not a verdict
-        # — the same as no model. Only a gate that saw candidates and stayed shut is.
-        return None
     scores = [float(r.cosine) for r in rows]
     if not calibration.gate_is_open(False, scores):
         return []

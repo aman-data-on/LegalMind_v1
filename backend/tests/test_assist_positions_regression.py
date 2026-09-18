@@ -10,10 +10,14 @@ partner-specific:
   1. Provenance was INDEXED. Every chunk carried "— Legal Constitution, Lawyer Review
      Version L1.10:" in its searchable text, so `constitut` matched 15 of 40 chunks and
      any "... in the constitution" question cleared the two-lexeme floor on boilerplate.
-  2. The lexical path had no relevance verdict. `_fuse` used the UNGATED lexical list
-     exactly when the calibrated vector gate had said nothing was relevant, and the
-     relaxed second pass admitted any chunk sharing one common corpus word ("support",
-     "customer") with a question whose real subject ("partner") the corpus never uses.
+  2. The lexical path has no relevance verdict of its own: when the vector gate is shut
+     it admits any chunk sharing common corpus words ("support", "customer") with a
+     question whose real subject ("partner") the corpus never uses. Treating a shut
+     gate as the verdict was tried and REVERTED the same day: the floor was calibrated
+     for one document's chunks and refuses "Explain our termination standard." (top
+     cosine 0.454) on the live corpus. Recorded as a Domain A calibration gap; until
+     it is calibrated, a paper we hold no position for is filtered by NAME
+     (`named_document_type`, including the §31 family's bare subject "partner").
 
 Gold here is never authored: the answerable questions are each ratified file's own
 `description` field, and their gold is that file. The refusals are questions about kinds
@@ -113,9 +117,19 @@ def _run(db, embed, limit: int = 5) -> dict:
     junk = [q for q in MUST_REFUSE
             if search_positions(db, query=q, permissions=PERMS, limit=limit,
                                 embed_query=embed)]
+    unnamed = [q for q in UNNAMED_UNHELD
+               if search_positions(db, query=q, permissions=PERMS, limit=limit,
+                                   embed_query=embed)]
     n = len(answerable())
-    return {"n": n, "hit@1": hit1 / n, "gold@3": gold3 / n, "recall@5": rec5 / n,
+    return {"n": n, "unnamed": unnamed, "hit@1": hit1 / n, "gold@3": gold3 / n, "recall@5": rec5 / n,
             "mrr": statistics.mean(mrr), "junk": junk}
+
+
+# Unheld subjects that name NO kind of paper the type table knows. Informational —
+# printed, not asserted — because no name-based guard can catch them and the
+# calibrated floor cannot yet be trusted to (see module docstring, point 2).
+UNNAMED_UNHELD = ("what happens to affiliate commissions",
+                  "what is the reseller onboarding process")
 
 
 def _print(label: str, m: dict) -> None:
@@ -124,6 +138,8 @@ def _print(label: str, m: dict) -> None:
           f"junk answers={len(m['junk'])}/{len(MUST_REFUSE)}")
     for q in m["junk"]:
         print(f"    JUNK  {q}")
+    for q in m.get("unnamed", ()):
+        print(f"    (info) unnamed unheld subject still answered: {q}")
 
 
 # --------------------------------------------------------------------------
@@ -218,3 +234,16 @@ def test_a_position_we_do_hold_is_still_quoted_verbatim(corpus, user, no_gemini)
     codes = {p["standard_code"] for p in out.positions}
     assert codes & {"LIABILITY-MSA-001", "LIABILITY-TOS-001"}, (out.text, codes)
     assert "quoted below" in out.text
+
+
+@pytest.mark.skipif(not embedding_runtime.available(), reason="no model provisioned")
+def test_a_topic_several_standards_share_is_not_refused_when_a_model_is_present(corpus):
+    """The live report of 2026-09-16, re-run WITH a model. Four termination standards
+    tie above the evidence floor, so the peak-gap gate stays shut — that is ambiguity,
+    and lexical must still answer it. A verdict is only "nothing above the floor"."""
+    hits = search_positions(corpus, query="Explain our termination standard.",
+                            permissions=PERMS, limit=5, embed_query=None)
+    assert hits, "refused a topic the corpus holds four positions on"
+    assert {h.standard_code for h in hits} & {
+        "CONVENIENCE-NOTICE-MSA-001", "CURE-PERIOD-MSA-001",
+        "SUSPENSION-NOTICE-CURE-MSA-001", "TERM-NOTICE-NDA-001", "EARLY-TERM-RESTRICTION-MSA-001"}
