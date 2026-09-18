@@ -385,6 +385,43 @@ The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authe
 
 ---
 
+## Gemini cost guard — prove it locally before you pay for it
+
+**Owner instruction, 2026-09-18:** *"During R&D/testing, do NOT call Gemini repeatedly
+while the implementation is still failing or showing no measurable improvement."*
+
+Gemini is the one permitted egress (`AM-30`) and it is metered. During R&D it is the
+LAST instrument you reach for, not the one you iterate with.
+
+1. **Test with deterministic/local logic and the existing retrieval first.** Call Gemini
+   only when the specific Gemini-dependent behavior is ready to be validated.
+2. **No improvement means STOP.** If a benchmark shows no measurable gain, stop calling
+   Gemini, diagnose and fix locally, then retest. Never trial-and-error against the seam.
+3. **Every benchmark reports Gemini call count, latency, and token/cost.** The Tier-2
+   gate already does: `gemini calls/q`, prompt/output tokens and per-stage p50/p95. Do
+   not add a benchmark that hides them.
+4. **Do not advance to the next phase until measurable improvement is demonstrated.**
+
+**For the assist lane the order is fixed:**
+
+| | Tool | Gemini |
+|---|---|---|
+| 1 | `backend/tools/probe_targeting.py` — recall@10 / hit@1 / MRR / gold@3 / precision straight through `search_hybrid` | **none** |
+| 2 | `backend/tools/benchmark_rerank.py` — reranker ordering | **none** |
+| 3 | `backend/tools/verify_assist_quality.py` — the Tier-2 gate, end to end | generation **and** the rescue judge |
+
+The gate is a confirmation step, ideally run once, not an iteration loop. It also cannot
+settle a retrieval question: its targeting metrics are scored `if not opened: continue`,
+over the questions whose GATE OPENED, and gate opening runs through the rescue judge — so
+they move run to run for reasons unrelated to retrieval. Use the probe for that.
+
+**The incident this responds to:** Ask Phase 1 (2026-09-18) spent three full gate runs,
+77 questions each, ~370k prompt + ~19k output tokens. The probe — written afterwards,
+zero Gemini — reproduced the answer for runs 2 and 3 byte-for-byte, and the diagnosis was
+already in hand after run 2.
+
+---
+
 ## Working a session
 
 1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **19374 lines**; if it is longer, the docs may be stale and you should say so.
