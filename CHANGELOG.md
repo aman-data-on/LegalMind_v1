@@ -10,6 +10,31 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Added — the git and GitHub procedure every agent follows (2026-09-18)
+
+**Owner instruction:** multiple agents and sessions work this repository, and the losses
+have been git-shaped — conflicts, CI failures from stale branches, lost uncommitted work,
+unclear file ownership. [AGENTS.md](AGENTS.md) now carries the **Multi-Agent and
+Multi-User Development Rules**, 22 sections covering task branches, one branch per
+worktree, inspect-before-edit, never discarding unknown work, commit/push/PR discipline,
+merge-conflict and CI procedure, append-only and migration safety, session handoff, the
+completion checklist and the stop conditions. Written as the owner supplied them; nothing
+is paraphrased.
+
+**One deliberate supersession, reported not silently resolved (rule 5).**
+[CLAUDE.md § Git workflow — one owner, keep it in `main`](CLAUDE.md) told agents to commit
+straight to `main` and not to branch per task; §1 of the new rules says the opposite.
+The newer owner instruction wins, `main` is branch-protected and rejects direct pushes
+anyway, and that CLAUDE.md section now carries a banner saying so. The rest of it —
+merge promptly, delete the branch, no retry branches, the deploy tree, one deploy at a
+time — is untouched and still binds.
+
+Cross-referenced from [CLAUDE.md](CLAUDE.md) (Start here + the Git workflow banner),
+[CONTRIBUTING.md](CONTRIBUTING.md), [README.md](README.md), [docs/README.md](docs/README.md),
+[CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) §1 row 8 and
+`frontend/CLAUDE.md`, so an agent entering from any of them finds it. Documentation only:
+no code, no decision, no lock record.
+
 ### Fixed — Ask no longer answers a question about one kind of paper with another kind's position (2026-09-18)
 
 Reported live with a screenshot. **"what is written about partner agreement in the
