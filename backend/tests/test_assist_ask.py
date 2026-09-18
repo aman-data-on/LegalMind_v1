@@ -16,14 +16,7 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import (
-    embedding_runtime,
-    generation,
-    guardrails,
-    positions,
-    rescue,
-    service,
-)
+from legalmind.assist import embedding_runtime, generation, guardrails, rescue, service
 from legalmind.assist.calibration import gate_is_open
 from legalmind.assist.indexing import index_document_version
 from legalmind.assist.state import REFUSAL_TEXT, AssistAnswerState
@@ -716,11 +709,7 @@ def test_the_refusal_names_every_searched_domain_and_nothing_else(
 
 
 def test_a_comparison_question_quotes_the_position_beside_the_findings_handoff(
-        db, user, indexed_contract, tmp_path, monkeypatch):
-    # A synthetic quote embeds below the calibrated floor, so since 2026-09-18 a model
-    # that looks and finds nothing is a VERDICT (positions.search_positions). CI has
-    # no model and has always run this lexical-only; run it the same way here.
-    monkeypatch.setattr(positions, "_vector_neighbours", lambda *a, **k: None)
+        db, user, indexed_contract, tmp_path):
     _ratified_positions(db, user, tmp_path)
     contract, version = indexed_contract
     out = service.ask(db, conversation_id=_conversation(db, user, contract),
@@ -1102,10 +1091,6 @@ def test_a_document_answer_carries_the_relevant_position_beside_it(
     searched. Supersedes the 2026-09-09 "not second-guessed" pin, which left a
     reader with the document's words and no view of the standard."""
     contract, version = indexed_contract
-    # A synthetic quote embeds below the calibrated floor, so since 2026-09-18 a model
-    # that looks and finds nothing is a VERDICT (positions.search_positions). CI has
-    # no model and has always run this lexical-only; run it the same way here.
-    monkeypatch.setattr(positions, "_vector_neighbours", lambda *a, **k: None)
     _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
     embedding_runtime.reset_for_tests()
     sent = []
@@ -1141,10 +1126,6 @@ def test_the_assessment_is_the_evaluators_existing_finding_and_needs_finding_vie
     findings. Without `finding.view` the position is quoted alone."""
     from tests.conftest import make_finding
     contract, version = indexed_contract
-    # A synthetic quote embeds below the calibrated floor, so since 2026-09-18 a model
-    # that looks and finds nothing is a VERDICT (positions.search_positions). CI has
-    # no model and has always run this lexical-only; run it the same way here.
-    monkeypatch.setattr(positions, "_vector_neighbours", lambda *a, **k: None)
     _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
     embedding_runtime.reset_for_tests()
     _fake_generation(monkeypatch, "Either party may terminate this Agreement for "
