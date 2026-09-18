@@ -146,15 +146,22 @@ def _assert_content_first(cls, cov, run):
 
 
 def _assert_unmeasured_clauses_are_visible(report):
-    # REC-02 / D-4b: an unmatched provision is recorded once per CLAUSE, at its
-    # anchor row — the clause heading when the document has one. The payment and
-    # purchase-order clauses (no ratified standard yet: §16, §31.11) surface here
-    # as their anchors, read by a person, never judged.
+    # REC-02 / D-4b: an unmatched provision is recorded once per CLAUSE, at its anchor
+    # row — the clause heading when the document has one — read by a person, never
+    # judged.
+    #
+    # THIS LIST SHRINKS AS THE CONSTITUTION IS RATIFIED, and that is the point. §16's
+    # payment and GST positions became measured when the owner ratified them through the
+    # Constitution (2026-09-13). §31.11's Purchase Order positions followed on
+    # 2026-09-18 (`AM-73`), so the PO clause is now MEASURED by CONTENTS-ORDER_FORM-001
+    # instead of surfaced as unmeasured. Both assertions are therefore negative: a
+    # clause leaving this list is coverage arriving, not a regression.
     excerpts = " ".join(r["excerpt"] for r in report["unmatched_provisions_detail"])
-    assert "Purchase Orders" in excerpts, report["_cited_by"]          # §31.11 drafts wait for a PO
-    # §16's payment and GST positions are ratified THROUGH the Constitution (owner
-    # 2026-09-13) — the clauses are measured now, not merely surfaced.
     assert "twenty-one (21) days of the invoice" not in excerpts, report["_cited_by"]
+    assert "Each Purchase Order shall state" not in excerpts, report["_cited_by"]
+    # The mechanism still works: something in this mixed agreement is still unmeasured
+    # and still visible, so the negative assertions above are not passing vacuously.
+    assert report["unmatched_provisions_detail"], report["_cited_by"]
 
 
 def test_mixed_agreement_typed_other(build, db, monkeypatch):

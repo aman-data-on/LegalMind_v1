@@ -1,17 +1,17 @@
 """Build the `POST /configuration/publish` payload, and refuse to build a wrong one.
 
 WHY THIS EXISTS. `import_ratified_standards.py` ends by printing EVERY code it
-touched — all 40. Pasting that list into a publish call fails outright, because
+touched — all 79. Pasting that list into a publish call fails outright, because
 publishing a retired code raises `BusinessRuleRejected` (`AM-65`: reversing a
 retirement is an owner decision, not a publish call), and one bad code fails the
-whole request. The correct list is the 33 that are NOT retired.
+whole request. The correct list is the 72 that are NOT retired.
 
-A hand-kept list of 33 codes would drift from the directory the moment a standard
+A hand-kept list of 72 codes would drift from the directory the moment a standard
 is added, retired or renamed — silently, and in the direction of publishing the
 wrong set. So the list is DERIVED from the ratified files every time, and this
 tool refuses rather than emits when the shape is not the approved one:
 
-* exactly `--expect-active` codes carry no `retired` block (default 33);
+* exactly `--expect-active` codes carry no `retired` block (default 72);
 * exactly `--expect-retired` carry one (default 7);
 * no code is in both, and no code appears twice.
 
@@ -23,7 +23,7 @@ Prints only codes and counts — no secrets, no positions, no clause text.
 
 Usage:
     python3 -m tools.publish_payload                       # print a summary
-    python3 -m tools.publish_payload -o /root/publish-33.json
+    python3 -m tools.publish_payload -o /root/publish-72.json
 """
 
 from __future__ import annotations
@@ -36,7 +36,9 @@ from pathlib import Path
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 
 #: The approved operation's shape. Changing either number is a scope change.
-EXPECT_ACTIVE = 33
+#: 33 -> 72 on 2026-09-18: `AM-72` (AB-24) ratified the Constitution §31 positions
+#: across Partner/Vendor/Distribution/Order Form/Amendment when the owner resolved C-23.
+EXPECT_ACTIVE = 72
 EXPECT_RETIRED = 7
 
 

@@ -53,6 +53,7 @@ import {
   versionCountLabel,
 } from "@/components/clients/model";
 import {
+  DOCUMENT_TYPES,
   clientLocation,
   companyInitials,
   documentTypeChip,
@@ -131,10 +132,11 @@ describe("the client's documents are one list, whatever the types are", () => {
     expect(documentTypeChip("PRIVACY_POLICY")).toBe("Privacy");
     expect(documentTypeChip("AMENDMENT")).toBe("Amendment");
     expect(documentTypeChip(null)).toBeNull();
-    // No chip anywhere carries an underscore.
-    for (const type of ["MSA", "NDA", "TOS", "SLA", "DPA", "AUP",
-                        "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER"]) {
-      expect(documentTypeChip(type)).not.toContain("_");
+    // No chip anywhere carries an underscore — over the LIVE vocabulary, not a
+    // hardcoded copy of it, so a type added later (as `AM-72` added three) is
+    // covered by this claim instead of quietly escaping it.
+    for (const { code } of DOCUMENT_TYPES) {
+      expect(documentTypeChip(code)).not.toContain("_");
     }
     // ...and the full label is still what the title says, so nothing is lost.
     expect(documentTypeLabel("ORDER_FORM")).toBe("Order Form");

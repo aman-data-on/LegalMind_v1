@@ -32,6 +32,7 @@ from enum import StrEnum
 
 from legalmind import config
 from legalmind.assist import intent
+from legalmind.domain.document_types import readable as _readable_document_type
 from legalmind.security import permissions as P
 
 
@@ -170,12 +171,6 @@ _NO_DOCUMENT = "No document is attached to this conversation."
 _STATUTES_UNAVAILABLE = (
     " Statutory text is not yet part of this installation's approved sources, so "
     "questions about the law itself cannot be answered.")
-
-
-def _readable_document_type(document_type: str) -> str:
-    """`PARTNER_AGREEMENT` -> "Partner Agreement"; `MSA` stays `MSA`."""
-    return (document_type if document_type.isupper() and "_" not in document_type
-            else document_type.replace("_", " ").title())
 
 
 def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = (),

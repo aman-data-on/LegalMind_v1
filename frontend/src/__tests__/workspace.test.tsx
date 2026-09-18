@@ -245,9 +245,13 @@ describe("EscalateControl", () => {
 });
 
 describe("Step 6 document types (presentation copy)", () => {
-  it("carries exactly the ten locked codes, in the backend's order", () => {
+  it("carries exactly the locked codes, in the backend's order", () => {
+    // Ten until `AM-72` (AB-24, owner 2026-09-18, resolving C-23) extended locked
+    // Step 6 by the Legal Constitution §31 types. Order must match the backend tuple
+    // exactly — `backend/tests/test_frontend_vocabulary.py` asserts the pair agree.
     expect(DOCUMENT_TYPES.map((t) => t.code)).toEqual([
-      "MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT", "OTHER",
+      "MSA", "NDA", "TOS", "SLA", "DPA", "AUP", "PRIVACY_POLICY", "ORDER_FORM", "AMENDMENT",
+      "PARTNER_AGREEMENT", "VENDOR_AGREEMENT", "DISTRIBUTION_AGREEMENT", "OTHER",
     ]);
   });
   it("labels a known code and never invents one for an unknown or missing value", () => {

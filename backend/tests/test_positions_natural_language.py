@@ -95,25 +95,54 @@ def test_the_liability_question_that_already_worked_still_works(real_corpus):
 
 def test_a_question_naming_no_subject_still_retrieves_nothing(real_corpus):
     """The floor exists so one incidental word cannot fetch a position, and the relaxed
-    second pass must not undo that.
+    second pass must not undo that. A lexeme in exactly ONE chunk is incidental, not a
+    subject the organization holds a position about, so it must not admit that chunk.
 
-    "Explain our standard." is the case that keeps the two apart. Its only lexeme present
-    in the corpus is `standard`, which occurs in exactly ONE chunk — inside a liability
-    quote that happens to use the word. That is not a subject the organization holds a
-    position about, so the relaxed pass does not admit it and the question is still
-    refused. Were the second pass a plain floor of 1, this would answer a question about
-    "our standard" with the liability cap.
+    THE EXAMPLE IS COMPUTED, NOT HARDCODED, and that is the point. This test used to
+    assert `"Explain our standard." == []`, which held because `standard` then occurred
+    in exactly one quote. `AM-73` ratified §31.4, whose quote reads "a standard MSA" —
+    `df(standard)` became 2, `standard` became a subject, and the question started
+    returning the liability cap and the tier standard. The PROPERTY was still true; only
+    the example had rotted. Picking a different hardcoded word would have hidden the next
+    crossing, so the test now finds a genuinely df==1 lexeme in the live corpus.
 
-    Not asserted here: "What is the company position?", which retrieves at the STRICT
-    floor today (compani and posit are each in 6 chunks, so it never reaches the second
-    pass) and is unchanged by this fix."""
-    assert _search(real_corpus, "Explain our standard.") == []
+    The underlying heuristic — subject means df >= 2 — is corpus-size dependent and gets
+    weaker as the corpus grows (2 of 79 is a lower bar than 2 of 40). That limitation is
+    recorded in `positions.py`'s `ponytail:` note, not fixed here: retuning retrieval
+    needs measurement across the question set, not a change smuggled into a config
+    ratification.
+    """
+    from sqlalchemy import text as sql_text
+
+    from legalmind import config
+
+    schema = config.assist_schema()
+    lexeme = real_corpus.execute(sql_text(f"""
+        SELECT l FROM (SELECT id, unnest(tsvector_to_array(content_tsv)) AS l
+                         FROM "{schema}".position_chunks) t
+         GROUP BY l HAVING count(*) = 1 ORDER BY l LIMIT 1""")).scalar()
+    assert lexeme, "no df==1 lexeme in the corpus — the premise of this test is gone"
+    # Two words the corpus does not use, so the STRICT floor is 2 and the single
+    # incidental lexeme cannot reach it on its own.
+    assert _search(real_corpus, f"zorbulated framblewitz {lexeme}") == [], lexeme
 
 
 def test_the_sanitized_internal_locators_stay_unsearchable(real_corpus):
-    """`test_assist_positions_sanitization` asserts these retrieve nothing at floor 2.
-    The tokens were removed from the chunk text, so they must still retrieve nothing at a
-    relaxed floor — otherwise the relaxation, rather than the chunker, is what protects
-    them."""
+    """The tokens were removed from the chunk text, so a relaxed floor must not bring
+    them back — otherwise the relaxation, rather than the chunker, is what protects
+    them.
+
+    Asserted on the CHUNK TEXT rather than on emptiness: `AM-72` ratified §31.8, whose
+    ratified quote reads "trademarks/marketing materials", so
+    `legalmind_source_material_dir` now shares the ordinary lexeme `material` with a
+    legitimate position. Matching a real English word inside ratified text is not a
+    leak; carrying a locator is. `test_assist_positions_sanitization` draws the same
+    line for "legal" and "constitution".
+    """
+    forbidden = ("docs/", ".md", ".pdf", "legalmind_source_material_dir",
+                 "repository", "\\")
     for query in ("docs md pdf", "legalmind_source_material_dir", "repository docs md"):
-        assert _search(real_corpus, query) == [], f"{query!r} retrieves a position"
+        for hit in _search(real_corpus, query):
+            lowered = hit.content.lower()
+            leaked = [token for token in forbidden if token in lowered]
+            assert not leaked, f"{query!r} -> {hit.standard_code} carries {leaked}"
