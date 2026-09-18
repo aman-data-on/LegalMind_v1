@@ -586,3 +586,83 @@ Union grounding is a floor that can pass a claim no single clause supports; this
 splitter that rejects a claim every clause supports. The 0.48/0.50 figures above show this
 question also sits exactly on the 0.5 boundary, so both would bite here.
 
+
+## Phase 1, second attempt — the cheap path, measured (2026-09-18)
+
+**Outcome: the COST problem is solved and the targeting problem is not, and the second
+half is now proven rather than suspected.** The planner stays OFF; widening gets its own
+flag and stays OFF. Nothing about this was forced into production.
+
+**What changed.** `planner.plan()` now reaches the provider only for a question it cannot
+place by itself. Three outcomes, cheapest first:
+
+1. `plan_lexical` places it — one table maps a reader's words to the legal term and to
+   the Constitution Appendix-B topic that term belongs to. No call, no latency.
+2. Nothing placed it and it reads plain and self-contained — no plan, no call, retrieval
+   exactly as today.
+3. Nothing placed it and it reads ambiguous (multi-part, conditional, comparative,
+   referential) — only here is the provider asked.
+
+The table is search vocabulary, the same kind of object as `statutes._ACT_ALIASES`, and
+an import-time assertion refuses any topic the ratified standards do not carry. It
+states no threshold, no position and no acceptance policy; a test enforces that.
+
+**The cost result, on the 77-question set through the production path:**
+
+```
+                                   planner OFF      Phase 1 (2026-09-17)   Phase 1 (this)
+planning p50 / p95 ms                 0 / 0            4,788 / 8,296          0 / 2,028
+gemini planner calls per question       0                   1.00                 0.18
+total ask p50 ms                      2,248                 ~10,600              2,252
+```
+
+44 of 77 questions are placed by the table, 19 need no plan at all, 14 reach the
+provider. The original Phase 1's whole latency cost is gone from the median.
+
+**The targeting result. The Tier-2 gate cannot answer this question, and that is the
+methodological finding of the phase.** Its recall@10, hit@1, MRR, gold@3 and evidence
+precision are all scored `if not opened: continue` — over the questions whose GATE
+OPENED — and gate opening runs through the rescue judge, a provider call. Three gate
+runs of the same code therefore disagreed by about two questions in each direction, and
+one of them made a planner-off pipeline look worse than production. Those numbers are
+noise at this n and must not be read as targeting.
+
+`tools/probe_targeting.py` (new) removes the gate from the measurement: the same anchors
+over `store.search_hybrid` directly, all 64 answerable questions, no gate, no rescue, no
+generation, nothing nondeterministic in the path. Reproducible byte-for-byte:
+
+```
+                                 recall@10   hit@1    MRR     gold@3   precision
+planner OFF (production)           0.625     0.375   0.4613   0.5312    0.1355
+planner ON, aiming only            0.625     0.375   0.4613   0.5312    0.1355   ← identical
+planner ON, aiming + widening      0.625    0.3594   0.4485   0.5156    0.1267   ← worse on 4 of 5
+```
+
+Reading it:
+
+1. **Aiming is exactly neutral for a document question, by construction.** The plan's
+   only narrowing field is the topic, and the topic narrows Domain A; document retrieval
+   never sees it. Identical is the correct and expected result, not a disappointment —
+   it means the aiming stage carries no risk. Its possible value is in Domain A, and
+   this corpus is document- and statute-shaped, so **the corpus cannot test the one
+   mechanism that could gain.** Owner input needed: position-shaped questions with known
+   gold standards. Not manufactured here (rule 21).
+2. **Widening is harmful, and this is the third independent confirmation** — the
+   2026-09-17 provider-plan gate run (precision 0.390 → 0.358), the 2026-09-18 gate run
+   (0.407 → 0.377, answers 55 → 49 of 64), and now a deterministic probe with every
+   movement negative or flat. Each reformulation runs its own vector pass and is
+   rank-fused; a list that does not move gold can only dilute the gold share, and the
+   diluted evidence then fails the sufficiency and verification screens standing between
+   a reader and an answer. It is off behind `LEGALMIND_QUERY_EXPANSION`.
+3. **The remaining injection point is closed.** Appending the term to the LEXICAL query
+   would make the existing lexical pass see the right word — but that query is the gate's
+   own calibrated input (`match="all"` → `lexical_hit`), so widening it would move the
+   refusal boundary. `AM-25`'s calibrated gate does not permit that, so this was not done.
+
+**Safety held identically across all three gate runs**: wrongly answered 1/13,
+user-visible wrongly answered 0/13, faithfulness 1.0, citation precision 1.0.
+
+**Verdict against the phase's own acceptance criteria: the planner does not improve the
+required metrics on the available corpus, so it is not enabled.** What it does now have
+is a shape that costs almost nothing, so the question can be revisited the moment there
+is a corpus that exercises Domain A.

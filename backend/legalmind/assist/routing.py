@@ -172,9 +172,25 @@ _STATUTES_UNAVAILABLE = (
     "questions about the law itself cannot be answered.")
 
 
-def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = ()) -> str:
+def _readable_document_type(document_type: str) -> str:
+    """`PARTNER_AGREEMENT` -> "Partner Agreement"; `MSA` stays `MSA`."""
+    return (document_type if document_type.isupper() and "_" not in document_type
+            else document_type.replace("_", " ").title())
+
+
+def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = (),
+                 unheld_document_type: str | None = None,
+                 position_coverage: tuple[str, ...] = ()) -> str:
     """`statute_holdings` — the Acts the corpus holds, named when a statute-shaped
     question missed inside an available corpus (AM-46 r3: a public, global fact).
+
+    `unheld_document_type` / `position_coverage` — the same courtesy for Domain A, on
+    the same AM-46 r3 reasoning: when the question named a kind of paper the ratified
+    corpus holds NO position for, say which kinds it does hold. Without this the reader
+    of a Partner Agreement question saw only "Information not found", which reads as a
+    broken search rather than as the fact it is — the organization has approved no
+    Partner Agreement position yet. Naming the covered types discloses no position,
+    only the shape of the corpus.
 
     Names every domain the service consulted — primary and fallback — because a
     refusal is only honest once all of them have been checked (2026-09-09). The set
@@ -196,6 +212,12 @@ def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = ()) ->
     else:
         text = _NO_DOCUMENT + (_TAIL if route.statute_shaped else
                                " Attach a document to ask about it.")
+    if unheld_document_type and position_coverage:
+        text += (f" No approved position covers "
+                 f"{_readable_document_type(unheld_document_type)}. The organization's "
+                 f"ratified standards currently cover: "
+                 + ", ".join(_readable_document_type(t) for t in position_coverage)
+                 + ".")
     if route.statute_shaped and Domain.STATUTES not in consulted:
         text += _STATUTES_UNAVAILABLE
     elif route.statute_shaped and statute_holdings:

@@ -1587,11 +1587,61 @@ def test_the_planner_is_never_consulted_for_a_general_knowledge_question(db, use
     assert outcome.text == service.GENERAL_KNOWLEDGE_TEXT
 
 
+def test_the_plan_does_not_widen_retrieval_by_default(db, user, indexed_contract,
+                                                     monkeypatch):
+    """The plan AIMS for free; it does not WIDEN unless asked.
+
+    Measured twice on the ratified 77-question set (2026-09-17 provider plan,
+    2026-09-18 lexical plan): extra fused vector passes left recall@10, hit@1, MRR
+    and gold-in-top-3 byte-identical while evidence precision fell and user-visible
+    answers fell 55 -> 49 of 64. So `extra_queries` must not be passed unless
+    `LEGALMIND_QUERY_EXPANSION` is on, and a merge does not turn it on.
+    """
+    from legalmind.assist import planner, store
+
+    monkeypatch.delenv("LEGALMIND_QUERY_EXPANSION", raising=False)
+    fixed = planner.QueryPlan(intent="FACT", topic="Termination & Suspension",
+                              subject="notice to terminate", party="EITHER",
+                              source_preference="DOCUMENT",
+                              queries=("notice to terminate", "convenience termination"),
+                              section_hint=None)
+    monkeypatch.setattr(planner, "plan", lambda *a, **k: fixed)
+    real_search = store.search_hybrid
+    seen: dict = {}
+
+    def capture(*args, **kwargs):
+        seen["extra_queries"] = tuple(kwargs.get("extra_queries", ()))
+        return real_search(*args, **kwargs)
+
+    monkeypatch.setattr(store, "search_hybrid", capture)
+    monkeypatch.setattr(generation, "generate", lambda question, chunks, **k:
+                        generation.GenerationResult(
+                            text=_first_claim(chunks[0]) + " [1].", model="fake",
+                            prompt_version="test", payload_sha256="0" * 64,
+                            latency_ms=1))
+    monkeypatch.setenv("LEGALMIND_QUERY_PLANNER", "on")
+    contract, version = indexed_contract
+    embedding_runtime.reset_for_tests()
+    conversation = _conversation(db, user, contract)
+    service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                question="ninety days written notice terminate for convenience")
+    # The plan was made and recorded; it simply did not widen the search.
+    assert seen["extra_queries"] == ()
+
+
 def test_the_plan_is_recorded_on_the_retrieval_run_and_steers_the_extra_queries(
         db, user, indexed_contract, monkeypatch):
     """`AM-27`: the run says WHY retrieval was aimed where it was. And the reformulations
-    reach `search_hybrid` as extra queries — the only place they may go."""
+    reach `search_hybrid` as extra queries — the only place they may go.
+
+    WIDENING is off by default after measurement (`config.query_expansion_enabled`),
+    so this test turns it on: it pins the MECHANISM, which still has to be correct
+    wherever it is enabled. `test_the_plan_does_not_widen_retrieval_by_default`
+    pins the default.
+    """
     from legalmind.assist import planner, store
+
+    monkeypatch.setenv("LEGALMIND_QUERY_EXPANSION", "on")
 
     fixed = planner.QueryPlan(intent="FACT", topic="Termination & Suspension",
                               subject="notice to terminate", party="EITHER",

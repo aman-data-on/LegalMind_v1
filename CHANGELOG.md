@@ -10,6 +10,57 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Ask no longer answers a question about one kind of paper with another kind's position (2026-09-18)
+
+Reported live with a screenshot. **"what is written about partner agreement in the
+constitution"** returned `AUTORENEW-MSA-001`, `CURE-PERIOD-MSA-001` and
+`SUSPENSION-NOTICE-CURE-MSA-001` under the sentence *"The organization's approved position
+relevant to this question is quoted below, verbatim from the ratified standard."* All three
+are **MSA** standards; the question was about a **Partner Agreement**.
+
+This was first read as a retrieval-relevance defect (the proposed fix being document-type
+tags, or a reranker). It is not. **Zero Partner Agreement standards are ratified — or even
+proposed.** All 40 ratified files are MSA (23), NDA (8), TOS (8) or SLA (1), so there was no
+better answer to rank higher. Nothing in the pipeline ever compared *the kind of paper the
+reader named* against *the kind of paper the retrieved positions govern*, so Domain A
+returned its nearest neighbours and the fixed wording asserted they were the organization's
+position on the question asked. That is a fail-open of rule 15 and of `AM-25` r4 — a wrong
+answer, not a weak one — and no reranking fixes it, because an MSA clause does not become a
+Partner Agreement position by scoring better.
+
+The guard sits in `positions.search_positions`, the one function all three Domain A call
+sites route through:
+
+* `named_document_type(question)` resolves the single document type a question names, or
+  `None` — for none named (the common case, which keeps every existing question on its
+  existing path) and for more than one named, which is not a narrowing it may guess at. The
+  generic word *"agreement"* is deliberately not a type; matching it would refuse nearly
+  every question.
+* Hits are then restricted to that type. Unlike the `topic` narrowing beside it, this one
+  **may** end in a refusal — that is the point.
+* `coverage(db)` names the document types the active corpus holds, carrying the `AM-71`
+  exclusion so a type whose only standards are retired is not advertised.
+* The refusal names what is missing and what is held: *"No approved position covers Partner
+  Agreement. The organization's ratified standards currently cover: MSA, NDA, SLA, TOS."*
+  This reuses the `statute_holdings` precedent and its `AM-46` r3 reasoning — the shape of
+  the corpus is a public fact; no position is disclosed. Without it the reader saw only
+  "Information not found", which reads as a broken search rather than as the fact it is.
+  When the named type **is** covered and retrieval merely missed, the sentence is withheld —
+  claiming otherwise would be a new falsehood.
+
+Where a type is covered, the guard only removes off-type noise: an MSA question still
+answers, and now answers from MSA standards only.
+
+**Registered, not resolved: [C-23](docs/00-project/CONFLICTS.md).** Legal Constitution L1.10
+§31 states positions for Partner, Vendor and Distribution Agreements and Purchase Orders and
+tags clauses with them, but locked Step 6's ten Document Types carry none of the four. No
+document type was added (`DOCUMENT_TYPES` is untouched) and no §31 position was ratified —
+both are owner acts (rules 6, 21). The recognition list names the four **only** so the
+refusal is accurate, which is correct under every reading of C-23.
+
+12 tests in `backend/tests/test_assist_positions_document_type.py`, including the reported
+question now retrieving nothing and an MSA question still retrieving only MSA.
+
 ### Fixed — a revoked grant no longer leaks a Company Position on replay (2026-09-17)
 
 Ask AI, Phase 0. `GET /conversations/{id}` checked only that the caller created
