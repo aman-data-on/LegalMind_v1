@@ -252,6 +252,20 @@ _STATUTE = re.compile(
     r"regulation|ordinance|adhiniyam|ipc|crpc|dpdp|cert-?in|it act|contract act|"
     r"companies act|negotiable instruments|evidence act|penal code)\b",
     re.IGNORECASE)
+# A question about the general law names no Act and no section: "are agreements in
+# restraint of trade valid in India?" is answered by the Contract Act, and before this
+# it was answered from governing-law POSITIONS instead — the organization's own clause
+# standing in for the law of the land.
+#
+# Deliberately NOT "mentions India". That would capture "does our MSA apply in India?",
+# which is a question about our paper. The marker is the JURISDICTION OF A LEGAL RULE:
+# "Indian law" itself, or asking whether something is lawful there. Measured over nine
+# probes including four position questions that mention India: zero misroutes.
+_GENERAL_LAW = re.compile(
+    r"\b(under|in|per)\s+indian\s+law\b|\bindian\s+law\b|"
+    r"\b(valid|enforceable|legal|lawful|permitted|allowed|prohibited|void)\s+"
+    r"(in|under)\s+india\b",
+    re.IGNORECASE)
 
 
 # --------------------------------------------------------------------------
@@ -390,8 +404,10 @@ def is_general_knowledge_question(question: str) -> bool:
 
 def is_statute_question(question: str) -> bool:
     """True when the question asks about the law itself — a section number, an Act,
-    a set of Rules. The Domain C candidate signal."""
-    return bool(_STATUTE.search(question or ""))
+    a set of Rules, or the general law of a jurisdiction. The Domain C candidate
+    signal."""
+    text = question or ""
+    return bool(_STATUTE.search(text) or _GENERAL_LAW.search(text))
 
 
 # --------------------------------------------------------------------------

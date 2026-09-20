@@ -139,6 +139,44 @@ class Verification:
         return self.state is AssistAnswerState.ANSWERED
 
 
+# A claim's QUANTITIES must appear in the text it cites. The overlap check below
+# cannot see this: it is a bag-of-words ratio, so one decisive token is diluted by the
+# copied words around it. Measured 2026-09-21 on the ratified corpus — every one of
+# these PASSED the 0.5 overlap check and would have reached a reader:
+#
+#   "at least 90 days' prior written notice"        overlap 0.92   (source says 30)
+#   "shall not exceed fifty lakh rupees"            overlap 0.67   (invented cap)
+#   "Trade secret obligations expire after ten years" overlap 0.57  (invented expiry)
+#
+# A notice period, a cap and an expiry are the whole content of a legal answer, and a
+# wrong one is worse than a refusal. This check is exact, local and costs nothing.
+#
+# Digits always count. A number WORD counts only when a unit follows it, because
+# "either one of the parties" is not a quantity and requiring "1" in the evidence
+# would refuse honest paraphrases.
+_NUMBER_WORDS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6",
+    "seven": "7", "eight": "8", "nine": "9", "ten": "10", "eleven": "11",
+    "twelve": "12", "fifteen": "15", "twenty": "20", "thirty": "30", "forty": "40",
+    "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80", "ninety": "90",
+    "hundred": "100", "thousand": "1000", "lakh": "100000", "crore": "10000000",
+    "million": "1000000", "billion": "1000000000",
+}
+_UNIT = (r"day|days|week|weeks|month|months|year|years|hour|hours|"
+         r"rupee|rupees|lakh|lakhs|crore|crores|percent|%|inr|usd|rs")
+_DIGIT_QUANTITY = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_WORD_QUANTITY = re.compile(
+    rf"\b({'|'.join(_NUMBER_WORDS)})\b[\s\-]+(?:{_UNIT})\b", re.IGNORECASE)
+
+
+def _quantities(text: str) -> set[str]:
+    """Every number the text ASSERTS, normalised so 'twelve (12)' matches '12'."""
+    stripped = _MARKER.sub("", text).lower()
+    found = {m.replace(",", "").rstrip(".") for m in _DIGIT_QUANTITY.findall(stripped)}
+    found |= {_NUMBER_WORDS[m.lower()] for m in _WORD_QUANTITY.findall(stripped)}
+    return found
+
+
 def _content_words(text: str) -> set[str]:
     words = re.findall(r"[A-Za-z][A-Za-z'-]+|\d[\d.,%]*", text.lower())
     return {w for w in words if w not in _STOPWORDS and len(w) > 1}
@@ -230,6 +268,19 @@ def verify_answer(answer: str, chunks: list[str]) -> Verification:
                 failures.append(
                     f"claim does not ground in its cited text "
                     f"(overlap {overlap:.2f}): {sentence[:80]!r}"
+                )
+            # EVERY FIGURE THE CLAIM STATES MUST BE IN THE TEXT IT CITES. Checked
+            # separately from the ratio above, and exactly, because a ratio cannot see
+            # it: swapping 30 days for 90 leaves twelve of thirteen words untouched and
+            # scores 0.92. Two answers that differ only in the number a reader will act
+            # on are not equally grounded, however similar their vocabulary.
+            invented = _quantities(sentence) - set().union(
+                *(_quantities(c) for c in cited_chunks))
+            if invented:
+                grounded = False
+                failures.append(
+                    f"claim states a figure its cited text does not "
+                    f"({', '.join(sorted(invented))}): {sentence[:80]!r}"
                 )
         for n in markers:
             if 1 <= n <= len(chunks):

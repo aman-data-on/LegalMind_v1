@@ -563,6 +563,19 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                -- stay for explicit version, history and audit use, which is why
                -- this is a read-side filter rather than a narrower chunker.
                AND r.status <> 'DEPRECATED'
+               -- THE READER NAMED A KIND OF PAPER. Applied HERE, on the candidate
+               -- set, rather than to the rows that come back: filtering a list that
+               -- has already been truncated is a post-filter, and it starved the
+               -- result. Measured 2026-09-20: "What is our liability cap for the terms
+               -- of service?" returned NOTHING at the production limit of 3, because
+               -- the three best rows by score were the MSA, Vendor and Distribution
+               -- liability positions and the filter removed all three — while the
+               -- corpus holds exactly one TOS liability position. `AM-25` r6 makes
+               -- the document scope a WHERE clause for the same reason; the type
+               -- deserves the same treatment, and doing it here also keeps the row
+               -- count at `limit` instead of fetching four times as many through
+               -- these correlated subqueries.
+               AND (CAST(:named AS text) IS NULL OR pc.document_type = :named)
                AND (CAST(:topic AS text) IS NULL
                     OR csv.configuration->'constitution'->>'topic' = :topic)
         )
@@ -574,18 +587,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
          ORDER BY matched DESC, score DESC, standard_code
          LIMIT :limit
     """)
-    # THE TYPE FILTER BELOW RUNS ON WHAT THESE BRANCHES RETURN, so when the reader has
-    # named a kind of paper both branches fetch deeper. Measured 2026-09-20: "What is
-    # our liability cap for the terms of service?" returned NOTHING at limit=3 and
-    # LIABILITY-TOS-001 at limit=10 — the three best rows by score were the MSA, Vendor
-    # and Distribution liability positions, the filter removed all three, and the reader
-    # was told the corpus holds no position for a paper it holds exactly one for.
-    # Filtering a list that was already truncated is a post-filter, which
-    # `store.search_hybrid` refuses to do for the document scope (`AM-25` r6); the type
-    # deserves the same treatment. Ranking is untouched — only how far down it is read.
     named = named_document_type(query)
-    depth = limit if named is None else max(limit * 4, 12)
-    params = {"q": query, "limit": depth, "topic": topic}
+    params = {"q": query, "limit": limit, "topic": topic, "named": named}
     rows = db.execute(sql, {**params, "relax": False}).all()
     if not rows:
         rows = db.execute(sql, {**params, "relax": True}).all()
@@ -595,8 +598,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            standard_version=r.version_number,
                            ratification_status=r.ratification)
                for r in rows]
-    vector = _vector_neighbours(db, query, limit=depth, embed_query=embed_query,
-                                topic=topic)
+    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                topic=topic, named=named)
     # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
     #
     # Measured on the live 40-standard corpus, 2026-09-16: within the lexical branch
@@ -623,7 +626,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # gap for the owner to see, not a constant to invent from ten points. Junk on an
     # unheld subject is stopped upstream instead: provenance is no longer indexed, and
     # `named_document_type` filters a paper we hold no position for.
-    hits = _fuse([] if vector else lexical, vector, depth)
+    hits = _fuse([] if vector else lexical, vector, limit)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
@@ -632,9 +635,10 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # removes off-type noise; where it is not covered at all — every Constitution §31
     # type today — the empty result becomes the refusal that names what is covered,
     # which is the honest answer and the one a reader can act on.
+    # Both branches were already scoped to the type in SQL; this is the belt to that
+    # braces, and costs nothing.
     if named is not None:
         hits = [hit for hit in hits if hit.document_type == named]
-    hits = hits[:limit]
     if topic is not None and not hits:
         # Narrowing may never turn an answer into a refusal (rule 15's direction is
         # the other way). A topic the corpus does not hold — or a plan that misread the
@@ -648,7 +652,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
-                       embed_query=None, topic: str | None = None) -> list[PositionHit]:
+                       embed_query=None, topic: str | None = None,
+                       named: str | None = None) -> list[PositionHit]:
     """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
     is available, when nothing is embedded, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -674,12 +679,13 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
          -- `AM-71` — the same exclusion as the lexical path. Both, or a retired
          -- position returns through whichever one is not filtered.
          WHERE r.status <> 'DEPRECATED'
+           AND (CAST(:named AS text) IS NULL OR pc.document_type = :named)
            AND (CAST(:topic AS text) IS NULL
                 OR csv.configuration->'constitution'->>'topic' = :topic)
          ORDER BY pe.embedding {op} CAST(:q AS {vtype}), pc.standard_code
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K),
-           "topic": topic}).all()
+           "topic": topic, "named": named}).all()
     scores = [float(r.cosine) for r in rows]
     if not calibration.gate_is_open(False, scores):
         return []
