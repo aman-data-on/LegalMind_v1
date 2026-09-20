@@ -39,7 +39,7 @@ from legalmind import config
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-STATUTE_CHUNKING_ALGORITHM_VERSION = "section-1"
+STATUTE_CHUNKING_ALGORITHM_VERSION = "section-2"
 # A section body shorter than this is an arrangement-of-sections entry or a footnote,
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
@@ -177,11 +177,39 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     return chunks
 
 
+def _page_text(page) -> str:
+    """One page in READING order, not in PDF content-stream order.
+
+    Gazette statutes are laid out in columns and the default extraction walks the
+    content stream, which emits a whole column at a time. Measured on the DPDP Act's
+    penalty Schedule (2026-09-20): a breach label and the penalty in the SAME table row
+    came out 699 characters apart, so no chunk carried the pair and "the largest fine
+    for failing to keep reasonable security safeguards" was unanswerable from the Act
+    that states it. Sorting the page's text blocks into row-bands (y, then x) puts them
+    113 characters apart, in the order a reader reads them.
+
+    `get_text(sort=True)` reorders the same way but joins spans with no separator —
+    measured on SLA-leapswitch.pdf it yielded `*99.95%forPower(Dual-poweredservers)`,
+    which no lexical search can match. Sorting whole blocks leaves each block's own
+    text, and its spacing, untouched.
+
+    The 6-point band absorbs the baseline jitter of a justified line; blocks within one
+    band are one visual row and are ordered left to right.
+
+    Duplicated, deliberately, in `ingestion/parsing.py`: `tests/test_import_boundaries.py`
+    confines `assist` to {db, domain, observability, security}, so this lane cannot
+    import the ingestion parser. Four lines of geometry is the cheaper price.
+    """
+    blocks = [b for b in page.get_text("blocks") if b[6] == 0]   # 0 = text, 1 = image
+    blocks.sort(key=lambda b: (round(b[1] / 6), b[0]))
+    return "\n".join(b[4].strip() for b in blocks if b[4].strip())
+
+
 def _pdf_text(path: Path) -> str:
     import pymupdf
 
     doc = pymupdf.open(str(path))
-    return "\n".join(page.get_text() for page in doc.pages())
+    return "\n".join(_page_text(page) for page in doc.pages())
 
 
 def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
@@ -207,37 +235,126 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
             "section, never a page alone (AM-32 r7)")
 
     schema = config.assist_schema()
-    # Re-ingestion replaces: the previous row's chunks go with it (CASCADE), so a
-    # superseded text can never keep answering (the AM-27 r5 principle).
-    db.execute(sql_text(f'DELETE FROM "{schema}".statutes WHERE file_sha256 = :s '
-                        'OR official_title = :t'),
-               {"s": sha, "t": provenance["official_title"]})
+    statute_id = _upsert_statute(db, schema, sha=sha, provenance=provenance)
+    repointed = _replace_statute_chunks(db, schema, statute_id, chunks)
+    embedded = _embed(db, statute_id)
+    log_event("assist.statutes.ingested", statute_id=str(statute_id),
+              chunks=len(chunks), embedded=embedded,
+              citations_repointed=repointed)              # counts only (53.3)
+    return {"statute_id": str(statute_id), "chunks": len(chunks), "embedded": embedded,
+            "file_sha256": sha, "citations_repointed": repointed}
+
+
+def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -> UUID:
+    """The statute row, KEPT across a re-ingest so its chunks can be reconciled.
+
+    It used to be deleted and rewritten. That cascades through `statute_chunks` into
+    `answer_citations` (migration `d7e2a9c41b58`), so every past answer silently lost
+    the section it quoted — rule 17 forbids exactly that, and production carried 10
+    such citations when this was written (2026-09-20).
+    """
+    fields = {"title": provenance["official_title"],
+              "act": provenance["act_number_year"], "jur": provenance["jurisdiction"],
+              "src": provenance["source"], "ref": provenance["source_ref"],
+              "amended": provenance["as_amended_date"], "sha": sha,
+              "by": provenance["supplied_by"], "at": provenance["supplied_at"]}
+    prior = db.execute(sql_text(
+        f'SELECT id FROM "{schema}".statutes WHERE file_sha256 = :sha '
+        'OR official_title = :title ORDER BY created_at'), fields).scalars().all()
+    # A second row matching on the other key is a duplicate of the same Act; it has no
+    # reconcilable identity of its own, so it goes as before.
+    for duplicate in prior[1:]:
+        db.execute(sql_text(f'DELETE FROM "{schema}".statutes WHERE id = :i'),
+                   {"i": duplicate})
+    if prior:
+        db.execute(sql_text(f"""
+            UPDATE "{schema}".statutes
+               SET official_title = :title, act_number_year = :act, jurisdiction = :jur,
+                   source = :src, source_ref = :ref, as_amended_date = :amended,
+                   file_sha256 = :sha, supplied_by = :by, supplied_at = :at
+             WHERE id = :id
+        """), {**fields, "id": prior[0]})
+        return prior[0]
     statute_id = uuid4()
     db.execute(sql_text(f"""
         INSERT INTO "{schema}".statutes
             (id, official_title, act_number_year, jurisdiction, source, source_ref,
              as_amended_date, file_sha256, supplied_by, supplied_at)
         VALUES (:id, :title, :act, :jur, :src, :ref, :amended, :sha, :by, :at)
-    """), {"id": statute_id, "title": provenance["official_title"],
-           "act": provenance["act_number_year"], "jur": provenance["jurisdiction"],
-           "src": provenance["source"], "ref": provenance["source_ref"],
-           "amended": provenance["as_amended_date"], "sha": sha,
-           "by": provenance["supplied_by"], "at": provenance["supplied_at"]})
+    """), {**fields, "id": statute_id})
+    return statute_id
+
+
+def _replace_statute_chunks(db: DBSession, schema: str, statute_id: UUID,
+                            chunks: list[StatuteChunk]) -> int:
+    """Re-chunk one statute WITHOUT invalidating the citations recorded against it.
+
+    `store.replace_chunks` does this for documents by matching old text inside new,
+    because a document chunk has no identity of its own. A statute chunk has one: the
+    Act's own section numbering, which is what a Domain C citation names. So the match
+    is the real key `(section_number, sub_section)` — a section keeps its row id, and
+    the answer that cited s. 43A still points at s. 43A after a re-chunk.
+
+    A section that no longer chunks out (renumbering, or a body that fell under
+    MIN_SECTION_CHARS) hands its citations to the nearest surviving section in document
+    order, which is the one its text now sits in, and only then is deleted.
+    Returns the number of citations repointed.
+    """
+    old = db.execute(sql_text(f"""
+        SELECT id, section_number, sub_section, content FROM "{schema}".statute_chunks
+         WHERE statute_id = :s ORDER BY ordinal
+    """), {"s": statute_id}).all()
+    by_key = {(o.section_number, o.sub_section): o for o in old}
+    # Park the old ordinals below zero so new ones are free under
+    # uq_statute_chunks_statute_ordinal.
+    db.execute(sql_text(f'UPDATE "{schema}".statute_chunks SET ordinal = -1 - ordinal '
+                        'WHERE statute_id = :s'), {"s": statute_id})
+
+    survivors: set = set()
     for ordinal, chunk in enumerate(chunks):
+        keep = by_key.get((chunk.section_number, chunk.sub_section))
+        if keep is None or keep.id in survivors:
+            db.execute(sql_text(f"""
+                INSERT INTO "{schema}".statute_chunks
+                    (id, statute_id, section_number, sub_section, marginal_note,
+                     ordinal, content, char_start, char_end, chunking_algorithm_version)
+                VALUES (:id, :sid, :sec, :sub, :note, :ord, :content, :cs, :ce, :algo)
+            """), {"id": uuid4(), "sid": statute_id, "sec": chunk.section_number,
+                   "sub": chunk.sub_section, "note": chunk.marginal_note,
+                   "ord": ordinal, "content": chunk.content, "cs": chunk.char_start,
+                   "ce": chunk.char_end, "algo": STATUTE_CHUNKING_ALGORITHM_VERSION})
+            continue
         db.execute(sql_text(f"""
-            INSERT INTO "{schema}".statute_chunks
-                (id, statute_id, section_number, sub_section, marginal_note, ordinal,
-                 content, char_start, char_end, chunking_algorithm_version)
-            VALUES (:id, :sid, :sec, :sub, :note, :ord, :content, :cs, :ce, :algo)
-        """), {"id": uuid4(), "sid": statute_id, "sec": chunk.section_number,
-               "sub": chunk.sub_section, "note": chunk.marginal_note, "ord": ordinal,
+            UPDATE "{schema}".statute_chunks
+               SET marginal_note = :note, ordinal = :ord, content = :content,
+                   char_start = :cs, char_end = :ce, chunking_algorithm_version = :algo
+             WHERE id = :id
+        """), {"id": keep.id, "note": chunk.marginal_note, "ord": ordinal,
                "content": chunk.content, "cs": chunk.char_start, "ce": chunk.char_end,
                "algo": STATUTE_CHUNKING_ALGORITHM_VERSION})
-    embedded = _embed(db, statute_id)
-    log_event("assist.statutes.ingested", statute_id=str(statute_id),
-              chunks=len(chunks), embedded=embedded)      # counts only (53.3)
-    return {"statute_id": str(statute_id), "chunks": len(chunks), "embedded": embedded,
-            "file_sha256": sha}
+        if keep.content != chunk.content:
+            # `_embed` inserts ON CONFLICT DO NOTHING, so a kept row would otherwise
+            # keep the vector of text it no longer holds.
+            db.execute(sql_text(f'DELETE FROM "{schema}".statute_chunk_embeddings '
+                                'WHERE statute_chunk_id = :i'), {"i": keep.id})
+        survivors.add(keep.id)
+
+    repointed = 0
+    for position, o in enumerate(old):
+        if o.id in survivors:
+            continue
+        heir = next((k.id for k in old[position + 1:] if k.id in survivors), None)
+        heir = heir or next((k.id for k in reversed(old[:position])
+                             if k.id in survivors), None)
+        if heir is not None:
+            moved = db.execute(sql_text(f"""
+                UPDATE "{schema}".answer_citations SET statute_chunk_id = :heir
+                 WHERE statute_chunk_id = :old RETURNING id
+            """), {"old": o.id, "heir": heir}).all()
+            repointed += len(moved)
+        db.execute(sql_text(f'DELETE FROM "{schema}".statute_chunks WHERE id = :i'),
+                   {"i": o.id})
+    return repointed
 
 
 def _embed(db: DBSession, statute_id: UUID) -> int:

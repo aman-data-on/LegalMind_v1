@@ -115,6 +115,80 @@ def test_reingestion_replaces_rather_than_accumulates(db, tmp_path):
     assert n == 1 and statutes.holdings(db) == ["The Synthetic Widgets Act, 2099"]
 
 
+def test_reingestion_keeps_the_citations_recorded_against_a_section(db, tmp_path, user):
+    """Rule 17: a past answer must not lose the section it quoted to a re-chunk.
+
+    Re-ingestion used to DELETE the statute row, which cascades statute_chunks ->
+    answer_citations. Production carried 10 such citations when this was written, so
+    the delete would have silently emptied ten answers' sources.
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    from legalmind import config
+    schema = config.assist_schema()
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    chunk_id, section = db.execute(text(
+        f'SELECT id, section_number FROM "{schema}".statute_chunks '
+        "WHERE section_number = '3'")).one()
+
+    conv = db.execute(text(f'INSERT INTO "{schema}".conversations (id, user_id) '
+                           'VALUES (:i, :u) RETURNING id'),
+                      {"i": _uuid.uuid4(), "u": user.id}).scalar_one()
+    msg = db.execute(text(f'INSERT INTO "{schema}".messages (id, conversation_id, ordinal, '
+                          "role, content) VALUES (:i, :c, 0, 'ASSISTANT', 'x') RETURNING id"),
+                     {"i": _uuid.uuid4(), "c": conv}).scalar_one()
+    answer = db.execute(text(f'INSERT INTO "{schema}".ai_answers (id, message_id, '
+                             "answer_state) VALUES (:i, :m, 'ANSWERED') RETURNING id"),
+                        {"i": _uuid.uuid4(), "m": msg}).scalar_one()
+    db.execute(text(f'INSERT INTO "{schema}".answer_citations '
+                    '(id, answer_id, statute_chunk_id, claim_ordinal) '
+                    'VALUES (:i, :a, :c, 0)'),
+               {"i": _uuid.uuid4(), "a": answer, "c": chunk_id})
+
+    # Re-ingest the SAME Act with an edited body, so the kept row's text really changes.
+    ingest_statute(db, path=_pdf(tmp_path, SYNTHETIC_ACT.replace(
+        "synthetic care", "synthetic care and diligence")), provenance=_provenance())
+
+    still = db.execute(text(
+        f'SELECT sc.section_number FROM "{schema}".answer_citations ac '
+        f'JOIN "{schema}".statute_chunks sc ON sc.id = ac.statute_chunk_id '
+        'WHERE ac.answer_id = :a'), {"a": answer}).scalars().all()
+    assert still == [section], "the citation must survive a re-chunk, pointing at s. 3"
+    body = db.execute(text(f'SELECT content FROM "{schema}".statute_chunks '
+                           "WHERE section_number = '3'")).scalar_one()
+    assert "synthetic care and diligence" in body, "the kept row must carry the new text"
+
+
+def test_a_rechunk_drops_the_vector_of_text_a_kept_section_no_longer_holds(db, tmp_path):
+    """`_embed` inserts ON CONFLICT DO NOTHING, so a kept row would keep a stale vector."""
+    from sqlalchemy import text
+
+    from legalmind import config
+    schema = config.assist_schema()
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    before = _vector_id(db, schema)
+    assert before is not None, "precondition: the first ingest embedded section 3"
+    ingest_statute(db, path=_pdf(tmp_path, SYNTHETIC_ACT.replace(
+        "synthetic care", "wholly different synthetic conduct")), provenance=_provenance())
+    after = _vector_id(db, schema)
+    assert after is not None, "the kept section must end up with a vector again"
+    assert after != before, (
+        "the vector row survived the re-chunk, so it still encodes the old text: "
+        "_embed inserts ON CONFLICT DO NOTHING and cannot overwrite it")
+
+
+def _vector_id(db, schema):
+    """The embedding row id for synthetic s. 3, or None if it has no vector."""
+    from sqlalchemy import text
+    return db.execute(text(f"""
+        SELECT e.id FROM "{schema}".statute_chunk_embeddings e
+          JOIN "{schema}".statute_chunks sc ON sc.id = e.statute_chunk_id
+         WHERE sc.section_number = '3'
+    """)).scalars().first()
+
+
 def _present(path: Path) -> bool:
     """Is the supplied material readable on THIS machine?
 
