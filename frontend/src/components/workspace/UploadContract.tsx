@@ -39,14 +39,14 @@ type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "analyzing";
  *  convenience pre-check for an immediate, friendly message — the server's
  *  own validation stays the authority (34.16). */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = [".pdf", ".docx"];
+const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
 
 const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analyzing"];
 
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "This file type is not supported. Please choose a PDF or DOCX file.";
+    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     return "This file exceeds the 25 MB limit. Please choose a smaller file.";
@@ -189,12 +189,12 @@ export function UploadContract({ firstRun }: {
           <input
             ref={fileInput}
             type="file"
-            accept=".pdf,.docx"
+            accept=".pdf,.docx,.md,.txt"
             className="ws-visually-hidden"
             onChange={(event) => void choose(event.target.files?.[0] ?? null)}
           />
         </label>
-        <span className="ws-drop__hint">PDF or DOCX, up to 25 MB — PDF preferred (it carries its own page layout) — or drag and drop</span>
+        <span className="ws-drop__hint">PDF, DOCX, Markdown or text, up to 25 MB — PDF preferred (it carries its own page layout) — or drag and drop</span>
         {error ? (
           <p className="ws-field__error" role="alert">
             {typeof error === "string" ? error : describeError(error)}
