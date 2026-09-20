@@ -1,0 +1,86 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-18:",
+    "everything in the Constitution is ratified). Hand-written rather than generated, because §31.4's STATUS",
+    "draws a line the generator cannot: the APPLICABILITY is company-approved and stakeholder-confirmed, while",
+    "the tier thresholds and discount percentages are explicitly 'historical evidence only, not confirmed as",
+    "current commercial values'. This standard ratifies the approved half and carries no figure (rules 7, 21)."
+  ],
+  "requirement_code": "TIER-STRUCTURE-PARTNER_AGREEMENT-001",
+  "description": "A partner-tier structure belongs in Partner, Reseller and Distribution arrangements, and never in an end-customer agreement.",
+  "ratified": "2026-09-18",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.4",
+    "ruling": "owner, 2026-09-18 — everything in the Constitution is ratified; this standard restates §31.4's confirmed applicability without changing its meaning",
+    "calibration": "35.10 — NOT calibrated against counterparty paper; §31.4's evidence is two historical Partner Agreements not held in this repository. Re-calibrate when one is supplied (rule 21)."
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.4",
+  "source_quote": "Partner tiers such as Silver, Gold, Diamond, and Platinum are applicable only to Partner, Reseller, and Distribution arrangements. They are NOT applicable to normal/end customers. A normal/end customer agreement (e.g. a standard MSA) is not expected to contain, and should not be evaluated against, a tier-based discount/commission structure of this kind.",
+  "configuration": {
+    "document_type": "PARTNER_AGREEMENT",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.4",
+      "topic": "Section 31.4 — Partner / Reseller / Distribution Tier Structure",
+      "basis": "COMPANY_APPROVED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "PARTNER_TIER_STRUCTURE",
+    "applicability": "REQUIRED",
+    "not_applicable_to": ["MSA", "NDA", "SLA", "TOS"]
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "silver",
+      "gold",
+      "diamond",
+      "platinum"
+    ],
+    "aliases": [
+      "tier structure",
+      "partner tier",
+      "discount on listed price"
+    ],
+    "keyword_groups": [
+      [
+        "tier",
+        "discount"
+      ],
+      [
+        "tier",
+        "commission"
+      ],
+      [
+        "partner",
+        "tier",
+        "revenue"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "tier",
+      "tiers",
+      "partner tiers"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "NO THRESHOLD AND NO PERCENTAGE IS CARRIED, DELIBERATELY. §31.4's STATUS ratifies the APPLICABILITY ('Partner/Reseller/Distribution only, not end customers': Company-approved, stakeholder-confirmed) and expressly does NOT confirm the figures: 'Specific thresholds/percentages: historical evidence only, not confirmed as current commercial values.' The section also records a live contradiction — [Partner A] states Rs. 60,000 as a MONTHLY threshold while [Partner B]'s only numeric reference calls it ANNUAL — so a numeric standard here would have to pick one, which is rule 7's failure mode. PRESENCE checks that a tier structure is ADDRESSED; a human reads the numbers.",
+    "`not_applicable_to` carries §31.4's own exclusion ('NOT applicable to MSA, NDA, SLA, or other normal/end-customer agreements'), so an end-customer agreement is never flagged for lacking a tier structure — the Constitution states that absence is 'correct, not a deviation'.",
+    "Appendix B has no clause category for partner tiering, so `constitution.topic` takes §31.4's own heading. A routing label, not a position."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

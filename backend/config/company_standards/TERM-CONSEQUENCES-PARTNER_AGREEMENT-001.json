@@ -1,0 +1,84 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13,",
+    "extended to the Section 31 document types 2026-09-18, resolving C-23). Drafted from §31.8's own words;",
+    "every value is the section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "TERM-CONSEQUENCES-PARTNER_AGREEMENT-001",
+  "description": "On termination of a Partner Agreement the Partner stops holding itself out as a Partner, invoices fall due, earned commissions are paid, and customer transition is supported.",
+  "ratified": "2026-09-18",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.8",
+    "ruling": "owner, 2026-09-13 as extended 2026-09-18 (C-23) — this standard restates §31.8 without changing its meaning",
+    "calibration": "35.10 — NOT yet calibrated against counterparty paper; §31.8's evidence is two historical Partner Agreements not held in this repository. Re-calibrate when one is supplied (rule 21)."
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.8",
+  "source_quote": "On termination of a Partner Agreement: (a) the Partner must immediately cease identifying itself as a Partner and stop using the Company's trademarks/marketing materials; (b) outstanding invoices for Services provided to the Partner's End Customers become due within 15 days of termination; (c) the Company pays out earned, unpaid commissions for pre-termination referrals, except that commissions may be forfeited (with stated reasoning) if termination was for the Partner's fraud or illegal conduct; (d) the Partner cooperates with a Company-requested End Customer transition, capped at 30 days, during which the Company will not disrupt End Customer service provided fees are paid; (e) Confidential Information is returned/destroyed per Section 15.",
+  "configuration": {
+    "document_type": "PARTNER_AGREEMENT",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.8",
+      "topic": "Termination & Suspension",
+      "basis": "COMPANY_APPROVED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "PARTNER_TERMINATION_CONSEQUENCES",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "effect of termination",
+      "consequences of termination",
+      "upon termination",
+      "on termination"
+    ],
+    "aliases": [
+      "cease identifying itself as a partner",
+      "earned but unpaid commissions",
+      "transition of end customers"
+    ],
+    "keyword_groups": [
+      [
+        "termination",
+        "commission",
+        "partner"
+      ],
+      [
+        "termination",
+        "trademark",
+        "cease"
+      ],
+      [
+        "termination",
+        "transition",
+        "end customer"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "effect of termination",
+      "termination"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "ONE COMPOUND PRESENCE REQUIREMENT, NOT FIVE — the `AM-66` precedent: service discontinuation is one compound PRESENCE requirement and never the notice limb alone. §31.8's (a)-(e) are the consequences of a single event and are evaluated together; splitting them would let a document satisfy (a) and be recorded as meeting §31.8.",
+    "§31.8 carries TWO numbers — 15 days for outstanding invoices and a 30-day transition cap — but this standard is PRESENCE, not NUMERIC_COMPARISON. A numeric standard measures ONE basis, and these are two different bases inside one clause; asserting either as THE comparison would misreport the other. If a Partner Agreement is supplied and the numbers need measuring, each gets its own standard (45B).",
+    "Limb (e) defers to Section 15, which is already covered by the Confidentiality standards — not restated here."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

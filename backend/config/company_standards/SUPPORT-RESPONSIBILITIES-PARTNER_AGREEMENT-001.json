@@ -1,0 +1,83 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13,",
+    "extended to the Section 31 document types 2026-09-18, resolving C-23). Drafted from §31.6's own words;",
+    "every value is the section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "SUPPORT-RESPONSIBILITIES-PARTNER_AGREEMENT-001",
+  "description": "The Partner provides first-line support to its End Customers; the Company supports the Partner's team and may escalate.",
+  "ratified": "2026-09-18",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.6",
+    "ruling": "owner, 2026-09-13 as extended 2026-09-18 (C-23) — this standard restates §31.6 without changing its meaning",
+    "calibration": "35.10 — NOT yet calibrated against counterparty paper; §31.6's evidence is two historical Partner Agreements not held in this repository. Re-calibrate when one is supplied (rule 21)."
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.6",
+  "source_quote": "The Partner is responsible for primary/first-line customer service and technical support to End Customers it brings in, particularly where reselling and billing directly. The Company provides support to the Partner's own technical team, and may at its discretion provide direct support to End Customers for complex issues. The Partner is expected to maintain trained personnel for first-level inquiries and escalate per agreed procedures.",
+  "configuration": {
+    "document_type": "PARTNER_AGREEMENT",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.6",
+      "topic": "Partner Programme — Support Responsibilities",
+      "basis": "COMPANY_APPROVED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "PARTNER_SUPPORT_TWO_TIER",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "first-line support",
+      "first line support",
+      "primary support",
+      "first-level support"
+    ],
+    "aliases": [
+      "technical support to end customers",
+      "escalate per agreed procedures",
+      "trained personnel"
+    ],
+    "keyword_groups": [
+      [
+        "partner",
+        "support",
+        "end customer"
+      ],
+      [
+        "first-line",
+        "support"
+      ],
+      [
+        "support",
+        "escalation",
+        "partner"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "support",
+      "customer service"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "THE TWO-TIER PATTERN IS THE BASELINE, AND THE ABSENCE OF L1/L2/L3 IS NOT A DEVIATION. §31.6a is explicit: the three-tier structure is 'NOT CURRENTLY ADOPTED', and 'Legal Mind must NOT flag the absence of an L1/L2/L3 structure as a deviation in any document'. No standard is ratified for §31.6a, and none may be — its basis would be NOT_ADOPTED, which is never a current rule.",
+    "Appendix B has NO clause category for partner support responsibilities, so `constitution.topic` takes §31.6's own heading. That is a routing label, not a legal position.",
+    "This standard checks that the support split is ADDRESSED, not that it is worded identically — §31.6 describes a responsibility allocation, and the evaluator is PRESENCE precisely because there is no number to compare."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}
