@@ -574,7 +574,18 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
          ORDER BY matched DESC, score DESC, standard_code
          LIMIT :limit
     """)
-    params = {"q": query, "limit": limit, "topic": topic}
+    # THE TYPE FILTER BELOW RUNS ON WHAT THESE BRANCHES RETURN, so when the reader has
+    # named a kind of paper both branches fetch deeper. Measured 2026-09-20: "What is
+    # our liability cap for the terms of service?" returned NOTHING at limit=3 and
+    # LIABILITY-TOS-001 at limit=10 — the three best rows by score were the MSA, Vendor
+    # and Distribution liability positions, the filter removed all three, and the reader
+    # was told the corpus holds no position for a paper it holds exactly one for.
+    # Filtering a list that was already truncated is a post-filter, which
+    # `store.search_hybrid` refuses to do for the document scope (`AM-25` r6); the type
+    # deserves the same treatment. Ranking is untouched — only how far down it is read.
+    named = named_document_type(query)
+    depth = limit if named is None else max(limit * 4, 12)
+    params = {"q": query, "limit": depth, "topic": topic}
     rows = db.execute(sql, {**params, "relax": False}).all()
     if not rows:
         rows = db.execute(sql, {**params, "relax": True}).all()
@@ -584,7 +595,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            standard_version=r.version_number,
                            ratification_status=r.ratification)
                for r in rows]
-    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+    vector = _vector_neighbours(db, query, limit=depth, embed_query=embed_query,
                                 topic=topic)
     # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
     #
@@ -612,7 +623,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # gap for the owner to see, not a constant to invent from ten points. Junk on an
     # unheld subject is stopped upstream instead: provenance is no longer indexed, and
     # `named_document_type` filters a paper we hold no position for.
-    hits = _fuse([] if vector else lexical, vector, limit)
+    hits = _fuse([] if vector else lexical, vector, depth)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
@@ -621,9 +632,9 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # removes off-type noise; where it is not covered at all — every Constitution §31
     # type today — the empty result becomes the refusal that names what is covered,
     # which is the honest answer and the one a reader can act on.
-    named = named_document_type(query)
     if named is not None:
         hits = [hit for hit in hits if hit.document_type == named]
+    hits = hits[:limit]
     if topic is not None and not hits:
         # Narrowing may never turn an answer into a refusal (rule 15's direction is
         # the other way). A topic the corpus does not hold — or a plan that misread the
