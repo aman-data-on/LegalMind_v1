@@ -44,6 +44,15 @@ STATUTE_CHUNKING_ALGORITHM_VERSION = "section-2"
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
 MAX_SECTION_CHARS = 2000
+# `total_sections` in the registry is the count of DISTINCT section numbers an Act
+# yields, and it is a boundary check on the extraction, not an assertion about the
+# chunker. Measured across the `section-1` -> `section-2` change (2026-09-20): the
+# distinct-section count held for 15 of 17 Acts while the CHUNK count moved for 8, and
+# the two that moved did so by one repealed stub each ("[...] Omitted by s. 255 and the
+# Eleventh Schedule"). So an exact match would fail on stub churn and prove nothing,
+# while a floor still catches the failure that matters — an extraction that breaks and
+# yields 80 sections where the Act has 800.
+SECTION_COUNT_FLOOR = 0.95
 
 PROVENANCE_FIELDS = ("official_title", "act_number_year", "jurisdiction", "source",
                      "source_ref", "as_amended_date", "supplied_by", "supplied_at")
@@ -233,6 +242,13 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
         raise StatuteIngestRefused(
             f"{path.name}: no numbered sections found — a Domain C citation is Act + "
             "section, never a page alone (AM-32 r7)")
+    sections = len({c.section_number for c in chunks})
+    declared_sections = provenance.get("total_sections")
+    if declared_sections and sections < declared_sections * SECTION_COUNT_FLOOR:
+        raise StatuteIngestRefused(
+            f"{path.name}: {sections} sections, registry declares {declared_sections} "
+            f"— below the {SECTION_COUNT_FLOOR:.0%} floor, so the extraction lost part "
+            "of the Act rather than merely re-drawing a boundary")
 
     schema = config.assist_schema()
     statute_id = _upsert_statute(db, schema, sha=sha, provenance=provenance)
@@ -241,8 +257,9 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
     log_event("assist.statutes.ingested", statute_id=str(statute_id),
               chunks=len(chunks), embedded=embedded,
               citations_repointed=repointed)              # counts only (53.3)
-    return {"statute_id": str(statute_id), "chunks": len(chunks), "embedded": embedded,
-            "file_sha256": sha, "citations_repointed": repointed}
+    return {"statute_id": str(statute_id), "chunks": len(chunks), "sections": sections,
+            "embedded": embedded, "file_sha256": sha,
+            "citations_repointed": repointed}
 
 
 def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -> UUID:

@@ -6,6 +6,7 @@ import pytest
 
 from legalmind.assist import statutes
 from legalmind.assist.statutes import (
+    SECTION_COUNT_FLOOR,
     StatuteIngestRefused,
     chunk_statute_text,
     ingest_statute,
@@ -163,7 +164,6 @@ def test_reingestion_keeps_the_citations_recorded_against_a_section(db, tmp_path
 
 def test_a_rechunk_drops_the_vector_of_text_a_kept_section_no_longer_holds(db, tmp_path):
     """`_embed` inserts ON CONFLICT DO NOTHING, so a kept row would keep a stale vector."""
-    from sqlalchemy import text
 
     from legalmind import config
     schema = config.assist_schema()
@@ -177,6 +177,32 @@ def test_a_rechunk_drops_the_vector_of_text_a_kept_section_no_longer_holds(db, t
     assert after != before, (
         "the vector row survived the re-chunk, so it still encodes the old text: "
         "_embed inserts ON CONFLICT DO NOTHING and cannot overwrite it")
+
+
+def test_ingestion_refuses_when_the_extraction_loses_most_of_the_act(db, tmp_path):
+    """The registry's total_sections is a boundary check on the extraction.
+
+    The failure it exists for is silent: a parser change that still produces valid
+    sections, just far fewer of them. Stub churn of a section or two must NOT trip it,
+    which is why it is a floor and not an equality.
+    """
+    with pytest.raises(StatuteIngestRefused, match="below the"):
+        ingest_statute(db, path=_pdf(tmp_path),
+                       provenance=_provenance(total_sections=300))
+
+
+def test_the_declared_section_count_admits_the_act_it_describes(db, tmp_path):
+    report = ingest_statute(db, path=_pdf(tmp_path),
+                            provenance=_provenance(total_sections=3))
+    assert report["sections"] == 3
+
+
+def test_the_floor_tolerates_the_stub_churn_measured_on_the_real_corpus():
+    """The two Acts whose section count moved across `section-1` -> `section-2` moved
+    by one repealed stub each. The floor exists to pass those and refuse a real loss."""
+    assert 483 * SECTION_COUNT_FLOOR <= 482      # Companies Act 2013, measured
+    assert 24 * SECTION_COUNT_FLOOR <= 23        # Income-tax Act 1961, measured
+    assert not 800 * SECTION_COUNT_FLOOR <= 80   # the failure it is for
 
 
 def _vector_id(db, schema):
