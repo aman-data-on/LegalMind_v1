@@ -475,6 +475,14 @@ jobs:
   browser-workflows:
     name: 10 · Browser workflows (Playwright)
     runs-on: ubuntu-latest
+    # A healthy run is 3-5 minutes. The known flake (the backend API intermittently
+    # ECONNRESETs mid-suite, "CI job 10 flake" in the project record) doesn't hang a
+    # single test past Playwright's own 60s per-test timeout -- it grinds through the
+    # whole spec list failing, which stretches a run to 30-52 minutes before it gives
+    # up on its own. Nothing here defaults a bound: GitHub's job timeout is 360
+    # minutes absent one. This caps the wasted runner time when that flake fires
+    # without touching the flake itself -- the job still fails, just sooner.
+    timeout-minutes: 15
     # SUPPORTING, not a release gate. Locked 54.1's six tiers contain no browser
     # tier and 54.7's release gate does not list one, so this job must not be
     # described as either. It exists for the locked properties that cannot be
