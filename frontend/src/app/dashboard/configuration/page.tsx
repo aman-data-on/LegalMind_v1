@@ -251,6 +251,36 @@ export default function ConfigurationPage() {
                       into this snapshot. Leaving everything unticked publishes the
                       active configuration as it stands.
                     </p>
+                    {/* SELECT ALL — 39 individual ticks is the tedium the bulk-action
+                        guideline names, and the owner hit it publishing AB-25. Buttons,
+                        not a tri-state header checkbox: a header checkbox has to invent
+                        an indeterminate state and answer "what does unticking it do to
+                        the ones I chose by hand", and two plain verbs answer neither.
+                        `selectable` excludes the versionless ones, so Select all can
+                        never tick something that would refuse the whole snapshot. */}
+                    <div className="ws-checks__bulk">
+                      <button
+                        type="button"
+                        className="ws-btn ws-btn--link"
+                        disabled={publishing || selected.length === plan.selectable.length}
+                        onClick={() => setSelected(plan.selectable)}
+                      >
+                        Select all {plan.selectable.length}
+                      </button>
+                      <button
+                        type="button"
+                        className="ws-btn ws-btn--link"
+                        disabled={publishing || selected.length === 0}
+                        onClick={() => setSelected([])}
+                      >
+                        Clear
+                      </button>
+                      {/* Polite, not assertive: the count changes on every tick, and an
+                          assertive region would interrupt the screen reader each time. */}
+                      <span className="ws-pane__note" aria-live="polite">
+                        {selected.length} of {plan.selectable.length} selected
+                      </span>
+                    </div>
                     <ul className="ws-checks">
                       {plan.drafts.map((requirement) => {
                         const blocked = plan.versionless.some((r) => r.code === requirement.code);
