@@ -45,15 +45,25 @@ PERMS = frozenset({P.ASSIST_ASK, P.CONFIGURATION_VIEW})
 
 # Kinds of paper the Constitution §31 defines positions for and the corpus does not
 # hold (C-23). Every one of these must retrieve NOTHING — a refusal is the answer.
+# Kinds of paper the ratified corpus holds NO position for, so the honest answer is the
+# refusal that names what IS covered — never another kind of paper's clause dressed as
+# "the approved position".
+#
+# ⚠️ THIS LIST WAS EIGHT PARTNER / VENDOR / PURCHASE-ORDER / DISTRIBUTOR QUESTIONS, and
+# every one of them was correct when written: `AM-72` made them refuse because no §31
+# position existed. The owner then ruled the opposite (`AM-73`, 2026-09-18) — everything
+# in the Constitution is ratified, and a type the Constitution carries text for must
+# ANSWER with exact section citations. All eight now answer, correctly, so keeping them
+# here would pin a superseded specification as the regression. The guard itself is
+# unchanged and still exactly right; only its examples moved.
+#
+# Of Step 6's thirteen types, four carry no Constitution position: DPA, AUP,
+# PRIVACY_POLICY and OTHER. Those are what this list must use from now on.
 MUST_REFUSE = (
-    "what is written about partner agreement in the constitution",
-    "what does our constitution say about partners",
-    "how can a partner agreement be ended",
-    "what happens to partner commissions",
-    "who handles support for partner customers",
-    "what is our vendor agreement position on payment",
-    "what does the constitution require in a purchase order",
-    "distributor agreement tier structure",
+    "what is our data processing agreement position",
+    "what does our dpa require on sub-processors",
+    "what does our acceptable use policy say about prohibited content",
+    "what is our privacy policy position",
 )
 # Twins whose descriptions are one sentence apart: hit@1 between them is a coin toss
 # the description text cannot settle, so they are scored as a set.
@@ -77,10 +87,22 @@ TWINS = {
 
 
 def answerable() -> list[tuple[str, str]]:
-    """(question, gold code) — the ratified file's own description, nothing authored."""
+    """(question, gold code) — the ratified file's own description, nothing authored.
+
+    RETIRED STANDARDS ARE EXCLUDED, because they are not answerable. `AM-71` removes a
+    `DEPRECATED` Requirement from BOTH retrieval paths by design, so the seven `AM-65`
+    retired standards can never be found and were being counted as seven permanent
+    misses. That put the ceiling at 33/40 = 0.825 — exactly where the old threshold came
+    from — so the metric was partly measuring the retirement rather than the retrieval,
+    could never reach 1.0, and drifted whenever the corpus grew.
+    """
+    from legalmind.evaluation.constitution_block import is_retired
+
     out = []
     for path in sorted(RATIFIED_STANDARDS_DIR.glob("*.json")):
         d = json.loads(path.read_text())
+        if is_retired(d):
+            continue
         if d.get("description") and d.get("requirement_code"):
             out.append((d["description"], d["requirement_code"]))
     return out
@@ -215,11 +237,13 @@ def test_the_reader_gets_an_honest_refusal_that_names_what_is_covered(corpus, us
         assert "Information not found" in out.text, (question, out.text)
         assert "quoted below" not in out.text, (question, out.text)
     # Where the question names the kind of paper, the refusal names what is covered.
+    # This probed Partner Agreement until `AM-73` ratified §31 and made it answer; DPA
+    # is now the nearest equivalent — a Step 6 type the Constitution states nothing for.
     conv = service.create_conversation(corpus, user_id=user.id, contract_id=None)
     out = service.ask(corpus, conversation_id=conv, document_version_id=None,
                       permissions=perms,
-                      question="what does our constitution say about partners")
-    assert "No approved position covers Partner Agreement" in out.text, out.text
+                      question="what is our data processing agreement position")
+    assert "No approved position covers DPA" in out.text, out.text
     assert "currently cover" in out.text and "MSA" in out.text, out.text
 
 
@@ -243,7 +267,18 @@ def test_a_topic_several_standards_share_is_not_refused_when_a_model_is_present(
     and lexical must still answer it. A verdict is only "nothing above the floor"."""
     hits = search_positions(corpus, query="Explain our termination standard.",
                             permissions=PERMS, limit=5, embed_query=None)
-    assert hits, "refused a topic the corpus holds four positions on"
-    assert {h.standard_code for h in hits} & {
+    assert hits, "refused a topic the corpus holds several positions on"
+    # The accepted set grew with the corpus: `AM-73` ratified §31, which added Partner,
+    # Vendor and Distribution termination positions, and those now rank above the MSA
+    # ones for a question that names no document type. The CLAIM is unchanged — a topic
+    # several standards share is answered rather than refused — so what must hold is
+    # that the hits ARE termination positions, not that they are one fixed five.
+    codes = {h.standard_code for h in hits}
+    assert codes & {
         "CONVENIENCE-NOTICE-MSA-001", "CURE-PERIOD-MSA-001",
-        "SUSPENSION-NOTICE-CURE-MSA-001", "TERM-NOTICE-NDA-001", "EARLY-TERM-RESTRICTION-MSA-001"}
+        "SUSPENSION-NOTICE-CURE-MSA-001", "TERM-NOTICE-NDA-001",
+        "EARLY-TERM-RESTRICTION-MSA-001",
+        "TERM-CONSEQUENCES-PARTNER_AGREEMENT-001",
+        "CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001",
+        "TERMINATION-DATA-RETURN-VENDOR_AGREEMENT-001",
+        "COMPLIANCE-TERMINATION-POST-DISTRIBUTION_AGREEMENT-001"}, codes

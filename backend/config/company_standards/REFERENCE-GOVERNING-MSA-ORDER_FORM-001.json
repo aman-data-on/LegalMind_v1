@@ -8,7 +8,7 @@
     "sliced from the section verbatim, never retyped (rules 7, 21)."
   ],
   "requirement_code": "REFERENCE-GOVERNING-MSA-ORDER_FORM-001",
-  "description": "Reference to governing MSA — the Constitution's position for this document type.",
+  "description": "Reference to governing MSA — every PO should explicitly reference the MSA under which it is issued.",
   "ratified": "2026-09-18",
   "approval": {
     "basis": "CONSTITUTION",

@@ -10,6 +10,55 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — `main` was red after `AM-73`: the Domain A regression test outlived its specification (2026-09-20)
+
+Two sessions' work collided. `test_assist_positions_regression.py` was written on
+2026-09-18 to pin the fail-open fix, and its `MUST_REFUSE` list asserted that eight
+Partner / Vendor / Purchase-Order / Distributor questions must retrieve **nothing**. Every
+one of them was correct when written — `AM-72` made them refuse because no §31 position
+existed. The owner then ruled the opposite the same day (`AM-73`): everything in the
+Constitution is ratified, and a type the Constitution carries text for must ANSWER. Both
+landed in `main`, which was left failing 4 tests.
+
+**Nothing was weakened to make CI green.** Each failure was a different thing:
+
+* **Two stale expectations, reversed by an owner ruling.** `MUST_REFUSE` and the
+  end-to-end refusal probe now use the four Step 6 types the Constitution genuinely
+  states nothing for — DPA, AUP, PRIVACY_POLICY, OTHER — instead of §31 types that now
+  answer. The guards themselves are untouched and still exactly right; only their
+  examples moved (AGENTS.md §9: a changed expectation follows a changed specification).
+* **A ranking shift from corpus growth.** "Explain our termination standard." now surfaces
+  the Partner, Vendor and Distribution termination positions above the MSA ones. The
+  claim — *a topic several standards share is answered, not refused* — is unchanged, so
+  the accepted set grew with the corpus rather than the test being pinned to one fixed
+  five.
+* **A measurement bug, found by chasing the number.** `recall@5` was computed over EVERY
+  ratified file, including the seven `AM-65` retired ones — which `AM-71` removes from
+  both retrieval paths by design, so they were seven permanent misses. The ceiling was
+  33/40 = 0.825, which is exactly where the old 0.80 threshold came from: the metric was
+  partly measuring the retirement, could never reach 1.0, and drifted whenever the corpus
+  grew. Retired standards are now excluded from the denominator.
+* **A real weakness in the generated standards, and the one genuine defect here.** Nine of
+  the 34 §31 standards could not be found by their own description, because the generator
+  wrote `"<heading> — the Constitution's position for this document type."` for all 34 —
+  identical boilerplate, so only the heading discriminated. **A description is a retrieval
+  surface, not decoration.** It is now built from the position's own first sentence. A
+  `(Section 16)` cross-reference is stripped from the LABEL only — it is a pointer, never
+  the standard's value, and `test_no_description_states_the_standards_value`'s digit guard
+  cannot tell them apart; `source_quote` keeps it verbatim.
+
+Measured, on the same test that was failing:
+
+| | before | after |
+|---|---|---|
+| denominator | 79 (7 unretrievable) | **72** |
+| recall@5 | 0.797 (ceiling 0.825) | **0.972** |
+| hit@1 | 0.722 | **0.931** |
+| junk answers | 8/8 wrong | **0/4** |
+| positions unfindable by own description | 16 | **2**, plus the 7 retired (excluded now) |
+
+`verify_terminology` stays 47 PASS / 0 FAIL.
+
 ### Added — everything in the Constitution is ratified, except what it disclaims itself (`AM-73`, AB-25, 2026-09-18)
 
 After reading `AM-72`'s §31 inventory, the owner extended the ruling: *"Treat EVERYTHING

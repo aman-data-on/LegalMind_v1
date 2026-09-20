@@ -8,7 +8,7 @@
     "sliced from the section verbatim, never retyped (rules 7, 21)."
   ],
   "requirement_code": "BUSINESS-CONTINUITY-VENDOR_AGREEMENT-001",
-  "description": "Business Continuity — the Constitution's position for this document type.",
+  "description": "Business Continuity — the agreement should address the vendor's business continuity and disaster recovery commitments where the vendor provides infrastructure the company depends on operationally.",
   "ratified": "2026-09-18",
   "approval": {
     "basis": "CONSTITUTION",
