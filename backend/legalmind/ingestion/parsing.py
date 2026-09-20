@@ -534,6 +534,80 @@ def text_is_legible(text: str) -> bool | None:
 # --------------------------------------------------------------------------
 # Parsers
 # --------------------------------------------------------------------------
+def table_is_substantive(rows: list[list[str | None]]) -> bool:
+    """A real table, or the invisible grid a PDF also rules for layout?
+
+    `find_tables` reports both. Measured across the 37-PDF corpus (2026-09-20): 312
+    ruled tables, of which only 115 are tables anyone would call one. The rest are
+    form-field underscore runs and signature blocks — MSA.pdf alone yields 41 "tables"
+    shaped `[['A.', '']]` — and the LeapSwitch TOS yields its website navigation menu.
+    Indexing those as TABLE evidence would put page furniture in front of a reader as
+    though the contract stated it.
+
+    Three properties separate the two, all measured rather than chosen: a real table
+    has at least two rows and two columns, most of its cells carry something, and what
+    they carry is words rather than a single bullet character.
+    """
+    if len(rows) < 2 or len(rows[0]) < 2:
+        return False
+    cells = [c for row in rows for c in row]
+    filled = [c.strip() for c in cells if c and c.strip()]
+    if not filled or len(filled) / len(cells) < 0.5:
+        return False
+    return sum(len(c) for c in filled) / len(filled) >= 3.0
+
+
+def _page_blocks_in_reading_order(page, exclude: list) -> str:
+    """The page's prose in READING order, with the kept tables' regions removed.
+
+    Two defects in one place. First, `get_text("text")` walks the PDF content stream,
+    which on a two-column layout emits an entire column before the next: measured on
+    the DPDP Act's penalty Schedule, a breach label and its penalty landed 699
+    characters apart. Sorting blocks into row-bands (y, then x) puts them 113 apart.
+    `get_text(sort=True)` reorders too but joins spans with no separator — on
+    SLA-leapswitch.pdf it produced `*99.95%forPower(Dual-poweredservers)`, which no
+    lexical search matches — so whole blocks are sorted and each block's own text is
+    left exactly as it was.
+
+    Second, a table's text is in this stream as well as in the table. `AM-27` r4 gives
+    a chunk one evidence row, so the same sentence must not arrive twice: a block whose
+    centre lies inside a kept table's bbox belongs to the table and is dropped here.
+
+    The 6-point band absorbs the baseline jitter of a justified line.
+    """
+    kept = []
+    for block in page.get_text("blocks"):
+        if block[6] != 0:                       # 0 = text, 1 = image
+            continue
+        centre_x = (block[0] + block[2]) / 2
+        centre_y = (block[1] + block[3]) / 2
+        if any(x0 <= centre_x <= x1 and y0 <= centre_y <= y1
+               for x0, y0, x1, y1 in exclude):
+            continue
+        kept.append(block)
+    kept.sort(key=lambda b: (round(b[1] / 6), b[0]))
+    return "\n".join(b[4].strip() for b in kept if b[4].strip())
+
+
+def _page_tables(page) -> list[tuple[tuple, str]]:
+    """The page's substantive tables as (bbox, tab-joined rows), shaped like DOCX.
+
+    `strategy="lines"` only. The `text` strategy infers columns from whitespace and
+    splits words mid-token — measured on the DPDP Schedule it returned
+    `'Breach of pr', 'ovisions of t', 'his Act or rules m'` at every tolerance tried —
+    which is worse than the flattened text it would replace.
+    """
+    out = []
+    for table in page.find_tables().tables:
+        rows = table.extract()
+        if not table_is_substantive(rows):
+            continue
+        body = "\n".join("\t".join((c or "").strip() for c in row) for row in rows)
+        if body.strip():
+            out.append((table.bbox, body))
+    return out
+
+
 def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
     """Native PDF text extraction, with OCR only where a page has none.
 
@@ -571,19 +645,39 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
     # `doc` is a PyMuPDF Document; the library ships no type information, so the
     # page objects are untyped here rather than wrongly typed.
     for index, page in enumerate(doc, start=1):    # type: ignore[arg-type,var-annotated]
+        # Separately, so a table-detection failure costs this page its TABLE rows and
+        # not its prose as well.
+        page_tables: list[tuple[tuple, str]] = []
         try:
-            raw = page.get_text("text") or ""
+            page_tables = _page_tables(page)
+        except Exception as exc:                # pragma: no cover - defensive
+            diagnostics.append(
+                f"page {index}: table detection failed ({type(exc).__name__}); "
+                "the page's text is still extracted")
+        try:
+            raw = _page_blocks_in_reading_order(
+                page, [t[0] for t in page_tables]) or ""
         except Exception as exc:                # pragma: no cover - defensive
             raw = ""
             diagnostics.append(f"page {index}: extraction error {type(exc).__name__}")
 
-        if len(raw.strip()) >= MIN_USABLE_CHARS_PER_PAGE:
+        if len(raw.strip()) >= MIN_USABLE_CHARS_PER_PAGE or page_tables:
             page_segments = segment_paragraphs(
                 raw, page_number=index,
                 source_type=EvidenceSourceType.NATIVE_TEXT, base_offset=offset)
             segments.extend(page_segments)
-            extracted_pages += 1
             offset += len(raw)
+            # Tables follow their page's prose, carrying the page the DOCX path cannot
+            # know (34.11 keeps tables; parse_docx builds the identical row shape).
+            for table_index, (_, body) in enumerate(page_tables, start=1):
+                segments.append(Segment(
+                    content=normalize_text(body), original_content=body,
+                    source_type=EvidenceSourceType.TABLE, page_number=index,
+                    start_offset=offset, end_offset=offset + len(body),
+                    metadata={"table_index": table_index,
+                              "rows": body.count("\n") + 1}))
+                offset += len(body)
+            extracted_pages += 1
             continue
 
         # No usable native text on this page (34.7).
