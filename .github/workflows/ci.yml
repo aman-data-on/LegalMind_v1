@@ -22,7 +22,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # A push to a branch with an open PR fires BOTH `push` and `pull_request` for the
+  # same commit — `github.ref` used to differ between them (`refs/heads/<branch>` vs
+  # `refs/pull/<n>/merge`), so the group never merged them and every job, including
+  # Design QA's visual regression, ran in full twice. `head_ref` is set only on
+  # `pull_request` and is already the bare branch name; `ref_name` is that same bare
+  # name on `push`. Keying on whichever is set puts both events in one group per
+  # branch, so cancel-in-progress drops the duplicate — and still cancels a
+  # superseded run when a second commit lands on the same branch before the first
+  # finishes, which is the behavior this group existed for.
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
