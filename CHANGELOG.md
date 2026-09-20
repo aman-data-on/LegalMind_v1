@@ -10,6 +10,128 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — a statute laid out in columns is now read in reading order, and the statute lane has an eval (2026-09-20)
+
+**The defect.** PyMuPDF's default extraction walks the PDF content stream, which on a
+two-column page emits an entire column before the next. Measured on the DPDP Act's
+penalty Schedule: a breach label and the penalty in the SAME table row came out **699
+characters apart**, so no chunk carried the pair and "the largest fine for failing to
+keep reasonable security safeguards" was unanswerable from the Act that states it.
+Sorting each page's text blocks into 6-point row-bands (y, then x) puts them **113**
+apart. `get_text(sort=True)` reorders identically but joins spans with no separator —
+on `SLA-leapswitch.pdf` it produced `*99.95%forPower(Dual-poweredservers)`, which no
+lexical search can match — so whole blocks are sorted and each block's own spacing is
+left alone.
+
+**Only the pages that need it.** Reordering every page was built first and measured,
+and it was wrong: the statute lane rose (gate-open hit@1 0.538 → 0.786) while the
+contract lane fell (gate-open 30/44 → 27/44, recall@10 0.659 → 0.568), because a
+single-column page is already in reading order and sorting it only churns the text the
+embeddings were built from. A page is reordered only when its content stream jumps back
+up by more than a third of the page — what starting a second column looks like.
+Joining blocks with a blank line instead was also measured and is far worse: the corpus
+shatters (contract chunks 425 → 1481, median 18 tokens), recall@10 falls to 0.674 and
+false answers rise 1/13 → 4/13.
+
+**Measured, zero provider calls** (`tools/probe_targeting.py` pattern over the ratified
+77-question set). Document lane, all-64 denominator: recall@10 0.625 → **0.641**, hit@1
+0.375 → **0.438**, reranked hit@1 unchanged at 0.484, false answers unchanged at 1/13.
+Domain C through `search_statutes`: hit@1 0.400 → **0.500**, MRR 0.487 → **0.558**,
+recall@6 unchanged at 0.700.
+
+**Citations survive a re-chunk.** Re-ingesting a statute used to `DELETE` its row, which
+cascades `statute_chunks` into `answer_citations` — production holds **10** such
+citations, so a re-chunk would have silently emptied ten past answers' sources (rule
+17). The row is updated in place and its chunks reconciled on the Act's own
+`(section_number, sub_section)`, the identity a Domain C citation names; a section that
+no longer chunks out hands its citations to the nearest survivor. Pinned by tests
+confirmed to FAIL with the fix removed. `STATUTE_CHUNKING_ALGORITHM_VERSION` →
+`section-2`.
+
+**The Domain C eval slice, which did not exist.** `tools/probe_statutes.py` scores the
+statute questions through `search_statutes` by verbatim anchor containment, so it
+survives a re-chunk. Until now the only probe ingested statute PDFs *as documents* and
+measured `parse_pdf` — not the corpus that actually answers a GENERAL LAW question.
+
+### Added — the statute registry records what it can verify, and refuses what it cannot (2026-09-20)
+
+`total_sections` (distinct section numbers, from a real ingest) and `gazette_reference`
+join `config/statutes/registry.json`. The section count is re-checked on every later
+ingest against a 95% floor: measured across `section-1` → `section-2`, the
+distinct-section count held for 15 of 17 Acts while the CHUNK count moved for 8, and the
+two that moved did so by one repealed stub each — so an exact match would fail on stub
+churn and prove nothing, while a floor still refuses the failure that matters and is
+otherwise silent (800 sections becoming 80).
+
+`gazette_reference` is populated for the 3 files that state a G.S.R. number and
+explicitly **null** for the other 14, which came from India Code with a DSpace handle
+instead; egazette.gov.in is unreachable from this host. A null is an honest absence and
+is not to be filled by inference (rule 21). **No new dependency**: the registry stays
+stdlib `json`. PyYAML was considered and declined — it is undeclared in
+`pyproject.toml`, absent from CI, and `registry.json` already carried act name,
+checksum and amendment date with checksum enforcement wired into the ingest path.
+
+### Added — plain text and Markdown are accepted documents (2026-09-20)
+
+⚠️ **Needs a lock record before it ships.** Locked **34.2** lists PDF and DOCX as
+"primary V1" and defers XLSX, PPTX, images and email; plain text and Markdown appear on
+**neither** list, so this extends 34.2's scope.
+
+Text has no magic bytes, so `sniff_mime` is unchanged and a text upload is verified as
+what it claims to be — decodable UTF-8, no NULs, ≥95% printable — while a file that
+sniffs as a known binary format is refused whatever it was declared as.
+`deploy/preflight.py`'s assertion that `sniff_mime(b"not a document") is None` therefore
+still holds, and is now pinned by a test of its own. `parse_text` reuses
+`segment_paragraphs`, which was already source-agnostic; Markdown heading marks are
+stripped so `## 5. Liability` yields clause `5` rather than literal hashes (34.12: the
+numbering is preserved, never generated). No page model, no new `EvidenceSourceType`, no
+schema change.
+
+### Changed — Ask answers in three sentences, and says what it did (2026-09-20)
+
+The grounded-answer prompt banned preamble but never capped LENGTH, and
+`max_output_tokens` was 1024. Rule 8 asks for at most three sentences in the words a
+non-lawyer would use; the ceiling comes down to 512. Both prompt versions bumped
+(`grounded-answer-4`, `position-reading-aid-2`) because a changed prompt under an
+unchanged version is an unauditable payload (`AM-30` t5). The named risk — brevity
+pushes a model toward paraphrase, and paraphrase is what the guardrail refuses — did
+**not** materialise: faithfulness and citation precision both held at 1.0.
+
+The response now carries `progress`: the stages this question actually passed through,
+in pipeline order, with what each cost (previously collected and discarded). Deliberately
+`{stage, ms}` and **not** reader-facing labels — the UI owns copy, and this product
+answers in Hindi as well as English (`AM-69`). Still nothing streamed: no token reaches
+a reader before mechanical verification (`AM-25` r5). Citations gain `text`, the whole
+cited span, for the expandable evidence view.
+
+### Measured and NOT shipped — PDF table extraction (2026-09-20)
+
+`find_tables` with a lines-only strategy and a ≥2×2 / ≥50%-filled / ≥3-character filter
+correctly keeps **115 of 312** detected tables — SLA's two service-credit tables, the
+Privacy sub-processor table — and rejects all **41** of `MSA.pdf`'s form-field grids and
+the LeapSwitch TOS navigation menu. It is not shipped: removing a table's region from
+the prose and re-emitting it as a TABLE row cost **three** contract questions (gate-open
+30 → 27, recall@10 0.636 → 0.568), while exactly **1 of 64** questions has its gold
+answer inside any detected table. Nothing is lost by leaving it out — the SLA credit
+table stays retrievable as prose, only unstructured. It needs table-anchored eval
+questions before it can earn its keep, so the code is removed rather than left dark.
+The `text` strategy is separately unusable: it infers columns from whitespace and splits
+words mid-token (`'Breach of pr'` + `'ovisions of t'`) at every tolerance measured.
+
+### Verification (2026-09-20)
+
+Full suite **2217 passed, 112 skipped, 1 xfailed** (skip count equal to the recorded
+baseline, so nothing went silently absent); frontend **527 passed**; `ruff` and `mypy`
+both clean as CI runs them. Tier-2 gate **SHIPPABLE**, one run per the cost guard:
+wrongly-answered 1/13 (held), user-visible wrong 0/13, faithfulness 1.0, citation
+precision 1.0, retained 61/64 (baseline 60), recall@10 0.906 (baseline 0.891), MRR 0.781,
+gold@3 0.844; evidence precision 0.396 → 0.384 (reported, non-blocking). 1.22 Gemini
+calls/question, 131,926 prompt and 3,964 output tokens across 54 answers (≈73
+output tokens per answer). Latency p50/p95: total 2028/3617 ms, generation 1745/2086,
+rerank 131/454, retrieval 11/27. The token *delta* from the brevity rule is **not**
+quantified — that would need a second paid gate run, and the cost guard allows one.
+
+
 ### Fixed — `main` was red after `AM-73`: the Domain A regression test outlived its specification (2026-09-20)
 
 Two sessions' work collided. `test_assist_positions_regression.py` was written on
