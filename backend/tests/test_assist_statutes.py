@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from legalmind.assist import statutes
+from legalmind.assist import embedding_runtime, statutes
 from legalmind.assist.statutes import (
     SECTION_COUNT_FLOOR,
     StatuteIngestRefused,
@@ -162,8 +162,12 @@ def test_reingestion_keeps_the_citations_recorded_against_a_section(db, tmp_path
     assert "synthetic care and diligence" in body, "the kept row must carry the new text"
 
 
+@pytest.mark.skipif(not embedding_runtime.available(), reason="no model provisioned")
 def test_a_rechunk_drops_the_vector_of_text_a_kept_section_no_longer_holds(db, tmp_path):
-    """`_embed` inserts ON CONFLICT DO NOTHING, so a kept row would keep a stale vector."""
+    """`_embed` inserts ON CONFLICT DO NOTHING, so a kept row would keep a stale vector.
+
+    Needs a provisioned embedder: with none, `_embed` writes no vectors at all and
+    there is nothing for a re-chunk to leave stale. CI provisions no model."""
 
     from legalmind import config
     schema = config.assist_schema()
