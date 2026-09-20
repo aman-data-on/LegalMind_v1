@@ -184,6 +184,41 @@ def _phrase(text: str) -> str:
 
 
 
+def _description(heading: str, quote: str) -> str:
+    """A one-line label that actually says what the position is.
+
+    THE DESCRIPTION IS A RETRIEVAL SURFACE, not decoration. The first pass wrote
+    "<heading> — the Constitution's position for this document type." for all 34, so 33
+    of the 34 words were identical and only the heading discriminated: nine positions
+    could not be found from their own description, measured by
+    `test_every_ratified_position_is_still_reachable_by_its_own_description`.
+
+    Built from the position's own first sentence, so it carries that position's words.
+    NO DIGITS: `test_no_description_states_the_standards_value` forbids them, because a
+    description is a label and must never restate the standard's VALUE — where the
+    sentence carries a figure, the heading alone is used rather than a doctored
+    sentence.
+    """
+    sentence = re.sub(r"^LegalMind Rule[^:]*:\s*", "", quote).split(". ")[0].strip(" .")
+    # A "(Section 16)" cross-reference is a POINTER, never this standard's value, but the
+    # digit guard cannot tell them apart — so drop the pointer from the LABEL rather than
+    # lose the sentence to boilerplate. `source_quote` keeps it, verbatim and untouched.
+    sentence = re.sub(r"\s*\((?:Sections?|see)\s+[^)]*\)", "", sentence).strip(" .,;")
+    if not sentence or re.search(r"\d", sentence):
+        return f"{heading} — the Constitution's position for this document type."
+    sentence = sentence[0].lower() + sentence[1:]
+    # `test_every_ratified_standard_has_a_one_sentence_description` caps a description at
+    # 200 characters. Shorten at a CLAUSE boundary rather than slicing, which left
+    # "…consistent in structure with the Constitution's general Indemnification position"
+    # cut mid-thought. A description is read by a person; a truncated one is worse than a
+    # shorter true one.
+    for candidate in (sentence, *(sentence.split(";")[0], sentence.split(",")[0])):
+        line = f"{heading} — {candidate.strip(' ,;')}."
+        if len(line) <= 200:
+            return line
+    return f"{heading} — the Constitution's position for this document type."
+
+
 def _topic(heading: str, section: str, fallback_heading: str) -> str:
     lowered = heading.lower()
     for needle, topic in _TOPICS:
@@ -255,7 +290,7 @@ def _standard(*, section: str, document_type: str, heading: str, quote: str,
             "sliced from the section verbatim, never retyped (rules 7, 21).",
         ],
         "requirement_code": code,
-        "description": f"{heading} — the Constitution's position for this document type.",
+        "description": _description(heading, quote),
         "ratified": "2026-09-18",
         "approval": {
             "basis": "CONSTITUTION",

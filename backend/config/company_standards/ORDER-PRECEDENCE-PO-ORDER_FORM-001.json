@@ -8,7 +8,7 @@
     "sliced from the section verbatim, never retyped (rules 7, 21)."
   ],
   "requirement_code": "ORDER-PRECEDENCE-PO-ORDER_FORM-001",
-  "description": "Order of precedence (PO vs MSA) — the Constitution's position for this document type.",
+  "description": "Order of precedence (PO vs MSA) — where a PO and the governing MSA conflict, the MSA prevails.",
   "ratified": "2026-09-18",
   "approval": {
     "basis": "CONSTITUTION",
