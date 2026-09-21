@@ -1,0 +1,1 @@
+throwaway root-level test file for CI path-scoping validation round 2
