@@ -41,10 +41,67 @@ env:
 
 jobs:
 
+  # ── 0 ──────────────────────────────────────────────────────────────────────
+  changes:
+    name: 0 · Change classification
+    runs-on: ubuntu-latest
+    # Unconditional, like jobs 6/7/8/16 — every gated job below reads its
+    # outputs, so it must always run and run first.
+    permissions:
+      # Job-level `permissions:` REPLACES the workflow-level block above for
+      # this job rather than adding to it, so `contents: read` is repeated
+      # here. `pull-requests: read` is what paths-filter's README documents
+      # as required on `pull_request` events, where it lists changed files
+      # through the GitHub REST API rather than git commands.
+      contents: read
+      pull-requests: read
+    outputs:
+      backend:      ${{ steps.filter.outputs.backend }}
+      frontend:     ${{ steps.filter.outputs.frontend }}
+      docs:         ${{ steps.filter.outputs.docs }}
+      workflows:    ${{ steps.filter.outputs.workflows }}
+      constitution: ${{ steps.filter.outputs.constitution }}
+      # NOT computed by paths-filter. A real-action validation run
+      # (2026-09-21, throwaway/pathsfilter-validation) proved that a
+      # `'**'` + `!exclude` rule list does not exclude the known trees as
+      # documented — `other` came back `true` for a docs-only and a
+      # backend-only diff alike, which would have made every gated job
+      # below unconditional in practice. Derived instead as a native
+      # GitHub Actions boolean expression over the four ALREADY-VALIDATED
+      # positive filters (each confirmed, in that same run, to match only
+      # its own tree) — no picomatch/paths-filter negation semantics
+      # involved at all, only GitHub's own documented `&&`/`!=` operators.
+      other: ${{ steps.filter.outputs.backend != 'true' && steps.filter.outputs.frontend != 'true' && steps.filter.outputs.docs != 'true' && steps.filter.outputs.workflows != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      # No `base:` override: left at its documented default (the repository's
+      # default branch), which resolves correctly for both trigger types this
+      # workflow uses — on `pull_request` it's ignored in favor of the PR's
+      # own base via the REST API; on `push` to a feature branch it computes
+      # a git merge-base with the default branch, deepening the fetch itself
+      # (`initial-fetch-depth`, default 100, doubling as needed) rather than
+      # requiring `fetch-depth: 0` on the checkout above.
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            workflows:
+              - '.github/workflows/**'
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            docs:
+              - 'docs/**'
+            constitution:
+              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md'
+
   # ── 1 ──────────────────────────────────────────────────────────────────────
   lint:
     name: 1 · Lint and type check
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -79,6 +136,8 @@ jobs:
   schema-invariants:
     name: 2 · Schema invariants (EV-MIN, append-only, uniqueness)
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -191,6 +250,8 @@ jobs:
   golden-corpus:
     name: 4 · Golden corpus (Tier 1, normative)
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -249,6 +310,8 @@ jobs:
   determinism:
     name: 5 · Determinism (ENG-11)
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -449,6 +512,14 @@ jobs:
   frontend:
     name: 9 · Frontend (typecheck + Vitest)
     runs-on: ubuntu-latest
+    needs: [changes]
+    # This job's own id is `frontend`; the condition below reads
+    # `needs.changes.outputs.frontend`, the paths-filter OUTPUT of the same
+    # name from job 0. They are two different things in two different
+    # namespaces (a job id vs. another job's step output) and GitHub Actions
+    # does not confuse them, but a reader skimming this file can — the id
+    # names this job, the output names a category of changed files.
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # Nothing ran these until 2026-08-17: the 53 Vitest tests and the typecheck
     # were enforced only by whoever remembered to run them locally. The suite
     # includes the confidentiality boundary tests (52.4 — omitted, not nulled) and
@@ -475,6 +546,11 @@ jobs:
   browser-workflows:
     name: 10 · Browser workflows (Playwright)
     runs-on: ubuntu-latest
+    needs: [changes]
+    # backend OR frontend, never either alone: Playwright's webServer boots the
+    # real FastAPI app from source (see the Install backend step below), so a
+    # backend-only regression must still be caught here.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # A healthy run is 3-5 minutes. The known flake (the backend API intermittently
     # ECONNRESETs mid-suite, "CI job 10 flake" in the project record) doesn't hang a
     # single test past Playwright's own 60s per-test timeout -- it grinds through the
@@ -546,6 +622,8 @@ jobs:
   reproducibility:
     name: 11 · Post-migration reproducibility (locked 55.4 r3)
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # Locked 55.4 r3: "after any migration, historical Reviews must still replay
     # identically (ENG-11) — this is a release-gate test (54.3), NOT an assumption."
     # Locked 55.5 places it between "migration applied" and "deploy".
@@ -583,6 +661,14 @@ jobs:
   independent-verification:
     name: 12 · Invariants verified without the tests that assert them
     runs-on: ubuntu-latest
+    needs: [changes]
+    # The Constitution exception: `tools/verify_terminology.py` hardcodes a read
+    # of docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md to reproduce every
+    # ratified standard's cited position. That single file lives under docs/,
+    # which is otherwise skippable here — so it gets its own named filter
+    # output (`constitution`) instead of being folded into the general `docs`
+    # bucket, which this job does not otherwise need.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.constitution == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # The guarantees are re-checked by a DIFFERENT mechanism from the unit tests:
     # raw SQL outside the ORM for EV-MIN and append-only, two live schemas for the
     # enum-scoping fix, real worker processes and a real SIGKILL for the queue.
@@ -640,6 +726,13 @@ jobs:
   full-suite:
     name: 13 · The whole test suite (release gate)
     runs-on: ubuntu-latest
+    needs: [changes]
+    # Safe to gate on backend/workflows/other only because job 16
+    # (documentation-index) now runs unconditionally on every push and PR:
+    # test_documentation_index.py was the one test in this suite named in no
+    # other job's explicit list, and job 16 is what covers it when this job
+    # is skipped for a docs-only or frontend-only change.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # Why this job exists, given twelve others already run tests.
     #
     # Jobs 2, 3, 4, 9, 10, 11 and 12 each name specific files. Job 5's stability probe runs
@@ -708,6 +801,11 @@ jobs:
   security-scanning:
     name: 14 · Dependency and container security scanning (A10)
     runs-on: ubuntu-latest
+    needs: [changes]
+    # backend OR frontend: this job audits both dependency trees and builds
+    # both Docker images every time it runs at all, so either side changing
+    # is reason enough to run it.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # `IMPLEMENTATION_READINESS_GATE.md` §5b unit A10 names five controls: network
     # segmentation, TLS, secrets, Trivy/pip-audit/npm audit, OpenVAS/ZAP. The first
     # three are deployment-time and already reported by
@@ -865,6 +963,11 @@ jobs:
   design-qa:
     name: 15 · Design QA (forbidden terms + visual regression)
     runs-on: ubuntu-latest
+    needs: [changes]
+    # backend OR frontend: this job boots the real backend (uvicorn) to serve
+    # the pages the visual-regression suite screenshots, so a backend-only
+    # change can still change what's on screen.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
     # Two gates from the 2026-08-27 UI/UX hardening pass, both design-governance
     # rules made structural rather than reviewed-for:
     #
