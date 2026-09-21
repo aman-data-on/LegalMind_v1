@@ -128,6 +128,20 @@ def _section_key(num: str) -> tuple[int, str]:
     return (int(digits.group()), num[len(digits.group()):])
 
 
+_ROMAN = re.compile(r"^[IVXL]+A?$", re.IGNORECASE)
+
+
+def _schedule_label(heading: str) -> str:
+    """The Act's own name for a Schedule, as a citation renders it.
+
+    Drops the footnote marker the print glues to the heading (`1[THE FIRST SCHEDULE`)
+    and the trailing period, and capitalises for reading while leaving a roman numeral
+    upper — "the First Schedule", "Schedule I", "Schedule IA".
+    """
+    words = re.sub(r"^\s*\d{1,2}\[", "", heading).strip().rstrip(".").split()
+    return " ".join(w.upper() if _ROMAN.match(w) else w.capitalize() for w in words)
+
+
 def _repair_glued_markers(numbered: list[tuple[int, str]],
                           ceiling: tuple[int, str] | None) -> list[tuple[int, str]]:
     """Strip a footnote marker glued to a section number, bounded by the Act itself.
@@ -214,7 +228,7 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     else:
         keyfn = _section_key
     schedules = [] if roman else [
-        (m.start(), " ".join(m.group().split()).upper().rstrip("."))
+        (m.start(), _schedule_label(m.group()))
         for m in _SCHEDULE_START.finditer(text)
         if m.start() > len(text) * SCHEDULE_TAIL_FRACTION]
     if schedules:
@@ -559,28 +573,31 @@ class StatuteHit:
 
     @property
     def citation(self) -> str:
+        """Act + the Act's own structural unit (`AM-32` r7), never a page alone.
+
+        A Schedule carries no section number and is cited by its own name, so the
+        "s." prefix is omitted for it — "…, the Schedule" reads as a lawyer writes
+        it, where "…, s. THE SCHEDULE" does not. Presentation only: the stored unit
+        is unchanged, and see `_SCHEDULE_START` for the representation decision.
+        """
         sub = f" {self.sub_section}" if self.sub_section else ""
+        if "schedule" in self.section_number.lower():
+            return f"{self.official_title}, {self.section_number}{sub}"
         return f"{self.official_title}, s. {self.section_number}{sub}"
 
 
-# Short names people actually type for Acts in the corpus, expanded to the words
-# the official title uses so the title match can see them. Names only — no law.
-_ACT_ALIASES = {
-    "dpdp": "digital personal data protection",
-    "dpdpa": "digital personal data protection",
-    "it act": "information technology act",
-    "ni act": "negotiable instruments act",
-    "cpc": "code of civil procedure",
-    "bsa": "bharatiya sakshya adhiniyam",
-    "cgst": "central goods and services tax",
-    "igst": "integrated goods and services tax",
-    "cert-in": "cert-in",
-}
-
-
 def expand_aliases(query: str) -> str:
+    """Short names people type for Acts, expanded to the words the official title
+    uses so the title match can see them. Names only — no law.
+
+    The table lives in `intent.ACT_ALIASES`: the router needs the same short names to
+    recognise that a question NAMES an instrument, and two copies would drift. The
+    dependency runs from this module to that one, which imports nothing but `re`.
+    """
+    from legalmind.assist.intent import ACT_ALIASES
+
     lowered = f" {(query or '').lower()} "
-    for short, full in _ACT_ALIASES.items():
+    for short, full in ACT_ALIASES.items():
         if f" {short} " in lowered:
             lowered = lowered.replace(f" {short} ", f" {short} {full} ")
     return lowered.strip()

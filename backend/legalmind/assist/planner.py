@@ -137,7 +137,7 @@ class QueryPlan:
 #
 # WHAT THIS TABLE IS: search vocabulary — the words a lawyer would type for
 # what a reader typed, plus the Constitution Appendix-B topic each belongs to.
-# It is the same kind of object as `statutes._ACT_ALIASES` ("Names only — no
+# It is the same kind of object as `intent.ACT_ALIASES` ("Names only — no
 # law") and is held to the same rule: NO threshold, NO position, NO acceptance
 # policy, NO carve-out, nothing about what any standard requires (rules 7 and
 # 21). Every topic string is validated against `TOPICS` at import, which is

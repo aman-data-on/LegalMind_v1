@@ -109,6 +109,69 @@ that predicate would bypass `require_semantic` for genuine law questions while l
 contract questions protected, and it is measurable with zero Gemini and no gate change.
 It alters refusal behaviour, so it is recorded here for an owner decision and NOT made.
 
+### Changed — GENERAL LAW routing is a signal relation, not a word list (2026-09-21)
+
+`is_statute_question` was one flat regex matched anywhere in the question — the same
+co-occurrence shape `is_comparison_question` was rebuilt away from on 2026-09-16, and it
+failed the same two ways. It fired on words that are not instruments (`\bact\b` matches
+the English VERB, so "how quickly must we act?" was a question about the law), and it
+required the question to NAME the instrument, which a reader does not: **2 of the 23
+statute questions matched**, and the rest were held to `require_semantic`.
+
+It is now a relation over five deterministic signals, in the idiom the comparison screen
+already uses, with the precedence recorded on the plan:
+
+* **(A) names an instrument** → GENERAL LAW outright. A section reference, a known Act
+  alias, or `act`/`rules` next to a determiner or an Act-name token. An explicit source
+  reference beats a document target: "what does s. 43A say about our liability?" names
+  the source to answer from.
+* **(B) asks for the general rule** → only when jurisdiction framing or a rule-seeking
+  question SHAPE fires **and** there is no document target and no position target.
+
+The negative half is the safety property, because this flag both makes STATUTES a primary
+domain and drops `require_semantic`. A document target is a document noun under a
+definite, demonstrative or possessive determiner — the determiner is the discrimination:
+"**a** contract is broken" is the concept, "**the** contract" is the paper on the desk.
+The position target reuses the existing `_position_reference` relation;
+`mentions_organization` is deliberately NOT reused, because its `_ORG_STEMS` carries
+"compan" and would block "can a company be made to pay damages", a question of law.
+
+Deal vocabulary — `enforceable`, `liable`, `penalty` — is deliberately absent. An earlier
+attempt included it, reached higher recall, and was rejected: it is a word list, not a
+signal.
+
+**A third signal was built, measured and rejected.** "Impersonal + duty modal" lifted
+recall 0.217 → 0.696 but dropped precision to 0.800 and falsely routed **N-05, a
+must-refuse control** — "how quickly must illegal child-abuse material be taken down?" is
+a CONTRACT question indistinguishable by shape. The router stays conservative and the
+evidence gate resolves the ambiguity, which is the layer built for it.
+
+**Routing measured on its own** (91 labelled cases: the dataset's own `category` field,
+plus four owner-named positive shapes and ten adversarial negatives that put statutory
+vocabulary on the reader's own paper):
+
+| | predicted GENERAL_LAW | predicted DOCUMENT/POSITION |
+|---|---|---|
+| actual GENERAL_LAW (27) | 9 | 18 |
+| actual DOCUMENT/POSITION (64) | **0** | 64 |
+
+precision **1.000** · recall 0.333 · false STATUTE **0**. Recall is bounded on purpose:
+the 18 are genuinely ambiguous by shape and keep the `require_semantic` path.
+
+`RoutePlan.statute_signals` records WHICH signals fired, and `assist.ask.routed` logs the
+names — never the question, and never rendered to a reader.
+
+### Fixed — a Schedule is cited as a Schedule (2026-09-21)
+
+The label kept the print's footnote marker (`1[THE FIRST SCHEDULE`) and the citation read
+`s. THE SCHEDULE`. Labels are now normalised to the Act's own name — `the Schedule`,
+`Schedule I`, `Schedule IA` — and the citation drops the `s.` prefix for them, so a reader
+sees `The Digital Personal Data Protection Act, 2023, The Schedule (3)`. Presentation
+only; the stored unit is unchanged. ⚠️ Whether a Schedule is a citable unit under
+`AM-32` r7 is **registered as C-24 and left to the owner** — the alternative is the
+previous behaviour, which cited the whole penalty table as `s. 44(3) — Amendments to
+certain Acts`, a false Act+section citation.
+
 ### Fixed — Domain A's subject CTE is materialized; it was re-running a corpus-wide count per candidate row (2026-09-21)
 
 Found while verifying the Domain C work: the full backend suite does not finish, and on

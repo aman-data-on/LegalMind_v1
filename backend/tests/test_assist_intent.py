@@ -1,7 +1,7 @@
 """The comparison-question matrix — every phrasing that reached generation on 2026-09-08."""
 import pytest
 
-from legalmind.assist.intent import is_comparison_question
+from legalmind.assist.intent import is_comparison_question, is_statute_question
 
 ROUTED = [
     "Please compare this document with our approved legal position. What is acceptable, unacceptable, or requires modification?",
@@ -252,3 +252,64 @@ def test_the_screen_reads_every_supported_script():
     assert is_comparison_question("Yeh clause hamare standard ke hisaab se sahi hai?")
     assert is_comparison_question("Kya humein ABC agreement sign karna chahiye?")
     assert not is_comparison_question("इस अनुबंध में नोटिस अवधि क्या है?")
+
+
+# --------------------------------------------------------------------------
+# The Domain C candidate signal (widened 2026-09-21)
+# --------------------------------------------------------------------------
+
+def test_a_law_question_that_names_no_act_is_still_a_law_question():
+    """(B) — jurisdiction framing or a rule-seeking shape, with nothing of the
+    reader's own to measure against. The naming test alone recognised 2 of the
+    ratified set's 23 statute questions."""
+    assert is_statute_question("Is restraint of trade valid in India?")
+    assert is_statute_question("What does Indian law say about indemnity?")
+    assert is_statute_question("What is the legal rule for liquidated damages?")
+    assert is_statute_question("Under Indian law, can a company indemnify its "
+                               "own directors?")
+    assert is_statute_question("Are agreements stopping someone from carrying on "
+                               "their trade or profession enforceable in India?")
+
+
+def test_an_ambiguous_law_question_is_left_to_the_evidence_gate():
+    """Deliberate. "When does a hosting intermediary lose its immunity?" asks for a
+    rule, but by SHAPE it is indistinguishable from a contract question about the
+    provider's duties — measured, an impersonal-duty signal that caught it also
+    routed 4 contract questions to the law, one of them a must-refuse control. The
+    router stays conservative and `require_semantic` decides."""
+    assert not is_statute_question("When does a hosting intermediary lose its "
+                                   "immunity for content its users post?")
+
+
+def test_the_english_verb_act_is_not_an_Act():
+    """The flat regex matched `\\bact\\b`, so "how quickly must we act?" — a question
+    about a botched installation — was a question about the law."""
+    assert not is_statute_question("The commissioned setup is not what we expected. "
+                                   "What is our recourse, and how quickly must we act?")
+    assert is_statute_question("What does the Act provide about compensation?")
+
+
+def test_naming_the_instrument_still_works():
+    """(A) — an explicit source reference wins outright, even over a document target:
+    "what does s. 43A say about our liability?" names the source to answer from."""
+    assert is_statute_question("What does section 43A of the IT Act say?")
+    assert is_statute_question("What is the DPDP Act?")
+    assert is_statute_question("What does the Companies Act, 2013 require?")
+    assert is_statute_question("Does section 27 apply to our agreement?")
+
+
+def test_a_question_about_the_readers_own_paper_is_never_a_law_question():
+    """This flag makes STATUTES a PRIMARY domain and drops `require_semantic` in the
+    fall-through — the guard that keeps 44 of the 54 contract questions out of the
+    statute corpus. A deal question borrowing statutory vocabulary must not trip it."""
+    for question in ("Is our liability cap enforceable?",
+                     "Are we liable for indirect losses under this agreement?",
+                     "What penalties does the contract impose on us?",
+                     "Is the MSA's indemnity legally binding?",
+                     "Can we walk away from the agreement before it expires?"):
+        assert not is_statute_question(question), question
+
+
+def test_an_ordinary_deal_question_is_not_a_law_question():
+    assert not is_statute_question("What is the termination notice period?")
+    assert not is_statute_question("Who signs the order form?")

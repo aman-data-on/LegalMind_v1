@@ -81,8 +81,8 @@ def test_a_schedule_is_its_own_citable_unit_not_the_last_sections_tail():
                 + BODY + "\n")
     chunks = chunk_statute_text(_act(schedule=schedule))
     numbers = [c.section_number for c in chunks]
-    assert "THE SCHEDULE" in numbers
-    body = next(c for c in chunks if c.section_number == "THE SCHEDULE").content
+    assert "The Schedule" in numbers
+    body = next(c for c in chunks if c.section_number == "The Schedule").content
     assert "one synthetic rupee" in body
 
 
@@ -92,15 +92,15 @@ def test_a_schedule_entry_number_is_not_read_as_a_section():
                 "1. First entry.—" + BODY + "\n2. Second entry.—" + BODY + "\n")
     chunks = chunk_statute_text(_act(schedule=schedule))
     after = [c.section_number for c in chunks[chunks.index(
-        next(c for c in chunks if c.section_number == "THE SCHEDULE")):]]
-    assert set(after) == {"THE SCHEDULE"}, after
+        next(c for c in chunks if c.section_number == "The Schedule")):]]
+    assert set(after) == {"The Schedule"}, after
 
 
 def test_an_arrangement_of_sections_schedule_line_is_not_a_boundary():
     """`THE SCHEDULE.` appears in the front matter too. Only a heading in the closing
     quarter of the document is the Schedule itself."""
     chunks = chunk_statute_text(_act())
-    assert "THE SCHEDULE" not in [c.section_number for c in chunks]
+    assert "The Schedule" not in [c.section_number for c in chunks]
     assert SCHEDULE_TAIL_FRACTION < 1.0
 
 
@@ -108,7 +108,7 @@ def test_a_section_heading_that_merely_mentions_a_schedule_stays_a_section():
     """The Companies Act, 1956 carries `347. APPLICATION OF SCHEDULE VIII TO CERTAIN
     MANAGING AGENTS`. The heading must be the whole line to count."""
     act = _act(schedule="4. APPLICATION OF SCHEDULE VIII TO AGENTS.—" + BODY + "\n")
-    assert "THE SCHEDULE" not in [c.section_number for c in chunk_statute_text(act)]
+    assert "The Schedule" not in [c.section_number for c in chunk_statute_text(act)]
 
 
 # --- the real Acts the defect was found in -----------------------------------------
@@ -162,7 +162,7 @@ def test_the_dpdp_penalty_schedule_is_cited_as_the_schedule():
     citation on the Act's whole penalty table."""
     from legalmind.assist.statutes import _pdf_text
     chunks = chunk_statute_text(_pdf_text(DOCS / "DPDP_Act_2023_indiacode.pdf"))
-    schedule = [c for c in chunks if c.section_number == "THE SCHEDULE"]
+    schedule = [c for c in chunks if c.section_number == "The Schedule"]
     assert schedule, "the DPDP Schedule is not its own unit"
     assert any("two hundred and fifty crore rupees" in " ".join(c.content.split())
                for c in schedule)

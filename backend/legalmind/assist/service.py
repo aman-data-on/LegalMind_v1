@@ -909,6 +909,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
               conversation_id=str(conversation_id), domains=",".join(domains),
               comparison=str(route.comparison),
               statute_shaped=str(route.statute_shaped),
+              # WHY it routed (2026-09-21) — signal names only, never the question.
+              statute_signals=",".join(route.statute_signals),
               follow_up=str(follow_up))
 
     # QUERY PLAN (2026-09-17) — what the question is ABOUT, so retrieval can be aimed.
