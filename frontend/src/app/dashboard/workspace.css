@@ -3746,11 +3746,13 @@
  * ========================================================================== */
 
 .ws {
-  /* The rail. Narrow on purpose: it is for SWITCHING clients, and every pixel
-     beyond what a company name needs is a pixel taken from the document list.
-     Deliberately a touch tighter than the workspace's clause index (264px),
-     which has to hold clause numbers and titles. */
-  --ws-cl-rail-w: 236px;
+  /* The rail. Still for SWITCHING clients, not browsing them at length, but
+     236px was clipping longer company names into an ellipsis on ordinary
+     data (owner, 2026-09-19) — widened to give names, the search field and
+     the "+ Add" button proper room without giving up more of the document
+     list than the extra 44px actually costs. `.ws-cl__main` is `minmax(0,
+     1fr)`, so it takes up the rest automatically; nothing else to adjust. */
+  --ws-cl-rail-w: 280px;
 }
 
 .ws-cl { min-width: 0; }
@@ -3849,13 +3851,17 @@
    own, differently-shaped list — an unscoped rule here would have resized
    that screen's columns too. */
 .ws-cl__table--docs table { table-layout: fixed; }
-.ws-cl__table--docs th:nth-child(1) { width: 22%; }  /* Document */
-.ws-cl__table--docs th:nth-child(2) { width: 9%; }   /* Type */
+/* Rebalanced (owner, 2026-09-19): Review Status no longer carries the three
+   count bubbles, so it needs less width than it did — given to Document
+   Name (longer names were the first thing to get cramped) and to Actions
+   (still fixed, but a hair more room reads less like a stray gap). */
+.ws-cl__table--docs th:nth-child(1) { width: 26%; }  /* Document */
+.ws-cl__table--docs th:nth-child(2) { width: 8%; }   /* Type */
 .ws-cl__table--docs th:nth-child(3) { width: 13%; }  /* Agreement stage */
-.ws-cl__table--docs th:nth-child(4) { width: 16%; }  /* Review status */
+.ws-cl__table--docs th:nth-child(4) { width: 12%; }  /* Review status */
 .ws-cl__table--docs th:nth-child(5) { width: 13%; }  /* Versions */
 .ws-cl__table--docs th:nth-child(6) { width: 10%; }  /* Last updated */
-.ws-cl__table--docs th:nth-child(7) { width: 17%; }  /* Actions */
+.ws-cl__table--docs th:nth-child(7) { width: 18%; }  /* Actions */
 /* Fixed layout stops truncating the document name for free — it now wraps
    instead of overflowing, which is the readable outcome at narrower widths. */
 .ws-cl__table--docs td:first-child { overflow-wrap: break-word; }
@@ -3949,7 +3955,11 @@
 }
 
 .ws-cl__rail {
-  display: flex; flex-direction: column; gap: var(--ws-s2);
+  /* Widened alongside `--ws-cl-rail-w` (owner, 2026-09-19): the count/search/
+     list previously sat almost flush against each other at the narrower
+     width, and the extra room is spent on clearer separation between them
+     rather than on any one control growing. */
+  display: flex; flex-direction: column; gap: var(--ws-s3);
   padding: var(--ws-s4) var(--ws-s3);
   background: var(--ws-surface); border-right: 1px solid var(--ws-ink-100);
   /* Its own scroll, so a long client list never drags the document table with
@@ -3959,7 +3969,7 @@
 }
 .ws-cl__rail-head {
   display: flex; align-items: baseline; gap: var(--ws-s2);
-  padding: 0 var(--ws-s1) var(--ws-s1);
+  padding: 0 var(--ws-s1) var(--ws-s2);
 }
 .ws-cl__rail-back {
   font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.04em;
@@ -3982,10 +3992,10 @@
 .ws-cl__rail-add { flex: none; white-space: nowrap; }
 .ws-cl__rail-empty { padding: var(--ws-s3) var(--ws-s1); }
 
-.ws-cl__raillist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.ws-cl__raillist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .ws-cl__railitem {
   display: flex; flex-direction: column; gap: 2px;
-  padding: 7px 9px; border-radius: var(--ws-radius-sm);
+  padding: 8px 10px; border-radius: var(--ws-radius-sm);
   text-decoration: none; color: var(--ws-ink-700);
   border-left: 2px solid transparent;
   transition: background-color var(--ws-t), border-color var(--ws-t);
@@ -4114,10 +4124,24 @@
 .ws-cl__docname { font-weight: 600; color: var(--ws-ink-900); text-decoration: none; }
 .ws-cl__docname:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
 .ws-cl__rowacts { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
-/* The status cell stacks the bucket pill over the three reader counts — one
-   above the other, because they answer two different questions and side by
-   side they read as one compound badge. */
-.ws-cl__table td .ws-status-pill + .ws-findings-cell { margin-top: 5px; }
+/* The review-status cell: the bucket pill, then — only when at least one
+   Finding needs a human decision — a second-line note underneath. No number
+   (owner, 2026-09-19): this states a fact, not a count to read as a
+   severity score.
+   `.ws-cl__decision` is a soft chip, not bare coloured text (owner,
+   2026-09-19, second pass): bold `--ws-tone-bad` text with no background
+   carried more visual weight than the "Needs attention" pill sitting right
+   above it, even though it is the secondary fact — everywhere else in this
+   product a tone is a soft-background chip (`.ws-status-pill`, `.ws-cl__role`),
+   never raw coloured text, and this is the one place that had drifted from
+   that rule. */
+.ws-cl__reviewcell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.ws-cl__decision {
+  display: inline-flex; align-items: center; white-space: nowrap;
+  font-size: var(--ws-text-xs); font-weight: 600; padding: 1px 7px;
+  border-radius: 20px; border: 1px solid color-mix(in srgb, var(--ws-tone-bad) 25%, transparent);
+  background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad);
+}
 
 .ws-cl__vertoggle {
   appearance: none; background: none; border: 0; cursor: pointer; font: inherit;

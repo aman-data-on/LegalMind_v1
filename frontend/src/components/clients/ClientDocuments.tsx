@@ -49,11 +49,6 @@ import {
   type DocumentStatusBucket,
 } from "@/components/workspace/model";
 import {
-  USER_STATUS_LABELS,
-  USER_STATUS_ORDER,
-  USER_STATUS_TONE,
-} from "@/components/workspace/findingLanguage";
-import {
   IconAlertCircle,
   IconCheckCircle,
   IconChevronRight,
@@ -87,32 +82,19 @@ const COLUMNS = [
 ] as const;
 
 /**
- * The reader's three statuses for one document, exactly as the Dashboard shows
- * them — same order, same tones, same absence rule (a dash where nothing has
- * been analyzed, never a zero standing in for "not checked").
+ * Whether any Finding under this document specifically needs a human
+ * decision — the sharpest of the three AM-56 reader statuses, and the one
+ * "Needs attention" alone does not distinguish from an ordinary deviation.
  *
- * Reusing `findingLanguage` rather than re-deriving is the point: `AM-56` fixes
- * these three words, and a second screen inventing its own would be the
- * "competing analysis status terminology" the owner ruled out.
+ * Deliberately no number here (owner, 2026-09-19): the main row states a
+ * fact ("this needs a decision"), not a count to skim-read as a severity
+ * score — the detailed breakdown, with its counts, is one click away in the
+ * Review itself. Reads `user_status_counts` — already computed and sent by
+ * the server (`AM-56`) — rather than deriving anything new.
  */
-function ReaderStatuses({ contract }: { contract: ClientContract }) {
-  const bucket = documentStatusBucket(contract);
+function needsDecision(contract: ClientContract): boolean {
   const counts = contract.latest_analysis?.user_status_counts;
-  if (bucket === "draft" || bucket === "analyzing" || !counts) return null;
-  return (
-    <span className="ws-findings-cell">
-      {USER_STATUS_ORDER.map((status) => {
-        const n = counts[status] ?? 0;
-        return (
-          <span key={status}
-                className={`ws-findings-badge ws-findings-badge--${USER_STATUS_TONE[status]}${n === 0 ? " ws-findings-badge--zero" : ""}`}
-                title={`${n} ${USER_STATUS_LABELS[status]}`}>
-            {n}
-          </span>
-        );
-      })}
-    </span>
-  );
+  return Boolean(counts && (counts.NEEDS_DECISION ?? 0) > 0);
 }
 
 /** One version, under its document. The role is the reader's own words
@@ -320,11 +302,13 @@ function DocumentRow({ contract, onChanged }: {
             <span className="ws-cl__absent">Not classified</span>
           )}
         </td>
-        <td>
+        <td className="ws-cl__reviewcell">
           <span className={`ws-status-pill ws-status-pill--${bucket}`}>
             {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
           </span>
-          <ReaderStatuses contract={contract} />
+          {needsDecision(contract) ? (
+            <span className="ws-cl__decision">Needs decision</span>
+          ) : null}
         </td>
         <td>
           {versions.length > 0 ? (

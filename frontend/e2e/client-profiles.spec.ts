@@ -256,10 +256,13 @@ test("the existing analysis engine is what a client's document is analyzed by",
 
   await page.goto(`/dashboard/clients?id=${client.id}`);
   const row = page.locator("tr", { hasText: `Analysed MSA ${stamp}` }).first();
-  // The row shows the server's own bucket and the three reader statuses — the
-  // same vocabulary the Dashboard and the workspace use (`AM-56`).
+  // The row shows the server's own bucket — the same vocabulary the
+  // Dashboard and the workspace use (`AM-56`). The three-way count breakdown
+  // that used to sit under it is gone from the main row (owner, 2026-09-19):
+  // a count to skim-read as a severity score, not a fact — the Review itself
+  // still has the full breakdown, one click away.
   await expect(row.locator(".ws-status-pill")).toBeVisible();
-  await expect(row.locator(".ws-findings-badge")).toHaveCount(3);
+  await expect(row.locator(".ws-findings-badge")).toHaveCount(0);
   // ...and leads to the existing workspace rather than a second reader.
   await expect(row.getByRole("link", { name: "Review" })).toBeVisible();
 });
@@ -376,11 +379,13 @@ test("capture the screens for visual review", async ({ page }) => {
   await expect(page.locator(".ws-cl__raillist li").first()).toBeVisible();
   await page.screenshot({ path: join(SHOTS, "02-workspace-1440.png"), fullPage: true });
 
-  // The rail must stay compact and the workspace must get the rest.
+  // The rail must stay compact and the workspace must get the rest. Widened
+  // to 280px (owner, 2026-09-19) — the threshold moves with it rather than
+  // pinning the old 236px value the change was deliberately leaving behind.
   const railBox = await page.locator(".ws-cl__rail").boundingBox();
   const mainBox = await page.locator(".ws-cl__main").boundingBox();
-  expect(railBox!.width).toBeLessThan(260);
-  expect(mainBox!.width).toBeGreaterThan(railBox!.width * 3.5);
+  expect(railBox!.width).toBeLessThan(300);
+  expect(mainBox!.width).toBeGreaterThan(railBox!.width * 3);
 
   // Versions open.
   await page.locator("tr", { hasText: "Master Services Agreement" }).first()
