@@ -402,6 +402,59 @@ def is_general_knowledge_question(question: str) -> bool:
     return bool(content) and all(t in _CONCEPT_WORDS for t in content)
 
 
+# --------------------------------------------------------------------------
+# The exact-text request (`AM-76`) — verbatim only when the reader asks for it
+# --------------------------------------------------------------------------
+# `AM-76` supersedes `AM-67` r3: a normal question is answered with a grounded
+# paraphrase, and the ratified text is quoted in full only when the reader asks for
+# it. That decision has to be read off the QUESTION, deterministically — the model
+# never decides whether the model's own output is wanted (`AM-25` r1).
+#
+# The shape is a relation, like every other predicate here: an EXACTNESS word plus a
+# word naming the TEXT ITSELF. Either alone is ordinary legal English —
+# "what exactly is the cap?" is emphasis, and "what does the clause say?" is the
+# commonest phrasing of a normal question. Neither may trigger verbatim.
+_EXACTNESS_STEMS = ("verbatim", "exact", "literal", "precise", "origin", "actual",
+                    "wordforword", "asis",
+                    # Devanagari + romanized: "शब्दशः" (word for word), "हूबहू"
+                    # (exactly as is), "मूल" (original), "ठीक", "asli", "hubahu"
+                    "शब्दश", "हूबहू", "मूल", "ठीक", "असल",
+                    "hubahu", "shabdsh", "shabdash", "asli", "jaisakatais")
+_TEXT_WORDS = frozenset({
+    "wording", "word", "words", "text", "language", "quote", "quotation", "quoted",
+    "clause", "wordings", "passage", "extract", "excerpt", "phrasing", "line",
+    "lines", "sentence", "paragraph",
+    # "what exactly does the Constitution SAY?" — the utterance itself. Safe only
+    # because an exactness word is still required: "what does the clause say about
+    # termination?" is a normal question and stays one.
+    "say", "says", "said", "state", "states", "stated", "worded",
+    # Romanized/Devanagari for the text itself
+    "likha", "likhi", "shabd", "bhasha", "panktiyan",
+    "शब्द", "पाठ", "भाषा", "लिखा", "वाक्य", "पंक्ति",
+})
+# "quote the clause", "show me verbatim" — a word that can only mean "the source's
+# own words" is the request on its own, with nothing to pair it with.
+_QUOTE_VERB_STEMS = ("quote", "quoting", "verbatim", "wordforword",
+                     "उद्धृत", "udhrit", "शब्दश", "हूबहू", "hubahu", "shabdsh")
+
+
+def is_exact_text_request(question: str) -> bool:
+    """True when the reader asked for the source's own words rather than an answer.
+
+    `AM-76`: verbatim is not the default. Returning the clause to someone who asked
+    "how can a partner agreement be ended?" is the defect this exists to prevent, so
+    the bar is an explicit request — both signals, or an explicit instruction to
+    quote.
+    """
+    tokens = _stems(question or "")
+    if not tokens:
+        return False
+    if _hits(tokens, _QUOTE_VERB_STEMS):
+        return True
+    return bool(_hits(tokens, _EXACTNESS_STEMS)
+                and {t for t in tokens if t in _TEXT_WORDS})
+
+
 def is_statute_question(question: str) -> bool:
     """True when the question asks about the law itself — a section number, an Act,
     a set of Rules, or the general law of a jurisdiction. The Domain C candidate

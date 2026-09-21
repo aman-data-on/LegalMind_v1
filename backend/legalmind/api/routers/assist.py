@@ -539,6 +539,9 @@ def ask(conversation_id: UUID, body: AskRequest,
         "version_number": version.version_number if version else None,
         "answer_state": outcome.answer_state.value,
         "text": outcome.text,
+        # `AM-76` r2 — the reader asked for the source's own words, so the UI opens
+        # the quote in `positions` rather than collapsing it behind a disclosure.
+        "exact_text_requested": outcome.exact_text_requested,
         "routed_to_evaluator": outcome.routed_to_evaluator,
         "comparison": outcome.comparison,
         "positions": outcome.positions,

@@ -10,6 +10,79 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — Ask answers in its own words, and quotes the clause when you ask for it (`AM-76`, AB-26) (2026-09-21)
+
+**The defect.** `AM-67` r3 required the ratified quote beside every Domain A answer,
+"always", and called a response without it a defect. Measured on the live corpus
+2026-09-20, that is what made Ask read as an extract: **0 of 10** real questions got a
+plain-language answer — the reader asked a question and was handed a pointer sentence
+and a clause. `AM-76` supersedes r3 (owner decision, appended to `all_lock.md` as
+batch AB-26). A normal question is now answered by a short grounded paraphrase with
+its citation; the ratified text is shown when the reader asks for it, or when the
+paraphrase cannot be verified.
+
+**Verbatim on request is detected in code, not by the model** —
+`intent.is_exact_text_request`, in the same relation style as every other predicate
+there: an exactness word AND a word naming the text itself, or a word that can only
+mean "the source's own words". Either signal alone is ordinary legal English, so
+"what exactly is the cap?" and "what does the clause say about termination?" stay
+normal questions. Covers English, Devanagari and romanized Hindi (`AM-69`); measured
+8/8 detected, 0/10 false positives.
+
+**The quote never leaves the payload.** `AM-32` r4 is untouched — it still travels in
+its own field with code, clause, version and ratification status. The interface
+collapses it behind "Show exact wording" (a native `<details>`, as `EvidenceList` and
+`EvaluationRow` already use, so it is keyboard-operable and announced correctly with
+no custom ARIA), and opens it when the server says the reader asked.
+
+### Fixed — the verifier now checks what a claim ASSERTS, not how closely it echoes (2026-09-21)
+
+Measured over 18 labelled answers on four ratified positions — source-like, light
+paraphrase, moderate paraphrase, unsupported, mixed:
+
+| | correct pass | correct reject | **admitted** | fell back |
+|---|---|---|---|---|
+| before | 7 | 6 | **2** | 3 |
+| after | 7 | 8 | **0** | 3 |
+
+The two that had been admitted are the shapes a word ratio cannot see, because each is
+built from the source's own vocabulary: a position **inverted** ("may only be
+terminated with the written consent of both parties", overlap 0.62, against a clause
+saying either party may terminate on notice) and a **carve-out the source does not
+make** ("except in cases of gross negligence", overlap 0.67, against a cap that carves
+out nothing). Both are refused by exact checks on polarity classes — exclusivity and
+exception — beside the existing check on figures.
+
+**The grounding floor was NOT lowered, no model was added, and lexical overlap is not
+claimed to prove semantic correctness** (`AM-76` r6; `AM-28` r2 unamended). A general
+NEGATION class was built, measured and **removed**: a negation is often a faithful
+restatement of something stated positively — "may terminate for convenience" does mean
+"a breach is not required" — and it rejected an answer the owner had already judged
+grounded. It caught nothing the other classes did not.
+
+Three of eighteen still fall back to the quote: paraphrases that replace the source's
+nouns ("confidentiality lasts" for "obligations survive"). Separating those from an
+invented clause needs entailment, which r6 forbids in the guardrail. The owner's own
+target sentence verifies at 0.83 and is unaffected.
+
+### Fixed — a statute question no longer carries unrelated Company Standards (2026-09-21)
+
+"What does section 43A of the IT Act say about compensation?" was answered correctly
+from the Act and then carried three Distribution Agreement positions beside it. They
+entered through Domain A's **relax pass**, a rescue that admits a chunk sharing ONE
+"subject" lexeme (any lexeme occurring in two or more positions) when the strict
+two-lexeme floor finds nothing — the right trade when a reader asks the organization
+about its own paper, the wrong one for a question about the law.
+
+The rescue is now withheld when the question is statute-shaped. POSITIONS stays a
+candidate domain and stays in the recorded `domains` (`AM-46`); only what QUALIFIES as
+a hit changes. **Verified that legitimate cross-domain retrieval still works:** "What
+does Indian law say about indemnity?" still returns `INDEMNITY-MSA-001`, because it
+clears the strict floor on a real subject match. `AM-32` r1 is a separation rule, not
+a retrieval-coverage rule, and `AM-45` r1(b) already makes the candidate set
+shape-sensitive — no amendment was needed.
+
+
 ### Fixed — `main` was red after `AM-73`: the Domain A regression test outlived its specification (2026-09-20)
 
 Two sessions' work collided. `test_assist_positions_regression.py` was written on

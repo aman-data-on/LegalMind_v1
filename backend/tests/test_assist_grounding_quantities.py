@@ -1,4 +1,10 @@
-"""A claim's FIGURES must appear in the text it cites — `AM-25` r5, enforced exactly.
+"""What a claim ASSERTS must be in the text it cites — `AM-25` r5, `AM-76`.
+
+Two exact checks beside the lexical ratio: the FIGURES a claim states, and the
+POLARITY it uses (negation, exclusivity, exception). `AM-76` requires a grounded
+explanation to add no "facts, conditions, exceptions, quantities, or legal
+conclusions not supported by evidence"; the ratio cannot enforce that, because each
+of those is written in the source's own vocabulary and so scores high.
 
 The overlap check in `verify_answer` is a bag-of-words ratio, so one decisive token is
 diluted by the copied words around it. Measured against the ratified corpus on
@@ -78,3 +84,43 @@ def test_a_number_word_used_as_an_article_is_not_a_quantity():
     assert guardrails._quantities("either one of the parties may terminate") == set()
     assert guardrails._quantities("at least 30 days") == {"30"}
     assert guardrails._quantities("ten years") == {"10"}
+
+
+# --------------------------------------------------------------------------
+# Polarity — `AM-76`'s "conditions" and "exceptions"
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("chunk,answer,carried", [
+    # Inverts the position: the source says either party MAY terminate on notice.
+    # Measured overlap 0.62 — it PASSED before this check.
+    (PARTNER, "A Partner Agreement may only be terminated with the written consent "
+              "of both parties [1].", "exclusivity"),
+    # A carve-out the cap clause does not make. Measured overlap 0.67 — PASSED.
+    (LIABILITY, "Our liability is capped at the fees paid in the 12 months before "
+                "the claim, except in cases of gross negligence [1].", "exception"),
+])
+def test_a_polarity_the_evidence_does_not_carry_is_refused(chunk, answer, carried):
+    result = guardrails.verify_answer(answer, [chunk])
+    assert result.state is AssistAnswerState.CLAIM_UNSUPPORTED
+    assert any(carried in f for f in result.failures), result.failures
+
+
+@pytest.mark.parametrize("chunk,answer", [
+    # The source itself carves out trade secrets, so a paraphrase may restate it.
+    (NDA, "Obligations survive for 3 years, except that trade secret obligations "
+          "continue for as long as the information remains a trade secret [1]."),
+    # The source itself negates ("No early-termination fee"), so a negation is not
+    # introduced — this must NOT be read as a new condition.
+    (PARTNER, "Either side can end a Partner Agreement for any reason with at least "
+              "30 days' written notice, and no early-termination fee is payable [1]."),
+])
+def test_restating_a_polarity_the_evidence_carries_is_not_an_invention(chunk, answer):
+    assert guardrails.verify_answer(answer, [chunk]).state is AssistAnswerState.ANSWERED
+
+
+def test_polarity_is_compared_by_class_not_by_word():
+    """The point of classes: the evidence's "No ..." licenses the claim's "neither",
+    so a paraphrase is not refused merely for choosing a different negator."""
+    assert guardrails._introduced_polarity("neither party pays a fee",
+                                           ["No fee is payable"]) == []
+    assert guardrails._introduced_polarity("only on written consent",
+                                           ["No fee is payable"]) == ["exclusivity"]

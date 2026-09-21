@@ -911,6 +911,19 @@
   margin: 4px 0; padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100);
   font-family: var(--ws-serif); font-style: italic; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
 }
+/* `AM-76` r3 — the ratified text, collapsed. The answer above IS the answer; the
+   clause is here for the reader who wants to check it, and opens by itself when they
+   asked for the exact wording. Matches `.ws-explain summary` rather than inventing a
+   control: same accent, same affordance, and the native <details> keeps it
+   keyboard-operable with the browser's own focus ring (no focus removal anywhere). */
+.ws-ask__exact { margin: 4px 0; }
+.ws-ask__exact-toggle {
+  cursor: pointer; color: var(--ws-accent);
+  font-family: var(--ws-mono); font-size: 10.5px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.ws-ask__exact-toggle:hover { color: var(--ws-ink-900); }
+.ws-ask__exact[open] .ws-ask__exact-toggle { margin-bottom: 2px; }
 .ws-ask__score { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 /* A ratified position that is no longer the ACTIVE one. Rendered only in that case,
    so its presence is the signal; `nowrap` keeps the compact label on one line rather

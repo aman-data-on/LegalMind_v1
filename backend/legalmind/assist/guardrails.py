@@ -177,6 +177,52 @@ def _quantities(text: str) -> set[str]:
     return found
 
 
+# A claim may not introduce a POLARITY the evidence does not carry. The ratio above
+# cannot see this either, for the same reason: an inversion reuses the source's own
+# words and scores high. Measured 2026-09-21 against the ratified Partner Agreement
+# position, which says either party MAY terminate on 30 days' notice —
+#
+#   "A Partner Agreement may ONLY be terminated with the written consent of both
+#    parties"                                          overlap 0.62, and it PASSED
+#
+# — the opposite of what the organization approved, built from its own vocabulary.
+#
+# Checked as CLASSES, not as words, so a paraphrase may restate a negation the
+# evidence already carries: "No early-termination fee is payable" and "Neither side
+# owes an early-termination fee" both hold a negation, so the second is not flagged.
+# Only a class the evidence does not use at all is treated as introduced.
+# `AM-76`: a grounded explanation may not "add facts, conditions, exceptions,
+# quantities, or legal conclusions not supported by evidence". Quantities are checked
+# above; these are the other three shapes that a word ratio cannot see, because each
+# is built from the source's own vocabulary.
+_POLARITY_CLASSES = {
+    # NO GENERAL NEGATION CLASS, and that is a measured decision rather than an
+    # oversight. A negation is very often a faithful restatement of something the
+    # source states positively: "may terminate for convenience" genuinely means "a
+    # breach is not required", and flagging that rejected an answer the owner had
+    # already judged grounded (tests/test_assist_ask.py, the 2026-09-09 live answer).
+    # Across the 18-case set the negation class caught nothing the exception and
+    # exclusivity classes did not, so it cost accuracy and bought nothing.
+    "exclusivity": re.compile(r"\b(only|solely|exclusively)\b", re.I),
+    # A carve-out the source does not make is a new condition, whatever words carry
+    # it. Measured: "…capped at the fees paid in the 12 months before the claim,
+    # EXCEPT in cases of gross negligence" scored 0.67 against a cap clause that
+    # carves out nothing, and passed. Where the source DOES carve out ("except that
+    # obligations relating to trade secrets…"), a paraphrase may restate it.
+    "exception": re.compile(
+        r"\b(except|unless|save for|other than|apart from|provided that|"
+        r"subject to|carve-?out)\b", re.I),
+}
+
+
+def _introduced_polarity(claim: str, cited: list[str]) -> list[str]:
+    """Polarity classes the claim uses that its cited text does not use at all."""
+    text = _MARKER.sub("", claim)
+    evidence = " ".join(cited)
+    return [name for name, pattern in _POLARITY_CLASSES.items()
+            if pattern.search(text) and not pattern.search(evidence)]
+
+
 def _content_words(text: str) -> set[str]:
     words = re.findall(r"[A-Za-z][A-Za-z'-]+|\d[\d.,%]*", text.lower())
     return {w for w in words if w not in _STOPWORDS and len(w) > 1}
@@ -281,6 +327,16 @@ def verify_answer(answer: str, chunks: list[str]) -> Verification:
                 failures.append(
                     f"claim states a figure its cited text does not "
                     f"({', '.join(sorted(invented))}): {sentence[:80]!r}"
+                )
+            # Same discipline, applied to meaning-reversing words rather than
+            # figures: an inversion is built from the source's own vocabulary and so
+            # scores HIGH on the ratio. See `_POLARITY_CLASSES`.
+            polarity = _introduced_polarity(sentence, cited_chunks)
+            if polarity:
+                grounded = False
+                failures.append(
+                    f"claim introduces {'/'.join(polarity)} its cited text does not "
+                    f"carry: {sentence[:80]!r}"
                 )
         for n in markers:
             if 1 <= n <= len(chunks):

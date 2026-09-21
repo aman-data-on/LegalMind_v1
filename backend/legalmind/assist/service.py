@@ -86,6 +86,9 @@ class AskOutcome:
     message_id: UUID
     answer_state: AssistAnswerState
     text: str
+    #: The reader asked for the source's own words (`AM-76` r2), so the quote in
+    #: `positions` is the answer and the UI opens it rather than collapsing it.
+    exact_text_requested: bool = False
     citations: list[CitationView] = field(default_factory=list)
     routed_to_evaluator: bool = False
     # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
@@ -636,11 +639,20 @@ GENERAL_KNOWLEDGE_TEXT = (
     "Ask me about your standards or open a document, and I will answer from the text."
 )
 
+# `AM-76` (AB-26, owner 2026-09-21) SUPERSEDES `AM-67` r3. Verbatim is no longer the
+# default: a normal question is answered with a grounded paraphrase and its citation,
+# and the ratified text is shown in full only when the reader asked for it or when the
+# paraphrase could not be verified. These sentences are the fallback and the
+# exact-text wording respectively — they are what a reader sees INSTEAD of a
+# paraphrase, never appended to one.
 POSITIONS_ONLY_TEXT = ("The organization's approved position relevant to this question "
                        "is quoted below, verbatim from the ratified standard.")
 POSITIONS_BESIDE_TEXT = (
     "No answer was found in the selected document. The organization's approved "
     "position relevant to this question is quoted below.")
+# The reader asked for the source's own words (`AM-76`; `intent.is_exact_text_request`).
+POSITIONS_EXACT_TEXT = ("You asked for the exact wording. The ratified standard is "
+                        "quoted below, unchanged.")
 POSITION_LIMIT = 3
 
 
@@ -909,7 +921,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=not route.statute_shaped)
     # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
     statute_hits: list[statutes.StatuteHit] = []
     if route.has(routing.Domain.STATUTES):
@@ -1077,7 +1089,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=not route.statute_shaped)
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
@@ -1155,7 +1167,7 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
         if domain is routing.Domain.POSITIONS and not position_hits:
             position_hits = positions.search_positions(
                 db, query=question, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=not route.statute_shaped)
         elif domain is routing.Domain.STATUTES and not statute_hits:
             # Source priority, not a fixed sweep: the statute corpus is a fallback
             # for a question about the law (statute-shaped) or for one nothing
@@ -1297,20 +1309,29 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     if not position_hits and not statute_answered:
         return _refusal(db, conversation_id, message_id, run_id, state, route, question)
     aid: generation.GenerationResult | None = None
+    # Read off the QUESTION, deterministically — the model never decides whether its
+    # own output is wanted (`AM-25` r1, `AM-76` r2).
+    exact_text_requested = intent.is_exact_text_request(question)
     if statute_answered:
         wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else STATUTES_ONLY_TEXT)
     else:
-        wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
-                   else POSITIONS_ONLY_TEXT)
-        # `AM-67` r3 — the synthesis is PREPENDED to the fixed sentence, so the
-        # verbatim quote and its citation still follow in `positions`, unchanged and
-        # in their own field. A response carrying a synthesis without its quote is a
-        # defect; this shape makes that impossible.
-        with _stage("position_aid"):
-            aid = _position_reading_aid(question, position_hits, request_id)
-        if aid:
-            wording = f"{aid.text}\n\n{wording}"
+        # `AM-76` r1-r3. Three outcomes, in this order:
+        #   the reader asked for exact text  -> the quote, and no paraphrase
+        #   a paraphrase verified            -> the paraphrase alone
+        #   it did not                       -> the quote (fail closed, r4)
+        # The quote itself always remains in `positions` whichever path runs, so the
+        # citation and its provenance are never lost (`AM-32` r4 untouched); what
+        # changes is whether the reader is SHOWN it instead of an explanation.
+        if exact_text_requested:
+            wording = POSITIONS_EXACT_TEXT
+        else:
+            wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
+                       else POSITIONS_ONLY_TEXT)
+            with _stage("position_aid"):
+                aid = _position_reading_aid(question, position_hits, request_id)
+            if aid:
+                wording = aid.text
     # The answer row names the prompt that produced its generated part — the statute
     # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
     # so `prompt_version_id` was NULL on every `AM-67` answer.
@@ -1342,5 +1363,6 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
               statutes=str(statute_answered))
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=wording,
+                      exact_text_requested=exact_text_requested,
                       positions=_position_views(position_hits), domains=domains,
                       statutes=statute_section)

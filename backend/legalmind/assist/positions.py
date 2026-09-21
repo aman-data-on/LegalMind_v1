@@ -453,7 +453,8 @@ def embed_positions(db: DBSession) -> int:
 
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                      limit: int = 10, embed_query=None,
-                     topic: str | None = None) -> list[PositionHit]:
+                     topic: str | None = None,
+                     allow_relax: bool = True) -> list[PositionHit]:
     """Domain A hybrid retrieval, authorization inside the function (r5).
 
     Without assist.ask AND (configuration.view OR legal_position.view) the result is
@@ -590,7 +591,25 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     named = named_document_type(query)
     params = {"q": query, "limit": limit, "topic": topic, "named": named}
     rows = db.execute(sql, {**params, "relax": False}).all()
-    if not rows:
+    if not rows and allow_relax:
+        # THE RELAX PASS IS A RESCUE, NOT A SWEEP, and it is withheld where its
+        # premise does not hold. It admits a chunk sharing ONE "subject" lexeme —
+        # any lexeme occurring in two or more positions — which is the right trade
+        # when the reader is asking the organization about its own paper and the
+        # strict two-lexeme floor found nothing.
+        #
+        # It is the wrong trade for a question about the LAW. Measured 2026-09-21:
+        # "what does section 43A of the IT Act say about compensation?" was answered
+        # correctly from the Act and then carried three Distribution Agreement
+        # positions beside it, admitted here on generic lexemes like `compensation`
+        # and `section`. Off-subject evidence next to a correct answer is not a
+        # weaker answer; it is noise the reader has to discount.
+        #
+        # POSITIONS stays a candidate domain and stays in the recorded `domains`
+        # (`AM-46`): only what QUALIFIES as a hit changes, and only the rescue is
+        # withheld — a position matching on real subject lexemes still answers under
+        # the strict floor, which is what keeps a genuine both-domains question
+        # working (`AM-32` r1, and its test).
         rows = db.execute(sql, {**params, "relax": True}).all()
     lexical = [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                            document_type=r.document_type, source_clause=r.source_clause,
