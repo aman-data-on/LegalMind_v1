@@ -643,6 +643,11 @@ export function AskWorkspace() {
                 <button
                   type="button"
                   className="ws-chat__attach"
+                  // Below 640px the label is hidden to give the question the
+                  // width, so the accessible name has to come from here:
+                  // `display: none` removes text from the accessibility tree,
+                  // and an unnamed button is a dead end for a screen reader.
+                  aria-label="Add files"
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
                 >
