@@ -438,3 +438,127 @@ test("capture the screens for visual review", async ({ page }) => {
   await expect(page.getByText("No legal documents for this client yet")).toBeVisible();
   await page.screenshot({ path: join(SHOTS, "11-empty-1440.png"), fullPage: true });
 });
+
+test("Edit profile hides the tabs and document list, and Cancel restores them",
+     async ({ page }) => {
+  const stamp = Date.now();
+  const client = await postOk(page, "/counterparties", { name: `Isolation Co ${stamp}` });
+  const contract = await postOk(page, "/contracts", {
+    name: "Isolation Doc", contract_type: "MSA", counterparty_id: client.id,
+  });
+  await upload(page, contract.id);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/dashboard/clients?id=${client.id}`);
+  await expect(page.getByRole("link", { name: "Isolation Doc" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit profile" }).click();
+  // The bug this closes: the document list used to render UNDERNEATH the
+  // edit form rather than being replaced by it.
+  await expect(page.locator(".ws-cl__tabs")).toHaveCount(0);
+  await expect(page.locator(".ws-cl__panel")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Isolation Doc" })).toHaveCount(0);
+
+  await page.getByLabel("Edit client profile")
+    .getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("link", { name: "Isolation Doc" })).toBeVisible();
+});
+
+test("a document's Edit, Remove from client and Delete permanently all do what they say",
+     async ({ page }) => {
+  const stamp = Date.now();
+  const client = await postOk(page, "/counterparties", { name: `Actions Co ${stamp}` });
+  const contract = await postOk(page, "/contracts", {
+    name: `Actions Doc ${stamp}`, contract_type: "MSA", counterparty_id: client.id,
+  });
+  await upload(page, contract.id);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/dashboard/clients?id=${client.id}`);
+
+  // Edit details — a rename, through the existing PATCH /contracts/{id}.
+  let row = page.locator("tr", { has: page.getByRole("link", { name: `Actions Doc ${stamp}` }) });
+  await row.getByRole("button", { name: /more actions/i }).click();
+  await page.getByRole("menuitem", { name: "Edit details" }).click();
+  await page.getByLabel("Name").fill(`Actions Doc Renamed ${stamp}`);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }))
+    .toBeVisible();
+
+  // Remove from client — unlinks, never destroys. The contract must still
+  // resolve afterward with no counterparty, not 404.
+  row = page.locator("tr", { has: page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }) });
+  await row.getByRole("button", { name: /more actions/i }).click();
+  await page.getByRole("menuitem", { name: "Remove from client" }).click();
+  await page.getByRole("button", { name: "Remove from client" }).click();
+  await expect(page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }))
+    .toHaveCount(0);
+  const stillThere = await page.request.get(`/api/v1/contracts/${contract.id}`);
+  expect(stillThere.ok()).toBeTruthy();
+  expect((await stillThere.json()).data.counterparty_id).toBeNull();
+
+  // Re-link it so Delete permanently has a row to act on, then destroy it —
+  // the contract must then be genuinely gone (404), through the existing
+  // DELETE /contracts/{id} (AM-55).
+  await patchOk(page, `/contracts/${contract.id}`, { counterparty_id: client.id });
+  await page.reload();
+  row = page.locator("tr", { has: page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }) });
+  await row.getByRole("button", { name: /more actions/i }).click();
+  await page.getByRole("menuitem", { name: "Delete permanently" }).click();
+  await page.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }))
+    .toHaveCount(0);
+  const gone = await page.request.get(`/api/v1/contracts/${contract.id}`);
+  expect(gone.status()).toBe(404);
+});
+
+test("Upload new version opens the existing panel pre-targeted, and keeps the old version",
+     async ({ page }) => {
+  const stamp = Date.now();
+  const client = await postOk(page, "/counterparties", { name: `Version Co ${stamp}` });
+  const contract = await postOk(page, "/contracts", {
+    name: `Versioned Doc ${stamp}`, contract_type: "MSA", counterparty_id: client.id,
+  });
+  await upload(page, contract.id);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/dashboard/clients?id=${client.id}`);
+
+  const row = page.locator("tr", { has: page.getByRole("link", { name: `Versioned Doc ${stamp}` }) });
+  await row.getByRole("button", { name: /more actions/i }).click();
+  await page.getByRole("menuitem", { name: "Upload new version" }).click();
+
+  // The SAME panel the toolbar's "+ Upload document" opens, already reading
+  // "a new version of" this document — no second upload UI.
+  const target = page.getByLabel("This is");
+  await expect(target).toHaveValue(contract.id);
+  await expect(page.getByText(/added as the next version/i)).toBeVisible();
+  // The "new document" fields do not appear once a target is already chosen.
+  await expect(page.getByLabel("Document name")).toHaveCount(0);
+
+  const f = fixture();
+  await page.locator('input[type="file"]').setInputFiles(f.document.path);
+  await page.getByRole("button", { name: "Upload" }).click();
+  await expect(page.getByRole("heading", { name: "Legal documents" })).toBeVisible();
+
+  // Both versions survive — a new version never overwrites the one before it.
+  const rowAfter = page.locator("tr", { has: page.getByRole("link", { name: `Versioned Doc ${stamp}` }) });
+  await rowAfter.getByRole("button", { name: /View history \(2\)/ }).click();
+  await expect(page.locator(".ws-cl__verlist .ws-cl__ver")).toHaveCount(2);
+});
+
+test("Delete client is offered only for an empty profile, and removes it",
+     async ({ page }) => {
+  const stamp = Date.now();
+  const client = await postOk(page, "/counterparties", { name: `Deletable Co ${stamp}` });
+  await page.goto(`/dashboard/clients?id=${client.id}`);
+
+  await page.getByRole("button", { name: `More actions for ${client.name}` }).click();
+  await page.getByRole("menuitem", { name: "Delete client" }).click();
+  await page.getByRole("button", { name: "Delete permanently" }).click();
+  await page.waitForURL("**/dashboard/clients");
+  await expect(page.getByRole("link", { name: client.name })).toHaveCount(0);
+
+  const gone = await page.request.get(`/api/v1/counterparties/${client.id}`);
+  expect(gone.status()).toBe(404);
+});
