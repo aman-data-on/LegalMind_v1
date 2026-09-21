@@ -78,7 +78,7 @@ import { TranscriptTurn } from "./TranscriptTurn";
  *  intake's pre-check — a friendly message before a 25 MB round trip. The
  *  server's validation stays the authority (34.16). */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = [".pdf", ".docx"];
+const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
 
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
@@ -634,7 +634,7 @@ export function AskWorkspace() {
                   ref={fileRef}
                   className="ws-visually-hidden"
                   type="file"
-                  accept=".pdf,.docx"
+                  accept=".pdf,.docx,.md,.txt"
                   onChange={(event) => {
                     chooseFile(event.target.files?.[0] ?? null);
                     event.target.value = "";
@@ -643,6 +643,11 @@ export function AskWorkspace() {
                 <button
                   type="button"
                   className="ws-chat__attach"
+                  // Below 640px the label is hidden to give the question the
+                  // width, so the accessible name has to come from here:
+                  // `display: none` removes text from the accessibility tree,
+                  // and an unnamed button is a dead end for a screen reader.
+                  aria-label="Add files"
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
                 >

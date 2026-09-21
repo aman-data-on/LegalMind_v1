@@ -82,9 +82,48 @@ def build_image_only_pdf() -> bytes:
 
 # ================================================================ validation
 def test_rejects_unsupported_type(db):
+    # A spreadsheet is on locked 34.2's "not primary V1" list; text and Markdown are
+    # on neither list and are accepted (see the text cases below).
     with pytest.raises(UploadRejected) as e:
-        validate_upload(b"plain text", "notes.txt", "text/plain")
+        validate_upload(b"\x50\x4b\x03\x04sheet", "book.xlsx",
+                        "application/vnd.ms-excel")
     assert e.value.code == "UNSUPPORTED_TYPE"
+
+
+def test_accepts_plain_text_and_markdown(db):
+    assert validate_upload(b"A policy, stated in prose.", "p.txt",
+                           "text/plain").mime_type == "text/plain"
+    assert validate_upload(b"# Policy\n\nStated in prose.", "p.md",
+                           "text/markdown").mime_type == "text/markdown"
+
+
+def test_a_binary_file_declared_as_text_is_refused(db):
+    """Text has no magic bytes, so the claim is checked as what it is."""
+    with pytest.raises(UploadRejected) as e:
+        validate_upload(build_pdf(["hello"]), "trick.txt", "text/plain")
+    assert e.value.code == "CONTENT_TYPE_MISMATCH"
+    with pytest.raises(UploadRejected) as e:
+        validate_upload(b"\x01\x02\x03\xff\xfe", "trick.md", "text/markdown")
+    assert e.value.code == "UNRECOGNISED_CONTENT"
+
+
+def test_content_sniffing_still_refuses_arbitrary_bytes(db):
+    """`deploy/preflight.py` asserts this, and accepting text must not weaken it:
+    a sniffer that named a type for any bytes would accept anything (34.16)."""
+    from legalmind.ingestion.validation import sniff_mime
+    assert sniff_mime(b"not a document") is None
+
+
+def test_markdown_is_segmented_by_the_numbering_the_document_states(db):
+    """34.12 — the numbering is preserved, never generated. A `#` is presentation and
+    is removed so it cannot be mistaken for part of a clause number."""
+    from legalmind.ingestion.parsing import parse_text
+    result = parse_text(b"# Agreement\n\n## 5. Liability\n\n"
+                        b"5.1 Total liability shall not exceed twelve (12) months.\n")
+    assert result.status is E.ExtractionStatus.COMPLETE
+    assert [s.section_number for s in result.segments] == [None, "5", "5.1"]
+    assert all(s.page_number is None for s in result.segments)
+    assert not any("#" in s.content for s in result.segments)
 
 
 def test_rejects_content_type_mismatch(db):
