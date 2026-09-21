@@ -271,14 +271,36 @@ def test_a_law_question_that_names_no_act_is_still_a_law_question():
                                "their trade or profession enforceable in India?")
 
 
-def test_an_ambiguous_law_question_is_left_to_the_evidence_gate():
-    """Deliberate. "When does a hosting intermediary lose its immunity?" asks for a
-    rule, but by SHAPE it is indistinguishable from a contract question about the
-    provider's duties — measured, an impersonal-duty signal that caught it also
-    routed 4 contract questions to the law, one of them a must-refuse control. The
-    router stays conservative and `require_semantic` decides."""
-    assert not is_statute_question("When does a hosting intermediary lose its "
-                                   "immunity for content its users post?")
+def test_a_question_naming_who_the_rule_BINDS_routes():
+    """The legal-actor signal. A general-law question names the bound party in the
+    abstract — "a platform", "an intermediary", "the injured party" — where a deal
+    question names US, or THE provider on this paper."""
+    assert is_statute_question("When does a hosting intermediary lose its immunity "
+                               "for content its users post?")
+    assert is_statute_question("Is a platform allowed to show targeted advertising "
+                               "to children?")
+    assert is_statute_question("What kinds of losses can the injured party recover "
+                               "when a contract is broken?")
+    assert is_statute_question("What must cloud and VPS providers keep?")
+
+
+def test_a_definite_commercial_actor_does_not_route():
+    """Measured: admitting "the provider" put four document questions into the statute
+    lane, two of them must-refuse controls. Only a party named by its ROLE IN A LEGAL
+    RELATION is admitted with a definite determiner."""
+    assert not is_statute_question("What uptime does the provider commit to for "
+                                   "shared web hosting?")
+    assert not is_statute_question("What is the maximum financial exposure of the "
+                                   "provider if something goes badly wrong?")
+
+
+def test_first_person_keeps_a_question_out_of_the_statute_lane():
+    """It needs no document noun to be a question about the asker's own situation.
+    Present in 42 of the 64 document questions and none of the 27 general-law ones."""
+    assert not is_statute_question("If a third party sues the provider because of "
+                                   "something our users hosted, who pays?")
+    assert not is_statute_question("Which outside companies get access to my "
+                                   "personal data, and for what?")
 
 
 def test_the_english_verb_act_is_not_an_Act():

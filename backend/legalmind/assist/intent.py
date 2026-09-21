@@ -276,7 +276,12 @@ def mentions_organization(question: str) -> bool:
 # (B)'s negative half is the whole safety property. `require_semantic` keeps 44 of the
 # 54 contract questions out of the statute corpus, and this flag drops it, so a deal
 # question that borrows statutory vocabulary must not reach (B).
-_INSTRUMENT_NOUNS = ("statute", "statutor", "adhiniyam", "ordinance", "regulation")
+# Instrument TYPES, taken from the corpus's own official titles: 13 of the 17 are an
+# "Act", 3 "Rules", and one is the CERT-In "Directions" — which is why a question
+# about "the cyber security directions" names an instrument as squarely as one about
+# "the IT Act" does.
+_INSTRUMENT_NOUNS = ("statute", "statutor", "adhiniyam", "ordinance", "regulation",
+                     "direction")
 # Short names people type for the Acts in the corpus. `statutes.expand_aliases` maps
 # them to official-title words for the title match; here their presence IS the
 # instrument reference, so the two uses share one table rather than two drifting ones.
@@ -304,7 +309,9 @@ _SECTION_REFERENCE = re.compile(r"\b(?:section|sec\.?|s\.)\s*\d+[a-z]?\b|"
 
 # Jurisdiction framing: the reader is asking what the law of a place provides.
 _JURISDICTION = re.compile(
-    r"\b(?:in india|indian law|under indian law|law in india|india'?s\s+\w+\s+law)\b",
+    r"\b(?:in india|indian law|under indian law|law in india|under india)\b"
+    # "India's DATA PROTECTION law" — the qualifier is a phrase, not one word.
+    r"|\bindia'?s\b[^?]{0,40}\blaw\b",
     re.IGNORECASE)
 # Rule-seeking SHAPES, not legal vocabulary. "enforceable" and "liable" are ordinary
 # deal words and are deliberately absent: what marks a general-law question is that it
@@ -316,6 +323,7 @@ _RULE_FRAMING = re.compile(
     r"|\bwhat (?:is|are) the legal (?:rule|position|requirement|standard)s?\b"
     r"|\b(?:is|are) it (?:legal|lawful|permissible)\b"
     r"|\bunder (?:the )?law\b|\bby law\b|\blegally\b"
+    r"|\bvalidly\b"                       # "who can VALIDLY sign" — a capacity question
     r"|\b(?:is|are|can|may)\b[^?]{0,60}?\b(?:valid|void|voidable|unlawful|illegal)\b",
     re.IGNORECASE)
 
@@ -325,6 +333,39 @@ _RULE_FRAMING = re.compile(
 # concept and routes to the law; "the contract" is the one on the desk and does not.
 _DOCUMENT_NOUNS = ("contract", "agreement", "document", "clause", "msa", "nda", "tos",
                    "sla", "deal", "annexure", "schedule", "addendum", "amendment")
+
+# A LEGAL ACTOR: who the rule binds, named in the abstract. A general-law question
+# asks what "a company", "a platform", "an intermediary" must do; a deal question asks
+# what WE must do, or what THE provider — this one, on this paper — committed to. The
+# determiner carries the distinction, and it was measured rather than assumed:
+# admitting a definite commercial actor ("the provider") took recall to 0.889 and put
+# FOUR document questions into the statute lane, two of them must-refuse controls.
+_LEGAL_ACTORS = (r"company|companies|platform|platforms|organisation|organization|"
+                 r"provider|providers|intermediary|intermediaries|person|persons|"
+                 r"party|parties|board|body corporate|data fiduciary|fiduciary")
+_LEGAL_ACTOR = re.compile(
+    # indefinite, with up to two adjectives: "an online platform", "a hosting
+    # intermediary", "a Significant Data Fiduciary"
+    rf"\b(?:a|an|any|every|each)\s+(?:\w+\s+){{0,2}}(?:{_LEGAL_ACTORS})\b"
+    # A bare plural is indefinite by itself: "what must cloud and VPS PROVIDERS keep".
+    # "parties" is NOT admitted here: in a deal question it means the counterparties,
+    # and "who are the parties?" is a document question (caught by the routing suite,
+    # not by the 91-case matrix — the phrasing is not in the dataset).
+    r"|\b(?:companies|platforms|providers|intermediaries)\b"
+    # ...and the narrow definite case: a party named by its ROLE IN A LEGAL RELATION,
+    # which a deal question does not use. "the provider" is commercial and excluded;
+    # "the injured party" is not.
+    r"|\b(?:the|an?)\s+(?:injured|innocent|aggrieved|affected|defaulting|promisor|"
+    r"promisee|surety)\s+(?:party|person|parties)\b"
+    r"|\bthe\s+board\s+(?:of\s+directors\s+)?(?:need|needs|must|may|shall|approve)"
+    r"|\bthe\s+(?:promisor|promisee|surety)\b",
+    re.IGNORECASE)
+# First person is the plainest statement that the question is about the asker's own
+# situation, and it needs no noun to be one: "if a third party sues the provider
+# because of something OUR users hosted" is a deal question with no document noun in
+# it. Measured on the 91-case matrix: present in 42 of the 64 document questions and
+# in NONE of the 27 general-law ones. It is what makes the wider actor forms safe.
+_FIRST_PERSON = _ORG_PRONOUNS | frozenset({"i", "me", "my", "mine"})
 _DEFINITE_DETERMINERS = frozenset({"the", "this", "these", "that", "those", "my",
                                    "its"}) | _FIRST_PERSON_POSSESSIVE
 
@@ -502,8 +543,10 @@ class LegalQuestionSignals:
     names_instrument: bool
     jurisdiction: bool
     rule_framing: bool
+    legal_actor: bool
     document_target: bool
     position_target: bool
+    first_person: bool
 
     @property
     def general_law(self) -> bool:
@@ -511,11 +554,13 @@ class LegalQuestionSignals:
         # about our liability?" names the Act, and that is the source to answer from.
         if self.names_instrument:
             return True
-        # (B) Otherwise the question must ask for the general rule AND have nothing of
-        # its own to be measured against. Conflicting signals keep the conservative
-        # path, where `require_semantic` and the calibrated gate decide.
-        return ((self.jurisdiction or self.rule_framing)
-                and not self.document_target and not self.position_target)
+        # (B) Otherwise the question must ask for the general rule — by jurisdiction,
+        # by its framing, or by naming in the abstract who the rule binds — AND have
+        # nothing of its own to be measured against. Conflicting signals keep the
+        # conservative path, where `require_semantic` and the gate decide.
+        if self.document_target or self.position_target or self.first_person:
+            return False
+        return self.jurisdiction or self.rule_framing or self.legal_actor
 
     @property
     def because(self) -> tuple[str, ...]:
@@ -523,8 +568,10 @@ class LegalQuestionSignals:
         named = (("names_instrument", self.names_instrument),
                  ("jurisdiction", self.jurisdiction),
                  ("rule_framing", self.rule_framing),
+                 ("legal_actor", self.legal_actor),
                  ("document_target", self.document_target),
-                 ("position_target", self.position_target))
+                 ("position_target", self.position_target),
+                 ("first_person", self.first_person))
         return tuple(name for name, fired in named if fired)
 
 
@@ -536,8 +583,10 @@ def legal_question_signals(question: str) -> LegalQuestionSignals:
         names_instrument=_instrument_reference(text, tokens),
         jurisdiction=bool(_JURISDICTION.search(text)),
         rule_framing=bool(_RULE_FRAMING.search(text)),
+        legal_actor=bool(_LEGAL_ACTOR.search(text)),
         document_target=_document_target(tokens),
         position_target=bool(_position_reference(tokens)),
+        first_person=bool(set(tokens) & _FIRST_PERSON),
     )
 
 

@@ -161,6 +161,44 @@ the 18 are genuinely ambiguous by shape and keep the `require_semantic` path.
 `RoutePlan.statute_signals` records WHICH signals fired, and `assist.ask.routed` logs the
 names — never the question, and never rendered to a reader.
 
+### Changed — the GENERAL LAW router gains a legal-actor signal and a first-person negative (2026-09-21)
+
+The relation shipped at recall 0.333 with precision 1.000. Investigating all 18 missed
+GENERAL LAW routes found three causes, not one, and each was measured **behind the
+existing guards** before being admitted:
+
+* **Three regex repairs, 0 false STATUTE.** "Directions" is an instrument type in this
+  corpus — CERT-In's instrument IS a set of Directions, one of the 17 official titles —
+  and was absent from `_INSTRUMENT_NOUNS`. `_JURISDICTION` allowed one word between
+  "India's" and "law", so "India's data protection law" missed. `\bvalid\b` does not
+  match "validly", so "who can validly sign" missed.
+* **`legal_actor`, 0 false STATUTE.** A general-law question names who the rule binds,
+  in the abstract — "a platform", "an online platform", "cloud and VPS providers", "the
+  injured party". The determiner carries the distinction and it was measured: admitting
+  a definite COMMERCIAL actor ("the provider") reached recall 0.889 and put FOUR
+  document questions into the statute lane, two of them must-refuse controls. Only a
+  party named by its ROLE IN A LEGAL RELATION is admitted with a definite determiner.
+* **`first_person`, the negative that makes the rest safe.** It needs no document noun:
+  "if a third party sues the provider because of something OUR users hosted" is a deal
+  question with no document noun in it. Present in 42 of the 64 document questions and
+  in NONE of the 27 general-law ones.
+
+**Rejected, on measurement.** Legal-relation words (allowed / liable / penalty) recovered
+8 and broke 5 document questions. The corpus's own subject vocabulary — 2,089 terms from
+2,388 marginal notes — recovered all 18 and matched **63 of the 64** document questions:
+contracts and statutes discuss the same subjects, so corpus vocabulary cannot route.
+"parties" as a bare plural was admitted, then withdrawn when the existing routing suite
+caught "who are the parties?" — a document question the 91-case matrix does not contain.
+
+**Routing, measured on its own:** precision 1.000 → **1.000**, recall 0.333 → **0.889**,
+false STATUTE **0 → 0**. Domain C evidence reaches **23 of 23** statute questions (was
+17); the contract lane is unmoved at 9 of 54. `tests/test_assist_routing_matrix.py` pins
+both numbers, the exact recall fraction and the absolute zero.
+
+**Q-43, Q-48 and Q-52 stay conservative on purpose** and are pinned as such: the only
+signals that would catch them are the three rejected above. All three already answer
+through the fall-through, so the router gives up nothing.
+
 ### Fixed — a Schedule is cited as a Schedule (2026-09-21)
 
 The label kept the print's footnote marker (`1[THE FIRST SCHEDULE`) and the citation read
