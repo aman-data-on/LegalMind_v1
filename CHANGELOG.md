@@ -10,6 +10,214 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — `main` was red after `AM-73`: the Domain A regression test outlived its specification (2026-09-20)
+
+Two sessions' work collided. `test_assist_positions_regression.py` was written on
+2026-09-18 to pin the fail-open fix, and its `MUST_REFUSE` list asserted that eight
+Partner / Vendor / Purchase-Order / Distributor questions must retrieve **nothing**. Every
+one of them was correct when written — `AM-72` made them refuse because no §31 position
+existed. The owner then ruled the opposite the same day (`AM-73`): everything in the
+Constitution is ratified, and a type the Constitution carries text for must ANSWER. Both
+landed in `main`, which was left failing 4 tests.
+
+**Nothing was weakened to make CI green.** Each failure was a different thing:
+
+* **Two stale expectations, reversed by an owner ruling.** `MUST_REFUSE` and the
+  end-to-end refusal probe now use the four Step 6 types the Constitution genuinely
+  states nothing for — DPA, AUP, PRIVACY_POLICY, OTHER — instead of §31 types that now
+  answer. The guards themselves are untouched and still exactly right; only their
+  examples moved (AGENTS.md §9: a changed expectation follows a changed specification).
+* **A ranking shift from corpus growth.** "Explain our termination standard." now surfaces
+  the Partner, Vendor and Distribution termination positions above the MSA ones. The
+  claim — *a topic several standards share is answered, not refused* — is unchanged, so
+  the accepted set grew with the corpus rather than the test being pinned to one fixed
+  five.
+* **A measurement bug, found by chasing the number.** `recall@5` was computed over EVERY
+  ratified file, including the seven `AM-65` retired ones — which `AM-71` removes from
+  both retrieval paths by design, so they were seven permanent misses. The ceiling was
+  33/40 = 0.825, which is exactly where the old 0.80 threshold came from: the metric was
+  partly measuring the retirement, could never reach 1.0, and drifted whenever the corpus
+  grew. Retired standards are now excluded from the denominator.
+* **A real weakness in the generated standards, and the one genuine defect here.** Nine of
+  the 34 §31 standards could not be found by their own description, because the generator
+  wrote `"<heading> — the Constitution's position for this document type."` for all 34 —
+  identical boilerplate, so only the heading discriminated. **A description is a retrieval
+  surface, not decoration.** It is now built from the position's own first sentence. A
+  `(Section 16)` cross-reference is stripped from the LABEL only — it is a pointer, never
+  the standard's value, and `test_no_description_states_the_standards_value`'s digit guard
+  cannot tell them apart; `source_quote` keeps it verbatim.
+
+Measured, on the same test that was failing:
+
+| | before | after |
+|---|---|---|
+| denominator | 79 (7 unretrievable) | **72** |
+| recall@5 | 0.797 (ceiling 0.825) | **0.972** |
+| hit@1 | 0.722 | **0.931** |
+| junk answers | 8/8 wrong | **0/4** |
+| positions unfindable by own description | 16 | **2**, plus the 7 retired (excluded now) |
+
+`verify_terminology` stays 47 PASS / 0 FAIL.
+
+### Added — everything in the Constitution is ratified, except what it disclaims itself (`AM-73`, AB-25, 2026-09-18)
+
+After reading `AM-72`'s §31 inventory, the owner extended the ruling: *"Treat EVERYTHING
+in the Constitution as RATIFIED… Do NOT hold anything back as 'subject to legal review',
+'industry-practice', 'draft', or 'proposed'… Refusal only when a type has ZERO text
+anywhere."*
+
+**39 further positions ratified** — §31.4 (1), §31.9 (11), §31.10 (10), §31.11 (7),
+§31.12 (6) — joining `AM-72`'s four. Active standards **33 → 72**; 79 files with the
+seven retired. All nine document types that carry Constitution text now answer from
+their own positions:
+
+| Type | Positions | Type | Positions |
+|---|---|---|---|
+| MSA | 23 | ORDER_FORM | 7 |
+| VENDOR_AGREEMENT | 11 | AMENDMENT | 6 |
+| DISTRIBUTION_AGREEMENT | 10 | PARTNER_AGREEMENT | 5 |
+| NDA | 8 | SLA | 1 |
+| TOS | 8 | | |
+
+**Generated, not transcribed.** Thirty-four of the thirty-nine come from
+`tools/generate_section31_standards.py`, which slices each `source_quote` out of the
+Constitution rather than retyping it. Transcribing thirty-nine legal positions by hand is
+exactly where a paraphrase slips in, and a paraphrased legal position is rule 7's failure
+mode wearing a copy-editor's hat. `--check` fails CI if a file and its section drift
+apart. §31.4 is hand-written because its STATUS draws a line no parser can — the
+applicability is company-approved while the thresholds are "historical evidence only, not
+confirmed as current commercial values", and the section records a live monthly-vs-annual
+contradiction between the two historical agreements — so it is PRESENCE and carries **no
+figure**.
+
+**`constitution.basis` records provenance and never suppresses an answer.** This refines
+`AM-72` r4: a `LEGALMIND_RULE` position answers exactly as a `COMPANY_APPROVED` one does.
+The grade survives because it is true, and because §31.9 itself says its rules stand
+"unless and until the company adopts a different, evidenced position" — erasing it would
+destroy the record of which positions are awaiting that.
+
+**Two things stay unratified, both deliberately.** §31.6a — the owner's own carve-out and
+the single exception, because the Constitution says the L1/L2/L3 structure "is NOT a
+current company position" and that LegalMind "must NOT flag the absence… as a deviation";
+ratifying it would assert a position the Constitution disclaims, the same defect class as
+the reported bug. And `proposed/SERVICE-DISCONTINUATION-NOTICE`, which would measure the
+notice limb alone and is forbidden by `AM-66` — nothing is withheld by that, since §31.14
+A is already live as `SERVICE-DISCONTINUATION-MSA-001`.
+
+**Refusal is not dead code.** It now applies only to a type the Constitution states
+nothing for — of Step 6's thirteen, DPA, AUP, PRIVACY_POLICY and OTHER — and still names
+what *is* covered.
+
+**CI job 12 caught a defect that would have shipped 34 unusable standards.** Every
+ratified standard must reproduce its own position from the source it cites
+(`tools.verify_terminology`). The first generated pass derived mapping terms from each
+position's *heading*, which scored 3 against a confirm threshold of 5 — so all 34 failed:
+**a standard that cannot find its own source clause can never produce a Finding.** It
+would have been invisible in Ask, which retrieves chunks by a different mechanism
+entirely and was working perfectly. Three real causes, each fixed at the root:
+
+* **Terms now come from the position's own quote**, not its heading, so a standard
+  reproduces its section by construction.
+* **A phrase must be genuinely adjacent in the source.** Rebuilding an alias from tokens
+  produced `"capped structured consistently"` where the Constitution reads
+  `"capped, structured consistently"` — a comma, and the phrase matched nothing. Silent,
+  and worth 3 points each time.
+* **`verify_terminology` could not see tables at all.** It skipped every line starting
+  with `|`, so §31.11 and §31.12 — whose positions are stated *entirely* as table rows —
+  had no clause to match however good their terminology was. One clause per row now; the
+  row is the position. This was under-verification of the Constitution generally, not
+  only of the new standards.
+
+Result: **47 PASS · 0 FAIL** across every ratified standard, up from 14 PASS · 33 FAIL.
+A test now runs the same check, so the narrow loop catches it before a push.
+
+**Coverage visibly increased on a real mixed agreement.** `test_mixed_agreement` asserted
+that a Purchase Order clause surfaces as *unmeasured*, because "§31.11 drafts wait for a
+PO". §31.11 is ratified now, so `CONTENTS-ORDER_FORM-001` measures that clause and it
+leaves the unmeasured list — the same transition §16's payment clause made when the owner
+ratified it on 2026-09-13, and the assertion is updated the same way. A clause leaving
+that list is coverage arriving. The test also now asserts the list is non-empty, so the
+two negative assertions cannot start passing vacuously.
+
+📣 **Coordination note for `feat/standards-structure`** (frontend Standards screen, in
+flight on another branch at the time of writing). That work includes "Publishing is a
+checkbox list, not 33 pasted codes". **The publishable set is 72 now, not 33** — 79 files
+less the seven retired — and `tools/publish_payload.py` refuses any other shape. Nothing
+in that branch conflicts with this one (it is frontend-only and touches no standard
+file), but any hard-coded 33, or a layout assuming roughly thirty rows, needs revisiting
+against 72.
+
+⚠️ **Unrelated, pre-existing, and not touched:** run with the owner's `legal-docs`
+present, six standards fail `verify_terminology` — `LIABILITY-MSA-001`,
+`LATE-FEE-TOS-001`, `CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`,
+`DATA-PURGE-MSA-001`, `CONF-SURVIVAL-NDA-001`. These are exactly the six `AM-43` r4
+reconciled to the Constitution, so their ratified position deliberately differs from the
+LeapSwitch paper they cite (C-18, resolved). CI never sees it because the sources are
+gitignored (54.6). The new test points the source directory away so it verifies against
+the Constitution, matching CI, rather than pinning an intentional divergence as a defect.
+
+### Added — the Constitution's own document types now answer as themselves (`AM-72`, AB-24, 2026-09-18)
+
+The follow-on to the fail-open fixed earlier the same day. That fix stopped Ask
+answering a Partner Agreement question with MSA positions, but it could only make the
+question **refuse**, because no Partner Agreement position existed anywhere. The owner
+resolved [C-23](docs/00-project/CONFLICTS.md) and it now **answers**:
+
+> "Any document type whose final text already exists in the Constitution is to be
+> treated as RATIFIED… if the Constitution contains a position for a document type,
+> LegalMind must answer questions about that type using that text, with exact section
+> citations. Only refuse when the type genuinely has NO text anywhere."
+
+**Inventory first, parsed rather than read** — 21 of the Constitution's sections carry an
+explicit "Applicable Document Types" tag and 232 do not, and the tagged ones are not
+uniformly final. The Constitution grades its own text, in its own STATUS lines:
+
+| Type | Sections | Constitution's own STATUS |
+|---|---|---|
+| Partner Agreement | §31.3, §31.5, §31.6, §31.8 (+ service-change, change-of-control) | **Company-approved**, 2 of 2 historical agreements |
+| Purchase Order (→ `ORDER_FORM`) | §31.11 | Mixed — precedence + acceptance approved |
+| Amendment/Addendum | §31.12 | Mixed — written amendment + precedence approved |
+| Vendor Agreement | §31.9 | Industry/legal-practice, **subject to legal review** |
+| Distribution Agreement | §31.10 | Same |
+| L1/L2/L3 support | §31.6a | **NOT CURRENTLY ADOPTED** — "Legal Mind must NOT flag the absence… as a deviation" |
+
+**What changed.** Step 6 gains `PARTNER_AGREEMENT`, `VENDOR_AGREEMENT` and
+`DISTRIBUTION_AGREEMENT`; Purchase Order maps to the existing `ORDER_FORM`, which is
+already how the repository models §31.11 (its standards are typed `ORDER_FORM`, coded
+`PO-*`). Four Partner Agreement standards are ratified from §31.3, §31.5, §31.6 and
+§31.8, each quoting its section verbatim — this extends `AM-59` r6's established route,
+so nothing is authored (rules 7, 21). Evidentiary grade stays in
+`configuration.constitution.basis`, whose vocabulary already carried `COMPANY_APPROVED`,
+`LEGALMIND_RULE` and `NOT_ADOPTED` for exactly this purpose. **No standard is ratified
+for §31.6a, and a test pins that none ever is.**
+
+The reported question now returns §31.3, §31.5 and §31.8 — Partner Agreement only, with
+section citations — and the three MSA codes from the screenshot are pinned as never
+returning. A type with no position still refuses and names what is covered, so
+`VENDOR_AGREEMENT` exists as a type and correctly declines to answer.
+
+**Two latent bugs surfaced by the first multi-word document type**, both fixed at the
+root rather than worked around:
+
+* The Domain A **egress screen read `PARTNER_AGREEMENT` as an internal locator** — its
+  ENV_VAR_STYLE arm matches any `WORD_WORD` token, and one dirty span refuses the whole
+  batch. Every ratified standard had been typed MSA/NDA/TOS/SLA, all initialisms, so
+  this had never fired; it would have fired the day an `ORDER_FORM` standard was
+  ratified. Known document types are now excluded from the locator test.
+* `_compose_content` baked the **raw type code into reader-facing chunk text**. It now
+  renders the readable label (`document_types.readable`), which is both better for a
+  reader and what keeps the code out of the egress path.
+
+Two sanitization tests were narrowed to what they actually promise — that no retrieved
+chunk *carries* a locator, rather than that those queries retrieve nothing at all. §31.8's
+ratified quote says "trademarks/marketing materials", so `legalmind_source_material_dir`
+now shares the lexeme `material` with a legitimate position; matching a real English word
+inside ratified text is not a leak. Both tests already drew that same line for "legal"
+and "constitution".
+
+Counts: 33 → 37 active standards (+ 7 retired = 44 files), pinned in
+`tools/publish_payload.py` and `test_ratified_descriptions.py`.
+
 ### Fixed — Ask no longer answers a question about a paper it holds no position for with another paper's clause (2026-09-18)
 
 **Live defect.** "what is written about partner agreement in the constitution" was answered
@@ -81,7 +289,6 @@ Cross-referenced from [CLAUDE.md](CLAUDE.md) (Start here + the Git workflow bann
 [CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) §1 row 8 and
 `frontend/CLAUDE.md`, so an agent entering from any of them finds it. Documentation only:
 no code, no decision, no lock record.
-
 ### Fixed — Ask no longer answers a question about one kind of paper with another kind's position (2026-09-18)
 
 Reported live with a screenshot. **"what is written about partner agreement in the

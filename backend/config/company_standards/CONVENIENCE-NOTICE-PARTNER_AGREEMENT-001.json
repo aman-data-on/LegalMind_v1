@@ -1,0 +1,113 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13:",
+    "'Treat everything clearly defined in this file as currently approved and final … If a proposed standard is",
+    "directly derived from this Constitution without changing its meaning, classify it as already approved through",
+    "the Constitution.'), reaffirmed and extended to the Section 31 document types by the owner on 2026-09-18,",
+    "resolving C-23. Drafted from §31.3's own words; every value is the section's, none is invented (rule 7/21).",
+    "Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001",
+  "description": "Either party may end a Partner Agreement for convenience on a set period of written notice, with no early-termination fee.",
+  "ratified": "2026-09-18",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.3",
+    "ruling": "owner, 2026-09-13 as extended 2026-09-18 (C-23) — rules clearly defined in the current Constitution are approved and final; this standard restates §31.3 without changing its meaning",
+    "calibration": "35.10 — NOT yet calibrated against counterparty paper. §31.3's evidence is two historical Partner Agreements, which are not in this repository; the extraction terms below come from the section's own wording. Re-calibrate when a Partner Agreement is supplied (rule 21)."
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.3",
+  "source_quote": "Either party may terminate a Partner Agreement for convenience, for any reason, by providing at least 30 days' prior written notice to the other party. No early-termination fee or compensation is payable by either party. During the notice period, both parties continue to perform their existing obligations through the effective date of termination.",
+  "configuration": {
+    "document_type": "PARTNER_AGREEMENT",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.3",
+      "topic": "Termination & Suspension",
+      "basis": "COMPANY_APPROVED"
+    },
+    "preferred": 30,
+    "unit": "DAYS",
+    "basis": "CONVENIENCE_TERMINATION_NOTICE",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "terminate this agreement for convenience",
+        "terminate for convenience",
+        "terminate this agreement at any time",
+        "for any reason",
+        "without cause"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days",
+          "days'"
+        ]
+      },
+      "bases": {
+        "CONVENIENCE_TERMINATION_NOTICE": [
+          "terminate",
+          "termination",
+          "terminated",
+          "terminating"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "terminate for convenience",
+      "termination for convenience",
+      "for any reason",
+      "without cause"
+    ],
+    "aliases": [
+      "terminate this agreement at any time",
+      "prior written notice"
+    ],
+    "keyword_groups": [
+      [
+        "terminate",
+        "convenience"
+      ],
+      [
+        "termination",
+        "convenience"
+      ],
+      [
+        "terminate",
+        "notice",
+        "any reason"
+      ]
+    ],
+    "negative_patterns": [
+      "material breach",
+      "fails to cure"
+    ],
+    "section_heading_terms": [
+      "termination"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "§31.3 states 'at least 30 days' — the floor, so a longer partner-facing notice is not a deviation and a shorter one is. CONVENIENCE-NOTICE-MSA-001's own _calibration already cites this section ('a partner agreement's at least 30 days prior written notice (§31.3) — MATCH'), so the two agree by construction; they stay separate standards because they govern different document types.",
+    "The 'no early-termination fee' limb of §31.3 is a PRESENCE question, not a notice period, and is deliberately NOT folded into this NUMERIC_COMPARISON standard — one standard, one measurable position (45B). It is unmeasured until a separate standard is ratified for it.",
+    "Negative patterns keep for-cause termination (a cure-period question) out of this standard's mapping."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

@@ -19372,3 +19372,219 @@ status without acting on it. Three tests added, and each was confirmed to FAIL
 with the filter removed — a test that passes without the fix proves nothing.
 
 --------------------------------------------------------------------------------
+
+AMENDMENT BATCH AB-24 — `AM-72`
+The Constitution's document types are ratified, and answer as themselves
+================================================================================
+
+**Owner decision, 2026-09-18.** Reported with a screenshot: "what is written
+about partner agreement in the constitution" was answered with three MSA
+standards under the sentence "The organization's approved position relevant to
+this question is quoted below, verbatim from the ratified standard." Diagnosed
+the same day: not a ranking defect — no Partner Agreement position existed
+anywhere in the corpus, because locked Step 6 carried no such Document Type and
+the importer refused any standard typed to one. Registered as **C-23**.
+
+The owner's ruling, in the owner's own words:
+
+> "Any document type whose final text already exists in the Constitution is to
+> be treated as RATIFIED. Do not keep an unratified-vs-ratified distinction for
+> text that is already final in the Constitution… if the Constitution contains a
+> position for a document type, LegalMind must answer questions about that type
+> using that text, with exact section citations. Only refuse when the type
+> genuinely has NO text anywhere in the Constitution/corpus."
+
+and, on the mechanism: *"jo bhi krna hein kro do not ask me."*
+
+r1. **C-23 is RESOLVED.** Legal Constitution L1.10 §31 states positions for
+    document types locked Step 6 did not carry. Step 6's vocabulary is EXTENDED
+    by three: `PARTNER_AGREEMENT` (§31.3–§31.8), `VENDOR_AGREEMENT` (§31.9) and
+    `DISTRIBUTION_AGREEMENT` (§31.10). This amends locked Step 6, which is
+    otherwise unchanged; the ten existing values keep their meaning and their
+    spelling.
+
+r2. **Purchase Order is ORDER_FORM, not a fourth new type.** §31.11's Purchase
+    Order maps to the existing `ORDER_FORM`, which is already how this
+    repository models it — both proposed §31.11 standards are typed
+    `ORDER_FORM` and coded `PO-*`. Amendment/Addendum (§31.12) maps to the
+    existing `AMENDMENT`, and "Other Agreements" (§31.13) adds no clauses of its
+    own and stays `OTHER`. A type is added only where none could hold the
+    position.
+
+r3. **This extends `AM-59` r6 rather than inventing a route.** The owner ruled
+    on 2026-09-13 that text "clearly defined in this file" is "already approved
+    through the Constitution", and standards have been drafted from the
+    Constitution's own words on that basis since. r1 extends that same ruling to
+    §31's document types. Nothing new is authored: every ratified position
+    quotes its section verbatim (rule 7, rule 21).
+
+r4. **EVIDENTIARY GRADE IS PRESERVED, AND IS NOT WHAT A DOCUMENT TYPE CARRIES.**
+    The Constitution does not mark all of its own text as final, and says so in
+    its own STATUS lines. `configuration.constitution.basis` already
+    distinguishes them and continues to govern:
+
+      * `COMPANY_APPROVED` — §31.3, §31.5, §31.6, §31.8 and the Partner
+        service-change and change-of-control sections. Ratified by this record.
+      * `LEGALMIND_RULE` — §31.9 and §31.10, which the Constitution itself calls
+        "Industry/legal-practice based analysis rules… subject to legal review
+        and to being superseded by a company-evidenced position". §31.9 directs
+        that they ARE "the applicable LegalMind benchmark for this document
+        type", so the type exists; a position ratified under this basis is never
+        Acceptable by guess.
+      * `NOT_ADOPTED` — §31.6a. **No standard may be ratified for it**, now or
+        later. §31.6a states the L1/L2/L3 structure "is NOT a current company
+        position", that it "must not be presented to LegalMind… as an existing
+        company position", and that "Legal Mind must NOT flag the absence of an
+        L1/L2/L3 structure as a deviation in any document". Ratifying it would
+        state a position the Constitution disclaims — the reported defect one
+        layer up. Pinned by
+        `test_no_standard_is_ratified_for_the_not_adopted_section`.
+
+r5. **A type with no position still refuses, and says what IS covered.** The
+    2026-09-18 document-type guard is unchanged and is not dead code: where the
+    corpus holds no position for the type a question names, Ask refuses and
+    names the types it does hold. Adding a Document Type to the vocabulary
+    asserts nothing about whether text stands behind it — `VENDOR_AGREEMENT`
+    exists as a type and still refuses, because no §31.9 standard is ratified by
+    this record.
+
+r6. **Calibration is NOT claimed.** §31's evidence is two historical Partner
+    Agreements that are not in this repository. Each standard ratified here
+    records that it is uncalibrated against counterparty paper and must be
+    re-calibrated when one is supplied (35.10, rule 21). The positions are the
+    Constitution's; the extraction and mapping terms are drawn from the
+    section's own wording and are an implementation detail, not a locked value.
+
+**Recorded 2026-09-18.** Implemented and verified before the record was written:
+`legalmind/domain/document_types.py` extended; four Partner Agreement standards
+ratified from §31.3, §31.5, §31.6 and §31.8; `legalmind/assist/positions.py`
+maps Purchase Order to `ORDER_FORM`. The reported question now returns §31.3,
+§31.5 and §31.8 — Partner Agreement only — and the three MSA codes from the
+screenshot are pinned as never returning.
+
+--------------------------------------------------------------------------------
+
+AMENDMENT BATCH AB-25 — `AM-73`
+Everything in the Constitution is ratified, except what it disclaims itself
+================================================================================
+
+**Owner decision, 2026-09-18**, given after `AM-72` shipped and after reading the
+§31 inventory it produced. In the owner's own words:
+
+> "Treat EVERYTHING in the Constitution as RATIFIED, effective now. Any document
+> type, section, or position that exists in the Constitution is approved and
+> LegalMind must answer questions about it using that text, with exact section
+> citations. Do NOT hold anything back as 'subject to legal review',
+> 'industry-practice', 'draft', or 'proposed'. If it is in the Constitution, it
+> counts as the organization's official position. No more refusal for types that
+> have text in the Constitution. Refusal only when a type has ZERO text anywhere."
+
+r1. **AMENDS `AM-72` r5.** That rule left `VENDOR_AGREEMENT` and
+    `DISTRIBUTION_AGREEMENT` as types with no ratified position, refusing because
+    the Constitution marks §31.9/§31.10 "subject to legal review". They now
+    ANSWER. The refusal path is unchanged in mechanism and unchanged in
+    correctness — it simply applies only to a type the Constitution states
+    nothing for (of Step 6's thirteen, that is DPA, AUP, PRIVACY_POLICY and
+    OTHER).
+
+r2. **39 positions ratified**, all from §31's own words: §31.4 (1), §31.9 (11),
+    §31.10 (10), §31.11 (7), §31.12 (6), joining `AM-72`'s four. Active standards
+    33 → 72; 79 files counting the seven `AM-65` retired.
+
+r3. **Generated, not transcribed.** §31.9–§31.12's thirty-four positions are
+    emitted by `tools/generate_section31_standards.py`, which slices each
+    `source_quote` out of the Constitution rather than retyping it, so a
+    paraphrase cannot enter the corpus by copying error — rule 7's failure mode
+    at the scale this ruling created. A `--check` mode fails CI if a file and its
+    section have drifted apart. §31.4 is hand-written because its STATUS draws a
+    line no parser can: the APPLICABILITY is company-approved while the tier
+    thresholds are "historical evidence only, not confirmed as current commercial
+    values" — so that standard is PRESENCE and carries **no figure**.
+
+r4. **`constitution.basis` RECORDS PROVENANCE AND NEVER SUPPRESSES AN ANSWER.**
+    `AM-72` r4 kept the Constitution's own grading; this record fixes its
+    meaning. A `LEGALMIND_RULE` position answers exactly as a `COMPANY_APPROVED`
+    one does — the owner's ruling is that both are the organization's official
+    position. The grade survives because it is true, and because §31.9 itself
+    says these rules stand "unless and until the company adopts a different,
+    evidenced position"; erasing it would destroy the record of which positions
+    are awaiting that. It is not, and may not become, a reason to withhold an
+    answer.
+
+r5. **§31.6a REMAINS UNRATIFIED — the owner's own carve-out, and the single
+    exception.** The Constitution states the L1/L2/L3 structure "is NOT a current
+    company position", that it "must not be presented to LegalMind… as an
+    existing company position", and that LegalMind "must NOT flag the absence of
+    an L1/L2/L3 structure as a deviation in any document". Ratifying it would
+    make LegalMind assert a position the Constitution disclaims — the same defect
+    class as the reported bug. `_SKIP_SECTIONS` in the generator and
+    `test_no_standard_is_ratified_for_the_not_adopted_section` both enforce it.
+    §31.6 (two-tier) remains the ratified support position.
+
+r6. **`AM-66` is NOT amended, and the one remaining `proposed/` file stays
+    proposed.** `SERVICE-DISCONTINUATION-NOTICE` would measure the notice limb
+    alone, which `AM-66` forbids — service discontinuation is one compound
+    requirement. Nothing is withheld by this: §31.14 A's position IS ratified and
+    answering, as `SERVICE-DISCONTINUATION-MSA-001`. The draft is a narrower
+    duplicate of a position already live, not an unratified position.
+
+r7. **Calibration is still not claimed.** Every position ratified here is
+    uncalibrated against counterparty paper, and each file says so. The mapping
+    terms on the generated standards are derived from each position's own heading
+    and are an implementation detail (`AM-72` r6, 35.10, rule 21). Ratified means
+    the position answers in Ask; it does not mean the extraction has been
+    measured against a real document of that type.
+
+**Recorded 2026-09-18.** Implemented and verified before the record was written:
+all nine document types that carry Constitution text now retrieve their own
+positions and no other type's, and a type the Constitution states nothing for
+still refuses and names what is covered.
+
+--------------------------------------------------------------------------------
+
+APPENDED RECORD — `AM-73` r8 (2026-09-18)
+Ratified terminology must reproduce its own position
+================================================================================
+
+Appended to the `AM-73` record after implementation, because the verification it
+ran into is a property of the ratification and not an implementation detail.
+
+r8. **A ratified standard must find the very clause it cites.** `AM-73` ratified
+    43 positions; the first generated pass derived their mapping terminology from
+    each position's HEADING, which scores 3 against the locked 35.8 confirm
+    threshold of 5. All 34 generated standards therefore failed
+    `tools.verify_terminology`: they could not find their own Constitution
+    section. **A standard that cannot find its own source clause can never
+    produce a Finding**, so it would have been ratified, published, retrievable
+    in Ask — Domain A retrieves chunks by an entirely different mechanism and was
+    working — and silently incapable of evaluating anything. Caught by CI job 12,
+    which exists precisely because a test and the code it guards can share a
+    wrong assumption.
+
+    Three causes, each corrected at its root rather than by lowering a threshold:
+
+    (a) Terminology is derived from the position's own QUOTE, not its heading, so
+        a standard reproduces its cited section by construction.
+
+    (b) A configured phrase must be ADJACENT IN THE SOURCE. An alias rebuilt from
+        tokens gave "capped structured consistently" where the Constitution reads
+        "capped, structured consistently"; locked 35.5's boundary matching is
+        literal, so the phrase matched nothing, silently, and cost 3 points on
+        every position it touched.
+
+    (c) `verify_terminology` skipped every line beginning with `|`, so it could
+        not see a position stated in a TABLE. §31.11 and §31.12 state theirs
+        entirely as table rows, so those thirteen standards had no clause to
+        match however good their terminology was. One clause per row now — the
+        row IS the position. This was under-verification of the Constitution
+        generally, not only of the standards ratified here.
+
+    No threshold was changed and no standard was exempted. Result: 47 PASS, 0
+    FAIL across every ratified standard (32 SKIP are the document-sourced ones,
+    whose sources are gitignored under locked 54.6 and absent in CI).
+
+    This does not amend r7: reproducing the CITED SECTION is not calibration
+    against counterparty paper, which is still not claimed for any position
+    ratified by this record.
+
+--------------------------------------------------------------------------------

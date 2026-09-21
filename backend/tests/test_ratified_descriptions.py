@@ -17,17 +17,82 @@ def test_the_standard_set_is_exactly_what_the_records_ratified_and_retired():
     """Pinned on purpose: a standard enters or leaves this directory only through
     a recorded ruling. 25 ratified from LeapSwitch documents (2026-08-19/20,
     less the seven retired) + 8 approved through the Constitution L1.10
-    (`AM-59` r6' and `AM-66`) = 33 active, + 7 retired (`AM-65`) = 40 files."""
+    (`AM-59` r6' and `AM-66`) + 39 approved through Constitution §31 (`AM-72`,
+    AB-24, owner 2026-09-18 resolving C-23) = 72 active, + 7 retired (`AM-65`)
+    = 79 files."""
     payloads = _payloads()
     retired = {c for c, d in payloads.items() if "retired" in d}
-    assert len(STANDARDS) == 40
+    assert len(STANDARDS) == 79
     assert len(retired) == 7, sorted(retired)
-    assert len(payloads) - len(retired) == 33
+    assert len(payloads) - len(retired) == 72
+    # `AM-72` — the §31 document types, by count. Pinned so a position cannot enter
+    # or leave without a recorded ruling, the same discipline as the retired set.
+    by_type: dict[str, int] = {}
+    for d in payloads.values():
+        by_type[d["configuration"]["document_type"]] = (
+            by_type.get(d["configuration"]["document_type"], 0) + 1)
+    assert by_type["PARTNER_AGREEMENT"] == 5      # §31.3-§31.6, §31.8, §31.4
+    assert by_type["VENDOR_AGREEMENT"] == 11      # §31.9
+    assert by_type["DISTRIBUTION_AGREEMENT"] == 10  # §31.10
+    assert by_type["ORDER_FORM"] == 7             # §31.11
+    assert by_type["AMENDMENT"] == 6              # §31.12
     # AM-65 — the seven the current Constitution does not define.
     assert retired == {
         "FORCE-MAJEURE-MSA-001", "FORCE-MAJEURE-TOS-001", "WARRANTY-DISCLAIMER-MSA-001",
         "COMPELLED-DISCLOSURE-NDA-001", "RETURN-DESTRUCTION-MSA-001",
         "RETURN-DESTRUCTION-NDA-001", "LIAB-CARVEOUTS-MSA-001"}
+
+
+def tmp_source_dir():
+    """A directory holding no source PDFs, so `verify_terminology` falls back to the
+    Constitution for every standard — CI's situation, where the sources are gitignored
+    (locked 54.6). Not a fixture: it is one path, used once."""
+    import tempfile
+
+    return tempfile.mkdtemp(prefix="lm-no-sources-")
+
+
+def test_every_constitution_sourced_standard_finds_the_clause_it_cites():
+    """A standard that cannot find its own source clause can never produce a Finding.
+
+    The first `AM-73` pass derived mapping terms from each position's heading, scored 3
+    against locked 35.8's confirm threshold of 5, and failed all 34 generated standards
+    — while Ask answered perfectly, because Domain A retrieves chunks by an entirely
+    different mechanism. Only CI job 12 saw it. Running it here too means the narrow
+    test loop catches it before a push (`AM-73` r8).
+
+    Run with the source directory pointed AWAY, which is exactly CI's situation and is
+    what scopes this to the Constitution: `verify_terminology` reproduces a standard
+    from the PDF it cites when that PDF is present, and falls back to the Constitution
+    only when it is absent. With the owner's `legal-docs` present, six standards fail
+    here by design — `AM-43` r4 reconciled them to the Constitution, so their ratified
+    position is the Constitution's while the LeapSwitch paper they cite still says
+    something else. That divergence is C-18, resolved and intentional, and must not be
+    pinned here as a defect.
+    """
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "LEGALMIND_SOURCE_MATERIAL_DIR": str(tmp_source_dir())}
+    result = subprocess.run(
+        [sys.executable, "-m", "tools.verify_terminology"],
+        cwd=STANDARDS[0].parents[2], capture_output=True, text=True, env=env)
+    failures = [ln for ln in result.stdout.splitlines() if ln.startswith("FAIL")]
+    assert not failures, "\n".join(failures)
+
+
+def test_no_generated_standard_has_drifted_from_the_constitution():
+    """The §31.9-§31.12 standards are emitted from the Constitution's own words. If a
+    file and its section disagree, one of them was edited by hand — and for a generated
+    legal position that means a paraphrase entered the corpus (rule 7)."""
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "tools.generate_section31_standards", "--check"],
+        cwd=STANDARDS[0].parents[2], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_a_retired_standard_keeps_its_record_and_says_why():

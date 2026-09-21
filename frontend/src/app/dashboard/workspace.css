@@ -5028,6 +5028,8 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 }
 
 /* A row of checkboxes that wraps. */
+.ws-checks__bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); margin: 0 0 var(--ws-s2); }
+.ws-checks__bulk .ws-pane__note { margin: 0; }
 .ws-checks { display: flex; flex-wrap: wrap; gap: var(--ws-s2); margin: 0; padding: 0; list-style: none; }
 .ws-check {
   display: inline-flex; align-items: center; gap: var(--ws-s2);
