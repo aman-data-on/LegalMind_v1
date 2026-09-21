@@ -23,7 +23,11 @@ import shutil
 from dataclasses import dataclass, field
 
 from legalmind.domain.enums import EvidenceSourceType, ExtractionStatus
-from legalmind.ingestion.validation import DOCX_MIME, PDF_MIME
+from legalmind.ingestion.validation import (
+    DOCX_MIME,
+    PDF_MIME,
+    TEXT_MIME_TYPES,
+)
 
 # A page yielding fewer than this many characters of native text is treated as
 # having no usable text (34.7). Deliberately low: the threshold decides whether
@@ -534,6 +538,54 @@ def text_is_legible(text: str) -> bool | None:
 # --------------------------------------------------------------------------
 # Parsers
 # --------------------------------------------------------------------------
+def _reads_in_columns(blocks: list, page_height: float) -> bool:
+    """Does this page's content stream jump back up to start another column?
+
+    Re-ordering EVERY page was measured and is wrong. On the 77-question set it lifted
+    the statute lane (gate-open hit@1 0.538 -> 0.786) and pushed the contract lane
+    down (gate-open 30/44 -> 27/44, recall@10 0.659 -> 0.568): single-column pages are
+    already in reading order, so sorting them only churns the text that embeddings
+    were built from. The fix is to reorder the pages that need it and leave the rest
+    byte-identical.
+
+    A single column runs down the page, so the content stream's y only grows. A second
+    column begins by jumping back to the top — a large negative step. That jump IS the
+    condition, so it is what is tested, rather than counting columns by clustering x.
+    A third of the page height is well clear of the small negative steps a footnote or
+    a hanging indent produces.
+    """
+    previous_top = None
+    for block in blocks:
+        top = block[1]
+        if previous_top is not None and previous_top - top > page_height / 3:
+            return True
+        previous_top = top
+    return False
+
+
+def _page_blocks_in_reading_order(page) -> str:
+    """The page's prose in READING order, with the kept tables' regions removed.
+
+    `get_text("text")` walks the PDF content stream, which on a two-column layout
+    emits an entire column before the next: measured on the DPDP Act's penalty
+    Schedule, a breach label and its penalty landed 699 characters apart. Sorting
+    blocks into row-bands (y, then x) puts them 113 apart.
+
+    `get_text(sort=True)` reorders too but joins spans with no separator — on
+    SLA-leapswitch.pdf it produced `*99.95%forPower(Dual-poweredservers)`, which no
+    lexical search matches — so whole blocks are sorted and each block's own text is
+    left exactly as it was. The 6-point band absorbs the baseline jitter of a
+    justified line.
+
+    Only pages that need it are reordered; see `_reads_in_columns` for why, and for
+    what happened when every page was.
+    """
+    kept = [b for b in page.get_text("blocks") if b[6] == 0]   # 0 = text, 1 = image
+    if _reads_in_columns(kept, page.rect.height):
+        kept.sort(key=lambda b: (round(b[1] / 6), b[0]))
+    return "\n".join(b[4].strip() for b in kept if b[4].strip())
+
+
 def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
     """Native PDF text extraction, with OCR only where a page has none.
 
@@ -572,7 +624,7 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
     # page objects are untyped here rather than wrongly typed.
     for index, page in enumerate(doc, start=1):    # type: ignore[arg-type,var-annotated]
         try:
-            raw = page.get_text("text") or ""
+            raw = _page_blocks_in_reading_order(page) or ""
         except Exception as exc:                # pragma: no cover - defensive
             raw = ""
             diagnostics.append(f"page {index}: extraction error {type(exc).__name__}")
@@ -983,11 +1035,47 @@ def parse_docx(data: bytes) -> ParseResult:
                        pagination_source=pagination_source if segments else None)
 
 
+_MARKDOWN_HEADING = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]+", re.MULTILINE)
+_MARKDOWN_RULE = re.compile(r"^[ \t]{0,3}(?:[-*_][ \t]*){3,}$", re.MULTILINE)
+
+
+def parse_text(data: bytes) -> ParseResult:
+    """Plain text and Markdown, through the same segmenter as everything else.
+
+    `segment_paragraphs` was already source-agnostic — it takes text, a page and a
+    source type — so this adds a reader, not a second parser. There is no page model:
+    a .md file states no pagination, so `page_number` is None and `pages_total` is 0,
+    exactly as `parse_docx` already reports for a DOCX whose own record is absent.
+    Status is decided the same way it is there: text or no text.
+
+    Markdown's heading marks are removed before segmentation. They are presentation,
+    and left in place `## 5. Liability` is not a clause number to `detect_clause_number`
+    — the numbering the document itself states is what locked 34.12 preserves, and a
+    `#` is not part of it. Nothing else about the text is altered: no list
+    renumbering, no emphasis stripping, no link rewriting.
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ParseError("text could not be decoded as UTF-8") from exc
+    text = _MARKDOWN_RULE.sub("", _MARKDOWN_HEADING.sub("", text))
+    segments = segment_paragraphs(text, page_number=None,
+                                  source_type=EvidenceSourceType.NATIVE_TEXT,
+                                  base_offset=0)
+    status = ExtractionStatus.COMPLETE if segments else ExtractionStatus.FAILED
+    return ParseResult(
+        segments=segments, status=status, pages_total=0,
+        pages_extracted=1 if segments else 0,
+        diagnostics=[] if segments else ["file contained no extractable text"])
+
+
 def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False) -> ParseResult:
     if mime_type == PDF_MIME:
         return parse_pdf(data, defer_ocr=defer_ocr)
     if mime_type == DOCX_MIME:
         return parse_docx(data)  # a DOCX is text-native; OCR never applies
+    if mime_type in TEXT_MIME_TYPES:
+        return parse_text(data)  # no pages, no OCR, no embedded objects
     raise ParseError(f"unsupported mime type: {mime_type}")
 
 

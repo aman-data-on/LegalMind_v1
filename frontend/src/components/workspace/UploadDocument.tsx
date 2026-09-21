@@ -51,7 +51,7 @@ export function UploadDocument({
     <form onSubmit={submit} style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
       <label>
         <span className="ws-visually-hidden">Document file</span>
-        <input ref={fileInput} type="file" accept=".pdf,.docx" required disabled={busy} />
+        <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required disabled={busy} />
       </label>
       <button type="submit" className="ws-btn ws-btn--primary" disabled={busy}>
         {busy ? "Uploading…" : "Upload"}
