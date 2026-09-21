@@ -1,0 +1,85 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.10 (owner ruling 2026-09-13,",
+    "extended to the Section 31 document types 2026-09-18, resolving C-23). Drafted from §31.5's own words;",
+    "every value is the section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
+  ],
+  "requirement_code": "NON-CIRCUMVENTION-PARTNER_AGREEMENT-001",
+  "description": "The Company will not solicit a Partner's introduced End Customer away in a way that circumvents the Partner's commissions.",
+  "ratified": "2026-09-18",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.5",
+    "ruling": "owner, 2026-09-13 as extended 2026-09-18 (C-23) — this standard restates §31.5 without changing its meaning",
+    "calibration": "35.10 — NOT yet calibrated against counterparty paper; §31.5's evidence is two historical Partner Agreements not held in this repository. Re-calibrate when one is supplied (rule 21)."
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "§31.5",
+  "source_quote": "The Company will not directly solicit an End Customer introduced by a Partner to move to a different partner or a direct relationship with the Company, in a manner that would circumvent the Partner's rightful commissions or relationship, during the term of the Partner Agreement. This does not prevent general, non-targeted marketing, or accepting unsolicited orders from a customer the Partner introduced, since Partner Agreements are non-exclusive.",
+  "configuration": {
+    "document_type": "PARTNER_AGREEMENT",
+    "constitution": {
+      "version": "L1.10",
+      "section": "31.5",
+      "topic": "Partner Programme — Non-Circumvention",
+      "basis": "COMPANY_APPROVED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "PARTNER_NON_CIRCUMVENTION",
+    "applicability": "REQUIRED"
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "non-circumvention",
+      "shall not circumvent",
+      "will not circumvent",
+      "non circumvention"
+    ],
+    "aliases": [
+      "end customer introduced by",
+      "introduced by the partner",
+      "directly solicit"
+    ],
+    "keyword_groups": [
+      [
+        "circumvent",
+        "partner"
+      ],
+      [
+        "solicit",
+        "end customer",
+        "partner"
+      ],
+      [
+        "commission",
+        "circumvent"
+      ]
+    ],
+    "negative_patterns": [
+      "non-solicitation of employees",
+      "shall not solicit any employee"
+    ],
+    "section_heading_terms": [
+      "non-circumvention",
+      "circumvention"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "Appendix B has NO clause category for non-circumvention, so `constitution.topic` takes §31.5's own heading rather than being force-fitted to an unrelated Appendix B row. That is a routing label, not a legal position; if Appendix B later gains a category, this value should move to it.",
+    "Negative patterns keep employee non-solicitation (a different clause, and one §31.5 does not address) out of this standard's mapping — the subject here is the END CUSTOMER relationship, not staff.",
+    "§31.5's second sentence is a CARVE-OUT, not a separate position: general non-targeted marketing and unsolicited orders are expressly permitted, so a Partner Agreement permitting them is not thereby a deviation."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}

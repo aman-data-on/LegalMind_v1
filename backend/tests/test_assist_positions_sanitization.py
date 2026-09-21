@@ -207,4 +207,13 @@ def test_the_leaked_tokens_are_no_longer_searchable(db, user):
                   "repository docs md"):
         hits = search_positions(db, query=query, permissions=perms, limit=5,
                                 embed_query=lambda _q: None)
-        assert hits == [], f"{query!r} still retrieves a position: {[h.standard_code for h in hits]}"
+        # The claim is that the LOCATOR is gone from the index, not that these strings
+        # retrieve nothing whatever. `AM-72` ratified §31.8, whose quote reads
+        # "trademarks/marketing materials", so `legalmind_source_material_dir` now
+        # shares the ordinary lexeme `material` with a legitimate position — the same
+        # collision this test already records for "legal" and "constitution". So
+        # assert what the sanitizer actually promises: no retrieved chunk CARRIES one.
+        for hit in hits:
+            lowered = hit.content.lower()
+            leaked = [token for token in FORBIDDEN if token in lowered]
+            assert not leaked, f"{query!r} -> {hit.standard_code} carries {leaked}"
