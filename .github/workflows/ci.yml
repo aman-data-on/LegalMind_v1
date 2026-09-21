@@ -932,3 +932,35 @@ jobs:
           name: visual-regression-diffs
           path: frontend/test-results/
           retention-days: 7
+
+  # ── 16 ─────────────────────────────────────────────────────────────────────
+  documentation-index:
+    name: 16 · Documentation index reachability
+    runs-on: ubuntu-latest
+    # Extracted from job 13, unconditionally, per the approved CI path-scoping
+    # design (R&D finding, 2026-09-21): test_documentation_index.py was named in
+    # no job's explicit list, so it only ran inside job 5's stability probe
+    # (whose result is discarded on a consistent pass or fail — F-4) and job 13's
+    # full run. That is precisely the job a docs-only PR would later be safe to
+    # skip, which would have silently dropped the one check that exists because
+    # 8 files drifted out of docs/README.md on 2026-09-14. Running it here,
+    # unconditionally, on every push and PR, is what makes skipping job 13 for
+    # docs-only changes safe later — that gating is deliberately NOT done yet.
+    #
+    # No Postgres service and no full dev install: the test's own imports are
+    # `pathlib`, `re` and `pytest` only, and it asserts nothing that needs a
+    # database. `conftest.py` still imports the `legalmind` package at
+    # collection time (pytest always loads conftest.py for the directory), so
+    # the editable install stays — the DB service is what's actually dropped.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+      - name: Documentation index reachability
+        working-directory: backend
+        run: python -m pytest tests/test_documentation_index.py -q
