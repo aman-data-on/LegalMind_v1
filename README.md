@@ -77,6 +77,15 @@ Every standard declares its provenance, and the four are never mixed:
 A statute is **not** a Company Standard and never creates a Requirement. Statutes are background
 law, cited in an explanation and reachable through Ask, never loaded as configuration.
 
+**Which knowledge answers a question is decided deterministically, before any search.** There is no
+mode selector and no model in the router. A question reaches the statute corpus when it NAMES a
+source — a section, an Act, a set of Rules — or when it asks for a general rule: it carries a
+jurisdiction ("under Indian law"), a rule-seeking shape ("what does the law say"), or it names who
+the rule binds in the abstract ("a platform", "the injured party"). It does **not**, however much
+statutory vocabulary it borrows, when it points at the reader's own paper — "this agreement", "our
+standard", or simply "we". A statute citation is Act + the Act's own unit: `s. 43A`, or
+`The Schedule` where the Act has no section number for it.
+
 Where the Constitution is silent, LegalMind says so. It does not invent a position, a threshold or
 a tolerance — `NOT YET SPECIFIED` is a valid, useful state.
 

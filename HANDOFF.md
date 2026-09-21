@@ -230,6 +230,23 @@ coherent choice: it is what Step 24 r18 says as written.
 
 ## 6 · What I need from you
 
+> ⛔ **Added 2026-09-21 — the one EXTERNAL blocker on the Domain C work, which is
+> otherwise finished and frozen at `1a7ce69`: Gemini credit.** The provider returns
+> **HTTP 402 (payment required)**, so the final 23-question end-to-end validation
+> cannot run. Every deterministic layer is verified — routing 24/27 with **0** false
+> STATUTE, Domain C evidence 20/20, recall@6 0.800, citations 16/16, the semantic gate
+> blocking **0** questions with `COSINE_FLOOR` unchanged at 0.50, suite 2249 passed —
+> but **post-routing ANSWER quality is not established and is not claimed**. The last
+> confirmed end-to-end figures are the pre-routing baseline (13/20 answered, 13/13 cited
+> correctly, 0 leakage). On credit: resume from exactly `1a7ce69` and run the
+> 23-question validation before deciding whether further implementation is needed.
+> Nothing is pushed past `c8af919`, merged, deployed or re-indexed.
+>
+> Two smaller owner decisions also sit open from the same work: **C-24** — is a Schedule
+> a citable unit under `AM-32` r7? (registered, not reinterpreted) — and whether
+> **N-11**'s `NOT_FOUND` label should be corrected, since DPDP Rules 2025 s. 23(2) does
+> fix the 72 hours the question asks about.
+
 Two pieces of work are blocked, and both are blocked on the same material. Locked 54.6 is
 the reason it cannot be improvised: *"golden fixtures use synthetic or cleared contract
 text. Real counterparty contracts do not enter the repository."*

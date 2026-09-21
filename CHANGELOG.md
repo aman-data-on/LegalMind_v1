@@ -10,6 +10,38 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### FROZEN 2026-09-21 — Domain C work held at `1a7ce69`, pending Gemini credit
+
+Owner instruction: stop implementation and freeze. No further code, routing, retrieval,
+threshold or architecture change; nothing pushed, merged, deployed or re-indexed, and no
+further provider calls. Work resumes from exactly `1a7ce69`.
+
+**Validated at `1a7ce69`, deterministic layers only — zero provider calls**
+
+| layer | result |
+|---|---|
+| Routing | **24/27** GENERAL_LAW routed · **0** false STATUTE · precision 1.000 · recall 0.889 |
+| Retrieval | Domain C returns evidence for **20/20** answerable · recall@6 **0.800** · hit@3 **0.650** |
+| Citation | **16/16** correct, zero miscitations · named-Act ✓ · exact-section ✓ |
+| Semantic gate | **0 questions blocked** (was 8) · `COSINE_FLOOR` **0.50, unchanged** · no lexical bypass |
+| Safety / regression | contract lane unmoved 9/54 · 0 must-refuse controls gained evidence · 0 Constitution/Company-Standard leakage · suite **2249 passed, 112 skipped, 198 s** · lint + mypy clean |
+| **Gemini end-to-end** | ⛔ **PENDING — the one external blocker.** Provider returns **HTTP 402 (credit exhausted)** |
+
+**The Gemini result is NOT established and is not claimed.** The last confirmed
+end-to-end figures are the pre-routing baseline: 13/20 answered, 13/13 cited correctly,
+zero leakage. The 402 run demonstrates fail-closed behaviour only — all 20 refused
+honestly, all 3 must-refuse controls refused, zero leakage — and says nothing about
+answer quality.
+
+**On resume:** run the 23-question validation from `1a7ce69` before deciding whether any
+further implementation is needed. Six questions are newly routed and retrieving but have
+never been answered — **Q-45, Q-46, Q-54, Q-55, Q-60, Q-62**. Retrieval diagnosis
+predicts Q-45/Q-46/Q-54/Q-60 answer and Q-55/Q-62 are at risk, for causes already
+measured and recorded (restraint-of-trade ranking, tie saturation, and the IT Rules'
+title match); all four ROUTED correctly, so those are retrieval limits, not routing
+failures.
+
+
 ### Fixed — a Schedule is a citable unit, a glued footnote marker no longer swallows an Act, and Domain C ranking stops letting one Act take every slot (2026-09-21)
 
 **Three defects, found by tracing the five statute questions that failed under every
