@@ -1,0 +1,78 @@
+name: Paths-filter validation round 2 (throwaway)
+
+# THROWAWAY — exists only on throwaway/pathsfilter-validation2, to be
+# deleted with the branch once real-action validation of the FIXED
+# `other` derivation is complete. Not part of the approved Phase 2 CI
+# design. Round 1 (throwaway/pathsfilter-validation) proved the
+# '**' + negations construction broken; this round tests the fix:
+# `other` derived as a GitHub Actions boolean expression over the four
+# already-validated positive filters, not via paths-filter itself.
+
+on:
+  push:
+    branches: ['throwaway/pathsfilter-validation2']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Copied exactly from the fixed Phase 2 `changes` job (uncommitted, on
+  # chore/ci-extract-doc-index-job).
+  changes:
+    name: 0 · Change classification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend:      ${{ steps.filter.outputs.backend }}
+      frontend:     ${{ steps.filter.outputs.frontend }}
+      docs:         ${{ steps.filter.outputs.docs }}
+      workflows:    ${{ steps.filter.outputs.workflows }}
+      constitution: ${{ steps.filter.outputs.constitution }}
+      other: ${{ steps.filter.outputs.backend != 'true' && steps.filter.outputs.frontend != 'true' && steps.filter.outputs.docs != 'true' && steps.filter.outputs.workflows != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          # Self-referencing base: on `push`, this activates paths-filter's
+          # "same branch as base" mode -- diff against the immediately
+          # preceding commit on THIS branch, not a cumulative diff against
+          # main. Needed so each scenario commit below tests its own file(s)
+          # in isolation: without this, the throwaway workflow file itself
+          # (unavoidably present in every commit since main doesn't have it)
+          # would make `workflows` true in every single diff against main,
+          # masking whether `other` can ever legitimately become true.
+          # Ignored on pull_request events (paths-filter uses the PR's own
+          # base via the REST API there instead).
+          base: throwaway/pathsfilter-validation2
+          filters: |
+            workflows:
+              - '.github/workflows/**'
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            docs:
+              - 'docs/**'
+            constitution:
+              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md'
+
+  report:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "backend=${{ needs.changes.outputs.backend }}"
+          echo "frontend=${{ needs.changes.outputs.frontend }}"
+          echo "docs=${{ needs.changes.outputs.docs }}"
+          echo "workflows=${{ needs.changes.outputs.workflows }}"
+          echo "constitution=${{ needs.changes.outputs.constitution }}"
+          echo "other=${{ needs.changes.outputs.other }}"
+          echo "---"
+          echo "job12_condition=${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.constitution == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true' }}"
+          echo "job1_group_a_condition=${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true' }}"
+          echo "job9_group_b_condition=${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true' }}"
