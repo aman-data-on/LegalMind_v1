@@ -55,9 +55,14 @@ function preflight(file: File): string | null {
   return null;
 }
 
-export function UploadToClient({ client, onDone }: {
+export function UploadToClient({ client, onDone, initialContractId }: {
   client: Counterparty;
   onDone: () => void | Promise<void>;
+  /** Pre-selects "a new version of" a specific document — how a document
+   *  row's own "Upload new version" action opens this same panel rather
+   *  than building a second one. The reader can still change it; this only
+   *  saves the one lookup when the intent is already known. */
+  initialContractId?: string;
 }) {
   const { can } = useSession();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -65,7 +70,7 @@ export function UploadToClient({ client, onDone }: {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   /** "" means a new document; otherwise the contract a new version belongs to. */
-  const [intoContractId, setIntoContractId] = useState("");
+  const [intoContractId, setIntoContractId] = useState(initialContractId ?? "");
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
