@@ -80,29 +80,30 @@ The moving parts inside LegalMind that make that happen:
 flowchart LR
     U(("You")) --> Web["Web app<br/><i>what you see in the browser</i>"]
     Web --> Srv["LegalMind server<br/><i>checks who you are<br/>and what you're allowed to see</i>"]
-    Srv --> Idx["Search index<br/><i>your document + company positions<br/>+ the law</i>"]
+    Srv --> Idx["Search index<br/><i>keyword index + AI meaning-index<br/>of your document, company positions, the law</i>"]
     Idx --> Gemini(["Gemini<br/><i>external — drafts wording only</i>"])
     Srv --> DB[("Permanent record<br/><i>every decision, logged</i>")]
 ```
 
-And the sequence a single question actually goes through — never a memory lookup,
-always a fresh search first (this pattern is called **RAG**, retrieval-augmented
-generation):
+And the exact sequence one question goes through — never a memory lookup, always a
+fresh search first (this pattern is called **RAG**, retrieval-augmented generation):
 
 ```mermaid
 flowchart TD
-    Q[You ask a question] --> P["LegalMind works out what you're allowed<br/>to be answered from: your document,<br/>the company's approved positions, or the law"]
-    P --> S[It searches only inside that one allowed source]
-    S --> R[It re-ranks the results so the best passage comes first]
-    R --> G{Enough solid evidence?}
+    Q[You ask a question] --> P["1. LegalMind works out what you're allowed<br/>to be answered from: your document,<br/>the company's approved positions, or the law"]
+    P --> S["2. It searches that one allowed source two ways at once:<br/>keyword match, and AI meaning-match<br/>(a local, self-hosted AI model — nothing leaves the building)"]
+    S --> R["3. A second, smaller AI model re-reads the top matches<br/>and puts the passage that actually answers you first"]
+    R --> G{"4. Enough solid evidence,<br/>now that it's sorted?"}
     G -- No --> N["It says so honestly —<br/>no answer is ever invented"]
-    G -- Yes --> W["The AI drafts an answer,<br/>using only that evidence"]
-    W --> V["Every sentence and citation is<br/>machine-checked against the real text"]
-    V --> O["You see the answer, its sources,<br/>and the exact evidence behind it"]
+    G -- Yes --> W["5. Google Gemini — the one outside AI call<br/>in the whole system — drafts the wording,<br/>using only those passages, nothing from its own memory"]
+    W --> V["6. A separate, mechanical check re-reads every sentence<br/>and confirms each claim and citation really is<br/>in the passages Gemini was given"]
+    V --> O["7. You see the answer, its sources,<br/>and the exact evidence behind it"]
 ```
 
-That "machine-checked" step is why nothing streams word-by-word like a typical chatbot —
-the whole answer is verified first, then shown at once.
+Step 3, the re-reading model, is the newest piece and the one that moved the needle
+most: on the team's 77-question test set it took "the right passage came up first"
+from 61% to 73%. Step 6 is why nothing streams word-by-word like a typical chatbot —
+the whole answer is checked before any of it is shown.
 
 | | The Deciding Engine (Section 2) | Ask, the assistant (this section) |
 |---|---|---|
@@ -126,10 +127,9 @@ the whole answer is verified first, then shown at once.
 
 **Where the project stands today:** the core (Sections 1–2) has been live and in daily
 use for weeks. Ask (Section 3) is live too, answering from over 70 company positions
-drawn directly from the company's own Legal Constitution. Accuracy keeps improving —
-most recently, finding the right passage first went from 3 times in 5 to roughly 3 times
-in 4 — but nothing about Sections 1–2, or the "never decides" rule in Section 3, has ever
-changed.
+drawn directly from the company's own Legal Constitution, and keeps getting more
+accurate — but nothing about Sections 1–2, or the "never decides" rule in Section 3, has
+ever changed.
 
 For the full technical picture: [ARCHITECTURE_REFERENCE.md](ARCHITECTURE_REFERENCE.md)
 (system end to end, down to Component/Code level) and
