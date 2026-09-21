@@ -76,3 +76,4 @@ jobs:
           echo "job12_condition=${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.constitution == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true' }}"
           echo "job1_group_a_condition=${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true' }}"
           echo "job9_group_b_condition=${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true' }}"
+# scenario 4 marker
