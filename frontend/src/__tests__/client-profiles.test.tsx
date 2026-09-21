@@ -254,6 +254,49 @@ describe("document versions", () => {
 });
 
 // =====================================================================
+// The Review Status cell states a fact, not a count (owner, 2026-09-19)
+// =====================================================================
+describe("review status carries no numbers in the main row", () => {
+  const analysed = (counts: Record<string, number>) =>
+    doc({
+      latest_version: { id: "v1", version_number: 1, processing_status: "COMPLETED" },
+      latest_analysis: {
+        review_id: "r1", review_status: "COMPLETED",
+        created_at: "2026-09-19T00:00:00Z", completed_at: "2026-09-19T00:05:00Z",
+        user_status_counts: counts,
+      },
+    });
+
+  it("never renders the three-way count bubbles this screen used to show", () => {
+    const html = renderToStaticMarkup(
+      <ClientDocuments
+        client={client({ contracts: [analysed({ ACCEPTABLE: 1, REQUIRES_MODIFICATION: 2, NEEDS_DECISION: 1 })] })}
+        onChanged={() => {}} />,
+    );
+    expect(html).not.toContain("ws-findings-badge");
+    expect(html).not.toContain("ws-findings-cell");
+  });
+
+  it("says \"Needs decision\" with no number, only when one is actually needed", () => {
+    const withDecision = renderToStaticMarkup(
+      <ClientDocuments
+        client={client({ contracts: [analysed({ ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 2 })] })}
+        onChanged={() => {}} />,
+    );
+    expect(withDecision).toContain("Needs decision");
+    // The word appears; the count driving it (2) never does, anywhere near it.
+    expect(withDecision).not.toMatch(/Needs decision.{0,20}2/);
+
+    const withoutDecision = renderToStaticMarkup(
+      <ClientDocuments
+        client={client({ contracts: [analysed({ ACCEPTABLE: 0, REQUIRES_MODIFICATION: 3, NEEDS_DECISION: 0 })] })}
+        onChanged={() => {}} />,
+    );
+    expect(withoutDecision).not.toContain("Needs decision");
+  });
+});
+
+// =====================================================================
 // 3. Absence reads as absence
 // =====================================================================
 describe("what is not known says so", () => {
