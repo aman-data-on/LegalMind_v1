@@ -44,8 +44,11 @@ def main() -> int:
             try:
                 report = ingest_statute(db, path=base / entry["file"], provenance=provenance)
                 db.commit()
-                print(f"{entry['file']}: {report['chunks']} sections, "
-                      f"{report['embedded']} embedded, sha {report['file_sha256'][:12]}")
+                print(f"{entry['file']}: {report['sections']} sections in "
+                      f"{report['chunks']} chunks, {report['embedded']} embedded, "
+                      f"sha {report['file_sha256'][:12]}"
+                      + (f", {report['citations_repointed']} citations repointed"
+                         if report["citations_repointed"] else ""))
             except StatuteIngestRefused as exc:
                 db.rollback()
                 failures += 1

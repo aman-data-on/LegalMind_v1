@@ -241,8 +241,14 @@ def test_the_real_toolchain_recovers_an_illegible_document():
 
     source = LEGAL_PROSE[:1600]
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr(pymupdf.Page, "get_text",
-                        lambda self, *a, **k: mangle(source))
+    # Shape-aware: `parse_pdf` asks for "blocks" to read a page in reading order, and
+    # a stub that returned a str for every call would send it down the OCR path
+    # instead of the one under test — the test would still pass, having stopped
+    # testing this. One block, spanning the page, carrying the mangled glyphs.
+    monkeypatch.setattr(
+        pymupdf.Page, "get_text",
+        lambda self, *a, **k: ([(0.0, 0.0, 600.0, 800.0, mangle(source), 0, 0)]
+                               if a and a[0] == "blocks" else mangle(source)))
     try:
         result = parse_pdf(build_pdf([source]))
     finally:

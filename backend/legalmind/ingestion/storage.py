@@ -95,4 +95,4 @@ class LocalFilesystemStorage:
 
 def _suffix(name: str) -> str:
     suffix = Path(name).suffix.lower()
-    return suffix if suffix in {".pdf", ".docx"} else ""
+    return suffix if suffix in {".pdf", ".docx", ".md", ".txt"} else ""

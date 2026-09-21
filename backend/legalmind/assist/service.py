@@ -77,6 +77,10 @@ class CitationView:
     page_number: int | None
     section_ref: str | None
     excerpt: str
+    # The whole cited span, for the reader who opens the evidence rather than
+    # skimming it. No new disclosure: retrieval already authorized this chunk for
+    # this caller (`AM-25` r6/r7), and `excerpt` was only ever a display truncation.
+    text: str
     retrieval_score: float
 
 
@@ -115,6 +119,23 @@ class AskOutcome:
 # simply records nothing. Accumulates, because positions can be searched twice.
 _TIMINGS: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "assist_timings", default=None)
+
+
+# The ten-stage pipeline's order, for reporting. Stages that did not run for a given
+# question are simply absent — a question answered from the document never searches
+# the statutes, and a sequence that claimed otherwise would be theatre.
+STAGE_ORDER = ("planning", "retrieval", "rescue", "rerank", "positions", "statutes",
+               "generation", "position_aid", "statute_generation", "verification",
+               "fallbacks", "total")
+
+
+def progress_sequence(timings: dict) -> list[dict]:
+    """The stages this answer actually passed through, in pipeline order, with what
+    each cost. Deliberately NOT reader-facing labels: the UI owns copy, and this
+    product answers in Hindi as well as English (`AM-69`), so English strings baked
+    into the API would be wrong in exactly the place they are read aloud."""
+    return [{"stage": name, "ms": timings[name]}
+            for name in STAGE_ORDER if name in timings and name != "total"]
 
 
 @contextlib.contextmanager
@@ -1111,6 +1132,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
             page_number=retrieval.hits[i - 1].page_number,
             section_ref=retrieval.hits[i - 1].section_ref,
             excerpt=retrieval.hits[i - 1].content[:240],
+            text=retrieval.hits[i - 1].content,
             retrieval_score=retrieval.hits[i - 1].retrieval_score)
         for i in cited_indexes
     ]

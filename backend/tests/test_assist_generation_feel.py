@@ -28,7 +28,7 @@ def test_the_citation_rule_is_untouched():
 def test_the_version_was_bumped_with_the_template():
     """A changed prompt under an unchanged version is an unauditable payload
     (`AM-30` t5 — the prompt version is recorded with every answer)."""
-    assert generation.PROMPT_VERSION == "grounded-answer-3"
+    assert generation.PROMPT_VERSION == "grounded-answer-4"
 
 
 def test_the_rag_preamble_was_not_merely_UGLY_it_cost_answers():

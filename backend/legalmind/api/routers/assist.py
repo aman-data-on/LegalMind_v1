@@ -550,8 +550,16 @@ def ask(conversation_id: UUID, body: AskRequest,
             "page_number": c.page_number,
             "section_ref": c.section_ref,
             "excerpt": c.excerpt,
+            # The whole cited span, for the expandable evidence view. `excerpt`
+            # stays for the collapsed one.
+            "text": c.text,
             # A retrieval score, labeled as exactly that — never confidence
             # (AI-03 item 16; rule 12).
             "retrieval_score": round(c.retrieval_score, 4),
         } for c in outcome.citations],
+        # What this answer actually did, in pipeline order, with what each stage
+        # cost. Nothing is streamed — no token reaches a reader before mechanical
+        # verification (`AM-25` r5, `AM-69`) — so this is a record of the work, and
+        # the UI shows its own wording for the stages while the request is open.
+        "progress": service.progress_sequence(outcome.timings),
     })

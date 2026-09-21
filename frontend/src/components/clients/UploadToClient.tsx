@@ -41,12 +41,12 @@ import type { Counterparty } from "@/lib/types";
  *  convenience pre-check for an immediate message — 34.16 keeps the server's
  *  validation the authority, and it sniffs the bytes regardless. */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const SUPPORTED = [".pdf", ".docx"];
+const SUPPORTED = [".pdf", ".docx", ".md", ".txt"];
 
 function preflight(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED.some((ext) => name.endsWith(ext))) {
-    return "This file type is not supported. Please choose a PDF or DOCX file.";
+    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
   }
   if (file.size === 0) return "This file is empty. Please choose another file.";
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -158,10 +158,10 @@ export function UploadToClient({ client, onDone }: {
           <span className="ws-field__label">
             File <span className="ws-field__req">(required)</span>
           </span>
-          <input ref={fileInput} type="file" accept=".pdf,.docx" required
+          <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required
                  disabled={busy}
                  onChange={(event) => choose(event.target.files?.[0] ?? null)} />
-          <span className="ws-field__help">PDF or DOCX, up to 25 MB.</span>
+          <span className="ws-field__help">PDF, DOCX, Markdown or text, up to 25 MB.</span>
         </label>
 
         <label className="ws-field">
