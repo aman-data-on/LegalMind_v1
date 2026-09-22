@@ -628,9 +628,12 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     schema = config.assist_schema()
     wanted = [m.group("num").upper() for m in _SECTION_IN_QUESTION.finditer(query or "")]
     query = expand_aliases(query)
+    quarantine = _QUARANTINE_CTE.format(schema=schema, cap=MAX_CHUNKS_PER_SECTION)
+    not_suspect = _NOT_SUSPECT
     rows = db.execute(sql_text(f"""
       SELECT * FROM (
-        WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex)
+        WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex),
+        {quarantine}
         SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
                sc.sub_section, sc.marginal_note, sc.content, sc.ordinal,
                (SELECT count(*) FROM q, unnest(tsvector_to_array(sc.content_tsv)) l
@@ -658,13 +661,20 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                -- long title still loses on the ratio regardless of this word).
                (SELECT CASE WHEN count(*) = 0 THEN 0.0 ELSE
                     count(*) FILTER (WHERE t = ANY(q.lex))::float / count(*) END
+                  -- The "(REPEALED ...)" annotation is provenance, not part of
+                  -- the Act's name: counting its words as title lexemes sank the
+                  -- ratio so far that naming the Act could not reach it, which
+                  -- would have made the in-force exclusion absolute rather than
+                  -- the "named Acts stay reachable" rule it is meant to be.
                   FROM q, unnest(tsvector_to_array(to_tsvector('english',
-                                                               s.official_title))) t
+                       regexp_replace(s.official_title,
+                                      ' \\(REPEALED.*$', '')))) t
                  WHERE t NOT IN ('india', 'indian'))
                    AS act_match
           FROM "{schema}".statute_chunks sc
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
          WHERE (SELECT cardinality(lex) FROM q) > 0
+           AND {not_suspect}
       ) ranked
       -- `act_match` was the PRIMARY key until 2026-09-21, and a FRACTIONAL title
       -- overlap was enough to win it, so one Act took every slot: "reasonable
@@ -678,6 +688,10 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       -- Companies Act, 1956 and the Income-tax Act, 1961 for history, and
       -- alphabetising `official_title` on a tie put "The Companies Act, 1956
       -- (REPEALED ...)" ahead of "The Companies Act, 2013" every time.
+      -- Repealed law is not served as current law. It stays reachable the one way
+      -- AM-71 keeps a superseded position reachable: when the question NAMES that
+      -- Act, which `act_match >= 0.5` already means everywhere else in this query.
+         WHERE official_title NOT LIKE '%REPEALED%' OR act_match >= 0.5
          ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
                   (official_title LIKE '%REPEALED%') ASC, act_match DESC, score DESC,
                   official_title, ordinal
@@ -735,6 +749,48 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     return hits
 
 
+# `AM-71` is the precedent and the shape: a superseded position must be excluded
+# from the LEXICAL and the VECTOR path, "both, or it returns through the one left
+# unfiltered". The same is true of repealed law, and it matters more — a repealed
+# section served as current law is a citation a lawyer would rely on without
+# re-checking.
+#
+# The corpus DELIBERATELY holds repealed Acts (the Companies Act, 1956 as the
+# historical incorporating statute, Constitution §4.1/§28.4.2), so this is a
+# READ-side exclusion and nothing is deleted. History stays reachable exactly
+# where AM-71 leaves it reachable: when the question names that Act.
+#
+# The label is the corpus's own, recorded in `official_title` at ingestion. No
+# repeal is inferred here and none may be — which Act is in force is law, not an
+# engineering judgement (rule 7).
+# A section that holds a large fraction of an Act is not a section — it is the
+# parser's failure to find the next boundary, and everything after that point is
+# stored under one fabricated number. Serving that text as "s. 316" is the worst
+# failure this system has, because a real statutory passage under a wrong section
+# number is exactly the citation a reader would not re-check.
+#
+# 50 is not a guess: across the 21-Act corpus, 2,753 (Act, section) groups hold
+# 1–43 chunks and the next six hold 66–195, so the threshold sits in an empty
+# band. The quarantine is READ-side and deletes nothing — the fix is the parser
+# (`_repair_glued_markers`), and this is what keeps a known-bad label off a
+# citation until that lands.
+MAX_CHUNKS_PER_SECTION = 50
+
+_QUARANTINE_CTE = """
+        suspect AS MATERIALIZED (
+            SELECT statute_id, section_number
+              FROM "{schema}".statute_chunks
+             GROUP BY 1, 2 HAVING count(*) > {cap}
+        )"""
+
+_NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
+                     WHERE suspect.statute_id = sc.statute_id
+                       AND suspect.section_number = sc.section_number)"""
+
+
+_REPEALED = "s.official_title LIKE '%REPEALED%'"
+
+
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
                        embed_query=None) -> list[StatuteHit]:
     """Gated nearest neighbours over `statute_chunk_embeddings`; [] without a model,
@@ -750,13 +806,16 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
     op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
     vtype = store.vector_type(db)
     literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
+    quarantine = _QUARANTINE_CTE.format(schema=schema, cap=MAX_CHUNKS_PER_SECTION)
     rows = db.execute(sql_text(f"""
+        WITH{quarantine}
         SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
                sc.sub_section, sc.marginal_note, sc.content,
                1 - (se.embedding {op} CAST(:q AS {vtype})) AS cosine
           FROM "{schema}".statute_chunk_embeddings se
           JOIN "{schema}".statute_chunks sc ON sc.id = se.statute_chunk_id
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
+         WHERE NOT ({_REPEALED}) AND {_NOT_SUSPECT}
          ORDER BY se.embedding {op} CAST(:q AS {vtype}), s.official_title, sc.ordinal
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
