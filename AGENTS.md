@@ -560,6 +560,50 @@ Do not merge a PR while:
 
 ---
 
+## 13a. The merge gate — run it before merging ANY pull request
+
+**Owner instruction, 2026-09-22**, after a merge was attempted on a PR whose CI was green
+and whose `mergeable` field said `MERGEABLE`, and GitHub refused it.
+
+1. Fetch the latest `origin/main`.
+2. Check the **live GitHub ruleset** and the PR state.
+3. **Do not assume `mergeable: true` means the PR is allowed to merge.** That field means
+   only "no content conflict". It says nothing about whether the rules permit a merge.
+4. Verify every one of:
+   - the PR is OPEN
+   - there are no merge conflicts
+   - the branch is **up to date with `main`**
+   - all required status checks are successful
+   - the required **Authorization matrix (RELEASE-BLOCKING)** check is successful
+5. If the branch is BEHIND and the repository has strict required-status-check rules:
+   update the PR branch from the latest `origin/main`, resolve any conflicts, push, **wait
+   for a fresh CI run**, then re-check mergeability and branch freshness.
+6. **Only then** perform a normal merge.
+7. **Never use `--admin`, and never bypass a repository rule**, unless the owner
+   explicitly authorizes it for that merge.
+8. **Never merge on the strength of an earlier green CI run if `main` changed afterwards.**
+
+### The trap this closes
+
+`repos/{owner}/{repo}/branches/main/protection` returns **`404 Branch not protected`** on
+this repository, and that is not the answer to "is `main` protected?". Protection here is a
+**ruleset**, which that endpoint does not report. The authoritative check is:
+
+```bash
+gh api repos/{owner}/{repo}/rules/branches/main
+```
+
+which shows `strict_required_status_checks_policy: true` and the required context
+`3 · Authorization matrix (RELEASE-BLOCKING)`. Reading the older endpoint and concluding
+"nothing is enforced" is how a merge was attempted that the server then refused.
+
+One more reading trap in the same output: the branch-dedupe workflow (PR #104) cancels
+superseded runs, and `gh pr checks` prints every job of a **cancelled** run as `fail`. Those
+are not failures. Attribute each row to its run id and check that run's `conclusion`, and
+confirm the successful run's head SHA is the PR's **current** head.
+
+---
+
 ## 14. Merge conflict procedure
 
 When a conflict occurs:
