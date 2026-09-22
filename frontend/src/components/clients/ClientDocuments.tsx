@@ -536,7 +536,11 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
     <>
       <tr className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
         <td>
-          <Link className="ws-cl__docname" href={`/dashboard?id=${contract.id}`}>
+          {/* `title` keeps the full name reachable when the CSS below clamps
+              a long one to two lines — a hover/long-press affordance, not a
+              replacement for the visible text (rule 18: presentation only). */}
+          <Link className="ws-cl__docname" href={`/dashboard?id=${contract.id}`}
+                title={contract.name}>
             {contract.name}
           </Link>
           {contract.archived_at ? (
