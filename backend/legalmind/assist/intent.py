@@ -30,6 +30,7 @@ from the document. `tests/test_assist_intent.py` pins the matrix both ways.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 # Devanagari is matched alongside ASCII. Before this, `[a-z]+` tokenized
 # "हमारे मानक से तुलना करें" ("compare with our standard") to the EMPTY list, so
@@ -247,12 +248,126 @@ def mentions_organization(question: str) -> bool:
                 or {i for i, t in enumerate(tokens) if t in _ORG_PRONOUNS})
 
 
-_STATUTE = re.compile(
-    r"\b(section|sec\.?|s\.)\s*\d+[a-z]?\b|\b(act|statute|statutory|rules?,?\s*\d{4}|"
-    r"regulation|ordinance|adhiniyam|ipc|crpc|dpdp|cert-?in|it act|contract act|"
-    r"companies act|negotiable instruments|evidence act|penal code)\b",
+# --------------------------------------------------------------------------
+# GENERAL LAW — the Domain C candidate signal (rebuilt 2026-09-21)
+# --------------------------------------------------------------------------
+# This was one flat regex: a section number, or any of a dozen statute words, anywhere
+# in the question. That is the same co-occurrence test `is_comparison_question` was
+# rebuilt away from on 2026-09-16, and it failed the same two ways.
+#
+# It fired on words that are not instruments. `\bact\b` matches the English VERB, so
+# "the commissioned setup is not what we expected — how quickly must we act?" was a
+# question about the law (measured on the ratified set, 2026-09-21).
+#
+# And it missed almost everything, because it required the question to NAME the
+# instrument and a reader does not: 2 of the 23 statute questions matched. The other 21
+# were held to `require_semantic` in the fall-through, so Domain C stayed silent on
+# eight whose answering section was already in the lexical top six.
+#
+# GENERAL LAW means the reader wants a rule or a source, NOT an opinion on a particular
+# piece of paper. So it is a relation, not a vocabulary:
+#
+#   (A) NAMES AN INSTRUMENT         a section number, a known Act, or "the Act" — an
+#                                   explicit source reference, which wins outright
+#   (B) ASKS FOR THE GENERAL RULE   jurisdiction framing or a rule-seeking question
+#                                   shape, AND no target of its own to be measured
+#                                   against — no document, no position
+#
+# (B)'s negative half is the whole safety property. `require_semantic` keeps 44 of the
+# 54 contract questions out of the statute corpus, and this flag drops it, so a deal
+# question that borrows statutory vocabulary must not reach (B).
+# Instrument TYPES, taken from the corpus's own official titles: 13 of the 17 are an
+# "Act", 3 "Rules", and one is the CERT-In "Directions" — which is why a question
+# about "the cyber security directions" names an instrument as squarely as one about
+# "the IT Act" does.
+_INSTRUMENT_NOUNS = ("statute", "statutor", "adhiniyam", "ordinance", "regulation",
+                     "direction")
+# Short names people type for the Acts in the corpus. `statutes.expand_aliases` maps
+# them to official-title words for the title match; here their presence IS the
+# instrument reference, so the two uses share one table rather than two drifting ones.
+ACT_ALIASES = {
+    "dpdp": "digital personal data protection",
+    "dpdpa": "digital personal data protection",
+    "it act": "information technology act",
+    "ni act": "negotiable instruments act",
+    "cpc": "code of civil procedure",
+    "bsa": "bharatiya sakshya adhiniyam",
+    "cgst": "central goods and services tax",
+    "igst": "integrated goods and services tax",
+    "cert-in": "cert-in",
+}
+# Tokens that, standing next to "act"/"rules", make it the name of an instrument
+# rather than a verb or an ordinary noun: a determiner, or a word from an Act's name.
+_INSTRUMENT_DETERMINERS = frozenset({"the", "this", "that", "said", "an", "a"})
+_ACT_NAME_TOKENS = frozenset(
+    tok for phrase in (*ACT_ALIASES, *ACT_ALIASES.values()) for tok in phrase.split()
+) | frozenset({"companies", "contract", "evidence", "penal", "ipc", "crpc",
+               "information", "technology", "negotiable", "instruments", "arbitration",
+               "copyright", "income", "tax"})
+_SECTION_REFERENCE = re.compile(r"\b(?:section|sec\.?|s\.)\s*\d+[a-z]?\b|"
+                                r"\b(?:act|rules)\s*,?\s*\d{4}\b", re.IGNORECASE)
+
+# Jurisdiction framing: the reader is asking what the law of a place provides.
+_JURISDICTION = re.compile(
+    r"\b(?:in india|indian law|under indian law|law in india|under india)\b"
+    # "India's DATA PROTECTION law" — the qualifier is a phrase, not one word.
+    r"|\bindia'?s\b[^?]{0,40}\blaw\b",
+    re.IGNORECASE)
+# Rule-seeking SHAPES, not legal vocabulary. "enforceable" and "liable" are ordinary
+# deal words and are deliberately absent: what marks a general-law question is that it
+# asks for the rule ("what does the law say", "is it lawful to"), not that it uses a
+# word a lawyer also uses.
+_RULE_FRAMING = re.compile(
+    r"\bwhat (?:does|do) (?:the |indian )?(?:law|act|statute|rules?) "
+    r"(?:say|provide|require|state)\b"
+    r"|\bwhat (?:is|are) the legal (?:rule|position|requirement|standard)s?\b"
+    r"|\b(?:is|are) it (?:legal|lawful|permissible)\b"
+    r"|\bunder (?:the )?law\b|\bby law\b|\blegally\b"
+    r"|\bvalidly\b"                       # "who can VALIDLY sign" — a capacity question
+    r"|\b(?:is|are|can|may)\b[^?]{0,60}?\b(?:valid|void|voidable|unlawful|illegal)\b",
     re.IGNORECASE)
 
+# The reader's OWN paper. A document NOUN carrying a DEFINITE, demonstrative or
+# possessive determiner — "this agreement", "the clause", "my document". The
+# determiner is the discrimination that matters: "a contract is broken" is the general
+# concept and routes to the law; "the contract" is the one on the desk and does not.
+_DOCUMENT_NOUNS = ("contract", "agreement", "document", "clause", "msa", "nda", "tos",
+                   "sla", "deal", "annexure", "schedule", "addendum", "amendment")
+
+# A LEGAL ACTOR: who the rule binds, named in the abstract. A general-law question
+# asks what "a company", "a platform", "an intermediary" must do; a deal question asks
+# what WE must do, or what THE provider — this one, on this paper — committed to. The
+# determiner carries the distinction, and it was measured rather than assumed:
+# admitting a definite commercial actor ("the provider") took recall to 0.889 and put
+# FOUR document questions into the statute lane, two of them must-refuse controls.
+_LEGAL_ACTORS = (r"company|companies|platform|platforms|organisation|organization|"
+                 r"provider|providers|intermediary|intermediaries|person|persons|"
+                 r"party|parties|board|body corporate|data fiduciary|fiduciary")
+_LEGAL_ACTOR = re.compile(
+    # indefinite, with up to two adjectives: "an online platform", "a hosting
+    # intermediary", "a Significant Data Fiduciary"
+    rf"\b(?:a|an|any|every|each)\s+(?:\w+\s+){{0,2}}(?:{_LEGAL_ACTORS})\b"
+    # A bare plural is indefinite by itself: "what must cloud and VPS PROVIDERS keep".
+    # "parties" is NOT admitted here: in a deal question it means the counterparties,
+    # and "who are the parties?" is a document question (caught by the routing suite,
+    # not by the 91-case matrix — the phrasing is not in the dataset).
+    r"|\b(?:companies|platforms|providers|intermediaries)\b"
+    # ...and the narrow definite case: a party named by its ROLE IN A LEGAL RELATION,
+    # which a deal question does not use. "the provider" is commercial and excluded;
+    # "the injured party" is not.
+    r"|\b(?:the|an?)\s+(?:injured|innocent|aggrieved|affected|defaulting|promisor|"
+    r"promisee|surety)\s+(?:party|person|parties)\b"
+    r"|\bthe\s+board\s+(?:of\s+directors\s+)?(?:need|needs|must|may|shall|approve)"
+    r"|\bthe\s+(?:promisor|promisee|surety)\b",
+    re.IGNORECASE)
+# First person is the plainest statement that the question is about the asker's own
+# situation, and it needs no noun to be one: "if a third party sues the provider
+# because of something OUR users hosted" is a deal question with no document noun in
+# it. Measured on the 91-case matrix: present in 42 of the 64 document questions and
+# in NONE of the 27 general-law ones. It is what makes the wider actor forms safe.
+_FIRST_PERSON = _ORG_PRONOUNS | frozenset({"i", "me", "my", "mine"})
+_DEFINITE_DETERMINERS = frozenset({"the", "this", "these", "that", "those", "my",
+                                   "its"}) | _FIRST_PERSON_POSSESSIVE
 
 # --------------------------------------------------------------------------
 # The capability question (`AM-68` r1) — PROPOSED, disabled by default
@@ -388,10 +503,96 @@ def is_general_knowledge_question(question: str) -> bool:
     return bool(content) and all(t in _CONCEPT_WORDS for t in content)
 
 
+def _instrument_reference(question: str, tokens: list[str]) -> bool:
+    """(A) — the question names a source: a section, a known Act, or "the Act"."""
+    if _SECTION_REFERENCE.search(question):
+        return True
+    if _hits(tokens, _INSTRUMENT_NOUNS):
+        return True
+    lowered = f" {question.lower()} "
+    if any(f" {short} " in lowered for short in ACT_ALIASES):
+        return True
+    # "act" and "rules" are an instrument only next to a determiner or an Act's name —
+    # never the bare verb in "how quickly must we act".
+    for i, token in enumerate(tokens):
+        if token not in ("act", "acts", "rules"):
+            continue
+        neighbours = tokens[max(0, i - 2):i] + tokens[i + 1:i + 2]
+        if any(n in _INSTRUMENT_DETERMINERS or n in _ACT_NAME_TOKENS
+               for n in neighbours):
+            return True
+    return False
+
+
+def _document_target(tokens: list[str]) -> bool:
+    """A document noun carrying a definite, demonstrative or possessive determiner —
+    the piece of paper in front of the reader, as opposed to the general concept."""
+    for noun in _hits(tokens, _DOCUMENT_NOUNS):
+        for i in range(max(0, noun - _QUALIFIER_SPAN), noun):
+            if tokens[i] in _DEFINITE_DETERMINERS:
+                return True
+    return False
+
+
+@dataclass(frozen=True)
+class LegalQuestionSignals:
+    """The deterministic signals behind a GENERAL LAW routing decision, and why.
+
+    Recorded so a route can be explained after the fact. Never shown to a reader.
+    """
+    names_instrument: bool
+    jurisdiction: bool
+    rule_framing: bool
+    legal_actor: bool
+    document_target: bool
+    position_target: bool
+    first_person: bool
+
+    @property
+    def general_law(self) -> bool:
+        # (A) An explicit source reference wins outright: "what does section 43A say
+        # about our liability?" names the Act, and that is the source to answer from.
+        if self.names_instrument:
+            return True
+        # (B) Otherwise the question must ask for the general rule — by jurisdiction,
+        # by its framing, or by naming in the abstract who the rule binds — AND have
+        # nothing of its own to be measured against. Conflicting signals keep the
+        # conservative path, where `require_semantic` and the gate decide.
+        if self.document_target or self.position_target or self.first_person:
+            return False
+        return self.jurisdiction or self.rule_framing or self.legal_actor
+
+    @property
+    def because(self) -> tuple[str, ...]:
+        """The signals that fired, for the routing log."""
+        named = (("names_instrument", self.names_instrument),
+                 ("jurisdiction", self.jurisdiction),
+                 ("rule_framing", self.rule_framing),
+                 ("legal_actor", self.legal_actor),
+                 ("document_target", self.document_target),
+                 ("position_target", self.position_target),
+                 ("first_person", self.first_person))
+        return tuple(name for name, fired in named if fired)
+
+
+def legal_question_signals(question: str) -> LegalQuestionSignals:
+    """Score a question against the GENERAL LAW signals. Deterministic, no model."""
+    text = question or ""
+    tokens = _stems(text)
+    return LegalQuestionSignals(
+        names_instrument=_instrument_reference(text, tokens),
+        jurisdiction=bool(_JURISDICTION.search(text)),
+        rule_framing=bool(_RULE_FRAMING.search(text)),
+        legal_actor=bool(_LEGAL_ACTOR.search(text)),
+        document_target=_document_target(tokens),
+        position_target=bool(_position_reference(tokens)),
+        first_person=bool(set(tokens) & _FIRST_PERSON),
+    )
+
+
 def is_statute_question(question: str) -> bool:
-    """True when the question asks about the law itself — a section number, an Act,
-    a set of Rules. The Domain C candidate signal."""
-    return bool(_STATUTE.search(question or ""))
+    """The Domain C candidate signal — `legal_question_signals(...).general_law`."""
+    return legal_question_signals(question).general_law
 
 
 # --------------------------------------------------------------------------

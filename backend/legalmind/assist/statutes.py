@@ -39,7 +39,7 @@ from legalmind import config
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-STATUTE_CHUNKING_ALGORITHM_VERSION = "section-2"
+STATUTE_CHUNKING_ALGORITHM_VERSION = "section-3"
 # A section body shorter than this is an arrangement-of-sections entry or a footnote,
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
@@ -74,6 +74,36 @@ _SUBSECTION = re.compile(r"(?<=\n)(?=[ \t]*\(\d{1,2}\)[ \t])")
 _SECTION_IN_QUESTION = re.compile(
     r"\b(?:section|sec\.?|s\.)\s*(?P<num>\d{1,3}[A-Za-z]{0,2})\b", re.IGNORECASE)
 
+# A SCHEDULE is a citable unit of the Act, and it is NOT a section: it carries no
+# section number, so before `section-3` every Schedule folded into whichever section
+# happened to be last. That is why the DPDP Act's penalty Schedule was cited as
+# "s. 44(3) — Amendments to certain Acts" (measured live 2026-09-21), and why the
+# Companies Act's seven Schedules sat inside s. 470.
+#
+# The heading must be the WHOLE line: the Companies Act, 1956 carries
+# "347. APPLICATION OF SCHEDULE VIII TO CERTAIN MANAGING AGENTS", which is a section.
+_SCHEDULE_START = re.compile(
+    r"^[ \t]*(?:\d{1,2}\[)?(?:THE[ \t]+)?"
+    r"(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH|"
+    r"ELEVENTH|TWELFTH|THIRTEENTH)?[ \t]*"
+    r"SCHEDULE(?:[ \t]+[IVXL]+A?)?[ \t]*\.?[ \t]*$", re.MULTILINE)
+# An arrangement-of-sections table lists the Schedules too, at the FRONT. A real
+# Schedule follows the last section, so only a heading in the closing quarter counts.
+SCHEDULE_TAIL_FRACTION = 0.75
+# A Schedule sorts above every section number, so the monotonic fold neither swallows
+# it nor lets it swallow a section.
+_SCHEDULE_RANK = 10 ** 6
+# India Code and Taxmann prints also set an inserted section's footnote marker as a
+# bare superscript, with no bracket to separate it: `²66A.` extracts as `266A.`
+# and `⁸60.` as `860.`. The number then reads far higher than any real
+# section, and because the fold rule below absorbs a piece whose number falls BELOW the
+# running one, a single glued digit swallowed the entire rest of the Act — 26 chunks of
+# the IT Act under a non-existent "s. 266A", 349 of the CPC under "s. 860".
+# The repair is bounded by the Act's OWN arrangement of sections (see
+# `_repair_glued_markers`) and refuses itself when it would fire more than this many
+# times, because that means the ceiling is wrong rather than the Act.
+MAX_SECTION_NUMBER_REPAIRS = 5
+
 
 class StatuteIngestRefused(Exception):
     """The file cannot be ingested as approved statute material."""
@@ -90,10 +120,70 @@ class StatuteChunk:
 
 
 def _section_key(num: str) -> tuple[int, str]:
+    if "SCHEDULE" in num.upper():
+        return (_SCHEDULE_RANK, num.upper())
     digits = re.match(r"\d+", num)
     if not digits:
         return (0, num)
     return (int(digits.group()), num[len(digits.group()):])
+
+
+_ROMAN = re.compile(r"^[IVXL]+A?$", re.IGNORECASE)
+
+
+def _schedule_label(heading: str) -> str:
+    """The Act's own name for a Schedule, as a citation renders it.
+
+    Drops the footnote marker the print glues to the heading (`1[THE FIRST SCHEDULE`)
+    and the trailing period, and capitalises for reading while leaving a roman numeral
+    upper — "the First Schedule", "Schedule I", "Schedule IA".
+    """
+    words = re.sub(r"^\s*\d{1,2}\[", "", heading).strip().rstrip(".").split()
+    return " ".join(w.upper() if _ROMAN.match(w) else w.capitalize() for w in words)
+
+
+def _repair_glued_markers(numbered: list[tuple[int, str]],
+                          ceiling: tuple[int, str] | None) -> list[tuple[int, str]]:
+    """Strip a footnote marker glued to a section number, bounded by the Act itself.
+
+    `ceiling` is the highest section number in the Act's own arrangement of sections.
+    A body number above it cannot be a section number, so its leading digits are a
+    marker: they are dropped one at a time and the first form that lands at or below
+    the ceiling AND continues the sequence wins. Nothing else is touched.
+
+    The whole pass refuses itself past `MAX_SECTION_NUMBER_REPAIRS`. A genuine glued
+    marker is rare — one in the IT Act, two in the CPC. Hundreds means the ceiling is
+    untrustworthy, which is the Taxmann Income-tax print, where an unguarded pass
+    rewrote real sections 194C and 115VA to 94C and 15VA. Refusing leaves that Act
+    exactly as it is today rather than corrupting it differently.
+    """
+    if not ceiling:
+        return numbered
+    out: list[tuple[int, str]] = []
+    rewrites = 0
+    running = (0, "")
+    for position, num in numbered:
+        fixed = num
+        key = _section_key(num)
+        if key[0] < _SCHEDULE_RANK and key > ceiling:
+            lead = re.match(r"\d*", num)
+            for cut in range(1, len(lead.group()) if lead else 0):
+                candidate = _section_key(num[cut:])
+                if candidate[0] and running < candidate <= ceiling:
+                    fixed = num[cut:]
+                    rewrites += 1
+                    break
+        key = _section_key(fixed)
+        if key > running:
+            running = key
+        out.append((position, fixed))
+    if rewrites > MAX_SECTION_NUMBER_REPAIRS:
+        log_event("assist.statutes.repair_refused", rewrites=rewrites,
+                  ceiling=ceiling[0], level=logging.WARNING)
+        return numbered
+    if rewrites:
+        log_event("assist.statutes.repaired", rewrites=rewrites, level=logging.INFO)
+    return out
 
 
 def _marginal_note(body: str) -> str | None:
@@ -128,15 +218,23 @@ def _split_long(section: str) -> list[tuple[str | None, str]]:
 def chunk_statute_text(text: str) -> list[StatuteChunk]:
     """Section-based chunks of an Act's text, in the Act's own order and numbering."""
     text = text or ""
-    starts = list(_SECTION_START.finditer(text))
-    if len(starts) < 2:
+    numbered = [(m.start(), m.group("num")) for m in _SECTION_START.finditer(text)]
+    roman = len(numbered) < 2
+    if roman:
         # An instrument that numbers its directions (i), (ii), ... — CERT-In's shape.
-        starts = list(_DIRECTION_START.finditer(text))
+        numbered = [(m.start(), m.group("num"))
+                    for m in _DIRECTION_START.finditer(text)]
         keyfn = lambda n: (0, n)  # noqa: E731 — roman order is the document's order
     else:
         keyfn = _section_key
-    bounds = ([(m.start(), m.group("num")) for m in starts]
-              + [(len(text), None)])
+    schedules = [] if roman else [
+        (m.start(), _schedule_label(m.group()))
+        for m in _SCHEDULE_START.finditer(text)
+        if m.start() > len(text) * SCHEDULE_TAIL_FRACTION]
+    if schedules:
+        # Inside a Schedule, `1.` and `2.` number its ENTRIES, not the Act's sections.
+        numbered = [b for b in numbered if b[0] < schedules[0][0]]
+    bounds = [*sorted(numbered + schedules), (len(text), None)]
 
     def _piece_len(i: int) -> int:
         return len(text[bounds[i][0]:bounds[i + 1][0]].strip())
@@ -157,10 +255,21 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
             body_from = i
             break
 
+    # The Act's own arrangement of sections is everything before the body, so its
+    # highest number is the ceiling a body number cannot exceed (`section-3`).
+    ceiling = None
+    if not roman and body_from:
+        front = [k for k in keys[:body_from] if k[0] < _SCHEDULE_RANK]
+        ceiling = max(front) if front else None
+    numbered_body: list[tuple[int, str]] = [
+        (position, num) for position, num in bounds[body_from:-1]
+        if num is not None]
+    ordered = [*_repair_glued_markers(numbered_body, ceiling), bounds[-1]]
+
     # Fold footnotes: a piece that is too short, or whose number falls below the
     # running section, belongs to the section before it.
     sections: list[list] = []          # [num, start, end]
-    for (s, num), (nxt, _) in pairwise(bounds[body_from:]):
+    for (s, num), (nxt, _) in pairwise(ordered):
         piece = text[s:nxt]
         if sections and (len(piece.strip()) < MIN_SECTION_CHARS
                          or keyfn(num) < keyfn(sections[-1][0])):
@@ -173,7 +282,8 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     chunks: list[StatuteChunk] = []
     for num, s, e in sections:
         body = text[s:e].strip()
-        after_number = _SECTION_START.match(body) or _DIRECTION_START.match(body)
+        after_number = (_SECTION_START.match(body) or _DIRECTION_START.match(body)
+                        or _SCHEDULE_START.match(body))
         note = _marginal_note(body[after_number.end():]) if after_number else None
         if len(body) <= MAX_SECTION_CHARS:
             chunks.append(StatuteChunk(num, None, note, body, s, e))
@@ -356,11 +466,40 @@ def _replace_statute_chunks(db: DBSession, schema: str, statute_id: UUID,
                                 'WHERE statute_chunk_id = :i'), {"i": keep.id})
         survivors.add(keep.id)
 
+    # Where the old text WENT, preferred over where the old row SAT. `section-3`
+    # renumbers (the IT Act's bogus "266A" blob becomes ss. 66A-87), so the section
+    # key cannot match and document order alone sent a citation of s. 79's text to
+    # s. 66 — a historical answer pointing at a section that does not contain what it
+    # quoted, which is exactly what rule 17 forbids. Matching the old chunk's own text
+    # inside a surviving one is what `store.replace_chunks` does for documents.
+    doomed = {c.id for c in old if c.id not in survivors}
+    remaining = {c.id: " ".join(c.content.split())
+                 for c in db.execute(sql_text(
+                     f'SELECT id, content FROM "{schema}".statute_chunks '
+                     "WHERE statute_id = :s"), {"s": statute_id}).all()
+                 if c.id not in doomed}
+
+    def _successor(chunk) -> UUID | None:
+        """A remaining chunk carrying a distinctive span of `chunk`'s own text.
+
+        The probe starts AFTER the section number, because the number is the thing
+        that changed: `3. Widgets.—Every keeper…` and `3A. Widgets.—Every keeper…`
+        are the same section under two numberings and must still match.
+        """
+        body = (chunk.content or "").strip()
+        opening = _SECTION_START.match(body) or _DIRECTION_START.match(body)
+        probe = " ".join(body[opening.end():].split() if opening
+                         else body.split())[:MIN_SECTION_CHARS]
+        if len(probe) < 40:                     # too short to identify anything
+            return None
+        return next((cid for cid, text in remaining.items() if probe in text), None)
+
     repointed = 0
     for position, o in enumerate(old):
         if o.id in survivors:
             continue
-        heir = next((k.id for k in old[position + 1:] if k.id in survivors), None)
+        heir = _successor(o)
+        heir = heir or next((k.id for k in old[position + 1:] if k.id in survivors), None)
         heir = heir or next((k.id for k in reversed(old[:position])
                              if k.id in survivors), None)
         if heir is not None:
@@ -434,31 +573,60 @@ class StatuteHit:
 
     @property
     def citation(self) -> str:
+        """Act + the Act's own structural unit (`AM-32` r7), never a page alone.
+
+        A Schedule carries no section number and is cited by its own name, so the
+        "s." prefix is omitted for it — "…, the Schedule" reads as a lawyer writes
+        it, where "…, s. THE SCHEDULE" does not. Presentation only: the stored unit
+        is unchanged, and see `_SCHEDULE_START` for the representation decision.
+        """
         sub = f" {self.sub_section}" if self.sub_section else ""
+        if "schedule" in self.section_number.lower():
+            return f"{self.official_title}, {self.section_number}{sub}"
         return f"{self.official_title}, s. {self.section_number}{sub}"
 
 
-# Short names people actually type for Acts in the corpus, expanded to the words
-# the official title uses so the title match can see them. Names only — no law.
-_ACT_ALIASES = {
-    "dpdp": "digital personal data protection",
-    "dpdpa": "digital personal data protection",
-    "it act": "information technology act",
-    "ni act": "negotiable instruments act",
-    "cpc": "code of civil procedure",
-    "bsa": "bharatiya sakshya adhiniyam",
-    "cgst": "central goods and services tax",
-    "igst": "integrated goods and services tax",
-    "cert-in": "cert-in",
-}
-
-
 def expand_aliases(query: str) -> str:
+    """Short names people type for Acts, expanded to the words the official title
+    uses so the title match can see them. Names only — no law.
+
+    The table lives in `intent.ACT_ALIASES`: the router needs the same short names to
+    recognise that a question NAMES an instrument, and two copies would drift. The
+    dependency runs from this module to that one, which imports nothing but `re`.
+    """
+    from legalmind.assist.intent import ACT_ALIASES
+
     lowered = f" {(query or '').lower()} "
-    for short, full in _ACT_ALIASES.items():
+    for short, full in ACT_ALIASES.items():
         if f" {short} " in lowered:
             lowered = lowered.replace(f" {short} ", f" {short} {full} ")
     return lowered.strip()
+
+
+# --------------------------------------------------------------------------
+# Repealed law — ONE definition, used by every path.
+#
+# `AM-71`'s rule is that a superseded source must be excluded from the LEXICAL
+# and the VECTOR path, "both, or it returns through the one left unfiltered".
+# The rule was written twice to satisfy that — once as a constant for the vector
+# query and once as a literal in the lexical query — which is the same drift risk
+# `AM-71` exists to prevent, one level down: an edit to one path silently leaves
+# the other serving repealed law.
+#
+# So the marker and the predicate are defined once here. `_repealed_sql` takes the
+# column expression because the lexical query reads it from a sub-select (bare
+# `official_title`) and the vector query from the joined table (`s.official_title`);
+# the POLICY is identical and there is now exactly one place to change it.
+#
+# The label is the corpus's own, recorded in `official_title` at ingestion. No
+# repeal is inferred here and none may be — which Act is in force is law, not an
+# engineering judgement (rule 7).
+_REPEALED_MARKER = "REPEALED"
+
+
+def _repealed_sql(column: str = "s.official_title") -> str:
+    """SQL predicate: is this source's Act repealed?"""
+    return f"{column} LIKE '%{_REPEALED_MARKER}%'"
 
 
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
@@ -486,10 +654,14 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     schema = config.assist_schema()
     wanted = [m.group("num").upper() for m in _SECTION_IN_QUESTION.finditer(query or "")]
     query = expand_aliases(query)
+    quarantine = _QUARANTINE_CTE.format(schema=schema, cap=MAX_CHUNKS_PER_SECTION)
+    not_suspect = _NOT_SUSPECT
     rows = db.execute(sql_text(f"""
-        WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex)
+      SELECT * FROM (
+        WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex),
+        {quarantine}
         SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
-               sc.sub_section, sc.marginal_note, sc.content,
+               sc.sub_section, sc.marginal_note, sc.content, sc.ordinal,
                (SELECT count(*) FROM q, unnest(tsvector_to_array(sc.content_tsv)) l
                  WHERE l = ANY(q.lex)) AS matched,
                ts_rank(sc.content_tsv,
@@ -515,15 +687,40 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                -- long title still loses on the ratio regardless of this word).
                (SELECT CASE WHEN count(*) = 0 THEN 0.0 ELSE
                     count(*) FILTER (WHERE t = ANY(q.lex))::float / count(*) END
+                  -- The "(REPEALED ...)" annotation is provenance, not part of
+                  -- the Act's name: counting its words as title lexemes sank the
+                  -- ratio so far that naming the Act could not reach it, which
+                  -- would have made the in-force exclusion absolute rather than
+                  -- the "named Acts stay reachable" rule it is meant to be.
                   FROM q, unnest(tsvector_to_array(to_tsvector('english',
-                                                               s.official_title))) t
+                       regexp_replace(s.official_title,
+                                      ' \\({_REPEALED_MARKER}.*$', '')))) t
                  WHERE t NOT IN ('india', 'indian'))
                    AS act_match
           FROM "{schema}".statute_chunks sc
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
          WHERE (SELECT cardinality(lex) FROM q) > 0
-         ORDER BY act_match DESC, exact_section DESC, matched DESC, score DESC,
-                  s.official_title, sc.ordinal
+           AND {not_suspect}
+      ) ranked
+      -- `act_match` was the PRIMARY key until 2026-09-21, and a FRACTIONAL title
+      -- overlap was enough to win it, so one Act took every slot: "reasonable
+      -- security ... personal data" matched the SPDI Rules' title at 0.36 and all ten
+      -- hits came from the SPDI Rules, burying the DPDP Act's own penalty Schedule
+      -- (measured: the Schedule ranked 13th). A MAJORITY match still sorts first —
+      -- the question naming an Act is a real signal (AM-50 r3) — but below that the
+      -- section's own text decides, and act_match is only a tiebreak.
+      --
+      -- A REPEALED Act sorts last among equals. The corpus deliberately holds the
+      -- Companies Act, 1956 and the Income-tax Act, 1961 for history, and
+      -- alphabetising `official_title` on a tie put "The Companies Act, 1956
+      -- (REPEALED ...)" ahead of "The Companies Act, 2013" every time.
+      -- Repealed law is not served as current law. It stays reachable the one way
+      -- AM-71 keeps a superseded position reachable: when the question NAMES that
+      -- Act, which `act_match >= 0.5` already means everywhere else in this query.
+         WHERE NOT ({_repealed_sql('official_title')}) OR act_match >= 0.5
+         ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
+                  ({_repealed_sql('official_title')}) ASC, act_match DESC, score DESC,
+                  official_title, ordinal
          LIMIT :limit
     """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
     floor = 2 if len((query or "").split()) > 1 else 1
@@ -578,6 +775,48 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     return hits
 
 
+# `AM-71` is the precedent and the shape: a superseded position must be excluded
+# from the LEXICAL and the VECTOR path, "both, or it returns through the one left
+# unfiltered". The same is true of repealed law, and it matters more — a repealed
+# section served as current law is a citation a lawyer would rely on without
+# re-checking.
+#
+# The corpus DELIBERATELY holds repealed Acts (the Companies Act, 1956 as the
+# historical incorporating statute, Constitution §4.1/§28.4.2), so this is a
+# READ-side exclusion and nothing is deleted. History stays reachable exactly
+# where AM-71 leaves it reachable: when the question names that Act.
+#
+# The label is the corpus's own, recorded in `official_title` at ingestion. No
+# repeal is inferred here and none may be — which Act is in force is law, not an
+# engineering judgement (rule 7).
+# A section that holds a large fraction of an Act is not a section — it is the
+# parser's failure to find the next boundary, and everything after that point is
+# stored under one fabricated number. Serving that text as "s. 316" is the worst
+# failure this system has, because a real statutory passage under a wrong section
+# number is exactly the citation a reader would not re-check.
+#
+# 50 is not a guess: across the 21-Act corpus, 2,753 (Act, section) groups hold
+# 1–43 chunks and the next six hold 66–195, so the threshold sits in an empty
+# band. The quarantine is READ-side and deletes nothing — the fix is the parser
+# (`_repair_glued_markers`), and this is what keeps a known-bad label off a
+# citation until that lands.
+MAX_CHUNKS_PER_SECTION = 50
+
+_QUARANTINE_CTE = """
+        suspect AS MATERIALIZED (
+            SELECT statute_id, section_number
+              FROM "{schema}".statute_chunks
+             GROUP BY 1, 2 HAVING count(*) > {cap}
+        )"""
+
+_NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
+                     WHERE suspect.statute_id = sc.statute_id
+                       AND suspect.section_number = sc.section_number)"""
+
+
+
+
+
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
                        embed_query=None) -> list[StatuteHit]:
     """Gated nearest neighbours over `statute_chunk_embeddings`; [] without a model,
@@ -593,13 +832,16 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
     op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
     vtype = store.vector_type(db)
     literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
+    quarantine = _QUARANTINE_CTE.format(schema=schema, cap=MAX_CHUNKS_PER_SECTION)
     rows = db.execute(sql_text(f"""
+        WITH{quarantine}
         SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
                sc.sub_section, sc.marginal_note, sc.content,
                1 - (se.embedding {op} CAST(:q AS {vtype})) AS cosine
           FROM "{schema}".statute_chunk_embeddings se
           JOIN "{schema}".statute_chunks sc ON sc.id = se.statute_chunk_id
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
+         WHERE NOT ({_repealed_sql()}) AND {_NOT_SUSPECT}
          ORDER BY se.embedding {op} CAST(:q AS {vtype}), s.official_title, sc.ordinal
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()

@@ -37,6 +37,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-19 | Constitution §4/§5.2 require Entity → Brand → Product/Service → Document Type resolution and forbid substituting a Leapswitch rule for a CloudPe one; the data model resolves Document Type only, so a CloudPe contract is measured against a Leapswitch-scoped standard silently | ⏳ Open (MEDIUM) — `AM-43` r7 registers it; needs a schema decision (a brand/entity axis on contracts and standards), not resolvable in code alone |
 | C-22 | Fifteen ratified standards name a Legal Constitution version in `source_document` and split 7/8 between **L1.5** (superseded) and **L1.10** (canonical). The split falls on the AB-14/AB-20 date line, so each file may accurately record the version its position was ratified against — or may point a reader at a superseded document | ⏳ Open (LOW) — **blocks nothing**; needs an owner provenance decision (canonical citation, whether the file needs correcting, whether re-ratification follows). Nothing edited: these are ratified configuration files |
 | C-23 | Legal Constitution L1.10 §31 defines company positions for **Partner Agreement, Vendor Agreement, Distribution Agreement and Purchase Order**, and tags clauses with those names under "Applicable Document Types" — but locked **Step 6's ten Document Types carry none of them**, and no ratified or proposed Company Standard covers any of the four | ✅ **RESOLVED 2026-09-18** (`AM-72`, AB-24; extended by `AM-73`, AB-25) — owner: Constitution-final text is ratified, and every type the Constitution carries text for must answer from it. Step 6 extended by `PARTNER_AGREEMENT`, `VENDOR_AGREEMENT`, `DISTRIBUTION_AGREEMENT`; Purchase Order maps to the existing `ORDER_FORM`. `AM-73` then ratified **all** of §31 — 43 positions across §31.3–§31.12, active standards 33 → 72 — so refusal applies only to a type the Constitution states nothing for. Evidentiary grade stays in `constitution.basis` and never suppresses an answer; **§31.6a may never be ratified**. (An interim "still open" note existed briefly the same day, written by the parallel Domain A retrieval fix before this resolution landed — this row is the resolution and supersedes it.) |
+| C-24 | `AM-32` r7 reads *"a Domain C citation is Act + section, never a page alone"*. A **Schedule** carries no section number, so `section-3` files it under its own name (`section_number = "The Schedule"`, `"Schedule I"`) and the citation drops the `s.` prefix. Literally that is not "Act + section"; in purpose it is exactly what r7 requires — the Act's own structural unit, never a page | ⏳ Open (LOW) — **blocks nothing and is already the safer of the two behaviours.** The alternative is the previous behaviour, which folded the Schedule into the last section and cited the DPDP Act's entire penalty table as `s. 44(3) — Amendments to certain Acts`: a **false** Act+section citation. Needs an owner minute confirming a Schedule is a citable unit under r7, or an instruction to represent it otherwise. Nothing locked was edited |
 
 *Index note: `C-20` and `C-21` are recorded in full below but were never given a row in this
 table. Both are resolved (`AM-63`, `AM-64`); left for their author to index rather than
@@ -711,3 +712,46 @@ accurate**, and explicitly does not admit them to Step 6's vocabulary.
 **Open question for the owner:** should the §31 positions for Partner / Vendor / Distribution
 Agreements and Purchase Orders be ratified into Company Standards — and does that first
 require extending locked Step 6's ten Document Types?
+
+
+---
+
+## C-24 — Is a Schedule a citable unit under `AM-32` r7?
+
+**Status:** ⏳ Open (LOW). Blocks nothing. Raised 2026-09-21 by the Domain C corpus repair.
+
+`AM-32` r7: *"Domain C chunking is SECTION-based (section number, sub-section, marginal
+note preserved), not clause-based; a Domain C citation is Act + section, never a page
+alone."*
+
+A **Schedule** is a division of an Act that carries no section number. Before
+`section-3` it therefore folded into whichever section happened to come last, and the
+DPDP Act's entire penalty table — the source of "the largest fine for failing to keep
+reasonable security safeguards" — was cited as:
+
+> The Digital Personal Data Protection Act, 2023, s. 44 (3) — *Amendments to certain Acts*
+
+That is a citation to a section that does not contain the cited text, under a marginal
+note describing something else. It satisfies r7's **letter** ("Act + section") and
+violates its **purpose**.
+
+`section-3` instead files a Schedule under the Act's own name for it and renders the
+citation without the `s.` prefix:
+
+> The Digital Personal Data Protection Act, 2023, The Schedule (3)
+
+**Why this is recorded rather than decided.** Reading r7 literally, "The Schedule" is not
+a section, so the implementation does something r7's words do not describe. Reading r7 by
+its purpose — a citation names the Act and the Act's own structural unit, never an
+artefact of the PDF — a Schedule is precisely such a unit, and this is the only rendering
+that is *true*. Rule 5 says a session does not pick between readings on its own.
+
+**What was NOT done.** No column, table or enum was added (`IMPL-01` forbids it):
+`statute_chunks.section_number` already holds the Act's own unit label and is NOT NULL,
+so a page-only citation still cannot exist. `AM-32` r7 is not amended, quoted as
+superseded, or annotated in `all_lock.md`.
+
+**Open question for the owner:** confirm that a Schedule is a citable unit under r7 —
+or instruct a different representation. If the answer is that only numbered sections may
+be cited, the fallback is to leave Schedules folded, which restores the false citation
+above; that trade should be made deliberately rather than by default.

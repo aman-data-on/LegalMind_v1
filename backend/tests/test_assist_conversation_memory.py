@@ -388,7 +388,7 @@ def test_the_prompt_lists_earlier_questions_as_context_not_evidence():
     assert with_context.index(generation.CONTEXT_HEADER) < with_context.index("EVIDENCE:")
     assert "[1] Either party" in with_context
     assert generation.CONTEXT_HEADER not in without
-    assert generation.PROMPT_VERSION == "grounded-answer-4"
+    assert generation.PROMPT_VERSION == "grounded-answer-5"
 
 
 @pytest.mark.parametrize("field", ["acceptable_max", "deviation_outcome"])

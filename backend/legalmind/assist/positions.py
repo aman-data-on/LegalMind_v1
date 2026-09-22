@@ -530,9 +530,13 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # unaffected. Retuning this needs measurement across the whole question set, so it
     # is recorded rather than adjusted here.
     sql = sql_text(f"""
-        WITH q AS (
+        WITH q AS MATERIALIZED (
             SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex
-        ), subject AS (
+        ), subject AS MATERIALIZED (
+            -- MATERIALIZED is not a nicety: inlined, `subject` is re-evaluated per
+            -- candidate row, so its corpus-wide count runs once per chunk instead of
+            -- once per query. Measured on the live 79-chunk corpus, 34.5 ms -> 2.0 ms
+            -- with byte-identical results, and the cost grows with the corpus.
             SELECT COALESCE(array_agg(l), ARRAY[]::text[]) AS lex
               FROM q, unnest(q.lex) l
              WHERE (SELECT count(*) FROM "{schema}".position_chunks p2

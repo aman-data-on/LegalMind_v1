@@ -584,6 +584,16 @@ def _answer_statutes(db: DBSession, conversation_id: UUID, question: str,
     verification = guardrails.verify_answer(result.text, texts)
     if not verification.passed:
         return {"answer_state": verification.state.value, "text": None, "citations": []}
+    if intent.is_verdict_statement(result.text):
+        # The same screen the document and position lanes apply, and it was missing
+        # here: a statute answer is generated text like any other, and "your document
+        # complies with the approved standard" grounds perfectly well in a statute that
+        # uses the word "complies". `AM-25` r4 gives that sentence to the evaluator,
+        # never to the model, whichever corpus it was generated over.
+        log_event("assist.ask.refused", request_id=request_id, cause="verdict_language",
+                  conversation_id=str(conversation_id), domain="STATUTES")
+        return {"answer_state": AssistAnswerState.EVIDENCE_INSUFFICIENT.value,
+                "text": None, "citations": []}
     cited = sorted({c.chunk_index for c in verification.citations if c.grounded})
     return {"answer_state": AssistAnswerState.ANSWERED.value,
             "text": _renumber_markers(result.text, cited),
@@ -909,6 +919,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
               conversation_id=str(conversation_id), domains=",".join(domains),
               comparison=str(route.comparison),
               statute_shaped=str(route.statute_shaped),
+              # WHY it routed (2026-09-21) — signal names only, never the question.
+              statute_signals=",".join(route.statute_signals),
               follow_up=str(follow_up))
 
     # QUERY PLAN (2026-09-17) — what the question is ABOUT, so retrieval can be aimed.
