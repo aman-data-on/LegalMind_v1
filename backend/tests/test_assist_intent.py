@@ -1,7 +1,7 @@
 """The comparison-question matrix — every phrasing that reached generation on 2026-09-08."""
 import pytest
 
-from legalmind.assist.intent import is_comparison_question
+from legalmind.assist.intent import is_comparison_question, is_statute_question
 
 ROUTED = [
     "Please compare this document with our approved legal position. What is acceptable, unacceptable, or requires modification?",
@@ -252,3 +252,86 @@ def test_the_screen_reads_every_supported_script():
     assert is_comparison_question("Yeh clause hamare standard ke hisaab se sahi hai?")
     assert is_comparison_question("Kya humein ABC agreement sign karna chahiye?")
     assert not is_comparison_question("इस अनुबंध में नोटिस अवधि क्या है?")
+
+
+# --------------------------------------------------------------------------
+# The Domain C candidate signal (widened 2026-09-21)
+# --------------------------------------------------------------------------
+
+def test_a_law_question_that_names_no_act_is_still_a_law_question():
+    """(B) — jurisdiction framing or a rule-seeking shape, with nothing of the
+    reader's own to measure against. The naming test alone recognised 2 of the
+    ratified set's 23 statute questions."""
+    assert is_statute_question("Is restraint of trade valid in India?")
+    assert is_statute_question("What does Indian law say about indemnity?")
+    assert is_statute_question("What is the legal rule for liquidated damages?")
+    assert is_statute_question("Under Indian law, can a company indemnify its "
+                               "own directors?")
+    assert is_statute_question("Are agreements stopping someone from carrying on "
+                               "their trade or profession enforceable in India?")
+
+
+def test_a_question_naming_who_the_rule_BINDS_routes():
+    """The legal-actor signal. A general-law question names the bound party in the
+    abstract — "a platform", "an intermediary", "the injured party" — where a deal
+    question names US, or THE provider on this paper."""
+    assert is_statute_question("When does a hosting intermediary lose its immunity "
+                               "for content its users post?")
+    assert is_statute_question("Is a platform allowed to show targeted advertising "
+                               "to children?")
+    assert is_statute_question("What kinds of losses can the injured party recover "
+                               "when a contract is broken?")
+    assert is_statute_question("What must cloud and VPS providers keep?")
+
+
+def test_a_definite_commercial_actor_does_not_route():
+    """Measured: admitting "the provider" put four document questions into the statute
+    lane, two of them must-refuse controls. Only a party named by its ROLE IN A LEGAL
+    RELATION is admitted with a definite determiner."""
+    assert not is_statute_question("What uptime does the provider commit to for "
+                                   "shared web hosting?")
+    assert not is_statute_question("What is the maximum financial exposure of the "
+                                   "provider if something goes badly wrong?")
+
+
+def test_first_person_keeps_a_question_out_of_the_statute_lane():
+    """It needs no document noun to be a question about the asker's own situation.
+    Present in 42 of the 64 document questions and none of the 27 general-law ones."""
+    assert not is_statute_question("If a third party sues the provider because of "
+                                   "something our users hosted, who pays?")
+    assert not is_statute_question("Which outside companies get access to my "
+                                   "personal data, and for what?")
+
+
+def test_the_english_verb_act_is_not_an_Act():
+    """The flat regex matched `\\bact\\b`, so "how quickly must we act?" — a question
+    about a botched installation — was a question about the law."""
+    assert not is_statute_question("The commissioned setup is not what we expected. "
+                                   "What is our recourse, and how quickly must we act?")
+    assert is_statute_question("What does the Act provide about compensation?")
+
+
+def test_naming_the_instrument_still_works():
+    """(A) — an explicit source reference wins outright, even over a document target:
+    "what does s. 43A say about our liability?" names the source to answer from."""
+    assert is_statute_question("What does section 43A of the IT Act say?")
+    assert is_statute_question("What is the DPDP Act?")
+    assert is_statute_question("What does the Companies Act, 2013 require?")
+    assert is_statute_question("Does section 27 apply to our agreement?")
+
+
+def test_a_question_about_the_readers_own_paper_is_never_a_law_question():
+    """This flag makes STATUTES a PRIMARY domain and drops `require_semantic` in the
+    fall-through — the guard that keeps 44 of the 54 contract questions out of the
+    statute corpus. A deal question borrowing statutory vocabulary must not trip it."""
+    for question in ("Is our liability cap enforceable?",
+                     "Are we liable for indirect losses under this agreement?",
+                     "What penalties does the contract impose on us?",
+                     "Is the MSA's indemnity legally binding?",
+                     "Can we walk away from the agreement before it expires?"):
+        assert not is_statute_question(question), question
+
+
+def test_an_ordinary_deal_question_is_not_a_law_question():
+    assert not is_statute_question("What is the termination notice period?")
+    assert not is_statute_question("Who signs the order form?")

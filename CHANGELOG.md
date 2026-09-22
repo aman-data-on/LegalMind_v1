@@ -35,6 +35,364 @@ the "a failing check that failed nothing" diagnosis and the one-job rerun recipe
 [AGENTS.md](AGENTS.md) §11.
 
 
+### 2026-09-22 — the answer-integrity screens: what a cited answer may say, and what may be cited as law
+
+Two independent production-readiness audits found the same hole from opposite
+directions, and this closes the four P0s they agreed on. No locked decision is
+amended: every screen only ever turns an answer into a refusal, which is the
+direction `F-4` permits (widening a fail-closed path, never narrowing one).
+
+**P0-1 — `verify_answer` could not see a changed number, a flipped negation or a
+swapped modality.** It measured whether the cited text *could be the source* of a
+sentence (≥50% content-word overlap) and nothing measured whether it *says the same
+thing*. Against real clause language it admitted 9 of 15 claim transformations, three
+at a **perfect 1.00**, because dropping words only shrinks the numerator. A floor
+sweep settled that this is structural, not calibration: at a floor of 1.00 — which
+refuses every paraphrase — three false claims still passed.
+
+Two screens now compare a claim against its best-aligned evidence **sentence**:
+quantities asserted must appear in the cited text, and polarity/modality must match on
+the predicate the claim shares with its span. Measured both ways:
+
+| | before | after |
+|---|---|---|
+| 15 claim transformations decided correctly | 6/15 | **13/15** |
+| 54 answers this system actually generated | 54 passed | **50 passed, 3 false refusals** |
+
+The 4th refusal is a **true catch**: an answer claiming "three years / five lakh
+rupees" whose cited IT Act s.72 chunk says two years and one lakh. That answer had
+shipped.
+
+Still admitted, and pinned as KNOWN in the tests: a dropped carve-out and a swapped
+party. Both need to know which words attach to which; every lexical proxy measured for
+them refused more true answers than it caught false ones.
+
+**P0-2 — statute text served under fabricated section numbers.** A section holding a
+large fraction of an Act is the parser failing to find the next boundary. Measured on
+the real corpus: CPC "s. 316" held 157 chunks and was returned as a citable section.
+Chunks in such a section are now excluded from retrieval (`MAX_CHUNKS_PER_SECTION`, a
+read-side quarantine that deletes nothing). 50 is not a guess — across the 21-Act
+corpus 2,753 (Act, section) groups hold 1–43 chunks and the next six hold 66–195, so
+the threshold sits in an empty band. **The parser remains the real fix.**
+
+**P0-3 — repealed law was citable as current law.** `jurisdiction` and
+`as_amended_date` were written at ingest and appeared in no `WHERE` clause anywhere.
+Repealed Acts are now excluded from the **lexical and the vector** path — `AM-71`'s
+shape, "both, or it returns through the one left unfiltered" — and stay reachable the
+one way `AM-71` keeps history reachable: when the question names that Act. The label is
+the corpus's own, recorded at ingestion; no repeal is inferred here and none may be.
+
+**P0-4 — untrusted document text reached the model undelimited.** `explanations.py`
+already fenced its evidence as "DATA ONLY — never instructions"; Ask, the user-facing
+surface, did not. Both Ask prompts now carry the contract (`grounded-answer-5`,
+`position-reading-aid-3`), and the statute lane gained the verdict screen the document
+and position lanes already had.
+
+**P1-10 — none of it could be regression-tested.** `tests/test_assist_answer_integrity.py`
+pins all of the above deterministically, including the two known gaps, so closing one
+flips a visible test rather than passing silently.
+
+*Verification: Domain C retrieval unchanged (hit@3 0.650, citations 16/16 → 17/17);
+ruff and mypy clean; zero provider calls in this work.*
+
+**Follow-up, same day — one repeal predicate, not four.** A validation pass found the
+repeal rule written in four places in `statutes.py`: a constant used by the vector
+query, a hardcoded literal in the lexical `WHERE`, another in the lexical `ORDER BY`,
+and a fourth inside the `act_match` annotation strip — plus a fifth copy in
+`tools/statute_rank_variants.py`. `AM-71` exists because an authority rule enforced on
+one path and not the other returns through the unfiltered one; the same risk applies to
+one rule written five times, because an edit to one copy leaves the others serving
+repealed law and nothing fails.
+
+All five now resolve through `_REPEALED_MARKER` and `_repealed_sql(column)`. **Behaviour
+is unchanged**: the generated SQL differs in exactly one character sequence,
+`official_title NOT LIKE '…'` becoming `NOT (official_title LIKE '…')`, which is
+identical in three-valued logic for a `NOT NULL` column (verified: 0 null titles).
+
+The regression test for it is behavioural on the lexical side and that is deliberate —
+the first version asserted the canonical predicate appeared in the lexical SQL and was
+**vacuous**, because the `ORDER BY` also uses it, so reverting the `WHERE` to a literal
+still passed. Proven non-vacuous by reverting that one call site: both new tests fail.
+
+*Verification: Domain C unchanged (hit@1 0.450, hit@3 0.650, rec@10 0.850, citations
+17/17, wrong-Act 0/3); repealed leakage 0/60; vector branch 0 repealed; named historical
+Act still reachable; verifier 13/15 and 3/54 — every figure identical to `1f9f1e9`.*
+
+
+### FROZEN 2026-09-21 — Domain C work held at `1a7ce69`, pending Gemini credit
+
+Owner instruction: stop implementation and freeze. No further code, routing, retrieval,
+threshold or architecture change; nothing pushed, merged, deployed or re-indexed, and no
+further provider calls. Work resumes from exactly `1a7ce69`.
+
+**Validated at `1a7ce69`, deterministic layers only — zero provider calls**
+
+| layer | result |
+|---|---|
+| Routing | **24/27** GENERAL_LAW routed · **0** false STATUTE · precision 1.000 · recall 0.889 |
+| Retrieval | Domain C returns evidence for **20/20** answerable · recall@6 **0.800** · hit@3 **0.650** |
+| Citation | **16/16** correct, zero miscitations · named-Act ✓ · exact-section ✓ |
+| Semantic gate | **0 questions blocked** (was 8) · `COSINE_FLOOR` **0.50, unchanged** · no lexical bypass |
+| Safety / regression | contract lane unmoved 9/54 · 0 must-refuse controls gained evidence · 0 Constitution/Company-Standard leakage · suite **2249 passed, 112 skipped, 198 s** · lint + mypy clean |
+| **Gemini end-to-end** | ⛔ **PENDING — the one external blocker.** Provider returns **HTTP 402 (credit exhausted)** |
+
+**The Gemini result is NOT established and is not claimed.** The last confirmed
+end-to-end figures are the pre-routing baseline: 13/20 answered, 13/13 cited correctly,
+zero leakage. The 402 run demonstrates fail-closed behaviour only — all 20 refused
+honestly, all 3 must-refuse controls refused, zero leakage — and says nothing about
+answer quality.
+
+**On resume:** run the 23-question validation from `1a7ce69` before deciding whether any
+further implementation is needed. Six questions are newly routed and retrieving but have
+never been answered — **Q-45, Q-46, Q-54, Q-55, Q-60, Q-62**. Retrieval diagnosis
+predicts Q-45/Q-46/Q-54/Q-60 answer and Q-55/Q-62 are at risk, for causes already
+measured and recorded (restraint-of-trade ranking, tie saturation, and the IT Rules'
+title match); all four ROUTED correctly, so those are retrieval limits, not routing
+failures.
+
+
+### Fixed — a Schedule is a citable unit, a glued footnote marker no longer swallows an Act, and Domain C ranking stops letting one Act take every slot (2026-09-21)
+
+**Three defects, found by tracing the five statute questions that failed under every
+ranking method measured on 2026-09-20.** All three are in Domain C; the authoritative
+lane, the evaluator and the document lane are untouched.
+
+**1. A footnote marker glued to a section number swallowed the rest of the Act.**
+India Code and Taxmann prints set an inserted section's footnote marker as a bare
+superscript with nothing to separate it, so `²66A.` extracts as `266A.` and `⁸60.` as
+`860.`. The number then reads far above any real section, and because the chunker folds
+a piece whose number falls BELOW the running one, every later section was absorbed into
+it. Live measurement: **26 chunks of the IT Act under a non-existent "s. 266A"** — all
+of ss. 66A–87, so s. 72A and s. 79 (intermediary liability) had no citable identity —
+and **349 chunks of the CPC under "s. 860"**. Across the corpus, six such blobs held
+**1,685 chunks / 5.22 MB, 57% of all Domain C text**, and they matched almost any query:
+**31% of every returned slot** (72 of 230 over the 23 statute questions) was one of them.
+
+The repair is bounded by the Act's OWN arrangement of sections: a body number above the
+highest number in the front matter cannot be a section number, so its leading digits are
+stripped and the first form that lands at or below that ceiling AND continues the
+sequence wins. It rewrote exactly **three numbers in the whole corpus** — `266A`→`66A`,
+`860`→`60`, `392`→`92` — each verified against the section's own marginal note. It
+**refuses itself** past five rewrites in one Act, because that means the ceiling is
+wrong rather than the Act; that is the Taxmann Income-tax print, where an unguarded pass
+rewrote 186 numbers including real ss. 194C and 115VA. The monotonic fold is NOT removed
+globally — removing it was measured and grows the corpus 1.6× while creating new blobs.
+
+**2. A Schedule folded into whichever section came last.** A Schedule carries no section
+number, so the DPDP Act's entire penalty table was cited as **"s. 44(3) — Amendments to
+certain Acts"**, and the Companies Act's seven Schedules sat inside s. 470. A heading
+line that is only `SCHEDULE` (with an optional footnote marker, `THE`, ordinal word or
+roman numeral) is now a boundary, accepted only in the closing quarter of the document
+so the arrangement-of-schedules table at the front is not matched, and section-number
+starts after it are suppressed because inside a Schedule `1.` numbers an entry.
+⚠️ This files a Schedule under `section_number = "THE SCHEDULE"`. `AM-32` r7 says a
+Domain C citation is "Act + section, never a page alone"; a Schedule is not a section,
+and the previous behaviour produced a *false* Act+section citation rather than a true
+one. Recorded here as an interpretation the owner may wish to minute — no locked
+decision is amended.
+
+`STATUTE_CHUNKING_ALGORITHM_VERSION` `section-2` → **`section-3`**. The change is
+**text-neutral**: measured across all 21 supplied PDFs, the total non-whitespace
+character count of the chunked output is identical before and after. Only boundaries
+and numbering move.
+
+**3. A fractional title match took every slot, and a repealed Act won every tie.**
+`act_match` was the PRIMARY sort key on a FRACTIONAL title overlap, so the Act whose
+title merely carried the question's words monopolised all ten hits: "reasonable security
+… personal data" matched the SPDI Rules' title at 0.36, every hit came from the SPDI
+Rules and the DPDP Act's own penalty Schedule ranked 13th. A MAJORITY match still sorts
+first (`AM-50` r3 — naming an Act is a real signal); below that the section's own text
+decides and `act_match` is only a tiebreak. Separately, alphabetising `official_title`
+on a tie put "The Companies Act, 1956 (REPEALED …)" ahead of "The Companies Act, 2013"
+every time, so a repealed Act answered first; a repealed Act now sorts last among equals.
+
+**Measured, zero Gemini** (`tools/probe_statutes.py`, 20 answerable + 3 must-refuse
+statute questions, production `limit=6`). Baseline is the deployed corpus; "repaired" is
+the same 17 Acts re-ingested into a scratch database.
+
+| | hit@1 | hit@3 | recall@6 | MRR | citation | named-Act | exact-section |
+|---|---|---|---|---|---|---|---|
+| deployed corpus, old ranking | 0.400 | 0.500 | 0.700 | 0.487 | 13/14 | ✓ | ✓ |
+| repaired corpus, old ranking | 0.500 | 0.600 | 0.700 | 0.562 | 14/14 | ✓ | ✓ |
+| repaired corpus, new ranking | 0.400 | **0.650** | **0.800** | 0.542 | **16/16** | ✓ | ✓ |
+
+hit@1 falls by one question while hit@3 rises: the two questions demoted stay in the
+payload, and **every hit goes to the generator** (production passes all six), so recall@6
+is what decides an answer and rank 1 is not. Corpus: 5,140 → 5,268 chunks, 2,461 → 2,633
+addressable sections, blob text 57% → 52%. Latency unchanged (p50 271 → 277 ms).
+
+### Measured, not changed — `require_semantic` is doing its job, and the shape detector is not (2026-09-21)
+
+The repaired corpus retrieves the answering section for 16 of 20 answerable statute
+questions, but the reader only sees 12: in the fall-through path
+(`_positions_or_refusal`) Domain C is searched with `require_semantic=not
+route.statute_shaped`, so a question the deterministic shape detector does not call
+statute-shaped must have a GATED vector neighbour (cosine >= 0.50) before Domain C may
+answer at all. It silences **8 answerable statute questions** whose answering section is
+already in the lexical top six.
+
+A NINTH question, Q-56, is refused for a different reason and is worth separating: six
+correct sections DO reach the model, `guardrails.evidence_is_sufficient` passes, and the
+model itself returns its NOT FOUND sentinel, so the reader gets the honest refusal
+"Information not found in the approved statute corpus." No corpus or ranking change can
+move that one, and its cause was not chased further under the Gemini cost guard.
+
+The obvious move — drop the flag — is wrong, and measuring both sides says so:
+**without it, 44 of the 54 contract questions would start receiving statute evidence**
+they get none of today, including 10 of the must-refuse controls. That is exactly the
+regression it was added for.
+
+The real defect is upstream: `intent.is_statute_question` fires on **2 of the 23**
+statute questions, because `_STATUTE` needs a literal instrument token ("section 43A",
+"the DPDP Act"). A law question phrased the way a reader phrases it — "when does a
+hosting intermediary lose its immunity?" — names no Act and is not recognised. Widening
+that predicate would bypass `require_semantic` for genuine law questions while leaving
+contract questions protected, and it is measurable with zero Gemini and no gate change.
+It alters refusal behaviour, so it is recorded here for an owner decision and NOT made.
+
+### Changed — GENERAL LAW routing is a signal relation, not a word list (2026-09-21)
+
+`is_statute_question` was one flat regex matched anywhere in the question — the same
+co-occurrence shape `is_comparison_question` was rebuilt away from on 2026-09-16, and it
+failed the same two ways. It fired on words that are not instruments (`\bact\b` matches
+the English VERB, so "how quickly must we act?" was a question about the law), and it
+required the question to NAME the instrument, which a reader does not: **2 of the 23
+statute questions matched**, and the rest were held to `require_semantic`.
+
+It is now a relation over five deterministic signals, in the idiom the comparison screen
+already uses, with the precedence recorded on the plan:
+
+* **(A) names an instrument** → GENERAL LAW outright. A section reference, a known Act
+  alias, or `act`/`rules` next to a determiner or an Act-name token. An explicit source
+  reference beats a document target: "what does s. 43A say about our liability?" names
+  the source to answer from.
+* **(B) asks for the general rule** → only when jurisdiction framing or a rule-seeking
+  question SHAPE fires **and** there is no document target and no position target.
+
+The negative half is the safety property, because this flag both makes STATUTES a primary
+domain and drops `require_semantic`. A document target is a document noun under a
+definite, demonstrative or possessive determiner — the determiner is the discrimination:
+"**a** contract is broken" is the concept, "**the** contract" is the paper on the desk.
+The position target reuses the existing `_position_reference` relation;
+`mentions_organization` is deliberately NOT reused, because its `_ORG_STEMS` carries
+"compan" and would block "can a company be made to pay damages", a question of law.
+
+Deal vocabulary — `enforceable`, `liable`, `penalty` — is deliberately absent. An earlier
+attempt included it, reached higher recall, and was rejected: it is a word list, not a
+signal.
+
+**A third signal was built, measured and rejected.** "Impersonal + duty modal" lifted
+recall 0.217 → 0.696 but dropped precision to 0.800 and falsely routed **N-05, a
+must-refuse control** — "how quickly must illegal child-abuse material be taken down?" is
+a CONTRACT question indistinguishable by shape. The router stays conservative and the
+evidence gate resolves the ambiguity, which is the layer built for it.
+
+**Routing measured on its own** (91 labelled cases: the dataset's own `category` field,
+plus four owner-named positive shapes and ten adversarial negatives that put statutory
+vocabulary on the reader's own paper):
+
+| | predicted GENERAL_LAW | predicted DOCUMENT/POSITION |
+|---|---|---|
+| actual GENERAL_LAW (27) | 9 | 18 |
+| actual DOCUMENT/POSITION (64) | **0** | 64 |
+
+precision **1.000** · recall 0.333 · false STATUTE **0**. Recall is bounded on purpose:
+the 18 are genuinely ambiguous by shape and keep the `require_semantic` path.
+
+`RoutePlan.statute_signals` records WHICH signals fired, and `assist.ask.routed` logs the
+names — never the question, and never rendered to a reader.
+
+### Changed — the GENERAL LAW router gains a legal-actor signal and a first-person negative (2026-09-21)
+
+The relation shipped at recall 0.333 with precision 1.000. Investigating all 18 missed
+GENERAL LAW routes found three causes, not one, and each was measured **behind the
+existing guards** before being admitted:
+
+* **Three regex repairs, 0 false STATUTE.** "Directions" is an instrument type in this
+  corpus — CERT-In's instrument IS a set of Directions, one of the 17 official titles —
+  and was absent from `_INSTRUMENT_NOUNS`. `_JURISDICTION` allowed one word between
+  "India's" and "law", so "India's data protection law" missed. `\bvalid\b` does not
+  match "validly", so "who can validly sign" missed.
+* **`legal_actor`, 0 false STATUTE.** A general-law question names who the rule binds,
+  in the abstract — "a platform", "an online platform", "cloud and VPS providers", "the
+  injured party". The determiner carries the distinction and it was measured: admitting
+  a definite COMMERCIAL actor ("the provider") reached recall 0.889 and put FOUR
+  document questions into the statute lane, two of them must-refuse controls. Only a
+  party named by its ROLE IN A LEGAL RELATION is admitted with a definite determiner.
+* **`first_person`, the negative that makes the rest safe.** It needs no document noun:
+  "if a third party sues the provider because of something OUR users hosted" is a deal
+  question with no document noun in it. Present in 42 of the 64 document questions and
+  in NONE of the 27 general-law ones.
+
+**Rejected, on measurement.** Legal-relation words (allowed / liable / penalty) recovered
+8 and broke 5 document questions. The corpus's own subject vocabulary — 2,089 terms from
+2,388 marginal notes — recovered all 18 and matched **63 of the 64** document questions:
+contracts and statutes discuss the same subjects, so corpus vocabulary cannot route.
+"parties" as a bare plural was admitted, then withdrawn when the existing routing suite
+caught "who are the parties?" — a document question the 91-case matrix does not contain.
+
+**Routing, measured on its own:** precision 1.000 → **1.000**, recall 0.333 → **0.889**,
+false STATUTE **0 → 0**. Domain C evidence reaches **23 of 23** statute questions (was
+17); the contract lane is unmoved at 9 of 54. `tests/test_assist_routing_matrix.py` pins
+both numbers, the exact recall fraction and the absolute zero.
+
+**Q-43, Q-48 and Q-52 stay conservative on purpose** and are pinned as such: the only
+signals that would catch them are the three rejected above. All three already answer
+through the fall-through, so the router gives up nothing.
+
+### Fixed — a Schedule is cited as a Schedule (2026-09-21)
+
+The label kept the print's footnote marker (`1[THE FIRST SCHEDULE`) and the citation read
+`s. THE SCHEDULE`. Labels are now normalised to the Act's own name — `the Schedule`,
+`Schedule I`, `Schedule IA` — and the citation drops the `s.` prefix for them, so a reader
+sees `The Digital Personal Data Protection Act, 2023, The Schedule (3)`. Presentation
+only; the stored unit is unchanged. ⚠️ Whether a Schedule is a citable unit under
+`AM-32` r7 is **registered as C-24 and left to the owner** — the alternative is the
+previous behaviour, which cited the whole penalty table as `s. 44(3) — Amendments to
+certain Acts`, a false Act+section citation.
+
+### Fixed — Domain A's subject CTE is materialized; it was re-running a corpus-wide count per candidate row (2026-09-21)
+
+Found while verifying the Domain C work: the full backend suite does not finish, and on
+**clean `main`** it sits for minutes inside `positions.search_positions` on a single
+query. `subject` is a CTE whose `WHERE` counts, corpus-wide, how many position chunks
+carry each of the question's lexemes; inlined, Postgres re-evaluates it **once per
+candidate row** instead of once per query. `AS MATERIALIZED` is an optimiser barrier
+only — measured on the live 79-chunk corpus, **34.5 ms → 2.0 ms with byte-identical
+results** — and the cost grows with the corpus, so it gets worse as standards are
+ratified. Out of this task's scope and carried anyway, because a suite that cannot
+finish cannot verify anything. No behaviour changes.
+
+**Attribution, checked rather than assumed:** the stall reproduces on clean `main` with
+this branch's changes stashed (it sat on the same query for 155 s), so it is pre-existing
+and not a consequence of the Domain C work. With the barrier in place the full backend
+suite runs to completion again: **2237 passed, 112 skipped, 1 xfailed in 277 s**.
+
+### Changed — the statute evaluation set scores citation and refusal separately (2026-09-21)
+
+`tests/assist_eval/questions_draft.json` gains two fields on every STATUTE question and
+**no anchor is changed** (verified field-by-field against the previous file). `source_file`
+names the print Domain C is actually built from — **14 of the 23 named a file the corpus
+does not use**, the owner's 2026-08-18 supply having been superseded as corpus text by the
+India Code re-verification of 2026-09-08 (`AM-47`/`AM-48`). `expected_citation` is the Act
+and section a correct citation names, so a right answer under a wrong citation is finally
+visible: Q-46 scored as a clean hit@1 while citing "s. 266A(4) — Punishment for sending
+offensive messages". `tools/probe_statutes.py` now reports evidence, citation and refusal
+grounding as three separate numbers, and `tools/statute_rank_variants.py` holds the ranking
+alternatives for measurement only — nothing there is wired into `search_statutes`.
+
+### Fixed — a statute citation now follows its TEXT across a renumbering (2026-09-21)
+
+`section-3` renumbers, so `(section_number, sub_section)` — the key a statute re-chunk
+reconciles on — cannot match for a section that moved, and the old row is retired with
+its citations handed to the nearest survivor **in document order**. Measured on the real
+IT Act: a citation of s. 79's text landed on **s. 66**, a historical answer pointing at a
+section that does not contain what it quoted, which is what rule 17 forbids. The heir is
+now the chunk that CARRIES the text — probed from after the section number, because the
+number is the thing that changed — with document order kept only as the fallback. The
+same citation now lands on **s. 79** with its text intact. One live citation is affected
+by the coming re-ingest: the DPDP penalty Schedule, currently filed as `s. 44(3)`.
+
 ### Fixed — sign-in refused with a bare 503, and the edge config is now in the repository (2026-09-22)
 
 **The defect.** `limit_req zone=legalmind_auth` — 10 requests per minute, the limit meant
@@ -60,7 +418,6 @@ to restart-in-place and is not addressed here — only how it looks.
 unreviewable. It is now `ops/production/nginx-legalmind.lsnw.io.conf`, and `ops/deploy.sh`
 installs it, runs `nginx -t`, restores the previous file if the test fails, and reloads.
 Details and the rollback path: [ops/production/README.md](ops/production/README.md) § The edge.
-
 
 ### Fixed — a statute laid out in columns is now read in reading order, and the statute lane has an eval (2026-09-20)
 

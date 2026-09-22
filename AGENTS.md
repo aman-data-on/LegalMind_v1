@@ -466,20 +466,13 @@ Do not declare CI fixed until the actual failed job passes.
 
 ### A "failing" check that failed nothing
 
-Read the conclusion before reading the colour. A job whose annotation says
-`Canceling since a higher priority waiting request for ci-<branch> exists` did
-not fail — it was cancelled by the `concurrency` group in `ci.yml` as a
-superseded duplicate, and GitHub counts `cancelled` as not-success.
+A job whose annotation reads `Canceling since a higher priority waiting request
+for ci-<branch> exists` did not fail — it was cancelled as a superseded
+duplicate, and GitHub counts `cancelled` as not-success. §13a below covers how
+to attribute a row to its run; this is how to clear one that is blocking a
+merge.
 
-This was routine until 2026-09-22, when the workflow triggered on `push` for
-every branch as well as on `pull_request`: one commit produced two runs, one of
-them always cancelled, so every pull request read "Checks failing" with all
-fifteen jobs green. Worse, the cancelled copy of the required check
-`3 · Authorization matrix (RELEASE-BLOCKING)` left `mergeStateStatus` at
-`BLOCKED`. `push` is now `branches: [main]`, so it should not recur.
-
-If it does — a stale run, a re-opened PR — rerun that one job rather than the
-suite:
+Rerun the one job, not the suite:
 
 ```bash
 gh run list --branch <branch> --limit 4 --json databaseId,event,status
@@ -487,9 +480,9 @@ gh run view <run-id> --json jobs -q '.jobs[]|select(.name|startswith("3 ·"))|"\
 gh run rerun --job <job-id>
 ```
 
-`UNSTABLE / MERGEABLE` from `gh pr view <n> --json mergeStateStatus,mergeable`
-is the green light: the required check passed and the remaining red rows are
-non-required duplicates.
+Since 2026-09-22 (decision 337) `ci.yml` triggers on `push` to `main` only, so
+one commit no longer produces two runs and this should be rare — a stale run or
+a re-opened PR rather than every pull request, which is what it used to be.
 
 ---
 
@@ -584,6 +577,57 @@ Do not merge a PR while:
 - Required reviews are missing
 - A specification-change approval is missing
 - A migration has not been reviewed
+
+---
+
+## 13a. The merge gate — run it before merging ANY pull request
+
+**Owner instruction, 2026-09-22**, after a merge was attempted on a PR whose CI was green
+and whose `mergeable` field said `MERGEABLE`, and GitHub refused it.
+
+1. Fetch the latest `origin/main`.
+2. Check the **live GitHub ruleset** and the PR state.
+3. **Do not assume `mergeable: true` means the PR is allowed to merge.** That field means
+   only "no content conflict". It says nothing about whether the rules permit a merge.
+4. Verify every one of:
+   - the PR is OPEN
+   - there are no merge conflicts
+   - the branch is **up to date with `main`**
+   - all required status checks are successful
+   - the required **Authorization matrix (RELEASE-BLOCKING)** check is successful
+5. If the branch is BEHIND and the repository has strict required-status-check rules:
+   update the PR branch from the latest `origin/main`, resolve any conflicts, push, **wait
+   for a fresh CI run**, then re-check mergeability and branch freshness.
+6. **Only then** perform a normal merge.
+7. **Never use `--admin`, and never bypass a repository rule**, unless the owner
+   explicitly authorizes it for that merge.
+8. **Never merge on the strength of an earlier green CI run if `main` changed afterwards.**
+
+### The trap this closes
+
+`repos/{owner}/{repo}/branches/main/protection` returns **`404 Branch not protected`** on
+this repository, and that is not the answer to "is `main` protected?". Protection here is a
+**ruleset**, which that endpoint does not report. The authoritative check is:
+
+```bash
+gh api repos/{owner}/{repo}/rules/branches/main
+```
+
+which shows `strict_required_status_checks_policy: true` and the required context
+`3 · Authorization matrix (RELEASE-BLOCKING)`. Reading the older endpoint and concluding
+"nothing is enforced" is how a merge was attempted that the server then refused.
+
+One more reading trap in the same output: the branch-dedupe workflow (PR #104) cancels
+superseded runs, and `gh pr checks` prints every job of a **cancelled** run as `fail`. Those
+are not failures. Attribute each row to its run id and check that run's `conclusion`, and
+confirm the successful run's head SHA is the PR's **current** head.
+
+Until 2026-09-22 this was every pull request's normal state, because `ci.yml` fired on
+`push` for every branch as well as on `pull_request` and the `concurrency` group cancelled
+one of the pair — PR #114 could not merge until that cancelled copy of the Authorization
+matrix job was rerun by hand twice. `push` is now `branches: [main]` (decision 337), so a
+duplicate run is the exception; §11's *"A failing check that failed nothing"* has the
+one-job rerun recipe for the cases that remain.
 
 ---
 

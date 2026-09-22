@@ -76,6 +76,9 @@ class RoutePlan:
     #: The question asked about the law itself. Recorded even when STATUTES is not a
     #: candidate, so the refusal can name the real limitation.
     statute_shaped: bool
+    #: WHICH deterministic signals produced `statute_shaped` — for the routing log and
+    #: for a human reconstructing a decision. Never rendered to a reader.
+    statute_signals: tuple[str, ...] = ()
     #: FALLBACK candidates (2026-09-09) — every OTHER source the caller is authorized
     #: to read, in `_ORDER`. Consulted whenever the primary sources do not answer,
     #: before any refusal. The uploaded document is context, not the boundary of
@@ -111,7 +114,8 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
          statutes_available: bool = False) -> RoutePlan:
     question = question or ""
     comparison = has_document and intent.is_comparison_question(question)
-    statute_shaped = intent.is_statute_question(question)
+    signals = intent.legal_question_signals(question)
+    statute_shaped = signals.general_law
     # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal
     # corpus at all: not the document, not the positions, not the statutes, and not as
     # a fallback. Returning here rather than emptying the sets afterwards is the point —
@@ -153,6 +157,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     return RoutePlan(comparison=comparison,
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,
+                     statute_signals=signals.because,
                      fallback=tuple(d for d in _ORDER if d in fallback),
                      capability=False, general_knowledge=False)
 
