@@ -1,0 +1,55 @@
+<!doctype html>
+<!--
+  Served by nginx for 502/503/504 — see nginx-legalmind.lsnw.io.conf.
+  Installed to /usr/share/legalmind/__unavailable.html.
+
+  Self-contained on purpose: it is shown precisely when an upstream cannot be
+  reached, so it must load no stylesheet, no font and no script. The values are
+  copies of the tokens in frontend/src/app/globals.css (--page, --surface,
+  --ink, --muted, --line, --font-display), which is a deliberate duplication —
+  the alternative is fetching a stylesheet from the server that just failed.
+
+  No reload button and no countdown: DESIGN.md forbids urgency theater, and a
+  retry that fires while a deploy is still swapping only produces this page a
+  second time. Deploys restart in place and take a few seconds.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LegalMind is restarting</title>
+<style>
+  :root {
+    --page: #f6f7f9; --surface: #ffffff; --ink: #1a1c1f;
+    --muted: #5b6169; --line: #d8dce1;
+    --font-display: Georgia, "Iowan Old Style", "Times New Roman", Times, serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    padding: 24px; background: var(--page); color: var(--ink);
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    max-width: 30rem; width: 100%; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: 32px;
+  }
+  h1 {
+    margin: 0 0 12px; font-family: var(--font-display); font-weight: 700;
+    font-size: 1.5rem; letter-spacing: -0.01em;
+  }
+  p { margin: 0 0 12px; color: var(--muted); }
+  p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>LegalMind is restarting</h1>
+  <p>The service is briefly unavailable, usually while a new version is being
+     put in place. Nothing you submitted has been lost.</p>
+  <p>Reload the page in a few seconds. If it persists, contact your
+     administrator.</p>
+</main>
+</body>
+</html>

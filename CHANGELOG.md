@@ -368,6 +368,32 @@ number is the thing that changed — with document order kept only as the fallba
 same citation now lands on **s. 79** with its text intact. One live citation is affected
 by the coming re-ingest: the DPDP penalty Schedule, currently filed as `s. 44(3)`.
 
+### Fixed — sign-in refused with a bare 503, and the edge config is now in the repository (2026-09-22)
+
+**The defect.** `limit_req zone=legalmind_auth` — 10 requests per minute, the limit meant
+for password guessing — was applied to the whole `/api/v1/auth/` prefix. `GET /auth/session`
+is issued by `SessionProvider` on **every page render**, so roughly six ordinary navigations
+drained the bucket and the reader's next click on **Sign in** (`/auth/oidc/start`) was
+refused at the edge. Each refusal bounced them to `/login`, which fetched the session again:
+the limiter fed its own trigger. Reproduced in `access.log` at 11:22, 11:23, 15:42 and 15:46
+on 2026-09-22 and back to 17 Sep, and already worked around in
+`backend/tools/run_contract_tests.py`.
+
+The 10r/m limit now applies to `location = /api/v1/auth/login` only — the actual brute-force
+surface, **unchanged in tightness**. The rest of `/auth/` takes the general 120r/m API limit.
+
+**Two adjacent defects fixed with it.** `limit_req_status 429` — a throttled request answered
+503 ("the server is down"), so the frontend's correct 429 copy (`ApiError.isRateLimited`)
+could never fire. And `error_page 502 503 504` now serves `ops/production/unavailable.html`
+instead of nginx's raw *502 Bad Gateway*: every deploy restarts both upstreams in place, so
+requests in that two-to-three second window get `ECONNREFUSED`. The window itself is inherent
+to restart-in-place and is not addressed here — only how it looks.
+
+**The reason all three survived.** The edge config existed only in `/etc`, unversioned and
+unreviewable. It is now `ops/production/nginx-legalmind.lsnw.io.conf`, and `ops/deploy.sh`
+installs it, runs `nginx -t`, restores the previous file if the test fails, and reloads.
+Details and the rollback path: [ops/production/README.md](ops/production/README.md) § The edge.
+
 ### Fixed — a statute laid out in columns is now read in reading order, and the statute lane has an eval (2026-09-20)
 
 **The defect.** PyMuPDF's default extraction walks the PDF content stream, which on a
