@@ -19,7 +19,10 @@ or dropping the `head_ref` fallback) reintroduces the double run silently.
 flake (ECONNRESET mid-suite) doesn't hang a single test, it grinds the whole spec list
 to failure over 30-52 minutes. Without an explicit cap, GitHub's 360-minute default
 applies, and a routine edit that drops the cap would go unnoticed until a flake burned
-six hours of runner time.
+six hours of runner time. The job now lives in its own `browser-workflows.yml`
+(moved out of `ci.yml` 2026-09-22, so its own timeout-cancellation could never again
+drag down `ci.yml`'s check-suite, and with it the required "3 · Authorization matrix"
+context) -- the cap itself is checked wherever the job actually is.
 """
 
 from __future__ import annotations
@@ -27,13 +30,15 @@ from __future__ import annotations
 import pathlib
 import re
 
-_WORKFLOW = pathlib.Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml"
+_WORKFLOWS_DIR = pathlib.Path(__file__).resolve().parents[2] / ".github/workflows"
+_WORKFLOW = _WORKFLOWS_DIR / "ci.yml"
+_BROWSER_WORKFLOW = _WORKFLOWS_DIR / "browser-workflows.yml"
 
 
-def _top_level_block(key: str) -> str:
-    text = _WORKFLOW.read_text()
+def _top_level_block(key: str, workflow: pathlib.Path = _WORKFLOW) -> str:
+    text = workflow.read_text()
     match = re.search(rf"^{re.escape(key)}:\n((?:  .+\n)+)", text, re.MULTILINE)
-    assert match, f"ci.yml has no top-level `{key}:` block"
+    assert match, f"{workflow.name} has no top-level `{key}:` block"
     return match.group(1)
 
 
@@ -41,10 +46,10 @@ def _concurrency_block() -> str:
     return _top_level_block("concurrency")
 
 
-def _job_block(job_key: str) -> str:
-    text = _WORKFLOW.read_text()
+def _job_block(job_key: str, workflow: pathlib.Path = _WORKFLOW) -> str:
+    text = workflow.read_text()
     match = re.search(rf"\n  {re.escape(job_key)}:\n((?:    .+\n)+)", text)
-    assert match, f"ci.yml has no `{job_key}:` job"
+    assert match, f"{workflow.name} has no `{job_key}:` job"
     return match.group(1)
 
 
@@ -72,10 +77,12 @@ def test_the_flaky_browser_job_cannot_burn_the_full_360_minute_default():
     through the whole spec list failing, which self-resolves at 30-52 minutes.
     Without a job-level `timeout-minutes`, GitHub's default is 360: a silent removal
     of the cap would let that flake burn six hours of runner time before anyone
-    notices, rather than the 15 minutes this bounds it to."""
-    block = _job_block("browser-workflows")
+    notices, rather than the 15 minutes this bounds it to. The job lives in
+    `browser-workflows.yml`, not `ci.yml` -- checked at its actual, current location
+    rather than assuming a file it moved out of."""
+    block = _job_block("browser-workflows", _BROWSER_WORKFLOW)
     assert re.search(r"timeout-minutes:\s*1[0-9]\b", block), (
-        "job 10 (browser-workflows) must keep a timeout-minutes cap well under "
-        "GitHub's 360-minute default, so the known ECONNRESET flake fails fast "
-        "instead of burning runner time for up to six hours"
+        "browser-workflows.yml's `browser-workflows` job must keep a timeout-minutes "
+        "cap well under GitHub's 360-minute default, so the known ECONNRESET flake "
+        "fails fast instead of burning runner time for up to six hours"
     )
