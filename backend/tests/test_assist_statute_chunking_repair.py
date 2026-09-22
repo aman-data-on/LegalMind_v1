@@ -170,14 +170,54 @@ def test_the_dpdp_penalty_schedule_is_cited_as_the_schedule():
 
 @pytest.mark.skipif(not _present(DOCS / "Income_Tax_Act_1961.pdf"),
                     reason="supplied statute not present on this machine")
-def test_the_income_tax_print_is_left_exactly_as_it_was():
-    """This publisher print defeats the chunker (26 of ~298 sections) and `section-3`
-    does not pretend otherwise: it must not change the Act in either direction. The
-    repair refuses itself here; separately the monotonic fold would have absorbed the
-    bad rewrites anyway, so this asserts the OUTCOME, not the guard."""
+def test_a_publishers_print_is_read_from_the_acts_own_index():
+    """Taxmann prints the marginal note on the line ABOVE and glues a footnote marker
+    of any width to the number below it, so `\u2078\u00b215.` extracts as `8215.` — four digits,
+    which `_SECTION_START` does not even recognise as a section start. 27 of ~298
+    sections were addressable and 905 chunks sat under a section the Act does not
+    have. The boundaries now come from the Act's own arrangement of sections."""
     counts = _sections("Income_Tax_Act_1961.pdf")
-    assert "94C" not in counts and "15VA" not in counts, "a corrupt rewrite landed"
-    assert "659" in counts, "the Act must be left as the previous chunker left it"
+    assert "659" not in counts, "the glued-marker section number is back"
+    for section in ("4", "9", "15", "16", "22"):
+        assert section in counts, f"Income-tax s. {section} is not addressable"
+    assert len(counts) > 120, f"only {len(counts)} sections addressable"
+    assert max(counts.values()) < 300, f"a blob remains: {max(counts.values())}"
+
+
+@pytest.mark.skipif(not _present(DOCS / "Income_Tax_Act_1961.pdf"),
+                    reason="supplied statute not present on this machine")
+def test_the_index_supplies_the_number_rather_than_stripping_digits():
+    """The number is READ FROM the index, never guessed: `414.` becomes s. 4 because
+    the heading above it is the arrangement's entry for 4 — stripping one digit would
+    have produced 14, which is a different section of the same Act."""
+    from legalmind.assist.statutes import _pdf_text
+
+    chunks = chunk_statute_text(_pdf_text(DOCS / "Income_Tax_Act_1961.pdf"))
+    s4 = next(c for c in chunks if c.section_number == "4")
+    assert s4.content.lstrip().startswith("414."), s4.content[:40]
+    assert "Where any Central Act enacts that income-tax" in s4.content
+    s9 = next(c for c in chunks if c.section_number == "9")
+    assert "accrue or arise in India" in s9.content
+
+
+def test_an_act_without_a_page_referenced_index_is_untouched():
+    """The trigger is the page reference under each index entry — the one thing that
+    separates an arrangement of sections from the numbered footnotes that outnumber it.
+    Every India Code print scores zero entries and takes the ordinary path."""
+    from legalmind.assist.statutes import _arrangement_entries
+
+    assert _arrangement_entries(_act()) == []
+    assert _arrangement_entries("1. Short title\n2. Definitions\n") == []
+    indexed = ("1. Short title\n1.1\n2. Definitions\n1.2\n")
+    assert _arrangement_entries(indexed) == [("1", "short title"), ("2", "definitions")]
+
+
+def test_a_heading_naming_two_numbers_is_dropped_not_resolved():
+    """The index is authoritative only where it is unambiguous."""
+    from legalmind.assist.statutes import _arrangement_entries
+
+    text = "1. Interpretation\n1.1\n2. Interpretation\n1.2\n3. Penalties\n1.3\n"
+    assert _arrangement_entries(text) == [("3", "penalties")]
 
 
 # --- the ranking the repaired corpus was measured on (2026-09-21) ------------------

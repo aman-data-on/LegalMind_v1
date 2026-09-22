@@ -104,6 +104,46 @@ _SCHEDULE_RANK = 10 ** 6
 # times, because that means the ceiling is wrong rather than the Act.
 MAX_SECTION_NUMBER_REPAIRS = 5
 
+# --------------------------------------------------------------------------
+# A publisher's print, indexed by the Act itself (2026-09-22)
+# --------------------------------------------------------------------------
+# India Code prints a section as `43A. Compensation for failure…—<body>`: the number
+# leads, the marginal note follows. A commercial print does neither. Taxmann's
+# Income-tax Act puts the marginal note on its OWN line ABOVE, and glues a footnote
+# marker of ANY length to the number beneath it:
+#
+#       Charge of income-tax.
+#       414. 42(1) Where any Central Act enacts that income-tax43 shall be charged…
+#
+# The section is 4. `_SECTION_START` caps the number at three digits, so a two-digit
+# marker on a two-digit section (`⁸²15.` -> `8215.`) is not recognised as a section start
+# AT ALL — measured, 27 of ~298 sections were addressable and 905 chunks sat in one
+# lump under a section number the Act does not have.
+#
+# `_repair_glued_markers` cannot help: with no bracket and no fixed marker width,
+# `414` strips to `14` as readily as to `4`, and it correctly refuses to guess.
+#
+# The Act answers the question itself. Its arrangement of sections lists every
+# (number, heading) pair, and each entry carries a PAGE REFERENCE — which is what
+# separates the index from the numbered footnotes that outnumber it ten to one. So the
+# boundaries are read from the Act's own index, IN ITS ORDER: nothing is stripped, no
+# marker width is guessed, and a heading that names two numbers is skipped rather than
+# resolved. An Act without a page-referenced index yields NO entries, so every India
+# Code print reaches this code and is left exactly as it was.
+_ARRANGEMENT_ENTRY = re.compile(
+    r"(?m)^[ \t]*(?P<num>\d{1,3}[A-Z]{0,3})\.[ \t]+(?P<head>\S[^\n]{3,90})\n"
+    r"[ \t]*\d+\.\d+[ \t]*$")
+# A numbered body line, however many digits the glued marker adds. Anchored by
+# `.match(text, pos)`, which needs no `^` — and a `^` without MULTILINE would silently
+# match nothing but position zero.
+_NUMBERED_LINE = re.compile(r"[ \t]*\d{1,6}[A-Z]{0,3}\.")
+# An arrangement entry is followed by its page reference, which is also a numbered
+# line. A section body is not four characters long.
+MIN_INDEXED_BODY_CHARS = 25
+# Below this the document does not have an index worth trusting, and the ordinary
+# path runs. India Code prints score zero.
+MIN_ARRANGEMENT_ENTRIES = 50
+
 
 class StatuteIngestRefused(Exception):
     """The file cannot be ingested as approved statute material."""
@@ -186,6 +226,52 @@ def _repair_glued_markers(numbered: list[tuple[int, str]],
     return out
 
 
+def _arrangement_entries(text: str) -> list[tuple[str, str]]:
+    """(number, heading) in the order the Act's own index lists them.
+
+    A heading that names more than one number is dropped rather than resolved — the
+    index is authoritative only where it is unambiguous.
+    """
+    first: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    order: list[str] = []
+    for m in _ARRANGEMENT_ENTRY.finditer(text):
+        head = " ".join(m.group("head").split()).rstrip(".").lower()
+        if head in first:
+            if first[head] != m.group("num"):
+                ambiguous.add(head)
+            continue
+        first[head] = m.group("num")
+        order.append(head)
+    return [(first[h], h) for h in order if h not in ambiguous]
+
+
+def _indexed_bounds(text: str, entries: list[tuple[str, str]]) -> list[tuple[int, str]]:
+    """Section boundaries read from the Act's own index, in the index's order.
+
+    Walking the index forward is what makes the result monotonic BY CONSTRUCTION: each
+    heading is sought only after the previous section's position, so a heading repeated
+    in a running head or in the book's back index cannot reorder the Act.
+    """
+    bounds: list[tuple[int, str]] = []
+    cursor = 0
+    for num, head in entries:
+        pattern = re.compile(r"(?m)^" + re.escape(head) + r"\.?[ \t]*\n(?=[ \t]*\d)",
+                             re.IGNORECASE)
+        found = pattern.search(text, cursor)
+        if not found:
+            continue
+        start = found.end()
+        if not _NUMBERED_LINE.match(text, start):
+            continue
+        end_of_line = text.find("\n", start)
+        if end_of_line - start < MIN_INDEXED_BODY_CHARS:
+            continue                      # a page reference, not a section body
+        bounds.append((start, num))
+        cursor = start
+    return bounds
+
+
 def _marginal_note(body: str) -> str | None:
     m = _MARGINAL_END.search(body)
     note = body[: m.start()].strip() if m else body.strip()[:200]
@@ -215,9 +301,39 @@ def _split_long(section: str) -> list[tuple[str | None, str]]:
     return out
 
 
+def _chunk_from_bounds(text: str, bounds: list[tuple[int, str]],
+                       notes: dict[str, str]) -> list[StatuteChunk]:
+    """Pack text between known boundaries, by the ordinary rules."""
+    chunks: list[StatuteChunk] = []
+    for (start, num), (nxt, _) in pairwise([*bounds, (len(text), "")]):
+        body = text[start:nxt].strip()
+        if len(body) < MIN_SECTION_CHARS:
+            continue
+        note = notes.get(num)
+        if len(body) <= MAX_SECTION_CHARS:
+            chunks.append(StatuteChunk(num, None, note, body, start, nxt))
+            continue
+        offset = start
+        for sub, part in _split_long(body):
+            chunks.append(StatuteChunk(num, sub, note, part.strip(), offset,
+                                       offset + len(part)))
+            offset += len(part)
+    return chunks
+
+
 def chunk_statute_text(text: str) -> list[StatuteChunk]:
     """Section-based chunks of an Act's text, in the Act's own order and numbering."""
     text = text or ""
+    # A print that carries its own page-referenced index is read FROM that index; every
+    # other print scores zero entries here and takes the path below, unchanged.
+    entries = _arrangement_entries(text)
+    if len(entries) >= MIN_ARRANGEMENT_ENTRIES:
+        indexed = _indexed_bounds(text, entries)
+        if len(indexed) >= MIN_ARRANGEMENT_ENTRIES:
+            log_event("assist.statutes.indexed_by_arrangement",
+                      entries=len(entries), sections=len(indexed), level=logging.INFO)
+            return _chunk_from_bounds(text, indexed,
+                                      {num: head.capitalize() for num, head in entries})
     numbered = [(m.start(), m.group("num")) for m in _SECTION_START.finditer(text)]
     roman = len(numbered) < 2
     if roman:
