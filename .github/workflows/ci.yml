@@ -542,81 +542,8 @@ jobs:
         working-directory: frontend
         run: npx vitest run
 
-  # ── 10 ─────────────────────────────────────────────────────────────────────
-  browser-workflows:
-    name: 10 · Browser workflows (Playwright)
-    runs-on: ubuntu-latest
-    needs: [changes]
-    # backend OR frontend, never either alone: Playwright's webServer boots the
-    # real FastAPI app from source (see the Install backend step below), so a
-    # backend-only regression must still be caught here.
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
-    # A healthy run is 3-5 minutes. The known flake (the backend API intermittently
-    # ECONNRESETs mid-suite, "CI job 10 flake" in the project record) doesn't hang a
-    # single test past Playwright's own 60s per-test timeout -- it grinds through the
-    # whole spec list failing, which stretches a run to 30-52 minutes before it gives
-    # up on its own. Nothing here defaults a bound: GitHub's job timeout is 360
-    # minutes absent one. This caps the wasted runner time when that flake fires
-    # without touching the flake itself -- the job still fails, just sooner.
-    timeout-minutes: 15
-    # SUPPORTING, not a release gate. Locked 54.1's six tiers contain no browser
-    # tier and 54.7's release gate does not list one, so this job must not be
-    # described as either. It exists for the locked properties that cannot be
-    # proved without a real browser: S-3's HttpOnly session cookie, LEGAL-02
-    # omission surviving the Next proxy to the page, and 52.7's no-optimistic-UI
-    # rule for Legal Decisions.
-    #
-    # The framework is Step 39's (`Pytest + Playwright`). Note C-12: locked 54.7
-    # lists "test framework selection" as NOT YET SPECIFIED, which sits oddly
-    # beside that table — registered, unresolved, and blocking nothing, since both
-    # readings permit Playwright.
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: legalmind
-          POSTGRES_PASSWORD: legalmind
-          POSTGRES_DB: legalmind_v1_e2e
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s
-          --health-timeout 5s --health-retries 10
-    env:
-      LEGALMIND_E2E_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@127.0.0.1:5432/legalmind_v1_e2e
-      CI: "true"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install backend
-        working-directory: backend
-        run: pip install -e '.[dev]' && pip install uvicorn
-      - name: Install frontend
-        working-directory: frontend
-        run: npm ci
-      # Chromium only. The locked properties under test are not browser-specific,
-      # and three engines would triple the runtime for no additional guarantee.
-      - name: Install Chromium
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium
-      # Playwright's own webServer starts the API and the Next production build,
-      # and its global setup creates and migrates the e2e database.
-      - name: Browser workflows
-        working-directory: frontend
-        run: npx playwright test
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-          retention-days: 7
+  # Job 10 (Browser workflows / Playwright) moved to its own workflow file,
+  # browser-workflows.yml, 2026-09-22 -- see that file's header comment for why.
 
   # ── 11 ─────────────────────────────────────────────────────────────────────
   reproducibility:
