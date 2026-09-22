@@ -27,10 +27,12 @@
  */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
+import { CONTRACT_STATUSES } from "@/lib/labels";
 import {
   VERSION_ROLES,
   documentTypeChip,
@@ -42,6 +44,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ClientContract, Counterparty, DocumentVersion } from "@/lib/types";
 
+import { Dialog } from "@/components/Dialog";
 import {
   documentStatusBucket,
   relativeTime,
@@ -58,6 +61,262 @@ import {
 import { currentVersion, typesPresent, shortDate } from "./model";
 import { LinkExistingDocuments } from "./LinkExistingDocuments";
 import { UploadToClient } from "./UploadToClient";
+
+/**
+ * A document row's overflow menu.
+ *
+ * **Portaled, not the simpler absolutely-positioned menu `ClientWorkspace`'s
+ * own header uses** — that one works there specifically because the header
+ * has no clipping ancestor (its own comment says so). This one lives inside
+ * `.ws-cl__table`, which sets `overflow-x: auto` — and per the CSS spec,
+ * setting only `overflow-x` computes `overflow-y` to `auto` too, so a plain
+ * absolutely-positioned dropdown would be silently clipped at the table's own
+ * edge for any row not near the very bottom. Mirrors the Dashboard's own row
+ * menu fix for the identical problem (`app/dashboard/page.tsx`, 2026-09-03):
+ * fixed-viewport coordinates captured from the toggle at open time, portaled
+ * into `.ws` itself (not `document.body`) so every design token — surface
+ * color, radius, `--ws-z-dialog` — still resolves; `.ws` sets no transform of
+ * its own, so `position: fixed` still measures against the real viewport.
+ *
+ * Deliberately simpler than the Dashboard's copy in one respect: no arrow-key
+ * navigation between items (that menu can hold up to four; this one holds at
+ * most three, and Tab/Escape closing plus pointer clicks cover the same
+ * ground for a menu this short).
+ */
+function DocMenu({ children, label }: { children: ReactNode; label: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number; minWidth: number } | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+
+  function openMenu() {
+    const toggle = toggleRef.current;
+    if (!toggle) return;
+    const rect = toggle.getBoundingClientRect();
+    const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
+    const estimatedHeight = 132; // up to three items plus padding
+    const opensAbove = window.innerHeight - rect.bottom < estimatedHeight + 8;
+    setPos({
+      right: window.innerWidth - rect.right,
+      minWidth: Math.max(168, cellRect.width),
+      ...(opensAbove ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+    });
+    setOpen(true);
+  }
+
+  function close(restoreFocus = false) {
+    setOpen(false);
+    setPos(null);
+    if (restoreFocus) toggleRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: PointerEvent) {
+      if (!listRef.current?.contains(event.target as Node)
+          && !toggleRef.current?.contains(event.target as Node)) close();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape" && event.key !== "Tab") return;
+      event.stopPropagation();
+      close(event.key === "Escape");
+    }
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="ws-menu">
+      <button ref={toggleRef} type="button"
+              className="ws-btn ws-btn--sm ws-menu__toggle"
+              aria-haspopup="menu" aria-expanded={open} aria-label={label}
+              onClick={() => (open ? close() : openMenu())}>
+        ⋯
+      </button>
+      {open && pos
+        ? createPortal(
+            <div ref={listRef} className="ws-menu__list" role="menu"
+                 aria-orientation="vertical"
+                 style={{
+                   position: "fixed", right: pos.right, minWidth: pos.minWidth,
+                   ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+                 }}
+                 onClick={() => close()}>
+              {children}
+            </div>,
+            document.querySelector(".ws") ?? document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+/**
+ * Edit a document's name and status — the same `PATCH /contracts/{id}` the
+ * Dashboard's own `EditContractDialog` already uses. Deliberately narrower
+ * than that dialog: `counterparty_id` is not offered here, because changing
+ * it from a client's own document list would silently move the document to
+ * a DIFFERENT client, which is a distinct act this screen does not attempt
+ * to gate or explain. The declared-per-version fields (source/counterparty/
+ * effective date) are likewise the Dashboard's own concern, not repeated
+ * here — this dialog is the document's identity, not its negotiation facts.
+ */
+function EditDocumentDialog({
+  contract, onClose, onSaved,
+}: { contract: ClientContract; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(contract.name);
+  const [status, setStatus] = useState(contract.status);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateContract(contract.id, {
+        name: name.trim(),
+        ...(status !== contract.status ? { status } : {}),
+      });
+      onSaved();
+    } catch (cause) {
+      setError(cause);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog onClose={onClose} titleId="ws-cl-docedit-title" dismissOnScrimClick={false}>
+      <h2 id="ws-cl-docedit-title">Edit document details</h2>
+      <form onSubmit={save}>
+        <label className="ws-field">
+          <span className="ws-field__label">Name</span>
+          <input required maxLength={500} value={name}
+                 onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="ws-field">
+          <span className="ws-field__label">Status</span>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            {CONTRACT_STATUSES.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        {error ? (
+          <p className="ws-field__error" role="alert">{describeError(error)}</p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="ws-btn ws-btn--primary"
+                  disabled={saving || !name.trim()}>
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/**
+ * Detach a document from THIS client without touching the document itself —
+ * the safe action regardless of whether it was uploaded here or linked from
+ * elsewhere, since neither case is distinguished in the data (AB-13: no
+ * relationship table, relatedness is derived from `counterparty_id` alone).
+ * Same `PATCH /contracts/{id}` as declaring any other field; `counterparty_id:
+ * null` is exactly what "not linked" already means in `EditContractDialog`.
+ */
+function RemoveFromClientDialog({
+  contract, onClose, onRemoved,
+}: { contract: ClientContract; onClose: () => void; onRemoved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateContract(contract.id, { counterparty_id: null });
+      onRemoved();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog onClose={onClose} titleId="ws-cl-docremove-title">
+      <h2 id="ws-cl-docremove-title">Remove this document from the client?</h2>
+      <p className="ws-modal__body"><strong>{contract.name}</strong></p>
+      <p className="ws-modal__body">
+        This only removes it from this client&rsquo;s list. The document itself,
+        its versions, findings and audit trail are unchanged — it becomes
+        unlinked, exactly like a document that was never linked to a client.
+      </p>
+      {error ? (
+        <p className="ws-field__error" role="alert">{describeError(error)}</p>
+      ) : null}
+      <div className="ws-modal__acts">
+        <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn--bad"
+                disabled={busy} onClick={() => void confirm()}>
+          {busy ? "Removing…" : "Remove from client"}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Genuinely destroy a document — the same `DELETE /contracts/{id}` (`AM-55`)
+ * and the same warning copy as the Dashboard's own `DeleteContractDialog`.
+ * One interruption pattern for one kind of act, deliberately: a reader who
+ * has seen this dialog once on the Dashboard should not be surprised by a
+ * differently-worded one here.
+ */
+function DeleteDocumentDialog({
+  contract, onClose, onDeleted,
+}: { contract: ClientContract; onClose: () => void; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteContract(contract.id);
+      onDeleted();
+    } catch (cause) {
+      setError(cause);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog onClose={onClose} titleId="ws-cl-docdel-title">
+      <h2 id="ws-cl-docdel-title">Delete this document permanently?</h2>
+      <p className="ws-modal__body"><strong>{contract.name}</strong></p>
+      <p className="ws-modal__body">
+        This cannot be undone. The document, every version, and any findings,
+        evaluations and legal decisions on it are destroyed. If you may want
+        this back, remove it from the client instead — that keeps the document.
+      </p>
+      {error ? (
+        <p className="ws-field__error" role="alert">{describeError(error)}</p>
+      ) : null}
+      <div className="ws-modal__acts">
+        <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn--bad"
+                disabled={busy} onClick={() => void confirm()}>
+          {busy ? "Deleting…" : "Delete permanently"}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
 
 const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
   draft: <IconClock size={13} />,
@@ -234,19 +493,27 @@ function RoleControl({ version, onChanged }: {
 }
 
 /** One document, and its versions underneath on request. */
-function DocumentRow({ contract, onChanged }: {
+function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
   contract: ClientContract;
   onChanged: () => void | Promise<void>;
+  onUploadNewVersion: (contractId: string) => void;
 }) {
-  const { can } = useSession();
+  const { can, identity } = useSession();
   const [open, setOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [editingDoc, setEditingDoc] = useState(false);
+  const [removingDoc, setRemovingDoc] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState(false);
   const bucket = documentStatusBucket(contract);
   const versions = contract.versions ?? [];
   const current = currentVersion(versions);
   const currentRole = versionRoleLabel(current?.version_role);
   const panelId = `ws-cl-versions-${contract.id}`;
+  // Presentation only (rule 18) — the server re-checks ownership on every
+  // write regardless of what this screen offers, the same gate the
+  // Dashboard's own row menu uses (`isMine`).
+  const isMine = contract.owner_id === identity?.user_id;
 
   async function analyze() {
     setAnalyzing(true);
@@ -352,6 +619,46 @@ function DocumentRow({ contract, onChanged }: {
               Compare
             </Link>
           ) : null}
+          {/* Same permission split as the Dashboard's own row menu: editing
+              needs CONTRACT_UPDATE, removing/deleting need CONTRACT_ARCHIVE
+              (the same grant `AM-55` already gates the permanent delete
+              with), both additionally scoped to the caller's own document. */}
+          {(can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD))
+           && isMine ? (
+            <DocMenu label={`More actions for ${contract.name}`}>
+              {can(P.CONTRACT_UPDATE) && !contract.archived_at ? (
+                <button type="button" role="menuitem" className="ws-menu__item"
+                        onClick={() => setEditingDoc(true)}>
+                  Edit details
+                </button>
+              ) : null}
+              {/* Opens the SAME upload panel the toolbar's "+ Upload document"
+                  does, pre-selecting "a new version of" this document — no
+                  second upload path, no new endpoint (owner, 2026-09-21).
+                  Gated like the panel gates a new version: DOCUMENT_UPLOAD,
+                  and the contract must not be archived (a write the server
+                  would otherwise refuse with 409). */}
+              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+                <button type="button" role="menuitem" className="ws-menu__item"
+                        onClick={() => onUploadNewVersion(contract.id)}>
+                  Upload new version
+                </button>
+              ) : null}
+              {can(P.CONTRACT_ARCHIVE) ? (
+                <button type="button" role="menuitem" className="ws-menu__item"
+                        onClick={() => setRemovingDoc(true)}>
+                  Remove from client
+                </button>
+              ) : null}
+              {can(P.CONTRACT_ARCHIVE) ? (
+                <button type="button" role="menuitem"
+                        className="ws-menu__item ws-menu__item--bad"
+                        onClick={() => setDeletingDoc(true)}>
+                  Delete permanently
+                </button>
+              ) : null}
+            </DocMenu>
+          ) : null}
         </td>
       </tr>
       {error ? (
@@ -382,6 +689,21 @@ function DocumentRow({ contract, onChanged }: {
           </td>
         </tr>
       ) : null}
+      {editingDoc ? (
+        <EditDocumentDialog contract={contract}
+                            onClose={() => setEditingDoc(false)}
+                            onSaved={() => { setEditingDoc(false); void onChanged(); }} />
+      ) : null}
+      {removingDoc ? (
+        <RemoveFromClientDialog contract={contract}
+                                onClose={() => setRemovingDoc(false)}
+                                onRemoved={() => { setRemovingDoc(false); void onChanged(); }} />
+      ) : null}
+      {deletingDoc ? (
+        <DeleteDocumentDialog contract={contract}
+                              onClose={() => setDeletingDoc(false)}
+                              onDeleted={() => { setDeletingDoc(false); void onChanged(); }} />
+      ) : null}
     </>
   );
 }
@@ -393,8 +715,23 @@ export function ClientDocuments({ client, onChanged }: {
   const { can } = useSession();
   const [typeFilter, setTypeFilter] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
+  /** Set when the panel was opened from a document row's "Upload new
+   *  version" action, so it opens already targeting that document. */
+  const [uploadTarget, setUploadTarget] = useState<string | undefined>(undefined);
   const [linkOpen, setLinkOpen] = useState(false);
   const contracts = client.contracts ?? [];
+
+  function openUploadFor(contractId: string) {
+    setUploadTarget(contractId);
+    setUploadOpen(true);
+    setLinkOpen(false);
+    // The panel renders above the table; from a row far down a long list it
+    // would otherwise open off-screen with no indication anything happened.
+    requestAnimationFrame(() => {
+      document.getElementById("ws-cl-upload")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   const types = useMemo(() => typesPresent(contracts), [contracts]);
   // A FILTER over the one list — never a split of it into sections.
@@ -437,17 +774,23 @@ export function ClientDocuments({ client, onChanged }: {
         {canUpload ? (
           <button type="button" className="ws-btn ws-btn--sm ws-btn--primary"
                   aria-expanded={uploadOpen} aria-controls="ws-cl-upload"
-                  onClick={() => { setUploadOpen((was) => !was); setLinkOpen(false); }}>
+                  onClick={() => {
+                    setUploadOpen((was) => !was);
+                    setUploadTarget(undefined);
+                    setLinkOpen(false);
+                  }}>
             {uploadOpen ? "Close" : "+ Upload document"}
           </button>
         ) : null}
       </header>
 
       {uploadOpen ? (
-        <UploadToClient client={client} onDone={async () => {
-          setUploadOpen(false);
-          await onChanged();
-        }} />
+        <UploadToClient client={client} {...(uploadTarget ? { initialContractId: uploadTarget } : {})}
+                        onDone={async () => {
+                          setUploadOpen(false);
+                          setUploadTarget(undefined);
+                          await onChanged();
+                        }} />
       ) : null}
 
       {linkOpen ? (
@@ -507,7 +850,8 @@ export function ClientDocuments({ client, onChanged }: {
               ) : (
                 shown.map((contract) => (
                   <DocumentRow key={contract.id} contract={contract}
-                               onChanged={onChanged} />
+                               onChanged={onChanged}
+                               onUploadNewVersion={openUploadFor} />
                 ))
               )}
             </tbody>
