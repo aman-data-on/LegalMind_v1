@@ -574,12 +574,23 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           )}
         </td>
         <td className="ws-cl__reviewcell">
-          <span className={`ws-status-pill ws-status-pill--${bucket}`}>
-            {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
-          </span>
-          {needsDecision(contract) ? (
+          {/* "Needs decision" is a refinement WITHIN the "Needs attention"
+              bucket (`documentStatusBucket` sets that bucket for ANY non-
+              ACCEPTABLE finding, `NEEDS_DECISION` included), never a
+              different or independent condition — so showing both read as
+              the same fact said twice (owner, 2026-09-22). The sharper word
+              replaces the generic one only in that one case; a document
+              whose only issue is REQUIRES_MODIFICATION still reads "Needs
+              attention" exactly as before, since that bucket has no sharper
+              word of its own to offer. Every other bucket (Draft, Analyzing,
+              No issues) is untouched. */}
+          {bucket === "needs_attention" && needsDecision(contract) ? (
             <span className="ws-cl__decision">Needs decision</span>
-          ) : null}
+          ) : (
+            <span className={`ws-status-pill ws-status-pill--${bucket}`}>
+              {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
+            </span>
+          )}
         </td>
         <td>
           {versions.length > 0 ? (
