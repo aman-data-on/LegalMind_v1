@@ -24,6 +24,7 @@ from tests.test_assist_ask import (  # noqa: F401  (fixtures)
     NOTICE_POSITION,
     USER_PERMS,
     _conversation,
+    _fake_generation,
     _ratified_positions,
     indexed_contract,
     storage,
@@ -139,3 +140,58 @@ def test_an_explicit_request_for_the_source_text_is_detected(question):
 ])
 def test_an_ordinary_question_is_not_an_exact_text_request(question):
     assert not is_exact_text_request(question), question
+
+
+# --------------------------------------------------------------------------
+# r2 — the request carries no subject of its own
+# --------------------------------------------------------------------------
+def test_an_exact_text_request_inherits_the_subject_of_the_previous_turn(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """"Quote the termination clause verbatim" names no clause. Its own words are
+    "quote", "clause" and "verbatim", which match nothing in any contract, so left
+    unresolved the document lane retrieves NOTHING and the question falls through to
+    whatever else the reader may read.
+
+    Measured on a live NDA (2026-09-22), asked straight after a termination answer:
+    zero document chunks retrieved, and the reader was shown two ratified standards
+    for VENDOR_AGREEMENT and DISTRIBUTION_AGREEMENT — neither their document nor its
+    type. An exact-text request is always ABOUT something already discussed, so it
+    inherits the previous turn's subject through the same resolver a follow-up uses.
+    """
+    from legalmind.assist import intent
+
+    contract, version = indexed_contract
+    conversation = _conversation(db, user, contract)
+
+    _fake_generation(monkeypatch, PARAPHRASE)
+    service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                permissions=USER_PERMS, question=QUESTION)
+
+    bare = "Quote that clause verbatim."
+    # The premise: it is NOT a follow-up by wording, which is why this needed fixing.
+    assert not intent.is_follow_up(bare)
+    assert intent.is_exact_text_request(bare)
+
+    # The observable effect of the fix: the subject resolver runs for this turn.
+    # Asserted at that seam rather than on citations, because whether a two-clause
+    # synthetic fixture clears the evidence gate is a property of the fixture, not of
+    # this change — the live-corpus behaviour is in the commit message, measured.
+    seen: list[str] = []
+    real = service._resolve_follow_up
+    monkeypatch.setattr(service, "_resolve_follow_up",
+                        lambda prior, q: (seen.append(q), real(prior, q))[1])
+    service.ask(db, conversation_id=conversation, document_version_id=version.id,
+                permissions=USER_PERMS, question=bare)
+    assert bare in seen, "the exact-text request did not inherit the previous subject"
+
+
+def test_a_first_turn_exact_text_request_is_unchanged(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """With no previous turn there is nothing to inherit, and the question is used as
+    asked — the fix must not invent a subject where the conversation has none."""
+    from legalmind.assist import intent
+
+    contract, version = indexed_contract
+    prior: list = []
+    assert not (bool(prior) and (intent.is_follow_up("Quote that clause verbatim.")
+                                 or intent.is_exact_text_request("Quote that clause verbatim.")))

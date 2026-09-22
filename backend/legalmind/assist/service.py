@@ -861,7 +861,17 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # (`routing.plan` still takes the caller's live permission set), and an earlier
     # ANSWER is never read (`AM-30` t2). The persisted USER turn is the raw question.
     prior = _prior_questions(db, conversation_id, user_message_id)
-    follow_up = bool(prior) and intent.is_follow_up(question)
+    # An EXACT-TEXT request is always about something already discussed — "the
+    # clause", "that wording", "it". It carries no subject of its own, so left
+    # unresolved its retrieval query is "quote ... clause ... verbatim", which matches
+    # no clause in the document. Measured 2026-09-22 on a live NDA: "Quote the
+    # termination clause verbatim", asked straight after a termination answer,
+    # retrieved ZERO document chunks and fell through to two ratified standards for
+    # VENDOR_AGREEMENT and DISTRIBUTION_AGREEMENT — neither the reader's document nor
+    # its type. It inherits the previous turn's subject for the same reason a
+    # follow-up does, through the same resolver; with no prior turn nothing changes.
+    follow_up = bool(prior) and (intent.is_follow_up(question)
+                                 or intent.is_exact_text_request(question))
     prior_texts: list[str] = []
     follow_up_of: list[UUID] = []
     resolved = question

@@ -156,7 +156,10 @@ def test_guardrails_import_no_model_and_no_prompt():
 # The ask flow end to end (generation faked at the single seam)
 # ==========================================================================
 def _fake_generation(monkeypatch, text_out):
-    def fake(question, evidence, *, environment, request_id=None):
+    # `**context` mirrors the real signature's optional conversation context
+    # (`AM-58` prior questions). A stub that refuses it cannot exercise any
+    # follow-up path, and fails with a TypeError that looks like a product bug.
+    def fake(question, evidence, *, environment, request_id=None, **context):
         return generation.GenerationResult(
             text=text_out, model="fake-model@test", prompt_version="test-1",
             payload_sha256="0" * 64, latency_ms=1)
