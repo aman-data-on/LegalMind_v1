@@ -453,46 +453,57 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
               </dl>
             ) : null}
 
-            {/* Real tabs: each one owns a panel, so `role="tab"` is honest here in
-                a way the Dashboard's scope buttons were not (2026-09-08). */}
-            <div className="ws-cl__tabs" role="tablist" aria-label="Client sections">
-              {TABS.map((entry) => (
-                <button key={entry.key} type="button" role="tab"
-                        id={`ws-cl-tab-${entry.key}`}
-                        aria-selected={tab === entry.key}
-                        aria-controls={`ws-cl-panel-${entry.key}`}
-                        tabIndex={tab === entry.key ? 0 : -1}
-                        className={`ws-cl__tab${tab === entry.key ? " ws-cl__tab--active" : ""}`}
-                        onClick={() => setTab(entry.key)}
-                        onKeyDown={(event) => {
-                          const at = TABS.findIndex((t) => t.key === tab);
-                          const to = event.key === "ArrowRight" ? (at + 1) % TABS.length
-                            : event.key === "ArrowLeft" ? (at - 1 + TABS.length) % TABS.length
-                            : -1;
-                          if (to < 0) return;
-                          event.preventDefault();
-                          const next = TABS[to]!.key;
-                          setTab(next);
-                          document.getElementById(`ws-cl-tab-${next}`)?.focus();
-                        }}>
-                  {entry.label}
-                </button>
-              ))}
-            </div>
+            {/* Tabs and their panel — including the document list — step aside
+                while Edit Profile is open (owner, 2026-09-21), the same fix
+                already applied to `.ws-cl__strip` just above and to the
+                `adding` flow's list-hiding earlier in this file: the edit
+                form used to render ABOVE this content rather than instead of
+                it, so the full document table stayed visible underneath a
+                form editing fields that have nothing to do with it. */}
+            {!editing ? (
+              <>
+                {/* Real tabs: each one owns a panel, so `role="tab"` is honest here in
+                    a way the Dashboard's scope buttons were not (2026-09-08). */}
+                <div className="ws-cl__tabs" role="tablist" aria-label="Client sections">
+                  {TABS.map((entry) => (
+                    <button key={entry.key} type="button" role="tab"
+                            id={`ws-cl-tab-${entry.key}`}
+                            aria-selected={tab === entry.key}
+                            aria-controls={`ws-cl-panel-${entry.key}`}
+                            tabIndex={tab === entry.key ? 0 : -1}
+                            className={`ws-cl__tab${tab === entry.key ? " ws-cl__tab--active" : ""}`}
+                            onClick={() => setTab(entry.key)}
+                            onKeyDown={(event) => {
+                              const at = TABS.findIndex((t) => t.key === tab);
+                              const to = event.key === "ArrowRight" ? (at + 1) % TABS.length
+                                : event.key === "ArrowLeft" ? (at - 1 + TABS.length) % TABS.length
+                                : -1;
+                              if (to < 0) return;
+                              event.preventDefault();
+                              const next = TABS[to]!.key;
+                              setTab(next);
+                              document.getElementById(`ws-cl-tab-${next}`)?.focus();
+                            }}>
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
 
-            <div id={`ws-cl-panel-${tab}`} role="tabpanel"
-                 aria-labelledby={`ws-cl-tab-${tab}`} tabIndex={0}
-                 className="ws-cl__panel">
-              {tab === "documents" ? (
-                <ClientDocuments client={client} onChanged={load} />
-              ) : null}
-              {tab === "details" ? <ClientDetails client={client} /> : null}
-              {tab === "notes" ? (
-                <ClientNotes client={client}
-                             onSaved={(saved) => setClient(mergeProfile(client, saved))} />
-              ) : null}
-              {tab === "activity" ? <ClientActivityFeed clientId={client.id} /> : null}
-            </div>
+                <div id={`ws-cl-panel-${tab}`} role="tabpanel"
+                     aria-labelledby={`ws-cl-tab-${tab}`} tabIndex={0}
+                     className="ws-cl__panel">
+                  {tab === "documents" ? (
+                    <ClientDocuments client={client} onChanged={load} />
+                  ) : null}
+                  {tab === "details" ? <ClientDetails client={client} /> : null}
+                  {tab === "notes" ? (
+                    <ClientNotes client={client}
+                                 onSaved={(saved) => setClient(mergeProfile(client, saved))} />
+                  ) : null}
+                  {tab === "activity" ? <ClientActivityFeed clientId={client.id} /> : null}
+                </div>
+              </>
+            ) : null}
           </>
         )}
       </div>

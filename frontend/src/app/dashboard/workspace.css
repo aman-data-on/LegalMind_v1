@@ -4121,9 +4121,31 @@
   background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
   border-radius: 20px; padding: 1px 8px;
 }
-.ws-cl__docname { font-weight: 600; color: var(--ws-ink-900); text-decoration: none; }
+/* A 2-line clamp, not the free `overflow-wrap: break-word` the column used to
+   rely on alone: an unusually long name could wrap to four or five lines and
+   make one row visibly taller than every other, which reads as a layout bug
+   rather than a long title. The full name is still reachable — the `title`
+   attribute the component sets, and the text itself is never truncated in
+   the DOM, only visually clamped. */
+.ws-cl__docname {
+  font-weight: 600; color: var(--ws-ink-900); text-decoration: none;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .ws-cl__docname:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
-.ws-cl__rowacts { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.ws-cl__rowacts {
+  display: flex; align-items: center; gap: 6px; justify-content: flex-end;
+  white-space: nowrap;
+}
+/* `.ws-btn` is `display: inline-block` with no vertical centring of its own
+   (deliberately — some pages give it its own line-height); a short label
+   inside a `min-height`-driven box then sits at the TOP of the extra space
+   rather than centred in it, which is the "Review" button's reported
+   misalignment. Scoped to these two action rows only — not the shared
+   `.ws-btn` rule other screens rely on. */
+.ws-cl__rowacts .ws-btn, .ws-cl__ver-acts .ws-btn {
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1.2;
+}
 /* The review-status cell: the bucket pill, then — only when at least one
    Finding needs a human decision — a second-line note underneath. No number
    (owner, 2026-09-19): this states a fact, not a count to read as a
@@ -4192,8 +4214,13 @@
 }
 .ws-cl__ver-acts { display: flex; align-items: center; gap: 6px; }
 .ws-cl__ver-error { grid-column: 1 / -1; margin: 4px 0 0; }
+/* Matched to the adjacent Open/Download buttons' 36px (`.ws-btn`'s own
+   min-height) — it was 28px, which read as a shorter, uneven third control
+   next to the two it sits beside in `.ws-cl__ver-acts`. A native `<select>`
+   centres its own text within the box, so no extra `line-height` rule is
+   needed the way the buttons above required one. */
 .ws-cl__rolepick select {
-  font: inherit; font-size: var(--ws-text-xs); padding: 4px 6px; min-height: 28px;
+  font: inherit; font-size: var(--ws-text-xs); padding: 6px 8px; min-height: 36px;
   border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: var(--ws-ink-700); max-width: 190px;
 }
