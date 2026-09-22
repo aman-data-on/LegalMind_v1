@@ -767,6 +767,10 @@ export interface AskResult {
   answer_state: AssistAnswerState;
   text: string;
   routed_to_evaluator: boolean;
+  /** `AM-76` r2 — the reader asked for the source's own words ("the exact wording",
+   *  "quote the clause"), so the quote below is the answer and opens by default
+   *  instead of sitting collapsed. Decided server-side, deterministically. */
+  exact_text_requested?: boolean;
   /** Which authorized sources were candidates for this question (2026-09-08). */
   domains?: string[];
   comparison?: AssistComparison | null;

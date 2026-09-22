@@ -19588,3 +19588,100 @@ r8. **A ratified standard must find the very clause it cites.** `AM-73` ratified
     ratified by this record.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+AMENDMENT BATCH AB-26 — `AM-76`
+A grounded paraphrase by default; the verbatim text when the reader asks for it
+================================================================================
+
+**Owner decision, 2026-09-21**, given after `AM-67` was measured on the live corpus
+and found to produce extracts rather than answers. In the owner's own words:
+
+> "NORMAL ASK → concise, simple, grounded paraphrase + citation. EXPLICIT REQUEST
+> FOR EXACT TEXT → return the exact/verbatim source text + citation. Do NOT include
+> a long verbatim quote by default. The source remains the evidence. The answer
+> should explain the evidence in natural language."
+
+> "Gemini may explain retrieved evidence in natural language, but must not add
+> facts, conditions, exceptions, quantities, or legal conclusions not supported by
+> evidence."
+
+**Amends:** `AM-67` r3. **Does not amend:** `AM-67` r1, r2, r4–r8; `AM-32` r1, r4;
+`AM-30` t1–t10; `AM-28` r1–r2; `AM-26`; `AM-25` r1–r9; `AM-45`; `LEGAL-02`.
+
+Why this record exists. `AM-67` r3 required the ratified quote to be rendered beside
+every Domain A answer, "always", and called a response without it a defect. That rule
+was written to stop a synthesis REPLACING the source. Measured on the live corpus on
+2026-09-20, its effect was different: every Company Standard answer arrived as a fixed
+pointer sentence plus the clause, and 0 of 10 real questions received a plain-language
+answer. The reader asked a question and was handed an extract. The protection r3 gives
+is preserved below without that cost.
+
+```text
+r1   A PARAPHRASE IS THE DEFAULT. A normal Ask question about a Company Standard is
+     answered with a short, grounded explanation in natural language, with its
+     citation. The ratified quote is NOT appended to it. "Grounded" is not
+     "verbatim": the answer explains the evidence, it does not reproduce it.
+
+r2   VERBATIM WHEN, AND ONLY WHEN, THE READER ASKS. An explicit request for the
+     source's own words — "the exact wording", "quote the clause", "verbatim", "what
+     exactly does it say", "the original text" — is answered with the ratified text
+     itself and its citation. The request is detected DETERMINISTICALLY, in code
+     (`assist.intent.is_exact_text_request`), in every script the product accepts
+     (`AM-69`). The model never decides whether its own output is wanted
+     (`AM-25` r1).
+
+r3   THE QUOTE IS NOT REMOVED FROM THE RESPONSE. `AM-32` r4 is untouched: the
+     ratified text continues to travel in its own field with its code, clause,
+     version and ratification status, so the citation and its provenance are never
+     lost. What r1 changes is whether the reader is SHOWN the clause INSTEAD of an
+     explanation — a presentation rule, not a payload deletion. The interface
+     presents it collapsed, labelled, and opens it when r2 applies.
+
+r4   FAIL CLOSED TO THE AUTHORIZED QUOTE. `AM-67` r8 is reaffirmed and extended to
+     this shape: if generation is unavailable, or the guardrail rejects the
+     explanation, the reader receives the verbatim quote and its citation. A
+     paraphrase that cannot be verified is never shown, and never becomes a refusal
+     where authorized text exists.
+
+r5   THE EXPLANATION ADDS NOTHING. It may restate, shorten and simplify what the
+     evidence says. It may not add a fact, a condition, an exception, a quantity or
+     a legal conclusion the evidence does not carry. `AM-25` r5 governs as before:
+     enforcement is mechanical, outside the model, and every sentence still cites a
+     retrieved span or the answer is rejected.
+
+r6   NO MODEL ENTERS THE GUARDRAIL. `AM-28` r2 stands unamended — the verifier
+     imports no prompt and no model, and lexical overlap is NOT claimed to prove
+     semantic correctness. It is one signal beside exact checks on the elements that
+     carry legal meaning. Owner decision of the same day, recorded here so it is not
+     revisited: no entailment model, no semantic-similarity substitute, no provider
+     call for verification, and the grounding floor is not lowered.
+```
+
+**Recorded 2026-09-21.** Implemented and verified before the record was written.
+Measured on 18 labelled answers over four ratified positions — source-like, light
+paraphrase, moderate paraphrase, unsupported and mixed:
+
+    before this batch   7 correct-pass   6 correct-reject   2 ADMITTED   3 fell back
+    after               7 correct-pass   8 correct-reject   0 ADMITTED   3 fell back
+
+The two that had been admitted are the two shapes a word ratio cannot see, because
+each is built from the source's own vocabulary: a position INVERTED ("may only be
+terminated with the written consent of both parties", overlap 0.62, against a clause
+saying either party may terminate on notice) and a carve-out the source does not make
+("except in cases of gross negligence", overlap 0.67, against a cap that carves out
+nothing). Both are refused by exact checks on quantities and on polarity classes,
+neither of which is a threshold.
+
+A general NEGATION class was built, measured and REMOVED: a negation is frequently a
+faithful restatement of something the source states positively — "may terminate for
+convenience" does mean "a breach is not required" — and it rejected an answer the
+owner had already judged grounded. It caught nothing the other classes did not.
+
+Three of the eighteen still fall back to the quote. They are paraphrases that replace
+the source's nouns ("confidentiality lasts" for "obligations survive"). Separating
+those from an invented clause needs entailment, which r6 forbids in the guardrail.
+The owner's own target sentence — "Either party can end the Partner Agreement by
+giving at least 30 days' prior written notice" — verifies at 0.83 and is unaffected.
+
+--------------------------------------------------------------------------------

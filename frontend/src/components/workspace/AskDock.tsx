@@ -495,7 +495,8 @@ export function WsAnswerView({
         <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
         <p>{result.text}</p>
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
-        <PositionsSection positions={result.positions ?? []} contractId={contractId} />
+        <PositionsSection positions={result.positions ?? []} contractId={contractId}
+          exactTextRequested={result.exact_text_requested ?? false} />
         <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
       </div>
     );
@@ -570,7 +571,8 @@ export function WsAnswerView({
           ))}
         </ol>
       ) : null}
-      <PositionsSection positions={result.positions ?? []} contractId={contractId} />
+      <PositionsSection positions={result.positions ?? []} contractId={contractId}
+          exactTextRequested={result.exact_text_requested ?? false} />
       <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
     </div>
   );
@@ -630,15 +632,25 @@ export function StatutesSection({
 export function PositionsSection({
   positions,
   contractId,
+  exactTextRequested = false,
 }: {
   positions: AssistPosition[];
   /** Lets the assessment line open the Finding it names — a control, not prose. */
   contractId?: string | undefined;
+  /** `AM-76` r2/r3 — the reader asked for the source's own words, so the quote is
+   *  the answer and opens. Otherwise it stays collapsed behind its label: the
+   *  answer above is the explanation, and a wall of clause text under every reply
+   *  is what `AM-76` supersedes. */
+  exactTextRequested?: boolean;
 }) {
   if (positions.length === 0) return null;
   return (
     <section className="ws-ask__positions" aria-label="Company standard">
-      <p className="ws-ask__routed-label">Company standard — quoted from the ratified position</p>
+      <p className="ws-ask__routed-label">
+        {exactTextRequested
+          ? "Company standard — the exact wording you asked for"
+          : "Company standard — the ratified position behind this answer"}
+      </p>
       <ol className="ws-ask__citations">
         {positions.map((position) => (
           <li key={position.position_chunk_id} className="ws-ask__citation">
@@ -659,7 +671,14 @@ export function PositionsSection({
                 </span>
               ) : null}
             </span>
-            <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
+            {/* A native <details>, as `EvidenceList` and `EvaluationRow` already use:
+                keyboard-operable, correctly announced, and open/closed without a
+                custom ARIA widget. `open` is the server's deterministic reading of
+                the question (`AM-76` r2), not a guess made here. */}
+            <details className="ws-ask__exact" open={exactTextRequested}>
+              <summary className="ws-ask__exact-toggle">Show exact wording</summary>
+              <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
+            </details>
             {/* The ASSESSMENT is the deterministic evaluator's existing Finding
                 for this standard on the asked version — read, never produced,
                 by Ask (`AM-25` r4; the `AM-45` r4 handoff precedent). Absent
