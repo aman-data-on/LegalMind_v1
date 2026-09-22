@@ -464,6 +464,33 @@ environment failure:
 
 Do not declare CI fixed until the actual failed job passes.
 
+### A "failing" check that failed nothing
+
+Read the conclusion before reading the colour. A job whose annotation says
+`Canceling since a higher priority waiting request for ci-<branch> exists` did
+not fail — it was cancelled by the `concurrency` group in `ci.yml` as a
+superseded duplicate, and GitHub counts `cancelled` as not-success.
+
+This was routine until 2026-09-22, when the workflow triggered on `push` for
+every branch as well as on `pull_request`: one commit produced two runs, one of
+them always cancelled, so every pull request read "Checks failing" with all
+fifteen jobs green. Worse, the cancelled copy of the required check
+`3 · Authorization matrix (RELEASE-BLOCKING)` left `mergeStateStatus` at
+`BLOCKED`. `push` is now `branches: [main]`, so it should not recur.
+
+If it does — a stale run, a re-opened PR — rerun that one job rather than the
+suite:
+
+```bash
+gh run list --branch <branch> --limit 4 --json databaseId,event,status
+gh run view <run-id> --json jobs -q '.jobs[]|select(.name|startswith("3 ·"))|"\(.conclusion//.status) id=\(.databaseId)"'
+gh run rerun --job <job-id>
+```
+
+`UNSTABLE / MERGEABLE` from `gh pr view <n> --json mergeStateStatus,mergeable`
+is the green light: the required check passed and the remaining red rows are
+non-required duplicates.
+
 ---
 
 ## 12. Keep branches synchronized

@@ -10,6 +10,31 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — CI triggers on `main` and pull requests only, so a green PR stops reading "Checks failing" (2026-09-22)
+
+`.github/workflows/ci.yml` fired on `pull_request` **and** `push` for every branch, so one
+commit produced two runs. The `concurrency: cancel-in-progress` group cancelled one of the
+pair — but the cancelled run's check-runs stay attached to the commit, and GitHub counts
+`cancelled` as not-success. Every pull request therefore read **"Checks failing" with all
+fifteen jobs green**, and because the `main` ruleset requires
+`3 · Authorization matrix (RELEASE-BLOCKING)` under `strict_required_status_checks_policy`,
+the cancelled copy of that one job left `mergeStateStatus` at `BLOCKED`. PR #114 had to have
+it rerun by hand twice to merge.
+
+`push` is now `branches: [main]`. This **reverses decision 154** (2026-08-26), which widened
+the trigger after five days of feature-branch commits ran zero CI and the Review screen
+shipped a React #310 crash. That premise is gone: AGENTS.md §1 requires a task branch and a
+pull request for every change and `main` rejects a direct push, so nothing reaches `main`
+without a PR run over it. The `concurrency` group is untouched — it still cancels a superseded
+run when a second commit lands before the first finishes.
+
+**Accepted cost:** a branch pushed with no PR open gets no CI until the PR is opened.
+
+Recorded as decision 337 in [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md);
+the "a failing check that failed nothing" diagnosis and the one-job rerun recipe are in
+[AGENTS.md](AGENTS.md) §11.
+
+
 ### Fixed — sign-in refused with a bare 503, and the edge config is now in the repository (2026-09-22)
 
 **The defect.** `limit_req zone=legalmind_auth` — 10 requests per minute, the limit meant
