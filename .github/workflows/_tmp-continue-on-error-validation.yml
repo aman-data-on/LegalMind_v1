@@ -1,0 +1,36 @@
+name: continue-on-error validation (throwaway)
+
+# THROWAWAY -- exists only on throwaway/continue-on-error-validation, deleted with
+# the branch once this one question is answered: when a job is cancelled by its own
+# timeout-minutes, and that job has continue-on-error: true, does the overall
+# workflow run / check-suite conclusion stay "success" (rather than "cancelled")?
+#
+# will_timeout mimics Job 10 (timeout-minutes: 1 instead of 15, to answer this in
+# a minute instead of fifteen) with continue-on-error: true added.
+# will_pass mimics Job 3 -- a fast, independent job that always succeeds -- so the
+# check-suite rollup can be inspected via the API afterward without touching any
+# real required-check rule.
+
+on:
+  push:
+    branches: ['throwaway/continue-on-error-validation']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  will_pass:
+    name: will_pass (stands in for Job 3)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "this job always succeeds"
+
+  will_timeout:
+    name: will_timeout (stands in for Job 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    continue-on-error: true
+    steps:
+      - run: sleep 120
