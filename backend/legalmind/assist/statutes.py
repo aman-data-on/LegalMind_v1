@@ -603,6 +603,32 @@ def expand_aliases(query: str) -> str:
     return lowered.strip()
 
 
+# --------------------------------------------------------------------------
+# Repealed law — ONE definition, used by every path.
+#
+# `AM-71`'s rule is that a superseded source must be excluded from the LEXICAL
+# and the VECTOR path, "both, or it returns through the one left unfiltered".
+# The rule was written twice to satisfy that — once as a constant for the vector
+# query and once as a literal in the lexical query — which is the same drift risk
+# `AM-71` exists to prevent, one level down: an edit to one path silently leaves
+# the other serving repealed law.
+#
+# So the marker and the predicate are defined once here. `_repealed_sql` takes the
+# column expression because the lexical query reads it from a sub-select (bare
+# `official_title`) and the vector query from the joined table (`s.official_title`);
+# the POLICY is identical and there is now exactly one place to change it.
+#
+# The label is the corpus's own, recorded in `official_title` at ingestion. No
+# repeal is inferred here and none may be — which Act is in force is law, not an
+# engineering judgement (rule 7).
+_REPEALED_MARKER = "REPEALED"
+
+
+def _repealed_sql(column: str = "s.official_title") -> str:
+    """SQL predicate: is this source's Act repealed?"""
+    return f"{column} LIKE '%{_REPEALED_MARKER}%'"
+
+
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                     limit: int = 6, embed_query=None,
                     require_semantic: bool = False) -> list[StatuteHit]:
@@ -668,7 +694,7 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                   -- the "named Acts stay reachable" rule it is meant to be.
                   FROM q, unnest(tsvector_to_array(to_tsvector('english',
                        regexp_replace(s.official_title,
-                                      ' \\(REPEALED.*$', '')))) t
+                                      ' \\({_REPEALED_MARKER}.*$', '')))) t
                  WHERE t NOT IN ('india', 'indian'))
                    AS act_match
           FROM "{schema}".statute_chunks sc
@@ -691,9 +717,9 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       -- Repealed law is not served as current law. It stays reachable the one way
       -- AM-71 keeps a superseded position reachable: when the question NAMES that
       -- Act, which `act_match >= 0.5` already means everywhere else in this query.
-         WHERE official_title NOT LIKE '%REPEALED%' OR act_match >= 0.5
+         WHERE NOT ({_repealed_sql('official_title')}) OR act_match >= 0.5
          ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
-                  (official_title LIKE '%REPEALED%') ASC, act_match DESC, score DESC,
+                  ({_repealed_sql('official_title')}) ASC, act_match DESC, score DESC,
                   official_title, ordinal
          LIMIT :limit
     """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
@@ -788,7 +814,7 @@ _NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
                        AND suspect.section_number = sc.section_number)"""
 
 
-_REPEALED = "s.official_title LIKE '%REPEALED%'"
+
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
@@ -815,7 +841,7 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
           FROM "{schema}".statute_chunk_embeddings se
           JOIN "{schema}".statute_chunks sc ON sc.id = se.statute_chunk_id
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
-         WHERE NOT ({_REPEALED}) AND {_NOT_SUSPECT}
+         WHERE NOT ({_repealed_sql()}) AND {_NOT_SUSPECT}
          ORDER BY se.embedding {op} CAST(:q AS {vtype}), s.official_title, sc.ordinal
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()

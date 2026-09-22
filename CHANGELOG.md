@@ -70,6 +70,29 @@ flips a visible test rather than passing silently.
 *Verification: Domain C retrieval unchanged (hit@3 0.650, citations 16/16 → 17/17);
 ruff and mypy clean; zero provider calls in this work.*
 
+**Follow-up, same day — one repeal predicate, not four.** A validation pass found the
+repeal rule written in four places in `statutes.py`: a constant used by the vector
+query, a hardcoded literal in the lexical `WHERE`, another in the lexical `ORDER BY`,
+and a fourth inside the `act_match` annotation strip — plus a fifth copy in
+`tools/statute_rank_variants.py`. `AM-71` exists because an authority rule enforced on
+one path and not the other returns through the unfiltered one; the same risk applies to
+one rule written five times, because an edit to one copy leaves the others serving
+repealed law and nothing fails.
+
+All five now resolve through `_REPEALED_MARKER` and `_repealed_sql(column)`. **Behaviour
+is unchanged**: the generated SQL differs in exactly one character sequence,
+`official_title NOT LIKE '…'` becoming `NOT (official_title LIKE '…')`, which is
+identical in three-valued logic for a `NOT NULL` column (verified: 0 null titles).
+
+The regression test for it is behavioural on the lexical side and that is deliberate —
+the first version asserted the canonical predicate appeared in the lexical SQL and was
+**vacuous**, because the `ORDER BY` also uses it, so reverting the `WHERE` to a literal
+still passed. Proven non-vacuous by reverting that one call site: both new tests fail.
+
+*Verification: Domain C unchanged (hit@1 0.450, hit@3 0.650, rec@10 0.850, citations
+17/17, wrong-Act 0/3); repealed leakage 0/60; vector branch 0 repealed; named historical
+Act still reachable; verifier 13/15 and 3/54 — every figure identical to `1f9f1e9`.*
+
 
 ### FROZEN 2026-09-21 — Domain C work held at `1a7ce69`, pending Gemini credit
 

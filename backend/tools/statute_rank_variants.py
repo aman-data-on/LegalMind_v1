@@ -11,6 +11,11 @@ vector path are the shipped ones: `statutes._vector_neighbours` is called, not c
                  title overlap, which let one Act take every slot
   demote         act_match demoted, repealed Acts not demoted
   live           repealed Acts demoted, act_match still primary
+
+⚠️ Only "current" carries the shipped in-force EXCLUSION and the section quarantine —
+it delegates to `search_statutes`. The alternative variants re-implement the ranking
+over a copied inner query and deliberately do not, because what they measure is
+ordering. Do not read their repealed-leakage numbers as production behaviour.
 """
 from __future__ import annotations
 
@@ -22,7 +27,9 @@ from legalmind.security import permissions as P
 
 _ACT_MATCH_FIRST = "act_match DESC, exact_section DESC, matched DESC"
 _MATCHED_FIRST = "(act_match >= 0.5) DESC, exact_section DESC, matched DESC, act_match DESC"
-_LIVE = "(official_title LIKE '%REPEALED%') ASC"
+# The repeal predicate has ONE definition (`statutes._repealed_sql`); a second copy
+# here could drift from the shipped policy and silently mis-measure it.
+_LIVE = f"({S._repealed_sql('official_title')}) ASC"
 
 VARIANTS: dict[str, str] = {
     "act_match_first": f"{_ACT_MATCH_FIRST}, score DESC",

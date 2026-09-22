@@ -209,3 +209,69 @@ def test_a_section_holding_a_whole_act_is_never_cited(db):
              [("1", 1), ("659", st.MAX_CHUNKS_PER_SECTION + 1)])
     assert "659" not in _sections(db, "handler shall record the outcome with care")
     assert "1" in _sections(db, "handler shall record the outcome with care")
+
+
+def test_one_repeal_predicate_governs_both_retrieval_paths(db, monkeypatch):
+    """`AM-71` requires the exclusion on the lexical AND the vector path — "both, or
+    it returns through the one left unfiltered". Satisfying that with the rule written
+    twice reintroduces the same risk one level down: an edit to one path leaves the
+    other serving repealed law, and nothing fails.
+
+    The lexical half is asserted BEHAVIOURALLY on purpose. An earlier version of this
+    test checked that the canonical predicate appeared in the lexical SQL, and it was
+    VACUOUS: the ORDER BY also uses the predicate, so reverting the WHERE clause to a
+    hardcoded literal still passed. Neutralising the helper and requiring repealed
+    material to actually come back cannot be satisfied that way.
+    """
+    from legalmind.assist import statutes as st
+
+    _statute(db, "The Synthetic Widgets Act, 2099", [("1", 1)])
+    _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — historical)", [("1", 1)])
+    question = "handler shall record the outcome with care"
+
+    def titles():
+        return [h.official_title for h in st.search_statutes(
+            db, query=question, permissions=frozenset({_ask()}),
+            embed_query=lambda q: None)]
+
+    assert not any("REPEALED" in t for t in titles()), "repealed law served as current"
+
+    # LEXICAL — neutralise the one predicate; the exclusion must collapse with it.
+    # A predicate that never matches, not the constant `false` — a bare constant is a
+    # positional reference in ORDER BY and Postgres rejects it.
+    never = "official_title LIKE '%__NOTHING_MATCHES_THIS__%'"
+    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.official_title": never)
+    assert any("REPEALED" in t for t in titles()), \
+        "the LEXICAL path does not depend on _repealed_sql"
+
+    # VECTOR — the same helper, and it is the only use of it in that query.
+    sentinel = "official_title LIKE '%__SABOTAGED__%'"
+    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.official_title": sentinel)
+    captured: list[str] = []
+    real = st.sql_text
+    monkeypatch.setattr(st, "sql_text", lambda s: (captured.append(s), real(s))[1])
+    st._vector_neighbours(db, "handler care", limit=5,
+                          embed_query=lambda q: ([0.0] * 384, "test-model"))
+    vector = [s for s in captured if "statute_chunk_embeddings" in s]
+    assert vector, "the vector query was not captured"
+    assert sentinel in vector[0], "the VECTOR path does not depend on _repealed_sql"
+
+
+def test_no_second_copy_of_the_repeal_predicate_exists():
+    """The duplication this replaced was found in a validation pass, not by a test.
+    A literal `LIKE '%REPEALED%'` anywhere outside the one helper is that bug coming
+    back, so it is asserted against directly."""
+    import pathlib
+
+    from legalmind.assist import statutes as st
+
+    source = pathlib.Path(st.__file__).read_text()
+    body = "\n".join(line for line in source.splitlines()
+                     if not line.lstrip().startswith(("#", "--")))
+    assert body.count("LIKE '%{_REPEALED_MARKER}%'") == 1, "the helper is the one copy"
+    assert "LIKE '%REPEALED%'" not in body, "a hardcoded repeal predicate came back"
+
+
+def _ask():
+    from legalmind.security import permissions as perms
+    return perms.ASSIST_ASK
