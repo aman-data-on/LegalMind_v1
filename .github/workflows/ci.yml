@@ -9,14 +9,36 @@ name: CI
 
 on:
   pull_request:
-  # Every branch, not only `main`. Work here lands on long-lived feature branches
-  # without a pull request open, so under `branches: [main]` no job ran for five
-  # days of commits — long enough for the core Review screen to ship a runtime
-  # crash (React #310, 2026-08-24) that job 10 would have caught on the first push
-  # and that nobody saw until the browser suite was run by hand on 2026-08-26. The
-  # `concurrency` group below cancels superseded runs, so the cost is one run per
-  # push, not one per commit.
+  # `main` only — narrowed 2026-09-22, and this is the second time this trigger
+  # has moved, so read both halves before touching it again.
+  #
+  # It was widened to EVERY branch on 2026-08-26 because work then landed on
+  # long-lived feature branches with no pull request open: under `branches: [main]`
+  # no job ran for five days of commits, long enough for the core Review screen to
+  # ship a runtime crash (React #310, 2026-08-24) that job 10 would have caught on
+  # the first push, and that nobody saw until the browser suite was run by hand.
+  #
+  # That premise no longer holds. AGENTS.md §1 requires a task branch and a pull
+  # request for every change, and `main` rejects a direct push, so no commit
+  # reaches `main` without a PR run over it. What the wide trigger produced
+  # instead was a SECOND run per push; the `concurrency` group below cancelled
+  # one of the pair, and the cancelled run's check-runs stay attached to the
+  # commit. GitHub counts `cancelled` as not-success, so every pull request read
+  # "Checks failing" with all fifteen jobs green — and because the ruleset
+  # requires `3 · Authorization matrix (RELEASE-BLOCKING)` under
+  # `strict_required_status_checks_policy`, the cancelled copy of that one job
+  # made the PR unmergeable. #114 had to have it reran by hand twice.
+  #
+  # A red badge that is red for a reason nobody can act on is worse than no badge:
+  # it is how a real failure goes unnoticed. The `concurrency` group stays — it
+  # still cancels a superseded run when a second commit lands before the first
+  # finishes, which is what it was added for.
+  #
+  # The cost, stated plainly: a branch pushed with no pull request open gets no
+  # CI until the PR is opened. That is the 2026-08-26 hazard, accepted because
+  # nothing can now merge without a PR.
   push:
+    branches: [main]
 
 permissions:
   contents: read

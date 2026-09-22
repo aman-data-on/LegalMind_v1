@@ -464,6 +464,26 @@ environment failure:
 
 Do not declare CI fixed until the actual failed job passes.
 
+### A "failing" check that failed nothing
+
+A job whose annotation reads `Canceling since a higher priority waiting request
+for ci-<branch> exists` did not fail — it was cancelled as a superseded
+duplicate, and GitHub counts `cancelled` as not-success. §13a below covers how
+to attribute a row to its run; this is how to clear one that is blocking a
+merge.
+
+Rerun the one job, not the suite:
+
+```bash
+gh run list --branch <branch> --limit 4 --json databaseId,event,status
+gh run view <run-id> --json jobs -q '.jobs[]|select(.name|startswith("3 ·"))|"\(.conclusion//.status) id=\(.databaseId)"'
+gh run rerun --job <job-id>
+```
+
+Since 2026-09-22 (decision 337) `ci.yml` triggers on `push` to `main` only, so
+one commit no longer produces two runs and this should be rare — a stale run or
+a re-opened PR rather than every pull request, which is what it used to be.
+
 ---
 
 ## 12. Keep branches synchronized
@@ -601,6 +621,13 @@ One more reading trap in the same output: the branch-dedupe workflow (PR #104) c
 superseded runs, and `gh pr checks` prints every job of a **cancelled** run as `fail`. Those
 are not failures. Attribute each row to its run id and check that run's `conclusion`, and
 confirm the successful run's head SHA is the PR's **current** head.
+
+Until 2026-09-22 this was every pull request's normal state, because `ci.yml` fired on
+`push` for every branch as well as on `pull_request` and the `concurrency` group cancelled
+one of the pair — PR #114 could not merge until that cancelled copy of the Authorization
+matrix job was rerun by hand twice. `push` is now `branches: [main]` (decision 337), so a
+duplicate run is the exception; §11's *"A failing check that failed nothing"* has the
+one-job rerun recipe for the cases that remain.
 
 ---
 
