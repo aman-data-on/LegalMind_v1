@@ -3862,8 +3862,9 @@
 .ws-cl__table--docs th:nth-child(5) { width: 13%; }  /* Versions */
 .ws-cl__table--docs th:nth-child(6) { width: 10%; }  /* Last updated */
 .ws-cl__table--docs th:nth-child(7) { width: 18%; }  /* Actions */
-/* Fixed layout stops truncating the document name for free — it now wraps
-   instead of overflowing, which is the readable outcome at narrower widths. */
+/* The name itself truncates on one line via `.ws-cl__docname`'s own rule; the
+   "Archived" chip that can sit beside it still wraps to its own line rather
+   than overflowing the fixed-width column at narrow viewports. */
 .ws-cl__table--docs td:first-child { overflow-wrap: break-word; }
 .ws-cl__table th {
   text-align: left; font-size: var(--ws-text-xs); font-weight: 650;
@@ -4121,16 +4122,16 @@
   background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
   border-radius: 20px; padding: 1px 8px;
 }
-/* A 2-line clamp, not the free `overflow-wrap: break-word` the column used to
-   rely on alone: an unusually long name could wrap to four or five lines and
-   make one row visibly taller than every other, which reads as a layout bug
-   rather than a long title. The full name is still reachable — the `title`
-   attribute the component sets, and the text itself is never truncated in
-   the DOM, only visually clamped. */
+/* Single-line ellipsis truncation (owner, 2026-09-22 — supersedes the earlier
+   2-line clamp). The full name is never removed from the DOM, only visually
+   truncated to fit the fixed-width column; the `title` attribute the
+   component sets is still how the complete name is reached, on hover or via
+   assistive tech. `display: block` is required for `text-overflow: ellipsis`
+   to apply to an inline `<a>`, and it fills the `<td>`'s own fixed width
+   (`table-layout: fixed`, `th:nth-child(1)`'s 26%) with nothing else needed. */
 .ws-cl__docname {
   font-weight: 600; color: var(--ws-ink-900); text-decoration: none;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-cl__docname:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
 .ws-cl__rowacts {
