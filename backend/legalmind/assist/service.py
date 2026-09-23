@@ -63,6 +63,17 @@ EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
     "assistant — its Findings for this document are attached below.")
+NEEDS_DOCUMENT_TEXT = (
+    "This asks whether a document meets a standard, and no document is open in this "
+    "conversation. Open the document you want assessed and ask again — the comparison "
+    "is made by the deterministic evaluator against that document's Findings.")
+NEEDS_AUTHORITY_TEXT = (
+    "This asks whether a document complies with a law. The evaluator measures a "
+    "document against the organization's ratified Company Standards, and none of them "
+    "is derived from an Act — a statute states the law, it does not set the position "
+    "the organization has approved. I can read what the Act itself says, or how the "
+    "document stands against the approved standards, but those are two different "
+    "questions and I will not answer one as though it were the other.")
 EVALUATOR_NO_REVIEW_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
@@ -980,6 +991,22 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                                                     permissions=permissions)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.
+    # A COMPLIANCE ASSESSMENT whose prerequisites are not met is reported as itself.
+    # Falling through here is what used to turn "does our NDA comply with the DPDP
+    # Act?" into an ordinary position lookup, answering a question the reader did not
+    # ask and attaching a yardstick they did not name.
+    if route.unmet:
+        text_out = (NEEDS_AUTHORITY_TEXT if "NEEDS_AUTHORITY" in route.unmet
+                    else NEEDS_DOCUMENT_TEXT)
+        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT", text_out)
+        _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                        model=None, prompt_version_id=None, latency_ms=None)
+        log_event("assist.ask.needs_prerequisite", request_id=request_id,
+                  conversation_id=str(conversation_id), unmet=",".join(route.unmet))
+        return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                          answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                          text=text_out, domains=domains)
+
     if route.comparison:
         comparison = _latest_review_summary(db, document_version_id)
         route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT

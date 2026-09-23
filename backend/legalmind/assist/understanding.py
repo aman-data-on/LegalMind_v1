@@ -148,6 +148,38 @@ _JURISDICTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     ))
 
 
+# --------------------------------------------------------------------------
+# WHAT OPERATION the question asks for. A lookup wants a fact read out of one
+# source; a compliance assessment wants one thing measured AGAINST another, and
+# that is a different shape with different prerequisites.
+#
+# Modelling it as `comparison = True` lost the three things that matter: what is
+# being measured, against what, and what has to exist before the question can be
+# answered at all.
+LOOKUP_OP = "LOOKUP"
+COMPLIANCE_ASSESSMENT = "COMPLIANCE_ASSESSMENT"
+
+CURRENT_DOCUMENT = "CURRENT_DOCUMENT"
+
+
+@dataclass(frozen=True)
+class Operation:
+    """What the reader wants DONE, independent of whether it can be done yet."""
+
+    kind: str = LOOKUP_OP
+    #: What is being measured. Today only the conversation's document.
+    subject: str | None = None
+    #: The standard it is measured AGAINST — POSITION or GENERAL_LAW. This is the
+    #: authority of the COMPARISON, not everything the question mentions: in "does
+    #: our NDA comply with the DPDP Act?" the "our" belongs to the NDA, and the
+    #: standard is the Act.
+    against: frozenset[str] = frozenset()
+
+    @property
+    def is_comparison(self) -> bool:
+        return self.kind == COMPLIANCE_ASSESSMENT
+
+
 @dataclass(frozen=True)
 class QuestionUnderstanding:
     """One question, understood once. Frozen: a caller may read it, never edit it."""
@@ -183,6 +215,11 @@ class QuestionUnderstanding:
     #: WHICH TIME the question is about. Understanding only: it never selects a
     #: source. Policy decides which version is admissible (`routing.plan`).
     temporal: TemporalScope = TemporalScope()
+    #: WHAT the reader wants done. Recorded whether or not it can be done — a
+    #: compliance question with no document attached is still a compliance question,
+    #: and saying so is the difference between asking for the document and silently
+    #: answering a different, easier question.
+    operation: Operation = Operation()
 
     @property
     def statute_shaped(self) -> bool:
@@ -207,6 +244,21 @@ def _jurisdiction(text: str) -> str:
         if pattern.search(text):
             return code
     return UNSPECIFIED
+
+
+def _operation(comparison: bool, signals: intent.LegalQuestionSignals) -> Operation:
+    """A comparison, and what it is measured against.
+
+    The standard is read from the statute signal rather than from "our": in "does
+    our NDA comply with the DPDP Act?" the organization owns the document, not the
+    yardstick. With no legal instrument or jurisdiction in the question, the yardstick
+    is the organization's own ratified position — which is what a comparison has
+    always meant here.
+    """
+    if not comparison:
+        return Operation()
+    against = GENERAL_LAW if signals.general_law else POSITION
+    return Operation(COMPLIANCE_ASSESSMENT, CURRENT_DOCUMENT, frozenset({against}))
 
 
 def _temporal(text: str) -> TemporalScope:
@@ -279,4 +331,5 @@ def understand(question: str) -> QuestionUnderstanding:
         authority=_authority(text, fact, signals, organization),
         jurisdiction=_jurisdiction(text),
         temporal=_temporal(text),
+        operation=_operation(intent.is_comparison_question(text), signals),
     )

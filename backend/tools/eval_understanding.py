@@ -54,6 +54,9 @@ def understanding(question: str, *, has_document: bool, permissions, statutes: b
         "requested_fact": u.requested_fact,
         "authority": sorted(u.authority),
         "jurisdiction": u.jurisdiction,
+        "operation": u.operation.kind,
+        "against": sorted(u.operation.against),
+        "unmet": list(route.unmet),
         "temporal": u.temporal.kind,
         "temporal_date": u.temporal.date,
         "include_superseded": route.include_superseded,
@@ -105,7 +108,8 @@ def main() -> int:
             rec = {k: case.get(k) for k in
                    ("class", "q", "doc", "after", "intent", "requested_fact",
                     "authority", "must_refuse", "ambiguous", "temporal", "jurisdiction",
-                    "must_not_cite_repealed", "may_cite_repealed")}
+                    "must_not_cite_repealed", "may_cite_repealed",
+                    "operation", "unmet")}
             rec["expected_temporal"] = case.get("temporal")
             rec["understanding"] = understanding(
                 case["q"], has_document=bool(ver), permissions=perms,

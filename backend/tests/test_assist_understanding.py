@@ -52,30 +52,70 @@ def test_routing_is_identical_whether_it_reads_the_object_or_derives_it(question
         assert derived == passed
 
 
-def test_comparison_is_recorded_ungated_and_the_router_applies_the_gate():
+def test_a_comparison_is_recorded_before_anything_is_known_about_the_document():
     """The question "does this comply?" is the same question with or without a
-    document attached. What changes is whether the evaluator can run (`AM-25` r4), and
-    that is the ROUTER's decision — so the understanding records the request ungated.
-
-    This is the distinction that makes a document-plus-statute comparison expressible
-    at all; today the router still gates it, and that is deliberate for a pure refactor.
-    """
+    document attached. What changes is whether it can be SERVED, and that is policy's
+    to decide — so understanding records the operation ungated."""
     u = understanding.understand("Does our NDA comply with the DPDP Act?")
-    assert u.comparison_requested
-    assert not routing.plan(u.question, has_document=False,
-                            permissions=PERMS, statutes_available=True).comparison
-    assert routing.plan(u.question, has_document=True,
-                        permissions=PERMS, statutes_available=True).comparison
+    assert u.operation.is_comparison
+    assert u.operation.subject == understanding.CURRENT_DOCUMENT
+
+
+def test_a_compliance_question_against_a_statute_is_not_answered_from_the_standards():
+    """The defect this step removes. There is no ratified standard derived from an
+    Act — "the DPDP Act does not create a Requirement" (rule 7) — so there is nothing
+    to measure the document against, and none may be derived.
+
+    Before, this handed off to the evaluator and showed Findings computed against the
+    organization's Company Standards: a yardstick the reader never named, presented as
+    an answer to the question they did ask. It is now reported as what it is.
+    """
+    route = routing.plan("Does our NDA comply with the DPDP Act?", has_document=True,
+                         permissions=PERMS, statutes_available=True,
+                         statute_jurisdictions=frozenset({"IN"}))
+    assert not route.comparison, "must not hand a statute question to the position evaluator"
+    assert "NEEDS_AUTHORITY" in route.unmet
+
+
+def test_a_compliance_question_against_our_own_position_still_reaches_the_evaluator():
+    """The path that works is untouched: the deterministic evaluator remains the only
+    thing that compares a document to the organization's approved position
+    (`AM-25` r4), and Ask still only hands off to it."""
+    route = routing.plan("Is this agreement compliant with our Constitution?",
+                         has_document=True, permissions=PERMS, statutes_available=True,
+                         statute_jurisdictions=frozenset({"IN"}))
+    assert route.comparison and not route.unmet
+
+
+def test_a_comparison_with_no_document_asks_for_one():
+    """Rather than answering an easier question in its place."""
+    route = routing.plan("Is this agreement compliant with our Constitution?",
+                         has_document=False, permissions=PERMS, statutes_available=True,
+                         statute_jurisdictions=frozenset({"IN"}))
+    assert "NEEDS_DOCUMENT" in route.unmet
+    assert not route.comparison
+
+
+def test_a_plain_lookup_never_acquires_prerequisites():
+    """`unmet` is empty for every question that is not a compliance assessment — the
+    new branch must not intercept ordinary questions."""
+    for question in ("What is the liability cap in this agreement?",
+                     "What is our position on MSA auto-renewal?",
+                     "What does Indian law say about indemnity?"):
+        route = routing.plan(question, has_document=True, permissions=PERMS,
+                             statutes_available=True,
+                             statute_jurisdictions=frozenset({"IN"}))
+        assert not route.unmet, question
 
 
 def test_the_frozen_matrix_keeps_its_shape():
-    """17 classes, four questions each, with the controls that stop the matrix being
+    """19 classes, four questions each, with the controls that stop the matrix being
     tuned into a pass: six must-refuse, four ambiguous, eight chained follow-ups."""
     classes: dict[str, int] = {}
     for case in CASES:
         classes[case["class"]] = classes.get(case["class"], 0) + 1
-    assert len(CASES) == 68
-    assert len(classes) == 17 and set(classes.values()) == {4}
+    assert len(CASES) == 76
+    assert len(classes) == 19 and set(classes.values()) == {4}
     assert sum(1 for c in CASES if c.get("must_refuse")) == 6
     assert sum(1 for c in CASES if c.get("ambiguous")) == 4
     assert sum(1 for c in CASES if c.get("after")) == 8

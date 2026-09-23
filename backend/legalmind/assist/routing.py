@@ -76,6 +76,10 @@ class RoutePlan:
     #: The question asked about the law itself. Recorded even when STATUTES is not a
     #: candidate, so the refusal can name the real limitation.
     statute_shaped: bool
+    #: POLICY: what a COMPLIANCE ASSESSMENT needs before it can run at all, and does
+    #: not have. Empty for every question that is not one, and for one that can run.
+    #: Reported to the reader instead of answering an easier question in its place.
+    unmet: tuple[str, ...] = ()
     #: POLICY: may a SUPERSEDED source answer this question? Understanding says which
     #: time the reader asked about (`temporal`); this says whether a repealed Act is
     #: therefore admissible. Default False — a question that says nothing about time
@@ -129,7 +133,25 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # property of the question (`AM-25` r4): asking whether a document complies is the
     # same question with or without one attached, and what changes is whether the
     # evaluator can run.
-    comparison = has_document and u.comparison_requested
+    # A COMPLIANCE ASSESSMENT is a request whether or not it can be served. Its
+    # prerequisites are resolved here, before retrieval, and reported as themselves.
+    #
+    # NEEDS_AUTHORITY is not a gap in this code. A statute creates no Requirement —
+    # "the DPDP Act does not create a Requirement", rule 7 — so there is no ratified
+    # standard derived from an Act to measure a document against, and none may be
+    # derived. Answering "does our NDA comply with the DPDP Act?" from the Company
+    # Standards would measure it against a yardstick the reader did not name.
+    unmet: list[str] = []
+    if u.operation.is_comparison:
+        if not has_document:
+            unmet.append("NEEDS_DOCUMENT")
+        if understanding.GENERAL_LAW in u.operation.against:
+            unmet.append("NEEDS_AUTHORITY")
+    # The evaluator answers a comparison against the organization's own position, and
+    # only that. `AM-25` r4 is unchanged: Ask never performs the comparison, it hands
+    # off to the Findings the deterministic evaluator already produced.
+    comparison = (has_document and u.operation.is_comparison
+                  and understanding.POSITION in u.operation.against)
     signals = u.signals
     statute_shaped = u.statute_shaped
     # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal
@@ -204,6 +226,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
         fallback.add(Domain.STATUTES)
     fallback -= candidates
     return RoutePlan(comparison=comparison,
+                     unmet=tuple(unmet),
                      include_superseded=u.temporal.wants_past,
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,

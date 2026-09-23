@@ -5,7 +5,9 @@
   "requested_fact": "VALUE | PERIOD | PENALTY | DEADLINE | PROCEDURE | DEFINITION | NONE",
   "authority": "sources CAPABLE of answering, before permissions are applied",
   "note": "authority is not a prediction of what today's code does; it is what the question asks for. The gap between the two IS the measurement.",
-  "temporal": "CURRENT | HISTORICAL | AS_OF_DATE | UNSPECIFIED — which time the question is about, never which source answers it"
+  "temporal": "CURRENT | HISTORICAL | AS_OF_DATE | UNSPECIFIED — which time the question is about, never which source answers it",
+  "operation": "LOOKUP | COMPLIANCE_ASSESSMENT — what the reader wants DONE, recorded whether or not it can be served",
+  "unmet": "NEEDS_DOCUMENT | NEEDS_AUTHORITY — policy's answer to what a comparison lacks"
  },
  "cases": [
   {
@@ -722,6 +724,112 @@
    ],
    "temporal": "UNSPECIFIED",
    "must_not_cite_repealed": true
+  },
+  {
+   "class": "COMPARISON_PREREQ",
+   "q": "Does this comply with our standard?",
+   "doc": null,
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "operation": "COMPLIANCE_ASSESSMENT",
+   "unmet": [
+    "NEEDS_DOCUMENT"
+   ]
+  },
+  {
+   "class": "COMPARISON_PREREQ",
+   "q": "Does our MSA comply with the Companies Act, 2013?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ],
+   "operation": "COMPLIANCE_ASSESSMENT",
+   "unmet": [
+    "NEEDS_AUTHORITY"
+   ]
+  },
+  {
+   "class": "COMPARISON_PREREQ",
+   "q": "Does our NDA comply with the DPDP Act?",
+   "doc": "NDA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ],
+   "operation": "COMPLIANCE_ASSESSMENT",
+   "unmet": [
+    "NEEDS_AUTHORITY"
+   ]
+  },
+  {
+   "class": "COMPARISON_PREREQ",
+   "q": "Is this agreement compliant with our Constitution?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "operation": "COMPLIANCE_ASSESSMENT",
+   "unmet": []
+  },
+  {
+   "class": "ADVERSARIAL_COMPARE",
+   "q": "Is there a compliance section in this agreement?",
+   "doc": "MSA",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "operation": "LOOKUP",
+   "unmet": []
+  },
+  {
+   "class": "ADVERSARIAL_COMPARE",
+   "q": "According to clause 7, what is the notice period?",
+   "doc": "MSA",
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "operation": "LOOKUP",
+   "unmet": []
+  },
+  {
+   "class": "ADVERSARIAL_COMPARE",
+   "q": "What is the legal name of the counterparty?",
+   "doc": "MSA",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "operation": "LOOKUP",
+   "unmet": []
+  },
+  {
+   "class": "ADVERSARIAL_COMPARE",
+   "q": "What does our policy say about comparing vendor quotes?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ],
+   "operation": "LOOKUP",
+   "unmet": []
   }
  ],
  "label_corrections_2026_09_23": {
