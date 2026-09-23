@@ -1,0 +1,2242 @@
+[
+ {
+  "class": "DOCUMENT_LOOKUP",
+  "q": "What is the confidentiality period in this NDA?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "DOCUMENT_LOOKUP",
+  "q": "What is the liability cap in this agreement?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "DOCUMENT_LOOKUP",
+  "q": "What are the payment terms?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "DOCUMENT_LOOKUP",
+  "q": "Who are the parties to this agreement?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "POSITION_LOOKUP",
+  "q": "What is our position on MSA auto-renewal?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "POSITION_LOOKUP",
+  "q": "What is our standard confidentiality period?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "POSITION_LOOKUP",
+  "q": "What liability cap do we accept?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "first_person"
+   ],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "POSITION_LOOKUP",
+  "q": "What is our approved notice period for termination?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "first_person"
+   ],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "CONSTITUTION_LOOKUP",
+  "q": "What is written about Partner Agreement in the Constitution?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "CONSTITUTION_LOOKUP",
+  "q": "What does the Constitution say about distribution agreements?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "CONSTITUTION_LOOKUP",
+  "q": "Does the Constitution cover vendor agreements?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "CONSTITUTION_LOOKUP",
+  "q": "What is our constitutional position on indemnity?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "GENERAL_LAW",
+  "q": "What does Indian law say about indemnity?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "signals_fired": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "GENERAL_LAW",
+  "q": "Is a contract with a minor valid under Indian law?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "signals_fired": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "GENERAL_LAW",
+  "q": "What does the law require for a valid consent?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "rule_framing"
+   ],
+   "signals_fired": [
+    "rule_framing"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "GENERAL_LAW",
+  "q": "Under Indian law, when is an agreement void?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "signals_fired": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITHOUT_ACT_NAME",
+  "q": "What is the penalty for failing to protect personal data?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PENALTY",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITHOUT_ACT_NAME",
+  "q": "Within what time must a cyber incident be reported?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEADLINE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITHOUT_ACT_NAME",
+  "q": "What is the punishment for breach of confidentiality by an intermediary?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PENALTY",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "legal_actor"
+   ],
+   "signals_fired": [
+    "legal_actor"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITHOUT_ACT_NAME",
+  "q": "How long do I have to file an appeal?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEADLINE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "first_person"
+   ],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITH_ACT_NAME",
+  "q": "What does section 43A of the IT Act say?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument"
+   ],
+   "signals_fired": [
+    "names_instrument"
+   ],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITH_ACT_NAME",
+  "q": "What is the penalty under the DPDP Act for a data breach?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PENALTY",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument"
+   ],
+   "signals_fired": [
+    "names_instrument"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITH_ACT_NAME",
+  "q": "What does the Indian Contract Act say about indemnity?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument",
+    "document_target"
+   ],
+   "signals_fired": [
+    "names_instrument",
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "STATUTE_WITH_ACT_NAME",
+  "q": "What do the CERT-In Directions require?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument"
+   ],
+   "signals_fired": [
+    "names_instrument"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "COMPARISON",
+  "q": "Is this agreement compliant with our Constitution?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": true,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "DOCUMENT",
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "COMPARISON",
+  "q": "Does this NDA meet our standard?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": true,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "DOCUMENT",
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "COMPARISON",
+  "q": "Is the liability cap in this contract acceptable to us?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": true,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "DOCUMENT",
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "COMPARISON",
+  "q": "Does this document deviate from our approved position?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": true,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "DOCUMENT",
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "MULTI_DOMAIN",
+  "q": "Does our NDA comply with the DPDP Act?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": true,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument",
+    "document_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "names_instrument",
+    "document_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "DOCUMENT",
+    "POSITIONS",
+    "STATUTES"
+   ],
+   "fallback": []
+  }
+ },
+ {
+  "class": "MULTI_DOMAIN",
+  "q": "What does Indian law say about this confidentiality clause?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "DOCUMENT",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "jurisdiction",
+    "rule_framing",
+    "document_target"
+   ],
+   "signals_fired": [
+    "jurisdiction",
+    "rule_framing",
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "MULTI_DOMAIN",
+  "q": "What is our position on confidentiality, and does this NDA comply?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": true,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "position_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "DOCUMENT",
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "MULTI_DOMAIN",
+  "q": "Is the notice period in this contract allowed under Indian law?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "jurisdiction",
+    "document_target"
+   ],
+   "signals_fired": [
+    "jurisdiction",
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "FOLLOW_UP",
+  "q": "What about the termination period?",
+  "doc": "NDA",
+  "after": "What is the confidentiality period in this NDA?",
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "FOLLOW_UP",
+  "q": "And the governing law?",
+  "doc": "MSA",
+  "after": "What is the liability cap in this agreement?",
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "FOLLOW_UP",
+  "q": "What about for vendors?",
+  "doc": null,
+  "after": "What is our standard confidentiality period?",
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "FOLLOW_UP",
+  "q": "Is that the same for the MSA?",
+  "doc": null,
+  "after": "What is our position on MSA auto-renewal?",
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "EXACT_TEXT",
+  "q": "Quote that clause verbatim.",
+  "doc": "NDA",
+  "after": "What about the termination period?",
+  "intent": "EXACT_TEXT",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": true,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "EXACT_TEXT",
+  "q": "Give me the exact wording of that standard.",
+  "doc": null,
+  "after": "What is our standard confidentiality period?",
+  "intent": "EXACT_TEXT",
+  "requested_fact": "NONE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "first_person"
+   ],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": true,
+   "follow_up": true,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "EXACT_TEXT",
+  "q": "What exactly does the clause say?",
+  "doc": "NDA",
+  "after": "What is the confidentiality period in this NDA?",
+  "intent": "EXACT_TEXT",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": true,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "EXACT_TEXT",
+  "q": "Show me the original text.",
+  "doc": "MSA",
+  "after": "What is the liability cap in this agreement?",
+  "intent": "EXACT_TEXT",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "first_person"
+   ],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": true,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "CAPABILITY",
+  "q": "What can LegalMind do?",
+  "doc": null,
+  "after": null,
+  "intent": "CAPABILITY",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": true,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": []
+  }
+ },
+ {
+  "class": "CAPABILITY",
+  "q": "What are you able to help me with?",
+  "doc": null,
+  "after": null,
+  "intent": "CAPABILITY",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": true,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": []
+  }
+ },
+ {
+  "class": "CAPABILITY",
+  "q": "Can you review contracts?",
+  "doc": null,
+  "after": null,
+  "intent": "CAPABILITY",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "CAPABILITY",
+  "q": "What features does this system have?",
+  "doc": null,
+  "after": null,
+  "intent": "CAPABILITY",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "UNKNOWN",
+  "q": "What is the capital of France?",
+  "doc": null,
+  "after": null,
+  "intent": "OUT_OF_SCOPE",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": true,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "UNKNOWN",
+  "q": "Who won the cricket world cup in 2011?",
+  "doc": null,
+  "after": null,
+  "intent": "OUT_OF_SCOPE",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": true,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "UNKNOWN",
+  "q": "Write me a poem about contracts.",
+  "doc": null,
+  "after": null,
+  "intent": "OUT_OF_SCOPE",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": true,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "first_person"
+   ],
+   "signals_fired": [
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "UNKNOWN",
+  "q": "What is the weather in Pune today?",
+  "doc": null,
+  "after": null,
+  "intent": "OUT_OF_SCOPE",
+  "requested_fact": "NONE",
+  "authority": [],
+  "must_refuse": true,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "AMBIGUOUS",
+  "q": "What is the notice period?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "POSITION",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": true,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "AMBIGUOUS",
+  "q": "What are the confidentiality obligations?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": true,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "AMBIGUOUS",
+  "q": "What happens on termination?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "POSITION",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": true,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "AMBIGUOUS",
+  "q": "Is indemnity required?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "POSITION",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": true,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "HISTORICAL_LAW",
+  "q": "What did the Companies Act, 1956 say about allotment of shares?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "HISTORICAL",
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument",
+    "legal_actor"
+   ],
+   "signals_fired": [
+    "names_instrument",
+    "legal_actor"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS",
+    "STATUTES"
+   ],
+   "fallback": []
+  }
+ },
+ {
+  "class": "HISTORICAL_LAW",
+  "q": "What is the current law on winding up a company?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "IN_FORCE",
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "legal_actor"
+   ],
+   "signals_fired": [
+    "legal_actor"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS",
+    "STATUTES"
+   ],
+   "fallback": []
+  }
+ },
+ {
+  "class": "HISTORICAL_LAW",
+  "q": "Which Act governs company incorporation today?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "IN_FORCE",
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "HISTORICAL_LAW",
+  "q": "What does the Income-tax Act, 1961 say about TDS on professional fees?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "VALUE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "HISTORICAL",
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "names_instrument"
+   ],
+   "signals_fired": [
+    "names_instrument"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "JURISDICTION_SPECIFIC",
+  "q": "What does Indian law say about electronic signatures?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": "IN",
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "signals_fired": [
+    "jurisdiction",
+    "rule_framing"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "JURISDICTION_SPECIFIC",
+  "q": "What does Delaware law say about limitation of liability?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": true,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": "US-DE",
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "JURISDICTION_SPECIFIC",
+  "q": "Under EU GDPR, what is the breach notification deadline?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEADLINE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": true,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": "EU",
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "JURISDICTION_SPECIFIC",
+  "q": "Is this enforceable under Indian law?",
+  "doc": "MSA",
+  "after": null,
+  "intent": "COMPARISON",
+  "requested_fact": "NONE",
+  "authority": [
+   "DOCUMENT",
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": "IN",
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "jurisdiction"
+   ],
+   "signals_fired": [
+    "jurisdiction"
+   ],
+   "exact_text": false,
+   "follow_up": true,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT",
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "MULTILINGUAL",
+  "q": "\u0907\u0938 NDA \u092e\u0947\u0902 \u0917\u094b\u092a\u0928\u0940\u092f\u0924\u093e \u0915\u0940 \u0905\u0935\u0927\u093f \u0915\u094d\u092f\u093e \u0939\u0948?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "MULTILINGUAL",
+  "q": "\u0939\u092e\u093e\u0930\u0940 MSA auto-renewal \u092a\u0930 \u0915\u094d\u092f\u093e position \u0939\u0948?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "POSITION"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target",
+    "first_person"
+   ],
+   "signals_fired": [
+    "document_target",
+    "first_person"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS"
+   ],
+   "fallback": [
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "MULTILINGUAL",
+  "q": "Is NDA ki confidentiality period kya hai?",
+  "doc": "NDA",
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "PERIOD",
+  "authority": [
+   "DOCUMENT"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "DOCUMENT"
+   ],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "MULTILINGUAL",
+  "q": "\u092d\u093e\u0930\u0924\u0940\u092f \u0915\u093e\u0928\u0942\u0928 \u0915\u094d\u0937\u0924\u093f\u092a\u0942\u0930\u094d\u0924\u093f \u0915\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902 \u0915\u094d\u092f\u093e \u0915\u0939\u0924\u093e \u0939\u0948?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": null,
+  "jurisdiction": null,
+  "understanding": {
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ }
+]

@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from legalmind import config
-from legalmind.assist import intent
+from legalmind.assist import understanding
 from legalmind.domain.document_types import readable as _readable_document_type
 from legalmind.security import permissions as P
 
@@ -111,11 +111,20 @@ class RoutePlan:
 
 
 def plan(question: str, *, has_document: bool, permissions: frozenset[str],
-         statutes_available: bool = False) -> RoutePlan:
+         statutes_available: bool = False,
+         understood: understanding.QuestionUnderstanding | None = None) -> RoutePlan:
+    """The domain plan. `understood` is the question read once (`understanding.
+    understand`); it is derived here when a caller has not already done so, so no
+    caller is obliged to change and the predicates run exactly once per turn."""
     question = question or ""
-    comparison = has_document and intent.is_comparison_question(question)
-    signals = intent.legal_question_signals(question)
-    statute_shaped = signals.general_law
+    u = understood if understood is not None else understanding.understand(question)
+    # `has_document` gates the comparison because it is the ROUTER's decision, not a
+    # property of the question (`AM-25` r4): asking whether a document complies is the
+    # same question with or without one attached, and what changes is whether the
+    # evaluator can run.
+    comparison = has_document and u.comparison_requested
+    signals = u.signals
+    statute_shaped = u.statute_shaped
     # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal
     # corpus at all: not the document, not the positions, not the statutes, and not as
     # a fallback. Returning here rather than emptying the sets afterwards is the point —
@@ -124,14 +133,14 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # `AM-68` locked 2026-09-15, option (b): the manifest is RENDERED, not generated.
     # `config.capability_route_enabled()` defaults to on; setting the env var to "off"
     # is the rollback, restoring the pre-amendment behaviour without a deploy.
-    if config.capability_route_enabled() and intent.is_capability_question(question):
+    if config.capability_route_enabled() and u.capability:
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), capability=True)
     # Same shape, same reason: nothing authorised answers it, so nothing is searched.
     # Unlike the capability route this needs no flag — NOT searching is always safe,
     # and it is what stops "what is an NDA?" being answered with three Company
     # Standards. What it may SAY is a separate question (see `service`).
-    if intent.is_general_knowledge_question(question):
+    if u.general_knowledge:
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), general_knowledge=True)
     candidates: set[Domain] = set()
@@ -140,7 +149,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # A comparison question is also a position question: the approved position is
     # half of what it asks for, and quoting it beside the Findings is exactly the
     # "cite both sides separately" the requirement names.
-    if (intent.mentions_organization(question) or comparison) \
+    if (u.mentions_organization or comparison) \
             and positions_permitted(permissions):
         candidates.add(Domain.POSITIONS)
     if statute_shaped and statutes_available and P.ASSIST_ASK in permissions:

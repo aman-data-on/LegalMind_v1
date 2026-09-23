@@ -48,6 +48,7 @@ from legalmind.assist import (
     routing,
     statutes,
     store,
+    understanding,
 )
 
 # `AM-25` r4 — routed to the evaluator, never answered generatively. The screen is
@@ -870,8 +871,12 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # VENDOR_AGREEMENT and DISTRIBUTION_AGREEMENT — neither the reader's document nor
     # its type. It inherits the previous turn's subject for the same reason a
     # follow-up does, through the same resolver; with no prior turn nothing changes.
-    follow_up = bool(prior) and (intent.is_follow_up(question)
-                                 or intent.is_exact_text_request(question))
+    # The question AS ASKED, read once. Routing separately understands the RESOLVED
+    # query (question + inherited subject) — they are different strings and mean
+    # different things, so each gets its own reading rather than one being reused for
+    # the other.
+    asked = understanding.understand(question)
+    follow_up = bool(prior) and (asked.follow_up or asked.exact_text)
     prior_texts: list[str] = []
     follow_up_of: list[UUID] = []
     resolved = question
@@ -1355,7 +1360,7 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     aid: generation.GenerationResult | None = None
     # Read off the QUESTION, deterministically — the model never decides whether its
     # own output is wanted (`AM-25` r1, `AM-76` r2).
-    exact_text_requested = intent.is_exact_text_request(question)
+    exact_text_requested = understanding.understand(question).exact_text
     if statute_answered:
         wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else STATUTES_ONLY_TEXT)
