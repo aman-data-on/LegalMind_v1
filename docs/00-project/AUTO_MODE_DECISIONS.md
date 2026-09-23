@@ -1934,3 +1934,26 @@ next reader reading lock records. Two new documents and one extended section now
 and a test keeps every document reachable from the index so the class of drift that produced eight
 orphans cannot recur silently.
 
+
+### 337 — CI triggers on `main` and pull requests only, reversing decision 154
+Decision 154 (2026-08-26) widened the `push` trigger to every branch after five days of
+feature-branch commits ran zero CI jobs and the core Review screen shipped a runtime crash.
+Its premise — work landing on branches with no pull request open — no longer holds: AGENTS.md
+§1 requires a task branch and a PR for every change, and `main` rejects a direct push, so no
+commit reaches `main` without a PR run over it.
+
+What the wide trigger produced instead was a second run per push. The `concurrency` group
+cancelled one of the pair, and the cancelled run's check-runs stay attached to the commit;
+GitHub counts `cancelled` as not-success, so **every pull request read "Checks failing" with
+all fifteen jobs green**. Because the ruleset requires `3 · Authorization matrix
+(RELEASE-BLOCKING)` under `strict_required_status_checks_policy`, the cancelled copy of that
+one job also made the PR unmergeable — PR #114 needed it rerun by hand twice.
+
+A red badge nobody can act on is how a real failure goes unnoticed, which is the same failure
+mode decision 154 existed to prevent. The `concurrency` group is unchanged: it still cancels a
+superseded run when a second commit lands before the first finishes.
+
+**Accepted cost, stated plainly:** a branch pushed with no PR open gets no CI until the PR is
+opened. That is decision 154's hazard, accepted because nothing can now merge without a PR.
+
+**Does not decide:** branch protection, the ruleset, or which checks are required — the owner's.
