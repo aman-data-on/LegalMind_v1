@@ -10,6 +10,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
+
+Owner request: plain English, the answer first, the company position separated from
+Legal review, and — the example — a customer claiming "6 months of compensation"
+should be told that the position does not say 6 months and what it does say, rather
+than handed the clause.
+
+* **Production had the plain-English explanation switched off** (`LEGALMIND_POSITION_SYNTHESIS`
+  unset), so every position answer was the verbatim clause. `AM-76` r1 already makes
+  the explanation the default; it is enabled with this release.
+* **`guardrails.unstated_figures`** — a figure with its unit that the reader supplied
+  and no cited position states is named by a fixed opening sentence: "The approved
+  position cited here does not state 6 months." Deterministic, never generated.
+* **Prompt `position-reading-aid-5`** — answer the reader's situation first, from the
+  excerpt that bears on it; never repeat the reader's figure.
+* **"Any deviation from this position needs Legal review."** — fixed, after every
+  verified position explanation.
+* "humne / hamne / हमने" count as the organization speaking.
+
+**The verifier is NOT relaxed.** Admitting the reader's figure into a generated
+sentence that "sets it aside" was built and measured first: it passed "does not pay
+the fee if they give 6 months notice" — an invented condition. A lexical verifier
+cannot tell contrast from assertion and `AM-76` r6 forbids the model that could, so
+the comparison moved into code. Known limit: "end the MSA early" retrieves the
+liability cap ahead of the early-termination standard; "terminate early" retrieves it.
+
 ### 2026-09-23 — `AM-77`: a Company Standard is no longer presented as the answer to a question it cannot answer
 
 The final Ask readiness P0. "What does Indian law say about penalty clauses?" was

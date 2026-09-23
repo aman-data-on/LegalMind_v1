@@ -48,7 +48,7 @@ def test_the_prompt_version_moves_when_the_contract_changes():
     """Prompt version is recorded against every answer (`AM-26` r4), so a change in
     what the model was told must be visible in the audit trail."""
     assert generation.PROMPT_VERSION == "grounded-answer-5"
-    assert generation.POSITION_PROMPT_VERSION == "position-reading-aid-4"
+    assert generation.POSITION_PROMPT_VERSION == "position-reading-aid-5"
 
 
 def test_a_compliance_verdict_grounds_perfectly_well_in_statute_text():

@@ -119,8 +119,8 @@ _FIRST_PERSON_POSSESSIVE = frozenset({
 })
 _FIRST_PERSON_SUBJECT = frozenset({
     "we", "us",
-    "hum", "humein", "hamein",
-    "हम", "हमें",
+    "hum", "humein", "hamein", "humne", "hamne",
+    "हम", "हमें", "हमने",
 })
 _ORG_PRONOUNS = _FIRST_PERSON_POSSESSIVE | _FIRST_PERSON_SUBJECT
 

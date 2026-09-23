@@ -19775,3 +19775,68 @@ question and it answers. That is the Domain A calibration gap already recorded
 
 --------------------------------------------------------------------------------
 AM-77: a position answers only what it can answer
+
+================================================================================
+AMENDMENT BATCH AB-28 — `AM-78`
+The reader's own figure is context: compared exactly, never turned into policy
+================================================================================
+
+**Owner decision, 2026-09-23**, in the owner's words:
+
+> "'No invented numbers' must NOT mean Gemini cannot mention numbers supplied by the
+> user. … USER-PROVIDED FACT → EVIDENCE-SUPPORTED FACT → MODEL-INVENTED FACT. Only the
+> third one must be blocked. … It should NOT merely paraphrase the Constitution and
+> ignore the user's 6-month scenario. … Any deviation from this position needs Legal
+> review."
+
+**Amends:** `AM-76` r1 (what a position answer contains). **Does not amend:** `AM-76`
+r2–r6 — in particular r5 (the explanation adds nothing) and r6 (no model in the
+guardrail, grounding floor not lowered); `AM-25` r1–r9; `AM-28` r2; `AM-32` r4;
+`AM-77`; `LEGAL-02`.
+
+Why the comparison is made in code, measured before this record was written. Letting
+a GENERATED sentence carry the reader's figure when it "sets it aside" was built and
+tested against the unchanged verifier: it admitted "the customer does not pay the fee
+if they give 6 months notice" and "instead of the remainder of the Term, the fee
+equals 6 months" — an invented condition and an invented policy. A lexical verifier
+cannot tell "the fee is not fixed at 6 months" from "the fee is not more than 6
+months"; `AM-76` r6 forbids the entailment model that could. So the owner's three
+categories are enforced by WHERE each figure may appear, not by trusting the model:
+
+```text
+r1   THE READER'S FIGURE IS COMPARED EXACTLY, IN CODE. When a question about a
+     position states a figure with its unit ("6 months", "six weeks") that none of
+     the cited positions states, the answer opens with a fixed sentence naming it:
+     "The approved position cited here does not state 6 months." It is a fact about
+     the cited text, computed deterministically (`guardrails.unstated_figures`),
+     never generated and never a claim about the whole Constitution. A figure the
+     positions DO state needs no such line; the explanation carries it.
+
+r2   THE MODEL ANSWERS THE SITUATION, NOT JUST THE CLAUSE. The explanation prompt
+     (`position-reading-aid-5`) tells the model to address the reader's situation
+     first, from the excerpt that bears on it, and not to repeat the reader's figure
+     — the verifier still refuses any figure the excerpts do not state, the reader's
+     included, so a user-supplied number can never be restated as policy.
+
+r3   LEGAL REVIEW, STATED ONCE AND NEVER GENERATED. A verified position explanation
+     ends with the fixed sentence "Any deviation from this position needs Legal
+     review." It restates the zero-tolerance Legal Rule in the reader's words and
+     names routing only — no threshold, no rule configuration (`LEGAL-02`).
+
+r4   UNCHANGED. The grounding floor, the quantity, polarity and exception screens,
+     the verdict screen and the AM-76 r4 fail-closed quote are untouched. A position
+     answer is still never a statement that a document complies.
+```
+
+Measured on the live corpus with generation on (rolled back): "Customer bol raha hai
+ki humne mention kiya hai … 6 months ka compensation dena hoga" now answers "The
+approved position cited here does not state 6 months. The customer has no right to
+terminate … before the expiry of the Term [1]. If the customer chooses to terminate
+for any reason not expressly permitted …, the customer remains fully liable to pay an
+early termination fee equal to the total fees that would have become payable for the
+remainder of the Term [1]. Any deviation from this position needs Legal review." The
+Hindi ergative "humne / hamne / हमने" now counts as the organization speaking, as "hum"
+already did.
+
+--------------------------------------------------------------------------------
+AM-78: the reader's own figure is context

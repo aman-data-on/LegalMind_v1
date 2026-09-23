@@ -316,6 +316,29 @@ def _quantities(text: str) -> set[str]:
     return out
 
 
+def unstated_figures(question: str, evidence: list[str]) -> list[str]:
+    """Figures the READER gave — "6 months", "six weeks" — that no evidence states.
+
+    `AM-78` r1 (owner, 2026-09-23): a figure the reader supplied is context, never
+    policy, and the comparison is made HERE, exactly, rather than by the model. The
+    verifier cannot tell "does not set a 6-month fee" from "the fee is not more than 6
+    months" — both negate, both ground — so a generated sentence may not carry an
+    unevidenced figure at all, and this names it instead. A number counts only with
+    its unit, so "clause 7" is never read as a figure.
+    """
+    stated = set().union(set(), *(_quantities(c) for c in evidence))
+    ws = _words(question)
+    found: list[str] = []
+    for i, w in enumerate(ws[:-1]):
+        number = w if w[0].isdigit() else _NUMBER_WORDS.get(w)
+        unit = ws[i + 1]
+        if number and unit in _UNIT_WORDS and number not in stated:
+            phrase = f"{w} {unit}"
+            if phrase not in found:
+                found.append(phrase)
+    return found
+
+
 # Negation reaches its verb THROUGH auxiliaries and copulas and nothing else:
 # "is not allowed to undertake" negates "undertake", while "shall not exceed the
 # total fees" does NOT negate "total". Allowing any word between the two refused
