@@ -981,7 +981,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic, allow_relax=not route.statute_shaped)
+                topic=topic, allow_relax=_relax_allowed(route))
     # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
     statute_hits: list[statutes.StatuteHit] = []
     if route.has(routing.Domain.STATUTES):
@@ -1166,7 +1166,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic, allow_relax=not route.statute_shaped)
+                topic=topic, allow_relax=_relax_allowed(route))
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
@@ -1221,6 +1221,27 @@ STATUTES_BESIDE_TEXT = (
     "below, cited by Act and section.")
 
 
+def _relax_allowed(route: routing.RoutePlan) -> bool:
+    """May the position lane use its RELAX rescue for this question?
+
+    The rescue admits a chunk sharing ONE lexeme, and `positions.search_positions`
+    states its own premise: it is "the right trade when the reader is asking the
+    organization about its own paper". This enforces that premise instead of assuming
+    it. Measured on the live corpus 2026-09-23: "what's the weather in pune" reached
+    the governing-law standard through `pune` — a real venue lexeme in a real
+    standard — and "how long do I have to file an appeal" and "draft me an NDA"
+    reached NDA standards the same way, each then quoted to the reader as "the
+    organization's approved position relevant to this question".
+
+    The strict floor is untouched, the calibrated gate is untouched, and the rescue
+    still runs for every question that IS about the organization's own material —
+    including "Explain our termination standard.", which shares exactly one lexeme
+    with every termination chunk and is the reason the rescue exists (2026-09-16).
+    """
+    return (not route.statute_shaped
+            and understanding.POSITION in route.asked_authority)
+
+
 def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
                        route: routing.RoutePlan, domains: tuple[str, ...],
                        position_hits: list, statute_hits: list,
@@ -1245,7 +1266,7 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
         if domain is routing.Domain.POSITIONS and not position_hits:
             position_hits = positions.search_positions(
                 db, query=question, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic, allow_relax=not route.statute_shaped)
+                topic=topic, allow_relax=_relax_allowed(route))
         elif domain is routing.Domain.STATUTES and not statute_hits:
             # Source priority, not a fixed sweep: the statute corpus is a fallback
             # for a question about the law (statute-shaped) or for one nothing
