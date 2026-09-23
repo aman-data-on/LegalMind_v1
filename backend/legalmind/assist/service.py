@@ -976,6 +976,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if route.has(routing.Domain.STATUTES):
         with _stage("statutes"):
             statute_hits = statutes.search_statutes(db, query=resolved,
+                                                    include_superseded=route.include_superseded,
                                                     permissions=permissions)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.

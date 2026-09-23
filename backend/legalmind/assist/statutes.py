@@ -646,7 +646,8 @@ def _repealed_sql(column: str = "s.official_title") -> str:
 
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                     limit: int = 6, embed_query=None,
-                    require_semantic: bool = False) -> list[StatuteHit]:
+                    require_semantic: bool = False,
+                    include_superseded: bool = False) -> list[StatuteHit]:
     """Lexical retrieval over the statute corpus, authorized inside the function.
 
     A section number named in the question ("section 43A") ranks its exact section
@@ -733,6 +734,7 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       -- AM-71 keeps a superseded position reachable: when the question NAMES that
       -- Act, which `act_match >= 0.5` already means everywhere else in this query.
          WHERE NOT ({_repealed_sql('official_title')}) OR act_match >= 0.5
+               OR {'TRUE' if include_superseded else 'FALSE'}
          ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
                   ({_repealed_sql('official_title')}) ASC, act_match DESC, score DESC,
                   official_title, ordinal
@@ -759,14 +761,16 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
         if len(hits) < limit:
             seen = {h.statute_chunk_id for h in hits}
             hits += [h for h in _vector_neighbours(db, query, limit=limit,
-                                                   embed_query=embed_query)
+                                                   embed_query=embed_query,
+                                                   include_superseded=include_superseded)
                      if h.statute_chunk_id not in seen][:limit - len(hits)]
     else:
         # Nothing named: a two-lexeme OR match is a weak signal ("company" and
         # "person" reach the Companies Act for a question about personal data),
         # while a gated cosine is a strong one. Reciprocal rank fusion, the
         # vector side winning an exact tie.
-        vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query)
+        vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                    include_superseded=include_superseded)
         if require_semantic and not vector:
             log_event("assist.statutes.searched", hits=0, level=logging.DEBUG,
                       cause="no_semantic_evidence")
@@ -833,7 +837,8 @@ _NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
-                       embed_query=None) -> list[StatuteHit]:
+                       embed_query=None,
+                       include_superseded: bool = False) -> list[StatuteHit]:
     """Gated nearest neighbours over `statute_chunk_embeddings`; [] without a model,
     without vectors, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -856,7 +861,8 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
           FROM "{schema}".statute_chunk_embeddings se
           JOIN "{schema}".statute_chunks sc ON sc.id = se.statute_chunk_id
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
-         WHERE NOT ({_repealed_sql()}) AND {_NOT_SUSPECT}
+         WHERE (NOT ({_repealed_sql()}) OR {'TRUE' if include_superseded else 'FALSE'})
+           AND {_NOT_SUSPECT}
          ORDER BY se.embedding {op} CAST(:q AS {vtype}), s.official_title, sc.ordinal
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()

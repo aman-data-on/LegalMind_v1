@@ -54,6 +54,9 @@ def understanding(question: str, *, has_document: bool, permissions, statutes: b
         "requested_fact": u.requested_fact,
         "authority": sorted(u.authority),
         "jurisdiction": u.jurisdiction,
+        "temporal": u.temporal.kind,
+        "temporal_date": u.temporal.date,
+        "include_superseded": route.include_superseded,
         "capability": bool(getattr(route, "capability", False)),
         "general_knowledge": bool(getattr(route, "general_knowledge", False)),
         "comparison": route.comparison,
@@ -101,7 +104,9 @@ def main() -> int:
             ver = DOCS.get(case.get("doc") or "")
             rec = {k: case.get(k) for k in
                    ("class", "q", "doc", "after", "intent", "requested_fact",
-                    "authority", "must_refuse", "ambiguous", "temporal", "jurisdiction")}
+                    "authority", "must_refuse", "ambiguous", "temporal", "jurisdiction",
+                    "must_not_cite_repealed", "may_cite_repealed")}
+            rec["expected_temporal"] = case.get("temporal")
             rec["understanding"] = understanding(
                 case["q"], has_document=bool(ver), permissions=perms,
                 statutes=have_statutes, jurisdictions=have_jurisdictions)

@@ -69,13 +69,13 @@ def test_comparison_is_recorded_ungated_and_the_router_applies_the_gate():
 
 
 def test_the_frozen_matrix_keeps_its_shape():
-    """16 classes, four questions each, with the controls that stop the matrix being
+    """17 classes, four questions each, with the controls that stop the matrix being
     tuned into a pass: six must-refuse, four ambiguous, eight chained follow-ups."""
     classes: dict[str, int] = {}
     for case in CASES:
         classes[case["class"]] = classes.get(case["class"], 0) + 1
-    assert len(CASES) == 64
-    assert len(classes) == 16 and set(classes.values()) == {4}
+    assert len(CASES) == 68
+    assert len(classes) == 17 and set(classes.values()) == {4}
     assert sum(1 for c in CASES if c.get("must_refuse")) == 6
     assert sum(1 for c in CASES if c.get("ambiguous")) == 4
     assert sum(1 for c in CASES if c.get("after")) == 8
@@ -181,3 +181,72 @@ def test_asking_about_our_own_position_survives_a_foreign_jurisdiction():
                          permissions=PERMS, statutes_available=True,
                          statute_jurisdictions=frozenset({"IN"}))
     assert routing.Domain.POSITIONS in (route.domains + route.fallback)
+
+
+# --------------------------------------------------------------------------
+# Step 3 — which TIME the question is about
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("question,kind", [
+    ("What does current Indian law say about indemnity?", understanding.CURRENT),
+    ("What is the law on winding up as it stands?", understanding.CURRENT),
+    ("What did the law say about share allotment?", understanding.HISTORICAL),
+    ("What was the rule before the amendment?", understanding.HISTORICAL),
+    ("What was applicable on 1 January 2024?", understanding.AS_OF_DATE),
+    ("What did the law require in 1956?", understanding.AS_OF_DATE),
+    ("What is the liability cap in this agreement?", understanding.UNSPECIFIED),
+])
+def test_temporal_is_read_from_grammar_not_subject_matter(question, kind):
+    """Tense and an explicit date. No Act is named in any rule, no year is special —
+    change the statute and every one of these still holds, which is the test for
+    whether a temporal rule is principled or just a keyword."""
+    assert understanding.understand(question).temporal.kind == kind
+
+
+def test_a_year_in_an_acts_name_is_not_a_date_the_reader_asked_about():
+    """"The Companies Act, 1956" NAMES a statute; it does not ask about 1956. Without
+    this every question naming an older Act would read as AS_OF_DATE and quietly
+    admit superseded law."""
+    named = understanding.understand(
+        "What does the Companies Act, 1956 say about allotment of shares?")
+    assert named.temporal.kind == understanding.UNSPECIFIED
+    asked = understanding.understand("What did the Companies Act say in 1956?")
+    assert asked.temporal.kind == understanding.AS_OF_DATE
+    assert asked.temporal.date == "1956"
+
+
+def test_unspecified_time_is_not_the_past():
+    """The fail-closed default, asserted directly. A question that says nothing about
+    time is asking what is true NOW, and answering it from repealed law is the failure
+    the in-force filter exists to prevent."""
+    assert not understanding.TemporalScope().wants_past
+    assert not understanding.TemporalScope(understanding.CURRENT).wants_past
+    assert understanding.TemporalScope(understanding.HISTORICAL).wants_past
+    assert understanding.TemporalScope(understanding.AS_OF_DATE, "1956").wants_past
+
+
+def test_understanding_says_when_policy_says_whether():
+    """The boundary. `temporal` never selects a source — it sets one policy input,
+    and the router decides admissibility. A superseded Act is admissible only when the
+    reader asked about the past."""
+    for question, expected in (
+            ("What did the law on winding up say in 1956?", True),
+            ("What was the rule before the amendment?", True),
+            ("What is the current law on winding up?", False),
+            ("What are the duties of a director?", False)):
+        route = routing.plan(question, has_document=False, permissions=PERMS,
+                             statutes_available=True,
+                             statute_jurisdictions=frozenset({"IN"}))
+        assert route.include_superseded is expected, question
+
+
+def test_naming_a_repealed_act_still_reaches_it_without_any_temporal_claim():
+    """Two separate rules, and this pins that they stay separate. A reader who NAMES
+    an Act gets that Act — a source rule, matched per row inside the query — and it
+    holds whether or not the question says anything about time. Conflating the two is
+    what the Income-tax case in the matrix originally got wrong."""
+    u = understanding.understand(
+        "What does the Income-tax Act, 1961 say about TDS on professional fees?")
+    assert u.temporal.kind == understanding.UNSPECIFIED
+    route = routing.plan(u.question, has_document=False, permissions=PERMS,
+                         statutes_available=True, statute_jurisdictions=frozenset({"IN"}))
+    assert route.include_superseded is False

@@ -55,6 +55,63 @@ GENERAL_LAW = "GENERAL_LAW"
 
 UNSPECIFIED = "UNSPECIFIED"
 
+# --------------------------------------------------------------------------
+# WHICH TIME the reader is asking about — not which source answers it.
+#
+# Derived from GRAMMAR, never from subject matter: the tense of the question and
+# an explicit date. No Act is named here, no year is special-cased, and adding a
+# statute changes nothing in this module. That is the test for whether a temporal
+# rule is principled — change the Act and the rule must still hold.
+#
+# Four kinds are DERIVED because the matrix has questions for them. DATE_RANGE and
+# EFFECTIVE_PERIOD are nameable and deliberately not derived: no measured question
+# needs them yet, and a value nothing produces is a value nobody can be wrong about.
+CURRENT = "CURRENT"
+HISTORICAL = "HISTORICAL"
+AS_OF_DATE = "AS_OF_DATE"
+DATE_RANGE = "DATE_RANGE"              # representable; not derived yet
+EFFECTIVE_PERIOD = "EFFECTIVE_PERIOD"  # representable; not derived yet
+
+
+@dataclass(frozen=True)
+class TemporalScope:
+    """What time or version of the knowledge the question is about."""
+
+    kind: str = UNSPECIFIED
+    #: ISO date when `kind` is AS_OF_DATE, else None.
+    date: str | None = None
+
+    @property
+    def wants_past(self) -> bool:
+        """The reader is asking about a state of the law that may no longer hold.
+
+        UNSPECIFIED is NOT past: a question that says nothing about time is asking
+        what is true now, and answering it from repealed law would be the failure the
+        in-force filter exists to prevent. Fail closed.
+        """
+        return self.kind in (HISTORICAL, AS_OF_DATE)
+
+
+# An instrument's NAME carries a year — "the Companies Act, 1956" — and that year is
+# not a date the reader is asking about. Without this, every question naming an older
+# Act would read as AS_OF_DATE and quietly admit superseded law.
+_INSTRUMENT_YEAR = re.compile(
+    r"\b(act|rules?|code|regulations?|adhiniyam|sanhita|directions?)\b[\s,]*\(?(\d{4})",
+    re.IGNORECASE)
+_DATE = re.compile(
+    r"\b(?:on|as of|dated|effective)\s+(\d{4}-\d{2}-\d{2}"
+    r"|\d{1,2}\s+[A-Za-z]+\s+\d{4}"
+    r"|[A-Za-z]+\s+\d{1,2},?\s+\d{4})", re.IGNORECASE)
+_BARE_YEAR = re.compile(r"\b(?:in|during|back in)\s+(\d{4})\b", re.IGNORECASE)
+# Past tense applied to what a source SAYS or REQUIRES, plus the explicit
+# "before/prior to the amendment" shape. Grammar, not vocabulary about any statute.
+_PAST = re.compile(
+    r"\b(what did\b|what was\b|used to\b|previously\b|formerly\b"
+    r"|before the (?:amendment|change)|prior to the (?:amendment|change)"
+    r"|earlier version|old(?:er)? version|at the time)\b", re.IGNORECASE)
+_PRESENT = re.compile(
+    r"\b(current(?:ly)?|today|now|at present|in force|as it stands)\b", re.IGNORECASE)
+
 # First match wins, so the specific shapes precede the general ones.
 _FACTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (name, re.compile(pattern, re.IGNORECASE)) for name, pattern in (
@@ -123,6 +180,9 @@ class QuestionUnderstanding:
     #: The jurisdiction the question NAMES, or UNSPECIFIED. A value, not a boolean —
     #: "Delaware law" and "Indian law" were the same signal before this existed.
     jurisdiction: str = UNSPECIFIED
+    #: WHICH TIME the question is about. Understanding only: it never selects a
+    #: source. Policy decides which version is admissible (`routing.plan`).
+    temporal: TemporalScope = TemporalScope()
 
     @property
     def statute_shaped(self) -> bool:
@@ -147,6 +207,25 @@ def _jurisdiction(text: str) -> str:
         if pattern.search(text):
             return code
     return UNSPECIFIED
+
+
+def _temporal(text: str) -> TemporalScope:
+    """Which time the question is about, read off its grammar.
+
+    Order matters. An explicit date is the strongest statement a reader can make, so
+    it is read first — but only after the years that belong to an INSTRUMENT'S NAME
+    are removed, because "the Companies Act, 1956" names a statute and does not ask
+    about 1956.
+    """
+    nameless = _INSTRUMENT_YEAR.sub(" ", text)
+    match = _DATE.search(nameless) or _BARE_YEAR.search(nameless)
+    if match:
+        return TemporalScope(AS_OF_DATE, match.group(1))
+    if _PAST.search(text):
+        return TemporalScope(HISTORICAL)
+    if _PRESENT.search(text):
+        return TemporalScope(CURRENT)
+    return TemporalScope()
 
 
 def _authority(text: str, fact: str, signals: intent.LegalQuestionSignals,
@@ -199,4 +278,5 @@ def understand(question: str) -> QuestionUnderstanding:
         requested_fact=fact,
         authority=_authority(text, fact, signals, organization),
         jurisdiction=_jurisdiction(text),
+        temporal=_temporal(text),
     )

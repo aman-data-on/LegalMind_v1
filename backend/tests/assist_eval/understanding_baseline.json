@@ -13,12 +13,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -55,12 +61,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "VALUE",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -97,10 +109,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -133,12 +151,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -175,6 +199,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
@@ -182,6 +209,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -221,12 +251,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -264,12 +300,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "VALUE",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -305,12 +347,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -346,12 +394,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -383,12 +437,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -420,12 +480,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -457,12 +523,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -500,12 +572,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -543,12 +621,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -586,12 +670,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -627,12 +717,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -670,12 +766,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PENALTY",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -707,10 +809,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEADLINE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -741,12 +849,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PENALTY",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -782,10 +896,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEADLINE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -820,12 +940,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -861,12 +987,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PENALTY",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -902,6 +1034,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
@@ -909,6 +1044,9 @@
     "GENERAL_LAW"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -946,12 +1084,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -988,6 +1132,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
@@ -995,6 +1142,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1036,6 +1186,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
@@ -1043,6 +1196,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1084,6 +1240,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "VALUE",
    "authority": [
@@ -1091,6 +1250,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1130,6 +1292,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
@@ -1137,6 +1302,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1178,6 +1346,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
@@ -1186,6 +1357,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1226,12 +1400,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1273,6 +1453,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
@@ -1280,6 +1463,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1321,12 +1507,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1365,10 +1557,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1401,10 +1599,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1437,10 +1641,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1471,12 +1681,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1511,12 +1727,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1553,12 +1775,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1594,12 +1822,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "DOCUMENT"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1636,10 +1870,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1674,10 +1914,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": true,
    "general_knowledge": false,
    "comparison": false,
@@ -1703,10 +1949,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": true,
    "general_knowledge": false,
    "comparison": false,
@@ -1734,10 +1986,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1766,10 +2024,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1798,10 +2062,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1830,10 +2100,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "AS_OF_DATE",
+   "temporal_date": "2011",
+   "include_superseded": true,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1862,10 +2138,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1898,10 +2180,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "CURRENT",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1933,10 +2221,16 @@
   "ambiguous": true,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1968,10 +2262,16 @@
   "ambiguous": true,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2003,10 +2303,16 @@
   "ambiguous": true,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2038,10 +2344,16 @@
   "ambiguous": true,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2072,6 +2384,9 @@
   "ambiguous": null,
   "temporal": "HISTORICAL",
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": "HISTORICAL",
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
@@ -2079,6 +2394,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "HISTORICAL",
+   "temporal_date": null,
+   "include_superseded": true,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2113,8 +2431,11 @@
   ],
   "must_refuse": null,
   "ambiguous": null,
-  "temporal": "IN_FORCE",
+  "temporal": "CURRENT",
   "jurisdiction": null,
+  "must_not_cite_repealed": true,
+  "may_cite_repealed": null,
+  "expected_temporal": "CURRENT",
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
@@ -2122,6 +2443,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "CURRENT",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2154,14 +2478,20 @@
   ],
   "must_refuse": null,
   "ambiguous": null,
-  "temporal": "IN_FORCE",
+  "temporal": "CURRENT",
   "jurisdiction": null,
+  "must_not_cite_repealed": true,
+  "may_cite_repealed": null,
+  "expected_temporal": "CURRENT",
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "CURRENT",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2191,14 +2521,20 @@
   ],
   "must_refuse": null,
   "ambiguous": null,
-  "temporal": "HISTORICAL",
+  "temporal": "UNSPECIFIED",
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": true,
+  "expected_temporal": "UNSPECIFIED",
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2234,12 +2570,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": "IN",
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2277,10 +2619,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": "US-DE",
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEFINITION",
    "authority": [],
    "jurisdiction": "US-DE",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2308,10 +2656,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": "EU",
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "DEADLINE",
    "authority": [],
    "jurisdiction": "EU",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2340,12 +2694,18 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": "IN",
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
     "GENERAL_LAW"
    ],
    "jurisdiction": "IN",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2382,10 +2742,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2418,6 +2784,9 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
@@ -2425,6 +2794,9 @@
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2462,10 +2834,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "PERIOD",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2498,10 +2876,16 @@
   "ambiguous": null,
   "temporal": null,
   "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": null,
+  "expected_temporal": null,
   "understanding": {
    "requested_fact": "NONE",
    "authority": [],
    "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2516,6 +2900,186 @@
     "POSITIONS",
     "STATUTES"
    ]
+  }
+ },
+ {
+  "class": "TEMPORAL_SCOPE",
+  "q": "What does current Indian law say about electronic signatures?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "DEFINITION",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "CURRENT",
+  "jurisdiction": null,
+  "must_not_cite_repealed": true,
+  "may_cite_repealed": null,
+  "expected_temporal": "CURRENT",
+  "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
+   "temporal": "CURRENT",
+   "temporal_date": null,
+   "include_superseded": false,
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "jurisdiction"
+   ],
+   "signals_fired": [
+    "jurisdiction"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [
+    "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
+   ]
+  }
+ },
+ {
+  "class": "TEMPORAL_SCOPE",
+  "q": "What did the law on allotment of shares say in 1956?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "AS_OF_DATE",
+  "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": true,
+  "expected_temporal": "AS_OF_DATE",
+  "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
+   "temporal": "AS_OF_DATE",
+   "temporal_date": "1956",
+   "include_superseded": true,
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [],
+   "signals_fired": [],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "TEMPORAL_SCOPE",
+  "q": "What was the rule on winding up before the amendment?",
+  "doc": null,
+  "after": null,
+  "intent": "REQUIREMENT",
+  "requested_fact": "PROCEDURE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "HISTORICAL",
+  "jurisdiction": null,
+  "must_not_cite_repealed": null,
+  "may_cite_repealed": true,
+  "expected_temporal": "HISTORICAL",
+  "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
+   "temporal": "HISTORICAL",
+   "temporal_date": null,
+   "include_superseded": true,
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": false,
+   "statute_signals": [
+    "document_target"
+   ],
+   "signals_fired": [
+    "document_target"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": false,
+   "domains": [],
+   "fallback": [
+    "POSITIONS",
+    "STATUTES"
+   ]
+  }
+ },
+ {
+  "class": "TEMPORAL_SCOPE",
+  "q": "What are the duties of a director of a company?",
+  "doc": null,
+  "after": null,
+  "intent": "LOOKUP",
+  "requested_fact": "VALUE",
+  "authority": [
+   "GENERAL_LAW"
+  ],
+  "must_refuse": null,
+  "ambiguous": null,
+  "temporal": "UNSPECIFIED",
+  "jurisdiction": null,
+  "must_not_cite_repealed": true,
+  "may_cite_repealed": null,
+  "expected_temporal": "UNSPECIFIED",
+  "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
+   "temporal": "UNSPECIFIED",
+   "temporal_date": null,
+   "include_superseded": false,
+   "capability": false,
+   "general_knowledge": false,
+   "comparison": false,
+   "statute_shaped": true,
+   "statute_signals": [
+    "legal_actor"
+   ],
+   "signals_fired": [
+    "legal_actor"
+   ],
+   "exact_text": false,
+   "follow_up": false,
+   "mentions_organization": true,
+   "domains": [
+    "POSITIONS",
+    "STATUTES"
+   ],
+   "fallback": []
   }
  }
 ]

@@ -76,6 +76,12 @@ class RoutePlan:
     #: The question asked about the law itself. Recorded even when STATUTES is not a
     #: candidate, so the refusal can name the real limitation.
     statute_shaped: bool
+    #: POLICY: may a SUPERSEDED source answer this question? Understanding says which
+    #: time the reader asked about (`temporal`); this says whether a repealed Act is
+    #: therefore admissible. Default False — a question that says nothing about time
+    #: is asking what is true now, and answering it from repealed law is the failure
+    #: the in-force filter exists to prevent (`AM-71`'s shape). Fail closed.
+    include_superseded: bool = False
     #: WHICH deterministic signals produced `statute_shaped` — for the routing log and
     #: for a human reconstructing a decision. Never rendered to a reader.
     statute_signals: tuple[str, ...] = ()
@@ -198,6 +204,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
         fallback.add(Domain.STATUTES)
     fallback -= candidates
     return RoutePlan(comparison=comparison,
+                     include_superseded=u.temporal.wants_past,
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,
                      statute_signals=signals.because,

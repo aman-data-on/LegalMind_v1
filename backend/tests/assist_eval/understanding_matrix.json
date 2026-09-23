@@ -1,90 +1,731 @@
 {
-  "purpose": "The frozen baseline for query understanding. Authored 2026-09-23 BEFORE any refactor, so every later number is a delta against measured behaviour rather than a memory. Expected labels are ROUTING facts (which source may answer), never legal conclusions - rule 21.",
-  "expected_fields": {
-    "intent": "LOOKUP | REQUIREMENT | COMPARISON | EXACT_TEXT | CAPABILITY | OUT_OF_SCOPE",
-    "requested_fact": "VALUE | PERIOD | PENALTY | DEADLINE | PROCEDURE | DEFINITION | NONE",
-    "authority": "sources CAPABLE of answering, before permissions are applied",
-    "note": "authority is not a prediction of what today's code does; it is what the question asks for. The gap between the two IS the measurement."
+ "purpose": "The frozen baseline for query understanding. Authored 2026-09-23 BEFORE any refactor, so every later number is a delta against measured behaviour rather than a memory. Expected labels are ROUTING facts (which source may answer), never legal conclusions - rule 21.",
+ "expected_fields": {
+  "intent": "LOOKUP | REQUIREMENT | COMPARISON | EXACT_TEXT | CAPABILITY | OUT_OF_SCOPE",
+  "requested_fact": "VALUE | PERIOD | PENALTY | DEADLINE | PROCEDURE | DEFINITION | NONE",
+  "authority": "sources CAPABLE of answering, before permissions are applied",
+  "note": "authority is not a prediction of what today's code does; it is what the question asks for. The gap between the two IS the measurement.",
+  "temporal": "CURRENT | HISTORICAL | AS_OF_DATE | UNSPECIFIED — which time the question is about, never which source answers it"
+ },
+ "cases": [
+  {
+   "class": "DOCUMENT_LOOKUP",
+   "q": "What is the confidentiality period in this NDA?",
+   "doc": "NDA",
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ]
   },
-  "cases": [
-    {"class":"DOCUMENT_LOOKUP","q":"What is the confidentiality period in this NDA?","doc":"NDA","intent":"LOOKUP","requested_fact":"PERIOD","authority":["DOCUMENT"]},
-    {"class":"DOCUMENT_LOOKUP","q":"What is the liability cap in this agreement?","doc":"MSA","intent":"LOOKUP","requested_fact":"VALUE","authority":["DOCUMENT"]},
-    {"class":"DOCUMENT_LOOKUP","q":"What are the payment terms?","doc":"MSA","intent":"LOOKUP","requested_fact":"VALUE","authority":["DOCUMENT"]},
-    {"class":"DOCUMENT_LOOKUP","q":"Who are the parties to this agreement?","doc":"MSA","intent":"LOOKUP","requested_fact":"VALUE","authority":["DOCUMENT"]},
-
-    {"class":"POSITION_LOOKUP","q":"What is our position on MSA auto-renewal?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-    {"class":"POSITION_LOOKUP","q":"What is our standard confidentiality period?","doc":null,"intent":"LOOKUP","requested_fact":"PERIOD","authority":["POSITION"]},
-    {"class":"POSITION_LOOKUP","q":"What liability cap do we accept?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-    {"class":"POSITION_LOOKUP","q":"What is our approved notice period for termination?","doc":null,"intent":"LOOKUP","requested_fact":"PERIOD","authority":["POSITION"]},
-
-    {"class":"CONSTITUTION_LOOKUP","q":"What is written about Partner Agreement in the Constitution?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-    {"class":"CONSTITUTION_LOOKUP","q":"What does the Constitution say about distribution agreements?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-    {"class":"CONSTITUTION_LOOKUP","q":"Does the Constitution cover vendor agreements?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-    {"class":"CONSTITUTION_LOOKUP","q":"What is our constitutional position on indemnity?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-
-    {"class":"GENERAL_LAW","q":"What does Indian law say about indemnity?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"]},
-    {"class":"GENERAL_LAW","q":"Is a contract with a minor valid under Indian law?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"]},
-    {"class":"GENERAL_LAW","q":"What does the law require for a valid consent?","doc":null,"intent":"REQUIREMENT","requested_fact":"PROCEDURE","authority":["GENERAL_LAW"]},
-    {"class":"GENERAL_LAW","q":"Under Indian law, when is an agreement void?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"]},
-
-    {"class":"STATUTE_WITHOUT_ACT_NAME","q":"What is the penalty for failing to protect personal data?","doc":null,"intent":"REQUIREMENT","requested_fact":"PENALTY","authority":["GENERAL_LAW"]},
-    {"class":"STATUTE_WITHOUT_ACT_NAME","q":"Within what time must a cyber incident be reported?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEADLINE","authority":["GENERAL_LAW"]},
-    {"class":"STATUTE_WITHOUT_ACT_NAME","q":"What is the punishment for breach of confidentiality by an intermediary?","doc":null,"intent":"REQUIREMENT","requested_fact":"PENALTY","authority":["GENERAL_LAW"]},
-    {"class":"STATUTE_WITHOUT_ACT_NAME","q":"How long do I have to file an appeal?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEADLINE","authority":["GENERAL_LAW"]},
-
-    {"class":"STATUTE_WITH_ACT_NAME","q":"What does section 43A of the IT Act say?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"]},
-    {"class":"STATUTE_WITH_ACT_NAME","q":"What is the penalty under the DPDP Act for a data breach?","doc":null,"intent":"REQUIREMENT","requested_fact":"PENALTY","authority":["GENERAL_LAW"]},
-    {"class":"STATUTE_WITH_ACT_NAME","q":"What does the Indian Contract Act say about indemnity?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"]},
-    {"class":"STATUTE_WITH_ACT_NAME","q":"What do the CERT-In Directions require?","doc":null,"intent":"REQUIREMENT","requested_fact":"PROCEDURE","authority":["GENERAL_LAW"]},
-
-    {"class":"COMPARISON","q":"Is this agreement compliant with our Constitution?","doc":"MSA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","POSITION"]},
-    {"class":"COMPARISON","q":"Does this NDA meet our standard?","doc":"NDA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","POSITION"]},
-    {"class":"COMPARISON","q":"Is the liability cap in this contract acceptable to us?","doc":"MSA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","POSITION"]},
-    {"class":"COMPARISON","q":"Does this document deviate from our approved position?","doc":"MSA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","POSITION"]},
-
-    {"class":"MULTI_DOMAIN","q":"Does our NDA comply with the DPDP Act?","doc":"NDA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","GENERAL_LAW"]},
-    {"class":"MULTI_DOMAIN","q":"What does Indian law say about this confidentiality clause?","doc":"NDA","intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["DOCUMENT","GENERAL_LAW"]},
-    {"class":"MULTI_DOMAIN","q":"What is our position on confidentiality, and does this NDA comply?","doc":"NDA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","POSITION"]},
-    {"class":"MULTI_DOMAIN","q":"Is the notice period in this contract allowed under Indian law?","doc":"MSA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","GENERAL_LAW"]},
-
-    {"class":"FOLLOW_UP","q":"What about the termination period?","doc":"NDA","after":"What is the confidentiality period in this NDA?","intent":"LOOKUP","requested_fact":"PERIOD","authority":["DOCUMENT"]},
-    {"class":"FOLLOW_UP","q":"And the governing law?","doc":"MSA","after":"What is the liability cap in this agreement?","intent":"LOOKUP","requested_fact":"VALUE","authority":["DOCUMENT"]},
-    {"class":"FOLLOW_UP","q":"What about for vendors?","doc":null,"after":"What is our standard confidentiality period?","intent":"LOOKUP","requested_fact":"PERIOD","authority":["POSITION"]},
-    {"class":"FOLLOW_UP","q":"Is that the same for the MSA?","doc":null,"after":"What is our position on MSA auto-renewal?","intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-
-    {"class":"EXACT_TEXT","q":"Quote that clause verbatim.","doc":"NDA","after":"What about the termination period?","intent":"EXACT_TEXT","requested_fact":"NONE","authority":["DOCUMENT"]},
-    {"class":"EXACT_TEXT","q":"Give me the exact wording of that standard.","doc":null,"after":"What is our standard confidentiality period?","intent":"EXACT_TEXT","requested_fact":"NONE","authority":["POSITION"]},
-    {"class":"EXACT_TEXT","q":"What exactly does the clause say?","doc":"NDA","after":"What is the confidentiality period in this NDA?","intent":"EXACT_TEXT","requested_fact":"NONE","authority":["DOCUMENT"]},
-    {"class":"EXACT_TEXT","q":"Show me the original text.","doc":"MSA","after":"What is the liability cap in this agreement?","intent":"EXACT_TEXT","requested_fact":"NONE","authority":["DOCUMENT"]},
-
-    {"class":"CAPABILITY","q":"What can LegalMind do?","doc":null,"intent":"CAPABILITY","requested_fact":"NONE","authority":[]},
-    {"class":"CAPABILITY","q":"What are you able to help me with?","doc":null,"intent":"CAPABILITY","requested_fact":"NONE","authority":[]},
-    {"class":"CAPABILITY","q":"Can you review contracts?","doc":null,"intent":"CAPABILITY","requested_fact":"NONE","authority":[]},
-    {"class":"CAPABILITY","q":"What features does this system have?","doc":null,"intent":"CAPABILITY","requested_fact":"NONE","authority":[]},
-
-    {"class":"UNKNOWN","q":"What is the capital of France?","doc":null,"intent":"OUT_OF_SCOPE","requested_fact":"NONE","authority":[],"must_refuse":true},
-    {"class":"UNKNOWN","q":"Who won the cricket world cup in 2011?","doc":null,"intent":"OUT_OF_SCOPE","requested_fact":"NONE","authority":[],"must_refuse":true},
-    {"class":"UNKNOWN","q":"Write me a poem about contracts.","doc":null,"intent":"OUT_OF_SCOPE","requested_fact":"NONE","authority":[],"must_refuse":true},
-    {"class":"UNKNOWN","q":"What is the weather in Pune today?","doc":null,"intent":"OUT_OF_SCOPE","requested_fact":"NONE","authority":[],"must_refuse":true},
-
-    {"class":"AMBIGUOUS","q":"What is the notice period?","doc":null,"intent":"LOOKUP","requested_fact":"PERIOD","authority":["POSITION","GENERAL_LAW"],"ambiguous":true},
-    {"class":"AMBIGUOUS","q":"What are the confidentiality obligations?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION","GENERAL_LAW"],"ambiguous":true},
-    {"class":"AMBIGUOUS","q":"What happens on termination?","doc":null,"intent":"LOOKUP","requested_fact":"PROCEDURE","authority":["POSITION","GENERAL_LAW"],"ambiguous":true},
-    {"class":"AMBIGUOUS","q":"Is indemnity required?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["POSITION","GENERAL_LAW"],"ambiguous":true},
-
-    {"class":"HISTORICAL_LAW","q":"What did the Companies Act, 1956 say about allotment of shares?","doc":null,"intent":"REQUIREMENT","requested_fact":"PROCEDURE","authority":["GENERAL_LAW"],"temporal":"HISTORICAL"},
-    {"class":"HISTORICAL_LAW","q":"What is the current law on winding up a company?","doc":null,"intent":"REQUIREMENT","requested_fact":"PROCEDURE","authority":["GENERAL_LAW"],"temporal":"IN_FORCE","must_not_cite_repealed":true},
-    {"class":"HISTORICAL_LAW","q":"Which Act governs company incorporation today?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"],"temporal":"IN_FORCE","must_not_cite_repealed":true},
-    {"class":"HISTORICAL_LAW","q":"What does the Income-tax Act, 1961 say about TDS on professional fees?","doc":null,"intent":"REQUIREMENT","requested_fact":"VALUE","authority":["GENERAL_LAW"],"temporal":"HISTORICAL"},
-
-    {"class":"JURISDICTION_SPECIFIC","q":"What does Indian law say about electronic signatures?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"],"jurisdiction":"IN"},
-    {"class":"JURISDICTION_SPECIFIC","q":"What does Delaware law say about limitation of liability?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"],"jurisdiction":"US-DE","must_refuse":true},
-    {"class":"JURISDICTION_SPECIFIC","q":"Under EU GDPR, what is the breach notification deadline?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEADLINE","authority":["GENERAL_LAW"],"jurisdiction":"EU","must_refuse":true},
-    {"class":"JURISDICTION_SPECIFIC","q":"Is this enforceable under Indian law?","doc":"MSA","intent":"COMPARISON","requested_fact":"NONE","authority":["DOCUMENT","GENERAL_LAW"],"jurisdiction":"IN"},
-
-    {"class":"MULTILINGUAL","q":"इस NDA में गोपनीयता की अवधि क्या है?","doc":"NDA","intent":"LOOKUP","requested_fact":"PERIOD","authority":["DOCUMENT"]},
-    {"class":"MULTILINGUAL","q":"हमारी MSA auto-renewal पर क्या position है?","doc":null,"intent":"LOOKUP","requested_fact":"VALUE","authority":["POSITION"]},
-    {"class":"MULTILINGUAL","q":"Is NDA ki confidentiality period kya hai?","doc":"NDA","intent":"LOOKUP","requested_fact":"PERIOD","authority":["DOCUMENT"]},
-    {"class":"MULTILINGUAL","q":"भारतीय कानून क्षतिपूर्ति के बारे में क्या कहता है?","doc":null,"intent":"REQUIREMENT","requested_fact":"DEFINITION","authority":["GENERAL_LAW"]}
-  ]
+  {
+   "class": "DOCUMENT_LOOKUP",
+   "q": "What is the liability cap in this agreement?",
+   "doc": "MSA",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "DOCUMENT_LOOKUP",
+   "q": "What are the payment terms?",
+   "doc": "MSA",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "DOCUMENT_LOOKUP",
+   "q": "Who are the parties to this agreement?",
+   "doc": "MSA",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "POSITION_LOOKUP",
+   "q": "What is our position on MSA auto-renewal?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "POSITION_LOOKUP",
+   "q": "What is our standard confidentiality period?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "POSITION_LOOKUP",
+   "q": "What liability cap do we accept?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "POSITION_LOOKUP",
+   "q": "What is our approved notice period for termination?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "CONSTITUTION_LOOKUP",
+   "q": "What is written about Partner Agreement in the Constitution?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "CONSTITUTION_LOOKUP",
+   "q": "What does the Constitution say about distribution agreements?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "CONSTITUTION_LOOKUP",
+   "q": "Does the Constitution cover vendor agreements?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "CONSTITUTION_LOOKUP",
+   "q": "What is our constitutional position on indemnity?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "GENERAL_LAW",
+   "q": "What does Indian law say about indemnity?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "GENERAL_LAW",
+   "q": "Is a contract with a minor valid under Indian law?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "GENERAL_LAW",
+   "q": "What does the law require for a valid consent?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "GENERAL_LAW",
+   "q": "Under Indian law, when is an agreement void?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITHOUT_ACT_NAME",
+   "q": "What is the penalty for failing to protect personal data?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PENALTY",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITHOUT_ACT_NAME",
+   "q": "Within what time must a cyber incident be reported?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEADLINE",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITHOUT_ACT_NAME",
+   "q": "What is the punishment for breach of confidentiality by an intermediary?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PENALTY",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITHOUT_ACT_NAME",
+   "q": "How long do I have to file an appeal?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEADLINE",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITH_ACT_NAME",
+   "q": "What does section 43A of the IT Act say?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITH_ACT_NAME",
+   "q": "What is the penalty under the DPDP Act for a data breach?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PENALTY",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITH_ACT_NAME",
+   "q": "What does the Indian Contract Act say about indemnity?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "STATUTE_WITH_ACT_NAME",
+   "q": "What do the CERT-In Directions require?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "COMPARISON",
+   "q": "Is this agreement compliant with our Constitution?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ]
+  },
+  {
+   "class": "COMPARISON",
+   "q": "Does this NDA meet our standard?",
+   "doc": "NDA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ]
+  },
+  {
+   "class": "COMPARISON",
+   "q": "Is the liability cap in this contract acceptable to us?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ]
+  },
+  {
+   "class": "COMPARISON",
+   "q": "Does this document deviate from our approved position?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ]
+  },
+  {
+   "class": "MULTI_DOMAIN",
+   "q": "Does our NDA comply with the DPDP Act?",
+   "doc": "NDA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "MULTI_DOMAIN",
+   "q": "What does Indian law say about this confidentiality clause?",
+   "doc": "NDA",
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "MULTI_DOMAIN",
+   "q": "What is our position on confidentiality, and does this NDA comply?",
+   "doc": "NDA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ]
+  },
+  {
+   "class": "MULTI_DOMAIN",
+   "q": "Is the notice period in this contract allowed under Indian law?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "FOLLOW_UP",
+   "q": "What about the termination period?",
+   "doc": "NDA",
+   "after": "What is the confidentiality period in this NDA?",
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "FOLLOW_UP",
+   "q": "And the governing law?",
+   "doc": "MSA",
+   "after": "What is the liability cap in this agreement?",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "FOLLOW_UP",
+   "q": "What about for vendors?",
+   "doc": null,
+   "after": "What is our standard confidentiality period?",
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "FOLLOW_UP",
+   "q": "Is that the same for the MSA?",
+   "doc": null,
+   "after": "What is our position on MSA auto-renewal?",
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "EXACT_TEXT",
+   "q": "Quote that clause verbatim.",
+   "doc": "NDA",
+   "after": "What about the termination period?",
+   "intent": "EXACT_TEXT",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "EXACT_TEXT",
+   "q": "Give me the exact wording of that standard.",
+   "doc": null,
+   "after": "What is our standard confidentiality period?",
+   "intent": "EXACT_TEXT",
+   "requested_fact": "NONE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "EXACT_TEXT",
+   "q": "What exactly does the clause say?",
+   "doc": "NDA",
+   "after": "What is the confidentiality period in this NDA?",
+   "intent": "EXACT_TEXT",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "EXACT_TEXT",
+   "q": "Show me the original text.",
+   "doc": "MSA",
+   "after": "What is the liability cap in this agreement?",
+   "intent": "EXACT_TEXT",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "CAPABILITY",
+   "q": "What can LegalMind do?",
+   "doc": null,
+   "intent": "CAPABILITY",
+   "requested_fact": "NONE",
+   "authority": []
+  },
+  {
+   "class": "CAPABILITY",
+   "q": "What are you able to help me with?",
+   "doc": null,
+   "intent": "CAPABILITY",
+   "requested_fact": "NONE",
+   "authority": []
+  },
+  {
+   "class": "CAPABILITY",
+   "q": "Can you review contracts?",
+   "doc": null,
+   "intent": "CAPABILITY",
+   "requested_fact": "NONE",
+   "authority": []
+  },
+  {
+   "class": "CAPABILITY",
+   "q": "What features does this system have?",
+   "doc": null,
+   "intent": "CAPABILITY",
+   "requested_fact": "NONE",
+   "authority": []
+  },
+  {
+   "class": "UNKNOWN",
+   "q": "What is the capital of France?",
+   "doc": null,
+   "intent": "OUT_OF_SCOPE",
+   "requested_fact": "NONE",
+   "authority": [],
+   "must_refuse": true
+  },
+  {
+   "class": "UNKNOWN",
+   "q": "Who won the cricket world cup in 2011?",
+   "doc": null,
+   "intent": "OUT_OF_SCOPE",
+   "requested_fact": "NONE",
+   "authority": [],
+   "must_refuse": true
+  },
+  {
+   "class": "UNKNOWN",
+   "q": "Write me a poem about contracts.",
+   "doc": null,
+   "intent": "OUT_OF_SCOPE",
+   "requested_fact": "NONE",
+   "authority": [],
+   "must_refuse": true
+  },
+  {
+   "class": "UNKNOWN",
+   "q": "What is the weather in Pune today?",
+   "doc": null,
+   "intent": "OUT_OF_SCOPE",
+   "requested_fact": "NONE",
+   "authority": [],
+   "must_refuse": true
+  },
+  {
+   "class": "AMBIGUOUS",
+   "q": "What is the notice period?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "POSITION",
+    "GENERAL_LAW"
+   ],
+   "ambiguous": true
+  },
+  {
+   "class": "AMBIGUOUS",
+   "q": "What are the confidentiality obligations?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION",
+    "GENERAL_LAW"
+   ],
+   "ambiguous": true
+  },
+  {
+   "class": "AMBIGUOUS",
+   "q": "What happens on termination?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "POSITION",
+    "GENERAL_LAW"
+   ],
+   "ambiguous": true
+  },
+  {
+   "class": "AMBIGUOUS",
+   "q": "Is indemnity required?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "POSITION",
+    "GENERAL_LAW"
+   ],
+   "ambiguous": true
+  },
+  {
+   "class": "HISTORICAL_LAW",
+   "q": "What did the Companies Act, 1956 say about allotment of shares?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "HISTORICAL"
+  },
+  {
+   "class": "HISTORICAL_LAW",
+   "q": "What is the current law on winding up a company?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "CURRENT",
+   "must_not_cite_repealed": true
+  },
+  {
+   "class": "HISTORICAL_LAW",
+   "q": "Which Act governs company incorporation today?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "CURRENT",
+   "must_not_cite_repealed": true
+  },
+  {
+   "class": "HISTORICAL_LAW",
+   "q": "What does the Income-tax Act, 1961 say about TDS on professional fees?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "VALUE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "UNSPECIFIED",
+   "may_cite_repealed": true,
+   "why": "names a repealed Act explicitly - admitted by the named-source rule, not by temporal"
+  },
+  {
+   "class": "JURISDICTION_SPECIFIC",
+   "q": "What does Indian law say about electronic signatures?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN"
+  },
+  {
+   "class": "JURISDICTION_SPECIFIC",
+   "q": "What does Delaware law say about limitation of liability?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "US-DE",
+   "must_refuse": true
+  },
+  {
+   "class": "JURISDICTION_SPECIFIC",
+   "q": "Under EU GDPR, what is the breach notification deadline?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEADLINE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "EU",
+   "must_refuse": true
+  },
+  {
+   "class": "JURISDICTION_SPECIFIC",
+   "q": "Is this enforceable under Indian law?",
+   "doc": "MSA",
+   "intent": "COMPARISON",
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN"
+  },
+  {
+   "class": "MULTILINGUAL",
+   "q": "इस NDA में गोपनीयता की अवधि क्या है?",
+   "doc": "NDA",
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "MULTILINGUAL",
+   "q": "हमारी MSA auto-renewal पर क्या position है?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ]
+  },
+  {
+   "class": "MULTILINGUAL",
+   "q": "Is NDA ki confidentiality period kya hai?",
+   "doc": "NDA",
+   "intent": "LOOKUP",
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ]
+  },
+  {
+   "class": "MULTILINGUAL",
+   "q": "भारतीय कानून क्षतिपूर्ति के बारे में क्या कहता है?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ]
+  },
+  {
+   "class": "TEMPORAL_SCOPE",
+   "q": "What does current Indian law say about electronic signatures?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "CURRENT",
+   "must_not_cite_repealed": true
+  },
+  {
+   "class": "TEMPORAL_SCOPE",
+   "q": "What did the law on allotment of shares say in 1956?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "AS_OF_DATE",
+   "may_cite_repealed": true
+  },
+  {
+   "class": "TEMPORAL_SCOPE",
+   "q": "What was the rule on winding up before the amendment?",
+   "doc": null,
+   "intent": "REQUIREMENT",
+   "requested_fact": "PROCEDURE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "HISTORICAL",
+   "may_cite_repealed": true
+  },
+  {
+   "class": "TEMPORAL_SCOPE",
+   "q": "What are the duties of a director of a company?",
+   "doc": null,
+   "intent": "LOOKUP",
+   "requested_fact": "VALUE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "temporal": "UNSPECIFIED",
+   "must_not_cite_repealed": true
+  }
+ ],
+ "label_corrections_2026_09_23": {
+  "IN_FORCE -> CURRENT": "Two cases were authored in step 1, before the temporal vocabulary existed. Same concept, the vocabulary's name.",
+  "Income-tax 1961 HISTORICAL -> UNSPECIFIED": "The label was wrong and the system was right. The question is present tense and names an Act; it says nothing about time. I had labelled it HISTORICAL because the SOURCE is repealed - conflating a fact about the corpus with the reader's intent, which is precisely the confusion this step removes. The Act is still reachable because the reader NAMED it (a source rule), not because of anything temporal."
+ }
 }
