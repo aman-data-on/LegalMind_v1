@@ -290,3 +290,48 @@ def test_naming_a_repealed_act_still_reaches_it_without_any_temporal_claim():
     route = routing.plan(u.question, has_document=False, permissions=PERMS,
                          statutes_available=True, statute_jurisdictions=frozenset({"IN"}))
     assert route.include_superseded is False
+
+
+# --------------------------------------------------------------------------
+# Step 5 — a legal source referred to by CATEGORY rather than by name
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("question", [
+    "Which Act governs company incorporation today?",
+    "What statute covers electronic signatures?",
+    "What does the law say about indemnity?",
+    "What did the law on allotment of shares say in 1956?",
+    "Under the law, when is an agreement void?",
+])
+def test_a_source_named_by_category_is_still_a_source_reference(question):
+    """`names_instrument` only ever matched a source by NAME, so a question asking
+    for the law in the abstract carried no source signal at all and was answered from
+    whatever else happened to be authorized. Measured 2026-09-23: five wrong-source
+    answers in 76 — the only tier of failure where a reader is shown a source that
+    cannot answer their question."""
+    assert intent.legal_question_signals(question).generic_instrument
+    assert intent.is_statute_question(question)
+
+
+@pytest.mark.parametrize("question", [
+    "What is the rule in this contract?",
+    "What does the law say in our standard?",
+    "What rules do we apply to vendors?",
+])
+def test_a_generic_reference_still_loses_to_something_of_our_own(question):
+    """It is a TIER-B positive, not an override. A question that refers to a document
+    or to the organization's own position is answered from those — the same relation
+    every other positive signal obeys."""
+    signals = intent.legal_question_signals(question)
+    assert signals.generic_instrument
+    assert not signals.general_law
+
+
+def test_this_is_not_the_impersonal_modal_signal_that_was_rejected():
+    """An earlier attempt made "must + impersonal" a statute signal and was REJECTED
+    for breaking a must-refuse case. The distinction is real and worth pinning: a
+    modal is a phrasing that contractual obligations share, whereas "the statute"
+    names a kind of source and nothing else. These carry a modal and no source, and
+    must NOT route to the law on that basis alone."""
+    for question in ("Notice must be given within thirty days.",
+                     "The fee must be paid before renewal."):
+        assert not intent.legal_question_signals(question).generic_instrument

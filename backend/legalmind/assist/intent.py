@@ -555,6 +555,13 @@ class LegalQuestionSignals:
     Recorded so a route can be explained after the fact. Never shown to a reader.
     """
     names_instrument: bool
+    #: The question refers to a legal source WITHOUT naming one — "which Act governs
+    #: X", "what does the law say". `names_instrument` only ever matched a source by
+    #: NAME, so a question that asked for the law in the abstract carried no source
+    #: signal at all and was answered from whatever else was authorized. Measured
+    #: 2026-09-23: that produced five wrong-source answers in 76, the only tier of
+    #: failure where a reader is shown a source that cannot answer their question.
+    generic_instrument: bool
     jurisdiction: bool
     rule_framing: bool
     legal_actor: bool
@@ -574,12 +581,14 @@ class LegalQuestionSignals:
         # conservative path, where `require_semantic` and the gate decide.
         if self.document_target or self.position_target or self.first_person:
             return False
-        return self.jurisdiction or self.rule_framing or self.legal_actor
+        return (self.jurisdiction or self.rule_framing or self.legal_actor
+                or self.generic_instrument)
 
     @property
     def because(self) -> tuple[str, ...]:
         """The signals that fired, for the routing log."""
         named = (("names_instrument", self.names_instrument),
+                 ("generic_instrument", self.generic_instrument),
                  ("jurisdiction", self.jurisdiction),
                  ("rule_framing", self.rule_framing),
                  ("legal_actor", self.legal_actor),
@@ -589,12 +598,29 @@ class LegalQuestionSignals:
         return tuple(name for name, fired in named if fired)
 
 
+# A legal source referred to by CATEGORY rather than by name. The counterpart of
+# `ACT_ALIASES`, which lists sources by name: "the Companies Act" is a named
+# instrument, "which Act" and "what does the law say" are generic ones, and both are
+# explicit references to law rather than inferences from phrasing.
+#
+# It is NOT the impersonal-modal signal, which was measured earlier and REJECTED for
+# breaking a must-refuse case: "must be reported" is a phrasing that contractual
+# obligations share, whereas "the statute" names a kind of source and nothing else.
+#
+# It is a TIER-B positive, so the negatives still block it. "What is the rule in this
+# contract?" refers to a document, and a document is what answers it.
+_GENERIC_INSTRUMENT = re.compile(
+    r"\b(which|what)\s+(act|statute|law|legislation|rules?|code)\b"
+    r"|\b(the|under|in)\s+(law|statute|legislation|rules?)\b", re.IGNORECASE)
+
+
 def legal_question_signals(question: str) -> LegalQuestionSignals:
     """Score a question against the GENERAL LAW signals. Deterministic, no model."""
     text = question or ""
     tokens = _stems(text)
     return LegalQuestionSignals(
         names_instrument=_instrument_reference(text, tokens),
+        generic_instrument=bool(_GENERIC_INSTRUMENT.search(text)),
         jurisdiction=bool(_JURISDICTION.search(text)),
         rule_framing=bool(_RULE_FRAMING.search(text)),
         legal_actor=bool(_LEGAL_ACTOR.search(text)),

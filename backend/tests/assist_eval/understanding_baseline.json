@@ -762,9 +762,11 @@
    "comparison": false,
    "statute_shaped": true,
    "statute_signals": [
+    "generic_instrument",
     "rule_framing"
    ],
    "signals_fired": [
+    "generic_instrument",
     "rule_framing"
    ],
    "exact_text": false,
@@ -2772,6 +2774,7 @@
   "understanding": {
    "requested_fact": "NONE",
    "authority": [
+    "GENERAL_LAW",
     "POSITION"
    ],
    "jurisdiction": "UNSPECIFIED",
@@ -2784,18 +2787,21 @@
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
-   "statute_shaped": false,
-   "statute_signals": [],
-   "signals_fired": [],
+   "statute_shaped": true,
+   "statute_signals": [
+    "generic_instrument"
+   ],
+   "signals_fired": [
+    "generic_instrument"
+   ],
    "exact_text": false,
    "follow_up": false,
    "mentions_organization": true,
    "domains": [
-    "POSITIONS"
-   ],
-   "fallback": [
+    "POSITIONS",
     "STATUTES"
-   ]
+   ],
+   "fallback": []
   }
  },
  {
@@ -3309,7 +3315,9 @@
   "expected_temporal": "AS_OF_DATE",
   "understanding": {
    "requested_fact": "NONE",
-   "authority": [],
+   "authority": [
+    "GENERAL_LAW"
+   ],
    "jurisdiction": "UNSPECIFIED",
    "operation": "LOOKUP",
    "against": [],
@@ -3320,16 +3328,21 @@
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
-   "statute_shaped": false,
-   "statute_signals": [],
-   "signals_fired": [],
+   "statute_shaped": true,
+   "statute_signals": [
+    "generic_instrument"
+   ],
+   "signals_fired": [
+    "generic_instrument"
+   ],
    "exact_text": false,
    "follow_up": false,
    "mentions_organization": false,
-   "domains": [],
-   "fallback": [
-    "POSITIONS",
+   "domains": [
     "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
    ]
   }
  },
@@ -3369,9 +3382,11 @@
    "comparison": false,
    "statute_shaped": false,
    "statute_signals": [
+    "generic_instrument",
     "document_target"
    ],
    "signals_fired": [
+    "generic_instrument",
     "document_target"
    ],
    "exact_text": false,
