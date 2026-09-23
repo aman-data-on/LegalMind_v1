@@ -89,7 +89,7 @@ def test_A_the_contract_answers_and_is_cited(db, user, indexed_contract, monkeyp
 
 
 def test_B_the_contract_is_silent_and_the_company_standard_answers(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     _ratified_positions(db, user, tmp_path)
     contract, version = indexed_contract
     _grounded_generation(monkeypatch)
@@ -108,7 +108,7 @@ def test_B_the_contract_is_silent_and_the_company_standard_answers(
 
 
 def test_C_contract_and_company_standard_are_both_shown_and_never_adjudicated(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     _ratified_positions(db, user, tmp_path)
     contract, version = indexed_contract
     _grounded_generation(monkeypatch)
@@ -166,7 +166,7 @@ def test_E_nothing_relevant_anywhere_is_the_only_time_not_found_is_said(
 
 
 def test_the_document_is_never_the_only_source_for_a_caller_who_may_read_more(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     """The defect the phase re-audits: with a document open, a question the document
     does not answer still reaches every other authorized source — and for a caller
     who may read none of them, the refusal names the document alone."""

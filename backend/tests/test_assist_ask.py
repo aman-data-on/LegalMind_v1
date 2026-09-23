@@ -1185,7 +1185,7 @@ def test_the_fallback_never_reaches_a_caller_without_the_position_grant(
 
 
 def test_every_non_answer_cause_consults_the_other_sources(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     """Not only the closed gate: an ungrounded answer, an unavailable model and a
     refused egress all arrive at the same convergence point."""
     from legalmind.assist import generation
@@ -1212,7 +1212,7 @@ def test_every_non_answer_cause_consults_the_other_sources(
 
 
 def test_a_document_less_general_question_is_answered_from_the_positions(
-        db, user, tmp_path):
+        db, user, tmp_path, semantic_gate_open):
     """No document, no organization word, no statute word — the user should not
     have to know that the answer lives in the ratified standards."""
     _ratified_positions(db, user, tmp_path, NOTICE_POSITION)

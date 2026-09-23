@@ -58,7 +58,7 @@ def _ask(db, user, contract, question):
 # r1 — a normal question gets the explanation, NOT the clause
 # --------------------------------------------------------------------------
 def test_a_normal_question_is_answered_by_paraphrase_without_the_quote_sentence(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     contract, _ = indexed_contract
     _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
     _aid(monkeypatch, PARAPHRASE)
@@ -96,7 +96,7 @@ def test_an_explicit_exact_text_request_returns_the_verbatim_wording(
 # r4 — a paraphrase that cannot be verified falls back to the authorized quote
 # --------------------------------------------------------------------------
 def test_an_unverifiable_paraphrase_falls_back_to_the_quote(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     """The figure is wrong, so the guardrail refuses it. The reader must still get the
     real text rather than nothing — the locked fallback, not a refusal."""
     contract, _ = indexed_contract
