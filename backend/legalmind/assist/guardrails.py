@@ -137,6 +137,77 @@ class Verification:
     @property
     def passed(self) -> bool:
         return self.state is AssistAnswerState.ANSWERED
+# A claim may not introduce a POLARITY the evidence does not carry. The ratio above
+# cannot see this either, for the same reason: an inversion reuses the source's own
+# words and scores high. Measured 2026-09-21 against the ratified Partner Agreement
+# position, which says either party MAY terminate on 30 days' notice —
+#
+#   "A Partner Agreement may ONLY be terminated with the written consent of both
+#    parties"                                          overlap 0.62, and it PASSED
+#
+# — the opposite of what the organization approved, built from its own vocabulary.
+#
+# Checked as CLASSES, not as words, so a paraphrase may restate a negation the
+# evidence already carries: "No early-termination fee is payable" and "Neither side
+# owes an early-termination fee" both hold a negation, so the second is not flagged.
+# Only a class the evidence does not use at all is treated as introduced.
+# `AM-76`: a grounded explanation may not "add facts, conditions, exceptions,
+# quantities, or legal conclusions not supported by evidence". Quantities are checked
+# above; these are the other three shapes that a word ratio cannot see, because each
+# is built from the source's own vocabulary.
+_POLARITY_CLASSES = {
+    # NO GENERAL NEGATION CLASS, and that is a measured decision rather than an
+    # oversight. A negation is very often a faithful restatement of something the
+    # source states positively: "may terminate for convenience" genuinely means "a
+    # breach is not required", and flagging that rejected an answer the owner had
+    # already judged grounded (tests/test_assist_ask.py, the 2026-09-09 live answer).
+    # Across the 18-case set the negation class caught nothing the exception and
+    # exclusivity classes did not, so it cost accuracy and bought nothing.
+    "exclusivity": re.compile(r"\b(only|solely|exclusively)\b", re.I),
+    # A carve-out the source does not make is a new condition, whatever words carry
+    # it. Measured: "…capped at the fees paid in the 12 months before the claim,
+    # EXCEPT in cases of gross negligence" scored 0.67 against a cap clause that
+    # carves out nothing, and passed. Where the source DOES carve out ("except that
+    # obligations relating to trade secrets…"), a paraphrase may restate it.
+    "exception": re.compile(
+        r"\b(except|unless|save for|other than|apart from|provided that|"
+        r"subject to|carve-?out)\b", re.I),
+}
+
+
+# A source that ALREADY restricts does not need the word "only" for a paraphrase to
+# say so faithfully: "shall NOT use the name WITHOUT prior written consent" is exactly
+# "you may only do so with prior written consent", and DPDP §6(1)'s consent "shall be
+# LIMITED to such personal data as is necessary" is "limited only to what is needed".
+# Measured 2026-09-22 on 54 shipped answers: without this guard the exclusivity class
+# refused three correct answers of that shape and caught nothing. With it, the class
+# still refuses the case it exists for — "may ONLY be terminated with the written
+# consent of both parties" against a position where either party may terminate
+# unilaterally — because that evidence restricts nothing.
+_ALREADY_RESTRICTS = re.compile(
+    r"\b(not|no|never|without|limited|restrict(?:ed|ion)?|prohibit(?:ed)?|"
+    r"except|unless|solely|exclusively|only)\b", re.I)
+
+
+def _introduced_polarity(claim: str, cited: list[str]) -> list[str]:
+    """Polarity classes the claim uses that its cited text does not use at all."""
+    text = _MARKER.sub("", claim)
+    evidence = " ".join(cited)
+    introduced = [name for name, pattern in _POLARITY_CLASSES.items()
+                  if pattern.search(text) and not pattern.search(evidence)]
+    if "exclusivity" in introduced:
+        claim_words = _content_words(text)
+        span = _best_span(claim_words, evidence)
+        # The span may only license the claim's "only" if it is actually ABOUT the
+        # claim. Without this, evidence reading "No fee is payable" would license
+        # "only on written consent", which it says nothing about. The share is the
+        # existing grounding floor, not a new threshold.
+        span_words = _content_words(span)
+        aligned = (len(claim_words & span_words) / len(claim_words)
+                   if claim_words else 0.0)
+        if aligned >= _GROUNDING_OVERLAP and _ALREADY_RESTRICTS.search(span):
+            introduced.remove("exclusivity")
+    return introduced
 
 
 def _content_words(text: str) -> set[str]:
@@ -196,11 +267,17 @@ _CONDITIONAL = frozenset((
     "notwithstanding", "save",
 ))
 
-_NUMBER_WORDS = frozenset((
-    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-    "ten", "eleven", "twelve", "fifteen", "twenty", "thirty", "forty", "fifty",
-    "sixty", "ninety", "hundred", "thousand", "million", "billion",
-))
+# Number words map to their digits so "twelve months" and "12 months" are the same
+# quantity — adopted from the AM-76 work, which measured that an honest paraphrase
+# spells a figure out as often as the source writes it in digits.
+_NUMBER_WORDS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6",
+    "seven": "7", "eight": "8", "nine": "9", "ten": "10", "eleven": "11",
+    "twelve": "12", "fifteen": "15", "twenty": "20", "thirty": "30", "forty": "40",
+    "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80", "ninety": "90",
+    "hundred": "100", "thousand": "1000", "million": "1000000",
+    "billion": "1000000000",
+}
 _UNIT_WORDS = frozenset((
     "lakh", "lakhs", "crore", "crores", "day", "days", "week", "weeks",
     "month", "months", "year", "years", "hour", "hours", "annum", "percent", "%",
@@ -231,9 +308,11 @@ def _quantities(text: str) -> set[str]:
             if "." in w or (len(w) == 4 and w.isdigit() and w.startswith(("19", "20"))):
                 continue
             out.add(_norm(w))
-        elif w in _UNIT_WORDS or (w in _NUMBER_WORDS and any(
-                x in _UNIT_WORDS or x[0].isdigit() for x in ws[i + 1:i + 3])):
+        elif w in _UNIT_WORDS:
             out.add(_norm(w))
+        elif w in _NUMBER_WORDS and any(
+                x in _UNIT_WORDS or x[0].isdigit() for x in ws[i + 1:i + 3]):
+            out.add(_NUMBER_WORDS[w])
     return out
 
 
@@ -466,14 +545,33 @@ def verify_answer(answer: str, chunks: list[str]) -> Verification:
                     f"claim does not ground in its cited text "
                     f"(overlap {overlap:.2f}): {sentence[:80]!r}"
                 )
+            # Overlap says the cited text COULD be the source. These say it says
+            # the same thing, and `AM-76` r5 names exactly what may not be added:
+            # "a fact, a condition, an exception, a quantity or a legal
+            # conclusion the evidence does not carry".
+            #
+            #   `_entailment_failure`  — quantities, and polarity/modality scoped
+            #                            to the predicate the claim shares with
+            #                            its evidence.
+            #   `_introduced_polarity` — an EXCEPTION or an EXCLUSIVITY the
+            #                            evidence never states, which is the
+            #                            "condition/exception" limb of r5 and is
+            #                            not reachable from the predicate scope.
+            #
+            # Both are exact, local and model-free (`AM-76` r6, `AM-28` r2).
+            unentailed = _entailment_failure(
+                _MARKER.sub("", sentence), claim_words, cited_chunks)
+            if unentailed:
+                failures.append(unentailed)
+                grounded = False
             else:
-                # Overlap says the cited text COULD be the source. These say it
-                # says the same thing — see `_entailment_failure`.
-                unentailed = _entailment_failure(
-                    _MARKER.sub("", sentence), claim_words, cited_chunks)
-                if unentailed:
-                    failures.append(unentailed)
+                introduced = _introduced_polarity(sentence, cited_chunks)
+                if introduced:
                     grounded = False
+                    failures.append(
+                        f"claim introduces {'/'.join(introduced)} its cited text "
+                        f"does not carry: {sentence[:80]!r}"
+                    )
         for n in markers:
             if 1 <= n <= len(chunks):
                 citations.append(Citation(sentence, n, grounded))

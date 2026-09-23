@@ -156,7 +156,10 @@ def test_guardrails_import_no_model_and_no_prompt():
 # The ask flow end to end (generation faked at the single seam)
 # ==========================================================================
 def _fake_generation(monkeypatch, text_out):
-    def fake(question, evidence, *, environment, request_id=None):
+    # `**context` mirrors the real signature's optional conversation context
+    # (`AM-58` prior questions). A stub that refuses it cannot exercise any
+    # follow-up path, and fails with a TypeError that looks like a product bug.
+    def fake(question, evidence, *, environment, request_id=None, **context):
         return generation.GenerationResult(
             text=text_out, model="fake-model@test", prompt_version="test-1",
             payload_sha256="0" * 64, latency_ms=1)
@@ -733,14 +736,13 @@ def test_a_document_less_conversation_refuses_instead_of_erroring(api, db, seede
     assert reply.status_code == 201, reply.text
     payload = reply.json()["data"]
     assert payload["answer_state"] == "NO_EVIDENCE_RETRIEVED"
-    # A Department User may read the positions (AB-12 r7), so they were consulted
-    # before the refusal (2026-09-09) and the wording says so — and still says that
-    # no document is attached and why the law itself cannot be answered here.
-    assert payload["text"].startswith(
-        "Information not found in the organization's approved positions.")
-    assert "No document is attached" in payload["text"]
+    # A law question consults no position — a standard is not a statement of the law
+    # (2026-09-23) — so the wording names nothing as searched, and still says that no
+    # document is attached and why the law itself cannot be answered here.
+    assert payload["text"].startswith("No document is attached")
+    assert "approved positions" not in payload["text"]
     assert "Statutory text is not yet part" in payload["text"]
-    assert payload["domains"] == ["POSITIONS"] and payload["document_version_id"] is None
+    assert payload["domains"] == [] and payload["document_version_id"] is None
 
 
 def test_a_statute_question_with_a_document_says_why_the_law_is_unavailable(
@@ -753,8 +755,8 @@ def test_a_statute_question_with_a_document_says_why_the_law_is_unavailable(
                       document_version_id=version.id, permissions=USER_PERMS,
                       question="What does Section 138 of the Negotiable Instruments Act say?")
     assert out.answer_state.value != "ANSWERED"
-    assert out.text.startswith("Information not found in the selected document or in "
-                               "the organization's approved positions.")
+    # The positions are no fallback for a law question (2026-09-23).
+    assert out.text.startswith("Information not found in the selected document.")
     assert "Statutory text is not yet part" in out.text
 
 
@@ -841,8 +843,9 @@ def test_a_document_less_statute_question_is_answered_from_the_corpus_with_act_a
     out = service.ask(db, conversation_id=conv, document_version_id=None,
                       permissions=USER_PERMS,
                       question="What does section 3 of the Synthetic Widgets Act say?")
-    # STATUTES was the primary route; the positions were consulted as the fallback.
-    assert out.domains == ("POSITIONS", "STATUTES")
+    # STATUTES was the primary route. A standard is not a statement of the law, so
+    # the positions are no fallback for a law question (2026-09-23).
+    assert out.domains == ("STATUTES",)
     assert out.answer_state.value == "ANSWERED"
     assert out.statutes and out.statutes["answer_state"] == "ANSWERED"
     assert out.statutes["citations"][0]["citation"] == "The Synthetic Widgets Act, 2099, s. 3"
@@ -905,10 +908,9 @@ def test_document_and_statute_answers_stay_in_separate_sections(db, user, indexe
                       document_version_id=version.id, permissions=USER_PERMS,
                       question='What notice does this contract require for termination, and '
                                'what does section 3 of the Synthetic Widgets Act say?')
-    # POSITIONS is recorded too (2026-09-10): the caller holds the position grant,
-    # so the ratified positions are searched beside a document answer — whether
-    # or not one matched, the record names what was searched (AM-46).
-    assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
+    # The question refers to an Act, so the positions are not searched beside it —
+    # a standard is not a statement of the law (2026-09-23).
+    assert out.domains == ("DOCUMENT", "STATUTES")
     assert out.answer_state.value == "ANSWERED"
     assert out.statutes and out.statutes["text"] and out.statutes["citations"]
     assert out.statutes["citations"][0]["citation"].startswith("The Synthetic Widgets Act")
@@ -1103,7 +1105,9 @@ def test_a_document_answer_carries_the_relevant_position_beside_it(
             model="fake-model@test", prompt_version="test-1",
             payload_sha256="0" * 64, latency_ms=1)
     monkeypatch.setattr(service.generation, "generate", fake)
-    question = '"termination for convenience" notice'
+    # Worded so the position clears the calibrated gate: beside a document answer a
+    # position must be semantically near, not merely share lexemes (2026-09-23).
+    question = '"termination for convenience" notice to end the agreement'
     out = service.ask(db, conversation_id=_conversation(db, user, contract),
                       document_version_id=version.id, permissions=USER_PERMS,
                       question=question)
@@ -1144,7 +1148,9 @@ def test_the_assessment_is_the_evaluators_existing_finding_and_needs_finding_vie
     finding = make_finding(db, review, rv, classification=E.FindingClassification.MATCH,
                            status=E.FindingStatus.OPEN)
 
-    question = '"termination for convenience" notice'
+    # Worded so the position clears the calibrated gate: beside a document answer a
+    # position must be semantically near, not merely share lexemes (2026-09-23).
+    question = '"termination for convenience" notice to end the agreement'
     with_view = service.ask(db, conversation_id=_conversation(db, user, contract),
                             document_version_id=version.id,
                             permissions=USER_PERMS | {"finding.view"}, question=question)
@@ -1179,7 +1185,7 @@ def test_the_fallback_never_reaches_a_caller_without_the_position_grant(
 
 
 def test_every_non_answer_cause_consults_the_other_sources(
-        db, user, indexed_contract, tmp_path, monkeypatch):
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
     """Not only the closed gate: an ungrounded answer, an unavailable model and a
     refused egress all arrive at the same convergence point."""
     from legalmind.assist import generation
@@ -1206,7 +1212,7 @@ def test_every_non_answer_cause_consults_the_other_sources(
 
 
 def test_a_document_less_general_question_is_answered_from_the_positions(
-        db, user, tmp_path):
+        db, user, tmp_path, semantic_gate_open):
     """No document, no organization word, no statute word — the user should not
     have to know that the answer lives in the ratified standards."""
     _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
@@ -1238,8 +1244,10 @@ def test_mixed_sources_are_combined_and_each_is_attributed(
             model="fake", prompt_version="grounded-answer-1", payload_sha256="0" * 64,
             latency_ms=1)
     monkeypatch.setattr(generation, "generate", fake)
-    # Statute-shaped ("the Act") AND matching a position: both sources are relevant.
-    question = "Under the Act, how must a handler treat every widget with care?"
+    # Asks for the Act AND for our position: both sources are relevant. Asking for the
+    # law alone no longer brings a position with it (2026-09-23).
+    question = ("Under the Act, how must a handler treat every widget with care, and "
+                "what is our position on it?")
     out = service.ask(db, conversation_id=_conversation(db, user, contract),
                       document_version_id=version.id, permissions=USER_PERMS,
                       question=question)

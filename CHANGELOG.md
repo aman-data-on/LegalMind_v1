@@ -10,6 +10,47 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-23 — `AM-77`: a Company Standard is no longer presented as the answer to a question it cannot answer
+
+The final Ask readiness P0. "What does Indian law say about penalty clauses?" was
+answered from a governing-law and a GST standard, admitted on `indian` + `law` after
+the statutes were silent — and it was not one case. On the frozen 76-case matrix,
+**12** questions about the law were shown a Company Standard, and with a document open
+"who are the parties to this agreement?" drew a Partner Agreement notice position on
+`parti` + `agreement`.
+
+Root cause: the position lane had neither half of a rule the statute lane already
+had. Domain C is never a fall-through for a question that did not ask about the law
+unless a gated vector neighbour vouches for the hit (`require_semantic`), and the
+positions are no fallback for a foreign-law question. The positions were a fallback
+for every question and qualified on shared words. Two rules, each a mirror of an
+existing one (`AM-77`, amending `AM-50` r2 narrowly):
+
+* **r1** — `routing.plan`: a question about the law that does not mention the
+  organization has no position fallback. `LegalQuestionSignals.references_law` keeps a
+  law reference visible where a document target vetoed the statute route, and the
+  jurisdiction signal now reads "Indian … law" as it already read "India's … law".
+* **r2** — `positions.search_positions(require_semantic=True)` at both fall-through
+  call sites; the primary position route (strict floor + rescue) is untouched.
+* **r4** — "is this MSA ok for us?" routes to the evaluator ("ok/okay" as an
+  acceptance word unless a "to"/"if" clause follows).
+* The topic-fallback recursion now passes `allow_relax` through — a withheld rescue
+  had been re-enabled on that path.
+
+| 76-case matrix | before | after |
+|---|---|---|
+| law questions answered with a position | 12 | **0** |
+| position quoted as "relevant" without being asked | 12 | 7 (all semantically gated) |
+| must-refuse | 6/6 | 6/6 |
+| Gemini calls / question | 1.87 | **1.24** |
+| p50 | 1906 ms | 1678 ms |
+
+22-question readiness set: unrelated-position answers **4 → 0**; "liability cap??"
+with an MSA open, auto-renewal, termination, confidentiality, follow-ups and
+exact-text requests unchanged. Accepted cost: a terse no-document question with no
+"our" whose nearest position sits under the 0.50 floor now refuses. Suite 2522 passed,
+112 skipped, 0 failed; ruff and mypy clean.
+
 ### Changed — CI triggers on `main` and pull requests only, so a green PR stops reading "Checks failing" (2026-09-22)
 
 `.github/workflows/ci.yml` fired on `pull_request` **and** `push` for every branch, so one
@@ -539,6 +580,78 @@ calls/question, 131,926 prompt and 3,964 output tokens across 54 answers (≈73
 output tokens per answer). Latency p50/p95: total 2028/3617 ms, generation 1745/2086,
 rerank 131/454, retrieval 11/27. The token *delta* from the brevity rule is **not**
 quantified — that would need a second paid gate run, and the cost guard allows one.
+
+### Changed — Ask answers in its own words, and quotes the clause when you ask for it (`AM-76`, AB-26) (2026-09-21)
+
+**The defect.** `AM-67` r3 required the ratified quote beside every Domain A answer,
+"always", and called a response without it a defect. Measured on the live corpus
+2026-09-20, that is what made Ask read as an extract: **0 of 10** real questions got a
+plain-language answer — the reader asked a question and was handed a pointer sentence
+and a clause. `AM-76` supersedes r3 (owner decision, appended to `all_lock.md` as
+batch AB-26). A normal question is now answered by a short grounded paraphrase with
+its citation; the ratified text is shown when the reader asks for it, or when the
+paraphrase cannot be verified.
+
+**Verbatim on request is detected in code, not by the model** —
+`intent.is_exact_text_request`, in the same relation style as every other predicate
+there: an exactness word AND a word naming the text itself, or a word that can only
+mean "the source's own words". Either signal alone is ordinary legal English, so
+"what exactly is the cap?" and "what does the clause say about termination?" stay
+normal questions. Covers English, Devanagari and romanized Hindi (`AM-69`); measured
+8/8 detected, 0/10 false positives.
+
+**The quote never leaves the payload.** `AM-32` r4 is untouched — it still travels in
+its own field with code, clause, version and ratification status. The interface
+collapses it behind "Show exact wording" (a native `<details>`, as `EvidenceList` and
+`EvaluationRow` already use, so it is keyboard-operable and announced correctly with
+no custom ARIA), and opens it when the server says the reader asked.
+
+### Fixed — the verifier now checks what a claim ASSERTS, not how closely it echoes (2026-09-21)
+
+Measured over 18 labelled answers on four ratified positions — source-like, light
+paraphrase, moderate paraphrase, unsupported, mixed:
+
+| | correct pass | correct reject | **admitted** | fell back |
+|---|---|---|---|---|
+| before | 7 | 6 | **2** | 3 |
+| after | 7 | 8 | **0** | 3 |
+
+The two that had been admitted are the shapes a word ratio cannot see, because each is
+built from the source's own vocabulary: a position **inverted** ("may only be
+terminated with the written consent of both parties", overlap 0.62, against a clause
+saying either party may terminate on notice) and a **carve-out the source does not
+make** ("except in cases of gross negligence", overlap 0.67, against a cap that carves
+out nothing). Both are refused by exact checks on polarity classes — exclusivity and
+exception — beside the existing check on figures.
+
+**The grounding floor was NOT lowered, no model was added, and lexical overlap is not
+claimed to prove semantic correctness** (`AM-76` r6; `AM-28` r2 unamended). A general
+NEGATION class was built, measured and **removed**: a negation is often a faithful
+restatement of something stated positively — "may terminate for convenience" does mean
+"a breach is not required" — and it rejected an answer the owner had already judged
+grounded. It caught nothing the other classes did not.
+
+Three of eighteen still fall back to the quote: paraphrases that replace the source's
+nouns ("confidentiality lasts" for "obligations survive"). Separating those from an
+invented clause needs entailment, which r6 forbids in the guardrail. The owner's own
+target sentence verifies at 0.83 and is unaffected.
+
+### Fixed — a statute question no longer carries unrelated Company Standards (2026-09-21)
+
+"What does section 43A of the IT Act say about compensation?" was answered correctly
+from the Act and then carried three Distribution Agreement positions beside it. They
+entered through Domain A's **relax pass**, a rescue that admits a chunk sharing ONE
+"subject" lexeme (any lexeme occurring in two or more positions) when the strict
+two-lexeme floor finds nothing — the right trade when a reader asks the organization
+about its own paper, the wrong one for a question about the law.
+
+The rescue is now withheld when the question is statute-shaped. POSITIONS stays a
+candidate domain and stays in the recorded `domains` (`AM-46`); only what QUALIFIES as
+a hit changes. **Verified that legitimate cross-domain retrieval still works:** "What
+does Indian law say about indemnity?" still returns `INDEMNITY-MSA-001`, because it
+clears the strict floor on a real subject match. `AM-32` r1 is a separation rule, not
+a retrieval-coverage rule, and `AM-45` r1(b) already makes the candidate set
+shape-sensitive — no amendment was needed.
 
 
 ### Fixed — `main` was red after `AM-73`: the Domain A regression test outlived its specification (2026-09-20)

@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from legalmind import config
-from legalmind.assist import intent
+from legalmind.assist import understanding
 from legalmind.domain.document_types import readable as _readable_document_type
 from legalmind.security import permissions as P
 
@@ -76,6 +76,20 @@ class RoutePlan:
     #: The question asked about the law itself. Recorded even when STATUTES is not a
     #: candidate, so the refusal can name the real limitation.
     statute_shaped: bool
+    #: What the question asks ABOUT (`understanding.authority`), carried so later
+    #: stages can tell "the reader wants the organization's position" from "nothing
+    #: indicated which kind of source this is". Not a permission and not a plan.
+    asked_authority: frozenset[str] = frozenset()
+    #: POLICY: what a COMPLIANCE ASSESSMENT needs before it can run at all, and does
+    #: not have. Empty for every question that is not one, and for one that can run.
+    #: Reported to the reader instead of answering an easier question in its place.
+    unmet: tuple[str, ...] = ()
+    #: POLICY: may a SUPERSEDED source answer this question? Understanding says which
+    #: time the reader asked about (`temporal`); this says whether a repealed Act is
+    #: therefore admissible. Default False — a question that says nothing about time
+    #: is asking what is true now, and answering it from repealed law is the failure
+    #: the in-force filter exists to prevent (`AM-71`'s shape). Fail closed.
+    include_superseded: bool = False
     #: WHICH deterministic signals produced `statute_shaped` — for the routing log and
     #: for a human reconstructing a decision. Never rendered to a reader.
     statute_signals: tuple[str, ...] = ()
@@ -111,11 +125,39 @@ class RoutePlan:
 
 
 def plan(question: str, *, has_document: bool, permissions: frozenset[str],
-         statutes_available: bool = False) -> RoutePlan:
+         statutes_available: bool = False,
+         statute_jurisdictions: frozenset[str] = frozenset(),
+         understood: understanding.QuestionUnderstanding | None = None) -> RoutePlan:
+    """The domain plan. `understood` is the question read once (`understanding.
+    understand`); it is derived here when a caller has not already done so, so no
+    caller is obliged to change and the predicates run exactly once per turn."""
     question = question or ""
-    comparison = has_document and intent.is_comparison_question(question)
-    signals = intent.legal_question_signals(question)
-    statute_shaped = signals.general_law
+    u = understood if understood is not None else understanding.understand(question)
+    # `has_document` gates the comparison because it is the ROUTER's decision, not a
+    # property of the question (`AM-25` r4): asking whether a document complies is the
+    # same question with or without one attached, and what changes is whether the
+    # evaluator can run.
+    # A COMPLIANCE ASSESSMENT is a request whether or not it can be served. Its
+    # prerequisites are resolved here, before retrieval, and reported as themselves.
+    #
+    # NEEDS_AUTHORITY is not a gap in this code. A statute creates no Requirement —
+    # "the DPDP Act does not create a Requirement", rule 7 — so there is no ratified
+    # standard derived from an Act to measure a document against, and none may be
+    # derived. Answering "does our NDA comply with the DPDP Act?" from the Company
+    # Standards would measure it against a yardstick the reader did not name.
+    unmet: list[str] = []
+    if u.operation.is_comparison:
+        if not has_document:
+            unmet.append("NEEDS_DOCUMENT")
+        if understanding.GENERAL_LAW in u.operation.against:
+            unmet.append("NEEDS_AUTHORITY")
+    # The evaluator answers a comparison against the organization's own position, and
+    # only that. `AM-25` r4 is unchanged: Ask never performs the comparison, it hands
+    # off to the Findings the deterministic evaluator already produced.
+    comparison = (has_document and u.operation.is_comparison
+                  and understanding.POSITION in u.operation.against)
+    signals = u.signals
+    statute_shaped = u.statute_shaped
     # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal
     # corpus at all: not the document, not the positions, not the statutes, and not as
     # a fallback. Returning here rather than emptying the sets afterwards is the point —
@@ -124,14 +166,14 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # `AM-68` locked 2026-09-15, option (b): the manifest is RENDERED, not generated.
     # `config.capability_route_enabled()` defaults to on; setting the env var to "off"
     # is the rollback, restoring the pre-amendment behaviour without a deploy.
-    if config.capability_route_enabled() and intent.is_capability_question(question):
+    if config.capability_route_enabled() and u.capability:
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), capability=True)
     # Same shape, same reason: nothing authorised answers it, so nothing is searched.
     # Unlike the capability route this needs no flag — NOT searching is always safe,
     # and it is what stops "what is an NDA?" being answered with three Company
     # Standards. What it may SAY is a separate question (see `service`).
-    if intent.is_general_knowledge_question(question):
+    if u.general_knowledge:
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), general_knowledge=True)
     candidates: set[Domain] = set()
@@ -140,21 +182,71 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # A comparison question is also a position question: the approved position is
     # half of what it asks for, and quoting it beside the Findings is exactly the
     # "cite both sides separately" the requirement names.
-    if (intent.mentions_organization(question) or comparison) \
+    if (u.mentions_organization or comparison) \
             and positions_permitted(permissions):
         candidates.add(Domain.POSITIONS)
-    if statute_shaped and statutes_available and P.ASSIST_ASK in permissions:
+    # JURISDICTION IS POLICY, not understanding. The question may NAME a jurisdiction;
+    # whether this system holds law for it is a fact about the corpus, and where it
+    # does not, the corpus is not a substitute. Measured 2026-09-23 before this rule:
+    # "what does Delaware law say about limitation of liability" and "under EU GDPR,
+    # what is the breach notification deadline" were both ANSWERED, from an Indian
+    # corpus. Neither stated foreign law — both returned a Company Standard quote —
+    # but a reader asking about Delaware should not be handed one.
+    #
+    # Unspecified stays permitted: most questions name no jurisdiction and the corpus
+    # answers them as it always has.
+    jurisdiction_covered = (u.jurisdiction == understanding.UNSPECIFIED
+                            or not statute_jurisdictions
+                            or u.jurisdiction in statute_jurisdictions)
+    # WHAT THE QUESTION ASKS ABOUT (`u.authority`) is not what may be searched. It
+    # widens the CANDIDATES only, and every one still passes the same permission test
+    # the shape-derived route does (`AM-45` r1). A source the caller may not read is
+    # not reachable through this door either.
+    asks_law = understanding.GENERAL_LAW in u.authority
+    if ((statute_shaped or asks_law) and statutes_available
+            and jurisdiction_covered and P.ASSIST_ASK in permissions):
         candidates.add(Domain.STATUTES)
+    if (understanding.POSITION in u.authority and positions_permitted(permissions)
+            and jurisdiction_covered):
+        candidates.add(Domain.POSITIONS)
     # Fallbacks: what else the caller may read. Authorization is the same test the
     # primary route applies — a domain the caller may not read is not a fallback
     # either, so its absence stays indistinguishable from an empty corpus.
+    # A named jurisdiction this system holds no law for is not answered from the
+    # organization's own positions either. A ratified Company Standard is what THIS
+    # organization will accept; it is not a statement of Delaware or EU law, and
+    # offering it to someone who asked for one is misleading by juxtaposition even
+    # though the quote is honestly labelled — which is exactly what the 2026-09-23
+    # baseline measured.
+    #
+    # Narrow on purpose: it applies only when the reader is asking about the LAW. "What
+    # is our position on Delaware disputes?" asks about the organization, and the
+    # organization can answer it.
+    #
+    # THE SAME HOLDS FOR THE LAW WE DO HOLD (2026-09-23). A standard is no more a
+    # statement of Indian law than of Delaware law. With the statutes silent, "what
+    # does Indian law say about penalty clauses" and six law-only questions in the
+    # 76-case matrix were answered with "the organization's approved position relevant
+    # to this question" — governing-law and GST standards admitted on `indian` + `law`.
+    # That is the wrong source whatever the lexical score, so it is decided here, by
+    # what the reader asked for, and never by what retrieval happened to match.
+    # A law REFERENCE counts even where a document target vetoed the statute route:
+    # "what does Indian law say about this confidentiality clause?" is still not a
+    # question the organization's governing-law standard answers.
+    law_only = (understanding.GENERAL_LAW in u.authority
+                and understanding.POSITION not in u.authority)
+    law_question = not u.mentions_organization and (
+        not jurisdiction_covered or law_only or signals.references_law)
     fallback: set[Domain] = set()
-    if positions_permitted(permissions):
+    if positions_permitted(permissions) and not law_question:
         fallback.add(Domain.POSITIONS)
-    if statutes_available and P.ASSIST_ASK in permissions:
+    if statutes_available and jurisdiction_covered and P.ASSIST_ASK in permissions:
         fallback.add(Domain.STATUTES)
     fallback -= candidates
     return RoutePlan(comparison=comparison,
+                     asked_authority=u.authority,
+                     unmet=tuple(unmet),
+                     include_superseded=u.temporal.wants_past,
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,
                      statute_signals=signals.because,

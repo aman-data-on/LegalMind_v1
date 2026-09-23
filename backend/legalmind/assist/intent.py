@@ -161,6 +161,10 @@ _ACCEPTANCE_WORDS = frozenset({
     "sign", "signing", "accept", "accepts", "accepted", "acceptable", "unacceptable",
     "approve", "approves", "agree", "chahiye", "हस्ताक्षर", "swikar",
 })
+# "Is this MSA OK for us?" judges the document; "is it OK for us to terminate early?"
+# asks a permission. The same word, told apart by grammar: OK counts as acceptance only
+# when no "to"/"if" clause follows it (2026-09-23).
+_OK_WORDS = frozenset({"ok", "okay"})
 # ... and it must be THIS document being signed, not signature rules in the abstract.
 # Without this leg, "what happens if we do not accept delivery?" is a signing question.
 _DOCUMENT_WORDS = frozenset({
@@ -234,8 +238,10 @@ def is_comparison_question(question: str) -> bool:
 
     # (B) Deciding whether to sign THIS document. All three legs, or "what happens if
     # we do not accept delivery?" and "who may sign on behalf of a company?" route here.
-    return bool(present & _DELIBERATING_SUBJECT
-                and present & _ACCEPTANCE_WORDS
+    accepting = bool(present & _ACCEPTANCE_WORDS) or any(
+        t in _OK_WORDS and not {"to", "if"} & set(tokens[i + 1:])
+        for i, t in enumerate(tokens))
+    return bool(present & _DELIBERATING_SUBJECT and accepting
                 and present & _DOCUMENT_WORDS)
 
 
@@ -311,7 +317,7 @@ _SECTION_REFERENCE = re.compile(r"\b(?:section|sec\.?|s\.)\s*\d+[a-z]?\b|"
 _JURISDICTION = re.compile(
     r"\b(?:in india|indian law|under indian law|law in india|under india)\b"
     # "India's DATA PROTECTION law" — the qualifier is a phrase, not one word.
-    r"|\bindia'?s\b[^?]{0,40}\blaw\b",
+    r"|\bindia(?:'?s|n)\b[^?]{0,40}\blaw\b",
     re.IGNORECASE)
 # Rule-seeking SHAPES, not legal vocabulary. "enforceable" and "liable" are ordinary
 # deal words and are deliberately absent: what marks a general-law question is that it
@@ -325,6 +331,20 @@ _RULE_FRAMING = re.compile(
     r"|\bunder (?:the )?law\b|\bby law\b|\blegally\b"
     r"|\bvalidly\b"                       # "who can VALIDLY sign" — a capacity question
     r"|\b(?:is|are|can|may)\b[^?]{0,60}?\b(?:valid|void|voidable|unlawful|illegal)\b",
+    re.IGNORECASE)
+# A question about the general law names no Act and no section: "are agreements in
+# restraint of trade valid in India?" is answered by the Contract Act, and before this
+# it was answered from governing-law POSITIONS instead — the organization's own clause
+# standing in for the law of the land.
+#
+# Deliberately NOT "mentions India". That would capture "does our MSA apply in India?",
+# which is a question about our paper. The marker is the JURISDICTION OF A LEGAL RULE:
+# "Indian law" itself, or asking whether something is lawful there. Measured over nine
+# probes including four position questions that mention India: zero misroutes.
+_GENERAL_LAW = re.compile(
+    r"\b(under|in|per)\s+indian\s+law\b|\bindian\s+law\b|"
+    r"\b(valid|enforceable|legal|lawful|permitted|allowed|prohibited|void)\s+"
+    r"(in|under)\s+india\b",
     re.IGNORECASE)
 
 # The reader's OWN paper. A document NOUN carrying a DEFINITE, demonstrative or
@@ -541,6 +561,13 @@ class LegalQuestionSignals:
     Recorded so a route can be explained after the fact. Never shown to a reader.
     """
     names_instrument: bool
+    #: The question refers to a legal source WITHOUT naming one — "which Act governs
+    #: X", "what does the law say". `names_instrument` only ever matched a source by
+    #: NAME, so a question that asked for the law in the abstract carried no source
+    #: signal at all and was answered from whatever else was authorized. Measured
+    #: 2026-09-23: that produced five wrong-source answers in 76, the only tier of
+    #: failure where a reader is shown a source that cannot answer their question.
+    generic_instrument: bool
     jurisdiction: bool
     rule_framing: bool
     legal_actor: bool
@@ -560,12 +587,20 @@ class LegalQuestionSignals:
         # conservative path, where `require_semantic` and the gate decide.
         if self.document_target or self.position_target or self.first_person:
             return False
-        return self.jurisdiction or self.rule_framing or self.legal_actor
+        return (self.jurisdiction or self.rule_framing or self.legal_actor
+                or self.generic_instrument)
+
+    @property
+    def references_law(self) -> bool:
+        """The question REFERS to law — by name, category or jurisdiction — whether or
+        not (B)'s negatives kept it off the statute route."""
+        return self.names_instrument or self.generic_instrument or self.jurisdiction
 
     @property
     def because(self) -> tuple[str, ...]:
         """The signals that fired, for the routing log."""
         named = (("names_instrument", self.names_instrument),
+                 ("generic_instrument", self.generic_instrument),
                  ("jurisdiction", self.jurisdiction),
                  ("rule_framing", self.rule_framing),
                  ("legal_actor", self.legal_actor),
@@ -575,12 +610,29 @@ class LegalQuestionSignals:
         return tuple(name for name, fired in named if fired)
 
 
+# A legal source referred to by CATEGORY rather than by name. The counterpart of
+# `ACT_ALIASES`, which lists sources by name: "the Companies Act" is a named
+# instrument, "which Act" and "what does the law say" are generic ones, and both are
+# explicit references to law rather than inferences from phrasing.
+#
+# It is NOT the impersonal-modal signal, which was measured earlier and REJECTED for
+# breaking a must-refuse case: "must be reported" is a phrasing that contractual
+# obligations share, whereas "the statute" names a kind of source and nothing else.
+#
+# It is a TIER-B positive, so the negatives still block it. "What is the rule in this
+# contract?" refers to a document, and a document is what answers it.
+_GENERIC_INSTRUMENT = re.compile(
+    r"\b(which|what)\s+(act|statute|law|legislation|rules?|code)\b"
+    r"|\b(the|under|in)\s+(law|statute|legislation|rules?)\b", re.IGNORECASE)
+
+
 def legal_question_signals(question: str) -> LegalQuestionSignals:
     """Score a question against the GENERAL LAW signals. Deterministic, no model."""
     text = question or ""
     tokens = _stems(text)
     return LegalQuestionSignals(
         names_instrument=_instrument_reference(text, tokens),
+        generic_instrument=bool(_GENERIC_INSTRUMENT.search(text)),
         jurisdiction=bool(_JURISDICTION.search(text)),
         rule_framing=bool(_RULE_FRAMING.search(text)),
         legal_actor=bool(_LEGAL_ACTOR.search(text)),
@@ -593,6 +645,59 @@ def legal_question_signals(question: str) -> LegalQuestionSignals:
 def is_statute_question(question: str) -> bool:
     """The Domain C candidate signal — `legal_question_signals(...).general_law`."""
     return legal_question_signals(question).general_law
+
+
+# --------------------------------------------------------------------------
+# The exact-text request (`AM-76`) — verbatim only when the reader asks for it
+# --------------------------------------------------------------------------
+# `AM-76` supersedes `AM-67` r3: a normal question is answered with a grounded
+# paraphrase, and the ratified text is quoted in full only when the reader asks for
+# it. That decision has to be read off the QUESTION, deterministically — the model
+# never decides whether the model's own output is wanted (`AM-25` r1).
+#
+# The shape is a relation, like every other predicate here: an EXACTNESS word plus a
+# word naming the TEXT ITSELF. Either alone is ordinary legal English —
+# "what exactly is the cap?" is emphasis, and "what does the clause say?" is the
+# commonest phrasing of a normal question. Neither may trigger verbatim.
+_EXACTNESS_STEMS = ("verbatim", "exact", "literal", "precise", "origin", "actual",
+                    "wordforword", "asis",
+                    # Devanagari + romanized: "शब्दशः" (word for word), "हूबहू"
+                    # (exactly as is), "मूल" (original), "ठीक", "asli", "hubahu"
+                    "शब्दश", "हूबहू", "मूल", "ठीक", "असल",
+                    "hubahu", "shabdsh", "shabdash", "asli", "jaisakatais")
+_TEXT_WORDS = frozenset({
+    "wording", "word", "words", "text", "language", "quote", "quotation", "quoted",
+    "clause", "wordings", "passage", "extract", "excerpt", "phrasing", "line",
+    "lines", "sentence", "paragraph",
+    # "what exactly does the Constitution SAY?" — the utterance itself. Safe only
+    # because an exactness word is still required: "what does the clause say about
+    # termination?" is a normal question and stays one.
+    "say", "says", "said", "state", "states", "stated", "worded",
+    # Romanized/Devanagari for the text itself
+    "likha", "likhi", "shabd", "bhasha", "panktiyan",
+    "शब्द", "पाठ", "भाषा", "लिखा", "वाक्य", "पंक्ति",
+})
+# "quote the clause", "show me verbatim" — a word that can only mean "the source's
+# own words" is the request on its own, with nothing to pair it with.
+_QUOTE_VERB_STEMS = ("quote", "quoting", "verbatim", "wordforword",
+                     "उद्धृत", "udhrit", "शब्दश", "हूबहू", "hubahu", "shabdsh")
+
+
+def is_exact_text_request(question: str) -> bool:
+    """True when the reader asked for the source's own words rather than an answer.
+
+    `AM-76`: verbatim is not the default. Returning the clause to someone who asked
+    "how can a partner agreement be ended?" is the defect this exists to prevent, so
+    the bar is an explicit request — both signals, or an explicit instruction to
+    quote.
+    """
+    tokens = _stems(question or "")
+    if not tokens:
+        return False
+    if _hits(tokens, _QUOTE_VERB_STEMS):
+        return True
+    return bool(_hits(tokens, _EXACTNESS_STEMS)
+                and {t for t in tokens if t in _TEXT_WORDS})
 
 
 # --------------------------------------------------------------------------

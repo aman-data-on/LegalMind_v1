@@ -48,6 +48,7 @@ from legalmind.assist import (
     routing,
     statutes,
     store,
+    understanding,
 )
 
 # `AM-25` r4 — routed to the evaluator, never answered generatively. The screen is
@@ -62,6 +63,17 @@ EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
     "assistant — its Findings for this document are attached below.")
+NEEDS_DOCUMENT_TEXT = (
+    "This asks whether a document meets a standard, and no document is open in this "
+    "conversation. Open the document you want assessed and ask again — the comparison "
+    "is made by the deterministic evaluator against that document's Findings.")
+NEEDS_AUTHORITY_TEXT = (
+    "This asks whether a document complies with a law. The evaluator measures a "
+    "document against the organization's ratified Company Standards, and none of them "
+    "is derived from an Act — a statute states the law, it does not set the position "
+    "the organization has approved. I can read what the Act itself says, or how the "
+    "document stands against the approved standards, but those are two different "
+    "questions and I will not answer one as though it were the other.")
 EVALUATOR_NO_REVIEW_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
@@ -90,6 +102,9 @@ class AskOutcome:
     message_id: UUID
     answer_state: AssistAnswerState
     text: str
+    #: The reader asked for the source's own words (`AM-76` r2), so the quote in
+    #: `positions` is the answer and the UI opens it rather than collapsing it.
+    exact_text_requested: bool = False
     citations: list[CitationView] = field(default_factory=list)
     routed_to_evaluator: bool = False
     # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
@@ -667,11 +682,20 @@ GENERAL_KNOWLEDGE_TEXT = (
     "Ask me about your standards or open a document, and I will answer from the text."
 )
 
+# `AM-76` (AB-26, owner 2026-09-21) SUPERSEDES `AM-67` r3. Verbatim is no longer the
+# default: a normal question is answered with a grounded paraphrase and its citation,
+# and the ratified text is shown in full only when the reader asked for it or when the
+# paraphrase could not be verified. These sentences are the fallback and the
+# exact-text wording respectively — they are what a reader sees INSTEAD of a
+# paraphrase, never appended to one.
 POSITIONS_ONLY_TEXT = ("The organization's approved position relevant to this question "
                        "is quoted below, verbatim from the ratified standard.")
 POSITIONS_BESIDE_TEXT = (
     "No answer was found in the selected document. The organization's approved "
     "position relevant to this question is quoted below.")
+# The reader asked for the source's own words (`AM-76`; `intent.is_exact_text_request`).
+POSITIONS_EXACT_TEXT = ("You asked for the exact wording. The ratified standard is "
+                        "quoted below, unchanged.")
 POSITION_LIMIT = 3
 
 
@@ -849,7 +873,21 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # (`routing.plan` still takes the caller's live permission set), and an earlier
     # ANSWER is never read (`AM-30` t2). The persisted USER turn is the raw question.
     prior = _prior_questions(db, conversation_id, user_message_id)
-    follow_up = bool(prior) and intent.is_follow_up(question)
+    # An EXACT-TEXT request is always about something already discussed — "the
+    # clause", "that wording", "it". It carries no subject of its own, so left
+    # unresolved its retrieval query is "quote ... clause ... verbatim", which matches
+    # no clause in the document. Measured 2026-09-22 on a live NDA: "Quote the
+    # termination clause verbatim", asked straight after a termination answer,
+    # retrieved ZERO document chunks and fell through to two ratified standards for
+    # VENDOR_AGREEMENT and DISTRIBUTION_AGREEMENT — neither the reader's document nor
+    # its type. It inherits the previous turn's subject for the same reason a
+    # follow-up does, through the same resolver; with no prior turn nothing changes.
+    # The question AS ASKED, read once. Routing separately understands the RESOLVED
+    # query (question + inherited subject) — they are different strings and mean
+    # different things, so each gets its own reading rather than one being reused for
+    # the other.
+    asked = understanding.understand(question)
+    follow_up = bool(prior) and (asked.follow_up or asked.exact_text)
     prior_texts: list[str] = []
     follow_up_of: list[UUID] = []
     resolved = question
@@ -875,7 +913,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         permissions = frozenset({"assist.ask"})
     route = routing.plan(resolved, has_document=document_version_id is not None,
                          permissions=permissions,
-                         statutes_available=statutes.available(db))
+                         statutes_available=statutes.available(db),
+                         statute_jurisdictions=statutes.jurisdictions(db))
     domains = tuple(d.value for d in route.domains)
     # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
     # enforcement: nothing below this line can reach a document, a position, a statute
@@ -942,15 +981,32 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=_relax_allowed(route))
     # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
     statute_hits: list[statutes.StatuteHit] = []
     if route.has(routing.Domain.STATUTES):
         with _stage("statutes"):
             statute_hits = statutes.search_statutes(db, query=resolved,
+                                                    include_superseded=route.include_superseded,
                                                     permissions=permissions)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.
+    # A COMPLIANCE ASSESSMENT whose prerequisites are not met is reported as itself.
+    # Falling through here is what used to turn "does our NDA comply with the DPDP
+    # Act?" into an ordinary position lookup, answering a question the reader did not
+    # ask and attaching a yardstick they did not name.
+    if route.unmet:
+        text_out = (NEEDS_AUTHORITY_TEXT if "NEEDS_AUTHORITY" in route.unmet
+                    else NEEDS_DOCUMENT_TEXT)
+        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT", text_out)
+        _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                        model=None, prompt_version_id=None, latency_ms=None)
+        log_event("assist.ask.needs_prerequisite", request_id=request_id,
+                  conversation_id=str(conversation_id), unmet=",".join(route.unmet))
+        return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                          answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                          text=text_out, domains=domains)
+
     if route.comparison:
         comparison = _latest_review_summary(db, document_version_id)
         route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT
@@ -1110,7 +1166,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=_relax_allowed(route),
+                require_semantic=True)
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
@@ -1165,6 +1222,27 @@ STATUTES_BESIDE_TEXT = (
     "below, cited by Act and section.")
 
 
+def _relax_allowed(route: routing.RoutePlan) -> bool:
+    """May the position lane use its RELAX rescue for this question?
+
+    The rescue admits a chunk sharing ONE lexeme, and `positions.search_positions`
+    states its own premise: it is "the right trade when the reader is asking the
+    organization about its own paper". This enforces that premise instead of assuming
+    it. Measured on the live corpus 2026-09-23: "what's the weather in pune" reached
+    the governing-law standard through `pune` — a real venue lexeme in a real
+    standard — and "how long do I have to file an appeal" and "draft me an NDA"
+    reached NDA standards the same way, each then quoted to the reader as "the
+    organization's approved position relevant to this question".
+
+    The strict floor is untouched, the calibrated gate is untouched, and the rescue
+    still runs for every question that IS about the organization's own material —
+    including "Explain our termination standard.", which shares exactly one lexeme
+    with every termination chunk and is the reason the rescue exists (2026-09-16).
+    """
+    return (not route.statute_shaped
+            and understanding.POSITION in route.asked_authority)
+
+
 def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
                        route: routing.RoutePlan, domains: tuple[str, ...],
                        position_hits: list, statute_hits: list,
@@ -1189,7 +1267,8 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
         if domain is routing.Domain.POSITIONS and not position_hits:
             position_hits = positions.search_positions(
                 db, query=question, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=_relax_allowed(route),
+                require_semantic=True)
         elif domain is routing.Domain.STATUTES and not statute_hits:
             # Source priority, not a fixed sweep: the statute corpus is a fallback
             # for a question about the law (statute-shaped) or for one nothing
@@ -1197,7 +1276,31 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
             # position already answers is NOT also put to 5,000 statute sections —
             # measured live, that produced a grounded Copyright Act answer about
             # licence termination beside the relevant position on notice periods.
-            if position_hits and not route.statute_shaped:
+            # PRESENCE OF ROWS IS NOT THE SAME AS "THE POSITIONS ANSWER IT".
+            # Position retrieval is lexical-first and ungated — "a lexical hit is
+            # trusted on its own" — so two shared lexemes returns rows. Measured
+            # 2026-09-23: "within what time must a cyber incident be reported?"
+            # matched CLAIM-WINDOW-SLA-001, "how long do I have to file an appeal?"
+            # matched CONF-SURVIVAL-NDA-001, and on the strength of those coincidences
+            # the statute corpus was never searched at all — though it holds the
+            # CERT-In Directions and IT Act s.57 that answer them.
+            #
+            # The original rule's intent stands and is kept: a question the
+            # organization's own position genuinely answers is not also put to 5,000
+            # statute sections. What changes is the test. Suppression now requires
+            # that the reader actually asked about the organization's material —
+            # `authority` carries that — instead of inferring it from the fact that
+            # a lexical query returned something.
+            # "The organization's own material already answered" presupposes that the
+            # question IS about the organization's own material. Two ways that is
+            # true: a document is open — the reader is working on their paper, and
+            # the pre-existing guard below covers exactly that case — or the question
+            # asks about our position. Neither holds for the three measured failures:
+            # no document, no position asked for, and a two-lexeme coincidence was
+            # doing the deciding.
+            own_material = (understanding.POSITION in route.asked_authority
+                            or route.has(routing.Domain.DOCUMENT))
+            if position_hits and not route.statute_shaped and own_material:
                 continue
             statute_hits = statutes.search_statutes(
                 db, query=question, permissions=permissions,
@@ -1331,20 +1434,29 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     if not position_hits and not statute_answered:
         return _refusal(db, conversation_id, message_id, run_id, state, route, question)
     aid: generation.GenerationResult | None = None
+    # Read off the QUESTION, deterministically — the model never decides whether its
+    # own output is wanted (`AM-25` r1, `AM-76` r2).
+    exact_text_requested = understanding.understand(question).exact_text
     if statute_answered:
         wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else STATUTES_ONLY_TEXT)
     else:
-        wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
-                   else POSITIONS_ONLY_TEXT)
-        # `AM-67` r3 — the synthesis is PREPENDED to the fixed sentence, so the
-        # verbatim quote and its citation still follow in `positions`, unchanged and
-        # in their own field. A response carrying a synthesis without its quote is a
-        # defect; this shape makes that impossible.
-        with _stage("position_aid"):
-            aid = _position_reading_aid(question, position_hits, request_id)
-        if aid:
-            wording = f"{aid.text}\n\n{wording}"
+        # `AM-76` r1-r3. Three outcomes, in this order:
+        #   the reader asked for exact text  -> the quote, and no paraphrase
+        #   a paraphrase verified            -> the paraphrase alone
+        #   it did not                       -> the quote (fail closed, r4)
+        # The quote itself always remains in `positions` whichever path runs, so the
+        # citation and its provenance are never lost (`AM-32` r4 untouched); what
+        # changes is whether the reader is SHOWN it instead of an explanation.
+        if exact_text_requested:
+            wording = POSITIONS_EXACT_TEXT
+        else:
+            wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
+                       else POSITIONS_ONLY_TEXT)
+            with _stage("position_aid"):
+                aid = _position_reading_aid(question, position_hits, request_id)
+            if aid:
+                wording = aid.text
     # The answer row names the prompt that produced its generated part — the statute
     # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
     # so `prompt_version_id` was NULL on every `AM-67` answer.
@@ -1376,5 +1488,6 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
               statutes=str(statute_answered))
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=wording,
+                      exact_text_requested=exact_text_requested,
                       positions=_position_views(position_hits), domains=domains,
                       statutes=statute_section)

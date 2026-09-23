@@ -19588,3 +19588,190 @@ r8. **A ratified standard must find the very clause it cites.** `AM-73` ratified
     ratified by this record.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+AMENDMENT BATCH AB-26 — `AM-76`
+A grounded paraphrase by default; the verbatim text when the reader asks for it
+================================================================================
+
+**Owner decision, 2026-09-21**, given after `AM-67` was measured on the live corpus
+and found to produce extracts rather than answers. In the owner's own words:
+
+> "NORMAL ASK → concise, simple, grounded paraphrase + citation. EXPLICIT REQUEST
+> FOR EXACT TEXT → return the exact/verbatim source text + citation. Do NOT include
+> a long verbatim quote by default. The source remains the evidence. The answer
+> should explain the evidence in natural language."
+
+> "Gemini may explain retrieved evidence in natural language, but must not add
+> facts, conditions, exceptions, quantities, or legal conclusions not supported by
+> evidence."
+
+**Amends:** `AM-67` r3. **Does not amend:** `AM-67` r1, r2, r4–r8; `AM-32` r1, r4;
+`AM-30` t1–t10; `AM-28` r1–r2; `AM-26`; `AM-25` r1–r9; `AM-45`; `LEGAL-02`.
+
+Why this record exists. `AM-67` r3 required the ratified quote to be rendered beside
+every Domain A answer, "always", and called a response without it a defect. That rule
+was written to stop a synthesis REPLACING the source. Measured on the live corpus on
+2026-09-20, its effect was different: every Company Standard answer arrived as a fixed
+pointer sentence plus the clause, and 0 of 10 real questions received a plain-language
+answer. The reader asked a question and was handed an extract. The protection r3 gives
+is preserved below without that cost.
+
+```text
+r1   A PARAPHRASE IS THE DEFAULT. A normal Ask question about a Company Standard is
+     answered with a short, grounded explanation in natural language, with its
+     citation. The ratified quote is NOT appended to it. "Grounded" is not
+     "verbatim": the answer explains the evidence, it does not reproduce it.
+
+r2   VERBATIM WHEN, AND ONLY WHEN, THE READER ASKS. An explicit request for the
+     source's own words — "the exact wording", "quote the clause", "verbatim", "what
+     exactly does it say", "the original text" — is answered with the ratified text
+     itself and its citation. The request is detected DETERMINISTICALLY, in code
+     (`assist.intent.is_exact_text_request`), in every script the product accepts
+     (`AM-69`). The model never decides whether its own output is wanted
+     (`AM-25` r1).
+
+r3   THE QUOTE IS NOT REMOVED FROM THE RESPONSE. `AM-32` r4 is untouched: the
+     ratified text continues to travel in its own field with its code, clause,
+     version and ratification status, so the citation and its provenance are never
+     lost. What r1 changes is whether the reader is SHOWN the clause INSTEAD of an
+     explanation — a presentation rule, not a payload deletion. The interface
+     presents it collapsed, labelled, and opens it when r2 applies.
+
+r4   FAIL CLOSED TO THE AUTHORIZED QUOTE. `AM-67` r8 is reaffirmed and extended to
+     this shape: if generation is unavailable, or the guardrail rejects the
+     explanation, the reader receives the verbatim quote and its citation. A
+     paraphrase that cannot be verified is never shown, and never becomes a refusal
+     where authorized text exists.
+
+r5   THE EXPLANATION ADDS NOTHING. It may restate, shorten and simplify what the
+     evidence says. It may not add a fact, a condition, an exception, a quantity or
+     a legal conclusion the evidence does not carry. `AM-25` r5 governs as before:
+     enforcement is mechanical, outside the model, and every sentence still cites a
+     retrieved span or the answer is rejected.
+
+r6   NO MODEL ENTERS THE GUARDRAIL. `AM-28` r2 stands unamended — the verifier
+     imports no prompt and no model, and lexical overlap is NOT claimed to prove
+     semantic correctness. It is one signal beside exact checks on the elements that
+     carry legal meaning. Owner decision of the same day, recorded here so it is not
+     revisited: no entailment model, no semantic-similarity substitute, no provider
+     call for verification, and the grounding floor is not lowered.
+```
+
+**Recorded 2026-09-21.** Implemented and verified before the record was written.
+Measured on 18 labelled answers over four ratified positions — source-like, light
+paraphrase, moderate paraphrase, unsupported and mixed:
+
+    before this batch   7 correct-pass   6 correct-reject   2 ADMITTED   3 fell back
+    after               7 correct-pass   8 correct-reject   0 ADMITTED   3 fell back
+
+The two that had been admitted are the two shapes a word ratio cannot see, because
+each is built from the source's own vocabulary: a position INVERTED ("may only be
+terminated with the written consent of both parties", overlap 0.62, against a clause
+saying either party may terminate on notice) and a carve-out the source does not make
+("except in cases of gross negligence", overlap 0.67, against a cap that carves out
+nothing). Both are refused by exact checks on quantities and on polarity classes,
+neither of which is a threshold.
+
+A general NEGATION class was built, measured and REMOVED: a negation is frequently a
+faithful restatement of something the source states positively — "may terminate for
+convenience" does mean "a breach is not required" — and it rejected an answer the
+owner had already judged grounded. It caught nothing the other classes did not.
+
+Three of the eighteen still fall back to the quote. They are paraphrases that replace
+the source's nouns ("confidentiality lasts" for "obligations survive"). Separating
+those from an invented clause needs entailment, which r6 forbids in the guardrail.
+The owner's own target sentence — "Either party can end the Partner Agreement by
+giving at least 30 days' prior written notice" — verifies at 0.83 and is unaffected.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+AMENDMENT BATCH AB-27 — `AM-77`
+A position answers only what it can answer: never the law, never on shared words
+================================================================================
+
+**Recorded 2026-09-23**, under the owner's standing instruction for the final Ask
+readiness P0 ("If a locked decision is itself the reason the technically correct
+architecture cannot be implemented … update the relevant source-of-truth decision
+properly"), given the same day.
+
+**Amends:** `AM-50` r2, narrowly — only which fall-through position hits QUALIFY, and
+that a question about the law does not fall through to the positions at all.
+**Does not amend:** `AM-50` r1, r3–r5; `AM-25` r1–r9; `AM-28` r1–r2; `AM-32` r1–r10;
+`AM-45`; `AM-46`; `AM-47`; `AM-67`; `AM-76` r1–r6; `LEGAL-02`; `SEC-07`.
+
+Why this record exists. `AM-50` r2 says that when the document does not answer, "the
+other authorized sources the caller may see … are consulted before any refusal,
+exactly as they are when the router names them". Read literally, that makes a
+position retrieved on shared lexemes an answer to ANY question, and `AM-76` r4 then
+presents it as "the organization's approved position relevant to this question".
+Measured on the live corpus 2026-09-23, zero Gemini in the diagnosis:
+
+    "what does Indian law say about penalty clauses"  -> a governing-law and a GST
+        standard, on `indian` + `law` (the statutes were silent)
+    six further law-only questions in the frozen 76-case matrix -> the same shape
+    "who are the parties to this agreement?" (MSA open) -> a Partner Agreement
+        notice position, on `parti` + `agreement`
+    "give me the exact wording about ending the agreement early" -> an auto-renewal
+        and a support-responsibilities position
+
+A Company Standard states what the organization will ACCEPT. It never states what
+the law says, and a shared word is not evidence that it answers anything. The
+statute corpus already had both halves of this rule — a named jurisdiction the
+system holds no law for is not answered from the positions, and a fall-through
+statute hit needs a gated semantic neighbour (`require_semantic`, 2026-09-09) — and
+the position lane had neither.
+
+```text
+r1   A STANDARD IS NO FALLBACK FOR A QUESTION ABOUT THE LAW. When the reader asks
+     for the law — its authority is GENERAL_LAW and not POSITION, or it refers to
+     law by name, category or jurisdiction — and does not mention the organization,
+     the organization's positions are not a fall-through source. Decided in
+     `routing.plan` from the question alone, so the recorded domains and the AM-46
+     refusal wording stay a function of what the caller already holds. A question
+     that asks for the law AND for our position ("what does Indian law say about
+     our liability cap?") keeps the positions as a primary source, unchanged.
+
+r2   A FALL-THROUGH POSITION NEEDS SEMANTIC EVIDENCE. Where the positions are
+     consulted because the reader did NOT ask about our position, a position
+     qualifies only through the calibrated vector gate (`calibration.gate_is_open`,
+     floor and peak margin unchanged); shared lexemes alone leave Domain A silent.
+     Asking about our position IS the relevance signal, so the primary route — its
+     strict floor and its rescue — is untouched.
+
+r3   NOTHING ELSE MOVES. No threshold, stoplist, topic list or model is introduced;
+     the gate, the verifier, AM-76 r4's fail-closed quote, authorization inside the
+     query and the AM-71 exclusion are unchanged. Both rules only turn a hit into
+     silence, never silence into an answer — the direction F-4 permits.
+
+r4   "IS THIS OK FOR US?" IS THE EVALUATOR'S QUESTION. `AM-50` r3's precedent,
+     extended by one word pair: "ok / okay" joins the acceptance words of the
+     deciding-to-sign shape, and only where no "to" / "if" clause follows it — "is
+     this MSA ok for us?" judges the document; "is it ok for us to terminate early?"
+     asks a permission and is unchanged. Measured: it had been answered with three
+     arbitrary MSA positions admitted on the single lexeme `msa`.
+```
+
+**Measured before the record was written** (live corpus, rolled-back transactions):
+
+    76-case matrix                      before   after
+      law questions answered w/ a position  12       0
+      position quoted as "relevant" to a
+        question that did not ask for one   12       7   (all 7 semantically gated)
+      must-refuse                          6/6     6/6
+      Gemini calls / question              1.87    1.24
+      p50                                 1906 ms 1678 ms
+
+    22-question readiness set: unrelated-position answers 4 -> 0; "liability cap??"
+    (MSA open), auto-renewal, termination, confidentiality, follow-ups and exact-text
+    requests unchanged.
+
+The accepted cost, stated: a terse question with nothing open and no "our" whose
+nearest position sits under the 0.50 floor — "governing law" at no document — now
+refuses where a lexical hit used to answer. Adding "our" makes it a position
+question and it answers. That is the Domain A calibration gap already recorded
+(2026-09-18), not a new one.
+
+--------------------------------------------------------------------------------
+AM-77: a position answers only what it can answer
