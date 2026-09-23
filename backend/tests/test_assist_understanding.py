@@ -335,3 +335,41 @@ def test_this_is_not_the_impersonal_modal_signal_that_was_rejected():
     for question in ("Notice must be given within thirty days.",
                      "The fee must be paid before renewal."):
         assert not intent.legal_question_signals(question).generic_instrument
+
+
+# --------------------------------------------------------------------------
+# Step 6 — a lexical coincidence must not decide which source is consulted
+# --------------------------------------------------------------------------
+def test_the_route_carries_what_the_question_asked_about():
+    """`asked_authority` is understanding's answer travelling with policy's plan, so
+    a later stage can tell "the reader wants our position" from "nothing indicated
+    which kind of source this is". It is not a permission and not a plan."""
+    route = routing.plan("What is our position on auto-renewal?", has_document=False,
+                         permissions=PERMS, statutes_available=True,
+                         statute_jurisdictions=frozenset({"IN"}))
+    assert understanding.POSITION in route.asked_authority
+    neutral = routing.plan("Within what time must a cyber incident be reported?",
+                           has_document=False, permissions=PERMS, statutes_available=True,
+                           statute_jurisdictions=frozenset({"IN"}))
+    assert understanding.POSITION not in neutral.asked_authority
+
+
+def test_a_position_hit_suppresses_the_statutes_only_when_positions_were_asked_for():
+    """The defect, stated as a rule. Position retrieval is lexical-first and ungated —
+    "a lexical hit is trusted on its own" — so two shared lexemes returns rows.
+    Measured 2026-09-23: "within what time must a cyber incident be reported?" matched
+    CLAIM-WINDOW-SLA-001 and "how long do I have to file an appeal?" matched
+    CONF-SURVIVAL-NDA-001, and on the strength of those coincidences the statute
+    corpus was never searched — though it holds the CERT-In Directions and IT Act
+    s.57 that answer them.
+
+    The original intent is kept: a question the organization's own position genuinely
+    answers is not also put to 5,000 statute sections. What changed is the test —
+    whether the READER asked about the organization's material, not whether a lexical
+    query happened to return something.
+    """
+    from legalmind.assist import service
+
+    source = pathlib.Path(service.__file__).read_text()
+    assert "own_material = (understanding.POSITION in route.asked_authority" in source
+    assert "if position_hits and not route.statute_shaped and own_material:" in source

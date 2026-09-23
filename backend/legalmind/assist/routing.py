@@ -76,6 +76,10 @@ class RoutePlan:
     #: The question asked about the law itself. Recorded even when STATUTES is not a
     #: candidate, so the refusal can name the real limitation.
     statute_shaped: bool
+    #: What the question asks ABOUT (`understanding.authority`), carried so later
+    #: stages can tell "the reader wants the organization's position" from "nothing
+    #: indicated which kind of source this is". Not a permission and not a plan.
+    asked_authority: frozenset[str] = frozenset()
     #: POLICY: what a COMPLIANCE ASSESSMENT needs before it can run at all, and does
     #: not have. Empty for every question that is not one, and for one that can run.
     #: Reported to the reader instead of answering an easier question in its place.
@@ -226,6 +230,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
         fallback.add(Domain.STATUTES)
     fallback -= candidates
     return RoutePlan(comparison=comparison,
+                     asked_authority=u.authority,
                      unmet=tuple(unmet),
                      include_superseded=u.temporal.wants_past,
                      domains=tuple(d for d in _ORDER if d in candidates),

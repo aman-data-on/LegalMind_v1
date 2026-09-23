@@ -1253,7 +1253,31 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
             # position already answers is NOT also put to 5,000 statute sections —
             # measured live, that produced a grounded Copyright Act answer about
             # licence termination beside the relevant position on notice periods.
-            if position_hits and not route.statute_shaped:
+            # PRESENCE OF ROWS IS NOT THE SAME AS "THE POSITIONS ANSWER IT".
+            # Position retrieval is lexical-first and ungated — "a lexical hit is
+            # trusted on its own" — so two shared lexemes returns rows. Measured
+            # 2026-09-23: "within what time must a cyber incident be reported?"
+            # matched CLAIM-WINDOW-SLA-001, "how long do I have to file an appeal?"
+            # matched CONF-SURVIVAL-NDA-001, and on the strength of those coincidences
+            # the statute corpus was never searched at all — though it holds the
+            # CERT-In Directions and IT Act s.57 that answer them.
+            #
+            # The original rule's intent stands and is kept: a question the
+            # organization's own position genuinely answers is not also put to 5,000
+            # statute sections. What changes is the test. Suppression now requires
+            # that the reader actually asked about the organization's material —
+            # `authority` carries that — instead of inferring it from the fact that
+            # a lexical query returned something.
+            # "The organization's own material already answered" presupposes that the
+            # question IS about the organization's own material. Two ways that is
+            # true: a document is open — the reader is working on their paper, and
+            # the pre-existing guard below covers exactly that case — or the question
+            # asks about our position. Neither holds for the three measured failures:
+            # no document, no position asked for, and a two-lexeme coincidence was
+            # doing the deciding.
+            own_material = (understanding.POSITION in route.asked_authority
+                            or route.has(routing.Domain.DOCUMENT))
+            if position_hits and not route.statute_shaped and own_material:
                 continue
             statute_hits = statutes.search_statutes(
                 db, query=question, permissions=permissions,
