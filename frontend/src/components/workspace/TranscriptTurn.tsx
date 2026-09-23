@@ -67,7 +67,8 @@ export function TranscriptTurn({
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
-          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+            quoteIsTheAnswer={turn.quote_is_the_answer ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
       </div>
@@ -140,7 +141,8 @@ export function TranscriptTurn({
         ) : null}
         {/* DD-17 r7 — the ratified position the answer touches, beside it, in its
             own section with its own citation grammar. Read, never produced. */}
-        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+            quoteIsTheAnswer={turn.quote_is_the_answer ?? false} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>

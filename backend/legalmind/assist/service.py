@@ -105,6 +105,11 @@ class AskOutcome:
     #: The reader asked for the source's own words (`AM-76` r2), so the quote in
     #: `positions` is the answer and the UI opens it rather than collapsing it.
     exact_text_requested: bool = False
+    #: The quote IS the answer — either because it was asked for (r2) or because no
+    #: paraphrase verified (r4). `text` then only points AT the quote, so a UI that
+    #: collapses it shows the reader a standard code and no law at all. Strictly
+    #: wider than `exact_text_requested`; the two are not interchangeable.
+    quote_is_the_answer: bool = False
     citations: list[CitationView] = field(default_factory=list)
     routed_to_evaluator: bool = False
     # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
@@ -688,11 +693,14 @@ GENERAL_KNOWLEDGE_TEXT = (
 # paraphrase could not be verified. These sentences are the fallback and the
 # exact-text wording respectively — they are what a reader sees INSTEAD of a
 # paraphrase, never appended to one.
-POSITIONS_ONLY_TEXT = ("The organization's approved position relevant to this question "
-                       "is quoted below, verbatim from the ratified standard.")
+# Neither sentence claims relevance or counts the standards: this is the path where
+# no paraphrase verified, so the only thing the system can honestly assert is what it
+# is showing and that it is unchanged. The quote below is the answer.
+POSITIONS_ONLY_TEXT = ("The approved position is quoted below, word for word — I could "
+                       "not restate it without going beyond what it says.")
 POSITIONS_BESIDE_TEXT = (
-    "No answer was found in the selected document. The organization's approved "
-    "position relevant to this question is quoted below.")
+    "No answer was found in the selected document. The approved position is quoted "
+    "below, word for word.")
 # The reader asked for the source's own words (`AM-76`; `intent.is_exact_text_request`).
 POSITIONS_EXACT_TEXT = ("You asked for the exact wording. The ratified standard is "
                         "quoted below, unchanged.")
@@ -1457,6 +1465,9 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
                 aid = _position_reading_aid(question, position_hits, request_id)
             if aid:
                 wording = aid.text
+    # r2 or r4: nothing was paraphrased, so `wording` points at the quote instead of
+    # being one. Not the statute path, which answers in its own section.
+    quote_is_the_answer = not statute_answered and aid is None
     # The answer row names the prompt that produced its generated part — the statute
     # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
     # so `prompt_version_id` was NULL on every `AM-67` answer.
@@ -1489,5 +1500,6 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=wording,
                       exact_text_requested=exact_text_requested,
+                      quote_is_the_answer=quote_is_the_answer,
                       positions=_position_views(position_hits), domains=domains,
                       statutes=statute_section)

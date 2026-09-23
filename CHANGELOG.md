@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-23 — the `AM-76` r4 fallback showed the reader a standard code, not the law
+
+The fallback sentence promises the approved position is "quoted below, verbatim" —
+and the quote was rendered inside a `<details>` collapsed by default, so a reader
+who asked about confidentiality obligations saw three machine identifiers
+(`SECURITY-DATA-PROTECTION-VENDOR_AGREEMENT-001 §31.9`) and no legal text at all.
+The disclosure was keyed on `exact_text_requested`, which is False on exactly the
+path where the quote IS the whole answer.
+
+* `AskOutcome.quote_is_the_answer` — set when no paraphrase was shown, i.e. `AM-76`
+  r2 (asked for) **or** r4 (fail-closed). Strictly wider than `exact_text_requested`,
+  which keeps its own meaning and still selects the label. Surfaced on the Ask
+  response, and on replay by the same means `routed_to_evaluator` already uses
+  (comparison against the service constants), so the transcript opens it too.
+* `PositionsSection` opens the quote from the new flag and pluralises its label from
+  the list it actually renders — "the ratified standard" over three of them was the
+  same defect one sentence earlier. When there is no answer it claims neither one
+  nor relevance: "the approved positions, quoted in full". The summary is now
+  "Exact wording", which reads correctly in both states.
+* `POSITIONS_ONLY_TEXT` / `POSITIONS_BESIDE_TEXT` drop "relevant to this question"
+  and the singular "the ratified standard". This path runs only when no paraphrase
+  verified, so what the system can honestly assert is what it is showing and that it
+  is unchanged.
+
+No threshold, gate, guardrail or routing rule was touched; `AM-76` r1–r4 are
+unamended. Presentation and one derived boolean.
+
 ### 2026-09-23 — `AM-77`: a Company Standard is no longer presented as the answer to a question it cannot answer
 
 The final Ask readiness P0. "What does Indian law say about penalty clauses?" was

@@ -68,6 +68,8 @@ def test_a_normal_question_is_answered_by_paraphrase_without_the_quote_sentence(
     # The defect AM-76 exists to end: the pointer sentence is no longer appended.
     assert "quoted below" not in out.text
     assert out.exact_text_requested is False
+    # A paraphrase IS the answer, so the quote stays collapsed under its disclosure.
+    assert out.quote_is_the_answer is False
     # ...and the quote is still in the payload for the citation (`AM-32` r4).
     assert out.positions and out.positions[0]["content"]
 
@@ -88,6 +90,7 @@ def test_an_explicit_exact_text_request_returns_the_verbatim_wording(
     out = _ask(db, user, contract, EXACT)
 
     assert out.exact_text_requested is True
+    assert out.quote_is_the_answer is True
     assert out.text == service.POSITIONS_EXACT_TEXT
     assert out.positions and "thirty (30) days" in out.positions[0]["content"]
 
@@ -106,6 +109,10 @@ def test_an_unverifiable_paraphrase_falls_back_to_the_quote(
     out = _ask(db, user, contract, QUESTION)
 
     assert out.text == service.POSITIONS_ONLY_TEXT
+    # The defect this closes: `exact_text_requested` is False on the r4 fallback, so
+    # a UI keyed on it collapsed the very quote the sentence promises is "below".
+    assert out.exact_text_requested is False
+    assert out.quote_is_the_answer is True
     assert out.positions and "thirty (30) days" in out.positions[0]["content"]
 
 

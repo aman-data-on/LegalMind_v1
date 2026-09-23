@@ -771,6 +771,10 @@ export interface AskResult {
    *  "quote the clause"), so the quote below is the answer and opens by default
    *  instead of sitting collapsed. Decided server-side, deterministically. */
   exact_text_requested?: boolean;
+  /** `AM-76` r2/r4 — the quote IS the answer: asked for, or fallen back to because
+   *  no paraphrase verified. `text` then only points at the quote, so it must be
+   *  rendered open. Wider than `exact_text_requested` — never substitute one. */
+  quote_is_the_answer?: boolean;
   /** Which authorized sources were candidates for this question (2026-09-08). */
   domains?: string[];
   comparison?: AssistComparison | null;
@@ -820,6 +824,9 @@ export interface ConversationTurn {
   /** `AM-25` r5 — the SAME citations the live answer carried. `[]` on refusals. */
   citations: AssistCitation[];
   positions?: AssistPosition[];
+  /** `AM-76` r2/r4 on replay — the turn's content points at the quote instead of
+   *  being an answer, so the quote must render open here as it did live. */
+  quote_is_the_answer?: boolean;
   statutes?: AssistStatuteAnswer | null;
 }
 
