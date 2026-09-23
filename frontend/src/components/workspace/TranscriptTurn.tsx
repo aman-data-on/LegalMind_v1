@@ -22,7 +22,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
-import { AnswerProse, citesPositions, quotesAreTheAnswer } from "./AnswerProse";
+import { AnswerProse, citesPositions } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
@@ -69,7 +69,8 @@ export function TranscriptTurn({
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
           <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
-          exactTextRequested={turn.exact_text_requested ?? false} />
+          exactTextRequested={turn.exact_text_requested ?? false}
+          quoteIsTheAnswer={turn.quote_is_the_answer ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
       </div>
@@ -155,7 +156,7 @@ export function TranscriptTurn({
             own section with its own citation grammar. Read, never produced. */}
         <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
           exactTextRequested={turn.exact_text_requested ?? false}
-          open={quotesAreTheAnswer(turn.content, turn.citations.length)}
+          quoteIsTheAnswer={turn.quote_is_the_answer ?? false}
           idPrefix={numbered ? turn.id : undefined} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>

@@ -72,7 +72,7 @@ import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, 
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
-import { AnswerProse, citesPositions, quotesAreTheAnswer } from "./AnswerProse";
+import { AnswerProse, citesPositions } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -520,7 +520,8 @@ export function WsAnswerView({
         <p>{result.text}</p>
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
         <PositionsSection positions={result.positions ?? []} contractId={contractId}
-          exactTextRequested={result.exact_text_requested ?? false} />
+          exactTextRequested={result.exact_text_requested ?? false}
+          quoteIsTheAnswer={result.quote_is_the_answer ?? false} />
         <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
       </div>
     );
@@ -600,7 +601,7 @@ export function WsAnswerView({
       ) : null}
       <PositionsSection positions={result.positions ?? []} contractId={contractId}
           exactTextRequested={result.exact_text_requested ?? false}
-          open={quotesAreTheAnswer(result.text, result.citations.length)}
+          quoteIsTheAnswer={result.quote_is_the_answer ?? false}
           idPrefix={numbered ? result.message_id : undefined} />
       <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
     </div>
@@ -662,31 +663,39 @@ export function PositionsSection({
   positions,
   contractId,
   exactTextRequested = false,
-  open = false,
+  quoteIsTheAnswer = false,
   idPrefix,
 }: {
   positions: AssistPosition[];
   /** Lets the assessment line open the Finding it names — a control, not prose. */
   contractId?: string | undefined;
-  /** `AM-76` r2/r3 — the reader asked for the source's own words, so the quote is
-   *  the answer and opens. Otherwise it stays collapsed behind its label: the
-   *  answer above is the explanation, and a wall of clause text under every reply
-   *  is what `AM-76` supersedes. */
+  /** `AM-76` r2 — the reader asked for the source's own words, which changes the
+   *  label. It does NOT decide whether the quote opens: see `quoteIsTheAnswer`. */
   exactTextRequested?: boolean;
-  /** The quote is the answer even though the reader did not ask for the wording
-   *  (`quotesAreTheAnswer`): it opens, under the ordinary label. */
-  open?: boolean;
+  /** `AM-76` r2/r4 — no paraphrase was shown, so the quote is the whole answer and
+   *  MUST open. Collapsing it here left the reader a standard code under a sentence
+   *  promising the wording was "quoted below". Otherwise the quote stays collapsed:
+   *  the answer above is the explanation, and a wall of clause text under every
+   *  reply is what `AM-76` supersedes. */
+  quoteIsTheAnswer?: boolean;
   /** Set when the answer's markers index these cards (`citesPositions`): each card
    *  shows its number and is the marker's focus target. Absent, no numbers. */
   idPrefix?: string | undefined;
 }) {
   if (positions.length === 0) return null;
+  // Plural follows the list actually rendered — "the ratified standard" over three
+  // of them is the same defect as the collapsed quote, one sentence earlier.
+  const noun = positions.length === 1 ? "position" : "positions";
   return (
     <section className="ws-ask__positions" aria-label="Company standard">
       <p className="ws-ask__routed-label">
         {exactTextRequested
           ? "Company standard — the exact wording you asked for"
-          : "Company standard — the ratified position behind this answer"}
+          : quoteIsTheAnswer
+            // No answer was produced, so this claims neither one ("behind this
+            // answer") nor relevance — only what is on screen and that it is whole.
+            ? `Company standard — the approved ${noun}, quoted in full`
+            : `Company standard — the ratified ${noun} behind this answer`}
       </p>
       <ol className="ws-ask__citations">
         {positions.map((position, index) => (
@@ -717,9 +726,14 @@ export function PositionsSection({
             {/* A native <details>, as `EvidenceList` and `EvaluationRow` already use:
                 keyboard-operable, correctly announced, and open/closed without a
                 custom ARIA widget. `open` is the server's deterministic reading of
-                the question (`AM-76` r2), not a guess made here. */}
-            <details className="ws-ask__exact" open={exactTextRequested || open}>
-              <summary className="ws-ask__exact-toggle">Show exact wording</summary>
+                the question (`AM-76` r2 / `AM-109`) — not a guess made here — OR
+                `quoteIsTheAnswer` (`AM-76` r4): the fail-closed fallback is exactly
+                when the wording must be visible even though it was not asked for.
+                Both, not just the wider one, because a caller may set only
+                `exactTextRequested` (the backend guarantees the two agree on its
+                own r2 path, but the component must not assume every caller does). */}
+            <details className="ws-ask__exact" open={exactTextRequested || quoteIsTheAnswer}>
+              <summary className="ws-ask__exact-toggle">Exact wording</summary>
               <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
             </details>
             {/* The ASSESSMENT is the deterministic evaluator's existing Finding
