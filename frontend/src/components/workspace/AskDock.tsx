@@ -496,7 +496,8 @@ export function WsAnswerView({
         <p>{result.text}</p>
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
         <PositionsSection positions={result.positions ?? []} contractId={contractId}
-          exactTextRequested={result.exact_text_requested ?? false} />
+          exactTextRequested={result.exact_text_requested ?? false}
+          quoteIsTheAnswer={result.quote_is_the_answer ?? false} />
         <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
       </div>
     );
@@ -572,7 +573,8 @@ export function WsAnswerView({
         </ol>
       ) : null}
       <PositionsSection positions={result.positions ?? []} contractId={contractId}
-          exactTextRequested={result.exact_text_requested ?? false} />
+          exactTextRequested={result.exact_text_requested ?? false}
+          quoteIsTheAnswer={result.quote_is_the_answer ?? false} />
       <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
     </div>
   );
@@ -633,23 +635,35 @@ export function PositionsSection({
   positions,
   contractId,
   exactTextRequested = false,
+  quoteIsTheAnswer = false,
 }: {
   positions: AssistPosition[];
   /** Lets the assessment line open the Finding it names — a control, not prose. */
   contractId?: string | undefined;
-  /** `AM-76` r2/r3 — the reader asked for the source's own words, so the quote is
-   *  the answer and opens. Otherwise it stays collapsed behind its label: the
-   *  answer above is the explanation, and a wall of clause text under every reply
-   *  is what `AM-76` supersedes. */
+  /** `AM-76` r2 — the reader asked for the source's own words, which changes the
+   *  label. It does NOT decide whether the quote opens: see `quoteIsTheAnswer`. */
   exactTextRequested?: boolean;
+  /** `AM-76` r2/r4 — no paraphrase was shown, so the quote is the whole answer and
+   *  MUST open. Collapsing it here left the reader a standard code under a sentence
+   *  promising the wording was "quoted below". Otherwise the quote stays collapsed:
+   *  the answer above is the explanation, and a wall of clause text under every
+   *  reply is what `AM-76` supersedes. */
+  quoteIsTheAnswer?: boolean;
 }) {
   if (positions.length === 0) return null;
+  // Plural follows the list actually rendered — "the ratified standard" over three
+  // of them is the same defect as the collapsed quote, one sentence earlier.
+  const noun = positions.length === 1 ? "position" : "positions";
   return (
     <section className="ws-ask__positions" aria-label="Company standard">
       <p className="ws-ask__routed-label">
         {exactTextRequested
           ? "Company standard — the exact wording you asked for"
-          : "Company standard — the ratified position behind this answer"}
+          : quoteIsTheAnswer
+            // No answer was produced, so this claims neither one ("behind this
+            // answer") nor relevance — only what is on screen and that it is whole.
+            ? `Company standard — the approved ${noun}, quoted in full`
+            : `Company standard — the ratified ${noun} behind this answer`}
       </p>
       <ol className="ws-ask__citations">
         {positions.map((position) => (
@@ -674,9 +688,11 @@ export function PositionsSection({
             {/* A native <details>, as `EvidenceList` and `EvaluationRow` already use:
                 keyboard-operable, correctly announced, and open/closed without a
                 custom ARIA widget. `open` is the server's deterministic reading of
-                the question (`AM-76` r2), not a guess made here. */}
-            <details className="ws-ask__exact" open={exactTextRequested}>
-              <summary className="ws-ask__exact-toggle">Show exact wording</summary>
+                the question (`AM-76` r2), not a guess made here — and it follows
+                `quoteIsTheAnswer`, not the narrower "did they ask for it": the r4
+                fallback is precisely when the wording must be visible. */}
+            <details className="ws-ask__exact" open={quoteIsTheAnswer}>
+              <summary className="ws-ask__exact-toggle">Exact wording</summary>
               <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
             </details>
             {/* The ASSESSMENT is the deterministic evaluator's existing Finding

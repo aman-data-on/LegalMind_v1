@@ -458,6 +458,13 @@ def get_conversation(conversation_id: UUID,
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in (
                 service.EVALUATOR_ROUTE_TEXT, service.EVALUATOR_NO_REVIEW_TEXT)),
             "positions": positions_by_answer.get(t[5], []),
+            # `AM-76` r2/r4 on replay, by the same means as `routed_to_evaluator`
+            # above: the three fallback sentences are the ones that POINT AT the
+            # quote instead of being an answer, so the transcript opens it too. A
+            # paraphrase is free text and can never collide with a constant.
+            "quote_is_the_answer": t[2] == "ASSISTANT" and t[3] in (
+                service.POSITIONS_ONLY_TEXT, service.POSITIONS_BESIDE_TEXT,
+                service.POSITIONS_EXACT_TEXT),
             # Replayed statute citations; the generated statute text is the turn's
             # content when the statute corpus was the answering source.
             "statutes": ({"answer_state": t[4], "text": None,
@@ -542,6 +549,10 @@ def ask(conversation_id: UUID, body: AskRequest,
         # `AM-76` r2 — the reader asked for the source's own words, so the UI opens
         # the quote in `positions` rather than collapsing it behind a disclosure.
         "exact_text_requested": outcome.exact_text_requested,
+        # ...and the wider case: the quote is the answer, asked for or fallen back to
+        # (`AM-76` r4). The UI must show it OPEN, or the reader gets a standard code
+        # where the text told them the wording was "quoted below".
+        "quote_is_the_answer": outcome.quote_is_the_answer,
         "routed_to_evaluator": outcome.routed_to_evaluator,
         "comparison": outcome.comparison,
         "positions": outcome.positions,
