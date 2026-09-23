@@ -112,6 +112,7 @@ class RoutePlan:
 
 def plan(question: str, *, has_document: bool, permissions: frozenset[str],
          statutes_available: bool = False,
+         statute_jurisdictions: frozenset[str] = frozenset(),
          understood: understanding.QuestionUnderstanding | None = None) -> RoutePlan:
     """The domain plan. `understood` is the question read once (`understanding.
     understand`); it is derived here when a caller has not already done so, so no
@@ -152,15 +153,48 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     if (u.mentions_organization or comparison) \
             and positions_permitted(permissions):
         candidates.add(Domain.POSITIONS)
-    if statute_shaped and statutes_available and P.ASSIST_ASK in permissions:
+    # JURISDICTION IS POLICY, not understanding. The question may NAME a jurisdiction;
+    # whether this system holds law for it is a fact about the corpus, and where it
+    # does not, the corpus is not a substitute. Measured 2026-09-23 before this rule:
+    # "what does Delaware law say about limitation of liability" and "under EU GDPR,
+    # what is the breach notification deadline" were both ANSWERED, from an Indian
+    # corpus. Neither stated foreign law — both returned a Company Standard quote —
+    # but a reader asking about Delaware should not be handed one.
+    #
+    # Unspecified stays permitted: most questions name no jurisdiction and the corpus
+    # answers them as it always has.
+    jurisdiction_covered = (u.jurisdiction == understanding.UNSPECIFIED
+                            or not statute_jurisdictions
+                            or u.jurisdiction in statute_jurisdictions)
+    # WHAT THE QUESTION ASKS ABOUT (`u.authority`) is not what may be searched. It
+    # widens the CANDIDATES only, and every one still passes the same permission test
+    # the shape-derived route does (`AM-45` r1). A source the caller may not read is
+    # not reachable through this door either.
+    asks_law = understanding.GENERAL_LAW in u.authority
+    if ((statute_shaped or asks_law) and statutes_available
+            and jurisdiction_covered and P.ASSIST_ASK in permissions):
         candidates.add(Domain.STATUTES)
+    if (understanding.POSITION in u.authority and positions_permitted(permissions)
+            and jurisdiction_covered):
+        candidates.add(Domain.POSITIONS)
     # Fallbacks: what else the caller may read. Authorization is the same test the
     # primary route applies — a domain the caller may not read is not a fallback
     # either, so its absence stays indistinguishable from an empty corpus.
+    # A named jurisdiction this system holds no law for is not answered from the
+    # organization's own positions either. A ratified Company Standard is what THIS
+    # organization will accept; it is not a statement of Delaware or EU law, and
+    # offering it to someone who asked for one is misleading by juxtaposition even
+    # though the quote is honestly labelled — which is exactly what the 2026-09-23
+    # baseline measured.
+    #
+    # Narrow on purpose: it applies only when the reader is asking about the LAW. "What
+    # is our position on Delaware disputes?" asks about the organization, and the
+    # organization can answer it.
+    foreign_law_question = not jurisdiction_covered and not u.mentions_organization
     fallback: set[Domain] = set()
-    if positions_permitted(permissions):
+    if positions_permitted(permissions) and not foreign_law_question:
         fallback.add(Domain.POSITIONS)
-    if statutes_available and P.ASSIST_ASK in permissions:
+    if statutes_available and jurisdiction_covered and P.ASSIST_ASK in permissions:
         fallback.add(Domain.STATUTES)
     fallback -= candidates
     return RoutePlan(comparison=comparison,

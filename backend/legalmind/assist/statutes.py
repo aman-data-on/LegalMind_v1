@@ -546,6 +546,21 @@ def _embed(db: DBSession, statute_id: UUID) -> int:
     return written
 
 
+def jurisdictions(db: DBSession) -> frozenset[str]:
+    """The jurisdictions the ratified corpus actually covers, from the corpus itself.
+
+    The router refuses a question about a jurisdiction not in this set rather than
+    answering it from another one's law. Reading it from the data instead of a list in
+    code means ingesting an Act under a new jurisdiction changes what may be answered
+    without an engineer editing a table.
+    """
+    schema = config.assist_schema()
+    return frozenset(
+        row[0] for row in db.execute(
+            sql_text(f'SELECT DISTINCT jurisdiction FROM "{schema}".statutes'))
+        if row[0])
+
+
 def available(db: DBSession) -> bool:
     """A ratified corpus exists — the router's `statutes_available` input."""
     schema = config.assist_schema()

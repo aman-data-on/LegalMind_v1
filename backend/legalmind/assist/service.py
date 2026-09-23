@@ -902,7 +902,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         permissions = frozenset({"assist.ask"})
     route = routing.plan(resolved, has_document=document_version_id is not None,
                          permissions=permissions,
-                         statutes_available=statutes.available(db))
+                         statutes_available=statutes.available(db),
+                         statute_jurisdictions=statutes.jurisdictions(db))
     domains = tuple(d.value for d in route.domains)
     # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
     # enforcement: nothing below this line can reach a document, a position, a statute

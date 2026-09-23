@@ -14,6 +14,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -51,6 +56,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -88,6 +98,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -121,6 +134,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -158,6 +176,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -198,6 +222,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -236,6 +265,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "VALUE",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -272,6 +306,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -308,6 +347,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -340,6 +384,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -372,6 +421,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -404,6 +458,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -442,6 +501,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -480,6 +544,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -518,6 +587,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -554,6 +628,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -592,6 +671,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PENALTY",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -601,10 +685,11 @@
    "exact_text": false,
    "follow_up": false,
    "mentions_organization": false,
-   "domains": [],
-   "fallback": [
-    "POSITIONS",
+   "domains": [
     "STATUTES"
+   ],
+   "fallback": [
+    "POSITIONS"
    ]
   }
  },
@@ -623,6 +708,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEADLINE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -654,6 +742,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PENALTY",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -690,6 +783,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEADLINE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -725,6 +821,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -761,6 +862,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PENALTY",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -797,6 +903,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -835,6 +947,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -872,6 +989,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -914,6 +1037,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -956,6 +1085,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "VALUE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -996,6 +1131,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1038,6 +1179,13 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "GENERAL_LAW",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1079,6 +1227,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1121,6 +1274,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": true,
@@ -1163,6 +1322,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1202,6 +1366,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1235,6 +1402,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1268,6 +1438,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1299,6 +1472,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1334,6 +1512,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1371,6 +1554,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1407,6 +1595,11 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1444,6 +1637,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1479,6 +1675,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": true,
    "general_knowledge": false,
    "comparison": false,
@@ -1505,6 +1704,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": true,
    "general_knowledge": false,
    "comparison": false,
@@ -1533,6 +1735,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1562,6 +1767,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1591,6 +1799,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1620,6 +1831,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1649,6 +1863,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1682,6 +1899,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1714,6 +1934,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1746,6 +1969,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1778,6 +2004,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1810,6 +2039,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1841,6 +2073,12 @@
   "temporal": "HISTORICAL",
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "GENERAL_LAW",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1878,6 +2116,12 @@
   "temporal": "IN_FORCE",
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1913,6 +2157,11 @@
   "temporal": "IN_FORCE",
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1945,6 +2194,11 @@
   "temporal": "HISTORICAL",
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -1981,6 +2235,11 @@
   "temporal": null,
   "jurisdiction": "IN",
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2019,6 +2278,9 @@
   "temporal": null,
   "jurisdiction": "US-DE",
   "understanding": {
+   "requested_fact": "DEFINITION",
+   "authority": [],
+   "jurisdiction": "US-DE",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2029,10 +2291,7 @@
    "follow_up": false,
    "mentions_organization": false,
    "domains": [],
-   "fallback": [
-    "POSITIONS",
-    "STATUTES"
-   ]
+   "fallback": []
   }
  },
  {
@@ -2050,6 +2309,9 @@
   "temporal": null,
   "jurisdiction": "EU",
   "understanding": {
+   "requested_fact": "DEADLINE",
+   "authority": [],
+   "jurisdiction": "EU",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2060,10 +2322,7 @@
    "follow_up": false,
    "mentions_organization": false,
    "domains": [],
-   "fallback": [
-    "POSITIONS",
-    "STATUTES"
-   ]
+   "fallback": []
   }
  },
  {
@@ -2082,6 +2341,11 @@
   "temporal": null,
   "jurisdiction": "IN",
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "GENERAL_LAW"
+   ],
+   "jurisdiction": "IN",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2119,6 +2383,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2152,6 +2419,12 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [
+    "DOCUMENT",
+    "POSITION"
+   ],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2190,6 +2463,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "PERIOD",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,
@@ -2223,6 +2499,9 @@
   "temporal": null,
   "jurisdiction": null,
   "understanding": {
+   "requested_fact": "NONE",
+   "authority": [],
+   "jurisdiction": "UNSPECIFIED",
    "capability": false,
    "general_knowledge": false,
    "comparison": false,

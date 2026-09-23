@@ -39,14 +39,21 @@ def _db_url() -> str:
     raise SystemExit("no database url")
 
 
-def understanding(question: str, *, has_document: bool, permissions, statutes: bool) -> dict:
+def understanding(question: str, *, has_document: bool, permissions, statutes: bool,
+                  jurisdictions: frozenset = frozenset()) -> dict:
     """Everything today's code derives about a question, in one record."""
     from legalmind.assist import intent, routing
 
     route = routing.plan(question, has_document=has_document, permissions=permissions,
-                         statutes_available=statutes)
+                         statutes_available=statutes,
+                         statute_jurisdictions=jurisdictions)
+    from legalmind.assist import understanding as U
+    u = U.understand(question)
     signals = intent.legal_question_signals(question)
     return {
+        "requested_fact": u.requested_fact,
+        "authority": sorted(u.authority),
+        "jurisdiction": u.jurisdiction,
         "capability": bool(getattr(route, "capability", False)),
         "general_knowledge": bool(getattr(route, "general_knowledge", False)),
         "comparison": route.comparison,
@@ -88,6 +95,7 @@ def main() -> int:
     rows = []
     try:
         have_statutes = st.available(db)
+        have_jurisdictions = st.jurisdictions(db)
         uid = db.execute(sql("SELECT id FROM users WHERE status='ACTIVE' LIMIT 1")).scalar()
         for case in cases:
             ver = DOCS.get(case.get("doc") or "")
@@ -95,7 +103,8 @@ def main() -> int:
                    ("class", "q", "doc", "after", "intent", "requested_fact",
                     "authority", "must_refuse", "ambiguous", "temporal", "jurisdiction")}
             rec["understanding"] = understanding(
-                case["q"], has_document=bool(ver), permissions=perms, statutes=have_statutes)
+                case["q"], has_document=bool(ver), permissions=perms,
+                statutes=have_statutes, jurisdictions=have_jurisdictions)
             if args.full:
                 conv = db.execute(sql('INSERT INTO "assist".conversations (id, user_id) '
                                       "VALUES (:i, :u) RETURNING id"),
