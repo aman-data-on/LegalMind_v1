@@ -161,6 +161,10 @@ _ACCEPTANCE_WORDS = frozenset({
     "sign", "signing", "accept", "accepts", "accepted", "acceptable", "unacceptable",
     "approve", "approves", "agree", "chahiye", "हस्ताक्षर", "swikar",
 })
+# "Is this MSA OK for us?" judges the document; "is it OK for us to terminate early?"
+# asks a permission. The same word, told apart by grammar: OK counts as acceptance only
+# when no "to"/"if" clause follows it (2026-09-23).
+_OK_WORDS = frozenset({"ok", "okay"})
 # ... and it must be THIS document being signed, not signature rules in the abstract.
 # Without this leg, "what happens if we do not accept delivery?" is a signing question.
 _DOCUMENT_WORDS = frozenset({
@@ -234,8 +238,10 @@ def is_comparison_question(question: str) -> bool:
 
     # (B) Deciding whether to sign THIS document. All three legs, or "what happens if
     # we do not accept delivery?" and "who may sign on behalf of a company?" route here.
-    return bool(present & _DELIBERATING_SUBJECT
-                and present & _ACCEPTANCE_WORDS
+    accepting = bool(present & _ACCEPTANCE_WORDS) or any(
+        t in _OK_WORDS and not {"to", "if"} & set(tokens[i + 1:])
+        for i, t in enumerate(tokens))
+    return bool(present & _DELIBERATING_SUBJECT and accepting
                 and present & _DOCUMENT_WORDS)
 
 
@@ -311,7 +317,7 @@ _SECTION_REFERENCE = re.compile(r"\b(?:section|sec\.?|s\.)\s*\d+[a-z]?\b|"
 _JURISDICTION = re.compile(
     r"\b(?:in india|indian law|under indian law|law in india|under india)\b"
     # "India's DATA PROTECTION law" — the qualifier is a phrase, not one word.
-    r"|\bindia'?s\b[^?]{0,40}\blaw\b",
+    r"|\bindia(?:'?s|n)\b[^?]{0,40}\blaw\b",
     re.IGNORECASE)
 # Rule-seeking SHAPES, not legal vocabulary. "enforceable" and "liable" are ordinary
 # deal words and are deliberately absent: what marks a general-law question is that it
@@ -583,6 +589,12 @@ class LegalQuestionSignals:
             return False
         return (self.jurisdiction or self.rule_framing or self.legal_actor
                 or self.generic_instrument)
+
+    @property
+    def references_law(self) -> bool:
+        """The question REFERS to law — by name, category or jurisdiction — whether or
+        not (B)'s negatives kept it off the statute route."""
+        return self.names_instrument or self.generic_instrument or self.jurisdiction
 
     @property
     def because(self) -> tuple[str, ...]:

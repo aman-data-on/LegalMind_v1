@@ -1166,7 +1166,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic, allow_relax=_relax_allowed(route))
+                topic=topic, allow_relax=_relax_allowed(route),
+                require_semantic=True)
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
@@ -1266,7 +1267,8 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
         if domain is routing.Domain.POSITIONS and not position_hits:
             position_hits = positions.search_positions(
                 db, query=question, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic, allow_relax=_relax_allowed(route))
+                topic=topic, allow_relax=_relax_allowed(route),
+                require_semantic=True)
         elif domain is routing.Domain.STATUTES and not statute_hits:
             # Source priority, not a fixed sweep: the statute corpus is a fallback
             # for a question about the law (statute-shaped) or for one nothing

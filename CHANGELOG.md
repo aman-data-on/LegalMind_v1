@@ -10,6 +10,47 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-23 — `AM-77`: a Company Standard is no longer presented as the answer to a question it cannot answer
+
+The final Ask readiness P0. "What does Indian law say about penalty clauses?" was
+answered from a governing-law and a GST standard, admitted on `indian` + `law` after
+the statutes were silent — and it was not one case. On the frozen 76-case matrix,
+**12** questions about the law were shown a Company Standard, and with a document open
+"who are the parties to this agreement?" drew a Partner Agreement notice position on
+`parti` + `agreement`.
+
+Root cause: the position lane had neither half of a rule the statute lane already
+had. Domain C is never a fall-through for a question that did not ask about the law
+unless a gated vector neighbour vouches for the hit (`require_semantic`), and the
+positions are no fallback for a foreign-law question. The positions were a fallback
+for every question and qualified on shared words. Two rules, each a mirror of an
+existing one (`AM-77`, amending `AM-50` r2 narrowly):
+
+* **r1** — `routing.plan`: a question about the law that does not mention the
+  organization has no position fallback. `LegalQuestionSignals.references_law` keeps a
+  law reference visible where a document target vetoed the statute route, and the
+  jurisdiction signal now reads "Indian … law" as it already read "India's … law".
+* **r2** — `positions.search_positions(require_semantic=True)` at both fall-through
+  call sites; the primary position route (strict floor + rescue) is untouched.
+* **r4** — "is this MSA ok for us?" routes to the evaluator ("ok/okay" as an
+  acceptance word unless a "to"/"if" clause follows).
+* The topic-fallback recursion now passes `allow_relax` through — a withheld rescue
+  had been re-enabled on that path.
+
+| 76-case matrix | before | after |
+|---|---|---|
+| law questions answered with a position | 12 | **0** |
+| position quoted as "relevant" without being asked | 12 | 7 (all semantically gated) |
+| must-refuse | 6/6 | 6/6 |
+| Gemini calls / question | 1.87 | **1.24** |
+| p50 | 1906 ms | 1678 ms |
+
+22-question readiness set: unrelated-position answers **4 → 0**; "liability cap??"
+with an MSA open, auto-renewal, termination, confidentiality, follow-ups and
+exact-text requests unchanged. Accepted cost: a terse no-document question with no
+"our" whose nearest position sits under the 0.50 floor now refuses. Suite 2522 passed,
+112 skipped, 0 failed; ruff and mypy clean.
+
 ### 2026-09-22 — the answer-integrity screens: what a cited answer may say, and what may be cited as law
 
 Two independent production-readiness audits found the same hole from opposite

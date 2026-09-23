@@ -143,7 +143,8 @@ def test_D_a_statutory_question_is_answered_from_the_statute_corpus(
     assert out.statutes["answer_state"] == "ANSWERED"
     assert out.statutes["citations"][0]["citation"] == "The Synthetic Widgets Act, 2099, s. 3"
     assert out.citations == []
-    assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
+    # A law question: the positions are no fallback for it (2026-09-23).
+    assert out.domains == ("DOCUMENT", "STATUTES")
 
 
 def test_E_nothing_relevant_anywhere_is_the_only_time_not_found_is_said(

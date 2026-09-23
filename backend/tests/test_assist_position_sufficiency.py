@@ -87,3 +87,75 @@ def test_authorization_is_unchanged():
                          statute_jurisdictions=frozenset({"IN"}))
     assert routing.Domain.POSITIONS not in route.domains
     assert routing.Domain.POSITIONS not in route.fallback
+
+
+# --------------------------------------------------------------------------
+# 2026-09-23, second half: the STRICT floor on generic words.
+#
+# "what does Indian law say about penalty clauses" cleared the two-lexeme floor on
+# `indian` + `law` and was answered from a governing-law and a GST standard. It is not
+# one case: six law-only questions in the 76-case matrix were answered the same way,
+# and with a document open "who are the parties to this agreement?" was answered from
+# a Partner Agreement notice position on `parti` + `agreement`. Two rules, each the
+# mirror of one the code already had — neither is a threshold, a stoplist or a patch.
+# --------------------------------------------------------------------------
+LAW_QUESTIONS = (
+    ("what does Indian law say about penalty clauses", False),
+    ("Is a contract with a minor valid under Indian law?", False),
+    ("What is the punishment for breach of confidentiality by an intermediary?", False),
+    ("What does the Income-tax Act, 1961 say about TDS on professional fees?", False),
+    ("Is this enforceable under Indian law?", True),
+    ("What does Indian law say about this confidentiality clause?", True),
+    ("does this NDA follow Indian data protection law", True),
+)
+
+
+def test_a_standard_is_no_fallback_for_a_question_about_the_law():
+    """Rule 1, the foreign-law rule generalised: a Company Standard states what the
+    organization will accept, never what the law says — Indian law no more than
+    Delaware law."""
+    for question, has_document in LAW_QUESTIONS:
+        route = _route(question, has_document=has_document)
+        assert routing.Domain.POSITIONS not in route.domains, question
+        assert routing.Domain.POSITIONS not in route.fallback, question
+
+
+def test_questions_about_our_own_position_keep_the_positions():
+    """The cases that must not regress, including a law question that ALSO asks
+    for our position — the genuine both-domains question."""
+    for question in ("What's our stance on auto renewal?",
+                     "Explain our termination standard.",
+                     "What does our Constitution say about partner agreements?",
+                     "What's our standard confidentiality period?",
+                     "What does Indian law say about our liability cap?"):
+        assert routing.Domain.POSITIONS in _route(question).domains, question
+    for question in ("liability cap??", "termination clause", "notice period?"):
+        route = _route(question, has_document=True)
+        assert routing.Domain.POSITIONS in route.fallback, question
+
+
+def test_behind_a_chosen_source_a_position_needs_semantic_evidence(
+        db, user, tmp_path):
+    """Rule 2, `statutes.search_statutes`'s `require_semantic` mirrored: when the
+    positions stand behind the document or the statutes, sharing lexemes is not
+    relevance, and without a gated vector neighbour Domain A counts as silent. The
+    primary route is never held to it — asking about our position IS the signal."""
+    from legalmind.assist import positions
+    from tests.test_assist_ask import _ratified_positions
+    _ratified_positions(db, user, tmp_path)
+    question = "how must widgets be handled with care?"
+    no_vector = lambda _q: None  # noqa: E731
+    assert positions.search_positions(db, query=question, permissions=PERMS,
+                                      embed_query=no_vector)
+    assert positions.search_positions(db, query=question, permissions=PERMS,
+                                      embed_query=no_vector,
+                                      require_semantic=True) == []
+
+
+def test_is_this_ok_for_us_is_the_evaluators_question_and_a_permission_is_not():
+    """`AM-77` r4. It had been answered with three MSA positions on the lexeme `msa`."""
+    from legalmind.assist import intent
+    assert intent.is_comparison_question("is this MSA ok for us")
+    assert intent.is_comparison_question("is this contract OK for us?")
+    assert not intent.is_comparison_question("is it ok for us to terminate early?")
+    assert not intent.is_comparison_question("is it okay if we pay late?")

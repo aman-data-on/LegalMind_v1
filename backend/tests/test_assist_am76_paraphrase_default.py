@@ -31,7 +31,10 @@ from tests.test_assist_ask import (  # noqa: F401  (fixtures)
 )
 
 QUESTION = "What notice is needed to end the agreement early?"
-EXACT = "Give me the exact wording about ending the agreement early."
+# Asks about OUR standard, so the positions are the primary route: with nothing named,
+# a fallback position needs a gated semantic neighbour, and this synthetic one sits at
+# 0.47 (2026-09-23).
+EXACT = "Give me the exact wording of our standard on ending the agreement early."
 PARAPHRASE = ("Either party can end the agreement early by giving thirty (30) days' "
               "written notice [1].")
 

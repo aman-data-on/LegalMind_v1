@@ -19685,3 +19685,93 @@ The owner's own target sentence — "Either party can end the Partner Agreement 
 giving at least 30 days' prior written notice" — verifies at 0.83 and is unaffected.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+AMENDMENT BATCH AB-27 — `AM-77`
+A position answers only what it can answer: never the law, never on shared words
+================================================================================
+
+**Recorded 2026-09-23**, under the owner's standing instruction for the final Ask
+readiness P0 ("If a locked decision is itself the reason the technically correct
+architecture cannot be implemented … update the relevant source-of-truth decision
+properly"), given the same day.
+
+**Amends:** `AM-50` r2, narrowly — only which fall-through position hits QUALIFY, and
+that a question about the law does not fall through to the positions at all.
+**Does not amend:** `AM-50` r1, r3–r5; `AM-25` r1–r9; `AM-28` r1–r2; `AM-32` r1–r10;
+`AM-45`; `AM-46`; `AM-47`; `AM-67`; `AM-76` r1–r6; `LEGAL-02`; `SEC-07`.
+
+Why this record exists. `AM-50` r2 says that when the document does not answer, "the
+other authorized sources the caller may see … are consulted before any refusal,
+exactly as they are when the router names them". Read literally, that makes a
+position retrieved on shared lexemes an answer to ANY question, and `AM-76` r4 then
+presents it as "the organization's approved position relevant to this question".
+Measured on the live corpus 2026-09-23, zero Gemini in the diagnosis:
+
+    "what does Indian law say about penalty clauses"  -> a governing-law and a GST
+        standard, on `indian` + `law` (the statutes were silent)
+    six further law-only questions in the frozen 76-case matrix -> the same shape
+    "who are the parties to this agreement?" (MSA open) -> a Partner Agreement
+        notice position, on `parti` + `agreement`
+    "give me the exact wording about ending the agreement early" -> an auto-renewal
+        and a support-responsibilities position
+
+A Company Standard states what the organization will ACCEPT. It never states what
+the law says, and a shared word is not evidence that it answers anything. The
+statute corpus already had both halves of this rule — a named jurisdiction the
+system holds no law for is not answered from the positions, and a fall-through
+statute hit needs a gated semantic neighbour (`require_semantic`, 2026-09-09) — and
+the position lane had neither.
+
+```text
+r1   A STANDARD IS NO FALLBACK FOR A QUESTION ABOUT THE LAW. When the reader asks
+     for the law — its authority is GENERAL_LAW and not POSITION, or it refers to
+     law by name, category or jurisdiction — and does not mention the organization,
+     the organization's positions are not a fall-through source. Decided in
+     `routing.plan` from the question alone, so the recorded domains and the AM-46
+     refusal wording stay a function of what the caller already holds. A question
+     that asks for the law AND for our position ("what does Indian law say about
+     our liability cap?") keeps the positions as a primary source, unchanged.
+
+r2   A FALL-THROUGH POSITION NEEDS SEMANTIC EVIDENCE. Where the positions are
+     consulted because the reader did NOT ask about our position, a position
+     qualifies only through the calibrated vector gate (`calibration.gate_is_open`,
+     floor and peak margin unchanged); shared lexemes alone leave Domain A silent.
+     Asking about our position IS the relevance signal, so the primary route — its
+     strict floor and its rescue — is untouched.
+
+r3   NOTHING ELSE MOVES. No threshold, stoplist, topic list or model is introduced;
+     the gate, the verifier, AM-76 r4's fail-closed quote, authorization inside the
+     query and the AM-71 exclusion are unchanged. Both rules only turn a hit into
+     silence, never silence into an answer — the direction F-4 permits.
+
+r4   "IS THIS OK FOR US?" IS THE EVALUATOR'S QUESTION. `AM-50` r3's precedent,
+     extended by one word pair: "ok / okay" joins the acceptance words of the
+     deciding-to-sign shape, and only where no "to" / "if" clause follows it — "is
+     this MSA ok for us?" judges the document; "is it ok for us to terminate early?"
+     asks a permission and is unchanged. Measured: it had been answered with three
+     arbitrary MSA positions admitted on the single lexeme `msa`.
+```
+
+**Measured before the record was written** (live corpus, rolled-back transactions):
+
+    76-case matrix                      before   after
+      law questions answered w/ a position  12       0
+      position quoted as "relevant" to a
+        question that did not ask for one   12       7   (all 7 semantically gated)
+      must-refuse                          6/6     6/6
+      Gemini calls / question              1.87    1.24
+      p50                                 1906 ms 1678 ms
+
+    22-question readiness set: unrelated-position answers 4 -> 0; "liability cap??"
+    (MSA open), auto-renewal, termination, confidentiality, follow-ups and exact-text
+    requests unchanged.
+
+The accepted cost, stated: a terse question with nothing open and no "our" whose
+nearest position sits under the 0.50 floor — "governing law" at no document — now
+refuses where a lexical hit used to answer. Adding "our" makes it a position
+question and it answers. That is the Domain A calibration gap already recorded
+(2026-09-18), not a new one.
+
+--------------------------------------------------------------------------------
+AM-77: a position answers only what it can answer

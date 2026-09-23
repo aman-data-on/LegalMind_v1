@@ -454,7 +454,8 @@ def embed_positions(db: DBSession) -> int:
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                      limit: int = 10, embed_query=None,
                      topic: str | None = None,
-                     allow_relax: bool = True) -> list[PositionHit]:
+                     allow_relax: bool = True,
+                     require_semantic: bool = False) -> list[PositionHit]:
     """Domain A hybrid retrieval, authorization inside the function (r5).
 
     Without assist.ask AND (configuration.view OR legal_position.view) the result is
@@ -477,6 +478,17 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     (r5) and the `AM-71` exclusion are unchanged and still inside the query. A topic
     that matches nothing falls back to the unfiltered search: narrowing may never turn
     an answer into a refusal.
+
+    ``require_semantic`` (2026-09-23) is `statutes.search_statutes`'s rule, mirrored.
+    The fallback path sets it: positions are a fallback only for a question that did
+    not ask about our position, and then sharing lexemes is not relevance. With an
+    MSA open, "who are the parties to this agreement?" reached a Partner Agreement
+    notice position on `parti` + `agreement`, and AM-76 r4 quoted it as "relevant to
+    this question"; with nothing open, "give me the exact wording about ending the
+    agreement early" drew an auto-renewal and a support-responsibilities position.
+    Domain A counts as silent unless a gated vector neighbour vouches for the match.
+    Asking about our position IS the relevance signal, so the primary route is never
+    held to this.
     """
     # `AM-32` r5 as amended by `AM-44` (2026-09-08): `configuration.view` OR
     # `legal_position.view` — see `routing.positions_permitted` for the reasoning.
@@ -623,6 +635,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                for r in rows]
     vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
                                 topic=topic, named=named)
+    if require_semantic and not vector:
+        lexical = []
     # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
     #
     # Measured on the live 40-standard corpus, 2026-09-16: within the lexical branch
@@ -668,7 +682,9 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
         # question — simply costs one more query.
         log_event("assist.positions.topic_fallback", topic=topic, level=logging.DEBUG)
         return search_positions(db, query=query, permissions=permissions, limit=limit,
-                                embed_query=embed_query, topic=None)
+                                embed_query=embed_query, topic=None,
+                                allow_relax=allow_relax,
+                                require_semantic=require_semantic)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
               vector=len(vector), topic=topic or "", level=logging.DEBUG)
     return hits

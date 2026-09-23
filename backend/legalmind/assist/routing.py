@@ -222,9 +222,23 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # Narrow on purpose: it applies only when the reader is asking about the LAW. "What
     # is our position on Delaware disputes?" asks about the organization, and the
     # organization can answer it.
-    foreign_law_question = not jurisdiction_covered and not u.mentions_organization
+    #
+    # THE SAME HOLDS FOR THE LAW WE DO HOLD (2026-09-23). A standard is no more a
+    # statement of Indian law than of Delaware law. With the statutes silent, "what
+    # does Indian law say about penalty clauses" and six law-only questions in the
+    # 76-case matrix were answered with "the organization's approved position relevant
+    # to this question" — governing-law and GST standards admitted on `indian` + `law`.
+    # That is the wrong source whatever the lexical score, so it is decided here, by
+    # what the reader asked for, and never by what retrieval happened to match.
+    # A law REFERENCE counts even where a document target vetoed the statute route:
+    # "what does Indian law say about this confidentiality clause?" is still not a
+    # question the organization's governing-law standard answers.
+    law_only = (understanding.GENERAL_LAW in u.authority
+                and understanding.POSITION not in u.authority)
+    law_question = not u.mentions_organization and (
+        not jurisdiction_covered or law_only or signals.references_law)
     fallback: set[Domain] = set()
-    if positions_permitted(permissions) and not foreign_law_question:
+    if positions_permitted(permissions) and not law_question:
         fallback.add(Domain.POSITIONS)
     if statutes_available and jurisdiction_covered and P.ASSIST_ASK in permissions:
         fallback.add(Domain.STATUTES)
