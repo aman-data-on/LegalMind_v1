@@ -64,7 +64,8 @@ def test_a_normal_question_is_answered_by_paraphrase_without_the_quote_sentence(
     _aid(monkeypatch, PARAPHRASE)
     out = _ask(db, user, contract, QUESTION)
 
-    assert out.text == PARAPHRASE, out.text
+    # `AM-78` r3 — the fixed Legal-review line follows the paraphrase, never generated.
+    assert out.text == f"{PARAPHRASE} {service.LEGAL_REVIEW_TEXT}", out.text
     # The defect AM-76 exists to end: the pointer sentence is no longer appended.
     assert "quoted below" not in out.text
     assert out.exact_text_requested is False
@@ -198,3 +199,51 @@ def test_a_first_turn_exact_text_request_is_unchanged(
     prior: list = []
     assert not (bool(prior) and (intent.is_follow_up("Quote that clause verbatim.")
                                  or intent.is_exact_text_request("Quote that clause verbatim.")))
+
+
+# --------------------------------------------------------------------------
+# `AM-78` — the reader's own figure is context, compared exactly (2026-09-23)
+# --------------------------------------------------------------------------
+EARLY_EXIT = ("If the Customer elects to terminate this Agreement for any reason not "
+              "expressly permitted, the Customer shall pay an early termination fee "
+              "equal to the total fees payable for the remainder of the Term.")
+
+
+def test_a_figure_the_reader_gave_that_no_position_states_is_named_exactly():
+    from legalmind.assist import guardrails
+    assert guardrails.unstated_figures(
+        "The customer says we agreed 6 months of compensation.", [EARLY_EXIT]) == ["6 months"]
+    assert guardrails.unstated_figures(
+        "Customer bol raha hai ki 6 months ka compensation dena hoga", [EARLY_EXIT]) \
+        == ["6 months"]
+    # stated by the evidence, or not a figure at all: nothing to say
+    assert guardrails.unstated_figures(
+        "is the cap twelve months?", ["capped at the fees paid in the twelve (12) months"]) == []
+    assert guardrails.unstated_figures("what does clause 7 say?", [EARLY_EXIT]) == []
+
+
+def test_the_verifier_still_refuses_the_readers_figure_as_policy():
+    """Why the comparison is made in code: the lexical verifier cannot tell "the fee is
+    not fixed at 6 months" from "the fee is not more than 6 months" — so a generated
+    sentence may carry no unevidenced figure at all, the reader's included."""
+    from legalmind.assist import guardrails
+    for claim in ("The Customer must pay an early termination fee of 6 months of fees [1].",
+                  "The early termination fee is not fixed at 6 months; it equals the total "
+                  "fees payable for the remainder of the Term [1]."):
+        assert not guardrails.verify_answer(claim, [EARLY_EXIT]).passed, claim
+
+
+def test_the_comparison_leads_a_position_answer(
+        db, user, indexed_contract, tmp_path, monkeypatch, semantic_gate_open):
+    contract, _ = indexed_contract
+    _ratified_positions(db, user, tmp_path, NOTICE_POSITION)
+    _aid(monkeypatch, PARAPHRASE)
+    out = _ask(db, user, contract,
+               "The customer says we agreed 90 days notice to end the agreement early.")
+    assert out.text == (f"The approved position cited here does not state 90 days. "
+                        f"{PARAPHRASE} {service.LEGAL_REVIEW_TEXT}"), out.text
+
+
+def test_humne_is_the_organization_speaking():
+    from legalmind.assist import intent
+    assert intent.mentions_organization("humne mention kiya hai ki 6 months dena hoga")

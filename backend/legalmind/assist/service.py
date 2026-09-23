@@ -694,6 +694,9 @@ POSITIONS_BESIDE_TEXT = (
     "No answer was found in the selected document. The organization's approved "
     "position relevant to this question is quoted below.")
 # The reader asked for the source's own words (`AM-76`; `intent.is_exact_text_request`).
+# `AM-78` r3 — fixed, never generated: the zero-tolerance Legal Rule, in the reader's
+# words. It names the routing only; no threshold or rule configuration (`LEGAL-02`).
+LEGAL_REVIEW_TEXT = "Any deviation from this position needs Legal review."
 POSITIONS_EXACT_TEXT = ("You asked for the exact wording. The ratified standard is "
                         "quoted below, unchanged.")
 POSITION_LIMIT = 3
@@ -1456,7 +1459,13 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
             with _stage("position_aid"):
                 aid = _position_reading_aid(question, position_hits, request_id)
             if aid:
-                wording = aid.text
+                wording = f"{aid.text} {LEGAL_REVIEW_TEXT}"
+        # `AM-78` r1 — the reader's own figure, compared exactly, never by the model.
+        unstated = guardrails.unstated_figures(
+            question, [h.content for h in position_hits])
+        if unstated:
+            wording = (f"The approved position cited here does not state "
+                       f"{' or '.join(unstated)}. {wording}")
     # The answer row names the prompt that produced its generated part — the statute
     # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
     # so `prompt_version_id` was NULL on every `AM-67` answer.
