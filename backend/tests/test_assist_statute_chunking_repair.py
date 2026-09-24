@@ -318,3 +318,56 @@ def test_a_citation_follows_its_TEXT_when_a_section_is_renumbered(db, tmp_path):
     assert landed[0].section_number == "3A", \
         f"citation followed document order to s. {landed[0].section_number}, not its text"
     assert DISTINCT[:60] in " ".join(landed[0].content.split())
+
+
+# --- section-4 / roadmap PHASE 2: bounded chunks and the integrity gate -----------
+
+from legalmind.assist import statutes as _st  # noqa: E402
+
+
+def _c(num, sub=None, text=None, start=0, end=10):
+    return _st.StatuteChunk(num, sub, None, text or f"{num}{sub} {BODY}", start, end)
+
+
+def test_every_statute_piece_is_bounded_and_nothing_is_lost():
+    long = "word " * 2000                        # one sub-section, no markers at all
+    pieces = _st._windows(long)
+    assert "".join(pieces) == long and all(len(p) <= _st.MAX_SECTION_CHARS for p in pieces)
+    assert all(len(p) <= _st.MAX_SECTION_CHARS for _, p in _st._split_long(
+        "(1) " + "x " * 3000 + "\n(2) short"))
+
+
+def test_a_folded_unit_is_quarantined_and_the_rest_of_the_act_kept():
+    chunks = [_c(str(n)) for n in range(1, 12)] + [
+        _c("12", "(2)"), _c("12", "(6)"), _c("12", "(2)")]        # Orders under "s.12"
+    ig = _st.check_integrity(chunks, 10)
+    assert ig.quarantined == {"12": "SUBSECTION_RESTART"} and ig.refused is None
+    assert all(c.section_number != "12" for c in ig.kept)
+
+
+def test_leaving_the_acts_numbering_quarantines_what_follows_but_not_a_schedule():
+    chunks = [_c(str(n)) for n in range(1, 20)] + [_c("158"), _c("310"), _c("311"),
+                                                   _c("The First Schedule", "(2)"),
+                                                   _c("The First Schedule", "(1)")]
+    ig = _st.check_integrity(chunks, 10)
+    assert set(ig.quarantined) == {"158", "310", "311"}
+    assert "The First Schedule" not in ig.quarantined      # a Schedule has no sub-sections
+
+
+def test_an_act_mostly_failing_integrity_is_refused_whole():
+    chunks = [_c("1"), _c("2", "(3)"), _c("2", "(1)"), _c("3", "(2)"), _c("3", "(1)")]
+    assert _st.check_integrity(chunks, 10).refused
+
+
+def test_duplicate_text_and_lost_text_are_caught():
+    same = _c("2", text="identical " * 40)
+    assert _st.check_integrity([_c("1"), same, _c("2", text=same.content)],
+                               10).quarantined == {"2": "DUPLICATE_TEXT"}
+    thin = _st.check_integrity([_c("1", start=0, end=10)], text_length=1000)
+    assert thin.refused and "cover" in thin.refused
+
+
+def test_a_bilingual_print_is_read_in_english():
+    hindi, english = "धारा " * 50, "Section " * 50
+    assert _st._prefer_latin([hindi, hindi, english]) == [english]
+    assert _st._prefer_latin([hindi]) == [hindi]          # nothing else to read

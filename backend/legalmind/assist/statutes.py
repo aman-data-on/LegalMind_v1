@@ -36,10 +36,11 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
+from legalmind.assist import authority
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-STATUTE_CHUNKING_ALGORITHM_VERSION = "section-3"
+STATUTE_CHUNKING_ALGORITHM_VERSION = "section-4"
 # A section body shorter than this is an arrangement-of-sections entry or a footnote,
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
@@ -192,27 +193,41 @@ def _marginal_note(body: str) -> str | None:
     return note[:200] or None
 
 
+def _windows(text: str) -> list[str]:
+    """Cut text into pieces of at most MAX_SECTION_CHARS, at a blank where one exists.
+
+    `section-4` (2026-09-24, roadmap PHASE 2): a single sub-section longer than the cap
+    used to be kept whole — 26 CGST chunks over 2,000 characters, one CPC chunk of
+    126,670 — so the cap was a packing target, not a bound. The pieces concatenate back
+    to `text` exactly, so no character is lost and offsets stay true."""
+    out = []
+    while len(text) > MAX_SECTION_CHARS:
+        cut = text.rfind(" ", MAX_SECTION_CHARS // 2, MAX_SECTION_CHARS)
+        cut = cut if cut > 0 else MAX_SECTION_CHARS
+        out.append(text[:cut])
+        text = text[cut:]
+    return [*out, text] if text else out
+
+
 def _split_long(section: str) -> list[tuple[str | None, str]]:
-    """Split an over-long section at its sub-section markers, greedily packed."""
+    """Split an over-long section at its sub-section markers, greedily packed; every
+    piece is then bounded by MAX_SECTION_CHARS (`_windows`)."""
     parts = [p for p in _SUBSECTION.split(section) if p.strip()]
-    if len(parts) <= 1:
-        return [(None, section[i:i + MAX_SECTION_CHARS])
-                for i in range(0, len(section), MAX_SECTION_CHARS)]
-    out: list[tuple[str | None, str]] = []
+    packed: list[tuple[str | None, str]] = []
     current = ""
     current_sub: str | None = None
-    for part in parts:
+    for part in parts or [section]:
         sub = re.match(r"[ \t]*(\(\d{1,2}\))", part)
         if current and len(current) + len(part) > MAX_SECTION_CHARS:
-            out.append((current_sub, current))
+            packed.append((current_sub, current))
             current, current_sub = part, sub.group(1) if sub else None
         else:
             if not current:
                 current_sub = sub.group(1) if sub else None
             current += part
     if current:
-        out.append((current_sub, current))
-    return out
+        packed.append((current_sub, current))
+    return [(sub, piece) for sub, body in packed for piece in _windows(body)]
 
 
 def chunk_statute_text(text: str) -> list[StatuteChunk]:
@@ -296,6 +311,78 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     return chunks
 
 
+# Integrity gate (roadmap PHASE 2, §2 "No document becomes searchable until ingestion
+# integrity checks pass"). A section failing a check is QUARANTINED — never written,
+# so never searchable, never cited — and the Act is REFUSED when too much of it fails
+# or its text is not covered. Thresholds measured on the 17-Act corpus, 2026-09-24:
+# the largest genuine forward gap is 49 (Contract Act ss. 75 → 124, the Sale of Goods
+# sections moved out in 1930); the CPC's First Schedule read as sections jumps 158 → 310.
+NUMBERING_JUMP_LIMIT = 100
+QUARANTINE_CEILING = 0.20
+COVERAGE_FLOOR = 0.95
+
+
+@dataclass(frozen=True)
+class Integrity:
+    kept: list[StatuteChunk]
+    quarantined: dict[str, str]           # section → first failing check
+    coverage: float
+    refused: str | None
+
+
+def check_integrity(chunks: list[StatuteChunk], text_length: int) -> Integrity:
+    """Per-section checks, then per-Act ones. Deterministic; reads only the chunks.
+
+    SUBSECTION_RESTART  a section's sub-sections run (2), (6), (2): several units were
+                        folded under one number — the CPC's Orders under "s. 158"
+    NUMBERING_JUMP      a forward gap over the limit: the parser left the Act's own
+                        numbering, so the rest (Schedules excepted) is not trusted
+    DUPLICATE_TEXT      the same text twice in one Act (a repeated-text explosion)
+    OVERSIZED           a chunk over MAX_SECTION_CHARS (`_windows` makes this a bug)
+    """
+    bad: dict[str, str] = {}
+    sections: dict[str, list[StatuteChunk]] = {}
+    for c in chunks:
+        sections.setdefault(c.section_number, []).append(c)
+    for num, cs in sections.items():
+        if _section_key(num)[0] >= _SCHEDULE_RANK:    # a Schedule has no sub-sections
+            continue
+        subs = [int(m.group()) for c in cs
+                if c.sub_section and (m := re.search(r"\d+", c.sub_section))]
+        if any(b < a for a, b in pairwise(subs)):
+            bad[num] = "SUBSECTION_RESTART"
+    numeric = [n for n in sections if 0 < _section_key(n)[0] < _SCHEDULE_RANK]
+    for i, (a, b) in enumerate(pairwise(numeric)):
+        if _section_key(b)[0] - _section_key(a)[0] > NUMBERING_JUMP_LIMIT:
+            for n in numeric[i + 1:]:
+                bad.setdefault(n, "NUMBERING_JUMP")
+            break
+    seen: set[str] = set()
+    for c in chunks:
+        if c.content in seen:
+            bad.setdefault(c.section_number, "DUPLICATE_TEXT")
+        seen.add(c.content)
+        if len(c.content) > MAX_SECTION_CHARS:
+            bad.setdefault(c.section_number, "OVERSIZED")
+    kept = [c for c in chunks if c.section_number not in bad]
+    covered, end = 0, 0
+    for c in sorted(chunks, key=lambda c: c.char_start):
+        covered += max(0, c.char_end - max(c.char_start, end))
+        end = max(end, c.char_end)
+    body = text_length - (chunks[0].char_start if chunks else 0)
+    coverage = covered / body if body > 0 else 0.0
+    refused = None
+    # The ceiling counts SECTIONS — the unit a citation names. One folded blob of 500
+    # chunks is one untrustworthy section, not proof the other 150 are wrong.
+    if sections and len(bad) / len(sections) > QUARANTINE_CEILING:
+        refused = (f"{len(bad)} of {len(sections)} sections fail integrity "
+                   f"— over the {QUARANTINE_CEILING:.0%} ceiling")
+    elif coverage < COVERAGE_FLOOR:
+        refused = (f"chunks cover {coverage:.1%} of the Act's text, "
+                   f"under {COVERAGE_FLOOR:.0%}")
+    return Integrity(kept, bad, round(coverage, 4), refused)
+
+
 def _page_text(page) -> str:
     """One page in READING order, not in PDF content-stream order.
 
@@ -324,11 +411,26 @@ def _page_text(page) -> str:
     return "\n".join(b[4].strip() for b in blocks if b[4].strip())
 
 
+_DEVANAGARI = re.compile(r"[ऀ-ॿ]")
+_LATIN = re.compile(r"[A-Za-z]")
+
+
 def _pdf_text(path: Path) -> str:
+    """The instrument's text. A BILINGUAL Gazette print (the DPDP Rules, 2025: 23 Hindi
+    pages, then 18 English) carries the same instrument twice, each numbered 1 → 23, so
+    the fold rule filed the whole English half under "rule 23". Where both scripts hold
+    whole pages, the English pages are the text chunked.
+    ponytail: the Hindi version is then not indexed; index it as its own statute row
+    if Hindi-language retrieval is ever asked for."""
     import pymupdf
 
-    doc = pymupdf.open(str(path))
-    return "\n".join(_page_text(page) for page in doc.pages())
+    return "\n".join(_prefer_latin(
+        [_page_text(page) for page in pymupdf.open(str(path)).pages()]))
+
+
+def _prefer_latin(pages: list[str]) -> list[str]:
+    latin = [p for p in pages if len(_LATIN.findall(p)) >= len(_DEVANAGARI.findall(p))]
+    return latin if latin else pages
 
 
 def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
@@ -347,7 +449,8 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
         raise StatuteIngestRefused(
             f"{path.name}: SHA-256 differs from the registry entry")
 
-    chunks = chunk_statute_text(_pdf_text(path))
+    full_text = _pdf_text(path)
+    chunks = chunk_statute_text(full_text)
     if not chunks:
         raise StatuteIngestRefused(
             f"{path.name}: no numbered sections found — a Domain C citation is Act + "
@@ -359,6 +462,10 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
             f"{path.name}: {sections} sections, registry declares {declared_sections} "
             f"— below the {SECTION_COUNT_FLOOR:.0%} floor, so the extraction lost part "
             "of the Act rather than merely re-drawing a boundary")
+    integrity = check_integrity(chunks, len(full_text))
+    if integrity.refused:
+        raise StatuteIngestRefused(f"{path.name}: integrity — {integrity.refused}")
+    chunks = integrity.kept
 
     schema = config.assist_schema()
     statute_id = _upsert_statute(db, schema, sha=sha, provenance=provenance)
@@ -366,10 +473,12 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
     embedded = _embed(db, statute_id)
     log_event("assist.statutes.ingested", statute_id=str(statute_id),
               chunks=len(chunks), embedded=embedded,
+              quarantined=len(integrity.quarantined),
               citations_repointed=repointed)              # counts only (53.3)
     return {"statute_id": str(statute_id), "chunks": len(chunks), "sections": sections,
             "embedded": embedded, "file_sha256": sha,
-            "citations_repointed": repointed}
+            "citations_repointed": repointed, "coverage": integrity.coverage,
+            "quarantined": integrity.quarantined}
 
 
 def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -> UUID:
@@ -384,7 +493,8 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
               "act": provenance["act_number_year"], "jur": provenance["jurisdiction"],
               "src": provenance["source"], "ref": provenance["source_ref"],
               "amended": provenance["as_amended_date"], "sha": sha,
-              "by": provenance["supplied_by"], "at": provenance["supplied_at"]}
+              "by": provenance["supplied_by"], "at": provenance["supplied_at"],
+              "status": authority.of_statute(provenance["official_title"])[1]}
     prior = db.execute(sql_text(
         f'SELECT id FROM "{schema}".statutes WHERE file_sha256 = :sha '
         'OR official_title = :title ORDER BY created_at'), fields).scalars().all()
@@ -398,7 +508,8 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
             UPDATE "{schema}".statutes
                SET official_title = :title, act_number_year = :act, jurisdiction = :jur,
                    source = :src, source_ref = :ref, as_amended_date = :amended,
-                   file_sha256 = :sha, supplied_by = :by, supplied_at = :at
+                   file_sha256 = :sha, supplied_by = :by, supplied_at = :at,
+                   status = :status
              WHERE id = :id
         """), {**fields, "id": prior[0]})
         return prior[0]
@@ -406,8 +517,8 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
     db.execute(sql_text(f"""
         INSERT INTO "{schema}".statutes
             (id, official_title, act_number_year, jurisdiction, source, source_ref,
-             as_amended_date, file_sha256, supplied_by, supplied_at)
-        VALUES (:id, :title, :act, :jur, :src, :ref, :amended, :sha, :by, :at)
+             as_amended_date, file_sha256, supplied_by, supplied_at, status)
+        VALUES (:id, :title, :act, :jur, :src, :ref, :amended, :sha, :by, :at, :status)
     """), {**fields, "id": statute_id})
     return statute_id
 
@@ -630,18 +741,20 @@ def expand_aliases(query: str) -> str:
 #
 # So the marker and the predicate are defined once here. `_repealed_sql` takes the
 # column expression because the lexical query reads it from a sub-select (bare
-# `official_title`) and the vector query from the joined table (`s.official_title`);
-# the POLICY is identical and there is now exactly one place to change it.
+# `status`) and the vector query from the joined table (`s.status`); the POLICY is
+# identical and there is exactly one place to change it.
 #
-# The label is the corpus's own, recorded in `official_title` at ingestion. No
-# repeal is inferred here and none may be — which Act is in force is law, not an
-# engineering judgement (rule 7).
+# The label is the corpus's own: the registry title's "(REPEALED …)" marker, written
+# to `statutes.status` at ingestion (`a7d3e9b1c5f2`, 2026-09-24). No repeal is
+# inferred here and none may be — which Act is in force is law, not an engineering
+# judgement (rule 7).
 _REPEALED_MARKER = "REPEALED"
 
 
-def _repealed_sql(column: str = "s.official_title") -> str:
-    """SQL predicate: is this source's Act repealed?"""
-    return f"{column} LIKE '%{_REPEALED_MARKER}%'"
+def _repealed_sql(column: str = "s.status") -> str:
+    """SQL predicate: is this source's Act repealed? Reads the `status` column
+    (`a7d3e9b1c5f2`), written at ingestion from the registry title's own marker."""
+    return f"{column} = 'REPEALED'"
 
 
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
@@ -676,7 +789,7 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       SELECT * FROM (
         WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex),
         {quarantine}
-        SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
+        SELECT sc.id, s.official_title, s.act_number_year, s.status, sc.section_number,
                sc.sub_section, sc.marginal_note, sc.content, sc.ordinal,
                (SELECT count(*) FROM q, unnest(tsvector_to_array(sc.content_tsv)) l
                  WHERE l = ANY(q.lex)) AS matched,
@@ -733,10 +846,10 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       -- Repealed law is not served as current law. It stays reachable the one way
       -- AM-71 keeps a superseded position reachable: when the question NAMES that
       -- Act, which `act_match >= 0.5` already means everywhere else in this query.
-         WHERE NOT ({_repealed_sql('official_title')}) OR act_match >= 0.5
+         WHERE NOT ({_repealed_sql('status')}) OR act_match >= 0.5
                OR {'TRUE' if include_superseded else 'FALSE'}
          ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
-                  ({_repealed_sql('official_title')}) ASC, act_match DESC, score DESC,
+                  ({_repealed_sql('status')}) ASC, act_match DESC, score DESC,
                   official_title, ordinal
          LIMIT :limit
     """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
@@ -825,6 +938,9 @@ _QUARANTINE_CTE = """
         suspect AS MATERIALIZED (
             SELECT statute_id, section_number
               FROM "{schema}".statute_chunks
+             -- A Schedule is not a section and may be long (Companies Act, 2013
+             -- Schedule III: 98 bounded chunks); folds are caught at ingestion now.
+             WHERE section_number NOT ILIKE '%schedule%'
              GROUP BY 1, 2 HAVING count(*) > {cap}
         )"""
 

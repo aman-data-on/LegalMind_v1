@@ -1,0 +1,41 @@
+"""Statute repeal status as a column — `AM-79` r4 / roadmap PHASE 2, 2026-09-24
+
+Revision ID: a7d3e9b1c5f2
+Revises: f4c1e8a2b7d9
+Create Date: 2026-09-24
+
+Until now "is this Act in force?" was a substring of `official_title`
+("(REPEALED …)"), matched by `LIKE` in every query that needed it. Roadmap §2 and §14
+make repeal status retrieval metadata in its own right. The column is backfilled from
+that SAME marker — no repeal is inferred here, and none may be (rule 7) — and ingestion
+writes it from the registry title thereafter. The title keeps its marker: it is the
+provenance a reader sees.
+"""
+from __future__ import annotations
+
+import sqlalchemy as sa
+
+from alembic import op
+from legalmind import config
+
+revision = 'a7d3e9b1c5f2'
+down_revision = 'f4c1e8a2b7d9'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    schema = config.assist_schema()
+    op.add_column('statutes', sa.Column('status', sa.String(length=32),
+                                        server_default='CURRENT', nullable=False),
+                  schema=schema)
+    op.create_check_constraint('ck_statutes_status', 'statutes',
+                               "status IN ('CURRENT', 'REPEALED')", schema=schema)
+    op.execute(sa.text(f"""UPDATE "{schema}".statutes SET status = 'REPEALED'
+                            WHERE official_title LIKE '%REPEALED%'"""))
+
+
+def downgrade() -> None:
+    schema = config.assist_schema()
+    op.drop_constraint('ck_statutes_status', 'statutes', schema=schema)
+    op.drop_column('statutes', 'status', schema=schema)

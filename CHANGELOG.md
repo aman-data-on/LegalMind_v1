@@ -24,6 +24,12 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   `assist/constitution.py` + `tools/ingest_constitution.py`, `assist/authority.py`.
   Historical exceptions, the company's reading of law and §31.6a are labelled apart from
   current policy.
+* **PHASE 2 / `AM-80`** (amends `AM-48` r5) — nothing becomes searchable until it passes
+  ingestion integrity: `statutes.check_integrity` quarantines folded / mis-numbered /
+  duplicate sections and refuses an Act over a 20% ceiling; `chunking.integrity_failures`
+  gates document indexing; `section-4` bounds statute chunks at 2,000 characters;
+  bilingual prints read in English; `statutes.status` column (migration `a7d3e9b1c5f2`).
+  Folded sections 30 → 0, oversized chunks 806 → 0; Income-tax Act 1961 print refused.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

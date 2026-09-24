@@ -142,11 +142,13 @@ def _statute(db, title: str, sections: list[tuple[str, int]]) -> None:
     from legalmind import config
     schema = config.assist_schema()
     sid = uuid.uuid4()
+    from legalmind.assist import authority
     db.execute(sql(f'INSERT INTO "{schema}".statutes (id, official_title, act_number_year,'
                    " jurisdiction, source, source_ref, as_amended_date, file_sha256,"
-                   " supplied_by, supplied_at) VALUES (:i, :t, 'Act No. 0 of 2099',"
-                   " 'TEST', 'synthetic', 'none', 'n/a', :h, 'test', now())"),
-               {"i": sid, "t": title, "h": uuid.uuid4().hex * 2})
+                   " supplied_by, supplied_at, status) VALUES (:i, :t, 'Act No. 0 of 2099',"
+                   " 'TEST', 'synthetic', 'none', 'n/a', :h, 'test', now(), :st)"),
+               {"i": sid, "t": title, "h": uuid.uuid4().hex * 2,
+                "st": authority.of_statute(title)[1]})   # as ingestion writes it
     n = 0
     for number, count in sections:
         for _ in range(count):
@@ -239,14 +241,14 @@ def test_one_repeal_predicate_governs_both_retrieval_paths(db, monkeypatch):
     # LEXICAL — neutralise the one predicate; the exclusion must collapse with it.
     # A predicate that never matches, not the constant `false` — a bare constant is a
     # positional reference in ORDER BY and Postgres rejects it.
-    never = "official_title LIKE '%__NOTHING_MATCHES_THIS__%'"
-    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.official_title": never)
+    never = "status = '__NOTHING_MATCHES_THIS__'"
+    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.status": never)
     assert any("REPEALED" in t for t in titles()), \
         "the LEXICAL path does not depend on _repealed_sql"
 
     # VECTOR — the same helper, and it is the only use of it in that query.
-    sentinel = "official_title LIKE '%__SABOTAGED__%'"
-    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.official_title": sentinel)
+    sentinel = "status = '__SABOTAGED__'"
+    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.status": sentinel)
     captured: list[str] = []
     real = st.sql_text
     monkeypatch.setattr(st, "sql_text", lambda s: (captured.append(s), real(s))[1])
@@ -260,7 +262,8 @@ def test_one_repeal_predicate_governs_both_retrieval_paths(db, monkeypatch):
 def test_no_second_copy_of_the_repeal_predicate_exists():
     """The duplication this replaced was found in a validation pass, not by a test.
     A literal `LIKE '%REPEALED%'` anywhere outside the one helper is that bug coming
-    back, so it is asserted against directly."""
+    back, so it is asserted against directly. Since `a7d3e9b1c5f2` (2026-09-24) the
+    predicate reads the `status` column; the title marker is read once, at ingestion."""
     import pathlib
 
     from legalmind.assist import statutes as st
@@ -268,7 +271,7 @@ def test_no_second_copy_of_the_repeal_predicate_exists():
     source = pathlib.Path(st.__file__).read_text()
     body = "\n".join(line for line in source.splitlines()
                      if not line.lstrip().startswith(("#", "--")))
-    assert body.count("LIKE '%{_REPEALED_MARKER}%'") == 1, "the helper is the one copy"
+    assert body.count("= 'REPEALED'") == 1, "the helper is the one copy"
     assert "LIKE '%REPEALED%'" not in body, "a hardcoded repeal predicate came back"
 
 

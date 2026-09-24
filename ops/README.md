@@ -87,6 +87,17 @@ leaves them empty. Populate once (idempotent — an unchanged file is left alone
 
     cd /root/Legalmind.v1/backend && python3 -m tools.ingest_constitution
 
+## After a deploy that changes the statute chunker (`AM-80`, `section-4`)
+
+Migration `a7d3e9b1c5f2` adds `statutes.status` and backfills it. The corpus itself is
+re-chunked only by the ingest tool — until it runs, production still serves the old
+chunks. Run once; it prints one line per Act, and an Act failing integrity is REFUSED
+(expected today: the Income-tax Act 1961 print):
+
+    cd /root/Legalmind.v1/backend && python3 -m tools.ingest_statutes
+
+Citations recorded against old chunks are re-pointed by text (`_replace_statute_chunks`).
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql

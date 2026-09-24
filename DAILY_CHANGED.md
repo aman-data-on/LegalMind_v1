@@ -191,3 +191,79 @@ path reads the new tables until PHASE 3 (retrieval records) / PHASE 7 (retrieval
 `authority.of_statute`) → PHASE 2 with the statute re-ingestion; L1.5 items (format differs)
 → when a historical-Constitution question needs them; production population
 (`tools.ingest_constitution`) → at deploy, not on this branch.
+**Commit:** `9cdfda9`.
+
+---
+
+## 2026-09-24 — Entry 4: PHASE 2 — ingestion and parser integrity
+
+*(Resumed after a network interruption; the statute-predicate edits that had not run
+were re-applied and verified before continuing.)*
+
+**Lock amended — `AM-80` (AB-30)**, amending `AM-48` r5 (the corpus list) and adding
+`statutes.status` to `AM-32`'s table. all_lock.md 19921 → 19999 lines, additions only;
+registry row added, `AM-48` row annotated; CLAUDE.md counts updated.
+
+**Built**
+* **Statute integrity gate** — `statutes.check_integrity`, run inside `ingest_statute`
+  before anything is written. Section quarantine: SUBSECTION_RESTART (units folded
+  under one number), NUMBERING_JUMP (> 100, the parser left the Act's numbering),
+  DUPLICATE_TEXT, OVERSIZED. Act refusal: > 20% of sections failing, or < 95% coverage.
+  Thresholds measured on the 17 Acts (largest genuine gap 49; the CPC Schedule-as-
+  sections jump 152). Two calibration fixes found by measuring: Schedules are exempt
+  from the sub-section check, and the ceiling counts SECTIONS, not chunks.
+* **`section-4`** — `_windows` bounds every statute chunk at 2,000 characters, lossless.
+* **Bilingual prints** — `_prefer_latin`: the DPDP Rules 2025 file is 23 Hindi pages
+  then 18 English; the English half had been folded under "rule 23". Only this file
+  is affected (page-script scan of all 17).
+* **`statutes.status`** — migration `a7d3e9b1c5f2`; `_repealed_sql` reads the column;
+  `authority.of_statute` is the single derivation, used by ingestion.
+* **Document integrity gate** — `chunking.integrity_failures` (FABRICATED_TEXT,
+  OVERSIZED, REPEATED_TEXT, CONTENT_LOSS), enforced in `index_document_version`.
+* Schedules exempt from the 50-chunk read-time quarantine (Companies Act 2013 Sch. III).
+* ops/README.md: the re-ingest step for deploy.
+
+**Tested** — 9 new tests (bounded/lossless windows, folded unit quarantined, numbering
+jump spares Schedules, whole-Act refusal, duplicate and lost text, bilingual selection,
+document gate pass/fail, a failing version is not searchable). `test_assist_answer_integrity`
+repeal tests moved to the column (same intent: one predicate, both paths). Full suite
+**2554 passed, 112 skipped (unchanged), 0 failed**; ruff + mypy clean.
+
+**Measured** — scratch DB `legalmind_rag_p2` built from the supplied files by the
+current code (position corpus md5-identical to production), statutes before = the
+production `section-1` corpus:
+
+| Integrity (statutes) | before | after |
+|---|---|---|
+| chunks | 5,140 | 4,010 |
+| sections with folded units | 30 | **0** |
+| numbering jumps > 100 | 5 | **0** |
+| chunks > 2,000 chars (max) | 806 (128,684) | **0 (2,000)** |
+| sections > 50 chunks | 3 | 1 (Companies 2013 Schedule III — genuine) |
+| searchable Acts | 17 | 16 (Income-tax 1961 refused) |
+
+Quarantined: 28 sections across 8 Acts (CPC 10 incl. its folded Orders, Companies 1956 6,
+Companies 2013 4, CGST 3, Copyright 2, IT Act 1, A&C 1, DPDP Rules 1). Documents: **37/37**
+live versions pass the gate — no false positive.
+
+| Benchmark (76 cases) | PHASE 0 | PHASE 2 |
+|---|---|---|
+| recall@3 / @10 | 0.494 / 0.519 | **0.506 / 0.531** |
+| MRR / nDCG@5 | 0.439 / 0.564 | 0.446 / 0.580 |
+| multi-source complete | 0.000 | **0.091** |
+| wrong-source rate | 0.053 | **0.040** |
+| SOURCE_MISSING | 2 | 1 |
+
+Moved cases: L-03 Companies 2013 s.179 rank 5 → **1** and the repealed 1956 Act no longer
+shown; E-02 DPDP s.8 now retrieved (rank 6); O-04 IT Act s.70B now exists (was
+SOURCE_MISSING → RANK_CUTOFF); H-04 6 → 4; O-03 1 → 2 (still top-3). Golden subset
+unchanged — expected: its failures are Domain A ranking and the unindexed Constitution,
+which PHASES 3 and 7 address.
+
+**Exit (roadmap §2)** — no statute section or document version becomes searchable
+without passing integrity ✔ · fabricated labels, bad joins, oversized sections,
+repeated text, content loss and repeal status all checked ✔ · measured before/after ✔.
+
+**Not done, named:** the DPDP Rules' Hindi text and its Schedules (folded into rule 23,
+quarantined) — a Gazette-specific Schedule parser; the Income-tax Act 1961 — needs a
+clean official copy (rule 21); production re-ingest — at deploy (ops/README.md).

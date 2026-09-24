@@ -29,7 +29,7 @@ _ACT_MATCH_FIRST = "act_match DESC, exact_section DESC, matched DESC"
 _MATCHED_FIRST = "(act_match >= 0.5) DESC, exact_section DESC, matched DESC, act_match DESC"
 # The repeal predicate has ONE definition (`statutes._repealed_sql`); a second copy
 # here could drift from the shipped policy and silently mis-measure it.
-_LIVE = f"({S._repealed_sql('official_title')}) ASC"
+_LIVE = f"({S._repealed_sql('status')}) ASC"
 
 VARIANTS: dict[str, str] = {
     "act_match_first": f"{_ACT_MATCH_FIRST}, score DESC",
@@ -39,7 +39,7 @@ VARIANTS: dict[str, str] = {
 
 _INNER = """
 WITH q AS MATERIALIZED (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex)
-SELECT sc.id, s.official_title, s.act_number_year, sc.section_number, sc.sub_section,
+SELECT sc.id, s.official_title, s.act_number_year, s.status, sc.section_number, sc.sub_section,
        sc.marginal_note, sc.content,
        (SELECT count(*) FROM q, unnest(tsvector_to_array(sc.content_tsv)) l
          WHERE l = ANY(q.lex)) AS matched,

@@ -19919,3 +19919,81 @@ of 11 Constitution refs in the PHASE 0 benchmark resolve.
 
 --------------------------------------------------------------------------------
 AM-79: the Constitution is a canonical, structured, retrievable source
+
+================================================================================
+AMENDMENT BATCH AB-30 — `AM-80`
+Nothing becomes searchable until it passes ingestion integrity
+================================================================================
+
+**Owner decision, 2026-09-24** — the master RAG roadmap (`AM-79`'s owner authority),
+§2: *"Every source must pass a deterministic ingestion pipeline before entering
+production retrieval … A parsed statute section must never acquire a fabricated
+section number. … No document becomes searchable until ingestion integrity checks
+pass."* Roadmap PHASE 2.
+
+**Amends:** `AM-48` r5 (the corpus list — what is SEARCHABLE is now what passes
+integrity); `AM-32`'s `statutes` table (+1 column, `status`). **Does not amend:**
+`AM-48` r1–r4, r6; `AM-32` r6–r8 (provenance, section-based chunking, statute text in
+its own evidence set); `AM-27` r4 (a chunk references the one evidence row it came
+from — the gate enforces it); `AM-47`; `AM-71`; rules 7, 17, 21.
+
+```text
+r1   STATUTES PASS AN INTEGRITY GATE (statutes.check_integrity), after chunking and
+     before anything is written. A section is QUARANTINED — never stored, so never
+     retrieved or cited — when its sub-sections restart (several units folded under
+     one number: the CPC's Orders under "s. 158", Companies Act 2013 s. 178's text
+     under "s. 177"), when the numbering jumps by more than 100 (the parser left the
+     Act's own numbering; Schedules excepted), or when its text duplicates another's.
+     An Act is REFUSED whole when more than 20% of its sections fail, or its chunks
+     cover under 95% of its text. Thresholds measured on the 17 supplied Acts: the
+     largest genuine gap is 49 (Contract Act ss. 75 → 124).
+
+r2   A CHUNK IS BOUNDED. `section-4`: no statute chunk exceeds MAX_SECTION_CHARS
+     (2,000); an over-long sub-section is cut at a blank, losslessly. Before: 806
+     chunks over the cap, the largest 128,684 characters.
+
+r3   A BILINGUAL PRINT IS READ IN ENGLISH. Where a statute file holds whole pages in
+     both Devanagari and Latin script (the DPDP Rules, 2025: 23 Hindi pages, then 18
+     English), the English pages are the text chunked — both are authoritative texts
+     of one instrument, and numbering the two halves 1 → 23 twice folded the whole
+     English text under "rule 23". The Hindi text is not indexed; recorded, not hidden.
+
+r4   REPEAL STATUS IS A COLUMN. statutes.status (CURRENT | REPEALED), migration
+     a7d3e9b1c5f2, backfilled from and thereafter written from the registry title's
+     own "(REPEALED …)" marker — no repeal is inferred (rule 7). The one repeal
+     predicate reads it; the title keeps its marker as provenance.
+
+r5   THE SEARCHABLE CORPUS. Replacing AM-48 r5's list as a statement of what Ask
+     retrieves: the same 17 instruments are supplied, registered and SHA-verified;
+     16 pass integrity. The Income-tax Act, 1961 (2011 Taxmann edition, repealed) is
+     REFUSED — 22 of its 27 extracted sections fail, the print that AM-48 r2 already
+     recorded as deficient — and is not searchable until a clean official copy is
+     supplied (rule 21). Its file and registry entry are untouched.
+
+r6   DOCUMENTS PASS AN INTEGRITY GATE (chunking.integrity_failures) before a
+     version's chunks are written: every chunk's text is in its own evidence row
+     (no fabricated label, no bad join), none exceeds the cap plus what folding adds,
+     no clause-length text repeats like page furniture, and the chunks cover at least
+     95% of the indexable text. A failing version is not indexed and the reason is
+     logged; a reindex that fails leaves the previous chunks in place. PARTIAL
+     extraction stays indexable (locked 34.10 represents it explicitly).
+
+r7   A SCHEDULE IS NOT SUBJECT TO THE 50-CHUNK READ-TIME QUARANTINE. It is not a
+     section, may legitimately be long (Companies Act, 2013 Schedule III: 98 bounded
+     chunks), and folds are now caught at ingestion.
+```
+
+**Recorded 2026-09-24.** Implemented and verified before the record was written, on
+branch `feat/legalmind-rag-production` (not deployed; production still holds the
+`section-1` corpus until `tools.ingest_statutes` runs on deploy). Measured on a
+scratch database built from the supplied files: statute chunks 5,140 → 4,010;
+sections with folded units 30 → 0; numbering jumps over 100: 5 → 0; chunks over
+2,000 characters 806 → 0; 28 sections quarantined across 8 searchable Acts; 1 Act
+refused. All
+37 live document versions pass the document gate (no false positive). PHASE 0
+benchmark on the same position corpus (byte-identical to production): recall@3
+0.494 → 0.506, multi-source completeness 0.000 → 0.091, wrong-source rate 0.053 →
+0.040 (the repealed Companies Act 1956 no longer answers a board-powers question).
+
+--------------------------------------------------------------------------------
+AM-80: nothing becomes searchable until it passes ingestion integrity
