@@ -212,7 +212,7 @@
 .ws-shell__nav { display: flex; gap: var(--ws-s1); }
 .ws-shell__nav a {
   font-size: var(--ws-text-sm); padding: 6px 11px; border-radius: var(--ws-radius);
-  color: var(--ws-on-shell-muted); text-decoration: none;
+  color: var(--ws-on-shell-muted); text-decoration: none; white-space: nowrap;
   transition: color var(--ws-t), background-color var(--ws-t);
 }
 .ws-shell__nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
@@ -221,15 +221,20 @@
  * to carry is dropped — the fill alone already states "current section",
  * and matching it to the pill shape it hovers as reads calmer). */
 .ws-shell__nav a[aria-current="page"] {
-  color: #9db9f7; background: rgba(37, 99, 235, 0.16);
+  color: #fff; background: var(--ws-accent);
 }
 .ws-shell__spacer { flex: 1; }
+.ws-shell__bell {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ws-on-shell-muted);
+}
 .ws-shell__avatar {
   width: 26px; height: 26px; border-radius: 50%; background: var(--ws-accent);
   color: #fff; font-size: var(--ws-text-xs); font-weight: 600;
   display: inline-flex; align-items: center; justify-content: center; flex: none;
 }
 .ws-shell__user { font-size: var(--ws-text-sm); color: var(--ws-on-shell-muted); display: flex; gap: var(--ws-s3); align-items: center; }
+.ws-shell__user svg { color: var(--ws-on-shell-muted); }
 .ws-shell__user button {
   font: inherit; color: var(--ws-on-shell); background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.18); border-radius: var(--ws-radius-sm);
@@ -1704,7 +1709,7 @@
 .ws-doctile {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
   border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
-  padding: 10px var(--ws-s4); display: flex; flex-direction: column; gap: 4px;
+  padding: var(--ws-s4); display: flex; flex-direction: column; gap: 6px;
   transition: border-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
 /* Only a tile that GOES somewhere responds to the pointer (2026-09-08): three
@@ -1714,12 +1719,34 @@
 .ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
 .ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
 .ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
-.ws-doctile__n { font-size: 1.6rem; font-weight: 650; line-height: 1; color: var(--ws-ink-900); }
+.ws-doctile__n { font-size: 1.85rem; font-weight: 650; line-height: 1; color: var(--ws-ink-900); }
 .ws-doctile--needs_attention .ws-doctile__icon { color: var(--ws-warn); }
 .ws-doctile--needs_attention .ws-doctile__n { color: var(--ws-warn); }
 .ws-doctile--analyzed .ws-doctile__icon { color: var(--ws-ok); }
 .ws-doctile--analyzed .ws-doctile__n { color: var(--ws-ok); }
-.ws-doctile--draft .ws-doctile__icon { color: var(--ws-accent); }
+/* Purple/lavender, not blue (owner reference, 2026-09-24): `--ws-accent` here
+   read as the same blue as Total Contracts, since `--ws-accent-soft`
+   (#eff4ff) and `--ws-tone-bad-soft` (#eef2ff) are nearly the same pale tint.
+   `--ws-tone-bad` (#4f46e5) is itself already an indigo/violet, not a red —
+   the token name is about severity, not hue — so using it for both the icon
+   and a stronger version of its own soft background makes this card read as
+   its own, clearly distinct purple. */
+.ws-doctile--draft .ws-doctile__icon { color: var(--ws-tone-bad); }
+
+/* Lightweight pastel treatment (owner reference, 2026-09-24) — the same four
+   cards, same real counts, just a soft tint per bucket and a round icon
+   badge instead of a bare glyph, plus one line of static supporting copy.
+   Total Contracts carries no bucket class, so it gets the accent tint. */
+.ws-doctile { background: var(--ws-accent-soft); border-color: transparent; }
+.ws-doctile--needs_attention { background: var(--ws-warn-soft); }
+.ws-doctile--analyzed { background: var(--ws-ok-soft); }
+.ws-doctile--draft { background: color-mix(in srgb, var(--ws-tone-bad) 12%, white); }
+.ws-doctile__head { justify-content: flex-start; gap: var(--ws-s2); }
+.ws-doctile__icon {
+  width: 38px; height: 38px; border-radius: 50%; background: var(--ws-surface);
+  align-items: center; justify-content: center; flex: none;
+}
+.ws-doctile__hint { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 
 .ws-doctend {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
@@ -1791,6 +1818,178 @@
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
   background: var(--ws-surface); color: var(--ws-ink-700); min-height: 38px;
 }
+
+/* ==========================================================================
+ * Dashboard hero — owner-approved visual redesign, 2026-09-24. A pale-blue
+ * banner directly under the shell, replacing the old thin `.ws-context--dash`
+ * strip. Every value inside it (greeting name, upload state) is the same
+ * page state the strip used to read; only the presentation changed.
+ * ========================================================================== */
+.ws-dashhero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: var(--ws-s4);
+  background: linear-gradient(135deg, #eaf1ff 0%, #dce9ff 100%);
+  /* No border, no shadow (owner reference, 2026-09-24 desktop refinement):
+     a hairline border on a filled shape is exactly what read as a separate
+     card floating on the page rather than a banner integrated with it. The
+     soft gradient and the rounded corners alone carry the "hero" read in
+     the reference; nothing outlines its edge. */
+  border-radius: var(--ws-radius-card);
+  /* Vertical padding stepped up from --ws-s5 (owner reference, 2026-09-24
+     second desktop pass) to give the now-larger illustration room without
+     the hero feeling cramped — still well short of an extreme height. */
+  padding: var(--ws-s6) var(--ws-s6);
+  /* Reduced from --ws-s5 (24px) — the reference sits the toolbar much closer
+     under the hero than a full section-gap; the gap that remains is still a
+     deliberate breath, not a seam. */
+  margin-bottom: var(--ws-s3);
+}
+.ws-dashhero__text {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--ws-s2);
+  position: relative; z-index: 1;
+  /* Grows to fill the row (owner reference, 2026-09-24): the illustration and
+     the three chips are fixed-width and stay flush right; this is what pushes
+     them there and opens the breathing room between the text content and the
+     art instead of the two sitting gap-only apart. */
+  flex: 1 1 auto; min-width: 0;
+}
+.ws-dashhero__greeting {
+  margin: 0; font-size: 2rem; font-weight: 700; color: var(--ws-ink-900);
+  letter-spacing: -0.01em;
+}
+.ws-dashhero__sub { margin: 0; color: var(--ws-ink-700); font-size: var(--ws-text-base); max-width: 42ch; }
+.ws-dashhero__text .ws-btn--lg { margin-top: var(--ws-s2); }
+
+/* A quiet abstract of stacked documents + a magnifying glass — CSS shapes
+   only, no image asset, echoing the reference's illustration without
+   introducing a new asset pipeline. Hidden below the width where the hero
+   already stacks to one column (no room to show it without crowding the
+   greeting, and it is decorative).
+   Scaled up ~1.5× (owner reference, 2026-09-24 second desktop pass): at the
+   old 220×140 the illustration read as a small decoration crammed against
+   the chips rather than a real half of the hero's composition. */
+.ws-dashhero__art {
+  position: relative; width: 330px; height: 210px; flex: none;
+  display: none;
+}
+.ws-dashhero__doc {
+  position: absolute; width: 126px; height: 162px; border-radius: 14px;
+  background: var(--ws-surface); border: 1px solid color-mix(in srgb, var(--ws-accent) 18%, transparent);
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.10);
+}
+.ws-dashhero__doc::before {
+  content: ""; position: absolute; left: 20px; right: 20px; top: 26px; height: 8px;
+  border-radius: 4px; background: var(--ws-ink-100);
+  box-shadow: 0 24px 0 var(--ws-ink-100), 0 48px 0 var(--ws-ink-100), 0 72px 0 var(--ws-ink-100);
+}
+.ws-dashhero__doc--1 { left: 0; top: 20px; transform: rotate(-8deg); }
+.ws-dashhero__doc--2 { left: 82px; top: 0; transform: rotate(4deg); }
+.ws-dashhero__doc--3 { left: 164px; top: 30px; transform: rotate(-2deg); }
+.ws-dashhero__glass {
+  position: absolute; right: -8px; bottom: -8px;
+  width: 68px; height: 68px; border-radius: 50%;
+  background: var(--ws-accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.35);
+}
+@media (min-width: 1180px) { .ws-dashhero__art { display: block; } }
+
+/* The three presentational chips (owner reference) — labels, not controls;
+   `aria-hidden` on the list because there is nothing here for assistive
+   tech to act on. */
+.ws-dashhero__chips {
+  list-style: none; margin: 0; padding: 0; display: none;
+  flex-direction: column; gap: var(--ws-s2); position: relative; z-index: 1;
+}
+.ws-dashhero__chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--ws-surface); border-radius: var(--ws-radius);
+  padding: 9px 14px; font-size: var(--ws-text-sm); font-weight: 600;
+  box-shadow: var(--ws-card-shadow); white-space: nowrap;
+}
+.ws-dashhero__chip--analyze { color: var(--ws-accent); }
+.ws-dashhero__chip--risk { color: var(--ws-warn); }
+.ws-dashhero__chip--insight { color: var(--ws-ok); }
+@media (min-width: 1180px) { .ws-dashhero__chips { display: flex; } }
+
+@media (max-width: 760px) {
+  .ws-dashhero { flex-direction: column; align-items: stretch; padding: var(--ws-s4); }
+  /* Smaller at narrow widths so the greeting wraps onto fewer, more even
+     lines instead of stretching across most of the viewport before it ever
+     needs to (owner review, 2026-09-24 responsive pass). */
+  .ws-dashhero__greeting { font-size: 1.5rem; }
+}
+
+/* Recent Contracts card header — title, one line of static supporting copy,
+   and "View all" only when a filter is actually active to clear (there is no
+   separate all-contracts page to link to otherwise).
+   Padded on all sides (owner review, 2026-09-24 polish pass): `.ws-doctable`
+   itself carries no padding of its own — the table's cells provide their own
+   16px (`--ws-s4`) horizontal inset, but this header had none at all, so its
+   icon and title sat flush against the card's left edge while the table's
+   first column sat 16px in. Matching that exact value, rather than a
+   different "comfortable" number, is what actually lines the two up. */
+.ws-doctable__head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ws-s3);
+  padding: var(--ws-s4) var(--ws-s4) var(--ws-s3);
+}
+.ws-doctable__title { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
+.ws-doctable__sub { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-doctable__viewall { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* The pager sits inside the same card and was just as flush against the
+   edge; same horizontal inset as the header and the table's own cells. */
+.ws-doctable .ws-pager { padding: var(--ws-s3) var(--ws-s4); }
+
+/* Recent Contracts + Recent Activity, side by side (owner reference); the
+   activity column stacks below the table under 1100px rather than shrinking
+   to an unreadable strip. */
+.ws-dashsplit { display: grid; grid-template-columns: 1fr; gap: var(--ws-s5); align-items: start; }
+/* The main column (owner reference, 2026-09-24 desktop refinement): the
+   toolbar, the four stat cards and Recent Contracts now live here rather
+   than spanning the full page width — so none of them extend under where
+   Recent Activity sits, matching the reference's two-column composition.
+   `min-width: 0` is required on a grid item that must actually shrink its
+   content (the default `auto` would let the table push this column wide). */
+.ws-dashmain { display: flex; flex-direction: column; gap: var(--ws-s4); min-width: 0; }
+/* Narrower sidebar from 1100px, full 320px only from 1440px (owner review,
+   2026-09-24): at 1280px the fixed 320px column left the table too little
+   room — the Document column's own text and the Action column's "Analyze"/
+   "Review" link plus the ⋯ toggle were both visibly squeezed. The table's
+   own column percentages (`@media (min-width: 1200px)` below) are unchanged;
+   this only gives that layout more container width to work with in the
+   in-between range. */
+@media (min-width: 1100px) {
+  .ws-dashsplit { grid-template-columns: minmax(0, 1fr) 260px; }
+}
+@media (min-width: 1440px) {
+  .ws-dashsplit { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+
+.ws-dashactivity {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  padding: var(--ws-s4);
+}
+.ws-dashactivity__head h2 {
+  margin: 0 0 var(--ws-s3); display: flex; align-items: center; gap: 8px;
+  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+}
+.ws-dashactivity__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s4); }
+.ws-dashactivity__item { display: flex; gap: 10px; }
+.ws-dashactivity__icon {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.ws-dashactivity__icon--uploaded { background: var(--ws-accent-soft); color: var(--ws-accent); }
+.ws-dashactivity__icon--analyzed { background: var(--ws-ok-soft); color: var(--ws-ok); }
+.ws-dashactivity__body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ws-dashactivity__title { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-dashactivity__doc {
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.ws-dashactivity__doc:hover { color: var(--ws-accent); text-decoration: underline; }
+.ws-dashactivity__when { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 
 /* Pager — page numbers + prev/next, real counts stated in words first.
  * Margin-top (2026-09-02) separates it from the card as its own bottom-right
@@ -1995,19 +2194,23 @@
 .ws-docs--index .ws-doctile {
   display: flex;
   align-items: center;
-  gap: var(--ws-s3);
-  min-height: 70px;
+  gap: var(--ws-s4);
+  min-height: 78px;
+  padding: var(--ws-s4);
 }
 
 .ws-docs--index .ws-doctile__head {
   display: contents;
 }
 
+/* Bumped from 38px (owner reference, 2026-09-24 second desktop pass) — a
+   heavier icon plate is what most read as "polished metric card" versus a
+   plain glyph next to text. */
 .ws-docs--index .ws-doctile__icon {
   order: -1;
   flex: none;
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2046,6 +2249,16 @@
 .ws-docs--index .ws-doctile--needs_attention .ws-doctile__icon {
   background: var(--ws-warn-soft); color: var(--ws-warn);
 }
+/* Purple, not the inherited blue (owner reference, 2026-09-24): the base
+   `.ws-docs--index .ws-doctile__icon` rule above sets both `background` and
+   `color` unconditionally, and at equal specificity to the earlier
+   `.ws-doctile--draft .ws-doctile__icon` rule its later position in the file
+   was winning — the card's own background went purple but its icon badge
+   stayed blue. Naming the bucket class here too breaks that tie outright. */
+.ws-docs--index .ws-doctile--draft .ws-doctile__icon {
+  background: color-mix(in srgb, var(--ws-tone-bad) 16%, white); color: var(--ws-tone-bad);
+}
+.ws-docs--index .ws-doctile__hint { grid-column: 2; }
 .ws-docs--index .ws-doctile--analyzed .ws-doctile__icon {
   background: var(--ws-ok-soft); color: var(--ws-ok);
 }
@@ -2198,8 +2411,11 @@
   .ws-shell__user { min-width: 0; flex: none; }
 
   /* The name is the only thing that goes. Hidden, not shrunk to an ellipsis:
-     "Ama…" is noise, and the avatar already carries the identity. */
+     "Ama…" is noise, and the avatar already carries the identity. The
+     decorative bell and chevron go with it — neither carries a function
+     "Sign out" and the avatar do not already cover. */
   .ws-shell__user > span:not(.ws-shell__avatar) { display: none; }
+  .ws-shell__user > svg, .ws-shell__bell { display: none; }
 }
 
 
@@ -3094,13 +3310,26 @@
   .ws-docs--index .ws-doctoolbar__select { display: flex; min-width: 0; }
   .ws-docs--index .ws-doctoolbar__select select { width: 100%; }
 
+  /* A fixed 2 columns, not `auto-fit` (owner review, 2026-09-24): at 768px
+     four 128px-min columns still fit by the numbers (171px each), but "No
+     Issues" and "Draft / In Progress" need more than that and clipped —
+     "No" / "Issu" on two lines, both truncated. Two wider columns give each
+     card roughly double the room these two-line labels actually need. */
   .ws-doctiles {
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ws-s3);
   }
   .ws-docs--index .ws-doctile { min-height: 64px; padding: var(--ws-s3); }
   .ws-docs--index .ws-doctile__icon { width: 32px; height: 32px; }
   .ws-docs--index .ws-doctile__n { font-size: 1.4rem; }
+}
+
+/* Below the width two 128px-min columns can actually hold ("Needs Attention"
+   and "Draft / In Progress" both clipped at exactly this range — owner
+   review, 2026-09-24), stack to one column instead. Four full-width rows
+   read every heading in full; nothing is hidden, abbreviated or removed. */
+@media (max-width: 480px) {
+  .ws-doctiles { grid-template-columns: 1fr; }
 }
 /* The ⋯ toggle was a 30px square even with a mouse — small for a control that
    is the only way to reach Edit, Transfer and Archive. */

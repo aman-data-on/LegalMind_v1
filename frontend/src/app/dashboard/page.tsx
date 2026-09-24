@@ -134,14 +134,63 @@ function FindingsCell({ contract }: { contract: Contract }) {
   );
 }
 
+/** Purely a greeting, computed from the visitor's own clock — no server call,
+ *  no stored preference. Owner reference (2026-09-24) asked for "Good
+ *  afternoon"-style copy on the hero; this is the honest way to produce it. */
+function timeOfDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+/**
+ * The Recent Activity panel's entries — derived entirely from the same
+ * `contracts` page the table already has, never a new endpoint or invented
+ * data (owner reference, 2026-09-24: "Do not create fake activity data").
+ * Two real, timestamped facts exist per contract: it was added
+ * (`created_at`), and — once analysed — its analysis completed
+ * (`latest_analysis.completed_at`). There is no "you viewed this" event
+ * anywhere in the data model, so that entry type from the reference image is
+ * intentionally not reproduced here; inventing one would be exactly the
+ * fabricated activity the task explicitly rules out.
+ */
+interface ActivityEntry {
+  id: string;
+  kind: "uploaded" | "analyzed";
+  contractName: string;
+  contractId: string;
+  at: string;
+}
+
+function recentActivity(contracts: Contract[]): ActivityEntry[] {
+  const entries: ActivityEntry[] = [];
+  for (const c of contracts) {
+    if (c.created_at) {
+      entries.push({ id: `${c.id}-up`, kind: "uploaded", contractName: c.name, contractId: c.id, at: c.created_at });
+    }
+    const completed = c.latest_analysis?.completed_at;
+    if (completed) {
+      entries.push({ id: `${c.id}-an`, kind: "analyzed", contractName: c.name, contractId: c.id, at: completed });
+    }
+  }
+  entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return entries.slice(0, 6);
+}
+
 /** A count, and — only where one exists — somewhere to go with it. `onSelect`
  *  turns the tile into a real button; without it the tile stays inert markup
  *  rather than a control that looks clickable and does nothing. */
 function StatTile({
-  icon, n, label, bucket, onSelect,
+  icon, n, label, bucket, onSelect, hint,
 }: {
   icon: React.ReactNode; n: number; label: string;
   bucket?: DocumentStatusBucket; onSelect?: () => void;
+  /** Static, descriptive caption — never a derived number the summary
+   *  endpoint does not actually send (owner reference asked for supporting
+   *  text "where already available"; a trend like "+2 this month" has no
+   *  backing data, so it is not reproduced). */
+  hint?: string;
 }) {
   /* `--act` is what carries the hover lift and the pointer: a tile without an
      `onSelect` is a plain count, and giving all four the same hover response
@@ -151,10 +200,11 @@ function StatTile({
   const body = (
     <>
       <div className="ws-doctile__head">
-        <span className="ws-doctile__label">{label}</span>
         <span className="ws-doctile__icon" aria-hidden="true">{icon}</span>
+        <span className="ws-doctile__label">{label}</span>
       </div>
       <span className="ws-doctile__n ws-mono">{n}</span>
+      {hint ? <span className="ws-doctile__hint">{hint}</span> : null}
     </>
   );
   if (!onSelect) return <div className={className}>{body}</div>;
@@ -403,10 +453,23 @@ function DocumentsListView() {
       if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
       closeMenu();
     }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("scroll", onScroll, true);
+    // The scroll listener is attached a frame late, on purpose (owner
+    // reference redesign, 2026-09-24): the taller page this redesign
+    // introduced (hero, toolbar, stat cards, Recent Activity) means the
+    // toggle a caller just clicked is no longer guaranteed to already be
+    // fully in view the way it was on the old, shorter page — so the click
+    // itself can now trigger the browser's own scroll-into-view, whose
+    // trailing scroll event was landing right as this effect's listener
+    // attached and closing the menu the instant it opened. Same failure
+    // shape `preventScroll` above already documents for `focus()`, one frame
+    // later than a synchronous listener catches it.
+    const raf = requestAnimationFrame(() => {
+      document.addEventListener("mousedown", onPointerDown);
+      document.addEventListener("keydown", onKey);
+      document.addEventListener("scroll", onScroll, true);
+    });
     return () => {
+      cancelAnimationFrame(raf);
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("scroll", onScroll, true);
@@ -462,35 +525,65 @@ function DocumentsListView() {
 
   return (
     <>
-      <div className="ws-context ws-context--dash">
-        <span className="ws-context__icon" aria-hidden="true"><IconFile size={18} /></span>
-        <h1>Dashboard</h1>
-        {pagination ? (
-          <span className="ws-context__meta ws-mono">{pagination.total} total contracts</span>
-        ) : null}
-        {/* The page's primary action, in the page header where the workspace
-            already puts its own (`.ws-context__acts`) — 2026-09-08. It used to
-            hold a row of its own below the header, which spent ~60px of every
-            viewport on one right-aligned button and pushed the table further
-            below the fold on exactly the short laptop (1366×768) where only
-            five rows were visible to begin with. */}
-        {canUpload ? (
-          <>
-            <span className="ws-context__spacer" />
-            <div className="ws-context__acts">
-              <button
-                type="button"
-                className="ws-btn ws-btn--primary"
-                aria-expanded={uploadOpen}
-                aria-controls="ws-upload-panel"
-                onClick={() => setUploadOpen((open) => !open)}
-              >
-                {uploadOpen ? "Close" : "+ Upload Contract"}
-              </button>
-            </div>
-          </>
-        ) : null}
-      </div>
+      <h1 className="ws-visually-hidden">Dashboard</h1>
+      {/*
+        The hero banner (owner reference, 2026-09-24) — visual redesign only.
+        The greeting and time-of-day are computed client-side; every other
+        piece of text and behaviour here is the same page state as before:
+        "+ Upload Contract" still just toggles the same disclosure panel it
+        always has, and `pagination.total` still comes from the same request.
+        The three "Analyze / Find Risks / Get Insights" chips on the right are
+        presentational labels matching the approved reference — they are not
+        controls and carry no functionality of their own, per the brief.
+      */}
+      <section className="ws-dashhero" aria-label="Welcome">
+        <div className="ws-dashhero__text">
+          <h2 className="ws-dashhero__greeting">
+            {timeOfDayGreeting()}
+            {identity?.name ? (
+              // A non-breaking space glues the name to the wave (owner
+              // review, 2026-09-24 responsive pass) — at narrow widths the
+              // line was wrapping between them, leaving 👋 stranded alone on
+              // its own line. The greeting can still wrap earlier than this;
+              // it just never splits a name from the wave right after it.
+              <>, {identity.name.split(" ")[0]}{" "}<span aria-hidden="true">👋</span></>
+            ) : (
+              <> <span aria-hidden="true">👋</span></>
+            )}
+          </h2>
+          <p className="ws-dashhero__sub">
+            Analyze contracts, identify risks, and get clear, actionable insights.
+          </p>
+          {canUpload ? (
+            <button
+              type="button"
+              className="ws-btn ws-btn--primary ws-btn--lg"
+              aria-expanded={uploadOpen}
+              aria-controls="ws-upload-panel"
+              onClick={() => setUploadOpen((open) => !open)}
+            >
+              {uploadOpen ? "Close" : "+ Upload Contract"}
+            </button>
+          ) : null}
+        </div>
+        <div className="ws-dashhero__art" aria-hidden="true">
+          <span className="ws-dashhero__doc ws-dashhero__doc--1" />
+          <span className="ws-dashhero__doc ws-dashhero__doc--2" />
+          <span className="ws-dashhero__doc ws-dashhero__doc--3" />
+          <span className="ws-dashhero__glass"><IconSearch size={30} /></span>
+        </div>
+        <ul className="ws-dashhero__chips" aria-hidden="true">
+          <li className="ws-dashhero__chip ws-dashhero__chip--analyze">
+            <IconFile size={15} /> Analyze
+          </li>
+          <li className="ws-dashhero__chip ws-dashhero__chip--risk">
+            <IconAlertCircle size={15} /> Find Risks
+          </li>
+          <li className="ws-dashhero__chip ws-dashhero__chip--insight">
+            <IconCheckCircle size={15} /> Get Insights
+          </li>
+        </ul>
+      </section>
       <div className="ws-docs ws-docs--index">
         {/*
           No lede. It read "Upload a contract, confirm its type, and every clause
@@ -549,9 +642,71 @@ function DocumentsListView() {
           </p>
         ) : null}
 
+      {/* The main/side column split starts here now (owner reference,
+          2026-09-24 desktop refinement): the toolbar, the four stat cards
+          and Recent Contracts all share the MAIN column's width — none of
+          them extend under where Recent Activity sits, matching the
+          reference's layout exactly. Nothing inside changed except which
+          wrapper it sits in. */}
+      <div className="ws-dashsplit">
+        <div className="ws-dashmain">
+        {/* Moved above the four summary cards to match the approved reference
+            (owner, 2026-09-24) — same toolbar, same state, same filters;
+            only its position on the page changed. */}
+        <div className="ws-doctoolbar">
+          <label className="ws-doctoolbar__search">
+            <IconSearch size={14} />
+            <span className="ws-visually-hidden">Search contracts</span>
+            <input
+              value={qInput}
+              onChange={(event) => setQInput(event.target.value)}
+              placeholder="Search contracts, clients, or ask anything…"
+            />
+          </label>
+          <label className="ws-doctoolbar__select">
+            <span className="ws-visually-hidden">Filter by type</span>
+            <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
+              <option value="">Type: All</option>
+              {DOCUMENT_TYPES.map((t) => (
+                <option key={t.code} value={t.code}>{t.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="ws-doctoolbar__select">
+            <span className="ws-visually-hidden">Filter by status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => { setStatusFilter(event.target.value as DocumentStatusBucket | ""); setPage(1); }}
+            >
+              <option value="">Status: All</option>
+              {(["needs_attention", "analyzed", "analyzing", "draft"] as const).map((b) => (
+                <option key={b} value={b}>{STATUS_BUCKET_LABEL[b]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="ws-doctoolbar__select">
+            <span className="ws-visually-hidden">Active or archived</span>
+            <select value={showArchived ? "archived" : "active"}
+                    onChange={(event) => { setShowArchived(event.target.value === "archived"); setPage(1); }}>
+              <option value="active">Show: Active</option>
+              <option value="archived">Show: Archived</option>
+            </select>
+          </label>
+          <label className="ws-doctoolbar__select">
+            <span className="ws-visually-hidden">Sort</span>
+            <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
+              <option value="created_desc">Sort: Recently Added</option>
+              <option value="created_asc">Sort: Oldest First</option>
+              <option value="name_asc">Sort: Name A–Z</option>
+              <option value="name_desc">Sort: Name Z–A</option>
+            </select>
+          </label>
+        </div>
+
         {summary ? (
           <section className="ws-doctiles" aria-label="Contract totals">
-            <StatTile icon={<IconFile size={16} />} n={summary.total} label="Total Contracts" />
+            <StatTile icon={<IconFile size={16} />} n={summary.total} label="Total Contracts"
+                      hint="Across your account" />
             {/* The one tile with somewhere to go: it names a queue the table can
                 actually show. The other three describe states nobody navigates
                 to on purpose, and a link that resolves to a shrug is worse than
@@ -561,11 +716,14 @@ function DocumentsListView() {
               n={summary.needs_attention}
               label="Needs Attention"
               bucket="needs_attention"
+              hint="Require your review"
               {...(summary.needs_attention > 0
                 ? { onSelect: () => filterTo("needs_attention") } : {})}
             />
-            <StatTile icon={<IconCheckCircle size={16} />} n={summary.analyzed} label="No Issues" bucket="analyzed" />
-            <StatTile icon={<IconClock size={16} />} n={summary.draft + summary.analyzing} label="Draft / In Progress" bucket="draft" />
+            <StatTile icon={<IconCheckCircle size={16} />} n={summary.analyzed} label="No Issues" bucket="analyzed"
+                      hint="Meet company standards" />
+            <StatTile icon={<IconClock size={16} />} n={summary.draft + summary.analyzing} label="Draft / In Progress" bucket="draft"
+                      hint="Still being analyzed" />
           </section>
         ) : null}
 
@@ -615,55 +773,27 @@ function DocumentsListView() {
           collapsing into an unrelated-looking panel.
         */}
         <div className="ws-doctable">
-        <div className="ws-doctoolbar">
-          <label className="ws-doctoolbar__search">
-            <IconSearch size={14} />
-            <span className="ws-visually-hidden">Search contracts</span>
-            <input
-              value={qInput}
-              onChange={(event) => setQInput(event.target.value)}
-              placeholder="Search contracts…"
-            />
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Filter by type</span>
-            <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
-              <option value="">Type: All</option>
-              {DOCUMENT_TYPES.map((t) => (
-                <option key={t.code} value={t.code}>{t.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Filter by status</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => { setStatusFilter(event.target.value as DocumentStatusBucket | ""); setPage(1); }}
-            >
-              <option value="">Status: All</option>
-              {(["needs_attention", "analyzed", "analyzing", "draft"] as const).map((b) => (
-                <option key={b} value={b}>{STATUS_BUCKET_LABEL[b]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Active or archived</span>
-            <select value={showArchived ? "archived" : "active"}
-                    onChange={(event) => { setShowArchived(event.target.value === "archived"); setPage(1); }}>
-              <option value="active">Show: Active</option>
-              <option value="archived">Show: Archived</option>
-            </select>
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Sort</span>
-            <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
-              <option value="created_desc">Sort: Recently Added</option>
-              <option value="created_asc">Sort: Oldest First</option>
-              <option value="name_asc">Sort: Name A–Z</option>
-              <option value="name_desc">Sort: Name Z–A</option>
-            </select>
-          </label>
-        </div>
+          <header className="ws-doctable__head">
+            <div>
+              <h2 className="ws-doctable__title"><IconFile size={17} /> Recent Contracts</h2>
+              <p className="ws-doctable__sub">Your recently added and analyzed contracts.</p>
+            </div>
+            {/* Always shown, matching the reference (2026-09-24 refinement) —
+                reuses the existing filter state rather than linking to a
+                separate "all contracts" page, which does not exist: this IS
+                the full, paginated list. With no filter active it is a
+                harmless reset to the same default view already showing;
+                with one active it clears it, exactly like "Clear search and
+                filters" elsewhere on this page already does. No new route,
+                no new functionality. */}
+            <button type="button" className="ws-btn--link ws-doctable__viewall"
+                    onClick={() => {
+                      setQInput(""); setTypeFilter(""); setStatusFilter("");
+                      setShowArchived(false); setPage(1);
+                    }}>
+              View all <IconChevronRight size={13} />
+            </button>
+          </header>
 
         {contracts === null && !error ? (
           <div className="ws-docs__table" aria-busy="true">
@@ -960,7 +1090,6 @@ function DocumentsListView() {
             picker anywhere near it; it read as a leftover. It is stated where it
             is acted on instead — the upload panel's own hint already says "PDF
             or DOCX, up to 25 MB", so this is a deletion, not a move. */}
-        </div>
 
         {pagination && pagination.total > 0 ? (
           <nav className="ws-pager" aria-label="Pagination">
@@ -1005,6 +1134,52 @@ function DocumentsListView() {
             </button>
           </nav>
         ) : null}
+        </div>
+        </div>
+
+        {/*
+          Recent Activity (owner reference, 2026-09-24) — derived from the same
+          `contracts` already loaded for the table above, via `recentActivity()`.
+          No new endpoint, no invented entries: only "uploaded" and "analysis
+          completed" are reproduced, since those are the only two timestamped
+          facts this data actually carries. "View all" is intentionally absent
+          — there is no separate activity feed page to send it to.
+        */}
+        <aside className="ws-dashactivity" aria-label="Recent activity">
+          <header className="ws-dashactivity__head">
+            <h2><IconClock size={16} /> Recent Activity</h2>
+          </header>
+          {contracts && contracts.length > 0 ? (
+            <ol className="ws-dashactivity__list">
+              {recentActivity(contracts).map((entry) => (
+                <li key={entry.id} className="ws-dashactivity__item">
+                  <span className={`ws-dashactivity__icon ws-dashactivity__icon--${entry.kind}`} aria-hidden="true">
+                    {entry.kind === "uploaded" ? <IconFile size={14} /> : <IconCheckCircle size={14} />}
+                  </span>
+                  <span className="ws-dashactivity__body">
+                    <span className="ws-dashactivity__title">
+                      {entry.kind === "uploaded" ? "Contract uploaded" : "Analysis completed"}
+                    </span>
+                    {/* `aria-label` gives this link its own accessible name —
+                        without it, two links reading the exact contract name
+                        (this one and the table's own `.ws-doc-name`) made an
+                        unscoped `getByRole("link", { name, exact: true })`
+                        ambiguous (caught by `workspace.spec.ts`). The visible
+                        text is unchanged. */}
+                    <Link href={`/dashboard?id=${entry.contractId}`} className="ws-dashactivity__doc"
+                          aria-label={`Open ${entry.contractName}`}>
+                      {entry.contractName}
+                    </Link>
+                    <span className="ws-dashactivity__when ws-mono">{relativeTime(entry.at)}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="ws-pane__note">Nothing to show yet.</p>
+          )}
+        </aside>
+        </div>
 
         {/*
           The five-step explainer, for the one reader it is for.
