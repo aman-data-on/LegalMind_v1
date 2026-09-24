@@ -41,6 +41,40 @@ finished.
 
 ---
 
+## 🧭 The master RAG roadmap — authoritative for Ask/RAG architecture (owner, 2026-09-24)
+
+**[docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) is the ONLY
+master roadmap for the Ask/RAG lane, and it is already approved as the target architecture**
+(owner, 2026-09-24: *"i want industry standard rag system … if you need some decision to
+change and update plz … i will give you ownership you do not have to ask me"*). It
+supersedes [ASK_TARGET_ARCHITECTURE.md](docs/00-project/ASK_TARGET_ARCHITECTURE.md) as the
+target; that document remains the record of what was built and measured. Do not create
+another roadmap or version; preserve its phase order (§19, PHASE 0 → 13) and goals.
+
+* **A legacy lock that conflicts with the roadmap is AMENDED, not preserved.** Do not
+  redesign the roadmap around an old lock, and do not stop to ask approval because a lock
+  conflicts — the owner's approval of the roadmap is that approval (it satisfies rule 6 for
+  roadmap conflicts only). Procedure: name the old lock ID → **append** an amendment record
+  to [all_lock.md](all_lock.md) (rule 22 still holds: append, never edit) → update
+  [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) and every affected doc, test
+  and reference → log it in [DAILY_CHANGED.md](DAILY_CHANGED.md) → continue.
+* **What the roadmap does not change:** rules 7 and 21 (never invent legal content or
+  manufacture source material — the roadmap itself forbids it, §10/§22), rule 18 and
+  authorization inside every query, the append-only audit trail, and the Gemini cost guard.
+  A conflict with *those* is reported to the owner, not amended.
+* **Every phase:** implement → test → measure against the roadmap's exit criteria → fix →
+  log in [DAILY_CHANGED.md](DAILY_CHANGED.md) → local checkpoint commit. Code-only success
+  never completes a phase.
+* **Git for this programme:** branch `feat/legalmind-rag-production`, worktree
+  `/root/legalmind-worktrees/rag-production`. Local commits only — no push, PR, merge or
+  remote CI until the owner says so.
+* **[DAILY_CHANGED.md](DAILY_CHANGED.md)** is the programme's chronological implementation
+  log (not the operations log `docs/00-project/DAILY_CHANGES.md`). Its first entry is the
+  2026-09-24 baseline audit; do not re-run that audit unless implementation evidence shows
+  it is stale. Benchmark: `python3 -m tools.rag_benchmark` (zero Gemini).
+
+---
+
 ## Start here
 
 | | |
@@ -49,6 +83,7 @@ finished.
 | **How to work here — the operational index** | [docs/00-project/CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) — source hierarchy, the assist-lane pointers, when to decide vs ask |
 | Plain-language status, for the owner | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) |
 | **How the system works end to end** | [docs/00-project/ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
+| **The master RAG roadmap — authoritative target for Ask/RAG** | [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) · log: [DAILY_CHANGED.md](DAILY_CHANGED.md) |
 | **The Ask AI pipeline — the ten canonical stages** | [docs/00-project/ASK_TARGET_ARCHITECTURE.md](docs/00-project/ASK_TARGET_ARCHITECTURE.md) §0 — the owner's stage map, with what is shipped, built-but-off and not built |
 | **Who can do what** — personas, scopes, transfer, archive, Ask privacy | [docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md) (AB-12) |
 | Project overview | [docs/00-project/PROJECT_OVERVIEW.md](docs/00-project/PROJECT_OVERVIEW.md) |
