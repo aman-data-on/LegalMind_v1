@@ -347,36 +347,56 @@ def can_search(permissions: frozenset[str]) -> bool:
 
 
 def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
-    """The parent context of a retrieved child: its breadcrumb, then every sibling
-    paragraph under the same heading in document order, windowed around the hit when
-    the provision is longer than `max_chars`. The child stays verbatim and complete.
-    Siblings keep their own status — a HISTORICAL paragraph beside a CURRENT position
-    is expanded with its label, so the two can never read as one."""
+    """The parent context of a retrieved child: its NUMBERED section or subsection —
+    the unit the Constitution states a position in (§14 is position + legal basis +
+    system rule + validation; §31.2 is position + historical exceptions). Every
+    paragraph under it, in document order, each provision's heading kept, and every
+    paragraph that is not current company policy labelled with what it is, so the
+    company's reading of the law and past signed paper can never read as policy.
+    Windowed around the hit when longer than `max_chars`; the hit is always whole."""
     schema = config.assist_schema()
     rows = db.execute(text(f"""
-        SELECT s.id, s.content, s.authority, s.status, s.breadcrumb, s.id = :i AS hit
-          FROM "{schema}".knowledge_items c
-          JOIN "{schema}".knowledge_items s
-            ON s.parent_id IS NOT DISTINCT FROM c.parent_id AND s.source_id = c.source_id
-         WHERE c.id = :i AND s.kind = 'PARAGRAPH' AND s.status <> 'UNRATIFIED'
-         ORDER BY s.ordinal"""), {"i": item_id}).all()
-    if not rows:
+        WITH RECURSIVE up AS (
+            SELECT id, parent_id, kind, 0 AS depth FROM "{schema}".knowledge_items
+             WHERE id = :i
+            UNION ALL
+            SELECT k.id, k.parent_id, k.kind, up.depth + 1
+              FROM "{schema}".knowledge_items k JOIN up ON k.id = up.parent_id),
+        anchor AS (SELECT id FROM up WHERE kind IN ('SECTION', 'SUBSECTION')
+                    ORDER BY depth LIMIT 1),
+        down AS (
+            SELECT k.* FROM "{schema}".knowledge_items k
+             WHERE k.id = (SELECT id FROM anchor)
+            UNION ALL
+            SELECT k.* FROM "{schema}".knowledge_items k
+              JOIN down ON k.parent_id = down.id)
+        SELECT id, kind, clause, content, authority, status, breadcrumb, id = :i AS hit
+          FROM down WHERE status <> 'UNRATIFIED' ORDER BY ordinal"""),
+        {"i": item_id}).all()
+    if not any(r.hit for r in rows):
         return ""
-    at = next(n for n, r in enumerate(rows) if r.hit)
-    parts = [r.content if r.authority == "COMPANY_CONSTITUTION" and r.status == "CURRENT"
-             else f"[{_AUTHORITY_LABEL.get(r.authority, r.status.lower())}] {r.content}"
-             for r in rows]
-    lo = hi = at
-    size = len(parts[at])
-    while (lo > 0 or hi < len(parts) - 1) and size < max_chars:
-        if hi < len(parts) - 1 and size + len(parts[hi + 1]) <= max_chars:
-            hi += 1
-            size += len(parts[hi])
-        elif lo > 0 and size + len(parts[lo - 1]) <= max_chars:
-            lo -= 1
-            size += len(parts[lo])
-        else:
+    parts: list[str] = []
+    hit_at = 0
+    for r in rows:
+        if r.kind == "PROVISION" and r.clause:
+            parts.append(f"{r.clause}:")
+        elif r.kind == "PARAGRAPH":
+            if r.hit:
+                hit_at = len(parts)
+            policy = r.authority == "COMPANY_CONSTITUTION" and r.status == "CURRENT"
+            label = None if policy else _AUTHORITY_LABEL.get(r.authority,
+                                                             r.status.lower())
+            parts.append(f"[{label}] {r.content}" if label else r.content)
+    lo = hi = hit_at
+    size = len(parts[hit_at])
+    while True:
+        grew = False
+        if hi + 1 < len(parts) and size + len(parts[hi + 1]) <= max_chars:
+            hi, size, grew = hi + 1, size + len(parts[hi + 1]), True
+        if lo > 0 and size + len(parts[lo - 1]) <= max_chars:
+            lo, size, grew = lo - 1, size + len(parts[lo - 1]), True
+        if not grew:
             break
-    head = rows[at].breadcrumb.rsplit(" · ", 1)[0] if rows[at].authority != \
-        "COMPANY_CONSTITUTION" else rows[at].breadcrumb
-    return head + "\n" + "\n\n".join(parts[lo:hi + 1])
+    head = next(r for r in rows if r.kind in ("SECTION", "SUBSECTION"))
+    crumb = f"Legal Constitution {_CURRENT_VERSION} · {head.clause}"
+    return crumb + "\n" + "\n\n".join(parts[lo:hi + 1])

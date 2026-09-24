@@ -20362,3 +20362,71 @@ The one pool miss is H-02 (s. 194J), absent from the as-enacted 1961 text (`AM-8
 
 --------------------------------------------------------------------------------
 AM-86: broad, plan-driven candidate retrieval; diverse evidence; no top-3 dependency
+
+================================================================================
+AMENDMENT BATCH AB-37 — `AM-87`
+Reranking and parent-context reconstruction; version before relevance
+================================================================================
+
+**Owner decision, 2026-09-24/25** — the master RAG roadmap (`AM-79`'s owner authority),
+§8: rerank the candidate pool against the reader's question, restore each selected
+span's parent context for generation, and never let a superseded source outrank a
+current one. Roadmap PHASE 8. The owner's PHASE 5 instruction also stands: bge-m3 is
+re-tested for statutes after reranking.
+
+**Amends:** nothing locked — the reranked path is new; the production answer path is
+unchanged (its benchmark block is identical). **Does not amend:** `AM-84` r4 (the
+cross-encoder orders, it decides nothing), `AM-86` r3 (an unplaced question still draws
+only from the router's PRIMARY domains — broadening it was measured and rejected), `AM-83`
+(MiniLM stays), `AM-29` (a relevance score is never a Finding, never shown), rules 12, 15.
+
+```text
+r1   RERANK (retrieval.rerank). The cross-encoder scores the top 30 of the STATUTES
+     and DOCUMENT pools against the reader's WHOLE question. Positions and the
+     Constitution are NOT reranked: on short company positions it promoted the
+     12-month liability cap for a 12-month early-exit question in every variant
+     measured. Membership never changes; with no reranker the fused order stands.
+
+r2   VERSION BEFORE RELEVANCE. After scoring, a non-CURRENT source (repealed,
+     superseded) sorts behind every current one unless the plan asks about the past.
+     A cross-encoder cannot see that a repealed section is not the law today.
+
+r3   SELECTION. Lane domains first; every other searched domain may offer its best
+     candidate in the FIRST round only, so it widens coverage without crowding out a
+     lane's second source. `AM-86` r3 unchanged.
+
+r4   PARENT CONTEXT (retrieval.with_context), built at read time, never stored, never
+     cited in place of the span, ≤ 4,000 characters: a Constitution paragraph gets its
+     whole section (non-current paragraphs labelled "historical evidence, not current
+     policy"; the company's reading of the law labelled as such); a statute chunk its
+     whole section; a document chunk its neighbours in the same evidence row; a
+     position is its own context. The cited span is always inside its context.
+
+r5   STILL NOT AN ANSWER. Sufficiency is PHASE 9's; the production path moves onto
+     this retrieval behind a flag, measured under `AM-28`.
+```
+
+**Recorded 2026-09-25.** Measured before the record was written, zero Gemini calls, on
+the scratch corpus (baseline re-recorded, `pool_reranked` block).
+
+| 76 cases, 78 slots | production | PHASE 7 evidence | PHASE 8 reranked |
+|---|---|---|---|
+| recall | 0.577 @10 | 0.705 | **0.756** |
+| hit@1 · MRR | 0.508 · 0.497 | 0.687 · 0.645 | **0.702 · 0.690** |
+| multi-source complete | 0.000 | 0.000 | **0.200** |
+| wrong-source · false admission | 0.040 · 0.200 | 0.026 · 0.200 | 0.026 · 0.200 |
+| golden recall · wrong-source | 0.333 · — | 0.778 · 0 | 0.778 · 0 |
+
+Rerank p50 1.06 s, p95 1.20 s (CPU). Context: span inside context 1.0, p50 2,615 chars;
+§14's context now carries its Applicable Law caveat. Rejected, measured: max over
+sub-questions (hit@1 0.582, golden wrong-source 0.143); rerank of positions/Constitution
+(golden wrong-source 0.143); every domain offered to unplaced questions (+2 slots,
+false admission 0.2 → 0.6). Depth 10/20/30 on statutes: recall 0.756/0.769/0.782 at
+0.35/0.7/1.06 s under the broadened selection; 30 kept.
+
+bge-m3 statute retest after reranking (`tools/retest_statute_embedder.py`, 18 statute
+slots, identical lexical lane and rerank): pool r@50 0.889 both; reranked r@3 MiniLM
+0.611 vs bge-m3 0.556, MRR 0.448 vs 0.465. No material gain — MiniLM stays (`AM-83`).
+
+--------------------------------------------------------------------------------
+AM-87: reranking and parent-context reconstruction; version before relevance

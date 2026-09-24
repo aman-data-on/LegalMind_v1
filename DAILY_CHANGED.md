@@ -639,3 +639,71 @@ query (0.987; the one miss is absent from the corpus) ✔ · dense + lexical + m
 exact reference fused, deduplicated ✔ · top-3 dependency absent from the new path ✔ ·
 diversity keeps a required statute from being displaced (test) ✔.
 **Named:** production switches onto this path with PHASES 8–9 (flagged, `AM-28`-measured).
+
+Commit: `d061e0c`.
+
+## 2026-09-25 — Entry 11: PHASE 8 — reranking + parent/context reconstruction
+
+**Lock recorded — `AM-87` (AB-37)** — amends nothing locked. all_lock.md 20364 → 20432
+(counted from the file), additions only; registry; CLAUDE.md; CHANGELOG.
+
+**Built**
+* `rerank.scores()` — one scoring path shared by `reorder` and the pool rerank; None
+  when the reranker cannot run (the caller keeps its order).
+* `retrieval.rerank(pool, plan)` — cross-encoder over the top 30 of the STATUTES and
+  DOCUMENT pools against the whole question; then version before relevance (a
+  non-CURRENT source sorts behind current ones unless the question asks about the past —
+  the repealed Companies Act 1956 s.291 had been promoted for L-03). Statute candidates
+  now carry authority and status.
+* `retrieval.select` — unrequested domains offer their best candidate in the first
+  round only.
+* `retrieval.with_context` + `constitution.expand` rewritten to the section level:
+  a Constitution paragraph gets its whole SECTION/SUBSECTION (provision headings kept,
+  non-current paragraphs labelled "historical evidence, not current policy", the law
+  reading labelled "the company's reading of the law"), ≤ 4,000 chars windowed around
+  the hit; statutes their section; documents their neighbours; the span always inside.
+* `tools/rag_benchmark.py` — `pool_reranked` block (rerank latency, context stats);
+  `tools/retest_statute_embedder.py` — the owner-ordered bge-m3 statute retest.
+
+**Measured by iteration** (each variant measured; kept or rejected):
+
+| variant | evidence recall | hit@1 | wrong-source | golden wrong | false adm. |
+|---|---|---|---|---|---|
+| PHASE 7 (no rerank) | 0.705 | 0.687 | 0.026 | 0 | 0.2 |
+| rerank all domains, max over sub-questions | — | 0.582 | 0.066 | 0.143 ✗ | — |
+| rerank all domains, whole question (d15, blends) | — | — | 0.066 ✗ | 0.143 ✗ | — |
+| statutes + documents only, whole question, d30 | 0.756 | 0.702 | 0.026 | 0 | 0.2 ✔ |
+| + every domain offered to unplaced questions | 0.782 | 0.731 | 0.040 ✗ | 0 | 0.6 ✗ |
+
+The last row was built, measured and **reverted**: +2 of 78 slots is not worth tripling
+false admission before a sufficiency gate exists; `AM-86` r3 stands. Depth (under the
+broadened selection): d10/d20/d30 recall 0.756/0.769/0.782 at 0.35/0.7/1.06 s.
+
+| Final (76 cases, 78 slots) | production (unchanged) | PHASE 7 evidence | PHASE 8 reranked |
+|---|---|---|---|
+| recall | 0.577 @10 | 0.705 | **0.756** |
+| hit@1 · MRR · nDCG@5 | 0.508 · 0.497 · 0.551 | 0.687 · 0.645 · 0.576 | **0.702 · 0.690 · 0.604** |
+| multi-source complete | 0.000 | 0.000 | **0.200** |
+| wrong-source · false admission | 0.040 · 0.200 | 0.026 · 0.200 | 0.026 · 0.200 |
+| golden recall · wrong-source | 0.333 · — | 0.778 · 0 | 0.778 · 0 |
+
+Rerank p50 1,063 ms, p95 1,198 ms (CPU, 30 pairs). Context: 362 items, span inside 1.0,
+p50 2,615 chars, max 4,191; GT-00/GT-10's §14 contexts carry the Applicable Law caveat.
+Remaining: 18 RANK_CUTOFF (4 golden) — PHASE 9's bundle and sufficiency; SOURCE_MISSING
+H-02 (not in the corpus).
+
+**bge-m3 statute retest (owner instruction, PHASE 5)** — 18 statute slots, identical
+lexical lane and rerank, cached vectors, zero Gemini: pool r@50 0.889 both; reranked r@1
+0.278 vs 0.333, r@3 **0.611 vs 0.556**, r@6 0.722 vs 0.611, MRR 0.448 vs 0.465. No material
+gain; MiniLM stays (`AM-83`). Result: `tests/assist_eval/statute_embedder_retest_2026-09-25.json`.
+
+**Tested** — `tests/test_retrieval_pool.py` (+3: repealed source behind current, no
+reranker keeps order, span never dropped from context), Constitution section-context
+test (+1). Full suite **2583 passed, 112 skipped (unchanged), 0 failed**; ruff + mypy clean.
+
+**Exit (roadmap §8)** — reranking improves top-rank quality measurably (MRR 0.645 →
+0.690, recall 0.705 → 0.756) without raising wrong-source ✔ · repealed/superseded sources
+never outrank current ones (test) ✔ · every selected span has its parent context, span
+inside (1.0) ✔ · latency measured (p95 1.2 s) ✔. **Named:** golden recall unchanged at
+0.778 — its 4 misses are ranking inside the Constitution/positions, which the
+cross-encoder was measured to harm; PHASE 9's evidence bundle takes them.

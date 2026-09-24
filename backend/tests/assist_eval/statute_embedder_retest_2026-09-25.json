@@ -1,0 +1,18 @@
+{
+ "minilm": {
+  "slots": 18,
+  "pool_r@50": 0.8889,
+  "reranked_r@1": 0.2778,
+  "reranked_r@3": 0.6111,
+  "reranked_r@6": 0.7222,
+  "reranked_mrr": 0.4475
+ },
+ "bge-m3": {
+  "slots": 18,
+  "pool_r@50": 0.8889,
+  "reranked_r@1": 0.3333,
+  "reranked_r@3": 0.5556,
+  "reranked_r@6": 0.6111,
+  "reranked_mrr": 0.4652
+ }
+}

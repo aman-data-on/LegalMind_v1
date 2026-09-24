@@ -56,6 +56,13 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   one parent one place) and diversity-first 5–12 evidence; candidate mode in the three
   search functions (defaults unchanged). Pool recall 0.987, golden 1.000; evidence 0.705
   vs production 0.577. Six gold entries naming retired standards corrected.
+* **PHASE 8 / `AM-87`** — `retrieval.rerank`: cross-encoder over the top 30 of the
+  statute and document pools (whole question), version before relevance;
+  `retrieval.with_context`: read-time parent context (Constitution section with history
+  and law labelled, statute section, document neighbours). Evidence recall 0.705 → 0.756,
+  MRR 0.645 → 0.690, multi-source 0 → 0.2, wrong-source and false admission unchanged.
+  bge-m3 re-tested for statutes after reranking (`tools/retest_statute_embedder.py`): no
+  material gain, MiniLM stays.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

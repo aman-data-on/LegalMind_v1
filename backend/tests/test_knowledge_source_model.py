@@ -125,3 +125,22 @@ def test_expansion_restores_the_provision_and_labels_history(db):
     context = constitution.expand(db, hit.item_id)
     assert "Established Company Position" in context
     assert "[historical evidence, not current policy] Historical exceptions" in context
+
+
+def test_a_position_expands_to_its_whole_section_with_law_and_history_labelled(db):
+    """PHASE 8: the parent is the NUMBERED section — §14's position arrives with its
+    own legal-basis caveat, labelled as the company's reading of the law; §31.2's
+    position with its historical exceptions, labelled as history."""
+    constitution.ingest(db)
+    schema = config.assist_schema()
+    def item(section, starts):
+        return db.execute(text(
+            f'SELECT id FROM "{schema}".knowledge_items WHERE section_path = :s '
+            "AND kind = 'PARAGRAPH' AND content LIKE :c"),
+            {"s": section, "c": starts + "%"}).scalar()
+    s14 = constitution.expand(db, item("14", "No early exit"))
+    assert "Applicable Law / Legal Basis:" in s14
+    assert "[the company's reading of the law] Sections 73 and 74" in s14
+    s312 = constitution.expand(db, item("31.2", "Established Company Position"))
+    assert "[historical evidence, not current policy] Historical exceptions" in s312
+    assert len(s14) <= 4000 + 200

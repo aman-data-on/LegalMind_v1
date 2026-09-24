@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from legalmind.assist import (
+    authority,
     calibration,
     constitution,
     positions,
@@ -71,6 +72,9 @@ class Candidate:
     authority: str = ""
     status: str = "CURRENT"
     lanes: tuple[str, ...] = ()
+    #: The cross-encoder's relevance to the reader's whole question (PHASE 8);
+    #: None when not reranked. Orders evidence; never shown, never a verdict.
+    relevance: float | None = None
 
 
 @dataclass
@@ -108,7 +112,7 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
     if domain == routing.Domain.STATUTES.value:
         return [Candidate(domain, f"STAT:{h.official_title.removeprefix('The ')}:"
                                   f"{h.section_number}", h.statute_chunk_id, h.content,
-                          h.score, "PRIMARY_LAW")
+                          h.score, *authority.of_statute(h.official_title))
                 for h in statute_corpus.search_statutes(
                     db, query=query, permissions=permissions, limit=DEPTH,
                     embed_query=embed_query, candidates=True,
@@ -187,6 +191,44 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
     return pool
 
 
+RERANK_DEPTH = 30
+#: Where the cross-encoder earns its place, measured (PHASE 8, `AM-87`): statutes and
+#: documents — prose it reads well. NOT the Constitution or the positions: on short
+#: company positions it promoted the 12-month liability cap for a 12-month early-exit
+#: question, raising the golden wrong-source rate 0 → 0.143 in every variant tried.
+RERANK_DOMAINS = frozenset({routing.Domain.STATUTES.value, routing.Domain.DOCUMENT.value})
+
+
+def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
+    """PHASE 8 (`AM-87`): the cross-encoder reorders the top RERANK_DEPTH of each
+    RERANK_DOMAINS pool by relevance to the reader's WHOLE question (scoring each
+    sub-question and keeping the best was measured worse — it rewards a passage for
+    matching any fragment). Then version before relevance: a non-current source sorts
+    behind every current one unless the question asks about the past (roadmap §14).
+    Membership never changes; the tail keeps its fused order; with no reranker the pool
+    is returned as it is."""
+    import dataclasses
+
+    from legalmind.assist import rerank as cross_encoder
+
+    reranked: dict[str, list[Candidate]] = {}
+    for domain, cands in pool.by_domain.items():
+        head, tail = cands[:RERANK_DEPTH], cands[RERANK_DEPTH:]
+        scores = (cross_encoder.scores(plan.question, [c.text for c in head])
+                  if domain in RERANK_DOMAINS else None)
+        if scores is None:
+            reranked[domain] = cands
+            continue
+        order = sorted(range(len(head)), key=lambda i: -scores[i])
+        # Version before relevance: a cross-encoder cannot see that s. 291 of the
+        # REPEALED Companies Act, 1956 is not the law on board powers today.
+        if not plan.understood.temporal.wants_past:
+            order.sort(key=lambda i: head[i].status != "CURRENT")
+        reranked[domain] = [dataclasses.replace(head[i], relevance=scores[i])
+                            for i in order] + tail
+    return Pool(by_domain=reranked, searched=pool.searched, primary=pool.primary)
+
+
 def evidence_size(plan: query_plan.QueryPlan) -> int:
     """5–12 units, growing with the number of things asked (roadmap §7)."""
     return max(5, min(12, 3 * len(plan.sub_questions)))
@@ -199,16 +241,27 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
     wanted: list[tuple[str | None, str]] = [
         (lane, d) for sub in plan.sub_questions for lane in sub.lanes
               for d in LANE_DOMAINS.get(lane, ()) if d in pool.by_domain]
-    # An unplaced question (no lane) takes evidence only from the router's primary
-    # domains; the fallback domains stay in the pool as recall, not as an answer.
-    wanted = list(dict.fromkeys(wanted)) or [(None, d) for d in pool.by_domain
-                                             if d in pool.primary]
+    # The lanes' domains first; then every other searched domain's best candidate, so a
+    # source the plan did not name (a position for a statute-shaped question) can still
+    # reach the evidence set. Whether any of it is SHOWN is the sufficiency decision
+    # (PHASE 9, `AM-84` r4), not this one.
+    wanted = list(dict.fromkeys(wanted))
+    rest = sorted(pool.by_domain, key=lambda d: d not in pool.primary)
+    extras: list[tuple[str | None, str]] = [(None, d) for d in rest
+                                            if all(w[1] != d for w in wanted)]
+    if not wanted:
+        # An unplaced question draws only from the router's PRIMARY domains (`AM-86`
+        # r3). Measured (PHASE 8): offering it every domain gained 2 of 78 slots and
+        # tripled false admission 0.2 -> 0.6, wrong-source 0.026 -> 0.040.
+        wanted, extras = [(None, d) for d in rest if d in pool.primary], []
     taken: list[Candidate] = []
     refs: set[str] = set()
     depth = 0
     while len(taken) < k and depth < DEPTH:
         progressed = False
-        for lane, domain in wanted:
+        # Extra (unrequested) domains offer their best candidate in the FIRST round
+        # only, so they widen coverage without crowding out a lane's second source.
+        for lane, domain in wanted + (extras if depth == 0 else []):
             ranked = [c for c in pool.by_domain[domain]
                       if c.ref not in refs and (lane is None or lane in c.lanes
                                                 or not c.lanes)]
@@ -223,3 +276,38 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
         if not progressed:
             break
     return taken
+
+
+CONTEXT_CHARS = 4000
+
+
+@dataclass(frozen=True)
+class Evidence:
+    """A selected candidate with its restored parent context (roadmap §8). `candidate`
+    is the precise, citable span; `context` is what generation reads around it — built
+    at read time, never stored, never cited in place of the span."""
+    candidate: Candidate
+    context: str
+
+
+def with_context(db, evidence: list[Candidate]) -> list[Evidence]:
+    """Parent/context reconstruction per domain (`AM-82` r3's expanders): a
+    Constitution paragraph gets its provision's siblings (non-current ones labelled),
+    a statute chunk its whole section, a document chunk its neighbours in the same
+    evidence row. A position is one ratified quote with no children: its context is
+    itself. The span is always inside its context."""
+    out = []
+    for c in evidence:
+        if c.domain == CONSTITUTION:
+            context = constitution.expand(db, c.item_id, max_chars=CONTEXT_CHARS)
+        elif c.domain == routing.Domain.STATUTES.value:
+            context = statute_corpus.expand_section(db, c.item_id,
+                                                    max_chars=CONTEXT_CHARS)
+        elif c.domain == routing.Domain.DOCUMENT.value:
+            context = store.expand_chunk(db, c.item_id, max_chars=CONTEXT_CHARS)
+        else:
+            context = c.text
+        out.append(Evidence(c, context if c.text.strip() and
+                            " ".join(c.text.split()) in " ".join(context.split())
+                            else f"{context}\n{c.text}".strip()))
+    return out

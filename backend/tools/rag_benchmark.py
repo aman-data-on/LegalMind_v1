@@ -164,7 +164,12 @@ def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool, str]
     return hit_refs(pos, stat), wide, set(domains), False, resolved
 
 
-def retrieve_pool(db, case: dict) -> tuple[list[str], list[str], set[str], bool]:
+RERANK_MS: list[float] = []
+CONTEXTS: list[dict] = []
+
+
+def retrieve_pool(db, case: dict, *, reranked: bool = False
+                  ) -> tuple[list[str], list[str], set[str], bool]:
     """PHASE 7: the same question through plan → candidate pool → evidence selection.
     Returns (selected evidence refs, whole-pool refs, searched domains, short-circuit)."""
     question = case["question"]
@@ -180,7 +185,21 @@ def retrieve_pool(db, case: dict) -> tuple[list[str], list[str], set[str], bool]
     plan = query_plan.plan(resolved, has_document=False,
                            prior=(case["after"],) if case.get("after") else ())
     pool = retrieval.candidates(db, plan, route, permissions=PERMISSIONS)
+    if reranked:
+        import time
+        t0 = time.perf_counter()
+        pool = retrieval.rerank(pool, plan)
+        RERANK_MS.append((time.perf_counter() - t0) * 1000)
     evidence = retrieval.select(pool, plan)
+    if reranked:
+        for item in retrieval.with_context(db, evidence):
+            CONTEXTS.append({"case": case["id"], "domain": item.candidate.domain,
+                             "ref": item.candidate.ref, "chars": len(item.context),
+                             "span_inside": " ".join(item.candidate.text.split())
+                             in " ".join(item.context.split()),
+                             "history_labelled": "historical evidence, not current policy"
+                             in item.context,
+                             "law_caveat": "Sections 73 and 74" in item.context})
     return [c.ref for c in evidence], pool.refs(), pool.searched, False
 
 
@@ -190,6 +209,19 @@ def constitution_lane(db, question: str, limit: int) -> list[str]:
     stay the production numbers."""
     return [f"CONST:{h.section_path}" for h in constitution.search(
         db, query=question, permissions=PERMISSIONS, limit=limit)]
+
+
+def _context_report() -> dict:
+    by = CONTEXTS or [{"chars": 0, "span_inside": True}]
+    golden_14 = [c for c in CONTEXTS if c["case"] in ("GT-00", "GT-10")
+                 and c["ref"] in ("CONST:14", "CONST:31.2")]
+    return {"items": len(CONTEXTS),
+            "span_inside_context": round(sum(c["span_inside"] for c in by) / len(by), 4),
+            "chars_p50": sorted(c["chars"] for c in by)[len(by) // 2],
+            "chars_max": max(c["chars"] for c in by),
+            "golden_early_exit_contexts": [
+                {k: c[k] for k in ("case", "ref", "chars", "history_labelled",
+                                   "law_caveat")} for c in golden_14]}
 
 
 def corpus_refs(db) -> list[str]:
@@ -246,12 +278,15 @@ def run(db) -> dict:
     by_cat = collections.defaultdict(list)
     for r in results:
         by_cat[r["category"]].append(r)
-    pool_results = []
+    pool_results: list[dict] = []
+    reranked_results: list[dict] = []
     for c in cases:
-        shown, wide, searched, short = retrieve_pool(db, c)
-        scored = score_case(c, shown, wide, searched, exists, short, const_indexed=True)
-        scored["pool_recall"] = [_rank(s, wide) is not None for s in c["gold"]]
-        pool_results.append(scored)
+        for out, flag in ((pool_results, False), (reranked_results, True)):
+            shown, wide, searched, short = retrieve_pool(db, c, reranked=flag)
+            scored = score_case(c, shown, wide, searched, exists, short,
+                                const_indexed=True)
+            scored["pool_recall"] = [_rank(s, wide) is not None for s in c["gold"]]
+            out.append(scored)
 
     def at(k):
         return round(sum(1 for r in const_ranks if r and r <= k) / len(const_ranks), 4) \
@@ -265,7 +300,16 @@ def run(db) -> dict:
                        / max(1, sum(len(r["pool_recall"]) for r in pool_results
                                     if r["golden"])), 4),
                    "cases": pool_results}
-    return {"pool": pool_report,
+    ms = sorted(RERANK_MS) or [0.0]
+    reranked_report = {"evidence": aggregate(reranked_results),
+                       "evidence_golden": aggregate([r for r in reranked_results
+                                                     if r["golden"]]),
+                       "rerank_ms": {"p50": round(ms[len(ms) // 2], 1),
+                                     "p95": round(ms[int(len(ms) * .95)], 1),
+                                     "max": round(ms[-1], 1)},
+                       "context": _context_report(),
+                       "cases": reranked_results}
+    return {"pool": pool_report, "pool_reranked": reranked_report,
             "overall": aggregate(results),
             "constitution_lane": {"slots": len(const_ranks), "recall@3": at(3),
                                   "recall@6": at(6), "recall@10": at(10),
@@ -292,6 +336,10 @@ def main() -> int:
     for name in ("evidence", "evidence_golden"):
         print("pool", name, json.dumps(out["pool"][name]))
     print("pool recall", out["pool"]["pool_recall"], "golden", out["pool"]["pool_recall_golden"])
+    for name in ("evidence", "evidence_golden"):
+        print("reranked", name, json.dumps(out["pool_reranked"][name]))
+    print("rerank ms", out["pool_reranked"]["rerank_ms"])
+    print("context", json.dumps(out["pool_reranked"]["context"]))
     for cat, m in out["by_category"].items():
         print(f"  {cat}: n={m['cases']} r@3={m['recall@3']} mrr={m['mrr']} "
               f"wrong={m['wrong_source_rate']} codes={m['failure_codes']}")
