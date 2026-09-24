@@ -152,7 +152,8 @@ def _lanes(text: str, topic: str | None) -> set[str]:
     return lanes
 
 
-def plan(question: str, *, has_document: bool | None = None) -> QueryPlan:
+def plan(question: str, *, has_document: bool | None = None,
+         prior: tuple[str, ...] | list[str] = ()) -> QueryPlan:
     """`has_document` is the router's fact (`AM-25` r4): when the question needs the
     contract and none is in scope, the controlling paper is UNAVAILABLE even though
     the reader never said "missing" — "what is the cap in our signed contract with
@@ -160,6 +161,21 @@ def plan(question: str, *, has_document: bool | None = None) -> QueryPlan:
     text = (question or "").strip()
     u = understanding.understand(text)
     lexical = planner.plan_lexical(text)
+    # Conversation (roadmap §15, within `AM-58`): a turn that names no topic inherits
+    # the most recent prior USER question's — "What if the customer says they were
+    # promised 6 months?" after an early-termination question is still about early
+    # termination. Only the TOPIC carries; the prior turn's claims and figures do not,
+    # and nothing from an earlier ANSWER is read (`AM-58` r2).
+    if (lexical is None or lexical.topic is None) and prior:
+        for earlier in reversed(list(prior)):
+            inherited = planner.plan_lexical(earlier)
+            if inherited and inherited.topic:
+                lexical = inherited if lexical is None else planner.QueryPlan(
+                    intent=lexical.intent, topic=inherited.topic,
+                    subject=inherited.subject, party=lexical.party,
+                    source_preference=lexical.source_preference,
+                    queries=lexical.queries, section_hint=lexical.section_hint)
+                break
     topic = lexical.topic if lexical else None
     terms = lexical.queries if lexical else ()
     subject = lexical.subject if lexical else ""

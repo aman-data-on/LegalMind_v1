@@ -41,6 +41,8 @@ from sqlalchemy.orm import sessionmaker
 from legalmind.assist import (
     constitution,
     positions,
+    query_plan,
+    retrieval,
     routing,
     service,
     statutes,
@@ -94,16 +96,17 @@ def _rank(refs_in_slot, hits: list[str]) -> int | None:
 
 
 def score_case(case: dict, shown: list[str], wide: list[str], searched: set[str],
-               exists, short_circuit: bool) -> dict:
+               exists, short_circuit: bool, const_indexed: bool = False) -> dict:
     """Pure: everything already retrieved. `exists(ref)` says whether the corpus holds it."""
     slots = []
     for slot in case["gold"]:
         rank = _rank(slot, shown)
         code = None
         if rank is None:
-            if all(r.startswith("CONST:") for r in slot):
+            if all(r.startswith("CONST:") for r in slot) and not const_indexed:
                 code = "SOURCE_NOT_INDEXED"
-            elif not any(exists(r) for r in slot if not r.startswith("CONST:")):
+            elif not any(exists(r) for r in slot
+                         if const_indexed or not r.startswith("CONST:")):
                 code = "SOURCE_MISSING"
             elif short_circuit:
                 code = "ROUTE_SHORT_CIRCUIT"
@@ -117,9 +120,13 @@ def score_case(case: dict, shown: list[str], wide: list[str], searched: set[str]
             code = "RANK_LOW"
         slots.append({"rank": rank, "code": code})
     wrong = sorted({h for h in shown for r in case["must_not"] if ref_matches(r, h)})
-    relevant = [any(ref_matches(r, h) for slot in case["gold"] for r in slot) for h in shown]
+    # Each gold SLOT counts once, at the first position that satisfies it — several
+    # items matching one slot are not several relevant answers (nDCG stays ≤ 1).
+    firsts = {next(i for i, h in enumerate(shown) if any(ref_matches(r, h) for r in slot))
+              for slot in case["gold"]
+              if any(ref_matches(r, h) for h in shown for r in slot)}
     ideal = min(len(case["gold"]), 5)
-    dcg = sum(1 / math.log2(i + 2) for i, rel in enumerate(relevant[:5]) if rel)
+    dcg = sum(1 / math.log2(i + 2) for i in firsts if i < 5)
     idcg = sum(1 / math.log2(i + 2) for i in range(ideal))
     return {"id": case["id"], "category": case["category"], "golden": case.get("golden", False),
             "must_refuse": bool(case.get("answer", {}).get("refuse")),
@@ -157,6 +164,26 @@ def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool, str]
     return hit_refs(pos, stat), wide, set(domains), False, resolved
 
 
+def retrieve_pool(db, case: dict) -> tuple[list[str], list[str], set[str], bool]:
+    """PHASE 7: the same question through plan → candidate pool → evidence selection.
+    Returns (selected evidence refs, whole-pool refs, searched domains, short-circuit)."""
+    question = case["question"]
+    resolved = question
+    asked = understanding.understand(question)
+    if case.get("after") and (asked.follow_up or asked.exact_text):
+        _, resolved = service._resolve_follow_up([(uuid.uuid4(), case["after"])], question)
+    route = routing.plan(resolved, has_document=False, permissions=PERMISSIONS,
+                         statutes_available=statutes.available(db),
+                         statute_jurisdictions=statutes.jurisdictions(db))
+    if route.general_knowledge or route.capability or route.comparison or route.unmet:
+        return [], [], set(), True
+    plan = query_plan.plan(resolved, has_document=False,
+                           prior=(case["after"],) if case.get("after") else ())
+    pool = retrieval.candidates(db, plan, route, permissions=PERMISSIONS)
+    evidence = retrieval.select(pool, plan)
+    return [c.ref for c in evidence], pool.refs(), pool.searched, False
+
+
 def constitution_lane(db, question: str, limit: int) -> list[str]:
     """PHASE 3 diagnostic: the Constitution's own retrieval records, which no
     production route reaches until PHASE 7. Scored apart so the production numbers
@@ -166,11 +193,15 @@ def constitution_lane(db, question: str, limit: int) -> list[str]:
 
 
 def corpus_refs(db) -> list[str]:
-    rows = db.execute(text(
+    rows = list(db.execute(text(
         "SELECT 'POS:' || standard_code FROM assist.position_chunks UNION "
         "SELECT 'STAT:' || regexp_replace(s.official_title, '^The ', '') || ':' || c.section_number "
-        "FROM assist.statute_chunks c JOIN assist.statutes s ON s.id = c.statute_id")).scalars()
-    return list(rows)
+        "FROM assist.statute_chunks c JOIN assist.statutes s ON s.id = c.statute_id")).scalars())
+    if db.execute(text("SELECT to_regclass('assist.knowledge_items')")).scalar():
+        rows += db.execute(text("SELECT DISTINCT 'CONST:' || section_path "
+                                "FROM assist.knowledge_items "
+                                "WHERE section_path IS NOT NULL")).scalars().all()
+    return rows
 
 
 def aggregate(results: list[dict]) -> dict:
@@ -215,10 +246,27 @@ def run(db) -> dict:
     by_cat = collections.defaultdict(list)
     for r in results:
         by_cat[r["category"]].append(r)
+    pool_results = []
+    for c in cases:
+        shown, wide, searched, short = retrieve_pool(db, c)
+        scored = score_case(c, shown, wide, searched, exists, short, const_indexed=True)
+        scored["pool_recall"] = [_rank(s, wide) is not None for s in c["gold"]]
+        pool_results.append(scored)
+
     def at(k):
         return round(sum(1 for r in const_ranks if r and r <= k) / len(const_ranks), 4) \
             if const_ranks else None
-    return {"overall": aggregate(results),
+    slots_in_pool = [x for r in pool_results for x in r["pool_recall"]]
+    pool_report = {"evidence": aggregate(pool_results),
+                   "evidence_golden": aggregate([r for r in pool_results if r["golden"]]),
+                   "pool_recall": round(sum(slots_in_pool) / len(slots_in_pool), 4),
+                   "pool_recall_golden": round(
+                       sum(x for r in pool_results if r["golden"] for x in r["pool_recall"])
+                       / max(1, sum(len(r["pool_recall"]) for r in pool_results
+                                    if r["golden"])), 4),
+                   "cases": pool_results}
+    return {"pool": pool_report,
+            "overall": aggregate(results),
             "constitution_lane": {"slots": len(const_ranks), "recall@3": at(3),
                                   "recall@6": at(6), "recall@10": at(10),
                                   "mrr": round(sum(1 / r for r in const_ranks if r)
@@ -241,6 +289,9 @@ def main() -> int:
     out = run(sessionmaker(bind=engine, future=True)()) | {"label": args.label}
     for name in ("overall", "golden", "constitution_lane"):
         print(name, json.dumps(out[name]))
+    for name in ("evidence", "evidence_golden"):
+        print("pool", name, json.dumps(out["pool"][name]))
+    print("pool recall", out["pool"]["pool_recall"], "golden", out["pool"]["pool_recall_golden"])
     for cat, m in out["by_category"].items():
         print(f"  {cat}: n={m['cases']} r@3={m['recall@3']} mrr={m['mrr']} "
               f"wrong={m['wrong_source_rate']} codes={m['failure_codes']}")

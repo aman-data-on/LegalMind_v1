@@ -708,7 +708,8 @@ def _rrf(lists: list[list[SearchHit]], limit: int, k: int) -> list[SearchHit]:
 
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                   embed_query, limit: int | None = None,
-                  extra_queries: tuple[str, ...] | list[str] = ()) -> RetrievalOutcome:
+                  extra_queries: tuple[str, ...] | list[str] = (),
+                  candidates: bool = False) -> RetrievalOutcome:
     """Hybrid retrieval within ONE authorized document version, gated.
 
     ``extra_queries`` (2026-09-17) — the query planner's reformulations. Each is
@@ -807,6 +808,16 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     top = scores[0] if scores else None
     gap = (scores[0] - sum(scores[1:]) / len(scores[1:])) if len(scores) > 1 else None
     open_ = gate_is_open(lexical_hit, scores)
+    if candidates:
+        # PHASE 7 (`AM-86`): a candidate pool — lexical and UNGATED vector lists fused;
+        # the gate is still computed and reported, and decides nothing here
+        # (`AM-84` r4). The default path below is unchanged.
+        return RetrievalOutcome(
+            hits=_rrf([lexical_hits, *[as_hits(rows, None) for rows in vector_lists]],
+                      limit, RRF_K),
+            gate_open=open_, lexical_hit=lexical_hit, vector_top_score=top,
+            vector_peak_gap=gap, strategy_version=RETRIEVAL_STRATEGY_VERSION,
+            embedding_model=model_identity)
 
     if not open_:
         # Gate shut: `hits` is empty, as every caller relies on. The candidates are

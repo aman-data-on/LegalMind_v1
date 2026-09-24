@@ -20303,3 +20303,62 @@ Not wired into production yet (PHASE 7 consumes it).
 
 --------------------------------------------------------------------------------
 AM-85: the structured query plan — deterministic first, decomposed by source kind
+
+================================================================================
+AMENDMENT BATCH AB-36 — `AM-86`
+Broad, plan-driven candidate retrieval; diverse evidence; no top-3 dependency
+================================================================================
+
+**Owner decision, 2026-09-24/25** — the master RAG roadmap (`AM-79`'s owner authority),
+§7: *"The current 'top 3' dependency must be removed … Dense top 30–50, BM25 top 30–50,
+metadata/exact top 10 … Fuse … Deduplicate … Evidence ~5–12 … Avoid allowing five
+similar Company Standards to displace a required statute or executed agreement … A
+correct gold source should be present in the candidate pool for nearly every
+answerable benchmark query."* Roadmap PHASE 7.
+
+**Amends:** nothing locked — the candidate path is new and the production answer path
+is unchanged (proved byte-identical in retrieved output against the previous code).
+**Does not amend:** `AM-32` r1 (pools stay per domain, never merged), `AM-45` r1
+(domains come from the router, permissions first), `AM-71` (retired standards excluded
+on both paths), `AM-77`, `AM-84` r4, rules 15, 17.
+
+```text
+r1   A CANDIDATE MODE in each search function (positions, statutes, documents): lexical
+     and dense fused, dense UNGATED — similarity produces candidates and decides nothing
+     (`AM-84` r4). The default mode, and every existing call, is today's exactly.
+
+r2   THE POOL (assist/retrieval.py). The plan's sub-questions and the whole question are
+     searched in every domain their lanes name AND the router's primary and fallback
+     domains, at depth 50; the Constitution rides on the positions permission; a named
+     Constitution section is fetched by number (exact reference). Per domain, fused by
+     RRF and deduplicated by SOURCE, one parent one place. The top-3 limit does not
+     exist in this path.
+
+r3   EVIDENCE (retrieval.select), 5–12 units by the number of things asked:
+     diversity-first — every (sub-question, lane, domain) gets its best candidate
+     before any gets a second; an unplaced question takes evidence only from the
+     router's PRIMARY domains, exactly as today's path answers it.
+
+r4   STILL NOT AN ANSWER. Pool and selection decide nothing about sufficiency; the
+     reranker (PHASE 8) orders, PHASE 9 decides. The production answer path moves onto
+     this retrieval when those phases land, behind a flag, measured under `AM-28`.
+```
+
+**Recorded 2026-09-25.** Measured before the record was written, zero Gemini calls, on
+the scratch corpus (baseline re-recorded: `tests/assist_eval/rag_benchmark_baseline.json`,
+`overall` = unchanged production, `pool` = this path). Six gold entries were corrected
+first — they named `AM-65`'s retired standards, which `AM-71` makes unretrievable by
+design; the PHASE 0 check had tested chunk presence, not standard status.
+
+| 76 cases, 78 slots | production | PHASE 7 evidence | PHASE 7 pool |
+|---|---|---|---|
+| recall (gold present) | 0.577 @10 | 0.705 | **0.987** |
+| golden (18 slots) | 0.333 | 0.778 | **1.000** |
+| wrong-source rate | 0.040 | 0.026 | — |
+| false admission | 0.200 | 0.200 | — |
+
+The one pool miss is H-02 (s. 194J), absent from the as-enacted 1961 text (`AM-81` r1).
+22 gold sources are in the pool but not in the evidence — the reranker's work.
+
+--------------------------------------------------------------------------------
+AM-86: broad, plan-driven candidate retrieval; diverse evidence; no top-3 dependency

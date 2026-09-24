@@ -814,7 +814,8 @@ def _repealed_sql(column: str = "s.status") -> str:
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                     limit: int = 6, embed_query=None,
                     require_semantic: bool = False,
-                    include_superseded: bool = False) -> list[StatuteHit]:
+                    include_superseded: bool = False,
+                    candidates: bool = False) -> list[StatuteHit]:
     """Lexical retrieval over the statute corpus, authorized inside the function.
 
     A section number named in the question ("section 43A") ranks its exact section
@@ -924,6 +925,14 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     # FILL the slots the lexical ranking left empty — they never displace an exact
     # section or a named Act, so the ranking `AM-47` locked stays lexical-first.
     named = any(r.exact_section or r.act_match >= 0.5 for r in rows)
+    if named and candidates:
+        # A candidate pool (PHASE 7) keeps the named Act's lexical order whole and
+        # APPENDS the vector neighbours instead of filling only the empty slots: its job
+        # is recall, and "restraint" does not stem to "restrained" (s. 27). Measured:
+        # rank-fusing the two under the cap instead cost IT Act s. 70B its place.
+        return _one_per_section([*hits, *_vector_neighbours(
+            db, query, limit=limit, embed_query=embed_query,
+            include_superseded=include_superseded, gated=False)])[:2 * limit]
     if named:
         # A named section or Act: lexical-first stands; vectors only fill the rest.
         if len(hits) < limit:
@@ -935,8 +944,11 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
         # "person" reach the Companies Act for a question about personal data),
         # while a gated cosine is a strong one. Reciprocal rank fusion, the
         # vector side winning an exact tie.
-        vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
-                                    include_superseded=include_superseded)
+        vector = (_vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                     include_superseded=include_superseded, gated=False)
+                  if candidates else
+                  _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                     include_superseded=include_superseded))
         if require_semantic and not vector:
             log_event("assist.statutes.searched", hits=0, level=logging.DEBUG,
                       cause="no_semantic_evidence")
@@ -1055,7 +1067,8 @@ def expand_section(db: DBSession, statute_chunk_id: UUID, *,
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
                        embed_query=None,
-                       include_superseded: bool = False) -> list[StatuteHit]:
+                       include_superseded: bool = False,
+                       gated: bool = True) -> list[StatuteHit]:
     """Gated nearest neighbours over `statute_chunk_embeddings`; [] without a model,
     without vectors, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -1084,8 +1097,9 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
     scores = [float(r.cosine) for r in rows]
-    if not calibration.gate_is_open(False, scores):
+    if gated and not calibration.gate_is_open(False, scores):
         return []
     return [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
                        r.sub_section, r.marginal_note, r.content, float(r.cosine))
-            for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
+            for r in rows
+            if not gated or float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]

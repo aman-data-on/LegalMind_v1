@@ -40,3 +40,16 @@ def test_statute_refs_match_by_act_prefix_and_wildcard_section():
     assert not rb.ref_matches("STAT:Companies Act, 2013:*", "STAT:Companies Act, 1956 (REPEALED):12")
     assert not rb.ref_matches("STAT:Indian Contract Act, 1872:74", "STAT:Indian Contract Act, 1872:73")
     assert rb.ref_matches("POS:*", "POS:ANY")
+
+
+def test_no_gold_reference_is_a_retired_standard():
+    """A retired standard is never retrievable (`AM-71`), so it can never be gold —
+    the PHASE 0 verification checked that chunks existed, not that the standard was
+    active, and six cases carried one until 2026-09-25 (`AM-65`'s seven)."""
+    retired = {"COMPELLED-DISCLOSURE-NDA-001", "FORCE-MAJEURE-MSA-001",
+               "FORCE-MAJEURE-TOS-001", "LIAB-CARVEOUTS-MSA-001",
+               "RETURN-DESTRUCTION-MSA-001", "RETURN-DESTRUCTION-NDA-001",
+               "WARRANTY-DISCLAIMER-MSA-001"}
+    for c in CASES:
+        for ref in (r for slot in c["gold"] for r in slot):
+            assert ref.removeprefix("POS:") not in retired, (c["id"], ref)

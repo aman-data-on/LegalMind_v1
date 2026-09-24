@@ -444,7 +444,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                      limit: int = 10, embed_query=None,
                      topic: str | None = None,
                      allow_relax: bool = True,
-                     require_semantic: bool = False) -> list[PositionHit]:
+                     require_semantic: bool = False,
+                     candidates: bool = False) -> list[PositionHit]:
     """Domain A hybrid retrieval, authorization inside the function (r5).
 
     Without assist.ask AND (configuration.view OR legal_position.view) the result is
@@ -621,8 +622,11 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            standard_version=r.version_number,
                            ratification_status=r.ratification)
                for r in rows]
-    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
-                                topic=topic, named=named)
+    # The default call is exactly today's; only a candidate pool passes `gated`.
+    vector = (_vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                 topic=topic, named=named, gated=False) if candidates
+              else _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                      topic=topic, named=named))
     if require_semantic and not vector:
         lexical = []
     # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
@@ -651,7 +655,10 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # gap for the owner to see, not a constant to invent from ten points. Junk on an
     # unheld subject is stopped upstream instead: provenance is no longer indexed, and
     # `named_document_type` filters a paper we hold no position for.
-    hits = _fuse([] if vector else lexical, vector, limit)
+    # `candidates` (PHASE 7, `AM-86`): a CANDIDATE POOL for a reranker wants recall,
+    # so both branches are fused and vector neighbours are ungated — similarity
+    # produces candidates, it does not decide (`AM-84` r4). The default is unchanged.
+    hits = _fuse(lexical if candidates or not vector else [], vector, limit)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
@@ -672,7 +679,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
         return search_positions(db, query=query, permissions=permissions, limit=limit,
                                 embed_query=embed_query, topic=None,
                                 allow_relax=allow_relax,
-                                require_semantic=require_semantic)
+                                require_semantic=require_semantic,
+                                candidates=candidates)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
               vector=len(vector), topic=topic or "", level=logging.DEBUG)
     return hits
@@ -680,7 +688,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
                        embed_query=None, topic: str | None = None,
-                       named: str | None = None) -> list[PositionHit]:
+                       named: str | None = None,
+                       gated: bool = True) -> list[PositionHit]:
     """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
     is available, when nothing is embedded, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -714,14 +723,15 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K),
            "topic": topic, "named": named}).all()
     scores = [float(r.cosine) for r in rows]
-    if not calibration.gate_is_open(False, scores):
+    if gated and not calibration.gate_is_open(False, scores):
         return []
     return [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                         document_type=r.document_type, source_clause=r.source_clause,
                         content=r.content, score=float(r.cosine),
                         standard_version=r.version_number,
                         ratification_status=r.ratification)
-            for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
+            for r in rows
+            if not gated or float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
 
 
 def _fuse(lexical: list[PositionHit], vector: list[PositionHit],

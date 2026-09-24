@@ -51,6 +51,11 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   `tools/eval_query_plan.py`): language, figures, claims, missing-document state, source
   lanes, sub-questions; early-exit paraphrases converge on §14. Lane recall 22/23, false
   positives 0; sub-queries lift Constitution MRR 0.695 → 0.822. No model used.
+* **PHASE 7 / `AM-86`** — `assist/retrieval.py`: plan-driven candidate pools (depth 50,
+  all authorized domains incl. the Constitution, exact section reference, RRF per domain,
+  one parent one place) and diversity-first 5–12 evidence; candidate mode in the three
+  search functions (defaults unchanged). Pool recall 0.987, golden 1.000; evidence 0.705
+  vs production 0.577. Six gold entries naming retired standards corrected.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

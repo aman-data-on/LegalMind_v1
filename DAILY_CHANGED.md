@@ -574,3 +574,68 @@ weakening it (a cue may carry no digit — quantifiers rewritten). Full suite **
 field ✔ · equivalent wording converges (18/18) ✔ · complex questions decompose into
 focused sub-queries ✔ · simple queries stay deterministic and free ✔ · measured retrieval
 gain from the plan ✔.
+**Commit:** `eedba02`. *Correction: Entry 9 says all_lock.md 20240 → 20287; it is 20305.*
+
+---
+
+## 2026-09-25 — Entry 10: PHASE 7 — broad hybrid + metadata retrieval
+
+**Lock recorded — `AM-86` (AB-36)** — amends nothing locked. all_lock.md 20305 → 20364
+(counted from the file), additions only; registry; CLAUDE.md; CHANGELOG.
+
+**Built**
+* **Candidate mode** in `search_positions`, `search_statutes`, `store.search_hybrid`:
+  lexical + dense fused, dense ungated (`AM-84` r4). Defaults untouched — the default
+  calls pass exactly today's arguments (a first version passed `gated=` always and broke
+  8 tests whose stubs replace `_vector_neighbours`; fixed by passing it only in candidate
+  mode).
+* `legalmind/assist/retrieval.py` — `candidates(db, plan, route, …)`: sub-questions +
+  whole question × lane domains + the router's primary and fallback domains, depth 50,
+  Constitution on the positions permission, exact Constitution-section reference, RRF per
+  domain, dedupe by source. `select(pool, plan)`: 5–12 units, diversity-first per
+  (sub-question, lane, domain); unplaced questions draw only from primary domains.
+* `query_plan.plan(prior=…)` — a turn with no topic inherits the latest prior USER
+  question's (roadmap §15; only the topic carries, never claims or figures; `AM-58`).
+* `tools/rag_benchmark.py` — `pool` mode beside the unchanged production path; nDCG now
+  counts each gold slot once (it could exceed 1).
+
+**Dataset correction (disclosed):** six gold entries named `AM-65`'s RETIRED standards
+(LIAB-CARVEOUTS, FORCE-MAJEURE ×2, RETURN-DESTRUCTION, COMPELLED-DISCLOSURE) — never
+retrievable by design (`AM-71`); the PHASE 0 check tested chunk presence, not status.
+Corrected from the Constitution's own text (§9's closed cap position for D-01/G-01/J-02;
+no ratified source for C-05/G-04; D-03 keeps its survival slot) with the retired codes
+as `must_not`; `test_no_gold_reference_is_a_retired_standard` guards it. Baseline
+re-recorded.
+
+**Measured by iteration** (each step measured, kept or fixed):
+
+| step | pool recall | evidence recall | false admission |
+|---|---|---|---|
+| first pool | 0.852 | 0.630 | 0.20 |
+| + router-domain fallback, topic inheritance | 0.936 | 0.705 | 0.20 |
+| + fallback domains in the pool, statute vectors fused when an Act is named | 0.974 | 0.731 | **0.60** ✗ |
+| + unplaced questions take evidence from PRIMARY domains only; named-Act vectors appended, not re-ranked (restored IT Act s.70B) | **0.987** | **0.705** | **0.20** |
+
+| Final (76 cases, 78 slots) | production (unchanged) | PHASE 7 evidence | PHASE 7 pool |
+|---|---|---|---|
+| recall | 0.577 @10 · 0.564 @3 | 0.705 | **0.987** |
+| golden (18 slots) | 0.333 | 0.778 | **1.000** |
+| hit@1 · MRR | 0.508 · 0.497 | 0.657 · 0.628 | — |
+| multi-source complete | 0.000 | 0.200 | — |
+| wrong-source · false admission | 0.040 · 0.200 | 0.026 · 0.200 | — |
+
+Production retrieval proven unchanged: the previous commit's benchmark, run in a
+throwaway worktree on the same data, gives identical shown sources and slot ranks for all
+76 cases. Pool miss: H-02 only (s. 194J not in the as-enacted 1961 text). In pool but not
+in evidence: 22 (RANK_CUTOFF) — the reranker's job. Wrong sources left: J-01 (the
+liability cap beside early termination), M-02 (an unanswerable question) — ranking and
+sufficiency, PHASES 8–9.
+
+**Tested** — `tests/test_retrieval_pool.py` (3), retired-gold guard (1). Full suite **2579
+passed, 112 skipped (unchanged), 0 failed**; ruff + mypy clean.
+
+**Exit (roadmap §7)** — gold present in the candidate pool for nearly every answerable
+query (0.987; the one miss is absent from the corpus) ✔ · dense + lexical + metadata +
+exact reference fused, deduplicated ✔ · top-3 dependency absent from the new path ✔ ·
+diversity keeps a required statute from being displaced (test) ✔.
+**Named:** production switches onto this path with PHASES 8–9 (flagged, `AM-28`-measured).
