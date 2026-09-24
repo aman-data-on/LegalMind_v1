@@ -43,6 +43,10 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   31 vs 41 of 64 kept); **MiniLM stays**, Qwen3 rejected (13.8 GB), bge-m3 kept as a
   Domain C candidate. Backend: CLS/last-token pooling, KV-cache exports, full-manifest
   verification; provisioner streams and resumes.
+* **PHASE 5 / `AM-84`** — Postgres + exact pgvector stays, measured at the PHASE 7–8
+  depths (`tools/benchmark_storage.py`): KNN ~2 ms at k ≤ 100, 16 clients ~800–1,000 q/s,
+  ×40 growth 106 ms; exact = numpy ground truth; all lanes compose in one statement
+  (20.5 ms). Rule recorded: similarity produces candidates, never the answer.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

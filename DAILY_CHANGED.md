@@ -471,3 +471,50 @@ modes normalised and distinct). Full suite **2570 passed, 112 skipped (unchanged
 (recall@3/@10, Hit@1, MRR, nDCG@5, source-domain, Constitution / clause / statute,
 paraphrase, Hinglish, latency, RAM, indexing time, re-index cost) ✔ · selection made by
 the stated rule ✔ · no change without demonstrated workload gain ✔.
+**Commit:** `41c1b95`. *Owner accepted PHASE 4: MiniLM is the production baseline, kept
+reversible (identity is configuration; the backend loads mean/CLS/last-token models; the
+bge-m3 and Qwen3 weights stay provisioned); bge-m3 is NOT rejected — re-test it for
+statutes after PHASE 8 reranking.*
+
+---
+
+## 2026-09-24 — Entry 8: PHASE 5 — index and storage
+
+**Lock recorded — `AM-84` (AB-34)**: Postgres stays; and the owner's rule that embedding
+similarity produces candidates, never the answerability decision (target for PHASES
+8–9; the current gate unchanged until then). all_lock.md 20181 → 20241, additions only;
+registry; CLAUDE.md; CHANGELOG; ASK_TARGET_ARCHITECTURE stage 7 annotated.
+
+**Built** — `tools/benchmark_storage.py` (read-only; query vectors precomputed so the
+database is what is timed; TEMP-table growth test on the scratch DB only). Record:
+`tests/assist_eval/storage_benchmark_2026-09-24.json`. Host now 6 CPUs.
+
+**Measured** (scratch corpus; MiniLM 384-d; exact scan, no ANN)
+
+| | p50 | p95 |
+|---|---|---|
+| Vector KNN statutes (5,036) k = 10 / 30 / 50 / 100 | 1.9 / 2.0 / 2.1 / 2.2 ms | ≤ 2.6 ms |
+| Vector KNN Constitution · positions · one document, k = 50 | 0.6 · 0.5 · 0.8 ms | < 1.1 ms |
+| Exact scan = numpy ground truth (top-50 overlap) | **1.0** on every domain | |
+| FTS statutes · current-only filter · exact Act+section | 15.7 · 13.9 · 0.3 ms | 46 · 38 · 0.4 ms |
+| Production hybrid @50: statutes · positions · Constitution · document | 150 · 3.3 · 9.4 · 6.9 ms | 199 · 5.0 · 12.7 · 20.0 ms |
+| **One-statement fusion** (FTS + vector + status + exact ref, RRF @50) | **20.5 ms** | 43 ms |
+| Concurrency 1 / 4 / 8 / 16 clients (statute KNN k = 50) | 405 / 1,065 / 1,047 / 809 q/s | 2.5 / 4.3 / 8.5 / 24 ms |
+| Postgres RSS idle → 16 clients | 279 → 911 MB | |
+| Growth ×10 (50,360) · ×40 (201,440) exact k = 50 | 27 · 106 ms | 28 · 118 ms |
+| Assist corpus on disk | ~45 MB | |
+
+**One optimisation tried and reverted.** The statute lexical path is 150 ms because it
+scores every row (lexeme count, `ts_rank`, a per-row title ratio). A per-Act title CTE +
+GIN-indexed candidate prefilter was built; the old and new functions were run over
+157 questions × 2 depths: **0 differences, and no speedup** (138 → 148 ms) — legal
+questions share common lexemes with ~65% of sections, so the prefilter keeps most rows.
+No gain, so no change. The one-statement fusion (20 ms) shows the store is not the
+limit; the lane design is PHASE 7's.
+
+**Tested** — full suite **2570 passed, 112 skipped (unchanged), 0 failed**; ruff + mypy
+clean. Production and the production corpus untouched.
+
+**Exit (roadmap §5)** — no measured need to migrate (latency, concurrency, memory,
+features) ✔ · exact baseline established for any future ANN ✔ · lexical, metadata,
+exact-reference and dense retrieval coexist in one store and one plan ✔.

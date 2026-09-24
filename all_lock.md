@@ -20179,3 +20179,62 @@ unchanged).
 
 --------------------------------------------------------------------------------
 AM-83: the embedding model is selected on material gain at acceptable cost — MiniLM stays
+
+================================================================================
+AMENDMENT BATCH AB-34 — `AM-84`
+Postgres stays the retrieval store; similarity produces candidates, never the answer
+================================================================================
+
+**Owner decision, 2026-09-24**, in the owner's words: *"Keep exact Postgres search as
+the ground-truth baseline. Do NOT introduce a dedicated vector DB or HNSW just because
+it is industry-standard … embedding similarity must not become the final
+answerability/refusal decision. Retrieval should produce candidates; later reranking +
+evidence sufficiency + authority/version checks should determine whether evidence is
+actually sufficient."* Roadmap §5 and PHASE 5; roadmap §7–§9 for r4.
+
+**Amends:** the design statement that the calibrated cosine gate is Ask's refusal
+control (ASK_TARGET_ARCHITECTURE.md §0 stage 7; `calibration.gate_is_open`'s role) —
+as the TARGET for PHASES 8–9; behaviour is unchanged until those phases replace it.
+**Does not amend:** `AM-26` r1/r4/r5; `AM-28` (the release gate: wrongly-answered and
+faithfulness may not worsen — it measures every replacement); `AM-25` r5 / `AM-69`
+(fail closed); `AM-83` (MiniLM stays, reversibly); rules 15, 17.
+
+```text
+r1   POSTGRES + PGVECTOR, EXACT SEARCH, STAYS — measured, not assumed. At the PHASE 7–8
+     depths exact KNN is ~2 ms (statutes, 5,036 vectors, k = 10…100; p95 ≤ 2.6 ms);
+     16 concurrent clients sustain ~800–1,000 queries/s at p95 24 ms; Postgres RSS
+     rises 324 → 911 MB under 16 clients; the whole assist corpus is ~45 MB.
+     Replicated ×10 (50,360 vectors) exact k=50 is 27 ms p50; ×40 (201,440) 106 ms.
+     No dedicated vector database and no approximate index is justified.
+
+r2   EXACT SEARCH IS THE GROUND TRUTH. pgvector's exact scan equals an independent
+     numpy cosine ranking over the stored vectors (top-50 overlap 1.0 on every domain).
+     Any future ANN index is admitted only by measured recall against this baseline and
+     measured need — p95 of a vector lane above ~50 ms at production concurrency, or a
+     corpus past ~100k vectors (pgvector ≥ 0.8 for iterative scans, preflight's rule).
+
+r3   ONE STORE, ALL LANES. Lexical (GIN full-text + trigram), dense (pgvector),
+     metadata (status, kind, topic, document scope) and exact reference (Act +
+     section) run in one database and compose in ONE statement: fused by RRF at depth
+     50 in 20.5 ms p50 / 43 ms p95, each lane contributing. The production statute
+     lexical path (≈150 ms) is slow by its per-row scoring, not by the store — an
+     index prefilter was built, measured byte-identical in result and without gain,
+     and reverted; the lane design is PHASE 7's.
+
+r4   SIMILARITY PRODUCES CANDIDATES, NEVER THE ANSWERABILITY DECISION. From PHASE 8 on,
+     whether evidence suffices is decided by the reranker, evidence sufficiency and the
+     authority / version / status checks of PHASE 9 — code, deterministic, calibrated,
+     fail-closed — not by an embedding cosine. PHASE 4 is the reason: the same corpus
+     separates answerable from unanswerable at 45 / 31 / 41 of 64 depending only on
+     which embedder is loaded, so a cosine threshold is a property of the model, not of
+     the evidence. Until the replacement ships and passes `AM-28`, the calibrated gate
+     stays exactly as it is.
+```
+
+**Recorded 2026-09-24.** Measured before the record was written, zero Gemini calls,
+on the scratch corpus only (record `tests/assist_eval/storage_benchmark_2026-09-24.json`,
+tool `tools/benchmark_storage.py`); production unchanged; host 6 CPUs, shared_buffers
+128 MB.
+
+--------------------------------------------------------------------------------
+AM-84: Postgres stays the retrieval store; similarity produces candidates, never the answer
