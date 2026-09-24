@@ -37,6 +37,12 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   breadcrumbs (migration `b8e2f6a4d1c3`), `constitution.search` / `expand`,
   `statutes.expand_section`, `store.expand_chunk`, one statute chunk per section;
   shared `store.embed_into`. Constitution lane recall@3 0.878, MRR 0.810.
+* **PHASE 4 / `AM-83`** (amends `AM-26` r2) — embedder benchmark MiniLM · bge-m3 ·
+  Qwen3-0.6B (`tools/benchmark_embedders.py`, zero Gemini): bge-m3/Qwen3 rank higher but
+  add no pool-depth recall on 3 of 4 domains and separate the refusal gate worse (45 vs
+  31 vs 41 of 64 kept); **MiniLM stays**, Qwen3 rejected (13.8 GB), bge-m3 kept as a
+  Domain C candidate. Backend: CLS/last-token pooling, KV-cache exports, full-manifest
+  verification; provisioner streams and resumes.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

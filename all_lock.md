@@ -20116,3 +20116,66 @@ wrong-source 0.040, false admission 0.200).
 
 --------------------------------------------------------------------------------
 AM-82: hierarchical retrieval records — children are searched, parents are restored
+
+================================================================================
+AMENDMENT BATCH AB-33 — `AM-83`
+The embedding model is selected on material gain at acceptable cost — and MiniLM stays
+================================================================================
+
+**Owner decision, 2026-09-24** — the master RAG roadmap (`AM-79`'s owner authority),
+§4: *"Use the best model that materially improves retrieval quality without creating
+unacceptable production latency/cost. Do not change the model unless the benchmark
+demonstrates that the change improves the target workload."* Roadmap PHASE 4.
+
+**Amends:** `AM-26` r2 (*"Selection proceeds from the smallest candidate upward and
+stops at the first that meets the quality bar. A larger model is not adopted for
+headroom."*). **Does not amend:** `AM-26` r1, r3–r5 (identity is configuration; the
+bar includes refusal; pin and checksum); `AM-28`; `AM-30` t1 (embedding stays local);
+the calibrated gate constants.
+
+```text
+r1   THE SELECTION RULE is roadmap §4's: the candidate that MATERIALLY improves the
+     target workload at acceptable latency, memory and re-index cost — measured on the
+     LegalMind corpora, never on a leaderboard. Size alone neither disqualifies nor
+     qualifies; "headroom" is still not a reason (a gain that does not reach the
+     workload is not a gain).
+
+r2   THE TARGET WORKLOAD is what retrieval will be asked to do after PHASES 7–8: a
+     broad candidate pool (30–50) reranked by a cross-encoder, gated by the calibrated
+     refusal rule. So the decisive metrics are recall at pool depth and the gate's
+     answerable/unanswerable separation — not first-rank precision a reranker supplies.
+
+r3   MEASURED (2026-09-24, tools/benchmark_embedders.py, record
+     tests/assist_eval/embedder_benchmark_2026-09-24.json):
+       all-MiniLM-L6-v2 (384) · BAAI/bge-m3 (1024, CLS) · Qwen3-Embedding-0.6B (1024, last token)
+       Constitution r@3 .927/.951/.927 · r@30 1.0/1.0/1.0
+       Positions    MRR .616/.742/.793 · r@30 .895/.895/.895
+       Statutes     MRR .255/.478/.485 · r@30 .667/.722/.778 · r@50 .667/.833/.778
+       Documents    MRR .628/.855/.771 · r@10 .969/1.0/.969 · r@30 1.0/1.0/1.0
+       Gate at 12/13 unanswerable refused → answerable kept 45/64 · 31/64 · 41/64
+       Query p50 2.8 / 44.7 / 99.3 ms · peak RSS 1.3 / 4.5 / 13.8 GB
+       Full re-embed 4 min / 73 min / 115 min
+     bge-m3 and Qwen3 rank the gold markedly higher; at pool depth they add nothing on
+     three of four domains (+3 of 18 statute slots at r@50 for bge-m3); and neither
+     gate separates as well as MiniLM's — seven features were tried again, none closes
+     it (bge-m3's best: 31/64).
+
+r4   SELECTED: all-MiniLM-L6-v2 STAYS — the only candidate that is materially better
+     on the target workload is none. Qwen3 is REJECTED on cost (13.8 GB peak on a 15 GB
+     host, 2× bge-m3's latency). bge-m3 is RECORDED as the candidate for the one
+     measured gap — statute candidate recall — to be re-measured after the PHASE 8
+     reranker, as a Domain C-only embedder with its own gate calibration if statutes
+     remain the binding miss; never as a drop-in replacement of the gate's model.
+
+r5   THE BACKEND IS READY FOR EITHER. OnnxEmbeddingBackend reads a model's pooling
+     (mean / CLS / last token), its sequence length, a decoder export's empty KV cache,
+     and verifies EVERY manifest file including >2 GB external weights (streamed);
+     the provisioner streams, resumes a dropped transfer, and hashes the finished file.
+```
+
+**Recorded 2026-09-24.** Measured before the record was written, zero Gemini calls,
+on branch `feat/legalmind-rag-production` (not deployed; production embedding
+unchanged).
+
+--------------------------------------------------------------------------------
+AM-83: the embedding model is selected on material gain at acceptable cost — MiniLM stays

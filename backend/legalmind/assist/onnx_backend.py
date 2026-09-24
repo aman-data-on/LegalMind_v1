@@ -76,38 +76,53 @@ def model_root() -> pathlib.Path:
         str(pathlib.Path.home() / ".legalmind" / "models")))
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+def verify_manifest(directory: pathlib.Path) -> dict:
+    """Every file the manifest records must match it — the graph, the tokenizer AND any
+    external-data file a >2 GB model keeps its weights in (`AM-26` r5). Hashed in
+    streamed blocks, so a multi-gigabyte weights file is never held in memory. A
+    silently-swapped model would produce vectors incomparable with everything already
+    stored, and nothing downstream would notice."""
+    manifest = json.loads((directory / MANIFEST).read_text())
+    for name, expected in manifest.items():
+        if name in ("repo", "revision"):
+            continue
+        digest = hashlib.sha256()
+        with (directory / name).open("rb") as handle:
+            while block := handle.read(1 << 20):
+                digest.update(block)
+        if digest.hexdigest() != expected:
+            raise RuntimeError(
+                f"{name} does not match its recorded checksum in {directory}; "
+                "the weights differ from what was provisioned")
+    return manifest
 
 
 class OnnxEmbeddingBackend:
     """An embedding model loaded from local, checksum-verified weights."""
 
-    def __init__(self, directory: pathlib.Path):
+    def __init__(self, directory: pathlib.Path, *, pooling: str = "mean",
+                 max_length: int = 512):
+        """`pooling` is how the model was trained to be read: "mean" (the
+        sentence-transformers family — the production default), "cls" (BGE) or "last"
+        (decoder embedders such as Qwen3, which read the final real token)."""
         import numpy as np
         import onnxruntime as ort
         from tokenizers import Tokenizer
 
         self._np = np
         self._dir = pathlib.Path(directory)
-        manifest = json.loads((self._dir / MANIFEST).read_text())
+        self._pooling = pooling
+        self._max_length = max_length
+        manifest = verify_manifest(self._dir)
         self._repo = manifest["repo"]
         self._revision = manifest["revision"]
-
-        # `AM-26` r5 — verified, not assumed. A silently-swapped model would produce
-        # vectors incomparable with everything already stored, and nothing downstream
-        # would notice.
-        for name in ("model.onnx", "tokenizer.json"):
-            actual = _sha256((self._dir / name).read_bytes())
-            if actual != manifest[name]:
-                raise RuntimeError(
-                    f"{name} does not match its recorded checksum in {self._dir}; "
-                    "the weights differ from what was provisioned")
 
         self._tokenizer = Tokenizer.from_file(str(self._dir / "tokenizer.json"))
         self._session = ort.InferenceSession(
             str(self._dir / "model.onnx"), providers=EXECUTION_PROVIDERS)
         self._inputs = {i.name for i in self._session.get_inputs()}
+        self._cache_inputs = [i for i in self._session.get_inputs()
+                              if i.name.startswith("past_key_values.")]
         # Read from the graph, never configured. `AM-26` r2 makes the dimension a
         # property of the chosen weights, and the schema follows it.
         self._dimensions = int(self._session.get_outputs()[0].shape[-1])
@@ -138,7 +153,7 @@ class OnnxEmbeddingBackend:
             return []
 
         self._tokenizer.enable_padding()
-        self._tokenizer.enable_truncation(max_length=512)
+        self._tokenizer.enable_truncation(max_length=self._max_length)
 
         out: list[list[float]] = []
         for start in range(0, len(texts), EMBED_BATCH):
@@ -147,16 +162,28 @@ class OnnxEmbeddingBackend:
 
             ids = np.array([e.ids for e in encoded], dtype=np.int64)
             mask = np.array([e.attention_mask for e in encoded], dtype=np.int64)
-            feed = {"input_ids": ids, "attention_mask": mask}
-            if "token_type_ids" in self._inputs:
-                feed["token_type_ids"] = np.zeros_like(ids)
+            feed = {"input_ids": ids, "attention_mask": mask,
+                    "token_type_ids": np.zeros_like(ids),
+                    "position_ids": np.clip(mask.cumsum(axis=1) - 1, 0, None)}
             feed = {k: v for k, v in feed.items() if k in self._inputs}
+            # A decoder export (Qwen3) also takes a key/value cache; an embedding pass
+            # has no past, so each is an EMPTY tensor shaped by the graph itself:
+            # symbolic batch → this batch, symbolic past length → 0.
+            for spec in self._cache_inputs:
+                shape = [len(batch) if i == 0 else d if isinstance(d, int) else 0
+                         for i, d in enumerate(spec.shape)]
+                feed[spec.name] = np.zeros(shape, dtype=np.float32)
 
             hidden = self._session.run(None, feed)[0]
-            expanded = mask[..., None].astype(hidden.dtype)
-            summed = (hidden * expanded).sum(axis=1)
-            counts = np.clip(expanded.sum(axis=1), 1e-9, None)
-            pooled = summed / counts
+            if self._pooling == "cls":
+                pooled = hidden[:, 0]
+            elif self._pooling == "last":
+                pooled = hidden[np.arange(len(batch)), mask.sum(axis=1) - 1]
+            else:
+                expanded = mask[..., None].astype(hidden.dtype)
+                summed = (hidden * expanded).sum(axis=1)
+                counts = np.clip(expanded.sum(axis=1), 1e-9, None)
+                pooled = summed / counts
             norms = np.clip(np.linalg.norm(pooled, axis=1, keepdims=True), 1e-12, None)
             out.extend((pooled / norms).astype("float32").tolist())
         return out
@@ -191,17 +218,10 @@ class OnnxCrossEncoderBackend:
 
         self._np = np
         self._dir = pathlib.Path(directory)
-        manifest = json.loads((self._dir / MANIFEST).read_text())
+        # `AM-26` r5 — verified, not assumed, exactly as for the embedding weights.
+        manifest = verify_manifest(self._dir)
         self._repo = manifest["repo"]
         self._revision = manifest["revision"]
-
-        # `AM-26` r5 — verified, not assumed, exactly as for the embedding weights.
-        for name in ("model.onnx", "tokenizer.json"):
-            actual = _sha256((self._dir / name).read_bytes())
-            if actual != manifest[name]:
-                raise RuntimeError(
-                    f"{name} does not match its recorded checksum in {self._dir}; "
-                    "the weights differ from what was provisioned")
 
         self._tokenizer = Tokenizer.from_file(str(self._dir / "tokenizer.json"))
         self._session = ort.InferenceSession(

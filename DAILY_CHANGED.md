@@ -414,3 +414,60 @@ children of one parent do not crowd out others (Constitution + statutes) ✔.
 **Named, not done:** document breadcrumb embeddings — they would move the calibrated
 document gate, so they are measured in PHASE 4 with the embedding bake-off; wiring the
 expansions into generation — PHASE 8.
+**Commit:** `5748870`.
+
+---
+
+## 2026-09-24 — Entry 7: PHASE 4 — embedding benchmark + selection
+
+**Lock amended — `AM-83` (AB-33)**, amending `AM-26` r2 ("smallest that passes") to the
+roadmap §4 rule. all_lock.md 20118 → 20181, additions only; registry row + `AM-26`
+annotation; CLAUDE.md; CHANGELOG; calibration.py provenance note.
+
+**Built**
+* `tools/benchmark_embedders.py` — per-domain vector ranking (Constitution, positions,
+  statutes, documents), refs collapsed to the SOURCE, recall@1/3/10/30/50, MRR, nDCG@5,
+  per category and difficulty, index time, query latency, peak RSS; read-only; block
+  cache (resumable). Zero Gemini.
+* `OnnxEmbeddingBackend` — `pooling` (mean / CLS / last token), `max_length`, empty KV
+  cache for decoder exports (Qwen3), `verify_manifest` checks EVERY file incl. >2 GB
+  external weights, streamed. `provision_model` streams, resumes (Range), `--onnx`/`--extra`.
+* Models provisioned and pinned: `BAAI/bge-m3@5617a9f6…` (official ONNX, 2.27 GB weights),
+  `onnx-community/Qwen3-Embedding-0.6B-ONNX@c25a394d…` (2.09 GB). Outside the repo.
+
+**Incident** — the host rebooted mid-run (the first bge-m3 pass lost with `/tmp`). The
+cache moved to `~/.legalmind/bench-cache`, blocks of 256 saved as they finish, the runner
+detached (`setsid`); a reboot now costs one block.
+
+**Measured** (full corpora; record `tests/assist_eval/embedder_benchmark_2026-09-24.json`)
+
+| | MiniLM (384) | bge-m3 (1024) | Qwen3-0.6B (1024) |
+|---|---|---|---|
+| Constitution r@3 · r@30 | .927 · 1.0 | .951 · 1.0 | .927 · 1.0 |
+| Positions MRR · r@30 | .616 · .895 | .742 · .895 | .793 · .895 |
+| Statutes MRR · r@30 · r@50 | .255 · .667 · .667 | .478 · .722 · .833 | .485 · .778 · .778 |
+| Documents MRR · r@10 · r@30 | .628 · .969 · 1.0 | .855 · 1.0 · 1.0 | .771 · .969 · 1.0 |
+| Hinglish (K) MRR | .539 | .820 | .938 |
+| **Gate kept at 12/13 refused** | **45/64** | 31/64 | 41/64 |
+| query p50 · peak RSS | 2.8 ms · 1.3 GB | 44.7 ms · 4.5 GB | 99.3 ms · 13.8 GB |
+| full re-embed | 4 min | 73 min | 115 min |
+
+Gate re-swept for every model with three features (gap-to-mean, gap-to-second, z-score):
+none lets bge-m3 or Qwen3 separate as well as MiniLM's current rule.
+
+**Decision (roadmap §4 rule)** — the target workload after PHASES 7–8 is a 30–50 pool,
+reranked, gated. At that depth the larger models add nothing on three of four domains;
+their first-rank gain is what the reranker supplies; and they cost the gate 4–14
+answerable questions. **MiniLM stays.** Qwen3 rejected on cost (13.8 GB on a 15 GB host).
+bge-m3 recorded for the one measured gap — statute candidate recall (+3/18 at r@50) —
+to be re-measured after PHASE 8 as a Domain C-only embedder with its own calibration.
+No re-embedding, no schema change, production unchanged.
+
+**Tested** — 2 new tests (every manifest file incl. external weights verified; pooling
+modes normalised and distinct). Full suite **2570 passed, 112 skipped (unchanged),
+0 failed**; ruff + mypy clean.
+
+**Exit (roadmap §4)** — benchmarked on the actual corpora for every listed dimension
+(recall@3/@10, Hit@1, MRR, nDCG@5, source-domain, Constitution / clause / statute,
+paraphrase, Hinglish, latency, RAM, indexing time, re-index cost) ✔ · selection made by
+the stated rule ✔ · no change without demonstrated workload gain ✔.

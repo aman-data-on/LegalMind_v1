@@ -206,3 +206,27 @@ def test_the_manifest_records_repo_revision_and_checksums(model_dir):
     assert manifest["repo"] and manifest["revision"]
     assert len(manifest["model.onnx"]) == 64
     assert len(manifest["tokenizer.json"]) == 64
+
+
+def test_every_manifest_file_is_verified_including_external_weights(model_dir, tmp_path):
+    """PHASE 4: a >2 GB model keeps its weights in `model.onnx_data`; a tampered
+    weights file must fail exactly as a tampered graph does."""
+    import json
+    import shutil
+    copy = tmp_path / "m"
+    shutil.copytree(model_dir, copy)
+    (copy / "model.onnx_data").write_bytes(b"weights")
+    manifest = json.loads((copy / "manifest.json").read_text())
+    manifest["model.onnx_data"] = "0" * 64
+    (copy / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError, match=r"model\.onnx_data"):
+        onnx_backend.verify_manifest(copy)
+
+
+def test_pooling_modes_return_normalized_distinct_vectors(model_dir):
+    texts = ["Either party may terminate on thirty days' notice.", "A second clause."]
+    pooled = {p: onnx_backend.OnnxEmbeddingBackend(model_dir, pooling=p).embed(texts)
+              for p in ("mean", "cls", "last")}
+    for vectors in pooled.values():
+        assert all(abs(sum(x * x for x in v) - 1) < 1e-4 for v in vectors)
+    assert pooled["mean"][0] != pooled["cls"][0] != pooled["last"][0]
