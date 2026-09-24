@@ -73,6 +73,22 @@ test("the menu keeps its design tokens and fully covers the row it floats over",
   // just created (via createAnalysedReview) are rows 1 and 2 regardless of
   // how many other contracts this database already holds.
   const toggles = page.getByRole("button", { name: /More actions for/ });
+  // Forced to an EXACT scroll position (2026-09-24, dashboard hero redesign):
+  // the page above the table is taller now — hero banner, toolbar, stat
+  // cards — so row 1's toggle is no longer guaranteed to already sit near
+  // the top of a 720px viewport the way it did on the old, one-line header.
+  // `scrollIntoView({block:"start"})` was tried here first and did not hold:
+  // if the browser judges the element already "in view" (even hard against
+  // the bottom edge), it can decide no scroll is needed at all — then
+  // `.click()`'s own actionability scroll (nearest edge) leaves the toggle
+  // exactly where there is too little room below it, and the menu correctly
+  // (per `openMenu`'s own rules) flips upward instead of covering row 2,
+  // which is not the case this test means to exercise. Computing the target
+  // `scrollTop` directly and setting it leaves no such judgment call.
+  const absoluteTop = await toggles.first().evaluate(
+    (el) => el.getBoundingClientRect().top + window.scrollY,
+  );
+  await page.evaluate((y) => window.scrollTo(0, Math.max(0, y - 40)), absoluteTop);
   await toggles.first().click();
 
   const menu = page.locator(".ws-menu__list");
