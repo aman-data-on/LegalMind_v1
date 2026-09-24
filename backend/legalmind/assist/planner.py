@@ -150,10 +150,18 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
       r"|default)"
      r"|time to (?:fix|cure)|put it right",
      "cure period", "Termination & Suspension"),
-    (r"walk away|get out of|exit early|end (?:it |the (?:contract|agreement) )?early"
-     r"|leave before|before it expires|cancel early",
-     "termination for convenience early termination",
-     "Fixed-Term Commitments & Early Exit"),
+    # PHASE 6 (2026-09-24): every roadmap §6 phrasing of leaving before the term
+    # ends converges here — "terminate early", "end the MSA early", "exit before the
+    # term ends", "leave early", "jaldi end karna". The term is the Constitution §14
+    # heading's own words; it was "termination for convenience …", which is §13's
+    # topic and pulled an early-exit question toward the notice-period standard.
+    (r"walk away|get out of|\bexit\b[^.?]*?\b(?:early|before)"
+     r"|\b(?:end|terminat\w*|cancel\w*|leave|quit|exit)\b[^.?]*?\bearly\b"
+     r"|early (?:exit|termination|terminat|cancel)|leave before|before (?:it|the \w+) "
+     r"(?:expires|ends)|jaldi\s+(?:end|khatam|band|terminate|exit|chhod)"
+     r"|lock.?in|remainder of the term|remaining (?:committed )?term|committed.term"
+     r"|fixed.term",
+     "early exit fixed-term commitment", "Fixed-Term Commitments & Early Exit"),
     (r"how much notice|notice (?:period|to terminate)|how long before.*(?:terminat"
       r"|cancel)",
      "notice period termination", "Termination & Suspension"),

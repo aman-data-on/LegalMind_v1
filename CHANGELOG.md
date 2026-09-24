@@ -47,6 +47,10 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   depths (`tools/benchmark_storage.py`): KNN ~2 ms at k ≤ 100, 16 clients ~800–1,000 q/s,
   ×40 growth 106 ms; exact = numpy ground truth; all lanes compose in one statement
   (20.5 ms). Rule recorded: similarity produces candidates, never the answer.
+* **PHASE 6 / `AM-85`** — deterministic structured query plan (`assist/query_plan.py`,
+  `tools/eval_query_plan.py`): language, figures, claims, missing-document state, source
+  lanes, sub-questions; early-exit paraphrases converge on §14. Lane recall 22/23, false
+  positives 0; sub-queries lift Constitution MRR 0.695 → 0.822. No model used.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

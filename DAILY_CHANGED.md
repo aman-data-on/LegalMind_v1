@@ -518,3 +518,59 @@ clean. Production and the production corpus untouched.
 **Exit (roadmap §5)** — no measured need to migrate (latency, concurrency, memory,
 features) ✔ · exact baseline established for any future ANN ✔ · lexical, metadata,
 exact-reference and dense retrieval coexist in one store and one plan ✔.
+**Commit:** `f8e00cc`. *Correction: Entry 8 says all_lock.md 20181 → 20241; it is 20240.*
+
+---
+
+## 2026-09-25 — Entry 9: PHASE 6 — query understanding + conversational rewriting
+
+**Lock recorded — `AM-85` (AB-35)** — the plan's contract; amends nothing locked.
+all_lock.md 20240 → 20287, additions only; registry; CLAUDE.md; CHANGELOG.
+
+**Built**
+* `legalmind/assist/query_plan.py` — the roadmap §6 Structured Query Plan, deterministic:
+  composes `understanding.understand` + `planner.plan_lexical`; adds language (en / hi /
+  hinglish), figures ("6 months"), claims (reported speech, promises — context, never
+  evidence, never a sub-question), document_state (UNAVAILABLE on "cannot find", or when
+  a contract is needed and `has_document=False`), lanes (COMPANY_POSITION · CONTRACT ·
+  LAW · HISTORICAL_EXCEPTION · USER_ASSERTION · MISSING_DOCUMENT), sub-questions with
+  their own lanes and queries.
+* `planner._TERMS` — early-exit cue widened to every roadmap §6 phrasing and the golden
+  variants; the canonical term is now §14's own words ("early exit fixed-term
+  commitment"). It was "termination for convenience …", §13's topic.
+* `tools/eval_query_plan.py` — scores against existing labels only (matrix, the
+  benchmark's `answer.distinguish`), plus a retrieval check raw vs planned.
+
+**Measured** (zero Gemini; record `tests/assist_eval/query_plan_eval_2026-09-25.json`)
+
+| | result |
+|---|---|
+| Lane recall — company position · law · user assertion · missing doc · historical | 10/10 · 2/2 · 3/3 · 5/5 · 2/3 |
+| Special-lane false positives (cases labelling none) | **0** |
+| Convergence to §14 (5 roadmap phrasings + 13 golden variants) | **18/18** |
+| Language: Hinglish recall · English precision | 5/5 · 1.0 |
+| Golden figures | GT-00 [6, 12 months], GT-01/02/08 [6], GT-03 [12], GT-10 [30 days] |
+| GT-00 decomposition | 4 sub-questions, the client's claim kept as context, state UNAVAILABLE |
+| Constitution lane, raw → plan sub-queries | MRR 0.695 → **0.822** (r@3 0.927 equal) |
+| Positions lane, raw → plan sub-queries | r@3 0.702 → **0.754**, MRR 0.613 → 0.657 |
+| Existing understanding on the 76-case matrix | requested_fact 0.553 · authority 0.553 · temporal 1.0 · jurisdiction 1.0 |
+
+The HISTORICAL miss is GT-00, which names no history; its §31.2 exceptions reach the
+answer through retrieval. The matrix scores are the existing routing layer, recorded
+as the baseline and not retuned: most gaps are DOCUMENT authority that comes from an
+attached document rather than the words, and requested-fact label debates.
+
+**Fixes found by measuring:** CONTRACT from whole-question signals (now per part, and
+only when the reader points at an agreement — `document_target` reads "Contract Act"
+and "contract value" alike); LAW on the bare word "compensation" (now enforceability
+wording or an AMOUNT of a sum); a default COMPANY_POSITION lane for unplaced questions
+(removed — "weather in Pune" has no lane); I-04 (contract needed, none attached).
+
+**Tested** — `tests/test_query_plan.py` (5); `test_assist_planner` guard satisfied without
+weakening it (a cue may carry no digit — quantifiers rewritten). Full suite **2575 passed,
+112 skipped (unchanged), 0 failed**; ruff + mypy clean. Not wired into production yet.
+
+**Exit (roadmap §6)** — deterministic extraction + structured plan with every listed
+field ✔ · equivalent wording converges (18/18) ✔ · complex questions decompose into
+focused sub-queries ✔ · simple queries stay deterministic and free ✔ · measured retrieval
+gain from the plan ✔.

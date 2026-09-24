@@ -20238,3 +20238,68 @@ tool `tools/benchmark_storage.py`); production unchanged; host 6 CPUs, shared_bu
 
 --------------------------------------------------------------------------------
 AM-84: Postgres stays the retrieval store; similarity produces candidates, never the answer
+
+================================================================================
+AMENDMENT BATCH AB-35 — `AM-85`
+The structured query plan: deterministic first, decomposed by source kind
+================================================================================
+
+**Owner decision, 2026-09-24/25** — the master RAG roadmap (`AM-79`'s owner authority),
+§6: *"Query understanding must separate understanding from authority … Structured Query
+Plan … Equivalent wording must converge … For complex questions, create focused
+subqueries … Use a small/fast model only when query complexity requires it."*
+Roadmap PHASE 6, under the Gemini cost guard (prove it deterministically first).
+
+**Amends:** nothing locked — records the plan's contract for PHASES 7–10.
+**Does not amend:** `AM-45` r1 (permissions decide domains first), `AM-25` r4 (the
+comparison screen is code), `AM-58` (conversation context stays ≤ 2 prior USER
+questions), `AM-78` (a reader's figure is context), `AM-84` r4, rules 7, 21.
+
+```text
+r1   ONE DETERMINISTIC PLAN (assist/query_plan.py) composes understanding.understand
+     and planner.plan_lexical and adds: language (en · hi · hinglish), figures,
+     claims (reported speech, promises), document_state, lanes and sub_questions.
+     No model, no database, no network.
+
+r2   LANES ARE SOURCE KINDS, NOT DECISIONS: COMPANY_POSITION · CONTRACT · LAW ·
+     HISTORICAL_EXCEPTION · USER_ASSERTION · MISSING_DOCUMENT. A lane says which kind
+     of source bears on a part of the question. It never decides sufficiency
+     (`AM-84` r4) and never widens what a caller may read — routing still intersects
+     with permissions.
+
+r3   A CLAIM IS CONTEXT, NEVER EVIDENCE AND NEVER A SUB-QUESTION. A sentence in which
+     someone asserts something ("the client says …", "we promised …") adds the
+     USER_ASSERTION lane and its figures to the plan; it is not retrieved for as if it
+     were a question, and nothing downstream may treat it as a source.
+
+r4   A CONTRACT NEEDED BUT NOT IN SCOPE IS UNAVAILABLE. When a part needs the
+     controlling agreement and no document is attached (the router's fact), the plan
+     records MISSING_DOCUMENT even if the reader never said "missing".
+
+r5   DECOMPOSITION. Each question the reader asked becomes one sub-question with its
+     own lanes and one retrieval query (the placed topic's search vocabulary + the
+     part's own words); the whole question's topic carries into a part that names none.
+
+r6   CONVERGENCE. The early-exit search term is the Constitution §14 heading's own
+     words ("early exit fixed-term commitment"), replacing "termination for
+     convenience …" — §13's topic — which pulled early-exit questions to notice-period
+     standards. All five roadmap §6 phrasings and every golden variant converge.
+
+r7   NO MODEL IN THE PLAN YET. The deterministic plan reaches every measured target;
+     the provider planner (`query-plan-1`, off) is not enabled. A model is admitted to
+     planning only on a measured miss the deterministic plan cannot close.
+```
+
+**Recorded 2026-09-25.** Measured before the record was written, zero Gemini calls
+(record `tests/assist_eval/query_plan_eval_2026-09-25.json`): lane recall COMPANY_POSITION
+10/10, LAW 2/2, USER_ASSERTION 3/3, MISSING_DOCUMENT 5/5, HISTORICAL_EXCEPTION 2/3
+(GT-00 names no history; its §31.2 exceptions come from retrieval), special-lane false
+positives 0; convergence 18/18; Hinglish 5/5; retrieval with the plan's sub-queries vs
+the raw question — Constitution MRR 0.695 → 0.822, positions r@3 0.702 → 0.754, MRR
+0.613 → 0.657. The existing understanding layer scores requested_fact 0.553 and
+authority 0.553 on the 76-case matrix (temporal 1.0, jurisdiction 1.0) — recorded as the
+baseline, not retuned here: it drives production routing under its own frozen matrices.
+Not wired into production yet (PHASE 7 consumes it).
+
+--------------------------------------------------------------------------------
+AM-85: the structured query plan — deterministic first, decomposed by source kind
