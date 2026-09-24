@@ -19997,3 +19997,60 @@ benchmark on the same position corpus (byte-identical to production): recall@3
 
 --------------------------------------------------------------------------------
 AM-80: nothing becomes searchable until it passes ingestion integrity
+
+================================================================================
+AMENDMENT BATCH AB-31 — `AM-81`
+Phase 2 closed: the Income-tax Act from India Code, Gazette Schedules, withdrawal
+================================================================================
+
+**Owner decision, 2026-09-24**, in the owner's words: *"Find the clean official
+Income-tax Act 1961 source from the authoritative government website … Fix the DPDP
+Rules Schedule parsing so Schedules are not incorrectly folded into Rule 23 …
+Re-run the Phase 2 integrity checks and benchmark to confirm these fixes."* `AM-48` r1
+(an operator obtains a statute from an official source on the owner's instruction;
+India Code first) is the authority used; nothing was fetched by the application.
+
+**Amends:** `AM-80` r5 (the Income-tax Act, 1961 was refused and unsearchable).
+**Does not amend:** `AM-48` r1–r4, r6; `AM-80` r1–r4, r6, r7; rules 7, 17, 21.
+
+```text
+r1   THE INCOME-TAX ACT, 1961 IS SEARCHABLE AGAIN, FROM INDIA CODE, AS ENACTED.
+     India Code handle 123456789/620179 ("The Income-tax Act, 1961, 43 of 1961 (Rep.,
+     Act 30 of 2025)") holds the original Gazette of 14 September 1961 and no
+     sectional text. It passes the AM-80 integrity gate (265 sections, 5 quarantined,
+     coverage 99.99%) and replaces the refused 2011 Taxmann print as the corpus text
+     (that file stays on disk). Its title states what it is: as enacted, later
+     amendments NOT included — so ss. 194J/194C, which the Constitution §6.1 cites,
+     are not in it and a question about them is answered as absent, never guessed.
+     The consolidated as-amended text is published only at incometaxindia.gov.in,
+     which refused this host (HTTP 403) on 2026-09-24 — recorded, not worked around.
+     India Code's declared checksum does not match the served file; the SHA-256 of
+     the file as obtained is the one recorded.
+
+r2   A REPLACEMENT SOURCE TAKES OVER ITS ROW. A registry entry may name the file it
+     replaces (`replaces_file_sha256`); ingestion then re-chunks THAT statute row,
+     re-pointing citations by text, instead of leaving the superseded row searchable
+     beside it.
+
+r3   A REFUSED RE-INGEST WITHDRAWS WHAT WAS THERE. When an Act that already has a row
+     fails integrity, its row is marked WITHDRAWN (statutes.status), which both
+     retrieval paths exclude. Nothing is deleted; recorded citations stay (rule 17).
+     Before this, a refusal left the previous chunks answering.
+
+r4   A SCHEDULE FOLLOWS THE LAST SECTION. A Schedule heading counts when it appears
+     after the body of the Act's last section: read from the arrangement's highest
+     number, or — for an instrument with no arrangement, like the DPDP Rules — from
+     the running maximum at the first restart of numbering. The "closing quarter"
+     rule remains only as the fallback. Schedules keep document order (the fold never
+     compares two Schedules by name: "FOURTH" sorts below "THIRD").
+```
+
+**Recorded 2026-09-24.** Implemented and verified before the record was written, on
+branch `feat/legalmind-rag-production` (not deployed). DPDP Rules: seven Schedules as
+their own units, rule 23 977 characters, 0 quarantined (was 44 chunks folded under
+rule 23). The Arbitration and Conciliation Act gains its Fourth to Seventh Schedules.
+Rebuilt corpus: 17 of 17 Acts searchable, 5,036 chunks, 46 Schedules, 0 folded
+sections, 0 numbering jumps over 100, 0 chunks over 2,000 characters.
+
+--------------------------------------------------------------------------------
+AM-81: Phase 2 closed — Income-tax Act from India Code, Gazette Schedules, withdrawal

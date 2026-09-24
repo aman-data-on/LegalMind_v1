@@ -9,7 +9,8 @@ Until now "is this Act in force?" was a substring of `official_title`
 make repeal status retrieval metadata in its own right. The column is backfilled from
 that SAME marker — no repeal is inferred here, and none may be (rule 7) — and ingestion
 writes it from the registry title thereafter. The title keeps its marker: it is the
-provenance a reader sees.
+provenance a reader sees. WITHDRAWN marks an Act refused on re-ingest (`AM-80` r9):
+its row and citations stay, and neither retrieval path serves it.
 """
 from __future__ import annotations
 
@@ -30,7 +31,8 @@ def upgrade() -> None:
                                         server_default='CURRENT', nullable=False),
                   schema=schema)
     op.create_check_constraint('ck_statutes_status', 'statutes',
-                               "status IN ('CURRENT', 'REPEALED')", schema=schema)
+                               "status IN ('CURRENT', 'REPEALED', 'WITHDRAWN')",
+                               schema=schema)
     op.execute(sa.text(f"""UPDATE "{schema}".statutes SET status = 'REPEALED'
                             WHERE official_title LIKE '%REPEALED%'"""))
 

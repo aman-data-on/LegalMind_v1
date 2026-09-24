@@ -267,3 +267,77 @@ repeated text, content loss and repeal status all checked ✔ · measured before
 **Not done, named:** the DPDP Rules' Hindi text and its Schedules (folded into rule 23,
 quarantined) — a Gazette-specific Schedule parser; the Income-tax Act 1961 — needs a
 clean official copy (rule 21); production re-ingest — at deploy (ops/README.md).
+**Commit:** `aec345e`.
+
+---
+
+## 2026-09-24 — Entry 5: PHASE 2 closure — Income-tax Act, Gazette Schedules, withdrawal
+
+Owner: *"close the remaining Phase 2 items yourself … Do NOT deploy yet"*.
+
+**Lock amended — `AM-81` (AB-31)**, amending `AM-80` r5. all_lock.md 19999 → 20056,
+additions only; registry row; CLAUDE.md counts.
+
+**Income-tax Act, 1961 — obtained, verified, ingested (branch/scratch only).**
+* India Code moved to `indiacode.gov.in` (a DSpace 7 app); the repository API located
+  handle `123456789/620179` — the Act item holds ONE file, the original Gazette of
+  14 September 1961, and no sectional text. Downloaded to
+  `legal-docs/Indian_Laws_and_Acts/Income_Tax_Act_1961_indiacode.pdf` (new file; the
+  2011 Taxmann print stays on disk). SHA-256 `f21154ca…`; India Code's declared MD5/size
+  do not match the served bytes — recorded in the registry note, not reconciled.
+* It passes integrity: 265 sections, 450 chunks, 5 quarantined, coverage 99.99%.
+* **Limit, stated:** this is the Act AS ENACTED. The consolidated as-amended text
+  (which carries ss. 194J/194C, cited by Constitution §6.1) is published only at
+  `incometaxindia.gov.in`, which answered HTTP 403 (Akamai edge) to this host with and
+  without browser headers; the Department of Revenue's Acts page links there. The
+  title says "as enacted … later amendments NOT included". Scanned Gazette: the OCR
+  text layer has character errors ("Cbllfitof"), which lexical retrieval will feel.
+* No Markdown copy is added to the repository: locked 54.6 keeps source text out of
+  it; the registry entry is the in-repo representation (provenance, handle, SHA).
+* Registry `source` exceeded its 128-character column and failed at ingest — found by
+  the rebuild; a column-length test now guards every entry.
+
+**DPDP Rules Schedules — root cause and fix.** A Schedule counted only in the text's
+closing quarter; the Rules' seven Schedules span the last half, so the First–Fourth
+folded into rule 23. Now a Schedule counts after the body of the last section — the
+arrangement's ceiling, or (no arrangement, as here) the running maximum at the first
+numbering restart. A second latent bug surfaced while measuring: the footnote fold
+compared two Schedules by NAME, and "FOURTH" < "THIRD", so later Schedules folded into
+earlier ones (the Arbitration Act lost its Fourth–Seventh the same way). Fixed.
+
+**Withdrawal.** A refused re-ingest used to leave the old chunks answering; now it marks
+the row WITHDRAWN (excluded on both paths, nothing deleted). `replaces_file_sha256`
+lets the India Code copy take over the old Income-tax row in production.
+
+**Tested** — 6 new tests (Schedules without an arrangement + ordinal order; real DPDP
+Rules 7 Schedules / rule 23 bounded / 0 quarantined; real India Code Income-tax passes
+integrity; withdrawal stops serving; a replacement takes over its row; registry fits
+the columns). Full suite **2560 passed, 112 skipped (unchanged), 0 failed**; ruff + mypy clean.
+
+**Measured** — scratch DB rebuilt from the current code:
+
+| | production (section-1) | PHASE 2 first pass | **PHASE 2 closed** |
+|---|---|---|---|
+| searchable Acts | 17 | 16 | **17** |
+| statute chunks | 5,140 | 4,010 | 5,036 |
+| folded sections · jumps > 100 · chunks > 2,000 | 30 · 5 · 806 | 0 · 0 · 0 | **0 · 0 · 0** |
+| Schedules as their own units | 0 | — | **46** |
+| DPDP Rules quarantined | — | rule 23 (44 chunks) | **0** |
+
+| Benchmark (76) | PHASE 0 | first pass | **closed** |
+|---|---|---|---|
+| recall@3 · recall@10 | 0.494 · 0.519 | 0.506 · 0.531 | **0.506 · 0.519** |
+| MRR · nDCG@5 | 0.439 · 0.564 | 0.446 · 0.580 | 0.441 · 0.578 |
+| multi-source complete | 0.000 | 0.091 | 0.000 |
+| wrong-source rate | 0.053 | 0.040 | **0.040** |
+
+Read honestly: E-02 (DPDP Act s.8) fell from rank 6 to 7 — past the statute limit of
+6 — because the DPDP Rules' Second and Third Schedules are now REAL, correctly labelled
+units that mention "Data Fiduciary"; O-03 moved 1 → 3 as the CPC's First Schedule became
+its own unit. The first pass's E-02 gain was partly an artefact of those Schedules being
+missing. This is a candidate-depth / ranking limit (PHASE 7 broad retrieval, PHASE 8
+cross-domain rerank), not an integrity defect, and it is not tuned here.
+
+**Exit (roadmap §2)** — met: every Act searchable passes integrity; no fabricated,
+folded, oversized or duplicate section is stored; repeal and withdrawal are status
+metadata; documents gated (37/37 pass). Production unchanged.

@@ -278,3 +278,30 @@ def test_no_second_copy_of_the_repeal_predicate_exists():
 def _ask():
     from legalmind.security import permissions as perms
     return perms.ASSIST_ASK
+
+
+def test_an_act_refused_on_reingest_stops_being_served(db, tmp_path):
+    """`AM-80` r9: refusing a re-ingest must not leave the old chunks answering."""
+    from legalmind.assist import statutes as st
+    title = "The Synthetic Widgets Act, 2099"
+    _statute(db, title, [("1", 1)])
+    assert _sections(db, "handler shall record the outcome with care")
+    provenance = {"official_title": title}
+    assert st.withdraw_statute(db, path=tmp_path / "absent.pdf", provenance=provenance) == 1
+    assert not _sections(db, "handler shall record the outcome with care")
+
+
+def test_a_replacement_source_takes_over_the_row_it_replaces(db):
+    """A better copy of an Act names the file it replaces; it must re-chunk THAT row
+    (citations re-pointed) rather than stand beside the refused one, still searchable."""
+    from sqlalchemy import text as sql
+
+    from legalmind import config
+    from legalmind.assist import statutes as st
+    _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — old print)", [("1", 1)])
+    schema = config.assist_schema()
+    old_sha = db.execute(sql(f'SELECT file_sha256 FROM "{schema}".statutes')).scalar()
+    rows = st._prior_rows(db, schema, sha="f" * 64, provenance={
+        "official_title": "The Synthetic Widgets Act, 1899 — as enacted",
+        "replaces_file_sha256": old_sha})
+    assert len(rows) == 1

@@ -230,6 +230,24 @@ def _split_long(section: str) -> list[tuple[str | None, str]]:
     return [(sub, piece) for sub, body in packed for piece in _windows(body)]
 
 
+def _body_from(text: str, bounds: list, keys: list) -> int:
+    """Where the body begins. India Code PDFs open with an ARRANGEMENT OF SECTIONS —
+    one line per section, the same numbers — and footnotes carry numbers of their
+    own, so the first "1." is not the Act's first section. The body starts at the
+    first occurrence of the LOWEST section number whose piece is a body (long) and
+    whose successor is a higher-numbered body: arrangement entries fail the second
+    test (their successors are one-liners), footnotes come later. Everything before
+    that point is front matter and is not a section."""
+    def piece_len(i: int) -> int:
+        return len(text[bounds[i][0]:bounds[i + 1][0]].strip())
+    lowest = min(keys) if keys else None
+    for i, key in enumerate(keys):
+        if key == lowest and piece_len(i) >= MIN_SECTION_CHARS and i + 1 < len(keys) \
+                and keys[i + 1] > key and piece_len(i + 1) >= MIN_SECTION_CHARS:
+            return i
+    return 0
+
+
 def chunk_statute_text(text: str) -> list[StatuteChunk]:
     """Section-based chunks of an Act's text, in the Act's own order and numbering."""
     text = text or ""
@@ -242,33 +260,42 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
         keyfn = lambda n: (0, n)  # noqa: E731 — roman order is the document's order
     else:
         keyfn = _section_key
+    # A Schedule follows the Act's LAST section. `section-4`: the floor is where that
+    # section's body begins, read from the Act's own arrangement (its ceiling) — the
+    # DPDP Rules, 2025 carry seven Schedules over the last HALF of the text, so the
+    # old "closing quarter" rule dropped the First to Fourth and folded them under
+    # rule 23. With no arrangement to read, the closing quarter still applies.
+    plain = [*sorted(numbered), (len(text), None)]
+    plain_keys = [keyfn(num) for _, num in plain[:-1]]
+    first = _body_from(text, plain, plain_keys)
+    floor: float = len(text) * SCHEDULE_TAIL_FRACTION
+    if not roman and first:
+        top = max(plain_keys[:first])
+        last = next((plain[i][0] for i in range(first, len(plain_keys))
+                     if plain_keys[i] == top), None)
+        if last is not None:
+            floor = last
+    elif not roman:
+        # No arrangement (the DPDP Rules print has none): the Rules' own numbering
+        # shows where they end — it climbs 1 → 23, then restarts at 1 inside the First
+        # Schedule. The last section is the running maximum at that first restart.
+        running, running_at = (0, ""), None
+        for position, num in plain[:-1]:
+            key = keyfn(num)
+            if key[0] == 1 and running[0] > 1 and running_at is not None:
+                floor = running_at
+                break
+            if key > running:
+                running, running_at = key, position
     schedules = [] if roman else [
         (m.start(), _schedule_label(m.group()))
-        for m in _SCHEDULE_START.finditer(text)
-        if m.start() > len(text) * SCHEDULE_TAIL_FRACTION]
+        for m in _SCHEDULE_START.finditer(text) if m.start() > floor]
     if schedules:
         # Inside a Schedule, `1.` and `2.` number its ENTRIES, not the Act's sections.
         numbered = [b for b in numbered if b[0] < schedules[0][0]]
     bounds = [*sorted(numbered + schedules), (len(text), None)]
-
-    def _piece_len(i: int) -> int:
-        return len(text[bounds[i][0]:bounds[i + 1][0]].strip())
-
-    # Where the body begins. India Code PDFs open with an ARRANGEMENT OF SECTIONS —
-    # one line per section, the same numbers — and footnotes carry numbers of their
-    # own, so the first "1." is not the Act's first section. The body starts at the
-    # first occurrence of the LOWEST section number whose piece is a body (long) and
-    # whose successor is a higher-numbered body: arrangement entries fail the second
-    # test (their successors are one-liners), footnotes come later. Everything before
-    # that point is front matter and is not a section.
     keys = [keyfn(num) for _, num in bounds[:-1]]
-    lowest = min(keys) if keys else None
-    body_from = 0
-    for i, key in enumerate(keys):
-        if key == lowest and _piece_len(i) >= MIN_SECTION_CHARS and i + 1 < len(keys) \
-                and keys[i + 1] > key and _piece_len(i + 1) >= MIN_SECTION_CHARS:
-            body_from = i
-            break
+    body_from = _body_from(text, bounds, keys)
 
     # The Act's own arrangement of sections is everything before the body, so its
     # highest number is the ceiling a body number cannot exceed (`section-3`).
@@ -282,12 +309,15 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     ordered = [*_repair_glued_markers(numbered_body, ceiling), bounds[-1]]
 
     # Fold footnotes: a piece that is too short, or whose number falls below the
-    # running section, belongs to the section before it.
+    # running section, belongs to the section before it. Two Schedules are never
+    # compared by name — they run in document order, and "FOURTH" sorts below "THIRD".
     sections: list[list] = []          # [num, start, end]
     for (s, num), (nxt, _) in pairwise(ordered):
         piece = text[s:nxt]
-        if sections and (len(piece.strip()) < MIN_SECTION_CHARS
-                         or keyfn(num) < keyfn(sections[-1][0])):
+        both_schedules = sections and min(keyfn(num)[0], keyfn(sections[-1][0])[0]) \
+            >= _SCHEDULE_RANK
+        if sections and (len(piece.strip()) < MIN_SECTION_CHARS or (
+                not both_schedules and keyfn(num) < keyfn(sections[-1][0]))):
             sections[-1][2] = nxt
             continue
         if len(piece.strip()) < MIN_SECTION_CHARS:
@@ -481,6 +511,32 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
             "quarantined": integrity.quarantined}
 
 
+def _prior_rows(db: DBSession, schema: str, *, sha: str, provenance: dict) -> list:
+    """The existing row(s) for this registry entry: the same file, the same title, or
+    the file a replacement source declares it replaces (`replaces_file_sha256`,
+    `AM-80` r8) — so a better copy of an Act re-chunks ITS row, citations re-pointed,
+    rather than standing beside the one it supersedes."""
+    return list(db.execute(sql_text(
+        f'SELECT id FROM "{schema}".statutes WHERE file_sha256 IN (:sha, :replaces) '
+        'OR official_title = :title ORDER BY created_at'),
+        {"sha": sha, "title": provenance["official_title"],
+         "replaces": provenance.get("replaces_file_sha256") or sha}).scalars().all())
+
+
+def withdraw_statute(db: DBSession, *, path: Path, provenance: dict) -> int:
+    """An Act REFUSED on re-ingest must not keep serving what it held before
+    (`AM-80` r9): its existing row is marked WITHDRAWN, which both retrieval paths
+    exclude. Nothing is deleted — citations recorded against it stay intact (rule 17).
+    Returns the number of rows withdrawn."""
+    schema = config.assist_schema()
+    sha = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+    ids = _prior_rows(db, schema, sha=sha, provenance=provenance)
+    for statute_id in ids:
+        db.execute(sql_text(f"UPDATE \"{schema}\".statutes SET status = 'WITHDRAWN' "
+                            "WHERE id = :i"), {"i": statute_id})
+    return len(ids)
+
+
 def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -> UUID:
     """The statute row, KEPT across a re-ingest so its chunks can be reconciled.
 
@@ -495,9 +551,7 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
               "amended": provenance["as_amended_date"], "sha": sha,
               "by": provenance["supplied_by"], "at": provenance["supplied_at"],
               "status": authority.of_statute(provenance["official_title"])[1]}
-    prior = db.execute(sql_text(
-        f'SELECT id FROM "{schema}".statutes WHERE file_sha256 = :sha '
-        'OR official_title = :title ORDER BY created_at'), fields).scalars().all()
+    prior = _prior_rows(db, schema, sha=sha, provenance=provenance)
     # A second row matching on the other key is a duplicate of the same Act; it has no
     # reconcilable identity of its own, so it goes as before.
     for duplicate in prior[1:]:
@@ -944,9 +998,11 @@ _QUARANTINE_CTE = """
              GROUP BY 1, 2 HAVING count(*) > {cap}
         )"""
 
+# ...and a WITHDRAWN Act (refused on re-ingest, `AM-80` r9) is served by neither path.
 _NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
                      WHERE suspect.statute_id = sc.statute_id
-                       AND suspect.section_number = sc.section_number)"""
+                       AND suspect.section_number = sc.section_number)
+           AND s.status <> 'WITHDRAWN'"""
 
 
 

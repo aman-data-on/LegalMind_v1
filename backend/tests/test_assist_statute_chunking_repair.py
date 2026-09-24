@@ -371,3 +371,54 @@ def test_a_bilingual_print_is_read_in_english():
     hindi, english = "धारा " * 50, "Section " * 50
     assert _st._prefer_latin([hindi, hindi, english]) == [english]
     assert _st._prefer_latin([hindi]) == [hindi]          # nothing else to read
+
+
+# --- Gazette Schedules (AM-80 r10) --------------------------------------------------
+
+def test_schedules_of_an_instrument_without_an_arrangement_are_their_own_units():
+    """The DPDP Rules shape: no arrangement table, 1 → N, then seven Schedules over the
+    last half of the text, each restarting its own numbering. The old closing-quarter
+    rule dropped the early Schedules into the last rule; ordinal names must also keep
+    document order ("FOURTH" sorts below "THIRD")."""
+    rules = "".join(f"{n}. Rule {n}.—{BODY}\n" for n in range(1, 6))
+    schedules = "".join(f"{name} SCHEDULE\n1. {BODY}\n2. {BODY}\n3. {BODY}\n"
+                        for name in ("FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH"))
+    units = list(dict.fromkeys(c.section_number for c in chunk_statute_text(rules + schedules)))
+    assert units == ["1", "2", "3", "4", "5", "First Schedule", "Second Schedule",
+                     "Third Schedule", "Fourth Schedule", "Fifth Schedule"]
+
+
+@pytest.mark.skipif(not _present(DOCS / "DPDP_Rules_2025.pdf"),
+                    reason="supplied statute not present on this machine")
+def test_the_dpdp_rules_schedules_are_not_folded_into_rule_23():
+    from legalmind.assist.statutes import _pdf_text, check_integrity
+    text = _pdf_text(DOCS / "DPDP_Rules_2025.pdf")
+    chunks = chunk_statute_text(text)
+    units = list(dict.fromkeys(c.section_number for c in chunks))
+    assert [u for u in units if "Schedule" in u] == [
+        f"{n} Schedule" for n in ("First", "Second", "Third", "Fourth", "Fifth",
+                                  "Sixth", "Seventh")]
+    assert sum(len(c.content) for c in chunks if c.section_number == "23") < 2000
+    assert check_integrity(chunks, len(text)).quarantined == {}
+
+
+@pytest.mark.skipif(not _present(DOCS / "Income_Tax_Act_1961_indiacode.pdf"),
+                    reason="supplied statute not present on this machine")
+def test_the_india_code_income_tax_act_passes_integrity():
+    from legalmind.assist.statutes import _pdf_text, check_integrity
+    text = _pdf_text(DOCS / "Income_Tax_Act_1961_indiacode.pdf")
+    integrity = check_integrity(chunk_statute_text(text), len(text))
+    assert integrity.refused is None and len(integrity.quarantined) <= 10
+
+
+def test_every_registry_entry_fits_the_statutes_columns():
+    """A provenance string longer than its column fails only at ingestion, on the one
+    Act that carries it (measured 2026-09-24: a 150-character `source`)."""
+    import json
+    registry = json.loads((Path(__file__).resolve().parents[1] / "config" / "statutes"
+                           / "registry.json").read_text())
+    limits = {"official_title": 512, "act_number_year": 128, "source": 128,
+              "source_ref": 1024, "as_amended_date": 64}
+    for entry in registry["statutes"]:
+        for field, limit in limits.items():
+            assert len(entry.get(field) or "") <= limit, (entry["file"], field)
