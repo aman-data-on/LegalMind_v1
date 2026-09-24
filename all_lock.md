@@ -20430,3 +20430,83 @@ slots, identical lexical lane and rerank): pool r@50 0.889 both; reranked r@3 Mi
 
 --------------------------------------------------------------------------------
 AM-87: reranking and parent-context reconstruction; version before relevance
+
+================================================================================
+AMENDMENT BATCH AB-38 — `AM-88`
+The evidence bundle: per-part states, source kinds kept apart, sufficiency decided
+by relevance + authority/version, never by similarity alone
+================================================================================
+
+**Owner decision, 2026-09-24/25** — the master RAG roadmap (`AM-79`'s owner authority),
+§9 and §14: *"Before Gemini sees retrieval output, create a structured evidence bundle
+… SUPPORTED · PARTIALLY_SUPPORTED · CONFLICTING · INSUFFICIENT · UNAVAILABLE … The
+evidence layer must distinguish Company position · Contractual term · User assertion ·
+Historical exception · Law · Unknown / missing document"*, and the owner's PHASE 5
+rule: *"embedding similarity must not become the final answerability/refusal
+decision."* Roadmap PHASE 9.
+
+**Amends:** `AM-86` r3 narrowly — selection becomes KIND-aware and a lane opened only by
+a context sentence gets its round; `AM-85` narrowly — a claim about signed paper opens
+the HISTORICAL_EXCEPTION lane. **Does not amend:** `AM-29` (its answer states stand —
+a part state is an EVIDENCE state, never an answer state and never one of the five
+legal state axes), `AM-32` r1 (pools stay per domain; the bundle groups by kind, it
+merges nothing), `AM-45` r1, `AM-71`, `AM-78` (a reader's figure is compared in code,
+now per source kind), `AM-84` r4 (satisfied, not relaxed), rules 12, 15. The production
+answer path is unchanged.
+
+```text
+r1   THE BUNDLE (assist/evidence.py). Every selected unit is judged and kept with its
+     kind, parent context, relevance and — when it does not support — the reason.
+     Each sub-question is a PART with one state: SUPPORTED (every kind it needs has a
+     supporting source) · PARTIALLY_SUPPORTED · INSUFFICIENT · UNAVAILABLE (the paper
+     it needs is not here). CONFLICTING is in the vocabulary with no detector yet
+     (PHASE 12). A bundle with no answerable part shows NOTHING.
+
+r2   KINDS. What a source IS, from its domain and its own authority label: a document
+     is CONTRACT; a statute, or the Constitution's reading of the law, is LAW; a
+     historical record is HISTORICAL_EXCEPTION; the rest is COMPANY_POSITION. A
+     reader's assertion is never a source: it is recorded apart, with the figures no
+     company position states and the kinds that DO state them.
+
+r3   SUFFICIENCY, per unit, in order — (a) UNRATIFIED never supports; a non-CURRENT
+     source supports only a historical part or a question about the past; (b) the
+     local cross-encoder's score of the reader's question — or a sub-question's
+     topic-carrying query, best of — against the PARENT CONTEXT must reach its
+     domain's floor (Constitution −4, positions −4, statutes −2, documents −6); a
+     Constitution section named by number passes on that alone; no reranker → fail
+     closed; (c) a document also needs the calibrated document gate on the reader's
+     own question. Similarity produces candidates; it decides nothing alone.
+
+r4   SELECTION. Kind-aware: a lane takes only units of its own kind (the Constitution
+     answers a LAW lane with its reading of the law, a historical lane with its
+     historical record, a position lane with neither); context-only lanes get a round.
+
+r5   STILL NOT AN ANSWER. Generation (PHASE 10) reads only `shown()`; the production
+     path moves onto this behind a flag, measured under `AM-28`.
+```
+
+**Recorded 2026-09-25.** Measured before the record was written, zero Gemini calls,
+scratch corpus; calibration in `tests/assist_eval/sufficiency_calibration_2026-09-25.json`.
+
+| 76 cases, 78 slots | production | PHASE 8 reranked | PHASE 9 bundle (shown) |
+|---|---|---|---|
+| recall | 0.577 @10 | 0.782 | 0.718 |
+| golden recall · hit@1 | 0.333 · — | 0.889 · 0.786 | **0.889 · 0.857** |
+| precision · mean shown | — | 0.267 · 5.0 | **0.457 · 2.7** |
+| wrong-source · false admission | 0.040 · 0.200 | 0.026 · 0.200 | **0.000 · 0.000** |
+| answerable questions kept | — | — | 0.925 |
+
+The PHASE 8 figures include r4 (kind-aware selection lifted reranked golden recall 0.778
+→ 0.889). Document floor on the held-out Tier-2 77: cosine gate alone keeps 44/64,
+refuses 12/13; cross-encoder alone at the same refusal keeps 31; both keep 43, refuse 12.
+Positions/Constitution/statute floors are calibrated on the PHASE 0 benchmark itself —
+no held-out set exists for those domains and rule 21 forbids authoring one; the floors
+sit mid-plateau. GT-00 (roadmap §9's example): company position, historical exception
+and law shown apart; the signed MSA UNAVAILABLE; "6 months" stated by no company position.
+Admitted with empty gold: G-04 (the residuals position for a disclosure question),
+N-01/N-02 (prompt injections that retrieve ordinary positions) — PHASE 10–11 own their
+answers. Planner: HISTORICAL_EXCEPTION lane recall 2/3 → 3/3, special-lane false
+positives 0.
+
+--------------------------------------------------------------------------------
+AM-88: the evidence bundle — per-part states, kinds apart, sufficiency not similarity

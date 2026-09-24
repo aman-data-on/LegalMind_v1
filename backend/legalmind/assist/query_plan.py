@@ -74,6 +74,7 @@ _CONTRACT = re.compile(
 _HISTORICAL = re.compile(
     r"\b(?:old|older|past|previous|earlier|historical|legacy)\b[^.?]{0,25}"
     r"\b(?:signed|msa|agreement|contract|deal)s?\b", re.I)
+_SIGNED = re.compile(r"\b(?:signed|executed|countersigned)\b", re.I)
 _LAW = re.compile(
     r"\b(?:enforceab\w*|legally|recoverable|recover|under (?:indian )?law|the law|"
     r"statute)\b", re.I)
@@ -137,7 +138,11 @@ def _lanes(text: str, topic: str | None) -> set[str]:
     if _MISSING.search(text):
         lanes.add(MISSING_DOCUMENT)
     historical = bool(_HISTORICAL.search(text))
-    if historical:
+    # A reader who reports what someone's SIGNED paper says ("the client says their
+    # signed MSA mentions 6 months") is citing paper we cannot see: the Constitution's
+    # record of past negotiated paper is the source kind that bears on it (PHASE 9,
+    # `AM-88`). The shape of the sentence, never a position.
+    if historical or (_CLAIM.search(text) and _SIGNED.search(text)):
         lanes.add(HISTORICAL_EXCEPTION)
     if understanding.GENERAL_LAW in u.authority or _LAW.search(text) \
             or _AMOUNT_OF_SUM.search(text):

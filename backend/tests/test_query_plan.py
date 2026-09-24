@@ -52,3 +52,10 @@ def test_language_is_read_from_script_and_grammar():
     assert Q.plan("इस NDA में गोपनीयता की अवधि क्या है?").language == "hi"
     assert Q.plan("NDA ki confidentiality kitne saal tak chalti hai?").language == "hinglish"
     assert Q.plan("What is our liability cap?").language == "en"
+
+
+def test_a_claim_about_signed_paper_opens_the_historical_record():
+    # PHASE 9 (`AM-88`): paper we cannot see may be a past negotiated exception.
+    q = "A client says their signed MSA mentions 6 months. What is our policy?"
+    assert Q.HISTORICAL_EXCEPTION in Q.plan(q).lanes
+    assert Q.HISTORICAL_EXCEPTION not in Q.plan("What is our early exit policy?").lanes

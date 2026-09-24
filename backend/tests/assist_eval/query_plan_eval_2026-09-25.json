@@ -9,7 +9,7 @@
  "plan": {
   "lane_recall": {
    "COMPANY_POSITION": 1.0,
-   "HISTORICAL_EXCEPTION": 0.6667,
+   "HISTORICAL_EXCEPTION": 1.0,
    "LAW": 1.0,
    "MISSING_DOCUMENT": 1.0,
    "USER_ASSERTION": 1.0
@@ -59,6 +59,7 @@
    "lanes": [
     "COMPANY_POSITION",
     "CONTRACT",
+    "HISTORICAL_EXCEPTION",
     "LAW",
     "MISSING_DOCUMENT",
     "USER_ASSERTION"
@@ -96,25 +97,25 @@
  },
  "retrieval": {
   "CONST": {
-   "slots": 41,
+   "slots": 44,
    "raw": {
-    "r@3": 0.9268,
-    "mrr": 0.6951
+    "r@3": 0.9318,
+    "mrr": 0.7159
    },
    "planned": {
-    "r@3": 0.9268,
-    "mrr": 0.822
+    "r@3": 0.9318,
+    "mrr": 0.8341
    }
   },
   "POS": {
-   "slots": 57,
+   "slots": 54,
    "raw": {
-    "r@3": 0.7018,
-    "mrr": 0.613
+    "r@3": 0.7963,
+    "mrr": 0.7026
    },
    "planned": {
-    "r@3": 0.7544,
-    "mrr": 0.6572
+    "r@3": 0.8519,
+    "mrr": 0.7492
    }
   }
  }

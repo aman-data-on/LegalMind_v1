@@ -63,6 +63,13 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   MRR 0.645 → 0.690, multi-source 0 → 0.2, wrong-source and false admission unchanged.
   bge-m3 re-tested for statutes after reranking (`tools/retest_statute_embedder.py`): no
   material gain, MiniLM stays.
+* **PHASE 9 / `AM-88`** — `assist/evidence.py`: the evidence bundle — per-part states
+  (SUPPORTED · PARTIALLY_SUPPORTED · INSUFFICIENT · UNAVAILABLE), source kinds kept
+  apart, reader assertions recorded with the figures no company position states;
+  sufficiency per unit by authority/version, cross-encoder relevance on parent context
+  and (documents) the calibrated gate. Kind-aware selection; a claim about signed paper
+  opens the historical lane. Wrong-source 0.026 → 0, false admission 0.2 → 0,
+  precision 0.267 → 0.457, golden recall 0.889.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

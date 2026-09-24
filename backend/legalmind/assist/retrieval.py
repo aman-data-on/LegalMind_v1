@@ -62,6 +62,12 @@ _CONST_REF = re.compile(r"(?:§\s*|section\s+)(\d+(?:\.\d+)*[a-z]?)\b[^?.]{0,40}
                         r"(?:§\s*|section\s+)(\d+(?:\.\d+)*[a-z]?)", re.I)
 
 
+def named_sections(question: str) -> list[str]:
+    """Constitution sections the reader names by number ("§14", "section 31.2 of the
+    Constitution") — the exact-reference lane."""
+    return [a or b for a, b in _CONST_REF.findall(question)]
+
+
 @dataclass(frozen=True)
 class Candidate:
     domain: str
@@ -84,6 +90,9 @@ class Pool:
     #: The router's PRIMARY domains in pool terms — where an unplaced question's
     #: evidence may come from, exactly as today's path answers it.
     primary: set[str] = field(default_factory=set)
+    #: The calibrated document gate on the reader's OWN question (never a sub-question
+    #: or a rephrasing) — one of the signals PHASE 9's sufficiency combines (`AM-88`).
+    document_gate: bool | None = None
 
     def refs(self) -> list[str]:
         return [c.ref for cs in self.by_domain.values() for c in cs]
@@ -97,7 +106,7 @@ def _authorized(route: routing.RoutePlan, permissions: frozenset[str]) -> set[st
 
 
 def _search(db, domain: str, query: str, *, permissions, route, document_version_id,
-            embed_query) -> list[Candidate]:
+            embed_query, pool: Pool | None = None, question: str = "") -> list[Candidate]:
     if domain == CONSTITUTION:
         return [Candidate(domain, f"CONST:{h.section_path}", h.item_id, h.content,
                           h.score, h.authority, h.status)
@@ -121,6 +130,8 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
         outcome = store.search_hybrid(db, document_version_id=document_version_id,
                                       query=query, limit=DEPTH, candidates=True,
                                       embed_query=embed_query)
+        if pool is not None and query == question:
+            pool.document_gate = outcome.gate_open
         return [Candidate(domain, f"DOC:{h.chunk_id}", h.chunk_id, h.content,
                           h.retrieval_score, "DOCUMENT") for h in outcome.hits]
     return []
@@ -164,7 +175,8 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
         for rank, c in enumerate(_search(db, domain, query, permissions=permissions,
                                          route=route,
                                          document_version_id=document_version_id,
-                                         embed_query=embed_query), 1):
+                                         embed_query=embed_query, pool=pool,
+                                         question=plan.question), 1):
             scores = fused.setdefault(domain, {})
             scores[c.ref] = scores.get(c.ref, 0.0) + 1 / (calibration.RRF_K + rank)
             kept = best.setdefault(domain, {})
@@ -173,7 +185,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
             kept[c.ref] = Candidate(c.domain, c.ref, c.item_id, c.text, c.score,
                                     c.authority, c.status, merged)
     # 3 — exact reference: a Constitution section named by number goes first.
-    named = [a or b for a, b in _CONST_REF.findall(plan.question)]
+    named = named_sections(plan.question)
     if named and CONSTITUTION in allowed:
         for section in named:
             ref = f"CONST:{section}"
@@ -226,7 +238,20 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
             order.sort(key=lambda i: head[i].status != "CURRENT")
         reranked[domain] = [dataclasses.replace(head[i], relevance=scores[i])
                             for i in order] + tail
-    return Pool(by_domain=reranked, searched=pool.searched, primary=pool.primary)
+    return Pool(by_domain=reranked, searched=pool.searched, primary=pool.primary,
+                document_gate=pool.document_gate)
+
+
+def kind_of(c: Candidate) -> str:
+    """Which of roadmap §9's distinctions a source IS — from its domain and its own
+    authority label, never from the lane that found it (PHASE 9, `AM-88`)."""
+    if c.domain == routing.Domain.DOCUMENT.value:
+        return query_plan.CONTRACT
+    if c.domain == routing.Domain.STATUTES.value or c.authority == "SECONDARY_REFERENCE":
+        return query_plan.LAW
+    if c.authority == "HISTORICAL_EXCEPTION":
+        return query_plan.HISTORICAL_EXCEPTION
+    return query_plan.COMPANY_POSITION
 
 
 def evidence_size(plan: query_plan.QueryPlan) -> int:
@@ -238,8 +263,12 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
            k: int | None = None) -> list[Candidate]:
     """Diversity first: one round per (sub-question, lane, domain) before any second."""
     k = k or evidence_size(plan)
+    # Every sub-question's lanes, then the lanes only a CONTEXT sentence opened ("the
+    # client says their signed MSA …" opens the historical record) — each gets a round.
+    lanes = [lane for sub in plan.sub_questions for lane in sub.lanes]
+    lanes += sorted(plan.lanes - set(lanes))
     wanted: list[tuple[str | None, str]] = [
-        (lane, d) for sub in plan.sub_questions for lane in sub.lanes
+        (lane, d) for lane in lanes
               for d in LANE_DOMAINS.get(lane, ()) if d in pool.by_domain]
     # The lanes' domains first; then every other searched domain's best candidate, so a
     # source the plan did not name (a position for a statute-shaped question) can still
@@ -262,9 +291,13 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
         # Extra (unrequested) domains offer their best candidate in the FIRST round
         # only, so they widen coverage without crowding out a lane's second source.
         for lane, domain in wanted + (extras if depth == 0 else []):
+            # Kind-aware (PHASE 9): a LAW lane in the Constitution takes the company's
+            # reading of the law, a historical lane a historical record, and a position
+            # lane neither — so one kind never answers for another.
             ranked = [c for c in pool.by_domain[domain]
-                      if c.ref not in refs and (lane is None or lane in c.lanes
-                                                or not c.lanes)]
+                      if c.ref not in refs
+                      and (lane is None or ((lane in c.lanes or not c.lanes)
+                                            and kind_of(c) == lane))]
             if not ranked:
                 continue
             taken.append(ranked[0])

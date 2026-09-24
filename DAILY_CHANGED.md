@@ -707,3 +707,73 @@ never outrank current ones (test) ✔ · every selected span has its parent cont
 inside (1.0) ✔ · latency measured (p95 1.2 s) ✔. **Named:** golden recall unchanged at
 0.778 — its 4 misses are ranking inside the Constitution/positions, which the
 cross-encoder was measured to harm; PHASE 9's evidence bundle takes them.
+
+Commit: `9aabe1f`.
+
+## 2026-09-25 — Entry 12: PHASE 9 — evidence bundle + authority/version/temporal controls
+
+**Lock recorded — `AM-88` (AB-38)** — amends `AM-86` r3 and `AM-85` narrowly.
+all_lock.md 20432 → 20512 (counted from the file), additions only; registry; CLAUDE.md;
+CHANGELOG.
+
+**Built**
+* `legalmind/assist/evidence.py` — `build(db, plan, pool, selected) -> Bundle`: every
+  unit judged (kind, parent context, relevance, reason); parts per sub-question with a
+  state; `Assertion` (claim, figures, unstated by any company position, stated_by kinds);
+  `missing_document`; `shown()` empty when nothing is answerable.
+* Sufficiency per unit: UNRATIFIED never · non-CURRENT only for history/past questions ·
+  cross-encoder (best of whole question and topic-carrying sub-queries) on the PARENT
+  CONTEXT ≥ domain floor · named Constitution section passes · no reranker fails closed ·
+  documents also need the calibrated gate (`Pool.document_gate`, the reader's own
+  question only).
+* `retrieval.kind_of`, `retrieval.named_sections`; kind-aware `select`, context-only
+  lanes get a round.
+* `query_plan`: a claim about signed paper opens HISTORICAL_EXCEPTION (Phase 6's one
+  lane miss, GT-00).
+* `tools/rag_benchmark.py` — `bundle` block (answerable kept, part states, reasons,
+  golden representation, per-unit dump).
+
+**Measured by iteration** (zero Gemini; each kept or fixed):
+
+| step | recall | golden | wrong | false adm. | kept | precision |
+|---|---|---|---|---|---|---|
+| floors on whole question vs span | — | — | — | — | — | Constitution unusable: gold median −11 on the bare paragraph |
+| + parent context scored (Constitution gold median −11 → −1.0) | 0.641 | 0.667 | 0 | 0 | 0.82 | 0.474 |
+| + `shown()` bug fixed (a whole-question source outside every part was dropped — E-04) + best of sub-queries (Hinglish, follow-ups) | 0.692 | 0.778 | 0 | 0 | 0.91 | 0.429 |
+| + statute floor −3 → −2 (plateau; same recall, precision up) | 0.692 | 0.778 | 0 | 0 | 0.91 | 0.447 |
+| + kind-aware selection, context lanes, signed-claim → history | **0.718** | **0.889** | **0** | **0** | **0.925** | **0.457** |
+
+Documents, held-out Tier-2 77: cosine gate 44/64 kept, 12/13 refused; cross-encoder
+alone keeps 31 at 12 refused (worse); gate AND cross-encoder ≥ −6 keeps 43, refuses 12 —
+chosen, so similarity never admits alone. Other floors are calibrated on the PHASE 0
+benchmark (no held-out set for them; rule 21) — disclosed as a limitation.
+
+| Final (76 cases, 78 slots) | production | PHASE 8 reranked | PHASE 9 bundle |
+|---|---|---|---|
+| recall | 0.577 @10 | 0.782 | 0.718 |
+| golden recall · hit@1 | 0.333 · — | 0.889 · 0.786 | 0.889 · 0.857 |
+| precision · mean shown | — | 0.267 · 5.0 | 0.457 · 2.7 |
+| wrong-source · false admission | 0.040 · 0.200 | 0.026 · 0.200 | **0 · 0** |
+
+(PHASE 8 reranked now includes kind-aware selection: golden 0.778 → 0.889, recall 0.756
+→ 0.782, multi-source 0.2 → 0.3.) GT-00: parts all SUPPORTED; kinds COMPANY_POSITION
+(§14), HISTORICAL_EXCEPTION, LAW (§28.4.1, the company's reading); signed MSA
+UNAVAILABLE; "6 months" stated by no company position (stated only by LAW/history).
+Admitted with empty gold: G-04, N-01, N-02 — ordinary positions retrieved; the answer
+behaviour belongs to PHASES 10–11. Planner eval re-recorded (historical lane 2/3 → 3/3;
+its slot counts also moved 41 → 44 / 57 → 54 because the PHASE 7 gold corrections
+post-date the first record).
+
+**Tested** — `tests/test_evidence_bundle.py` (6: repealed never answers a current
+question; UNRATIFIED never supports; no reranker fails closed; a document needs its gate;
+the golden kinds apart with the assertion recorded; irrelevant → INSUFFICIENT, nothing
+shown), planner signed-claim test (1). Full suite **2590 passed, 112 skipped
+(unchanged), 0 failed**; ruff + mypy clean.
+
+**Exit (roadmap §9, §14)** — a structured bundle with authority, version, citation,
+exact text, relevance and unresolved parts ✔ · the five states (four produced;
+CONFLICTING named for PHASE 12) ✔ · the six distinctions kept apart ✔ · GT-00
+represented exactly as §9 lists ✔ · a non-current source never answers a current
+question (test) ✔ · similarity never decides answerability alone ✔ · wrong-source and
+false admission 0 ✔. **Named:** recall in `shown` is 0.718 vs 0.782 before the filter —
+the price of zero wrong sources; 21 RANK_CUTOFF remain.

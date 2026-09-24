@@ -48,6 +48,7 @@ from legalmind.assist import (
     statutes,
     understanding,
 )
+from legalmind.assist import evidence as evidence_bundle
 
 DATASET = pathlib.Path(__file__).resolve().parents[1] / "tests/assist_eval/rag_benchmark.json"
 BASELINE = DATASET.with_name("rag_benchmark_baseline.json")
@@ -165,13 +166,16 @@ def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool, str]
 
 
 RERANK_MS: list[float] = []
+BUNDLES: list[dict] = []
 CONTEXTS: list[dict] = []
 
 
-def retrieve_pool(db, case: dict, *, reranked: bool = False
+def retrieve_pool(db, case: dict, *, reranked: bool = False, bundled: bool = False
                   ) -> tuple[list[str], list[str], set[str], bool]:
-    """PHASE 7: the same question through plan → candidate pool → evidence selection.
-    Returns (selected evidence refs, whole-pool refs, searched domains, short-circuit)."""
+    """PHASE 7: the same question through plan → candidate pool → evidence selection;
+    PHASE 8 adds the rerank, PHASE 9 (`bundled`) the evidence bundle — what is shown is
+    then only what the bundle says supports.
+    Returns (shown evidence refs, whole-pool refs, searched domains, short-circuit)."""
     question = case["question"]
     resolved = question
     asked = understanding.understand(question)
@@ -191,6 +195,19 @@ def retrieve_pool(db, case: dict, *, reranked: bool = False
         pool = retrieval.rerank(pool, plan)
         RERANK_MS.append((time.perf_counter() - t0) * 1000)
     evidence = retrieval.select(pool, plan)
+    if bundled:
+        b = evidence_bundle.build(db, plan, pool, evidence)
+        BUNDLES.append({"case": case["id"], "answerable": b.answerable,
+                        "states": [p.state for p in b.parts],
+                        "kinds": sorted({x.kind for x in b.shown()}),
+                        "assertions_unstated": [list(a.unstated) for a in b.assertions],
+                        "assertions_stated_by": [list(a.stated_by) for a in b.assertions],
+                        "missing_document": b.missing_document,
+                        "units": [[x.ref, x.candidate.domain, x.relevance, x.reason]
+                                  for x in b.sources],
+                        "reasons": dict(collections.Counter(
+                            x.reason for p in b.parts for x in p.sources if x.reason))})
+        return [x.ref for x in b.shown()], pool.refs(), pool.searched, False
     if reranked:
         for item in retrieval.with_context(db, evidence):
             CONTEXTS.append({"case": case["id"], "domain": item.candidate.domain,
@@ -280,9 +297,13 @@ def run(db) -> dict:
         by_cat[r["category"]].append(r)
     pool_results: list[dict] = []
     reranked_results: list[dict] = []
+    bundle_results: list[dict] = []
     for c in cases:
-        for out, flag in ((pool_results, False), (reranked_results, True)):
-            shown, wide, searched, short = retrieve_pool(db, c, reranked=flag)
+        for out, flag, bundled in ((pool_results, False, False),
+                                   (reranked_results, True, False),
+                                   (bundle_results, True, True)):
+            shown, wide, searched, short = retrieve_pool(db, c, reranked=flag,
+                                                         bundled=bundled)
             scored = score_case(c, shown, wide, searched, exists, short,
                                 const_indexed=True)
             scored["pool_recall"] = [_rank(s, wide) is not None for s in c["gold"]]
@@ -309,7 +330,24 @@ def run(db) -> dict:
                                      "max": round(ms[-1], 1)},
                        "context": _context_report(),
                        "cases": reranked_results}
+    answerable_cases = {c["id"] for c in cases if c["gold"]}
+    by_case = {b["case"]: b for b in BUNDLES}
+    bundle_report = {
+        "evidence": aggregate(bundle_results),
+        "evidence_golden": aggregate([r for r in bundle_results if r["golden"]]),
+        "answerable_kept": round(sum(1 for i in answerable_cases
+                                     if by_case.get(i, {}).get("answerable"))
+                                 / len(answerable_cases), 4),
+        "unanswerable_admitted": sorted(i for i, b in by_case.items()
+                                        if b["answerable"] and i not in answerable_cases),
+        "part_states": dict(collections.Counter(s for b in BUNDLES for s in b["states"])),
+        "reasons": dict(sum((collections.Counter(b["reasons"]) for b in BUNDLES),
+                            collections.Counter())),
+        "golden_question": {i: by_case.get(i) for i in ("GT-00", "GT-10")},
+        "bundles": BUNDLES,
+        "cases": bundle_results}
     return {"pool": pool_report, "pool_reranked": reranked_report,
+            "bundle": bundle_report,
             "overall": aggregate(results),
             "constitution_lane": {"slots": len(const_ranks), "recall@3": at(3),
                                   "recall@6": at(6), "recall@10": at(10),
@@ -340,6 +378,11 @@ def main() -> int:
         print("reranked", name, json.dumps(out["pool_reranked"][name]))
     print("rerank ms", out["pool_reranked"]["rerank_ms"])
     print("context", json.dumps(out["pool_reranked"]["context"]))
+    for name in ("evidence", "evidence_golden"):
+        print("bundle", name, json.dumps(out["bundle"][name]))
+    print("bundle", json.dumps({k: v for k, v in out["bundle"].items()
+                                if k not in ("evidence", "evidence_golden", "cases",
+                                             "bundles")}))
     for cat, m in out["by_category"].items():
         print(f"  {cat}: n={m['cases']} r@3={m['recall@3']} mrr={m['mrr']} "
               f"wrong={m['wrong_source_rate']} codes={m['failure_codes']}")
