@@ -80,6 +80,13 @@ chunk), run once on the deployed tree:
 It is idempotent, re-chunks every ratified standard from its file and re-embeds (`embed_positions`
 is called inside). Until it runs, the live index still matches on the old boilerplate.
 
+## After a deploy that adds or changes the Constitution source model (`AM-79`)
+
+Migration `f4c1e8a2b7d9` creates `knowledge_sources` / `knowledge_items`; `alembic upgrade head`
+leaves them empty. Populate once (idempotent — an unchanged file is left alone):
+
+    cd /root/Legalmind.v1/backend && python3 -m tools.ingest_constitution
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql

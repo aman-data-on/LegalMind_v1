@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
+
+Master roadmap [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md)
+adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step log in
+[DAILY_CHANGED.md](DAILY_CHANGED.md). On `feat/legalmind-rag-production`, **not deployed**.
+
+* **PHASE 0** — `tools/rag_benchmark.py` + `tests/assist_eval/rag_benchmark.json`: 76-case
+  multi-source benchmark (categories A–O, 14 golden early-termination cases), zero Gemini,
+  read-only; baseline recall@3 0.494, golden 0.333, multi-source completeness 0.000.
+* **PHASE 1 / `AM-79`** (amends `AM-43` r2) — the Constitution becomes a canonical,
+  structured source: migration `f4c1e8a2b7d9` (`knowledge_sources`, `knowledge_items`),
+  `assist/constitution.py` + `tools/ingest_constitution.py`, `assist/authority.py`.
+  Historical exceptions, the company's reading of law and §31.6a are labelled apart from
+  current policy.
+
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 
 Owner request: plain English, the answer first, the company position separated from

@@ -121,3 +121,73 @@ tautological faithfulness/citation-precision metric in `verify_assist_quality` (
 same verifier) → PHASE 11/12.
 
 **Locks amended** — none (PHASE 0 touches none).
+**Commit:** `626005e`.
+
+---
+
+## 2026-09-24 — Entry 2: governance
+
+Owner, in their own words: *"i want industry stnadard rag system for that if you need some
+decion to change and update plz … i will give you ownership you do not have to ask me
+update it and start phase 1"*. CLAUDE.md gains the master-roadmap section (conflicting locks
+are amended by appended record, without asking per lock; rules 7/21/18, the audit trail and
+the Gemini cost guard are NOT amendable this way) and a Start-here pointer; docs/README.md
+indexes the roadmap and this log. Memory `legalmind-rag-roadmap-ownership`. **Commit:** `e65b42c`.
+
+---
+
+## 2026-09-24 — Entry 3: PHASE 1 — canonical knowledge/source model
+
+**Lock amended — `AM-79` (AB-29)**, amending `AM-43` r2 (*"The Constitution … is not
+chunked, indexed or retrieved"*) and the `AM-27`/`AM-32` assist-table lists (+2). Appended
+to all_lock.md (19842 → 19921 lines; prior lines byte-identical — the diff is 79 additions,
+0 deletions); registry row added and the `AM-43` row annotated; CLAUDE.md,
+ARCHITECTURE_REFERENCE.md and CONFLICTS.md references annotated. Working documents
+(CONSTITUTION_RECONCILIATION_2026-09-13.md, DOCUMENT_BUILDER_RND.md) left as records.
+*Self-correction:* the first draft of the record stated pre-fix counts (672 items); corrected
+before commit, so no committed line was changed.
+
+**Built**
+* Migration `f4c1e8a2b7d9` — `assist.knowledge_sources` (one row per canonical document
+  version: type, title, version, status, authority, jurisdiction, effective_from/to,
+  supersedes_id, source file, SHA-256) and `assist.knowledge_items` (hierarchy with real
+  parent FK, the document's own `section_path`, clause, content, authority, status,
+  cross_references, line span, FTS index). CHECK-constrained vocabularies, none shared with
+  a legal axis.
+* `legalmind/assist/constitution.py` — deterministic parser (every line → exactly one item;
+  list items stay with their rule; tables are their own blocks) + `ingest` (idempotent by
+  SHA-256; L1.10 CURRENT supersedes L1.5 SUPERSEDED) + `item_for_section` (a standard's
+  pointer back to its section). `tools/ingest_constitution.py`; ops/README.md step.
+* `legalmind/assist/authority.py` — the seven-class authority model mapped from metadata
+  each domain already records (standard source_document, document version_role, statute
+  repeal marker). Unknown execution status → None, never "executed".
+* Authority read from the Constitution's own labels: "Historical exceptions/evidence:" and
+  Evidence/⚠ notes naming a counterparty placeholder → HISTORICAL_EXCEPTION; §6, §28 and
+  "Applicable Law / Legal Basis" → SECONDARY_REFERENCE; §31.6a → UNRATIFIED (wins over all).
+  Two false-positive classes found and fixed while measuring: prose+table merged blocks
+  tainting current summary tables (§27, §31.16, Appendix C/H), and §15.5's current guidance
+  naming the reference NDA placeholder.
+
+**Tested** — `tests/test_knowledge_source_model.py` (8: line coverage, no invented
+numbers, historical ≠ policy, law-reading ≠ policy, §31.6a, standards + benchmark refs
+resolve, one authority vocabulary, DB ingest + version chain + idempotency);
+`test_assist_schema` updated. Full backend suite **2545 passed, 112 skipped (unchanged
+count), 0 failed**; ruff + mypy clean.
+
+**Measured (exit criteria)**
+
+| Roadmap §1 exit criterion | Result |
+|---|---|
+| Original Constitution preserved | file untouched; SHA-256 recorded on its source row |
+| Structured rules mapped back to source sections | 701 items (35 sections · 76 subsections · 177 provisions · 412 paragraphs); **0 non-blank lines lost**; **76/76** standards naming a section resolve; **11/11** benchmark Constitution refs resolve |
+| Historical exceptions separated from current policy | **16** HISTORICAL_EXCEPTION items, all §31, **0** CURRENT; §31.2's "Established Company Position" CURRENT, its "Historical exceptions" HISTORICAL |
+| Authority/version/status metadata available to retrieval | columns + FTS index on every item; 101 SECONDARY_REFERENCE; 9 UNRATIFIED (all §31.6a); version chain L1.10 → L1.5 |
+
+Benchmark re-run: **byte-identical to the PHASE 0 baseline** — expected, as no retrieval
+path reads the new tables until PHASE 3 (retrieval records) / PHASE 7 (retrieval). The
+`SOURCE_NOT_INDEXED` slots (6) are now backed by stored, labelled items.
+
+**Not done here, named:** statute status as a column (currently a title marker, mapped by
+`authority.of_statute`) → PHASE 2 with the statute re-ingestion; L1.5 items (format differs)
+→ when a historical-Constitution question needs them; production population
+(`tools.ingest_constitution`) → at deploy, not on this branch.

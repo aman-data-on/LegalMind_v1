@@ -684,7 +684,8 @@ Agreement, Purchase Order**. (`AMENDMENT` and "Other Agreements" *are* covered.)
 Consequently **no ratified Company Standard covers any of the four** — all 40 ratified files
 are MSA (23), NDA (8), TOS (8) or SLA (1), and the two proposed files are `ORDER_FORM`. A
 Partner Agreement position exists in the Constitution and nowhere in the runtime corpus,
-because the Constitution is configuration source, never chunked or retrieved (`AM-43`).
+because the Constitution is configuration source, never chunked or retrieved (`AM-43`). *(Annotation 2026-09-24: `AM-79` amended `AM-43` r2 — the
+Constitution is now a structured, retrievable source; this entry's reasoning is historical.)*
 
 **Three readings, none chosen here:**
 

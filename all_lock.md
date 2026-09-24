@@ -19840,3 +19840,82 @@ already did.
 
 --------------------------------------------------------------------------------
 AM-78: the reader's own figure is context
+
+================================================================================
+AMENDMENT BATCH AB-29 — `AM-79`
+The Legal Constitution is a canonical, structured, retrievable source
+================================================================================
+
+**Owner decision, 2026-09-24**, in the owner's words:
+
+> "i want industry standard rag system … if you need some decision to change and
+> update plz … i will give you ownership you do not have to ask me"
+
+— adopting `docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md` as the master Ask/RAG target,
+whose §1 reads: *"The original Legal Constitution remains the canonical source
+document. Do not replace it with a collection of independent standards. … A
+'standard' may be a structured representation of a rule, but it must retain a
+pointer back to its Constitution section and surrounding context."* Roadmap PHASE 1.
+
+**Amends:** `AM-43` r2 (*"THE CONSTITUTION IS CONFIGURATION SOURCE, NOT RUNTIME
+CORPUS. It is not chunked, indexed or retrieved."*); `AM-27`'s and `AM-32`'s lists of
+authorized assist tables, by two. **Does not amend:** `AM-43` r1, r3–r8; `AM-59`;
+`AM-65`; `AM-73` (its §31.6a carve-out is kept, r4 below); `AM-25` r1–r9; `AM-27` r4;
+`AM-29`; `AM-32` r1 (domains never merged); `AI-01`; `LEGAL-02`; rules 7, 21, 22.
+
+```text
+r1   THE FILE STAYS CANONICAL. docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md is
+     the source of truth, unchanged. A structured representation sits beside it in
+     two assist tables: knowledge_sources (one row per canonical document version —
+     type, title, version, status, authority, jurisdiction, effective_from/to,
+     supersedes_id, source file, SHA-256) and knowledge_items (section → subsection
+     → provision → paragraph; parent_id a real FK; section_path the document's OWN
+     numbering, never generated; clause, content, authority, status,
+     cross_references, line span). Built deterministically by assist/constitution.py
+     (tools/ingest_constitution.py). Every line of the file lands in exactly one item.
+
+r2   THE CONSTITUTION MAY BE INDEXED AND RETRIEVED — replacing AM-43 r2's "It is not
+     chunked, indexed or retrieved." Its items carry a full-text index; retrieval
+     records (roadmap PHASE 3) and retrieval (PHASE 7) are built on them.
+     Authorization is Domain A's, unchanged: assist.ask AND (configuration.view OR
+     legal_position.view) — LEGAL-02.
+
+r3   STANDARDS REMAIN THE EVALUATOR'S YARDSTICK. AM-43 r2's second sentence stands:
+     positions enter the evaluator only as ratified Company Standard files. A
+     standard points back to its section through its own
+     configuration.constitution.section = knowledge_items.section_path — a join,
+     nothing denormalised (AM-27 r4). The evaluator reads no knowledge item.
+
+r4   AUTHORITY AND STATUS ARE RECORDED, NOT INFERRED. Authority: COMPANY_CONSTITUTION
+     · APPROVED_COMPANY_DOCUMENT · EXECUTED_DOCUMENT · DRAFT_DOCUMENT ·
+     HISTORICAL_EXCEPTION · PRIMARY_LAW · SECONDARY_REFERENCE. Status: CURRENT ·
+     SUPERSEDED · HISTORICAL · UNRATIFIED · REPEALED. CHECK-constrained strings
+     sharing no name with a legal axis (AM-29). Inside the Constitution they are read
+     from its own labels: "Historical exceptions/evidence:" and Evidence / ⚠ notes
+     naming a counterparty placeholder (the file header: placeholders mark
+     historical evidence) → HISTORICAL_EXCEPTION, HISTORICAL; §6, §28 and "Applicable
+     Law / Legal Basis" → SECONDARY_REFERENCE (the company's reading of the law is not
+     the law); §31.6a → UNRATIFIED, which wins over every other label. Elsewhere they
+     derive from metadata already recorded (assist/authority.py): a standard's
+     source_document, a document version's declared version_role, the statute repeal
+     marker. An undeclared execution status is unknown — never "executed".
+
+r5   VERSIONS CHAIN. L1.10 CURRENT (effective 2026-09-13, AM-59) supersedes L1.5
+     (SUPERSEDED, 2026-09-08 → 2026-09-13), recorded as a source row; L1.5's items
+     are not parsed until a historical-Constitution question needs them.
+
+r6   HISTORICAL IS NEVER POLICY. An item that is HISTORICAL, SUPERSEDED or UNRATIFIED
+     is never presented as a current company position; it may reach a reader only
+     for a question about history, labelled as history (roadmap §9, §13; §16 safety
+     metric "current policy confused with historical exception = 0").
+```
+
+**Recorded 2026-09-24.** Implemented and verified before the record was written, on
+branch `feat/legalmind-rag-production` (not deployed). Measured on L1.10: 701 items
+(35 sections, 76 subsections, 177 provisions, 412 paragraphs); 0 non-blank lines
+lost; 16 HISTORICAL_EXCEPTION items, all in §31, none CURRENT; 101 SECONDARY_REFERENCE;
+9 UNRATIFIED, all §31.6a; 76 of 76 standards naming a section resolve to an item; 11
+of 11 Constitution refs in the PHASE 0 benchmark resolve.
+
+--------------------------------------------------------------------------------
+AM-79: the Constitution is a canonical, structured, retrievable source
