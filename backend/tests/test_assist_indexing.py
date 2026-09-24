@@ -766,3 +766,16 @@ def test_a_version_failing_integrity_is_not_made_searchable(db, storage, user, m
     result = index_document_version(db, version.id)
     assert result.skipped and result.reason.startswith("integrity:")
     assert store.count_chunks(db, version.id) == 0, "a failing version became searchable"
+
+
+def test_a_document_chunk_expands_within_its_own_evidence_row(db, storage, user):
+    """PHASE 3: parent context is assembled at read time from the SAME evidence row —
+    a stored chunk still references exactly one row (`AM-27` r4)."""
+    long_row = " ".join(f"{n}.{n} Clause {n} says the supplier shall perform duty {n}."
+                        for n in range(1, 60))
+    version = _ingested(db, storage, user, [long_row])
+    index_document_version(db, version.id)
+    chunks = store.search_chunks(db, document_version_id=version.id, query="duty 30")
+    assert chunks
+    context = store.expand_chunk(db, chunks[0].chunk_id)
+    assert chunks[0].content in context and len(context) > len(chunks[0].content)

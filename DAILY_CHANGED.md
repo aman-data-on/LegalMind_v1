@@ -341,3 +341,76 @@ cross-domain rerank), not an integrity defect, and it is not tuned here.
 **Exit (roadmap §2)** — met: every Act searchable passes integrity; no fabricated,
 folded, oversized or duplicate section is stored; repeal and withdrawal are status
 metadata; documents gated (37/37 pass). Production unchanged.
+**Commit:** `962ed0b`.
+
+---
+
+## 2026-09-24 — Entry 6: PHASE 3 — hierarchical semantic chunking
+
+**Lock amended — `AM-82` (AB-32)**: +1 assist table (`knowledge_item_embeddings`),
++`knowledge_items.breadcrumb`. all_lock.md 20056 → 20118, additions only; registry;
+CLAUDE.md; ops/README.md; CHANGELOG.
+
+**Built**
+* **Constitution retrieval records** — migration `b8e2f6a4d1c3`. Children = PARAGRAPH
+  items (rule + its list conditions). Breadcrumb from metadata only ("Legal Constitution
+  L1.10 · 31. … · 31.2 Early Termination — MSA …" + an authority label for historical
+  evidence / the company's reading of law), indexed and embedded, never content.
+* `constitution.search` — hybrid (length-normalised lexical + vector, RRF), one child per
+  parent, UNRATIFIED never returned, HISTORICAL carried with its status, Domain A
+  authorization (`positions.can_read`, now the one predicate for both).
+* **Parent restoration at read time** — `constitution.expand` (sibling paragraphs,
+  non-current ones labelled), `statutes.expand_section` (whole section headed Act ·
+  section · marginal note), `store.expand_chunk` (neighbours inside the same evidence
+  row, so `AM-27` r4 holds). Not yet wired into generation (PHASE 8).
+* **One chunk per (Act, section)** in `search_statutes`.
+* **DRY** — `store.embed_into` replaces three copies of the embedding loop (positions,
+  statutes, Constitution).
+* Benchmark: a **Constitution lane**, scored apart from production.
+
+**Measured, and two decisions the measurement made**
+1. *Statute breadcrumb embedding — rejected.* Embedding "Act · Section · note" + text
+   moved the MiniLM-calibrated gate: O-02 (must refuse, "current law on TDS for
+   professional fees") drew six unrelated units → false admission 0.2 → 0.4, for one
+   rank on O-03. Ablation (content-only re-embed) restored 0.2. The breadcrumb stays as
+   the expansion header only. (`AM-82` r5.)
+2. *Constitution lexical ranking.* Raw shared-word count let the §27 Counsel checklist
+   TABLE outrank §14. Length-normalised `ts_rank` (norm 1) measured over the 41
+   Constitution slots: with vectors MRR 0.798 → 0.822, r@3 0.878 → 0.902, r@10 equal;
+   lexical-only MRR 0.445 → 0.645 (the no-model / CI path). Adopted, with 100 candidates.
+
+**Dataset correction (disclosed):** 15 slots accepted only §14; §31.2 states the same
+position in the Constitution's own words ("read together with Section 14") and is now
+accepted beside it. Production numbers are unaffected (no production path reaches
+Constitution refs yet); the Constitution lane rose 0.732 → 0.878 recall@3 from the
+correction alone.
+
+| Constitution lane (41 slots) | recall@3 | recall@6 | recall@10 | MRR |
+|---|---|---|---|---|
+| PHASE 2 (no retrieval path) | 0 | 0 | 0 | 0 |
+| **PHASE 3** | **0.878** | **0.902** | **0.902** | **0.810** |
+
+Golden: 13/14 reach their Constitution position at rank 1–2 — GT-00 [§14/§31.2 1, §31.2
+historical 1, §28.4.1 2], GT-10 [1, 1], Hinglish GT-12 1. Miss: GT-02 ("6-month lock-in").
+
+| Production (76) | PHASE 2 closed | PHASE 3 |
+|---|---|---|
+| recall@3 · MRR | 0.506 · 0.441 | 0.506 · 0.441 |
+| wrong-source · false admission | 0.040 · 0.200 | 0.040 · 0.200 |
+
+Production is unchanged in outcome by design: the Constitution is not routed until
+PHASE 7, and one-per-section freed statute slots without moving a measured gold.
+
+**Tested** — 7 new tests (breadcrumbs, search one-child-per-parent + authorization,
+expansion labels history, statute collapse + section expansion, document expansion
+within its evidence row). Full suite **2568 passed, 112 skipped (unchanged), 0 failed**;
+CI-like run (no model, no source material) on the touched files 189 passed, 9 skipped;
+ruff + mypy clean.
+
+**Exit (roadmap §3)** — rules/exceptions/conditions stay connected (list items attached;
+history labelled apart) ✔ · child retrieval identifies precise evidence (Constitution
+r@3 0.878) ✔ · parent/context expansion available for all three corpora ✔ · duplicate
+children of one parent do not crowd out others (Constitution + statutes) ✔.
+**Named, not done:** document breadcrumb embeddings — they would move the calibrated
+document gate, so they are measured in PHASE 4 with the embedding bake-off; wiring the
+expansions into generation — PHASE 8.

@@ -678,37 +678,37 @@ def _replace_statute_chunks(db: DBSession, schema: str, statute_id: UUID,
     return repointed
 
 
-def _embed(db: DBSession, statute_id: UUID) -> int:
-    """Best-effort vectors for the section chunks — lexical retrieval works without."""
-    from legalmind.assist import calibration, embedding_runtime, store
+def breadcrumb(official_title: str, section_number: str,
+               marginal_note: str | None) -> str:
+    """Where a statute chunk sits: Act · section · marginal note. It heads the parent
+    context `expand_section` hands to generation, and is never stored in or cited as
+    the chunk's content. It is deliberately NOT embedded (measured 2026-09-24): over
+    breadcrumb + text the MiniLM-calibrated gate opened on noise — "the current law on
+    TDS for professional fees", which must refuse, drew six Companies Act and
+    Arbitration Act units — for one rank gained on one question. The repeal
+    annotation is provenance, not name, and stays out."""
+    act = re.sub(r"\s*\((?:REPEALED|Rep\.).*$", "", official_title).split(" — ")[0]
+    unit = section_number if "chedule" in section_number else f"Section {section_number}"
+    return " · ".join(p for p in (act, unit, marginal_note) if p)
 
-    if not embedding_runtime.available():
-        return 0
+
+def _embed(db: DBSession, statute_id: UUID) -> int:
+    """Vectors for the section chunks, best-effort — lexical retrieval works without.
+    The Act's existing vectors are replaced, so a re-ingest never leaves a vector
+    beside chunk text it no longer matches; vectors are derived and nothing cites
+    them."""
+    from legalmind.assist import store
+
     schema = config.assist_schema()
     rows = db.execute(sql_text(f"""
         SELECT id, content FROM "{schema}".statute_chunks
          WHERE statute_id = :s ORDER BY ordinal"""), {"s": statute_id}).all()
-    vectors = embedding_runtime.embed_texts([r[1] for r in rows]) if rows else None
-    if not vectors:
-        return 0
-    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
-    name, _, revision = identity.partition("@")
-    model_id = store.register_embedding_model(
-        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
-        dimensions=calibration.EMBEDDING_DIMENSIONS,
-        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
-    vtype = store.vector_type(db)
-    written = 0
-    for (chunk_id, _), vector in zip(rows, vectors, strict=True):
-        literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
-        db.execute(sql_text(f"""
-            INSERT INTO "{schema}".statute_chunk_embeddings
-                (id, statute_chunk_id, embedding_model_id, embedding)
-            VALUES (:id, :c, :m, CAST(:v AS {vtype}))
-            ON CONFLICT (statute_chunk_id, embedding_model_id) DO NOTHING
-        """), {"id": uuid4(), "c": chunk_id, "m": model_id, "v": literal})
-        written += 1
-    return written
+    db.execute(sql_text(f"""
+        DELETE FROM "{schema}".statute_chunk_embeddings WHERE statute_chunk_id IN
+          (SELECT id FROM "{schema}".statute_chunks WHERE statute_id = :s)"""),
+        {"s": statute_id})
+    return store.embed_into(db, table="statute_chunk_embeddings", fk="statute_chunk_id",
+                            rows=[(r[0], r[1]) for r in rows])
 
 
 def jurisdictions(db: DBSession) -> frozenset[str]:
@@ -911,10 +911,11 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     # A question that names the Act ("What is the DPDP Act?") is answered from
     # that Act even when no section's text repeats the question's words: a
     # majority title-lexeme match alone admits its opening sections (AM-50 r3).
-    hits = [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
-                       r.sub_section, r.marginal_note, r.content, float(r.score))
-            for r in rows
-            if r.exact_section or r.matched >= floor or r.act_match >= 0.5][:limit]
+    hits = _one_per_section([
+        StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
+                   r.sub_section, r.marginal_note, r.content, float(r.score))
+        for r in rows
+        if r.exact_section or r.matched >= floor or r.act_match >= 0.5])[:limit]
     # Vector increment (2026-09-09): a paraphrase that names no Act, section or
     # statutory word — "can a company process someone's personal data without
     # asking them?" — has no lexeme to match. The stored section vectors (`AM-32`'s
@@ -926,11 +927,9 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     if named:
         # A named section or Act: lexical-first stands; vectors only fill the rest.
         if len(hits) < limit:
-            seen = {h.statute_chunk_id for h in hits}
-            hits += [h for h in _vector_neighbours(db, query, limit=limit,
-                                                   embed_query=embed_query,
-                                                   include_superseded=include_superseded)
-                     if h.statute_chunk_id not in seen][:limit - len(hits)]
+            hits = _one_per_section([*hits, *_vector_neighbours(
+                db, query, limit=limit, embed_query=embed_query,
+                include_superseded=include_superseded)])[:limit]
     else:
         # Nothing named: a two-lexeme OR match is a weak signal ("company" and
         # "person" reach the Companies Act for a question about personal data),
@@ -956,7 +955,7 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
             by_id.setdefault(h.statute_chunk_id, h)
         order = list(fused)                      # insertion order = vector first on ties
         ranked = sorted(order, key=lambda i: (-fused[i], order.index(i)))
-        hits = [by_id[i] for i in ranked][:limit]
+        hits = _one_per_section([by_id[i] for i in ranked])[:limit]
     log_event("assist.statutes.searched", hits=len(hits), level=logging.DEBUG)
     return hits
 
@@ -1006,6 +1005,52 @@ _NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
 
 
 
+
+
+def _one_per_section(hits: list[StatuteHit]) -> list[StatuteHit]:
+    """The best-ranked child per (Act, section) — roadmap §3: "duplicate child hits
+    from one parent do not crowd out other sources". The parent is recovered at
+    generation time by `expand_section`, so dropping a sibling loses no text."""
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for h in hits:
+        key = (h.official_title, h.section_number)
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+    return out
+
+
+def expand_section(db: DBSession, statute_chunk_id: UUID, *,
+                   max_chars: int = 4000) -> str:
+    """The parent of a retrieved chunk: its whole section (every sibling chunk, in the
+    Act's order), windowed around the hit when the section is longer than
+    `max_chars`. Headed by the breadcrumb, so the Act and section travel with it."""
+    schema = config.assist_schema()
+    rows = db.execute(sql_text(f"""
+        SELECT s.official_title, sib.section_number, sib.marginal_note, sib.content,
+               sib.id = :c AS hit
+          FROM "{schema}".statute_chunks c
+          JOIN "{schema}".statute_chunks sib ON sib.statute_id = c.statute_id
+                                            AND sib.section_number = c.section_number
+          JOIN "{schema}".statutes s ON s.id = c.statute_id
+         WHERE c.id = :c ORDER BY sib.ordinal"""), {"c": statute_chunk_id}).all()
+    if not rows:
+        return ""
+    at = next(n for n, r in enumerate(rows) if r.hit)
+    lo = hi = at
+    size = len(rows[at].content)
+    while True:
+        grew = False
+        if hi + 1 < len(rows) and size + len(rows[hi + 1].content) <= max_chars:
+            hi, size, grew = hi + 1, size + len(rows[hi + 1].content), True
+        if lo > 0 and size + len(rows[lo - 1].content) <= max_chars:
+            lo, size, grew = lo - 1, size + len(rows[lo - 1].content), True
+        if not grew:
+            break
+    head = breadcrumb(rows[at].official_title, rows[at].section_number,
+                      rows[at].marginal_note)
+    return head + "\n" + "\n".join(r.content for r in rows[lo:hi + 1])
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,

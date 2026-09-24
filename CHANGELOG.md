@@ -30,6 +30,13 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   gates document indexing; `section-4` bounds statute chunks at 2,000 characters;
   bilingual prints read in English; `statutes.status` column (migration `a7d3e9b1c5f2`).
   Folded sections 30 → 0, oversized chunks 806 → 0; Income-tax Act 1961 print refused.
+* **PHASE 2 closed / `AM-81`** — the Income-tax Act 1961 obtained from India Code (as
+  enacted, 1961 Gazette) and searchable; Gazette Schedules parsed (DPDP Rules: 7 Schedules,
+  0 quarantined); a refused re-ingest withdraws; 17/17 Acts searchable.
+* **PHASE 3 / `AM-82`** — hierarchical retrieval records: Constitution children with
+  breadcrumbs (migration `b8e2f6a4d1c3`), `constitution.search` / `expand`,
+  `statutes.expand_section`, `store.expand_chunk`, one statute chunk per section;
+  shared `store.embed_into`. Constitution lane recall@3 0.878, MRR 0.810.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

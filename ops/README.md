@@ -98,6 +98,14 @@ chunks. Run once; it prints one line per Act, and an Act failing integrity is RE
 
 Citations recorded against old chunks are re-pointed by text (`_replace_statute_chunks`).
 
+## After a deploy that adds Constitution retrieval records (`AM-82`)
+
+Migration `b8e2f6a4d1c3` adds `knowledge_items.breadcrumb` and `knowledge_item_embeddings`.
+`tools.ingest_constitution` writes both, but skips an unchanged Constitution file — so
+where the source model was ingested BEFORE this migration, delete the L1.10 source row
+(`DELETE FROM <assist>.knowledge_sources WHERE version = 'L1.10'`, cascading to its items)
+and re-run the tool. Nothing cites a knowledge item yet, so nothing is lost.
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql

@@ -89,3 +89,39 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
     assert rows == {"L1.10": "L1.5", "L1.5": None}
     found = constitution.item_for_section(db, "14")
     assert found and found[1].startswith("14. Fixed-Term Commitments")
+
+
+# --- PHASE 3 / AM-82: child retrieval records, breadcrumbs, parent expansion -------
+
+def test_every_child_carries_a_breadcrumb_naming_its_place_and_nature():
+    position = next(p for p in _items("31.2", "PARAGRAPH")
+                    if p.content.startswith("Established Company Position"))
+    history = next(p for p in _items("31.2", "PARAGRAPH")
+                   if p.content.startswith("Historical exceptions"))
+    assert position.breadcrumb.startswith("Legal Constitution L1.10 · 31.")
+    assert "31.2 Early Termination" in position.breadcrumb
+    assert history.breadcrumb.endswith("historical evidence, not current policy")
+    assert all(i.breadcrumb for i in ITEMS if i.kind == "PARAGRAPH")
+
+
+def test_constitution_search_finds_the_position_one_child_per_parent(db):
+    constitution.ingest(db)
+    perms = frozenset({"assist.ask", "legal_position.view"})
+    hits = constitution.search(db, query="early exit fixed-term commitment committed-term "
+                               "value payable", permissions=perms, embed_query=lambda q: None)
+    assert hits and hits[0].section_path in ("14", "31.2")
+    assert len({h.parent_id for h in hits}) == len(hits), "two children of one parent"
+    assert not any(h.status == "UNRATIFIED" for h in hits)
+    assert constitution.search(db, query="early exit", permissions=frozenset({"assist.ask"}),
+                               embed_query=lambda q: None) == []       # LEGAL-02
+
+
+def test_expansion_restores_the_provision_and_labels_history(db):
+    constitution.ingest(db)
+    perms = frozenset({"assist.ask", "legal_position.view"})
+    hit = next(h for h in constitution.search(
+        db, query="historical exceptions signed MSAs 30-day no-penalty exit",
+        permissions=perms, embed_query=lambda q: None) if h.section_path == "31.2")
+    context = constitution.expand(db, hit.item_id)
+    assert "Established Company Position" in context
+    assert "[historical evidence, not current policy] Historical exceptions" in context

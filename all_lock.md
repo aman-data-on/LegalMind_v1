@@ -20054,3 +20054,65 @@ sections, 0 numbering jumps over 100, 0 chunks over 2,000 characters.
 
 --------------------------------------------------------------------------------
 AM-81: Phase 2 closed — Income-tax Act from India Code, Gazette Schedules, withdrawal
+
+================================================================================
+AMENDMENT BATCH AB-32 — `AM-82`
+Hierarchical retrieval records: children are searched, parents are restored
+================================================================================
+
+**Owner decision, 2026-09-24** — the master RAG roadmap (`AM-79`'s owner authority),
+§3: *"Small, semantically coherent child units should be searchable. When a child is
+retrieved, reconstruct its parent/nearby legal context before giving evidence to
+Gemini … Each retrievable child should carry a breadcrumb … Duplicate child hits from
+one parent do not crowd out other sources."* Roadmap PHASE 3.
+
+**Amends:** `AM-27`/`AM-32`'s authorized assist tables (+1, `knowledge_item_embeddings`);
+`AM-79` r1's `knowledge_items` columns (+`breadcrumb`, and its full-text index now
+covers it). **Does not amend:** `AM-27` r4 (a stored chunk references exactly one
+evidence row — parents are assembled at READ time); `AM-28` gate calibration;
+`AM-32` r7; `AM-48` r6; `AM-79` r6; rules 7, 17, 21.
+
+```text
+r1   THE CONSTITUTION'S CHILDREN ARE ITS RETRIEVAL RECORDS. Each PARAGRAPH item (a
+     rule with its list-item conditions attached) carries a breadcrumb built only from
+     metadata it already has — "Legal Constitution L1.10 · 31. … · 31.2 Early
+     Termination — MSA …", plus "historical evidence, not current policy" or "the
+     company's reading of the law" where its authority says so. The breadcrumb is
+     indexed and embedded with the text and is never part of the content.
+
+r2   CONSTITUTION SEARCH (constitution.search): hybrid lexical (length-normalised
+     ts_rank over breadcrumb + text) and vector over the CURRENT version's children,
+     fused by reciprocal rank, collapsed to the best child per parent; UNRATIFIED
+     text never returned; HISTORICAL returned with its status for the evidence layer
+     to label; authorized as Domain A (`positions.can_read`, LEGAL-02). No production
+     route reaches it until PHASE 7.
+
+r3   PARENTS ARE RESTORED AT READ TIME. constitution.expand (the provision's sibling
+     paragraphs, each non-current one labelled), statutes.expand_section (the whole
+     section, headed Act · section · marginal note), store.expand_chunk (a document
+     chunk's neighbours inside its own evidence row). Each windows around the hit
+     under a size bound and never alters or stores text.
+
+r4   ONE CHILD PER PARENT IN STATUTE RESULTS. search_statutes keeps the best-ranked
+     chunk per (Act, section); the freed slots go to other sections, and the section
+     is recovered by expand_section.
+
+r5   THE STATUTE BREADCRUMB IS NOT EMBEDDED — measured, not assumed. Embedding
+     breadcrumb + text moved the MiniLM-calibrated gate's cosine distribution: a
+     question that must refuse ("the current law on TDS for professional fees") drew
+     six unrelated Companies Act and Arbitration Act units, for one rank gained on one
+     question. Statute vectors stay over the text alone; the breadcrumb heads the
+     expanded parent. Re-embedding replaces an Act's vectors wholesale.
+```
+
+**Recorded 2026-09-24.** Implemented and verified before the record was written, on
+branch `feat/legalmind-rag-production` (not deployed). Constitution lane over the 41
+Constitution slots of the PHASE 0 benchmark (corrected gold — §31.2 states §14's
+position and is accepted beside it): recall@3 0.878, recall@6 0.902, MRR 0.810; 13 of
+14 golden early-termination cases reach their Constitution position at rank 1–2,
+the golden question itself [§14/§31.2 rank 1, the §31.2 historical exceptions rank 1,
+§28.4.1 rank 2]. Production retrieval unchanged in measured outcome (recall@3 0.506,
+wrong-source 0.040, false admission 0.200).
+
+--------------------------------------------------------------------------------
+AM-82: hierarchical retrieval records — children are searched, parents are restored

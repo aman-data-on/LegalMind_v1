@@ -305,3 +305,16 @@ def test_a_replacement_source_takes_over_the_row_it_replaces(db):
         "official_title": "The Synthetic Widgets Act, 1899 — as enacted",
         "replaces_file_sha256": old_sha})
     assert len(rows) == 1
+
+
+def test_one_section_takes_one_slot_and_expands_back_whole(db):
+    """PHASE 3: children of one section collapse to its best chunk, and the section is
+    rebuilt for generation by `expand_section` — the dropped siblings lose no text."""
+    from legalmind.assist import statutes as st
+    _statute(db, "The Synthetic Widgets Act, 2099", [("1", 3), ("2", 1)])
+    hits = st.search_statutes(db, query="handler shall record the outcome with care",
+                              permissions=frozenset({_ask()}), embed_query=lambda q: None)
+    assert [h.section_number for h in hits] == ["1", "2"]
+    whole = st.expand_section(db, hits[0].statute_chunk_id)
+    assert whole.startswith("The Synthetic Widgets Act, 2099 · Section 1")
+    assert whole.count("synthetic widget") == 3

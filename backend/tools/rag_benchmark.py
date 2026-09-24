@@ -39,6 +39,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind.assist import (
+    constitution,
     positions,
     routing,
     service,
@@ -127,7 +128,7 @@ def score_case(case: dict, shown: list[str], wide: list[str], searched: set[str]
             "ndcg5": round(dcg / idcg, 4) if idcg else None, "shown": shown}
 
 
-def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool]:
+def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool, str]:
     """The production no-document path of `service._ask`, retrieval only."""
     question = case["question"]
     resolved = question
@@ -138,7 +139,7 @@ def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool]:
                          statutes_available=statutes.available(db),
                          statute_jurisdictions=statutes.jurisdictions(db))
     if route.general_knowledge or route.capability or route.comparison or route.unmet:
-        return [], [], set(), True
+        return [], [], set(), True, resolved
     domains = tuple(d.value for d in route.domains)
     pos = (positions.search_positions(db, query=resolved, permissions=PERMISSIONS,
                                       limit=service.POSITION_LIMIT,
@@ -153,7 +154,15 @@ def retrieve(db, case: dict) -> tuple[list[str], list[str], set[str], bool]:
         positions.search_positions(db, query=resolved, permissions=PERMISSIONS, limit=WIDE),
         statutes.search_statutes(db, query=resolved, permissions=PERMISSIONS, limit=WIDE,
                                  include_superseded=True))
-    return hit_refs(pos, stat), wide, set(domains), False
+    return hit_refs(pos, stat), wide, set(domains), False, resolved
+
+
+def constitution_lane(db, question: str, limit: int) -> list[str]:
+    """PHASE 3 diagnostic: the Constitution's own retrieval records, which no
+    production route reaches until PHASE 7. Scored apart so the production numbers
+    stay the production numbers."""
+    return [f"CONST:{h.section_path}" for h in constitution.search(
+        db, query=question, permissions=PERMISSIONS, limit=limit)]
 
 
 def corpus_refs(db) -> list[str]:
@@ -193,13 +202,28 @@ def run(db) -> dict:
     def exists(ref):
         return any(ref_matches(ref, h) for h in held)
     results = []
+    const_ranks: list[int | None] = []
     for c in cases:
-        shown, wide, searched, short = retrieve(db, c)
+        shown, wide, searched, short, resolved = retrieve(db, c)
         results.append(score_case(c, shown, wide, searched, exists, short))
+        const_slots = [s for s in c["gold"] if any(r.startswith("CONST:") for r in s)]
+        if const_slots:
+            lane = constitution_lane(db, resolved, 10)
+            for slot in const_slots:
+                const_ranks.append(_rank([r for r in slot if r.startswith("CONST:")], lane))
+                results[-1].setdefault("constitution_lane", []).append(const_ranks[-1])
     by_cat = collections.defaultdict(list)
     for r in results:
         by_cat[r["category"]].append(r)
+    def at(k):
+        return round(sum(1 for r in const_ranks if r and r <= k) / len(const_ranks), 4) \
+            if const_ranks else None
     return {"overall": aggregate(results),
+            "constitution_lane": {"slots": len(const_ranks), "recall@3": at(3),
+                                  "recall@6": at(6), "recall@10": at(10),
+                                  "mrr": round(sum(1 / r for r in const_ranks if r)
+                                               / len(const_ranks), 4)
+                                  if const_ranks else None},
             "golden": aggregate([r for r in results if r["golden"]]),
             "by_category": {k: aggregate(v) for k, v in sorted(by_cat.items())},
             "cases": results}
@@ -215,7 +239,7 @@ def main() -> int:
     engine = create_engine(args.db, future=True,
                            connect_args={"options": "-c default_transaction_read_only=on"})
     out = run(sessionmaker(bind=engine, future=True)()) | {"label": args.label}
-    for name in ("overall", "golden"):
+    for name in ("overall", "golden", "constitution_lane"):
         print(name, json.dumps(out[name]))
     for cat, m in out["by_category"].items():
         print(f"  {cat}: n={m['cases']} r@3={m['recall@3']} mrr={m['mrr']} "

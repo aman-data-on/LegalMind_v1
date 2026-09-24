@@ -416,10 +416,8 @@ def embed_positions(db: DBSession) -> int:
     no lexeme with "terminated by either Party … thirty (30) days' notice" — and
     the calibrated gate decides whether a vector-only neighbour is evidence at all.
     """
-    from legalmind.assist import calibration, embedding_runtime, store
+    from legalmind.assist import store
 
-    if not embedding_runtime.available():
-        return 0
     schema = config.assist_schema()
     rows = db.execute(sql_text(f"""
         SELECT pc.id, pc.content FROM "{schema}".position_chunks pc
@@ -427,28 +425,19 @@ def embed_positions(db: DBSession) -> int:
                             WHERE e.position_chunk_id = pc.id)
          ORDER BY pc.standard_code, pc.ordinal
     """)).all()
-    if not rows:
+    written = store.embed_into(db, table="position_chunk_embeddings",
+                               fk="position_chunk_id", rows=[(r[0], r[1]) for r in rows])
+    if not written:
         return 0
-    vectors = embedding_runtime.embed_texts([r[1] for r in rows])
-    if vectors is None:
-        return 0
-    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
-    name, _, revision = identity.partition("@")
-    model_id = store.register_embedding_model(
-        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
-        dimensions=calibration.EMBEDDING_DIMENSIONS,
-        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
-    vtype = store.vector_type(db)
-    db.execute(sql_text(f"""
-        INSERT INTO "{schema}".position_chunk_embeddings
-            (id, position_chunk_id, embedding_model_id, embedding)
-        VALUES (:i, :c, :m, CAST(:v AS {vtype}))
-        ON CONFLICT (position_chunk_id, embedding_model_id) DO NOTHING
-    """), [{"i": str(uuid4()), "c": r[0], "m": model_id,
-            "v": "[" + ",".join(f"{x:.6f}" for x in vec) + "]"}
-           for r, vec in zip(rows, vectors, strict=True)])
-    log_event("assist.positions.embedded", count=len(rows))
-    return len(rows)
+    log_event("assist.positions.embedded", count=written)
+    return written
+
+
+def can_read(permissions: frozenset[str]) -> bool:
+    """Who may read the organization's positions — Domain A and the Constitution alike
+    (`AM-44`, `AM-79` r2): assist.ask AND (configuration.view OR legal_position.view)."""
+    return P.ASSIST_ASK in permissions and (
+        P.CONFIGURATION_VIEW in permissions or P.LEGAL_POSITION_VIEW in permissions)
 
 
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
@@ -492,8 +481,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     """
     # `AM-32` r5 as amended by `AM-44` (2026-09-08): `configuration.view` OR
     # `legal_position.view` — see `routing.positions_permitted` for the reasoning.
-    if P.ASSIST_ASK not in permissions or not (
-            P.CONFIGURATION_VIEW in permissions or P.LEGAL_POSITION_VIEW in permissions):
+    if not can_read(permissions):
         return []
     schema = config.assist_schema()
     # OR-semantics with a match floor (2026-09-08). `plainto_tsquery` ANDs every

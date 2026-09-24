@@ -41,6 +41,7 @@ SOURCE_TYPE = "COMPANY_CONSTITUTION"
 TITLE = "Legal Mind — Legal Constitution"
 # Adoption dates from the lock records: L1.5 by AM-43 (2026-09-08), L1.10 by AM-59.
 VERSIONS = {"L1.5": datetime.date(2026, 9, 8), "L1.10": datetime.date(2026, 9, 13)}
+_CURRENT_VERSION = "L1.10"
 
 _HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 _NUMBER = re.compile(r"^(?:Section\s+)?(\d+(?:\.\d+)*[a-z]?)\.?\s+(.*)$")
@@ -71,6 +72,7 @@ class Item:
     authority: str = "COMPANY_CONSTITUTION"
     status: str = "CURRENT"
     cross_references: tuple[str, ...] = ()
+    breadcrumb: str = ""
 
     @property
     def content(self) -> str:
@@ -165,6 +167,22 @@ def _classify(items: list[Item]) -> None:
             item.authority = "SECONDARY_REFERENCE"
         refs = {r for r in _XREF.findall(item.content) if r in paths}
         item.cross_references = tuple(sorted(refs - {item.section_path}))
+    for item in items:
+        item.breadcrumb = _breadcrumb(items, item)
+
+
+# Retrieval text says what a passage IS, from metadata already on the item — never
+# new content (roadmap §3: "improves retrieval without changing the source text").
+_AUTHORITY_LABEL = {"HISTORICAL_EXCEPTION": "historical evidence, not current policy",
+                    "SECONDARY_REFERENCE": "the company's reading of the law"}
+
+
+def _breadcrumb(items: list[Item], item: Item) -> str:
+    heads = [a.clause for a in reversed([item, *_ancestors(items, item)])
+             if a.clause and a.kind != "DOCUMENT"]
+    label = _AUTHORITY_LABEL.get(item.authority)
+    return " · ".join([f"Legal Constitution {_CURRENT_VERSION}", *heads,
+                       *([label] if label else [])])
 
 
 def ingest(db: DBSession) -> dict:
@@ -191,14 +209,21 @@ def ingest(db: DBSession) -> dict:
         db.execute(text(f"""
             INSERT INTO "{schema}".knowledge_items
               (id, source_id, parent_id, ordinal, kind, section_path, clause, content,
-               authority, status, cross_references, line_start, line_end)
-            VALUES (:id, :s, :p, :o, :k, :sp, :c, :ct, :a, :st, :x, :ls, :le)"""), {
+               authority, status, cross_references, line_start, line_end, breadcrumb)
+            VALUES (:id, :s, :p, :o, :k, :sp, :c, :ct, :a, :st, :x, :ls, :le, :b)"""), {
             "id": ids[item.ordinal], "s": source_id,
             "p": ids[item.parent] if item.parent is not None else None,
             "o": item.ordinal, "k": item.kind, "sp": item.section_path, "c": item.clause,
             "ct": item.content, "a": item.authority, "st": item.status,
-            "x": list(item.cross_references), "ls": item.line_start, "le": item.line_end})
-    return {"source_id": str(source_id), "changed": True, "items": len(items)}
+            "x": list(item.cross_references), "ls": item.line_start, "le": item.line_end,
+            "b": item.breadcrumb})
+    from legalmind.assist import store
+    embedded = store.embed_into(
+        db, table="knowledge_item_embeddings", fk="knowledge_item_id",
+        rows=[(ids[i.ordinal], f"{i.breadcrumb}\n{i.content}") for i in items
+              if i.kind == "PARAGRAPH" and i.status != "UNRATIFIED"])
+    return {"source_id": str(source_id), "changed": True, "items": len(items),
+            "embedded": embedded}
 
 
 def _source(db, schema, version, status, path, sha, supersedes=None, effective_to=None):
@@ -232,3 +257,126 @@ def item_for_section(db: DBSession, section: str):
          WHERE s.source_type = :t AND s.status = 'CURRENT' AND i.section_path = :p
            AND i.kind <> 'PARAGRAPH'
          ORDER BY i.ordinal LIMIT 1"""), {"t": SOURCE_TYPE, "p": section}).first()
+
+
+# ---------------------------------------------------------------------------------
+# Retrieval over the child records — roadmap PHASE 3 (`AM-82`)
+# ---------------------------------------------------------------------------------
+@dataclasses.dataclass(frozen=True)
+class ConstitutionHit:
+    item_id: uuid.UUID
+    parent_id: uuid.UUID | None
+    section_path: str | None
+    breadcrumb: str
+    content: str
+    authority: str
+    status: str
+    score: float
+
+
+CANDIDATES = 100
+_TSQ = "to_tsquery('english', (SELECT array_to_string(lex, ' | ') FROM q))"
+# Length-normalised rank (normalization 1 = divide by 1 + log(length)), not a raw
+# count of shared words: by count, the §27 Counsel checklist TABLE outranked §14 for
+# an early-exit question because one long table mentions nearly everything. Measured
+# on the 41 Constitution slots of the PHASE 0 benchmark (2026-09-24, corrected gold),
+# with vectors: r@1 0.707 → 0.732, r@3 0.878 → 0.902, MRR 0.798 → 0.822, r@10 equal;
+# lexical only (no model): r@1 0.244 → 0.488, MRR 0.445 → 0.645.
+LEXICAL_ORDER = f"ts_rank(i.content_tsv, {_TSQ}, 1) DESC"
+
+
+def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int = 6,
+           embed_query=None) -> list[ConstitutionHit]:
+    """Hybrid retrieval over the Constitution's PARAGRAPH records (the children) of
+    the CURRENT version, authorized inside the function (`AM-79` r2). Lexical (shared
+    lexemes over breadcrumb + text) and vector lists are fused by reciprocal rank,
+    then collapsed to the best child per parent — so one provision's six paragraphs
+    cannot take every slot (roadmap §3 exit). UNRATIFIED text is never returned;
+    HISTORICAL text is, carrying its status, for the evidence layer to label."""
+    from legalmind.assist import calibration, embedding_runtime, store
+
+    if not can_search(permissions) or not (query or "").strip():
+        return []
+    schema = config.assist_schema()
+    scope = f"""JOIN "{schema}".knowledge_sources s ON s.id = i.source_id
+       WHERE s.source_type = '{SOURCE_TYPE}' AND s.status = 'CURRENT'
+         AND i.kind = 'PARAGRAPH' AND i.status <> 'UNRATIFIED'"""
+    cols = ("i.id, i.parent_id, i.section_path, i.breadcrumb, i.content, i.authority, "
+            "i.status")
+    floor = 2 if len(query.split()) > 1 else 1
+    lexical = [r for r in db.execute(text(f"""
+        WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex)
+        SELECT {cols}, (SELECT count(*) FROM q, unnest(tsvector_to_array(i.content_tsv)) l
+                         WHERE l = ANY(q.lex)) AS matched
+          FROM "{schema}".knowledge_items i {scope}
+         ORDER BY {LEXICAL_ORDER}, i.ordinal
+         LIMIT :n"""), {"q": query, "n": CANDIDATES}).all() if r.matched >= floor]
+    vector: list = []
+    embedded = (embed_query or embedding_runtime.embed_query)(query)
+    if embedded is not None:
+        op = f'OPERATOR("{store.vector_schema(db)}".<=>)'
+        vtype = store.vector_type(db)
+        literal = "[" + ",".join(f"{x:.6f}" for x in embedded[0]) + "]"
+        vector = list(db.execute(text(f"""
+            SELECT {cols} FROM "{schema}".knowledge_item_embeddings e
+              JOIN "{schema}".knowledge_items i ON i.id = e.knowledge_item_id {scope}
+             ORDER BY e.embedding {op} CAST(:v AS {vtype}), i.ordinal
+             LIMIT :n"""), {"v": literal, "n": CANDIDATES}).all())
+    fused: dict = {}
+    rows: dict = {}
+    for ranked in (lexical, vector):
+        for rank, r in enumerate(ranked, start=1):
+            fused[r.id] = fused.get(r.id, 0.0) + 1 / (calibration.RRF_K + rank)
+            rows.setdefault(r.id, r)
+    hits, parents = [], set()
+    for item_id in sorted(fused, key=lambda i: -fused[i]):
+        r = rows[item_id]
+        if r.parent_id in parents:
+            continue
+        parents.add(r.parent_id)
+        hits.append(ConstitutionHit(r.id, r.parent_id, r.section_path, r.breadcrumb,
+                                    r.content, r.authority, r.status, fused[item_id]))
+        if len(hits) == limit:
+            break
+    return hits
+
+
+def can_search(permissions: frozenset[str]) -> bool:
+    from legalmind.assist import positions
+    return positions.can_read(permissions)
+
+
+def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
+    """The parent context of a retrieved child: its breadcrumb, then every sibling
+    paragraph under the same heading in document order, windowed around the hit when
+    the provision is longer than `max_chars`. The child stays verbatim and complete.
+    Siblings keep their own status — a HISTORICAL paragraph beside a CURRENT position
+    is expanded with its label, so the two can never read as one."""
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT s.id, s.content, s.authority, s.status, s.breadcrumb, s.id = :i AS hit
+          FROM "{schema}".knowledge_items c
+          JOIN "{schema}".knowledge_items s
+            ON s.parent_id IS NOT DISTINCT FROM c.parent_id AND s.source_id = c.source_id
+         WHERE c.id = :i AND s.kind = 'PARAGRAPH' AND s.status <> 'UNRATIFIED'
+         ORDER BY s.ordinal"""), {"i": item_id}).all()
+    if not rows:
+        return ""
+    at = next(n for n, r in enumerate(rows) if r.hit)
+    parts = [r.content if r.authority == "COMPANY_CONSTITUTION" and r.status == "CURRENT"
+             else f"[{_AUTHORITY_LABEL.get(r.authority, r.status.lower())}] {r.content}"
+             for r in rows]
+    lo = hi = at
+    size = len(parts[at])
+    while (lo > 0 or hi < len(parts) - 1) and size < max_chars:
+        if hi < len(parts) - 1 and size + len(parts[hi + 1]) <= max_chars:
+            hi += 1
+            size += len(parts[hi])
+        elif lo > 0 and size + len(parts[lo - 1]) <= max_chars:
+            lo -= 1
+            size += len(parts[lo])
+        else:
+            break
+    head = rows[at].breadcrumb.rsplit(" · ", 1)[0] if rows[at].authority != \
+        "COMPANY_CONSTITUTION" else rows[at].breadcrumb
+    return head + "\n" + "\n\n".join(parts[lo:hi + 1])
