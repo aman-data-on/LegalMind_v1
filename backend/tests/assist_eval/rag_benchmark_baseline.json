@@ -1,0 +1,1853 @@
+{
+ "overall": {
+  "cases": 76,
+  "slots": 81,
+  "recall@3": 0.4938,
+  "recall@10": 0.5185,
+  "hit@1": 0.4348,
+  "mrr": 0.4387,
+  "ndcg@5": 0.564,
+  "multi_source_complete": 0.0,
+  "wrong_source_rate": 0.0526,
+  "false_admission_rate": 0.2,
+  "failure_codes": {
+   "SOURCE_NOT_INDEXED": 6,
+   "ROUTE_MISSED": 6,
+   "RETRIEVAL_MISS": 14,
+   "RANK_CUTOFF": 11,
+   "SOURCE_MISSING": 2,
+   "RANK_LOW": 2
+  }
+ },
+ "golden": {
+  "cases": 14,
+  "slots": 18,
+  "recall@3": 0.3333,
+  "recall@10": 0.3333,
+  "hit@1": 0.1429,
+  "mrr": 0.213,
+  "ndcg@5": 0.2898,
+  "multi_source_complete": 0.0,
+  "wrong_source_rate": 0.1429,
+  "false_admission_rate": null,
+  "failure_codes": {
+   "SOURCE_NOT_INDEXED": 3,
+   "ROUTE_MISSED": 2,
+   "RETRIEVAL_MISS": 3,
+   "RANK_CUTOFF": 4
+  }
+ },
+ "by_category": {
+  "A": {
+   "cases": 6,
+   "slots": 6,
+   "recall@3": 1.0,
+   "recall@10": 1.0,
+   "hit@1": 0.8333,
+   "mrr": 0.9167,
+   "ndcg@5": 1.0436,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {}
+  },
+  "B": {
+   "cases": 7,
+   "slots": 7,
+   "recall@3": 0.5714,
+   "recall@10": 0.5714,
+   "hit@1": 0.4286,
+   "mrr": 0.5,
+   "ndcg@5": 0.6088,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 2,
+    "RANK_CUTOFF": 1
+   }
+  },
+  "C": {
+   "cases": 8,
+   "slots": 8,
+   "recall@3": 0.625,
+   "recall@10": 0.625,
+   "hit@1": 0.375,
+   "mrr": 0.5,
+   "ndcg@5": 0.6741,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 1,
+    "RANK_CUTOFF": 1,
+    "ROUTE_MISSED": 1
+   }
+  },
+  "D": {
+   "cases": 4,
+   "slots": 8,
+   "recall@3": 0.375,
+   "recall@10": 0.375,
+   "hit@1": 0.5,
+   "mrr": 0.375,
+   "ndcg@5": 0.5565,
+   "multi_source_complete": 0.0,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 3,
+    "RANK_CUTOFF": 1,
+    "ROUTE_MISSED": 1
+   }
+  },
+  "E": {
+   "cases": 5,
+   "slots": 11,
+   "recall@3": 0.4545,
+   "recall@10": 0.4545,
+   "hit@1": 0.8,
+   "mrr": 0.4091,
+   "ndcg@5": 0.5497,
+   "multi_source_complete": 0.0,
+   "wrong_source_rate": 0.2,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "SOURCE_NOT_INDEXED": 1,
+    "ROUTE_MISSED": 3,
+    "RANK_CUTOFF": 1,
+    "RETRIEVAL_MISS": 1
+   }
+  },
+  "F": {
+   "cases": 6,
+   "slots": 6,
+   "recall@3": 0.8333,
+   "recall@10": 0.8333,
+   "hit@1": 0.6667,
+   "mrr": 0.7222,
+   "ndcg@5": 0.8333,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RANK_CUTOFF": 1
+   }
+  },
+  "G": {
+   "cases": 4,
+   "slots": 4,
+   "recall@3": 0.25,
+   "recall@10": 0.25,
+   "hit@1": 0.25,
+   "mrr": 0.25,
+   "ndcg@5": 0.375,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 2,
+    "SOURCE_NOT_INDEXED": 1
+   }
+  },
+  "H": {
+   "cases": 5,
+   "slots": 6,
+   "recall@3": 0.0,
+   "recall@10": 0.1667,
+   "hit@1": 0.0,
+   "mrr": 0.0278,
+   "ndcg@5": 0.0,
+   "multi_source_complete": 0.0,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "SOURCE_NOT_INDEXED": 3,
+    "RANK_CUTOFF": 1,
+    "SOURCE_MISSING": 1,
+    "RANK_LOW": 1
+   }
+  },
+  "I": {
+   "cases": 5,
+   "slots": 5,
+   "recall@3": 0.8,
+   "recall@10": 0.8,
+   "hit@1": 0.4,
+   "mrr": 0.5667,
+   "ndcg@5": 0.6262,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.2,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 1
+   }
+  },
+  "J": {
+   "cases": 4,
+   "slots": 4,
+   "recall@3": 0.0,
+   "recall@10": 0.0,
+   "hit@1": 0.0,
+   "mrr": 0.0,
+   "ndcg@5": 0.0,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 3,
+    "RANK_CUTOFF": 1
+   }
+  },
+  "K": {
+   "cases": 5,
+   "slots": 5,
+   "recall@3": 0.2,
+   "recall@10": 0.2,
+   "hit@1": 0.2,
+   "mrr": 0.2,
+   "ndcg@5": 0.2,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RANK_CUTOFF": 4
+   }
+  },
+  "L": {
+   "cases": 4,
+   "slots": 4,
+   "recall@3": 0.75,
+   "recall@10": 1.0,
+   "hit@1": 0.5,
+   "mrr": 0.675,
+   "ndcg@5": 0.7545,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.25,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RANK_LOW": 1
+   }
+  },
+  "M": {
+   "cases": 4,
+   "slots": 0,
+   "recall@3": null,
+   "recall@10": null,
+   "hit@1": null,
+   "mrr": null,
+   "ndcg@5": null,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.25,
+   "false_admission_rate": 0.25,
+   "failure_codes": {}
+  },
+  "N": {
+   "cases": 4,
+   "slots": 2,
+   "recall@3": 0.5,
+   "recall@10": 0.5,
+   "hit@1": 0.5,
+   "mrr": 0.5,
+   "ndcg@5": 0.5,
+   "multi_source_complete": null,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": null,
+   "failure_codes": {
+    "RETRIEVAL_MISS": 1
+   }
+  },
+  "O": {
+   "cases": 5,
+   "slots": 5,
+   "recall@3": 0.4,
+   "recall@10": 0.4,
+   "hit@1": 0.5,
+   "mrr": 0.4,
+   "ndcg@5": 0.8448,
+   "multi_source_complete": 0.0,
+   "wrong_source_rate": 0.0,
+   "false_admission_rate": 0.0,
+   "failure_codes": {
+    "ROUTE_MISSED": 1,
+    "SOURCE_NOT_INDEXED": 1,
+    "SOURCE_MISSING": 1
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "GT-00",
+   "category": "E",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "SOURCE_NOT_INDEXED"
+    },
+    {
+     "rank": null,
+     "code": "ROUTE_MISSED"
+    }
+   ],
+   "wrong_source": [
+    "POS:LIABILITY-MSA-001"
+   ],
+   "false_admission": false,
+   "ndcg5": 0.2961,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:EARLY-TERM-RESTRICTION-MSA-001",
+    "POS:CURE-PERIOD-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-01",
+   "category": "F",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 3,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.5,
+   "shown": [
+    "POS:CONF-SURVIVAL-MSA-001",
+    "POS:SERVICE-DISCONTINUATION-MSA-001",
+    "POS:EARLY-TERM-RESTRICTION-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-02",
+   "category": "C",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:SERVICE-DISCONTINUATION-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-03",
+   "category": "L",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:EARLY-TERM-RESTRICTION-MSA-001",
+    "POS:LATE-FEE-TOS-001",
+    "POS:TERM-CONSEQUENCES-PARTNER_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "GT-04",
+   "category": "B",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:TERM-CONSEQUENCES-PARTNER_AGREEMENT-001",
+    "POS:COMPLIANCE-TERMINATION-POST-DISTRIBUTION_AGREEMENT-001",
+    "POS:SERVICE-DISCONTINUATION-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-05",
+   "category": "B",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:SECURITY-DATA-PROTECTION-VENDOR_AGREEMENT-001",
+    "POS:COMPLIANCE-TERMINATION-POST-DISTRIBUTION_AGREEMENT-001",
+    "POS:DATA-PURGE-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-06",
+   "category": "A",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6309,
+   "shown": [
+    "POS:SERVICE-DISCONTINUATION-MSA-001",
+    "POS:EARLY-TERM-RESTRICTION-MSA-001",
+    "POS:CONVENIENCE-NOTICE-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-07",
+   "category": "C",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": []
+  },
+  {
+   "id": "GT-08",
+   "category": "I",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [
+    "POS:LIABILITY-MSA-001"
+   ],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-09",
+   "category": "I",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6309,
+   "shown": [
+    "POS:CURE-PERIOD-MSA-001",
+    "POS:EARLY-TERM-RESTRICTION-MSA-001",
+    "POS:LIABILITY-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-10",
+   "category": "H",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "SOURCE_NOT_INDEXED"
+    },
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:CONVENIENCE-NOTICE-MSA-001",
+    "POS:CHANGE-OF-CONTROL-NOTICE-MSA-001",
+    "POS:SERVICE-DISCONTINUATION-MSA-001",
+    "STAT:Arbitration and Conciliation Act, 1996:87",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Central Goods and Services Tax Act, 2017:79",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:117",
+    "STAT:Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021:3"
+   ]
+  },
+  {
+   "id": "GT-11",
+   "category": "O",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "ROUTE_MISSED"
+    },
+    {
+     "rank": null,
+     "code": "SOURCE_NOT_INDEXED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001",
+    "POS:GOVERNING-LAW-DISPUTE-VENDOR_AGREEMENT-001",
+    "POS:GST-EXCLUSIVE-MSA-001"
+   ]
+  },
+  {
+   "id": "GT-12",
+   "category": "K",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:TERM-CONSEQUENCES-PARTNER_AGREEMENT-001",
+    "POS:SUPPORT-RESPONSIBILITIES-PARTNER_AGREEMENT-001",
+    "POS:NON-CIRCUMVENTION-PARTNER_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "GT-13",
+   "category": "C",
+   "golden": true,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:EARLY-TERM-RESTRICTION-MSA-001",
+    "POS:PAYMENT-PERIOD-MSA-001",
+    "POS:SERVICE-DISCONTINUATION-MSA-001"
+   ]
+  },
+  {
+   "id": "A-01",
+   "category": "A",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:CONVENIENCE-NOTICE-MSA-001",
+    "POS:CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001",
+    "POS:CHANGE-OF-CONTROL-NOTICE-MSA-001"
+   ]
+  },
+  {
+   "id": "A-02",
+   "category": "A",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:DISPUTE-WINDOW-MSA-001",
+    "POS:PAYMENT-PERIOD-MSA-001",
+    "POS:PRICING-PAYMENT-VENDOR_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "A-03",
+   "category": "A",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "STAT:Information Technology Act, 2000:43A",
+    "STAT:Information Technology Act, 2000:266A",
+    "STAT:Information Technology Act, 2000:19",
+    "STAT:Information Technology Act, 2000:46",
+    "STAT:Information Technology Act, 2000:1",
+    "STAT:Information Technology Act, 2000:266A"
+   ]
+  },
+  {
+   "id": "A-04",
+   "category": "A",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.6309,
+   "shown": [
+    "STAT:Indian Contract Act, 1872:74",
+    "STAT:Indian Contract Act, 1872:74",
+    "STAT:Indian Contract Act, 1872:178A",
+    "STAT:Indian Contract Act, 1872:15",
+    "STAT:Indian Contract Act, 1872:16",
+    "STAT:Indian Contract Act, 1872:154"
+   ]
+  },
+  {
+   "id": "A-05",
+   "category": "A",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:CONF-SURVIVAL-NDA-001",
+    "POS:NON-SOLICIT-NDA-001",
+    "POS:TERM-NOTICE-NDA-001",
+    "STAT:Digital Personal Data Protection Act, 2023:17",
+    "STAT:Companies Act, 2013:135",
+    "STAT:Companies Act, 2013:243",
+    "STAT:Copyright Act, 1957:19",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Arbitration and Conciliation Act, 1996:87"
+   ]
+  },
+  {
+   "id": "B-01",
+   "category": "B",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:CURE-PERIOD-MSA-001",
+    "POS:CHANGE-OF-CONTROL-NOTICE-MSA-001"
+   ]
+  },
+  {
+   "id": "B-02",
+   "category": "B",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.6309,
+   "shown": [
+    "POS:DATA-RETRIEVAL-TOS-001",
+    "POS:DATA-PURGE-MSA-001",
+    "POS:CONVENIENCE-NOTICE-MSA-001"
+   ]
+  },
+  {
+   "id": "B-03",
+   "category": "B",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:CURE-PERIOD-MSA-001"
+   ]
+  },
+  {
+   "id": "B-04",
+   "category": "B",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:PAYMENT-PERIOD-MSA-001",
+    "POS:DISPUTE-WINDOW-MSA-001"
+   ]
+  },
+  {
+   "id": "B-05",
+   "category": "B",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6309,
+   "shown": [
+    "POS:PRICING-PAYMENT-VENDOR_AGREEMENT-001",
+    "POS:PRICE-CHANGE-NOTICE-MSA-001",
+    "POS:COMPLIANCE-TERMINATION-POST-DISTRIBUTION_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "C-01",
+   "category": "C",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6309,
+   "shown": [
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "C-02",
+   "category": "C",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.1309,
+   "shown": [
+    "POS:GOVERNING-LAW-DISPUTE-VENDOR_AGREEMENT-001",
+    "POS:GOVLAW-NDA-001",
+    "POS:GOVLAW-MSA-001"
+   ]
+  },
+  {
+   "id": "C-03",
+   "category": "C",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.6309,
+   "shown": [
+    "POS:AUTORENEW-MSA-001",
+    "POS:AUTORENEW-TOS-001"
+   ]
+  },
+  {
+   "id": "C-04",
+   "category": "C",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:NON-SOLICIT-NDA-001"
+   ]
+  },
+  {
+   "id": "C-05",
+   "category": "C",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "ROUTE_MISSED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Companies Act, 2013:470",
+    "STAT:Central Goods and Services Tax Act, 2017:142",
+    "STAT:Central Goods and Services Tax Act, 2017:132",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Central Goods and Services Tax Act, 2017:51"
+   ]
+  },
+  {
+   "id": "D-01",
+   "category": "D",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    },
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "D-02",
+   "category": "D",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6131,
+   "shown": [
+    "POS:SUSPENSION-NOTICE-CURE-MSA-001"
+   ]
+  },
+  {
+   "id": "D-03",
+   "category": "D",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    },
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6131,
+   "shown": [
+    "POS:CONF-SURVIVAL-MSA-001",
+    "POS:SERVICE-DISCONTINUATION-MSA-001",
+    "POS:DATA-PURGE-MSA-001"
+   ]
+  },
+  {
+   "id": "D-04",
+   "category": "D",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "ROUTE_MISSED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:ARBITRATION-MSA-001",
+    "POS:ARBITRATION-TOS-001"
+   ]
+  },
+  {
+   "id": "E-01",
+   "category": "E",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "ROUTE_MISSED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6131,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "E-02",
+   "category": "E",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6131,
+   "shown": [
+    "POS:SECURITY-DATA-PROTECTION-VENDOR_AGREEMENT-001",
+    "POS:TERMINATION-DATA-RETURN-VENDOR_AGREEMENT-001",
+    "POS:GOVERNING-LAW-DISPUTE-VENDOR_AGREEMENT-001",
+    "STAT:Digital Personal Data Protection Act, 2023:2",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Digital Personal Data Protection Act, 2023:44",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Digital Personal Data Protection Rules, 2025:23"
+   ]
+  },
+  {
+   "id": "E-03",
+   "category": "E",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6131,
+   "shown": [
+    "POS:NON-SOLICIT-NDA-001",
+    "POS:CONF-SURVIVAL-NDA-001",
+    "POS:TERM-NOTICE-NDA-001",
+    "STAT:Indian Contract Act, 1872:28",
+    "STAT:Indian Contract Act, 1872:75",
+    "STAT:Indian Contract Act, 1872:73",
+    "STAT:Indian Contract Act, 1872:25",
+    "STAT:Indian Contract Act, 1872:56",
+    "STAT:Indian Contract Act, 1872:17"
+   ]
+  },
+  {
+   "id": "E-04",
+   "category": "E",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    },
+    {
+     "rank": null,
+     "code": "ROUTE_MISSED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6131,
+   "shown": [
+    "POS:ARBITRATION-MSA-001",
+    "POS:GOVLAW-MSA-001",
+    "POS:PAYMENT-PERIOD-MSA-001"
+   ]
+  },
+  {
+   "id": "F-01",
+   "category": "F",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.5,
+   "shown": [
+    "POS:CONVENIENCE-NOTICE-MSA-001",
+    "POS:CHANGE-OF-CONTROL-NOTICE-MSA-001",
+    "POS:CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "F-02",
+   "category": "F",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:LATE-FEE-TOS-001"
+   ]
+  },
+  {
+   "id": "F-03",
+   "category": "F",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:KYC-RETENTION-TOS-001",
+    "STAT:Central Goods and Services Tax Act, 2017:36",
+    "STAT:Information Technology Act, 2000:266A",
+    "STAT:Copyright Act, 1957:27",
+    "STAT:CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022):vi",
+    "STAT:Copyright Act, 1957:51",
+    "STAT:Companies Act, 2013:470"
+   ]
+  },
+  {
+   "id": "F-04",
+   "category": "F",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "STAT:CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022):ii",
+    "STAT:CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022):iv",
+    "STAT:CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022):vi",
+    "STAT:CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022):vi",
+    "STAT:CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022):vi",
+    "STAT:Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021:3"
+   ]
+  },
+  {
+   "id": "F-05",
+   "category": "F",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Digital Personal Data Protection Act, 2023:44",
+    "STAT:Digital Personal Data Protection Act, 2023:44",
+    "STAT:Digital Personal Data Protection Act, 2023:2",
+    "STAT:Digital Personal Data Protection Act, 2023:1",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Digital Personal Data Protection Rules, 2025:23"
+   ]
+  },
+  {
+   "id": "G-01",
+   "category": "G",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "G-02",
+   "category": "G",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.5,
+   "shown": [
+    "POS:CONF-SURVIVAL-NDA-001",
+    "POS:NON-SOLICIT-NDA-001",
+    "POS:TRADE-SECRET-CARVEOUT-NDA-001",
+    "STAT:Digital Personal Data Protection Act, 2023:17",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Copyright Act, 1957:31C",
+    "STAT:Arbitration and Conciliation Act, 1996:87"
+   ]
+  },
+  {
+   "id": "G-03",
+   "category": "G",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "SOURCE_NOT_INDEXED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:SUSPENSION-NOTICE-CURE-MSA-001"
+   ]
+  },
+  {
+   "id": "G-04",
+   "category": "G",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:RESIDUALS-NDA-001",
+    "POS:NON-SOLICIT-NDA-001",
+    "POS:CONF-SURVIVAL-NDA-001"
+   ]
+  },
+  {
+   "id": "H-01",
+   "category": "H",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "SOURCE_NOT_INDEXED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:IP-OWNERSHIP-MSA-001",
+    "POS:LIAB-EXCLUSIONS-MSA-001",
+    "POS:LIABILITY-TOS-001",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:136",
+    "STAT:Companies Act, 2013:7",
+    "STAT:Companies Act, 2013:5",
+    "STAT:Companies Act, 2013:470"
+   ]
+  },
+  {
+   "id": "H-02",
+   "category": "H",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "SOURCE_MISSING"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Income-tax Act, 1961 (REPEALED w.e.f. 1 April 2026 by the Income-tax Act, 2025 \u2014 cited by Constitution \u00a76.1 for ss. 194J/194C):298",
+    "STAT:Income-tax Act, 1961 (REPEALED w.e.f. 1 April 2026 by the Income-tax Act, 2025 \u2014 cited by Constitution \u00a76.1 for ss. 194J/194C):298",
+    "STAT:Central Goods and Services Tax Act, 2017:10",
+    "STAT:Central Goods and Services Tax Act, 2017:5",
+    "STAT:Central Goods and Services Tax Act, 2017:150",
+    "STAT:Central Goods and Services Tax Act, 2017:5"
+   ]
+  },
+  {
+   "id": "H-03",
+   "category": "H",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "SOURCE_NOT_INDEXED"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Arbitration and Conciliation Act, 1996:87",
+    "STAT:Companies Act, 2013:137",
+    "STAT:Companies Act, 2013:117",
+    "STAT:Arbitration and Conciliation Act, 1996:87"
+   ]
+  },
+  {
+   "id": "H-04",
+   "category": "H",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 6,
+     "code": "RANK_LOW"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Companies Act, 2013:5",
+    "STAT:Companies Act, 2013:465",
+    "STAT:Companies Act, 2013:446B",
+    "STAT:Companies Act, 2013:378A",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 1956 (REPEALED \u2014 historical incorporating statute per Constitution \u00a74.1/\u00a728.4.2):575"
+   ]
+  },
+  {
+   "id": "I-02",
+   "category": "I",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 3,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.5,
+   "shown": [
+    "POS:TRADE-SECRET-CARVEOUT-NDA-001",
+    "POS:TERM-NOTICE-NDA-001",
+    "POS:CONF-SURVIVAL-NDA-001"
+   ]
+  },
+  {
+   "id": "I-03",
+   "category": "I",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:PAYMENT-TERMS-ORDER_FORM-001",
+    "POS:ACCEPTANCE-ORDER_FORM-001",
+    "POS:CHANGES-CANCELLATION-ORDER_FORM-001"
+   ]
+  },
+  {
+   "id": "I-04",
+   "category": "I",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "J-01",
+   "category": "J",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": []
+  },
+  {
+   "id": "J-02",
+   "category": "J",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "J-03",
+   "category": "J",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:CURE-PERIOD-MSA-001"
+   ]
+  },
+  {
+   "id": "J-04",
+   "category": "J",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Digital Personal Data Protection Act, 2023:44",
+    "STAT:Digital Personal Data Protection Act, 2023:2",
+    "STAT:Digital Personal Data Protection Act, 2023:44",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Digital Personal Data Protection Act, 2023:27"
+   ]
+  },
+  {
+   "id": "K-02",
+   "category": "K",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "K-03",
+   "category": "K",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": []
+  },
+  {
+   "id": "K-04",
+   "category": "K",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": []
+  },
+  {
+   "id": "K-05",
+   "category": "K",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RANK_CUTOFF"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": []
+  },
+  {
+   "id": "L-02",
+   "category": "L",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 2,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.6309,
+   "shown": [
+    "POS:TERM-CONSEQUENCES-PARTNER_AGREEMENT-001",
+    "POS:CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "L-03",
+   "category": "L",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 5,
+     "code": "RANK_LOW"
+    }
+   ],
+   "wrong_source": [
+    "STAT:Companies Act, 1956 (REPEALED \u2014 historical incorporating statute per Constitution \u00a74.1/\u00a728.4.2):293"
+   ],
+   "false_admission": false,
+   "ndcg5": 0.3869,
+   "shown": [
+    "STAT:Companies Act, 2013:5",
+    "STAT:Companies Act, 1956 (REPEALED \u2014 historical incorporating statute per Constitution \u00a74.1/\u00a728.4.2):293",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:179",
+    "STAT:Companies Act, 2013:24"
+   ]
+  },
+  {
+   "id": "L-04",
+   "category": "L",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:TERM-NOTICE-NDA-001",
+    "POS:NON-SOLICIT-NDA-001",
+    "POS:CONF-SURVIVAL-NDA-001"
+   ]
+  },
+  {
+   "id": "M-01",
+   "category": "M",
+   "golden": false,
+   "must_refuse": true,
+   "slots": [],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": null,
+   "shown": []
+  },
+  {
+   "id": "M-02",
+   "category": "M",
+   "golden": false,
+   "must_refuse": true,
+   "slots": [],
+   "wrong_source": [
+    "POS:ARBITRATION-MSA-001"
+   ],
+   "false_admission": true,
+   "ndcg5": null,
+   "shown": [
+    "POS:ARBITRATION-MSA-001"
+   ]
+  },
+  {
+   "id": "M-03",
+   "category": "M",
+   "golden": false,
+   "must_refuse": true,
+   "slots": [],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": null,
+   "shown": []
+  },
+  {
+   "id": "M-04",
+   "category": "M",
+   "golden": false,
+   "must_refuse": true,
+   "slots": [],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": null,
+   "shown": []
+  },
+  {
+   "id": "N-01",
+   "category": "N",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": null,
+   "shown": [
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-MSA-001",
+    "STAT:Companies Act, 2013:403",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Arbitration and Conciliation Act, 1996:87",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470"
+   ]
+  },
+  {
+   "id": "N-02",
+   "category": "N",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": null,
+   "shown": [
+    "POS:LIABILITY-MSA-001"
+   ]
+  },
+  {
+   "id": "N-03",
+   "category": "N",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.0,
+   "shown": [
+    "POS:LIABILITY-MSA-001",
+    "POS:LIABILITY-VENDOR_AGREEMENT-001",
+    "POS:LIABILITY-INDEMNIFICATION-DISTRIBUTION_AGREEMENT-001",
+    "STAT:Digital Personal Data Protection Rules, 2025:23",
+    "STAT:Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021:3",
+    "STAT:Copyright Act, 1957:51",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Indian Contract Act, 1872:132",
+    "STAT:Digital Personal Data Protection Rules, 2025:23"
+   ]
+  },
+  {
+   "id": "N-04",
+   "category": "N",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "RETRIEVAL_MISS"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "POS:CONFIDENTIALITY-IP-TRADEMARKS-DISTRIBUTION_AGREEMENT-001",
+    "POS:SECURITY-DATA-PROTECTION-VENDOR_AGREEMENT-001",
+    "POS:CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001"
+   ]
+  },
+  {
+   "id": "O-01",
+   "category": "O",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.9485,
+   "shown": [
+    "POS:GOVERNING-LAW-DISPUTE-VENDOR_AGREEMENT-001",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:470",
+    "STAT:Companies Act, 2013:434",
+    "STAT:Companies Act, 2013:2",
+    "STAT:Companies Act, 2013:470"
+   ]
+  },
+  {
+   "id": "O-02",
+   "category": "O",
+   "golden": false,
+   "must_refuse": true,
+   "slots": [],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": null,
+   "shown": []
+  },
+  {
+   "id": "O-03",
+   "category": "O",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": 1,
+     "code": null
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 1.4307,
+   "shown": [
+    "STAT:Bharatiya Sakshya Adhiniyam, 2023:62",
+    "STAT:Information Technology Act, 2000:266A",
+    "STAT:Companies Act, 2013:217",
+    "STAT:Bharatiya Sakshya Adhiniyam, 2023:170",
+    "STAT:Central Goods and Services Tax Act, 2017:158",
+    "STAT:Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021:3"
+   ]
+  },
+  {
+   "id": "O-04",
+   "category": "O",
+   "golden": false,
+   "must_refuse": false,
+   "slots": [
+    {
+     "rank": null,
+     "code": "SOURCE_MISSING"
+    }
+   ],
+   "wrong_source": [],
+   "false_admission": false,
+   "ndcg5": 0.0,
+   "shown": [
+    "STAT:Information Technology Act, 2000:266A",
+    "STAT:Information Technology Act, 2000:266A",
+    "STAT:Information Technology Act, 2000:1",
+    "STAT:Information Technology Act, 2000:19",
+    "STAT:Information Technology Act, 2000:46",
+    "STAT:Information Technology Act, 2000:266A"
+   ]
+  }
+ ],
+ "label": "BASELINE 2026-09-24: production corpus read-only (statutes section-1, positions-verbatim-2), main@30a1ce8, flags as production"
+}
