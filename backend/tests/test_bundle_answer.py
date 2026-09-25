@@ -3,9 +3,19 @@ import uuid
 
 import pytest
 
-from legalmind.assist import answer, evidence, generation
+from legalmind.assist import answer, evidence, generation, verify
 from legalmind.assist import query_plan as qp
 from legalmind.assist.retrieval import Candidate
+
+
+@pytest.fixture(autouse=True)
+def mechanical_layer_only(monkeypatch):
+    """These pin PHASE 10's mechanical checks. The PHASE 11 semantic layer is pinned in
+    `test_claim_verification.py` and measured with real weights by
+    `tools/eval_verification.py`; here it passes everything through unchanged."""
+    monkeypatch.setattr(verify, "check_answer",
+                        lambda text, *a, **k: verify.Result(True, text, [], []))
+    monkeypatch.setattr(answer, "REPAIR", False)
 
 GOLDEN = ("A client says their signed MSA mentions 6 months of compensation for early "
           "termination, but we cannot find the final signed copy. What does our Legal "

@@ -326,6 +326,18 @@ def rerank_model_revision() -> str:
                           "233902d25c440f23af6f7d6e94d2946bac0bee0a")
 
 
+def nli_model_repo() -> str:
+    """PHASE 11 (`AM-90`) — the local entailment model the claim verifier reads with.
+    Selected by measurement against the annotated PHASE 10 claims (see `AM-90`)."""
+    return os.environ.get("LEGALMIND_NLI_MODEL", "cross-encoder/nli-deberta-v3-small")
+
+
+def nli_model_revision() -> str:
+    """A commit sha, never a floating alias (`AM-30` t7's reasoning)."""
+    return os.environ.get("LEGALMIND_NLI_REVISION",
+                          "fa2804872c3b4bd748f38c0185cc85775361e735")
+
+
 def query_planner_enabled() -> bool:
     """Whether a question is PLANNED before retrieval — `assist/planner.py`. OFF.
 

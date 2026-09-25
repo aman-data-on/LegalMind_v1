@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from legalmind.assist import evidence, generation, guardrails, intent, positions
+from legalmind.assist import evidence, generation, guardrails, intent, positions, verify
 from legalmind.assist import query_plan as qp
 
 _KIND_LABEL = {
@@ -54,8 +54,8 @@ _ATTRIBUTED = re.compile(r"\b(?:says?|said|told|claims?|claimed|mentions?|mentio
                          r"their account)\b", re.I)
 # "The important distinction is between X and Y." — a signpost that makes no claim; it
 # may stand uncited only while it carries no figure.
-_SIGNPOST = re.compile(r"^(?:the )?(?:important |key |main )?distinction (?:is|lies) "
-                       r"between\b[^\d]*$", re.I)
+_SIGNPOST = re.compile(r"^(?:the )?(?:important |key |main |critical )?distinction "
+                       r"(?:is|lies|depends on)\b[^\d]*$", re.I)
 _HISTORY_FRAMED = re.compile(r"\b(?:historical|past|previous|earlier|exception|"
                              r"negotiated|old)\b", re.I)
 # A historical exception called policy: the §16 safety metric, "current policy
@@ -116,6 +116,9 @@ class Payload:
     #: Every figure the question and the reader's assertions give — the only figures a
     #: sentence may name as ABSENT from the text it cites.
     question_figures: tuple[str, ...] = ()
+    #: Each excerpt's authority label (SECONDARY_REFERENCE = the company's reading of
+    #: the law) — what the PHASE 11 verifier tells the law from the company's reading by.
+    authorities: tuple[str, ...] = ()
 
 
 def render(bundle: evidence.Bundle, question: str = "") -> Payload:
@@ -124,6 +127,7 @@ def render(bundle: evidence.Bundle, question: str = "") -> Payload:
     texts: list[str] = []
     kinds: list[str] = []
     refs: list[str] = []
+    auths: list[str] = []
     lines: list[str] = []
     number: dict[str, int] = {}
     for s in shown:
@@ -133,6 +137,7 @@ def render(bundle: evidence.Bundle, question: str = "") -> Payload:
         texts.append(s.context)
         kinds.append(s.kind)
         refs.append(s.ref)
+        auths.append(s.candidate.authority)
         number[s.ref] = len(texts)
         lines.append(f"[{len(texts)}] {label(s)} — {citation(s)}\n{s.context}")
     # [A]: the reader's assertions AND the figures their question gives, each with the
@@ -177,7 +182,8 @@ def render(bundle: evidence.Bundle, question: str = "") -> Payload:
                    f"EVIDENCE:\n{block}\n\n{extra}\n\nPARTS OF THE QUESTION:\n"
                    + "\n".join(parts), figures,
                    tuple(guardrails.unstated_figures(
-                       " ".join([question, *(a.text for a in bundle.assertions)]), [])))
+                       " ".join([question, *(a.text for a in bundle.assertions)]), [])),
+                   tuple(auths))
 
 
 @dataclass(frozen=True)
@@ -195,6 +201,11 @@ class Answer:
     #: The model's own text, kept whether or not it was shown — so a rejected answer
     #: can be re-checked offline (the Gemini cost guard) rather than regenerated.
     draft: str | None = None
+    #: PHASE 11: generation calls made (1, or 2 after one corrective retry), the
+    #: verifier's time, and the first draft when a retry replaced it.
+    calls: int = 0
+    verify_ms: int = 0
+    first_draft: str | None = None
 
 
 def fallback(bundle: evidence.Bundle) -> str:
@@ -225,6 +236,37 @@ def _bounded(claim: str, figure: str) -> bool:
     """A comparative in the few words before the figure ("not more than 6 months")."""
     at = claim.lower().find(figure.split()[0])
     return at >= 0 and bool(_COMPARATIVE.search(claim[max(0, at - 30):at]))
+
+
+# A statement about the evidence set's LIMITS, never about what a source says.
+_ABOUT_SOURCES = re.compile(r"\b(?:provided|available|supplied) (?:materials?|sources?|"
+                            r"excerpts?|information|evidence)\b[^.]{0,40}\b(?:only|not|no|"
+                            r"do ?n[o']t|does ?n[o']t)\b", re.I)
+
+
+_LIMIT = re.compile(r"\b(?:cannot|can ?n[o']t|unable to|does not|do not|did not)\s+"
+                    r"(?:be\s+)?(?:confirm|verif|determin|establish|state|specify|say|"
+                    r"address)\w*", re.I)
+
+
+def is_context(sentence: str, question_figures: tuple[str, ...]) -> bool:
+    """A sentence the entailment model cannot judge and the mechanical checks own
+    (PHASE 11, `AM-90`): a signpost, one citing only [A]/[M], or one naming a READER'S
+    figure as absent ("the position does not state 6 months [1]") — no text entails
+    what it does not say, and `check` has already proved the figure is not there."""
+    marks = set(_MARKER.findall(sentence))
+    claim = _MARKER.sub("", sentence)
+    if not any(m.isdigit() for m in marks) or _SIGNPOST.match(claim.strip("- ")):
+        return True
+    if _ABOUT_SOURCES.search(claim):         # "the provided materials only cover …"
+        return True
+    # A stated GAP that also cites what it looked at: "The available sources cannot
+    # confirm what indemnity customers owe [1][2][M]" — nothing to entail.
+    if marks & {"M", "A"} and _LIMIT.search(claim):
+        return True
+    asked = {_figure_key(f) for f in question_figures}
+    return bool(_ABSENT.search(claim)) and any(
+        _figure_key(f) in asked for f in guardrails.unstated_figures(claim, []))
 
 
 def _sentences(body: str) -> list[str]:
@@ -307,11 +349,34 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
     return failures
 
 
+def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle
+                  ) -> tuple[list[str], str]:
+    """Both layers, fail closed: PHASE 10's mechanical checks, then PHASE 11's claim
+    verifier (`assist/verify.py`), which also assigns the citations. Returns (failures,
+    the answer with the verifier's citations)."""
+    failures = check(text, payload, bundle)
+    if failures:
+        return failures, text
+    sentences = _sentences(text)
+    result = verify.check_answer(
+        text, payload.evidence, payload.kinds,
+        list(payload.authorities or [""] * len(payload.evidence)), sentences,
+        [is_context(s, payload.question_figures) for s in sentences])
+    return result.failures, result.text
+
+
+#: PHASE 11: one corrective generation when verification fails, then fail closed.
+REPAIR = True
+
+
 def respond(bundle: evidence.Bundle, question: str, *, environment: str,
             prior_questions: tuple[str, ...] = (), request_id: str | None = None,
-            generate=None) -> Answer:
-    """`generate` is injectable (the offline evaluation passes a stub); the default is
-    the single egress seam, `generation.generate_bundle_answer`."""
+            generate=None, repair=None) -> Answer:
+    """`generate` / `repair` are injectable (the offline evaluation passes stubs); the
+    defaults are the single egress seam, `generation.generate_bundle_answer` and
+    `generation.generate_bundle_repair`."""
+    import time
+
     if not bundle.answerable:
         return Answer(fallback(bundle), False, [], [], [])
     payload = render(bundle, question)
@@ -321,14 +386,34 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
         return Answer(fallback(bundle), False, [f"egress screen: {exc}"], payload.refs,
                       payload.kinds)
     call = generate or generation.generate_bundle_answer
+    fix = repair or generation.generate_bundle_repair
     try:
         result = call(question, payload.block, environment=environment,
                       prior_questions=prior_questions, request_id=request_id)
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
         return Answer(fallback(bundle), False, [f"generation: {exc}"], payload.refs,
                       payload.kinds)
-    failures = check(result.text, payload, bundle)
-    return Answer(result.text if not failures else fallback(bundle), not failures,
-                  failures, payload.refs, payload.kinds, result.model,
-                  result.latency_ms, result.prompt_tokens, result.output_tokens,
-                  result.text)
+    t0 = time.perf_counter()
+    failures, shown = verify_answer(result.text, payload, bundle)
+    verify_ms = (time.perf_counter() - t0) * 1000
+    calls, first, latency = 1, None, result.latency_ms
+    tokens = [result.prompt_tokens or 0, result.output_tokens or 0]
+    if failures and REPAIR:
+        try:
+            second = fix(question, payload.block, result.text, failures,
+                         environment=environment, prior_questions=prior_questions,
+                         request_id=request_id)
+        except (generation.GenerationRefused, generation.GenerationUnavailable):
+            second = None
+        if second is not None:
+            calls, first = 2, result.text
+            latency = (latency or 0) + (second.latency_ms or 0)
+            tokens = [tokens[0] + (second.prompt_tokens or 0),
+                      tokens[1] + (second.output_tokens or 0)]
+            t0 = time.perf_counter()
+            failures, shown = verify_answer(second.text, payload, bundle)
+            verify_ms += (time.perf_counter() - t0) * 1000
+            result = second
+    return Answer(shown if not failures else fallback(bundle), not failures,
+                  failures, payload.refs, payload.kinds, result.model, latency,
+                  tokens[0], tokens[1], result.text, calls, int(verify_ms), first)

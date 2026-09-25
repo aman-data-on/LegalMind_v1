@@ -431,7 +431,8 @@ def _best_span(claim_words: set[str], chunk: str) -> str:
 
 
 def _entailment_failure(sentence: str, claim_words: set[str],
-                        cited_chunks: list[str]) -> str | None:
+                        cited_chunks: list[str], *,
+                        quantities: bool = True) -> str | None:
     """Why this claim is not entailed by its cited span(s), or None if it is.
 
     Both screens only ever REFUSE — they can turn an answer into a refusal and
@@ -452,8 +453,10 @@ def _entailment_failure(sentence: str, claim_words: set[str],
     # REFERENCE, not a quantity, and lives elsewhere in the same chunk. A changed
     # or fabricated figure is absent from the chunk entirely, so the screen keeps
     # all four quantity mutations and stops refusing real citations.
+    # `quantities=False` — PHASE 11's verifier asks only for polarity and modality:
+    # its figures are screened number-with-unit by `answer.check` (`AM-78`).
     invented = _quantities(sentence) - set().union(
-        *(_quantities(c) for c in cited_chunks))
+        *(_quantities(c) for c in cited_chunks)) if quantities else set()
     if invented:
         return (f"claim states a quantity its cited text does not "
                 f"({', '.join(sorted(invented))}): {sentence[:80]!r}")

@@ -20602,3 +20602,99 @@ reads "eighteen per cent." / "twenty-four" as 18 / 24 percent.
 
 --------------------------------------------------------------------------------
 AM-89: conversational generation over the evidence bundle
+
+================================================================================
+AMENDMENT BATCH AB-40 — `AM-90`
+Claim verification against the cited evidence; the citation assigned by code;
+one corrective generation, then fail closed
+================================================================================
+
+**Owner decision, 2026-09-25** — the master RAG roadmap (`AM-79`'s owner authority),
+§11–§12: *"The verifier must inspect claims, not simply compare words … A grounded
+paraphrase must pass even when it does not repeat source wording … Fix the verifier so
+that it rejects bad claims while allowing correct paraphrases"*, and the owner's PHASE 11
+instruction: *"Verify whether each generated claim is actually supported by the cited
+evidence … Verify citation is the correct supporting source … Keep the existing
+fail-closed behavior … Build and test offline first; minimize Gemini calls … Re-test the
+full Phase 10 benchmark."* Roadmap PHASE 11.
+
+**Amends:** `AM-89` r3 and r4 narrowly — prompt `bundle-answer-6` (one fact per sentence,
+the excerpt's own words for obligations, conditions and exceptions: a PHASE 10 behaviour
+corrected on the evidence), the verifier as a second layer after r4's mechanical checks,
+and ONE corrective generation before the fixed grounded answer. **Does not amend:**
+`AM-25` r5 (nothing unverified reaches a reader — the answer is shown whole and verified
+or not at all), `AM-28` r2 (the verifier is local, imports no prompt or generation code,
+and is tested without the model), `AM-30` t1 (the entailment model is local; the repair
+goes through the one seam and every screen), `AM-31`, `AM-78`, `AM-88`, the Gemini cost
+guard. The production answer path is unchanged.
+
+```text
+r1   CLAIMS, NOT WORDS (assist/verify.py). Each sentence citing an excerpt is read
+     against the evidence by a LOCAL entailment model (cross-encoder
+     nli-deberta-v3-small, pinned sha, checksum-verified like the reranker). Premises
+     are the claim's best-overlapping sentences joined, and each premise states what
+     its source IS ("The company position states:", "In the company's reading of the
+     law:", "Historically, not as current policy:"). Staged: whole claim first; then
+     single sentences, clauses, and the cited sources together; then the other shown
+     sources.
+
+r2   REJECTED ON EVIDENCE OF ERROR (precision mode). A claim fails on a confident
+     contradiction; a clause of it contradicted; a negation or an obligation ("may" →
+     "must") the evidence does not carry, scoped to the verb both use; a kind error
+     (the company's reading or a company position stated as the law; history as current
+     policy; a company position as the contract); or grounding below 0.34 (its words
+     are not in its evidence). An uncertain entailment on a grounded claim is not an
+     error. Sentences citing only [A]/[M], signposts, stated gaps and a reader's figure
+     named as absent stay with `AM-89` r4's mechanical checks.
+
+r3   THE CITATION IS THE VERIFIER'S. A claim keeps only the cited sources that support
+     it, and a claim cited to a neighbour is re-cited to the shown source that does
+     support it. The model's markers are a proposal.
+
+r4   ONE CORRECTIVE GENERATION, THEN FAIL CLOSED. A failed answer is regenerated once
+     with the failed sentences named (bundle-repair-1), then verified again in full;
+     if it fails again, the fixed grounded answer is shown. Never a partial answer.
+
+r5   NO MODEL, NO ANSWER. With the entailment model unavailable, verification fails
+     and the fixed answer is shown.
+```
+
+**Recorded 2026-09-25.** Offline first on saved PHASE 10 answers (zero Gemini), against
+2,220 claims in four sets, each labelled independently (SUPPORTED · PARTIAL ·
+UNSUPPORTED · CONTRADICTED · NON_FACTUAL, supporting sources, kind errors) by separate
+annotators that are neither the verifier nor Gemini — development labels, not
+owner-reviewed. Tuned on one set only; reported on the others
+(`tests/assist_eval/verification_eval_2026-09-25.json`).
+
+| held-out claims (476, never tuned on) | value |
+|---|---|
+| supported claims falsely rejected | 0.063 |
+| deliberate corruptions accepted: figure · law/position swap · negation · overstatement · wrong citation | 0 · 0.024 · 0.162 · 0.273 · 0.103 |
+| citation precision · recall (verifier-assigned) | 0.951 · 0.946 |
+
+End to end, the full 65-question benchmark, live (gemini-3.6-flash), every claim of every
+answer labelled independently:
+
+| | PHASE 10 | PHASE 11 (shipped) |
+|---|---|---|
+| answers shown | 65 / 65 | 56 / 65 (15 after a repair) |
+| bad claims in shown answers | 23 / 549 = 4.2% | **16 / 519 = 3.1%** |
+| shown answers with a bad claim | 17 / 65 | **12 / 56** |
+| claim citations correct | 0.966 | **1.000** |
+| fallbacks that were clean answers | — | 5 / 9 |
+
+Verification p50 1.1 s, p95 4.5 s; answer p95 8.7 s including a repair. PHASE 11 used
+182 Gemini calls (404,229 prompt, 59,466 output tokens) over two full live runs; every
+other measurement reused saved outputs. Measured and REJECTED: one-sentence premises
+(false rejects 0.48); nli-deberta-v3-base (marginal, 2× latency); nli-deberta-v3-large
+(corruptions accepted 0.195 vs 0.093, 10× latency); a regex condition-preservation check
+(false rejects 0.21, no more real errors caught); strict "entailment must confirm" (35–39%
+of answers pass vs 57%); an attribution rule for the company's reading (false rejects
++3 points for 3 claims). Phase 10's reported citation precision of 0.50 was a metric
+artifact: it compared citations with the benchmark's retrieval gold; claim by claim the
+model's citations were 0.966 correct. **Named residual:** dropped conditions and unattributed
+statements of the company's reading of the law (15 of the 16 bad claims shown) — a
+small local entailment model does not see them; see PHASE 12.
+
+--------------------------------------------------------------------------------
+AM-90: claim verification against the cited evidence; citation assigned by code

@@ -78,6 +78,12 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   0.984 of answerable bundles answered; 0 unsupported claims, verdicts, contradictions
   or assertions-as-evidence shown; p95 4.1 s. `guardrails` now reads "eighteen per
   cent." and "twenty-four" as figures.
+* **PHASE 11 / `AM-90`** — `assist/verify.py`: claims verified against their cited
+  evidence by a local NLI cross-encoder (`nli-deberta-v3-small`, provisioned and pinned)
+  plus verb-scoped negation/obligation and kind checks; citations assigned by code; one
+  corrective generation (`generate_bundle_repair`) then the fixed grounded answer.
+  Prompt `bundle-answer-6`. `onnx_backend.pair_logits`; `tools/eval_verification.py`.
+  Live: bad claims shown 4.2% → 3.1%, claim citations 0.966 → 1.000, 56/65 answered.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

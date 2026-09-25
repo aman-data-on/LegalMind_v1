@@ -239,17 +239,25 @@ class OnnxCrossEncoderBackend:
 
     def score(self, query: str, passages: list[str]) -> list[float]:
         """One relevance score per passage, in the order given."""
+        # A relevance cross-encoder emits one logit per pair; some export a two-column
+        # head, where the positive class is column 1.
+        return [float(row[0] if len(row) == 1 else row[-1])
+                for row in self.pair_logits([(query, p) for p in passages])]
+
+    def pair_logits(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+        """The model's raw output row per (text_a, text_b) pair — one logit for a
+        relevance model, one per label for an NLI model (PHASE 11, `AM-90`)."""
         np = self._np
-        if not passages:
+        if not pairs:
             return []
 
         self._tokenizer.enable_padding()
         self._tokenizer.enable_truncation(max_length=512)
 
-        out: list[float] = []
-        for start in range(0, len(passages), RERANK_BATCH):
-            batch = passages[start:start + RERANK_BATCH]
-            encoded = self._tokenizer.encode_batch([(query, p) for p in batch])
+        out: list[list[float]] = []
+        for start in range(0, len(pairs), RERANK_BATCH):
+            batch = pairs[start:start + RERANK_BATCH]
+            encoded = self._tokenizer.encode_batch(batch)
 
             ids = np.array([e.ids for e in encoded], dtype=np.int64)
             mask = np.array([e.attention_mask for e in encoded], dtype=np.int64)
@@ -262,10 +270,7 @@ class OnnxCrossEncoderBackend:
                     [e.type_ids for e in encoded], dtype=np.int64)
             feed = {k: v for k, v in feed.items() if k in self._inputs}
 
-            logits = self._session.run(None, feed)[0]
-            # A relevance cross-encoder emits one logit per pair; some export a
-            # two-column head, where the positive class is column 1.
-            column = logits[:, 0] if logits.shape[-1] == 1 else logits[:, -1]
-            out.extend(float(x) for x in column)
+            out.extend([float(x) for x in row]
+                       for row in self._session.run(None, feed)[0])
         return out
 

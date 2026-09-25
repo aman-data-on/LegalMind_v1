@@ -45,7 +45,12 @@ def stub(question, block, *, environment, prior_questions=(), request_id=None):
     out = []
     for m in re.finditer(r"^\[(\d+)\] [^\n]*\n(.+?)(?=\n\n\[\d+\] |\n\n\[A\]|\n\n\[M\]|"
                          r"\n\nPARTS|\Z)", block, re.S | re.M):
-        body = " ".join(m.group(2).split()[:40])
+        # Skip the excerpt's header line ("Legal Constitution L1.10 · 13 …", "The … Act,
+        # 2017 · Section 50 · …") — a heading is not a sentence any answer would write.
+        lines = [x for x in m.group(2).split("\n") if x.strip()]
+        if len(lines) > 1 and " · " in lines[0]:
+            lines = lines[1:]
+        body = " ".join(" ".join(lines).split()[:40])
         first = _FIRST.match(body)
         out.append(f"{(first.group(1) if first else body).rstrip('.;:')} [{m.group(1)}].")
     if "[A] " in block:
@@ -57,6 +62,12 @@ def stub(question, block, *, environment, prior_questions=(), request_id=None):
                                                       context="")
     return generation.GenerationResult(" ".join(out), "stub", "offline", "", 0,
                                        len(prompt) // 4, sum(len(x) for x in out) // 4)
+
+
+def stub_repair(question, block, draft, failures, *, environment, prior_questions=(),
+                request_id=None):
+    """Offline repair: the stub's own answer again — never the network."""
+    return stub(question, block, environment=environment)
 
 
 def _sentences(text):
@@ -97,7 +108,8 @@ def score(case, plan, bundle, ans) -> dict:
         "sentences": len(sents), "contradictions": contradictions,
         "latency_ms": ans.latency_ms, "prompt_tokens": ans.prompt_tokens,
         "output_tokens": ans.output_tokens, "text": ans.text, "draft": ans.draft,
-        "model": ans.model,
+        "model": ans.model, "calls": ans.calls, "verify_ms": ans.verify_ms,
+        "first_draft": ans.first_draft,
     }
 
 
@@ -118,6 +130,7 @@ def aggregate(rows, mode: str) -> dict:
         xs = list(xs)
         return round(sum(xs) / len(xs), 4) if xs else None
     called = [r for r in rows if r["prompt_tokens"] is not None and r["model"] != "stub"]
+    vms = sorted(r["verify_ms"] for r in rows if r.get("calls")) or [0]
     if mode == "offline-stub":
         called = [r for r in rows if r["prompt_tokens"] is not None]
     lat = sorted(r["latency_ms"] for r in called if r["latency_ms"]) or [0]
@@ -130,7 +143,12 @@ def aggregate(rows, mode: str) -> dict:
     dist = [v for r in rows for v in r["distinguish"].values()]
     return {
         "mode": mode,
-        "cases": len(rows), "gemini_calls": len(called) if mode == "live" else 0,
+        "cases": len(rows),
+        "gemini_calls": sum(r.get("calls") or 0 for r in called) if mode == "live" else 0,
+        "repaired": sum(1 for r in rows if r.get("calls") == 2),
+        "repaired_then_shown": sum(1 for r in rows if r.get("calls") == 2
+                                   and r["generated"]),
+        "verify_ms": {"p50": vms[len(vms) // 2], "p95": vms[int(len(vms) * .95)]},
         "answered_of_answerable_bundles": frac(r["generated"] for r in answerable),
         "relevance_cites_gold": frac(r["cites_gold"] for r in answerable),
         "completeness_distinguish": frac(dist),
@@ -176,13 +194,16 @@ def main() -> int:
         if built is None:
             continue
         plan, bundle = built
+        # Offline and replay modes stub BOTH calls: a repair left on the real seam
+        # would egress from an "offline" run whenever a credential is present.
         model = None if args.live else stub
+        fixer = None if args.live else stub_repair
         if replayed is not None:
             replayed.case = case["id"]       # type: ignore[attr-defined]
             model = replayed
         ans = answer.respond(bundle, case["question"], environment="development",
                              prior_questions=(case["after"],) if case.get("after") else (),
-                             generate=model)
+                             generate=model, repair=fixer)
         rows.append(score(case, plan, bundle, ans))
         print(case["id"], "OK" if ans.generated else "--", ans.failures[:2], flush=True)
     mode = "live" if args.live else "recheck (zero calls)" if args.recheck else "offline-stub"

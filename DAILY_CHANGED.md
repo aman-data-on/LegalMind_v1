@@ -864,3 +864,109 @@ negation, history wording, verdict) — a non-numeric unsupported paraphrase is 
 by PHASE 11's semantic verification; citation precision 0.50 (answers cite neighbouring
 sources the gold does not name); the final prompt was measured on 19 targeted cases, not
 re-run on all 65; `CONFLICTING` still has no detector (PHASE 12).
+
+Commit: `a10c7dc`.
+
+## 2026-09-25 — Entry 14: PHASE 11 — semantic claim verification + citation verification
+
+**Lock recorded — `AM-90` (AB-40)** — amends `AM-89` r3/r4 narrowly. all_lock.md
+20604 → 20700 (counted from the file), additions only; registry; CLAUDE.md; CHANGELOG.
+
+**Built**
+* `legalmind/assist/verify.py` — `judge` per claim, `check_answer` per answer (stage 1
+  batched for every claim in one model call; results memoised within the answer).
+  Local NLI cross-encoder `cross-encoder/nli-deberta-v3-small@fa28048…` provisioned by
+  `tools/provision_model` (checksums in its manifest); `config.nli_model_repo/revision`.
+  Premises: the claim's best-overlapping sentences joined in document order, each framed
+  with what its source is (company position / the company's reading of the law /
+  historically, not current policy / the law / the contract); hard-wrapped statute lines
+  rejoined; leading discourse words stripped. Stages: whole claim → single sentences,
+  clauses and the cited sources together → other shown sources (re-citation). Checks on
+  a kept claim: clause contradiction (≥ 0.9), verb-scoped negation and obligation shift
+  (suffix-stemmed, aligned on the words after the verb), `guardrails`' existing
+  polarity/modality (quantities off — `answer.check` owns figures), kind errors (law as
+  the SUBJECT of a legal verb without an Act/law source; history as current policy;
+  company position as the contract). Precision mode: an unsure entailment on a claim
+  grounded ≥ 0.34 in its evidence is not an error.
+* `answer.verify_answer` (mechanical, then semantic) and `answer.respond` with ONE
+  corrective generation (`generation.generate_bundle_repair`, `bundle-repair-1`), then
+  the fixed grounded answer. `answer.is_context`: signposts, [A]/[M]-only sentences,
+  stated gaps, statements about the evidence set, a reader's figure named as absent.
+  `Payload.authorities`; `Answer.calls/verify_ms/first_draft`.
+* Prompt `bundle-answer-6` (a PHASE 10 behaviour corrected on the evidence): one fact per
+  sentence, the excerpt's own words for obligations, conditions and exceptions.
+* `onnx_backend.pair_logits` (raw per-label rows; `score` now uses it — one path).
+* `tools/eval_verification.py` (claim-level: accuracy, false accept/reject, perturbation
+  types, citation precision/recall, answer-level, production-shaped latency);
+  `tools/eval_generation.py` records calls/repairs/verify time and stubs BOTH calls
+  offline (a real-seam repair in "offline" mode was caught before any egress — no key in
+  that environment — and fixed).
+
+**Evaluation data (zero Gemini):** 2,220 claims in four sets, each labelled by separate
+annotator subagents (not the verifier, not Gemini; development labels, not
+owner-reviewed): dev 549 (PHASE 10 final answers — all tuning here), held-out 476
+(PHASE 10 run 3), final 571 and final2 624 (PHASE 11 live runs 1 and 2). Deterministic
+perturbations of supported claims give known-bad cases.
+
+**Measured by iteration (dev → fix → dev; held-out for the report):**
+
+| step | FR supported | corruptions accepted | note |
+|---|---|---|---|
+| 1-sentence windows, small NLI | 0.48 | 0.18 | attribution frames read as neutral |
+| joined premises | 0.38 | 0.15 | |
+| base NLI | 0.35 | 0.14 | 2× latency — rejected |
+| kind-framed premises, discourse stripped | 0.27 | 0.11 | |
+| label-scoped kinds, deontic check | 0.22 | 0.10 | |
+| staged + clauses | 0.23 | 0.07 | |
+| + lexical second route 0.6 | 0.11 | 0.08 | |
+| + verb-scoped negation/obligation, suffix stem, fixes to 4 false-reject causes | 0.07 | 0.06 | |
+| held-out, strict | 0.10 | 0.08 | answers passing 0.39 |
+| **held-out, precision (shipped)** | **0.063** | **0.093** | answers passing 0.57 |
+| large NLI (int8) | 0.036 | 0.195 | 10× latency — rejected |
+| regex condition preservation | 0.21 | — | caught no more real errors — removed |
+| reading-attribution rule | +0.03 | — | 3 claims caught — reverted |
+
+Held-out (shipped): corruptions accepted — figure 0, law/position swap 0.024, negation
+0.162 (about half the negation perturbations are garbled double negatives), overstatement
+0.273, wrong citation 0.103; citation precision/recall 0.951/0.946.
+
+**Live, full benchmark, labelled end to end:**
+
+| | PHASE 10 | run 1 (strict) | run 2 (precision, shipped) |
+|---|---|---|---|
+| answers shown | 65 | 57 | 56 (15 after a repair) |
+| bad claims shown | 23/549 (4.2%) | 20/482 (4.1%) | **16/519 (3.1%)** |
+| shown answers with a bad claim | 17 | 15 | **12** |
+| claim citations correct | 0.966 | 1.000 | **1.000** |
+| clean answers that fell back | — | 7 | 5 |
+| Gemini calls · prompt · output tokens | — | 93 · 208,017 · 29,285 | 89 · 196,212 · 30,181 |
+| answer latency p50 · p95 (incl. repair) | — | 3.5 · 7.9 s | 3.8 · 8.7 s |
+| verification p50 · p95 | — | 1.1 · 4.4 s | 1.1 · 4.5 s |
+
+Run 1 showed the strict verifier did not reduce real bad claims (4.2% → 4.1%) and blocked
+7 clean answers — the evidence that moved the design to precision mode.
+
+**Does any Phase 10 behaviour need correction?** Yes, two, both done here: (1) the
+reported "citation precision 0.50" was a metric artifact — it measured citations against
+the benchmark's retrieval gold; claim by claim the model's citations were 0.966 correct,
+and code now assigns them (1.000 shown); (2) the prompt now asks for one fact per
+sentence in the excerpt's own terms (compound sentences and dropped conditions were the
+verifier's main failure).
+
+**Tested** — `tests/test_claim_verification.py` (13, entailment stubbed so decisions are
+pinned independently of weights; CI has no model): supported paraphrase kept, re-citation,
+unsupported, negation and obligation shifts, the three kind errors, no model fails
+closed, code-assigned citation in the shown text, one retry then verified answer, second
+failure → fixed answer, precision mode. `test_bundle_answer.py` isolates the mechanical
+layer. Full suite **2618 passed, 112 skipped (unchanged), 0 failed**; ruff + mypy clean.
+
+**Exit (roadmap §11–§12)** — claims inspected, not words ✔ · paraphrase passes (held-out
+FR 0.063) ✔ · invented figures, law/position swaps and wrong citations rejected or
+corrected ✔ · citation assigned to the actual supporting source (1.000) ✔ · user
+context vs evidence vs model claim kept apart ✔ · fail closed, never partial ✔ · full
+benchmark re-tested live ✔ · bad claims shown reduced 4.2% → 3.1% ✔ (partly).
+**Named limitations:** 16 bad claims still reached readers in 519 — 8 dropped
+conditions, 7 kind errors (5 the company's reading of the law stated as bare fact), 1
+unsupported; negation (0.16) and overstatement (0.27) corruptions still pass sometimes; 5
+clean answers fell back; 9 of 65 answers are the fixed grounded answer; labels are
+assistant-annotated. These are PHASE 12's multi-source-reasoning inputs.
