@@ -777,3 +777,90 @@ represented exactly as §9 lists ✔ · a non-current source never answers a cur
 question (test) ✔ · similarity never decides answerability alone ✔ · wrong-source and
 false admission 0 ✔. **Named:** recall in `shown` is 0.718 vs 0.782 before the filter —
 the price of zero wrong sources; 21 RANK_CUTOFF remain.
+
+Commit: `87a9dcc`.
+
+## 2026-09-25 — Entry 13: PHASE 10 — conversational generation with Gemini
+
+**Lock recorded — `AM-89` (AB-39)** — amends `AM-30` t2, `AM-30` t3 / `AM-32` r4 (as
+amended by `AM-67`) and `AM-79` r6 narrowly. all_lock.md 20512 → 20604 (counted from the
+file), additions only; registry; CLAUDE.md; CHANGELOG.
+
+**Built**
+* `legalmind/assist/answer.py` — `render` (supporting sources only, one excerpt per
+  distinct parent context, each labelled by kind with a reader-facing citation; [A] =
+  the question, the reader's assertions and the code's figure finding; [M] = the missing
+  paper, the unanswered parts, and "nothing beyond the excerpts"; the part states),
+  `respond` (no call for an unanswerable bundle; egress locator screen on every kind;
+  one call; `check`; fallback), `check` (the mechanical checks, `AM-89` r4), `fallback`.
+* `generation.generate_bundle_answer` + `BUNDLE_PROMPT_TEMPLATE` (`bundle-answer-5`)
+  through the unchanged single seam.
+* `guardrails._words` reads "eighteen per cent." / "twenty-four" as 18 / 24 percent
+  (13–19 added to the number words) — shared, so every caller's figure check gains it.
+* `tools/eval_generation.py` — offline stub, `--live`, and `--recheck` (re-runs every
+  check on stored drafts with zero calls); `rag_benchmark.plan_case` / `bundle_for`
+  shared.
+
+**Offline first, zero calls:** stub over all 65 answerable bundles — the first stub run
+found the figure check reading "§14"/"section 73" as figures (fixed: a figure is a
+number WITH its unit, `AM-78`'s rule); then 100% pass, prompts ~2,000 tokens.
+
+**Measured live (gemini-3.6-flash, `LEGALMIND_ENVIRONMENT=development`, scratch
+corpus), diagnose → fix → retest:**
+
+| run | prompt | calls | pass | invalid markers | verdicts | what the diagnosis found |
+|---|---|---|---|---|---|---|
+| 1 | answer-1 | 65 | 0.42 | 68 | 22 | [M] used for "cannot confirm" with no line to cite; verdict screen firing on the position's own "unacceptable"; "eighteen per cent." unread; drafts NOT stored (tool defect, fixed) |
+| 2 | answer-2 | 65 | 0.71 | 21 | 1 | [M] still wanted when nothing was missing; "missing any policy for 6 months" not read as negation; "Pvt. Ltd." split as a sentence |
+| 3 | answer-3 | 65 | 0.71 | 13 | 2 | no gain → Gemini stopped, re-checked offline: [A] cited when not listed (rule 4's own example); next-step verbs in other forms |
+| 4 | answer-4 | 65 | 0.79 | 5 | 2 | "[4]" — the model citing prompt rule 4's own number |
+| 5 | answer-5 targeted: 7 failing + 14 golden | 19 | 0.95 | 0 | 0 | GT-10 correctly stopped: current policy cited to a historical excerpt |
+
+Between runs every check change was re-measured on the stored drafts with zero calls;
+only a prompt/payload change got a new live run. The owner asked (mid-phase) whether 65
+calls were needed: for diagnosis no — hence `--recheck` and the targeted run 5; for the
+exit numbers the full set is kept, so the final figure combines run 4's 65 answers
+(re-checked) with run 5's 19.
+
+| Final (65 answerable, 11 refused before any call) | value |
+|---|---|
+| answered (generated and passing every check) | **0.984** |
+| completeness — kinds the case must distinguish cited · parts answered | 0.913 · 0.986 |
+| relevance — cites a gold source | 0.823 |
+| citation precision (cited excerpts that are gold) | 0.502 |
+| shown: unsupported sentences · reader figure as policy · verdicts · contradictions | **0 · 0 · 0 · 0** |
+| refusals correct (must-refuse cases never generated) | 1.0 |
+| latency p50 · p95 | 3.1 s · 4.1 s |
+| tokens per call | ~2,000 prompt · ~320 output |
+| all PHASE 10 Gemini use | 279 calls · 545,348 prompt · 83,446 output tokens |
+
+Cost in USD is not stated: no price is recorded in the repository, and none is guessed
+(`LEGALMIND_GEMINI_USD_PER_M_IN/_OUT` compute it when set). GT-00's answer: the §14
+position; the company's reading of ss. 73–74 as a separate layer; the 6/12-month terms
+of past contracts as negotiated exceptions, not current policy; "the company position
+does not state 6 months [A]"; the missing signed MSA [M]; locate and verify it next.
+The one contradiction the scorer first flagged (GT-03, "whether this equals 12 months
+depends on the specific contract") was a conditional, not a policy statement — the
+scorer now recognises the same absence forms as the check.
+
+**Tested** — `tests/test_bundle_answer.py` (15: no call for an unanswerable bundle; the
+payload labels kinds and keeps [A] apart with no internal id; a reader's figure as
+policy / a bare fact on [A] / laundered by [A] never shown; unevidenced figures,
+uncited sentences and dangling markers fail; section references are not figures; a
+question figure may be named absent but never as a bound; "Pvt. Ltd." is not a break;
+the position's own "unacceptable" is not a verdict but a claim judged against it is;
+history never called policy; [M] present for an unanswered part; a dirty span refuses
+egress before any call). Full suite **2605 passed, 112 skipped (unchanged), 0 failed**;
+ruff + mypy clean.
+
+**Exit (roadmap §10, §16)** — answers the question from the bundle only ✔ · combines
+evidence and keeps the kinds apart (completeness 0.913) ✔ · user facts as context, never
+evidence (0 shown) ✔ · missing information stated, never filled (0 unsupported figures
+shown) ✔ · direct answer → distinction → known → missing → next step for complex
+questions ✔ · no retrieval mechanics exposed ✔ · measured relevance, completeness,
+faithfulness, unsupported claims, contradictions, citations, latency and tokens ✔.
+**Named limitations:** the checks are mechanical (markers, figures, attribution,
+negation, history wording, verdict) — a non-numeric unsupported paraphrase is caught only
+by PHASE 11's semantic verification; citation precision 0.50 (answers cite neighbouring
+sources the gold does not name); the final prompt was measured on 19 targeted cases, not
+re-run on all 65; `CONFLICTING` still has no detector (PHASE 12).

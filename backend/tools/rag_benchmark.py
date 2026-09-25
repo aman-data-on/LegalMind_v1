@@ -170,12 +170,9 @@ BUNDLES: list[dict] = []
 CONTEXTS: list[dict] = []
 
 
-def retrieve_pool(db, case: dict, *, reranked: bool = False, bundled: bool = False
-                  ) -> tuple[list[str], list[str], set[str], bool]:
-    """PHASE 7: the same question through plan → candidate pool → evidence selection;
-    PHASE 8 adds the rerank, PHASE 9 (`bundled`) the evidence bundle — what is shown is
-    then only what the bundle says supports.
-    Returns (shown evidence refs, whole-pool refs, searched domains, short-circuit)."""
+def plan_case(db, case: dict):
+    """(route, plan) for a benchmark case, or None when the router short-circuits it.
+    Shared by the retrieval stages here and by `tools/eval_generation.py`."""
     question = case["question"]
     resolved = question
     asked = understanding.understand(question)
@@ -185,9 +182,32 @@ def retrieve_pool(db, case: dict, *, reranked: bool = False, bundled: bool = Fal
                          statutes_available=statutes.available(db),
                          statute_jurisdictions=statutes.jurisdictions(db))
     if route.general_knowledge or route.capability or route.comparison or route.unmet:
+        return None
+    return route, query_plan.plan(resolved, has_document=False,
+                                  prior=(case["after"],) if case.get("after") else ())
+
+
+def bundle_for(db, case: dict) -> tuple | None:
+    """(plan, bundle) through PHASES 7–9, or None when short-circuited."""
+    planned = plan_case(db, case)
+    if planned is None:
+        return None
+    route, plan = planned
+    pool = retrieval.rerank(retrieval.candidates(db, plan, route, permissions=PERMISSIONS),
+                            plan)
+    return plan, evidence_bundle.build(db, plan, pool, retrieval.select(pool, plan))
+
+
+def retrieve_pool(db, case: dict, *, reranked: bool = False, bundled: bool = False
+                  ) -> tuple[list[str], list[str], set[str], bool]:
+    """PHASE 7: the same question through plan → candidate pool → evidence selection;
+    PHASE 8 adds the rerank, PHASE 9 (`bundled`) the evidence bundle — what is shown is
+    then only what the bundle says supports.
+    Returns (shown evidence refs, whole-pool refs, searched domains, short-circuit)."""
+    planned = plan_case(db, case)
+    if planned is None:
         return [], [], set(), True
-    plan = query_plan.plan(resolved, has_document=False,
-                           prior=(case["after"],) if case.get("after") else ())
+    route, plan = planned
     pool = retrieval.candidates(db, plan, route, permissions=PERMISSIONS)
     if reranked:
         import time

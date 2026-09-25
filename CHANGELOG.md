@@ -70,6 +70,14 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   and (documents) the calibrated gate. Kind-aware selection; a claim about signed paper
   opens the historical lane. Wrong-source 0.026 → 0, false admission 0.2 → 0,
   precision 0.267 → 0.457, golden recall 0.889.
+* **PHASE 10 / `AM-89`** — `assist/answer.py` + `generation.generate_bundle_answer`
+  (prompt `bundle-answer-5`): conversational answers over the PHASE 9 bundle only, each
+  excerpt labelled by kind, the reader's assertions and what is missing as [A]/[M]
+  lines, checked outside the model and failing closed to a deterministic answer;
+  `tools/eval_generation.py` (offline stub, `--live`, zero-call `--recheck`). Measured:
+  0.984 of answerable bundles answered; 0 unsupported claims, verdicts, contradictions
+  or assertions-as-evidence shown; p95 4.1 s. `guardrails` now reads "eighteen per
+  cent." and "twenty-four" as figures.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 
