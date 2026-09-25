@@ -16,6 +16,7 @@ def mechanical_layer_only(monkeypatch):
     monkeypatch.setattr(verify, "check_answer",
                         lambda text, *a, **k: verify.Result(True, text, [], []))
     monkeypatch.setattr(answer, "REPAIR", False)
+    monkeypatch.setattr(answer, "CONTRACTS", False)     # PHASE 12's path: its own tests
 
 GOLDEN = ("A client says their signed MSA mentions 6 months of compensation for early "
           "termination, but we cannot find the final signed copy. What does our Legal "

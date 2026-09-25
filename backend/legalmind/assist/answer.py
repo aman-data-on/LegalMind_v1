@@ -28,7 +28,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from legalmind.assist import evidence, generation, guardrails, intent, positions, verify
+from legalmind.assist import (
+    contracts,
+    evidence,
+    generation,
+    guardrails,
+    intent,
+    positions,
+    verify,
+)
 from legalmind.assist import query_plan as qp
 
 _KIND_LABEL = {
@@ -46,7 +54,7 @@ _SUBJECT = re.compile(
 # A next step that closes a gap ("locate the signed MSA to confirm …") — procedural,
 # carrying no legal fact, so [M] may support it (roadmap §10's "what to do").
 _NEXT_STEP = re.compile(r"\b(?:locat|verif|confirm|check|review|obtain|consult|refer|"
-                        r"escalat|ask|determin|establish)\w*", re.I)
+                        r"escalat|ask|determin|establish|evaluat|assess)\w*", re.I)
 # The sentence reports what someone SAID — a reader's figure may appear only so.
 _ATTRIBUTED = re.compile(r"\b(?:says?|said|told|claims?|claimed|mentions?|mentioned|"
                          r"asks?|asked|asserts?|asserted|according to|promised|alleged|"
@@ -75,8 +83,8 @@ _ABSENT = re.compile(r"\b(?:does ?n[o']t|do ?n[o']t|not|no|never)\b[^.]{0,40}?\b
 _COMPARATIVE = re.compile(r"\b(?:more|less|fewer|greater|longer|shorter) than\b|"
                           r"\b(?:up to|at (?:most|least)|exceed\w*|within|maximum|"
                           r"minimum)\b", re.I)
-_ABBREVIATION = re.compile(r"\b(?:Pvt|Ltd|Co|Inc|No|s|ss|e\.g|i\.e|viz|cf|vs|Sec)\.$",
-                           re.I)
+_ABBREVIATION = re.compile(r"\b(?:Pvt|Ltd|Co|Inc|No|s|ss|e\.g|i\.e|viz|cf|vs|Sec|Cl|"
+                           r"Art|Para)\.$", re.I)
 _NEGATION = re.compile(r"\b(?:not|no|never|neither|nor|does ?n[o']t|cannot|isn't|"
                        r"without|missing|absent|nothing|none|unknown|unconfirmed|"
                        r"unverified|lacks?|rather than|instead of)\b", re.I)
@@ -119,6 +127,9 @@ class Payload:
     #: Each excerpt's authority label (SECONDARY_REFERENCE = the company's reading of
     #: the law) — what the PHASE 11 verifier tells the law from the company's reading by.
     authorities: tuple[str, ...] = ()
+    #: PHASE 12: excerpts whose meaning is a heading's ("Acceptable position") — a
+    #: sentence restating one says "acceptable" of the position, not of a document.
+    framed: tuple[bool, ...] = ()
 
 
 def render(bundle: evidence.Bundle, question: str = "") -> Payload:
@@ -206,6 +217,8 @@ class Answer:
     calls: int = 0
     verify_ms: int = 0
     first_draft: str | None = None
+    #: PHASE 12: time to build the claim contracts and the conflict map.
+    prepare_ms: int = 0
 
 
 def fallback(bundle: evidence.Bundle) -> str:
@@ -343,14 +356,17 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
         # A verdict needs something to judge: a contract excerpt, the reader's claim, or
         # an agreement the sentence names. Describing what the position itself calls
         # unacceptable (Constitution §24.4) is the position, not a verdict (`AM-89` r4).
-        if intent.is_verdict_statement(claim) and (
+        restating_frame = bool(payload.framed) and qp.CONTRACT not in cited_kinds and \
+            "A" not in marks and any(m.isdigit() and 1 <= int(m) <= len(payload.framed)
+                                     and payload.framed[int(m) - 1] for m in marks)
+        if intent.is_verdict_statement(claim) and not restating_frame and (
                 qp.CONTRACT in cited_kinds or "A" in marks or _SUBJECT.search(claim)):
             failures.append(f"compliance verdict: {sentence[:80]!r}")
     return failures
 
 
-def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle
-                  ) -> tuple[list[str], str]:
+def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
+                  cs: list[contracts.Contract] | None = None) -> tuple[list[str], str]:
     """Both layers, fail closed: PHASE 10's mechanical checks, then PHASE 11's claim
     verifier (`assist/verify.py`), which also assigns the citations. Returns (failures,
     the answer with the verifier's citations)."""
@@ -358,15 +374,121 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle
     if failures:
         return failures, text
     sentences = _sentences(text)
+    flags = [is_context(s, payload.question_figures) for s in sentences]
+    if cs:
+        # PHASE 12: a sentence that restates its cited contract nearly verbatim is
+        # decided by the deterministic contract checks below (conditions, modality,
+        # negation, scope, frame, kind); the entailment model is for paraphrase. It
+        # called a verbatim restatement of Section 74 "contradicted" six times.
+        by_n = {c.n: c for c in cs}
+        for i, sent in enumerate(sentences):
+            cited = [by_n[int(m)] for m in _MARKER.findall(sent)
+                     if m.isdigit() and int(m) in by_n]
+            words = guardrails._content_words(_MARKER.sub("", sent))
+            own = set().union(set(), *(guardrails._content_words(c.text) for c in cited))
+            if cited and words and len(words & own) / len(words) >= VERBATIM:
+                flags[i] = True
     result = verify.check_answer(
         text, payload.evidence, payload.kinds,
-        list(payload.authorities or [""] * len(payload.evidence)), sentences,
-        [is_context(s, payload.question_figures) for s in sentences])
-    return result.failures, result.text
+        list(payload.authorities or [""] * len(payload.evidence)), sentences, flags)
+    if result.failures or not cs:
+        return result.failures, result.text
+    # PHASE 12: each sentence held to the contracts it (now correctly) cites.
+    by_n = {c.n: c for c in cs}
+    contract_failures = []
+    all_cited = []
+    for sentence in _sentences(result.text):
+        cited = [by_n[int(m)] for m in _MARKER.findall(sentence)
+                 if m.isdigit() and int(m) in by_n]
+        all_cited.append(cited)
+        if cited and not is_context(sentence, payload.question_figures):
+            contract_failures += contracts.check(sentence, cited)
+    return contract_failures, result.text
 
 
 #: PHASE 11: one corrective generation when verification fails, then fail closed.
 REPAIR = True
+#: PHASE 12 (`AM-91` r6): a sentence that fails a check and cites approved contracts is
+#: replaced by those contracts' own verbalisation before any regeneration.
+SENTENCE_REPAIR = True
+
+
+def verbalise(c: contracts.Contract) -> str:
+    """An approved contract as a sentence: its kind, frame, scope and the source's own
+    words, cited. It passes every check by construction."""
+    lead = contracts.SAY[c.kind]
+    if c.frame:
+        lead += f" ({c.frame})"
+    scope = [x.replace(contracts._SCOPE_TAG, "") for x in c.conditions
+             if contracts._SCOPE_TAG in x]
+    if c.scope:
+        scope.insert(0, f"for {c.scope.replace('_', ' ')} agreements")
+    if scope:
+        lead += ", " + ", ".join(scope) + ","
+    body = re.sub(r"(?<=[.!?])\s+", "; ", c.text.strip().rstrip("."))
+    return f"{lead} states: {body} [{c.n}]."
+
+
+def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
+                     cs: list[contracts.Contract]) -> str | None:
+    """Every sentence that fails, replaced by the verbalisation of the contracts it
+    cites — or None when a failing sentence cites no contract (nothing approved to put
+    in its place). No unverified sentence survives: what is shown is either verified or
+    the approved source text itself."""
+    by_n = {c.n: c for c in cs}
+    out = []
+    for sentence in _sentences(text):
+        failures, _ = verify_answer(sentence, payload, bundle, cs)
+        if not failures:
+            out.append(sentence)
+            continue
+        cited = [by_n[int(m)] for m in dict.fromkeys(_MARKER.findall(sentence))
+                 if m.isdigit() and int(m) in by_n]
+        if not cited:
+            return None
+        out += [verbalise(c) for c in cited if verbalise(c) not in out]
+    return " ".join(out)
+#: PHASE 12 (`AM-91`): Gemini verbalises claim contracts instead of raw evidence.
+CONTRACTS = True
+#: Share of a sentence's content words drawn from its cited contracts above which it
+#: is a restatement, decided by the deterministic contract checks.
+VERBATIM = 0.8
+
+
+def contract_payload(bundle: evidence.Bundle, question: str
+                     ) -> tuple[Payload, list[contracts.Contract]]:
+    """The payload with the approved claim contracts as its numbered evidence — each
+    [n] is one contract's exact span — and the parts renumbered to them."""
+    base = render(bundle, question)
+    cs = contracts.build(bundle, question)
+    if not cs:
+        return base, []
+    by_ref: dict[str, list[int]] = {}
+    for c in cs:
+        by_ref.setdefault(c.ref, []).append(c.n)
+    parts = []
+    for i, p in enumerate(bundle.parts, 1):
+        nums = sorted({n for s in p.sources if s.supports for n in by_ref.get(s.ref, [])})
+        parts.append(f"{i}. {p.question} — {p.state.replace('_', ' ')}"
+                     + (", claims " + "".join(f"[{n}]" for n in nums) if nums else ""))
+    extra = "\n".join(x for x in (base.assertion_line, base.missing_line) if x)
+    block = (contracts.render(cs, contracts.relations(cs)) + f"\n\n{extra}\n\n"
+             "PARTS OF THE QUESTION:\n" + "\n".join(parts))
+    return Payload([c.text for c in cs], [c.plan_kind for c in cs], [c.ref for c in cs],
+                   base.assertion_line, base.missing_line, block, base.reader_figures,
+                   base.question_figures, tuple(c.authority for c in cs),
+                   tuple(bool(c.frame and contracts._frame(c.frame)) for c in cs)), cs
+
+
+def contract_fallback(bundle: evidence.Bundle, cs: list[contracts.Contract]) -> str:
+    """The fixed grounded answer from the contracts: each claim with its kind and
+    citation, kinds kept apart, then what is asserted and what is missing."""
+    if not cs:
+        return fallback(bundle)
+    out = [f"{contracts.SAY[c.kind]} — {c.citation}: {c.text}" for c in cs]
+    tail = fallback(bundle).split("\n")
+    return "\n".join(out + [t for t in tail if t.startswith(("No company position",
+                                                           "The signed agreement"))])
 
 
 def respond(bundle: evidence.Bundle, question: str, *, environment: str,
@@ -375,29 +497,46 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
     """`generate` / `repair` are injectable (the offline evaluation passes stubs); the
     defaults are the single egress seam, `generation.generate_bundle_answer` and
     `generation.generate_bundle_repair`."""
+    import functools
     import time
 
     if not bundle.answerable:
         return Answer(fallback(bundle), False, [], [], [])
-    payload = render(bundle, question)
+    cs: list[contracts.Contract] = []
+    t_prep = time.perf_counter()
+    if CONTRACTS:
+        payload, cs = contract_payload(bundle, question)
+    else:
+        payload = render(bundle, question)
+    fixed = contract_fallback(bundle, cs) if cs else fallback(bundle)
+    prepare_ms = int((time.perf_counter() - t_prep) * 1000)
     try:
         positions.screen_for_egress(payload.evidence)     # `AM-67` r7, now for all kinds
     except positions.PositionEgressRefused as exc:
-        return Answer(fallback(bundle), False, [f"egress screen: {exc}"], payload.refs,
+        return Answer(fixed, False, [f"egress screen: {exc}"], payload.refs,
                       payload.kinds)
-    call = generate or generation.generate_bundle_answer
-    fix = repair or generation.generate_bundle_repair
+    call = generate or (generation.generate_contract_answer if cs
+                        else generation.generate_bundle_answer)
+    fix = repair or (functools.partial(generation.generate_bundle_repair,
+                                       template=generation.CONTRACT_PROMPT_TEMPLATE)
+                     if cs else generation.generate_bundle_repair)
     try:
         result = call(question, payload.block, environment=environment,
                       prior_questions=prior_questions, request_id=request_id)
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
-        return Answer(fallback(bundle), False, [f"generation: {exc}"], payload.refs,
+        return Answer(fixed, False, [f"generation: {exc}"], payload.refs,
                       payload.kinds)
     t0 = time.perf_counter()
-    failures, shown = verify_answer(result.text, payload, bundle)
+    failures, shown = verify_answer(result.text, payload, bundle, cs)
     verify_ms = (time.perf_counter() - t0) * 1000
     calls, first, latency = 1, None, result.latency_ms
     tokens = [result.prompt_tokens or 0, result.output_tokens or 0]
+    if failures and cs and SENTENCE_REPAIR:
+        t0 = time.perf_counter()
+        repaired = repair_sentences(result.text, payload, bundle, cs)
+        if repaired is not None:
+            failures, shown = verify_answer(repaired, payload, bundle, cs)
+        verify_ms += (time.perf_counter() - t0) * 1000
     if failures and REPAIR:
         try:
             second = fix(question, payload.block, result.text, failures,
@@ -411,9 +550,10 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
             tokens = [tokens[0] + (second.prompt_tokens or 0),
                       tokens[1] + (second.output_tokens or 0)]
             t0 = time.perf_counter()
-            failures, shown = verify_answer(second.text, payload, bundle)
+            failures, shown = verify_answer(second.text, payload, bundle, cs)
             verify_ms += (time.perf_counter() - t0) * 1000
             result = second
-    return Answer(shown if not failures else fallback(bundle), not failures,
+    return Answer(shown if not failures else fixed, not failures,
                   failures, payload.refs, payload.kinds, result.model, latency,
-                  tokens[0], tokens[1], result.text, calls, int(verify_ms), first)
+                  tokens[0], tokens[1], result.text, calls, int(verify_ms), first,
+                  prepare_ms)

@@ -105,6 +105,13 @@ def test_the_verifier_assigns_the_citation_in_the_shown_text(nli):
 
 # --- the corrective retry, end to end through answer.respond --------------------------
 
+@pytest.fixture(autouse=True)
+def excerpt_path(monkeypatch):
+    """These pin PHASE 11 on the excerpt-numbered path; PHASE 12's contract path has
+    its own tests (`test_claim_contracts.py`)."""
+    monkeypatch.setattr(answer, "CONTRACTS", False)
+
+
 def _bundle():
     c = Candidate("CONSTITUTION", "CONST:13", uuid.uuid4(), POLICY, 0.0,
                   "COMPANY_CONSTITUTION", "CURRENT")

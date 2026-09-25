@@ -970,3 +970,88 @@ conditions, 7 kind errors (5 the company's reading of the law stated as bare fac
 unsupported; negation (0.16) and overstatement (0.27) corruptions still pass sometimes; 5
 clean answers fell back; 9 of 65 answers are the fixed grounded answer; labels are
 assistant-annotated. These are PHASE 12's multi-source-reasoning inputs.
+
+Commit: `a5fe6c9`.
+
+## 2026-09-26 — Entry 15: PHASE 12 — multi-source reasoning: claim contracts + evidence/conflict map (PARTIALLY MET)
+
+**Lock recorded — `AM-91` (AB-41)** — amends `AM-89` r1–r3 and `AM-90` r4 narrowly.
+all_lock.md 20700 → 20789 (counted from the file), additions only; registry; CLAUDE.md;
+CHANGELOG. **Not declared complete** (owner instruction: only if the specific failure
+modes materially improve — condition drops did not).
+
+**Built**
+* `legalmind/assist/contracts.py` — `statements` / `build` / `relations` / `render` /
+  `check`: per-statement contracts (subject·action·object, modality, negation,
+  conditions, exceptions, document-type scope, section scope, governing frame,
+  CURRENT/HISTORICAL, kind from the statement's own label or heading), selected by the
+  local reranker (best of the question and its parts, position headings boosted); the
+  conflict map; the deterministic sentence checks.
+* `generation.generate_contract_answer` (`contract-answer-1`); the repair accepts the
+  template it repairs.
+* `answer.contract_payload` / `contract_fallback` / `verbalise` / `repair_sentences`;
+  `Payload.framed`; `Answer.prepare_ms`; near-verbatim restatements decided by the
+  contract checks, not NLI; a restated frame is not a verdict.
+* `guardrails`: a decimal with its unit ("99.9%") is a figure.
+* `tools/eval_generation.py`: contract-aware stub, `--no-repair`, preparation latency.
+
+**Measured by iteration** (every shown sentence labelled independently with ONE
+error-type schema, applied identically to the PHASE 11 baseline answers — 624 + 635 +
+651 + 640 + 667 sentences; per 1,000 shown sentences):
+
+| | P11 | run 2 | run 3 | run 5 (final) |
+|---|---|---|---|---|
+| condition dropped | 38.5 | 103.4 | 73.4 | **36.6** |
+| modality changed | 3.9 | 8.0 | 5.4 | **0** |
+| reading stated as law | 9.6 | 0 | 0 | **0** |
+| other kind | 23.1 | 15.9 | 16.3 | **14.6** |
+| unsupported content | 3.9 | 5.3 | 8.2 | **11.0** |
+| bad sentences | 7.3% | 13.0% | 9.5% | **5.7%** |
+| answers shown | 56 | 40 | 39 | **54** |
+
+What each iteration found (diagnosed on saved drafts with zero Gemini calls):
+run 1 — the conflict map invented conflicts from shared words; purpose/entity/counsel
+lines became claims; a section scope was demanded of every sentence; negation checked on
+60-word notes; condition spans swallowed the main clause. Run 2 — sentence contracts lost
+their governing heading ("Acceptable Position"), document-type and section scope, and
+fragments lost their referent; "the company" counted as position attribution. Run 3 —
+the header line was glued to the heading after it and discarded with it; standard titles
+(the scope) were stripped; scope-list bullets and statute provisos split from their rule;
+"This section governs …" merged into a claim hid the scope. Run 4 — 53% answered: strict
+checks failed whole answers and Gemini repairs rescued 9/39 → deterministic sentence
+repair (re-checked on run-4 drafts: 53% → 85.5% answered, zero calls), then modality
+(plain restatement of shall/may) and grounding (≥ 0.65) checks. Run 5 — statute
+sub-sections kept whole, Schedule model forms framed.
+
+**Final (run 5):** answered 54/65; bad sentences 31/547 (5.7%) vs 38/519 (7.3%); answers
+with a bad sentence 17/54 vs 26/56; citations correct 0.995; 11 fixed answers (7 clean);
+latency p50 3.6 s / p95 7.6 s end to end, contracts built p50 0.15 s / p95 0.54 s,
+verification p50 0.9 s; 77 Gemini calls. PHASE 12 total: 497 calls, 769,046 prompt +
+198,155 output tokens over five full runs.
+
+**Golden regression (mandatory):** 12 of 14 golden questions shown with zero bad
+sentences (GT-09, GT-10 fall back to the fixed answer). GT-00: the current Constitution
+position (§14 / EARLY-TERM-RESTRICTION-MSA-001), the company's reading of the law
+(ss. 73–74, §28.4.1), the historical 6/12-month renewal terms, the client's assertion
+[A] and the missing signed MSA [M] — separate, each named.
+
+**Remaining failures, exactly:** 20 condition drops and 6 unsupported sentences in
+shown answers — DPDP penalty entries without their "NOT YET IN FORCE (13 May 2027)"
+status (4); §31.14 C's exceptions list and governing sub-headings (Change of
+Ownership/Control; Partner & Distribution policy changes) lost (≈8); statute proviso
+ranges (s.179 "clauses (d) to (f)"; s.1(4) spliced onto s.1(3)); "this position"
+referents; a Purpose line read as a position; 8 other-kind misattributions. About half
+are now in the VERBATIM replacement sentences — the contract text itself lacks context
+that lives elsewhere in the source's structure.
+
+**Tested** — `tests/test_claim_contracts.py` (12): per-statement kinds, drafting never a
+claim, abbreviation and fragment handling, modality/negation/conditions/section scope
+recorded, dropped condition, strengthened/weakened modality, lost negation, reading never
+the law and always named, history never current and never blended, conflict map layers
+vs conflicts (and scope), governing frame required, document-type scope required,
+position never called the reading. Older layers pinned to their own paths. Full suite
+**2630 passed, 112 skipped (unchanged), 0 failed**; ruff + mypy clean.
+
+**Next:** build contracts from the structured Constitution records (`AM-79`/`AM-82`
+knowledge_items: section path, heading, status, parent) rather than re-parsing flattened
+context text — the remaining errors are all structure the records already hold.

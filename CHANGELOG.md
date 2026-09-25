@@ -84,6 +84,13 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   corrective generation (`generate_bundle_repair`) then the fixed grounded answer.
   Prompt `bundle-answer-6`. `onnx_backend.pair_logits`; `tools/eval_verification.py`.
   Live: bad claims shown 4.2% → 3.1%, claim citations 0.966 → 1.000, 56/65 answered.
+* **PHASE 12 / `AM-91`** (partially met) — `assist/contracts.py`: claim contracts
+  (modality, negation, conditions, exceptions, scope, frame, status, kind per statement)
+  and the evidence/conflict map; `generation.generate_contract_answer`
+  (`contract-answer-1`); deterministic contract checks and sentence repair in
+  `answer.py`; `guardrails` reads a decimal with its unit as a figure. Over shown
+  sentences: modality and reading-as-law errors to 0, other kind 23 → 15 per 1,000, bad
+  7.3% → 5.7%; condition drops unchanged (37 per 1,000), unsupported content up.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

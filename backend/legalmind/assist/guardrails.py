@@ -319,8 +319,12 @@ def _quantities(text: str) -> set[str]:
     out = set()
     for i, w in enumerate(ws):
         if w[0].isdigit():
-            # "Clause 20.5" and "the Act, 1996" are REFERENCES, not quantities.
-            if "." in w or (len(w) == 4 and w.isdigit() and w.startswith(("19", "20"))):
+            # "Clause 20.5" and "the Act, 1996" are REFERENCES, not quantities — but a
+            # decimal WITH its unit ("99.9%", "1.5 months") is a figure (PHASE 12: a
+            # correct 99.9% uptime was refused as unevidenced).
+            unit_next = i + 1 < len(ws) and ws[i + 1] in _UNIT_WORDS
+            if ("." in w and not unit_next) or (
+                    len(w) == 4 and w.isdigit() and w.startswith(("19", "20"))):
                 continue
             out.add(_norm(w))
         elif w in _UNIT_WORDS:

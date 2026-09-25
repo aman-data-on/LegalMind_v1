@@ -20698,3 +20698,92 @@ small local entailment model does not see them; see PHASE 12.
 
 --------------------------------------------------------------------------------
 AM-90: claim verification against the cited evidence; citation assigned by code
+
+================================================================================
+AMENDMENT BATCH AB-41 — `AM-91`
+Claim contracts and the evidence/conflict map: Gemini verbalises approved claims;
+each sentence is held to its contract in code; a failing sentence is replaced by the
+approved source text
+================================================================================
+
+**Owner decision, 2026-09-25/26** — the master RAG roadmap (`AM-79`'s owner authority),
+§13, and the owner's PHASE 12 instruction: *"Before generation, introduce a structured
+claim/evidence contract for each answerable claim … Gemini should verbalize the approved
+claim contract, not reinterpret the raw evidence … Do not rely on NLI alone … build
+multi-source reasoning around an explicit evidence/conflict map. Do not silently merge
+conflicting sources or 'average' them … Do not declare Phase 12 complete merely because
+overall accuracy improves."* Roadmap PHASE 12.
+
+**Amends:** `AM-89` r1–r3 narrowly (Gemini receives approved claim contracts, not raw
+excerpts; prompt `contract-answer-1`); `AM-90` r4 narrowly (before the one corrective
+generation, a failing sentence that cites approved contracts is replaced by their
+verbalisation). **Does not amend:** `AM-25` r5 (nothing unverified reaches a reader:
+every shown sentence is verified or is the approved source text), `AM-28` r2, `AM-30`
+t1–t7, `AM-78`, `AM-88` (sufficiency, authority and version decided before any
+contract), the Gemini cost guard. The production answer path is unchanged.
+
+```text
+r1   CONTRACTS (assist/contracts.py), read deterministically out of each supporting
+     source, one statement at a time: subject · action · object; modality
+     (PROHIBITED · MANDATORY · ADVISORY · PERMITTED · STATEMENT); negation; conditions
+     and exceptions; document-type scope; the section's own scope ("This section
+     governs …"); the governing FRAME (a heading such as Acceptable / Unacceptable
+     Position, a standard's title, a sub-heading, a Schedule model form); CURRENT or
+     HISTORICAL; kind — COMPANY_POSITION · LAW_READING · LAW · HISTORICAL_EXCEPTION ·
+     CONTRACT — from the statement's own label or heading, never the excerpt's;
+     citation and exact text. Illustrative drafting, counsel notes, purpose and status
+     lines are never a contract. A statute's enumerated items, provisos and
+     Explanations stay with their rule; scope lists stay with their lead-in.
+
+r2   THE EVIDENCE/CONFLICT MAP (contracts.relations). Same kind and scope, nearly the
+     same claim, a different figure or polarity → CONFLICT, rendered as such and never
+     averaged. Different kinds on the same subject → SEPARATE LAYER, never merged.
+
+r3   GEMINI VERBALISES CONTRACTS (generation.generate_contract_answer): it sees each
+     contract's SAY AS attribution, modality, negation, conditions, frame, scope,
+     status and exact text — never the raw evidence.
+
+r4   EACH SENTENCE HELD TO ITS CONTRACT, IN CODE (contracts.check), before and beside
+     the PHASE 11 verifier: every kind named; law never from the company's reading or
+     position; a company position never called the company's reading; history never
+     current; each condition, frame and scope carried; modality neither strengthened,
+     weakened nor dropped to a plain statement; negation preserved; the sentence
+     grounded ≥ 0.65 in its cited contracts. A near-verbatim restatement is decided
+     here, not by entailment.
+
+r5   SENTENCE REPAIR (answer.repair_sentences): a failing sentence citing contracts is
+     replaced by their verbalisation (kind · frame · scope · the source's words ·
+     citation); a failing sentence citing none sends the answer to the one corrective
+     generation, then to the fixed grounded answer.
+```
+
+**Recorded 2026-09-26.** Five full live runs of the 65-question benchmark (497 Gemini
+calls), every shown sentence labelled independently with one error-type schema applied
+identically to the PHASE 11 baseline (`tests/assist_eval/contracts_eval_2026-09-26.json`):
+
+| per 1,000 shown sentences | PHASE 11 | PHASE 12 (run 5) |
+|---|---|---|
+| condition dropped | 38.5 | 36.6 — **not materially improved** |
+| modality changed | 3.9 | **0** |
+| negation error | 0 | 0 |
+| company reading stated as law | 9.6 | **0** |
+| history as current · assertion as evidence | 0 · 0 | 0 · 0 |
+| other kind misattribution | 23.1 | **14.6** |
+| unsupported content | 3.9 | 11.0 — **worse** |
+| bad sentences · answers with one | 7.3% · 26/56 | **5.7% · 17/54** |
+| citations correct | 0.997 | 0.995 |
+
+Answered 54/65 (11 fixed answers, 7 of them clean); p50 3.6 s, p95 7.6 s end to end;
+contracts built in p50 0.15 s; 77 Gemini calls in the final run (sentence repair replaced
+most regenerations). Golden regression: 12 of 14 golden questions shown with zero bad
+sentences; GT-00 keeps the current Constitution position, the company's reading of the
+law, the historical 6/12-month exceptions, the client's assertion and the missing signed
+MSA apart. **PHASE 12 IS PARTIALLY MET, NOT COMPLETE:** remaining condition drops and
+unsupported sentences come from context the contract still lacks — an entry's status
+line (NOT YET IN FORCE), exception lists on separate lines, governing sub-headings and
+"this position" referents. The named next step: build contracts from the structured
+Constitution records (`AM-79`/`AM-82` knowledge_items: section path, headings, status)
+instead of re-parsing flattened context text.
+
+--------------------------------------------------------------------------------
+AM-91: claim contracts and the evidence/conflict map

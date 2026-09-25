@@ -40,9 +40,26 @@ from tools import rag_benchmark as rb
 _FIRST = re.compile(r"^(.{20,300}?[.;:])(?:\s|$)", re.S)
 
 
+_CONTRACT = re.compile(r"^\[(\d+)\] (.*?SAY AS: ([^·]+?) ·.*?)\n\s+TEXT: (.+)$", re.M)
+
+
 def stub(question, block, *, environment, prior_questions=(), request_id=None):
-    """A deterministic 'model': each excerpt's first sentence, cited; then [A] and [M]."""
+    """A deterministic 'model': each excerpt's first sentence, cited — or, for a PHASE 12
+    contract block, each contract verbatim under its SAY AS — then [A] and [M]."""
     out = []
+    if block.startswith("APPROVED CLAIMS"):
+        out = []
+        for n, head, say, text in _CONTRACT.findall(block):
+            frame = re.search(r"FRAME: (.+?) \(say so", head)
+            scope = re.search(r"SCOPE: (.+?) agreements only", head)
+            only = re.search(r"APPLIES ONLY TO: (.+?) \(say so\)", head)
+            lead = " ".join(x for x in (
+                f"For {scope.group(1)} agreements," if scope else "",
+                f"for {only.group(1)}," if only else "", say.strip(),
+                f"({frame.group(1).lower()})" if frame else "") if x)
+            body = re.sub(r"(?<=[.!?])\s+", "; ", text.rstrip("."))  # one sentence
+            out.append(f"{lead} states: {body} [{n}].")
+        block = ""
     for m in re.finditer(r"^\[(\d+)\] [^\n]*\n(.+?)(?=\n\n\[\d+\] |\n\n\[A\]|\n\n\[M\]|"
                          r"\n\nPARTS|\Z)", block, re.S | re.M):
         # Skip the excerpt's header line ("Legal Constitution L1.10 · 13 …", "The … Act,
@@ -109,6 +126,7 @@ def score(case, plan, bundle, ans) -> dict:
         "latency_ms": ans.latency_ms, "prompt_tokens": ans.prompt_tokens,
         "output_tokens": ans.output_tokens, "text": ans.text, "draft": ans.draft,
         "model": ans.model, "calls": ans.calls, "verify_ms": ans.verify_ms,
+        "prepare_ms": ans.prepare_ms,
         "first_draft": ans.first_draft,
     }
 
@@ -149,6 +167,8 @@ def aggregate(rows, mode: str) -> dict:
         "repaired_then_shown": sum(1 for r in rows if r.get("calls") == 2
                                    and r["generated"]),
         "verify_ms": {"p50": vms[len(vms) // 2], "p95": vms[int(len(vms) * .95)]},
+        "prepare_ms": (lambda p: {"p50": p[len(p) // 2], "p95": p[int(len(p) * .95)]})(
+            sorted(r.get("prepare_ms") or 0 for r in rows if r.get("calls")) or [0]),
         "answered_of_answerable_bundles": frac(r["generated"] for r in answerable),
         "relevance_cites_gold": frac(r["cites_gold"] for r in answerable),
         "completeness_distinguish": frac(dist),
@@ -179,7 +199,11 @@ def main() -> int:
     ap.add_argument("--json")
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--recheck", help="a previous --live JSON: re-check its drafts")
+    ap.add_argument("--no-repair", action="store_true",
+                    help="no corrective generation (measure the deterministic layer)")
     args = ap.parse_args()
+    if args.no_repair:
+        answer.REPAIR = False
     db = sessionmaker(bind=create_engine(
         args.db, connect_args={"options": "-c default_transaction_read_only=on"}))()
     replayed = None
