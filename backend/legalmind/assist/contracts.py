@@ -127,6 +127,14 @@ class Contract:
     #: "Unacceptable", "Negotiable / approval required". Without it, "A counterparty
     #: accepting the 30-day export window" reads as a fact, not as what is acceptable.
     frame: str | None = None
+    #: PHASE 12 records (`AM-92`): where the claim sits, when it applies, what it is
+    #: subject to, and what "this position" in it means — all from the source records.
+    heading: tuple[str, ...] = ()
+    temporal: str | None = None
+    exceptions_text: str | None = None
+    referent: str | None = None
+    from_records: bool = False
+    antecedents: tuple[tuple[str, str], ...] = ()
 
     @property
     def authority(self) -> str:
@@ -298,25 +306,41 @@ def section_scope(source: evidence.Source) -> str | None:
 
 
 def _contract(n: int, source: evidence.Source, text: str, kind: str,
-              frame: str | None = None) -> Contract:
+              frame: str | None = None, unit=None) -> Contract:
     from legalmind.assist import answer
     mod, neg = modality(text)
     subject, action, obj = _parts(text)
     scope = _SCOPE_CODE.search(source.ref)
     conditions = [m.group(0).strip() for m in _CONDITION.finditer(text)]
-    covered = section_scope(source)
-    if covered and kind == POSITION:
-        need = guardrails._content_words(covered)
-        if len(need & guardrails._content_words(text)) / max(1, len(need)) < 0.5:
-            conditions.append(f"for {covered}{_SCOPE_TAG}")   # PHASE 11's error
-    return Contract(n, source.ref, answer.citation(source), kind,
+    citation = answer.citation(source)
+    if unit is not None:                               # PHASE 12 records (`AM-92`)
+        words = guardrails._content_words(text)
+        for covered in unit.scope:
+            need = guardrails._content_words(covered)
+            if kind != LAW and len(need & words) / max(1, len(need)) < 0.5:
+                conditions.append(f"for {covered}{_SCOPE_TAG}")
+        if not frame and unit.heading and _subheading(unit.heading[-1] + ":"):
+            frame = re.sub(r"^[A-Z]\.\s+", "", unit.heading[-1])   # "A. MSA / Customer"
+        citation += f"{unit.citation_suffix}" if unit.citation_suffix else ""
+        if unit.heading and not unit.citation_suffix:
+            citation += " — " + " > ".join(unit.heading)
+    else:
+        covered = section_scope(source)
+        if covered and kind == POSITION:
+            need = guardrails._content_words(covered)
+            if len(need & guardrails._content_words(text)) / max(1, len(need)) < 0.5:
+                conditions.append(f"for {covered}{_SCOPE_TAG}")   # PHASE 11's error
+    return Contract(n, source.ref, citation, kind,
                     "HISTORICAL" if kind == HISTORY else "CURRENT", text, subject, action,
                     obj, mod, neg, tuple(conditions),
                     tuple(m.group(0).strip() for m in _EXCEPTION.finditer(text)),
-                    scope.group(1) if scope else None, frame)
+                    scope.group(1) if scope else None, frame,
+                    unit.heading if unit else (), unit.temporal if unit else None,
+                    unit.exceptions if unit else None, unit.referent if unit else None,
+                    unit is not None, unit.antecedents if unit else ())
 
 
-def build(bundle: evidence.Bundle, question: str) -> list[Contract]:
+def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
     """The approved claims: per supporting source, its PER_SOURCE sentences most relevant
     to the question (the local reranker orders; lexical overlap when it is absent), at
     most MAX_CONTRACTS in all, in source order. Selection only — sufficiency, authority
@@ -325,8 +349,16 @@ def build(bundle: evidence.Bundle, question: str) -> list[Contract]:
     picked: list[tuple[evidence.Source, str, str, str | None]] = []
     words = guardrails._content_words(question)
     queries = list(dict.fromkeys([question, *(p.question for p in bundle.parts)]))
+    from legalmind.assist import claim_records
+    recorded: dict = {}
     for source in bundle.shown():
-        rows = _statements(source)
+        units = claim_records.units(db, source) if db is not None else None
+        if units:
+            rows = [(u.text, _kind_of_record(u), bool(u.frame) or
+                     "position" in " ".join(u.heading).lower(), u.frame) for u in units]
+            recorded.update({(source.ref, u.text): u for u in units})
+        else:
+            rows = _statements(source)
         if not rows:
             continue
         sents = [(s, k) for s, k, _, _ in rows]
@@ -340,8 +372,13 @@ def build(bundle: evidence.Bundle, question: str) -> list[Contract]:
                   for i, x in enumerate(scores)]
         order = sorted(range(len(sents)), key=lambda i: -scores[i])[:PER_SOURCE]
         picked += [(source, *sents[i], rows[i][3]) for i in sorted(order)]
-    return [_contract(n, s, t, k, f)
+    return [_contract(n, s, t, k, f, recorded.get((s.ref, t)))
             for n, (s, t, k, f) in enumerate(picked[:MAX_CONTRACTS], 1)]
+
+
+def _kind_of_record(u) -> str:
+    return {"SECONDARY_REFERENCE": READING, "HISTORICAL_EXCEPTION": HISTORY,
+            "PRIMARY_LAW": LAW}.get(u.authority, POSITION)
 
 
 @dataclass(frozen=True)
@@ -406,6 +443,15 @@ def render(contracts: list[Contract], rels: list[Relation]) -> str:
         if c.scope:
             fields.append(f"SCOPE: {c.scope.replace('_', ' ')} agreements only (say so)")
         fields.append(f"STATUS: {c.status.lower()}")
+        if c.temporal:
+            fields.append(f"IN FORCE: {c.temporal} (say so)" if c.temporal != "REPEALED"
+                          else "REPEALED — historical, not current law (say so)")
+        if c.referent:
+            fields.append(f"'THIS' REFERS TO: {c.referent} (name it)")
+        if c.exceptions_text:
+            fields.append(f"SUBJECT TO THESE EXCEPTIONS: {c.exceptions_text} (say so)")
+        for said, meant in c.antecedents:
+            fields.append(f"'{said.upper()}' MEANS: {meant} (say so)")
         lines.append(f"[{c.n}] {c.citation} · " + " · ".join(fields)
                      + f"\n    TEXT: {c.text}")
     conflict = [r for r in rels if r.kind == "CONFLICT"]
@@ -435,6 +481,28 @@ def check(sentence: str, cited: list[Contract]) -> list[str]:
             r"\b(?:current|today|now)\b", claim, re.I) and not re.search(
             r"\bnot (?:the )?current\b|\bno longer\b", claim, re.I):
         failures.append(f"a historical exception stated as current: {sentence[:80]!r}")
+    for c in cited:
+        dates = "".join("|" + re.escape(d) for d in re.findall(r"\d{1,2} \w+ \d{4}",
+                                                               c.temporal or ""))
+        if c.temporal and not re.search(r"not yet in force|in force|commenc|effective|"
+                                        r"repeal" + dates, claim, re.I):
+            failures.append(f"temporal status of [{c.n}] lost ({c.temporal[:40]!r}): "
+                            f"{sentence[:80]!r}")
+        if c.referent:
+            need = guardrails._content_words(c.referent) - {"stakeholder", "confirmed"}
+            if need and len(need & guardrails._content_words(claim)) / len(need) < \
+                    CONDITION_KEPT:
+                failures.append(f"'this' of [{c.n}] not resolved ({c.referent[:40]!r}): "
+                                f"{sentence[:80]!r}")
+        for said, meant in c.antecedents:
+            need = guardrails._content_words(meant)
+            if re.search(re.escape(said), claim, re.I) and need and len(
+                    need & guardrails._content_words(claim)) / len(need) < CONDITION_KEPT:
+                failures.append(f"antecedent of {said!r} in [{c.n}] lost "
+                                f"({meant[:40]!r}): {sentence[:80]!r}")
+        if c.exceptions_text and not re.search(r"\bexcept|\bexception|shorter notice|"
+                                               r"immediate action|unless", claim, re.I):
+            failures.append(f"exceptions of [{c.n}] not stated: {sentence[:80]!r}")
     if ATTRIBUTION[READING].search(claim) and READING not in kinds and kinds & {
             POSITION, HISTORY}:
         failures.append(f"a company position called the company's reading of the law: "
@@ -458,7 +526,12 @@ def check(sentence: str, cited: list[Contract]) -> list[str]:
                 failures.append(f"drops a condition of [{c.n}] ({cond[:50]!r}): "
                                 f"{sentence[:80]!r}")
                 break
-        mod, neg = modality(claim)
+        # The exceptions are the record's own words, carried beside the claim: their
+        # "should" is not the claim's modality.
+        bare = claim
+        for part in re.split(r"(?<=[.!?])\s+", c.exceptions_text or ""):
+            bare = bare.replace(part.rstrip(".") or "\0", "")
+        mod, neg = modality(bare)
         own = guardrails._content_words(c.text)
         restating = len(own & words) / max(1, len(own)) >= 0.5
         if c.modality != "STATEMENT" and mod != "STATEMENT" and _STRENGTH[mod] != \
@@ -483,7 +556,9 @@ def check(sentence: str, cited: list[Contract]) -> list[str]:
     # a rule) — the sentence repair puts the approved text in its place.
     own_all = set().union(set(), *(guardrails._content_words(c.text) for c in cited))
     framing = set().union(set(), *(guardrails._content_words(
-        f"{SAY[c.kind]} {c.frame or ''} {' '.join(c.conditions)} {c.scope or ''}")
+        f"{SAY[c.kind]} {c.frame or ''} {' '.join(c.conditions)} {c.scope or ''} "
+        f"{c.exceptions_text or ''} {c.referent or ''} {c.temporal or ''} "
+        f"{' '.join(m for _, m in c.antecedents)}")
         for c in cited))
     if words and len(words & (own_all | framing)) / len(words) < GROUNDED:
         failures.append(f"not grounded in its cited claims "

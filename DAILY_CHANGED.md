@@ -1055,3 +1055,66 @@ position never called the reading. Older layers pinned to their own paths. Full 
 **Next:** build contracts from the structured Constitution records (`AM-79`/`AM-82`
 knowledge_items: section path, heading, status, parent) rather than re-parsing flattened
 context text — the remaining errors are all structure the records already hold.
+
+Commit: `4efbe46`.
+
+## 2026-09-26 — Entry 16: PHASE 12 — claim contracts from the structured source records (COMPLETE, `AM-92`)
+
+**What changed.** Contracts for the Legal Constitution and statutes are now read from the
+structured records rather than re-parsed context text (`assist/claim_records.py`). Each
+claim carries, in the records' own words: its heading; its scope (the section's
+"governs …" clause and the group's document types, narrowed by a lettered sub-part such
+as "A. MSA / Customer", none on a historical deal); its in-force status ("NOT YET IN
+FORCE — 13 May 2027", REPEALED); its group's exceptions list; what "this position", "the
+Scope of Application above" and "the confirmed position" refer to; its local antecedents
+("that sum" → "a sum payable on breach", "the contractual amount stated above" → "the
+full committed-term value"); and its kind from the record's authority. A statute claim is
+a whole sub-section with its provisos and items, footnotes removed, the Act named. Three
+further contract checks hold a sentence to these; the repair appends only the records'
+qualifiers. Gemini still only verbalises the contract. Production path unchanged.
+
+**Measured.** Final full live run (run 9, 81 Gemini calls), every shown sentence labelled
+independently with one schema, per 1,000 shown sentences, against run 7 (the records run
+before the final fix) and `AM-91`'s run 5:
+
+| | run 5 | run 7 | **run 9** |
+|---|---|---|---|
+| cross-reference / scope lost | 20.1 | 31.4 | **17.6** |
+| source-kind misattribution | 14.6 | 3.9 | **6.6** |
+| temporal / status lost | 7.3 | 2.0 | **2.2** |
+| conditions dropped | 3.7 | 9.8 | **0** |
+| exceptions / ranges lost | 9.1 | 2.0 | **2.2** |
+| modality · negation | 0 · 0 | 2.0 · 2.0 | **0 · 0** |
+| unsupported · contradicted | 11.0 · 0 | 9.8 · 2.0 | **6.6 · 2.2** |
+| reader's assertion as fact | 0 | 2.0 | **0** |
+| bad sentences · answers with one | 5.7% · 17 | 6.3% · 22 | **3.5% · 13** |
+| citations correct | 0.995 | 0.989 | **0.997** |
+| Gemini answers shown | 54/65 | 52/65 | **49/65** |
+| fallbacks · false rejects | 11 · 7 | 13 · 5 | **16 · 6** |
+| latency p50 / p95 | 3.6 / 7.6 s | 4.4 / 10.4 s | **4.0 / 10.8 s** |
+
+Of the 16 fallbacks, 10 caught a real error; the 6 clean ones: GT-00 (output cap), A-03
+(new record checks), L-02 (contract checks), H-03 (verdict screen), L-04 and N-02
+(verifier). Golden: 11 of 14 shown, 8 with zero bad sentences; GT-00, GT-09, GT-11 fell
+back to the fixed grounded answer.
+
+**Final fix, proven before spend.** Run 7's saved answers re-checked offline (zero
+Gemini): cross-reference shown 16 → 9, all other error types unchanged, false rejects
+5 → 3. The 11 affected questions live (16 calls): 0 bad sentences shown (run 7: 11), 0
+cross-reference/scope (run 7: 8), 0 unsupported, 0 false rejects, 6 of 11 shown (run 7:
+8), every fallback a correct catch.
+
+**Tested** — `tests/test_claim_records.py` (14) pins every case the owner named plus the
+final fix. Full suite **2644 passed, 0 failed, 112 skipped**; ruff + mypy clean. Eval:
+`backend/tests/assist_eval/contract_records_eval_2026-09-26.json`.
+
+**Gemini.** Records continuation 254 calls (492,108 prompt + 142,701 output tokens);
+PHASE 12 total 751 calls (1,261,154 + 340,856).
+
+**Known limitations — recorded for PHASE 13, none attempted:** (1) output-cap truncation:
+richer contracts lengthen answers, 4 of 65 hit the 900-token cap (0 in run 5); (2)
+`[Illustrative clause:]` text in company-standard files (`POS:LIABILITY-MSA-001`)
+presented as the position — all 3 source-kind errors shown; (3) A-03, one false reject
+from the new record checks; (4) statute cross-reference reconstruction ("the period in
+sub-section (1)", state amendments, Schedule items); (5) the PHASE 11 verifier's false
+rejects.

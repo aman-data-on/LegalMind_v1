@@ -1,0 +1,387 @@
+{
+ "_about": "Roadmap PHASE 12 / AM-92 \u2014 claim contracts built from the structured source records. Every shown sentence labelled independently (four annotators, one error-type schema; CONDITION_DROPPED split into TEMPORAL_STATUS_LOST / EXCEPTION_OR_RANGE_LOST / CROSS_REFERENCE_LOST, baselines re-labelled into the same sub-types). Rates are per 1,000 sentences of SHOWN answers. Live runs call the single egress seam; offline figures call none.",
+ "test_suite": {
+  "passed": 2644,
+  "failed": 0,
+  "skipped": 112,
+  "xfailed": 1
+ },
+ "phase11_baseline": {
+  "answers": 65,
+  "shown": 56,
+  "claims_shown": 519,
+  "bad_claims": 38,
+  "bad_rate": 0.0732,
+  "answers_with_bad": 26,
+  "citation_ok": 0.9971,
+  "fallbacks": 9,
+  "false_fallbacks": 5,
+  "errors_count": {
+   "CONDITION_DROPPED": 16,
+   "EXCEPTION_OR_RANGE_LOST": 5,
+   "MODALITY_CHANGED": 2,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 1,
+   "CROSS_REFERENCE_LOST": 0,
+   "READING_AS_LAW": 5,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 12,
+   "UNSUPPORTED_CONTENT": 2,
+   "CONTRADICTION": 0,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "errors_per_1000_shown": {
+   "CONDITION_DROPPED": 30.8,
+   "EXCEPTION_OR_RANGE_LOST": 9.6,
+   "MODALITY_CHANGED": 3.9,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 1.9,
+   "CROSS_REFERENCE_LOST": 0,
+   "READING_AS_LAW": 9.6,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 23.1,
+   "UNSUPPORTED_CONTENT": 3.9,
+   "CONTRADICTION": 0,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "live": {
+   "answered_of_answerable_bundles": 0.8548,
+   "latency_ms": {
+    "p50": 3847,
+    "p95": 8653
+   },
+   "gemini_calls": 89,
+   "tokens": {
+    "prompt": 196212,
+    "output": 30181,
+    "prompt_per_call": 3018
+   }
+  }
+ },
+ "am91_run5": {
+  "answers": 65,
+  "shown": 54,
+  "claims_shown": 547,
+  "bad_claims": 31,
+  "bad_rate": 0.0567,
+  "answers_with_bad": 17,
+  "citation_ok": 0.9951,
+  "fallbacks": 11,
+  "false_fallbacks": 7,
+  "errors_count": {
+   "CONDITION_DROPPED": 2,
+   "EXCEPTION_OR_RANGE_LOST": 5,
+   "MODALITY_CHANGED": 0,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 4,
+   "CROSS_REFERENCE_LOST": 11,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 8,
+   "UNSUPPORTED_CONTENT": 6,
+   "CONTRADICTION": 0,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "errors_per_1000_shown": {
+   "CONDITION_DROPPED": 3.7,
+   "EXCEPTION_OR_RANGE_LOST": 9.1,
+   "MODALITY_CHANGED": 0,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 7.3,
+   "CROSS_REFERENCE_LOST": 20.1,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 14.6,
+   "UNSUPPORTED_CONTENT": 11.0,
+   "CONTRADICTION": 0,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "live": {
+   "answered_of_answerable_bundles": 0.8387,
+   "latency_ms": {
+    "p50": 3622,
+    "p95": 7625
+   },
+   "gemini_calls": 77,
+   "tokens": {
+    "prompt": 117128,
+    "output": 32720,
+    "prompt_per_call": 1801
+   }
+  }
+ },
+ "records_run6": {
+  "answers": 65,
+  "shown": 51,
+  "claims_shown": 480,
+  "bad_claims": 38,
+  "bad_rate": 0.0792,
+  "answers_with_bad": 21,
+  "citation_ok": 0.9915,
+  "fallbacks": 14,
+  "false_fallbacks": 4,
+  "errors_count": {
+   "CONDITION_DROPPED": 7,
+   "EXCEPTION_OR_RANGE_LOST": 1,
+   "MODALITY_CHANGED": 0,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 3,
+   "CROSS_REFERENCE_LOST": 22,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 4,
+   "UNSUPPORTED_CONTENT": 2,
+   "CONTRADICTION": 2,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "errors_per_1000_shown": {
+   "CONDITION_DROPPED": 14.6,
+   "EXCEPTION_OR_RANGE_LOST": 2.1,
+   "MODALITY_CHANGED": 0,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 6.2,
+   "CROSS_REFERENCE_LOST": 45.8,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 8.3,
+   "UNSUPPORTED_CONTENT": 4.2,
+   "CONTRADICTION": 4.2,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "live": {
+   "answered_of_answerable_bundles": 0.7742,
+   "latency_ms": {
+    "p50": 4125,
+    "p95": 10391
+   },
+   "gemini_calls": 79,
+   "tokens": {
+    "prompt": 150349,
+    "output": 44156,
+    "prompt_per_call": 2313
+   }
+  }
+ },
+ "records_run7": {
+  "answers": 65,
+  "shown": 52,
+  "claims_shown": 509,
+  "bad_claims": 32,
+  "bad_rate": 0.0629,
+  "answers_with_bad": 22,
+  "citation_ok": 0.9894,
+  "fallbacks": 13,
+  "false_fallbacks": 5,
+  "errors_count": {
+   "CONDITION_DROPPED": 5,
+   "EXCEPTION_OR_RANGE_LOST": 1,
+   "MODALITY_CHANGED": 1,
+   "NEGATION_FLIPPED": 1,
+   "TEMPORAL_STATUS_LOST": 1,
+   "CROSS_REFERENCE_LOST": 16,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 2,
+   "UNSUPPORTED_CONTENT": 5,
+   "CONTRADICTION": 1,
+   "ASSERTION_AS_EVIDENCE": 1
+  },
+  "errors_per_1000_shown": {
+   "CONDITION_DROPPED": 9.8,
+   "EXCEPTION_OR_RANGE_LOST": 2.0,
+   "MODALITY_CHANGED": 2.0,
+   "NEGATION_FLIPPED": 2.0,
+   "TEMPORAL_STATUS_LOST": 2.0,
+   "CROSS_REFERENCE_LOST": 31.4,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 3.9,
+   "UNSUPPORTED_CONTENT": 9.8,
+   "CONTRADICTION": 2.0,
+   "ASSERTION_AS_EVIDENCE": 2.0
+  },
+  "live": {
+   "answered_of_answerable_bundles": 0.8065,
+   "latency_ms": {
+    "p50": 4397,
+    "p95": 10372
+   },
+   "gemini_calls": 78,
+   "tokens": {
+    "prompt": 145291,
+    "output": 42660,
+    "prompt_per_call": 2235
+   }
+  }
+ },
+ "final_run9": {
+  "answers": 65,
+  "shown": 49,
+  "claims_shown": 454,
+  "bad_claims": 16,
+  "bad_rate": 0.0352,
+  "answers_with_bad": 13,
+  "citation_ok": 0.997,
+  "fallbacks": 16,
+  "false_fallbacks": 6,
+  "errors_count": {
+   "CONDITION_DROPPED": 0,
+   "EXCEPTION_OR_RANGE_LOST": 1,
+   "MODALITY_CHANGED": 0,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 1,
+   "CROSS_REFERENCE_LOST": 8,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 3,
+   "UNSUPPORTED_CONTENT": 3,
+   "CONTRADICTION": 1,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "errors_per_1000_shown": {
+   "CONDITION_DROPPED": 0,
+   "EXCEPTION_OR_RANGE_LOST": 2.2,
+   "MODALITY_CHANGED": 0,
+   "NEGATION_FLIPPED": 0,
+   "TEMPORAL_STATUS_LOST": 2.2,
+   "CROSS_REFERENCE_LOST": 17.6,
+   "READING_AS_LAW": 0,
+   "POSITION_AS_LAW": 0,
+   "HISTORY_AS_CURRENT": 0,
+   "OTHER_KIND": 6.6,
+   "UNSUPPORTED_CONTENT": 6.6,
+   "CONTRADICTION": 2.2,
+   "ASSERTION_AS_EVIDENCE": 0
+  },
+  "live": {
+   "answered_of_answerable_bundles": 0.7581,
+   "latency_ms": {
+    "p50": 3960,
+    "p95": 10782
+   },
+   "gemini_calls": 81,
+   "tokens": {
+    "prompt": 158201,
+    "output": 44553,
+    "prompt_per_call": 2433
+   }
+  }
+ },
+ "final_run9_golden": {
+  "golden": 14,
+  "shown": 11,
+  "shown_with_zero_bad": 8,
+  "fell_back": [
+   "GT-00",
+   "GT-09",
+   "GT-11"
+  ]
+ },
+ "final_run9_fallbacks": {
+  "total": 16,
+  "correct_catches": 10,
+  "false_rejects": {
+   "GT-00": "output-cap truncation (900 tokens, both calls) -> trailing sentence has no citation",
+   "A-03": "new record checks (in-force-since, name the Act) plus a condition check on a correct IT Act paraphrase",
+   "L-02": "existing contract checks (modality/frame/scope)",
+   "H-03": "existing verdict screen",
+   "L-04": "PHASE 11 verifier",
+   "N-02": "PHASE 11 verifier"
+  },
+  "output_cap_hits": {
+   "am91_run5": 0,
+   "records_run7": 5,
+   "final_run9": 4
+  }
+ },
+ "run7_replay_offline_zero_gemini": {
+  "original_shown": {
+   "cross_reference_lost": 16,
+   "false_rejects": 5,
+   "shown": 52
+  },
+  "with_final_fix": {
+   "cross_reference_lost": 9,
+   "false_rejects": 3,
+   "shown": 54
+  },
+  "other_error_types": "unchanged"
+ },
+ "targeted_11_case_live": {
+  "cases": [
+   "GT-00",
+   "GT-01",
+   "GT-13",
+   "J-01",
+   "N-04",
+   "GT-09",
+   "C-03",
+   "D-02",
+   "F-01",
+   "L-04",
+   "H-03"
+  ],
+  "gemini_calls": 16,
+  "tokens": {
+   "prompt": 38267,
+   "output": 11332
+  },
+  "am91_run5": {
+   "shown": 9,
+   "bad_sentences_shown": 7,
+   "answers_with_bad": 3,
+   "cross_reference_scope_shown": 4,
+   "unsupported_shown": 1,
+   "false_rejects": 1
+  },
+  "records_run7": {
+   "shown": 8,
+   "bad_sentences_shown": 11,
+   "answers_with_bad": 7,
+   "cross_reference_scope_shown": 8,
+   "unsupported_shown": 1,
+   "false_rejects": 1
+  },
+  "final_fix": {
+   "shown": 6,
+   "bad_sentences_shown": 0,
+   "answers_with_bad": 0,
+   "cross_reference_scope_shown": 0,
+   "unsupported_shown": 0,
+   "false_rejects": 0,
+   "latency_ms": {
+    "p50": 6098,
+    "p95": 11370
+   }
+  }
+ },
+ "gemini_phase12": {
+  "records_continuation": {
+   "calls": 254,
+   "prompt_tokens": 492108,
+   "output_tokens": 142701,
+   "runs": "run6 79 \u00b7 run7 78 \u00b7 targeted 16 \u00b7 run9 81"
+  },
+  "phase12_total": {
+   "calls": 751,
+   "prompt_tokens": 1261154,
+   "output_tokens": 340856
+  }
+ },
+ "known_limitations": [
+  "output-cap truncation: richer record contracts lengthen answers; 4 of 65 hit the 900-token cap (GT-00 a clean answer lost to fail-closed)",
+  "[Illustrative clause:] text in company-standard files (POS:LIABILITY-MSA-001) presented as the company position \u2014 3 OTHER_KIND shown; standards are not on the records path",
+  "A-03: one false reject from the new record checks",
+  "statute cross-reference reconstruction: 'the period in sub-section (1)', state amendments and Schedule items spliced",
+  "existing verifier false rejects (L-04, N-02)"
+ ]
+}

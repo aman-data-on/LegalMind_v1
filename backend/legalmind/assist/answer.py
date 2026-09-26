@@ -359,8 +359,15 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
         restating_frame = bool(payload.framed) and qp.CONTRACT not in cited_kinds and \
             "A" not in marks and any(m.isdigit() and 1 <= int(m) <= len(payload.framed)
                                      and payload.framed[int(m) - 1] for m in marks)
-        if intent.is_verdict_statement(claim) and not restating_frame and (
-                qp.CONTRACT in cited_kinds or "A" in marks or _SUBJECT.search(claim)):
+        # Likewise a sentence that IS the cited record's words (a whole sub-section, a
+        # §14 paragraph on ss.73/74): approved source text judges no document.
+        words = guardrails._content_words(claim)
+        restating_text = qp.CONTRACT not in cited_kinds and "A" not in marks and \
+            bool(words) and len(words & guardrails._content_words(" ".join(cited))) / \
+            len(words) >= VERBATIM
+        judged = qp.CONTRACT in cited_kinds or "A" in marks or _SUBJECT.search(claim)
+        if intent.is_verdict_statement(claim) and judged and not (
+                restating_frame or restating_text):
             failures.append(f"compliance verdict: {sentence[:80]!r}")
     return failures
 
@@ -425,8 +432,20 @@ def verbalise(c: contracts.Contract) -> str:
         scope.insert(0, f"for {c.scope.replace('_', ' ')} agreements")
     if scope:
         lead += ", " + ", ".join(scope) + ","
+    if c.referent:
+        lead += f" (on {c.referent})"
     body = re.sub(r"(?<=[.!?])\s+", "; ", c.text.strip().rstrip("."))
-    return f"{lead} states: {body} [{c.n}]."
+    tail = ""
+    if c.exceptions_text:
+        tail += "; subject to these exceptions: " + re.sub(
+            r"(?<=[.!?])\s+", "; ", c.exceptions_text.rstrip("."))
+    if c.temporal:
+        tail += (f" (in force: {c.temporal.rstrip('.')})" if c.temporal != "REPEALED"
+                 else " (repealed — historical, not current law)")
+    if c.antecedents:
+        tail += " (" + "; ".join(f"{said} being {meant}"
+                                 for said, meant in c.antecedents) + ")"
+    return f"{lead} states: {body}{tail} [{c.n}]."
 
 
 def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
@@ -455,12 +474,12 @@ CONTRACTS = True
 VERBATIM = 0.8
 
 
-def contract_payload(bundle: evidence.Bundle, question: str
+def contract_payload(bundle: evidence.Bundle, question: str, db=None
                      ) -> tuple[Payload, list[contracts.Contract]]:
     """The payload with the approved claim contracts as its numbered evidence — each
     [n] is one contract's exact span — and the parts renumbered to them."""
     base = render(bundle, question)
-    cs = contracts.build(bundle, question)
+    cs = contracts.build(bundle, question, db)
     if not cs:
         return base, []
     by_ref: dict[str, list[int]] = {}
@@ -493,7 +512,7 @@ def contract_fallback(bundle: evidence.Bundle, cs: list[contracts.Contract]) -> 
 
 def respond(bundle: evidence.Bundle, question: str, *, environment: str,
             prior_questions: tuple[str, ...] = (), request_id: str | None = None,
-            generate=None, repair=None) -> Answer:
+            generate=None, repair=None, db=None) -> Answer:
     """`generate` / `repair` are injectable (the offline evaluation passes stubs); the
     defaults are the single egress seam, `generation.generate_bundle_answer` and
     `generation.generate_bundle_repair`."""
@@ -505,7 +524,7 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
     cs: list[contracts.Contract] = []
     t_prep = time.perf_counter()
     if CONTRACTS:
-        payload, cs = contract_payload(bundle, question)
+        payload, cs = contract_payload(bundle, question, db)
     else:
         payload = render(bundle, question)
     fixed = contract_fallback(bundle, cs) if cs else fallback(bundle)

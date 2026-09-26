@@ -20787,3 +20787,135 @@ instead of re-parsing flattened context text.
 
 --------------------------------------------------------------------------------
 AM-91: claim contracts and the evidence/conflict map
+
+================================================================================
+AMENDMENT BATCH AB-42 — `AM-92`
+Claim contracts built from the structured source records: every claim carries its
+heading, scope, status, exceptions and antecedents from the records themselves
+================================================================================
+
+**Owner decision, 2026-09-26** — the master RAG roadmap (`AM-79`'s owner authority) and
+the owner's PHASE 12 instructions: *"Build claim contracts from the existing structured
+source records, not flattened/re-parsed text … For sentence repair, only use text from
+the correct approved structured evidence; never let repair create an unverified new
+paraphrase"*; then *"Lock AM-92 and commit locally. Do not run any more Gemini
+benchmarks or tuning for Phase 12."* Roadmap PHASE 12, completing `AM-91`.
+
+**Amends:** `AM-91` r1 narrowly (a Constitution or statute contract is read from its
+structured record, not from flattened context text; a company standard or document
+contract is still read as before) and `AM-91` r4/r5 narrowly (three further contract
+checks; the repair verbalisation carries the record's own qualifiers). **Does not
+amend:** `AM-25` r5, `AM-28` r2, `AM-30` t1–t7, `AM-78`, `AM-88`, `AM-89` r4, `AM-90`,
+the Gemini cost guard. Gemini still only verbalises the approved contracts. The
+production answer path is unchanged.
+
+```text
+r1   CLAIM UNITS FROM THE RECORDS (assist/claim_records.py).
+     Legal Constitution — assist.knowledge_items (AM-79/AM-82): one unit per claim
+     paragraph, or per substantive row of an entry's field table. The provision GROUP
+     is read in document order (an unlettered provision opens a group; "A. …",
+     "B. …", "C. Exceptions" join it), because the records' parent links are flat.
+     Never a unit: Purpose, Drafting Notes / illustrative clauses, Source of Truth,
+     Status, Legal Validation, Applicability, STATUS lines, document-type lines,
+     advisory table rows, UNRATIFIED paragraphs, and provenance ("Evidence / Source")
+     except of a historical exception.
+     Statutes — assist.statute_chunks: one unit per WHOLE sub-section with its items,
+     provisos and Explanations, framed by the marginal note; page-foot editorial notes
+     removed; a bare section title is not a unit.
+
+r2   WHAT EACH UNIT CARRIES, in the records' own words:
+     heading     its provision chain (group › sub-part)
+     scope       the section's "governs …" clause; the group's Applicable Document
+                 Types — narrowed to the types a lettered sub-part names ("A. MSA /
+                 Customer" → MSA); none for a historical exception. The Entity/Brand
+                 axis is C-19 and is not a claim condition.
+     temporal    an entry's Current Legal Status ("NOT YET IN FORCE — … 13 May
+                 2027"); REPEALED for a repealed Act
+     exceptions  the text of the group's "Exceptions" provision, in full, on its own
+                 group only
+     referent    "this position/entry …" → the group heading; "the Scope of
+                 Application above" → the section's scope clause; "the confirmed
+                 position" → "Section N (topic)"; a statute unit → the Act's name
+     antecedents local anaphors: "that sum" → the earlier sum in the same paragraph
+                 ("a sum payable on breach"); "the … amount stated above" → the last
+                 amount/value an earlier claim of the section states ("the full
+                 committed-term value")
+     kind        from the record's authority (COMPANY_CONSTITUTION → position,
+                 SECONDARY_REFERENCE → the company's reading of the law,
+                 HISTORICAL_EXCEPTION → history, PRIMARY_LAW → law)
+
+r3   THE CONTRACT CHECKS (contracts.check) add, to AM-91 r4: a unit's temporal status
+     must be said (in force / not yet in force / commencing / repealed / its date);
+     a referent must be named (≥ 0.4 of its words); an exceptions list must be said;
+     a local anaphor used in a sentence must bring its antecedent. The verbatim
+     exceptions text never sets the sentence's modality, and the record's own fields
+     count as grounding. A sentence that restates approved record text, citing no
+     contract and no [A], is not a compliance verdict.
+
+r4   REPAIR (answer.verbalise) states the unit's own text with its referent,
+     exceptions, in-force status and antecedents appended in the records' words — it
+     passes every check by construction and authors nothing.
+
+r5   NOT ATTEMPTED: a statute's internal cross-references ("the period specified in
+     sub-section (1)"), state amendments and Schedule items are not reconstructed;
+     company-standard files are not on the records path.
+```
+
+**Recorded 2026-09-26.** Full suite **2644 passed, 0 failed, 112 skipped** (1 xfailed);
+ruff and mypy clean. `tests/test_claim_records.py` pins every case named by the owner:
+the DPDP "NOT YET IN FORCE (13 May 2027)" rows; §31.14's exceptions on its own group and
+its headings; a proviso's "clauses (d) to (f)" range kept in its sub-section and (4)'s
+proviso never spliced onto (3); "this position", "the Scope of Application above", "the
+confirmed position", "that sum" and "the contractual amount stated above"; Purpose and
+drafting never a position; a lettered sub-part's own document type; a historical deal
+with no current scope; a repealed Act never current law; footnotes never law; the Act
+named; source kinds from each record.
+
+Final full live run (run 9, 65 questions, 81 Gemini calls, 158,201 prompt + 44,553 output
+tokens), every shown sentence labelled independently with the one schema applied to
+every run (`tests/assist_eval/contract_records_eval_2026-09-26.json`), against the last
+records run before the final fix (run 7) and `AM-91`'s run 5:
+
+| shown answers, per 1,000 sentences (count) | AM-91 run 5 | run 7 | **final run 9** |
+|---|---|---|---|
+| cross-reference / scope lost | 20.1 (11) | 31.4 (16) | **17.6 (8)** |
+| source-kind misattribution | 14.6 (8) | 3.9 (2) | **6.6 (3)** |
+| temporal / status lost | 7.3 (4) | 2.0 (1) | **2.2 (1)** |
+| conditions dropped | 3.7 (2) | 9.8 (5) | **0** |
+| exceptions / ranges lost | 9.1 (5) | 2.0 (1) | **2.2 (1)** |
+| modality · negation | 0 · 0 | 2.0 · 2.0 | **0 · 0** |
+| unsupported · contradicted | 11.0 · 0 | 9.8 · 2.0 | **6.6 · 2.2** |
+| reader's assertion as fact | 0 | 2.0 | **0** |
+| bad sentences · answers with one | 5.7% · 17 | 6.3% · 22 | **3.5% · 13** |
+| citations correct | 0.995 | 0.989 | **0.997** |
+| Gemini answers shown (of 65) | 54 | 52 | **49** |
+| fallbacks · of them clean (false rejects) | 11 · 7 | 13 · 5 | **16 · 6** |
+| latency p50 / p95 | 3.6 / 7.6 s | 4.4 / 10.4 s | **4.0 / 10.8 s** |
+
+Against PHASE 11 (`AM-90`): source kind 32.7 → 6.6, conditions 30.8 → 0, exceptions 9.6 →
+2.2 per 1,000. The 16 fallbacks: 10 caught a real labelled error; the 6 clean — GT-00
+(the 900-token output cap cut its last sentence, both calls), A-03 (the new record
+checks), L-02 (existing contract checks), H-03 (the verdict screen), L-04 and N-02 (the
+PHASE 11 verifier). Golden: 11 of 14 shown, 8 with zero bad sentences; GT-00, GT-09,
+GT-11 fell back to the fixed grounded answer, which keeps GT-00's layers apart.
+
+Final fix (local antecedents, lettered sub-part scope, no current scope on history)
+validated before any spend: run 7's saved answers re-checked offline (zero Gemini) —
+cross-reference errors shown 16 → 9, every other error type unchanged, false rejects
+5 → 3; then the 11 affected questions live (16 Gemini calls) — bad sentences shown 0
+(run 7: 11; run 5: 7), cross-reference/scope 0 (run 7: 8), unsupported 0, false rejects
+0, 6 of 11 shown (run 7: 8), each of the 5 fallbacks a correct catch. PHASE 12 Gemini:
+751 calls, 1,261,154 prompt + 340,856 output tokens.
+
+**PHASE 12 IS COMPLETE.** The structural contract improved semantic safety — bad
+sentences shown halved against run 7 and fell below `AM-91` — without a material
+usability regression (49 against 52 shown). **Known limitations, recorded for PHASE
+13, none attempted here:** (1) output-cap truncation — the richer contracts lengthen
+answers and 4 of 65 hit the 900-token cap (0 in run 5), a clean GT-00 lost to fail-closed;
+(2) `[Illustrative clause:]` text in company-standard files (`POS:LIABILITY-MSA-001`)
+presented as the company position — all 3 source-kind errors shown; standards are not
+on the records path; (3) A-03 — one false reject from the new record checks; (4) statute
+cross-reference reconstruction (r5); (5) the PHASE 11 verifier's false rejects.
+
+--------------------------------------------------------------------------------
+AM-92: claim contracts built from the structured source records

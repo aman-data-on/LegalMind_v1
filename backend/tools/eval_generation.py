@@ -53,11 +53,24 @@ def stub(question, block, *, environment, prior_questions=(), request_id=None):
             frame = re.search(r"FRAME: (.+?) \(say so", head)
             scope = re.search(r"SCOPE: (.+?) agreements only", head)
             only = re.search(r"APPLIES ONLY TO: (.+?) \(say so\)", head)
+            this = re.search(r"'THIS' REFERS TO: (.+?) \(name it\)", head)
+            exc = re.search(r"SUBJECT TO THESE EXCEPTIONS: (.+?) \(say so\)", head, re.S)
+            when = re.search(r"IN FORCE: (.+?) \(say so\)|(REPEALED) —", head)
             lead = " ".join(x for x in (
                 f"For {scope.group(1)} agreements," if scope else "",
                 f"for {only.group(1)}," if only else "", say.strip(),
-                f"({frame.group(1).lower()})" if frame else "") if x)
+                f"({frame.group(1).lower()})" if frame else "",
+                f"(on {this.group(1)})" if this else "") if x)
             body = re.sub(r"(?<=[.!?])\s+", "; ", text.rstrip("."))  # one sentence
+            if exc:
+                body += "; subject to these exceptions: " + re.sub(
+                    r"(?<=[.!?])\s+", "; ", exc.group(1).rstrip("."))
+            if when:
+                body += (f" (in force: {when.group(1).rstrip('.')})" if when.group(1)
+                         else " (repealed — historical, not current law)")
+            means = re.findall(r"'([^']+)' MEANS: (.+?) \(say so\)", head)
+            if means:
+                body += " (" + "; ".join(f"{a.lower()} being {m}" for a, m in means) + ")"
             out.append(f"{lead} states: {body} [{n}].")
         block = ""
     for m in re.finditer(r"^\[(\d+)\] [^\n]*\n(.+?)(?=\n\n\[\d+\] |\n\n\[A\]|\n\n\[M\]|"
@@ -227,7 +240,7 @@ def main() -> int:
             model = replayed
         ans = answer.respond(bundle, case["question"], environment="development",
                              prior_questions=(case["after"],) if case.get("after") else (),
-                             generate=model, repair=fixer)
+                             generate=model, repair=fixer, db=db)
         rows.append(score(case, plan, bundle, ans))
         print(case["id"], "OK" if ans.generated else "--", ans.failures[:2], flush=True)
     mode = "live" if args.live else "recheck (zero calls)" if args.recheck else "offline-stub"

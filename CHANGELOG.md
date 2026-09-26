@@ -91,6 +91,15 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   `answer.py`; `guardrails` reads a decimal with its unit as a figure. Over shown
   sentences: modality and reading-as-law errors to 0, other kind 23 → 15 per 1,000, bad
   7.3% → 5.7%; condition drops unchanged (37 per 1,000), unsupported content up.
+* **PHASE 12 / `AM-92`** (complete) — `assist/claim_records.py`: claim contracts built
+  from the structured records (`knowledge_items`, `statute_chunks`) — heading, scope
+  (narrowed by a lettered sub-part, none on history), in-force/repealed status,
+  exceptions, referents and local antecedents, in the records' words; statute units are
+  whole sub-sections, footnotes removed. Three further contract checks; repair appends
+  only the records' own qualifiers. Final run vs run 7, per 1,000 shown sentences:
+  cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
+  49/65 shown. Known limitations recorded for PHASE 13. Tests:
+  `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 
