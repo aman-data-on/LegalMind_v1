@@ -503,6 +503,16 @@ def check(sentence: str, cited: list[Contract]) -> list[str]:
         if c.exceptions_text and not re.search(r"\bexcept|\bexception|shorter notice|"
                                                r"immediate action|unless", claim, re.I):
             failures.append(f"exceptions of [{c.n}] not stated: {sentence[:80]!r}")
+    # Roadmap §13: a sentence that speaks for the Constitution or the company position
+    # cites a position claim — "The Legal Constitution does not specify 6 months …,
+    # though historically … [10]" cited only a historical deal (live, GT-00). Words the
+    # cited claim itself carries ("… not a fixed Constitution value") are its own.
+    # [A] carries the code's own finding of what no position states, so it may be cited.
+    if kinds and POSITION not in kinds and "[A]" not in sentence and \
+            _SPEAKS_FOR_POSITION.search(claim) and not any(
+                _SPEAKS_FOR_POSITION.search(c.text) for c in cited):
+        failures.append(f"the company position stated without a position claim: "
+                        f"{sentence[:80]!r}")
     if ATTRIBUTION[READING].search(claim) and READING not in kinds and kinds & {
             POSITION, HISTORY}:
         failures.append(f"a company position called the company's reading of the law: "
@@ -603,6 +613,18 @@ _SCOPE_WORDS = {
     "VENDOR_AGREEMENT": r"vendor", "DISTRIBUTION_AGREEMENT": r"distribut",
     "ORDER_FORM": r"order form|purchase order", "AMENDMENT": r"amendment|addend"}
 
+
+#: Speaking for the organisation's current position — not "not current policy", which
+#: is how a historical exception is named.
+_SPEAKS_FOR_POSITION = re.compile(r"\b(?:legal )?constitution\b|\bcompany(?:'s)? "
+                                  r"(?:position|policy)\b|\bour (?:position|policy)\b",
+                                  re.I)
+
+#: The source-kind failures of `check` — held to every sentence, context or not.
+KIND_FAILURES = ("source kind not named", "law stated from the company's reading",
+                 "a historical exception stated as current",
+                 "a company position called the company's reading",
+                 "the company position stated without a position claim")
 
 #: A condition counts as kept when this share of its content words is in the sentence.
 CONDITION_KEPT = 0.4

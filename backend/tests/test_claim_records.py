@@ -247,3 +247,20 @@ def test_the_records_path_builds_contracts_with_their_fields(records):
     cs = contracts.build(bundle, "What is the maximum DPDP penalty?", records)
     assert cs and all(c.from_records for c in cs)
     assert any(c.temporal and "13 May 2027" in c.temporal for c in cs)
+
+
+def test_an_exceptions_paragraph_names_the_position_it_qualifies(records):
+    # Run 9 replay (A-01): "shorter notice or immediate action may be appropriate …"
+    # said alone read as a general rule; it qualifies Service Discontinuation only.
+    exc = [u for u in claim_records.units(records, _const(records, "31.14"))
+           if u.heading and u.heading[-1] == "C. Exceptions"]
+    assert exc and all(u.referent and u.referent.startswith("Service Discontinuation")
+                       for u in exc)
+
+
+def test_a_lead_in_that_announces_the_positions_is_not_a_claim(records):
+    # Run 9 replay (GT-09): "The stakeholder has approved the following approach …"
+    # was restated as a position; the lettered sub-parts after it are the positions.
+    us = claim_records.units(records, _const(records, "31.14"))
+    assert not any("approved the following approach" in u.text for u in us)
+    assert any(u.heading[-1] == "A. MSA / Customer" for u in us), "the sub-parts stay"

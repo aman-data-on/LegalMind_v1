@@ -100,6 +100,15 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
   49/65 shown. Known limitations recorded for PHASE 13. Tests:
   `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
+* **Roadmap §13 / `AM-93`** — multi-source legal reasoning: `generation` records the
+  provider's `finishReason`; `answer.complete` drops only an output-cap cut's unfinished
+  tail and says the reader's claim [A] and the missing signed agreement [M] in fixed
+  wording when an answer omits them; reader figures compared per claim kind from the
+  records; `contracts.check` rejects a sentence speaking for the company position
+  without citing one, and source-kind checks now hold for every sentence; two record
+  rules in `claim_records`. Replay of run 9: 49 → 53/65 shown, bad sentences unchanged,
+  false rejects 6 → 3; live 5 calls. Tests: `tests/test_multi_source_reasoning.py`;
+  eval `tests/assist_eval/multi_source_eval_2026-09-26.json`.
 
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 

@@ -20919,3 +20919,91 @@ cross-reference reconstruction (r5); (5) the PHASE 11 verifier's false rejects.
 
 --------------------------------------------------------------------------------
 AM-92: claim contracts built from the structured source records
+
+================================================================================
+AMENDMENT BATCH AB-43 — `AM-93`
+Multi-source legal reasoning (roadmap §13): every layer said as itself, a cut answer
+kept to its finished sentences, and no sentence speaking for a source it does not cite
+================================================================================
+
+**Owner decision, 2026-09-26** — the master RAG roadmap (`AM-79`'s owner authority) §13:
+*"Those sources must not be blended into one undifferentiated truth. The answer must
+label the distinction naturally: 'Our Constitution says…' 'The customer is claiming…'
+'The signed MSA is not currently available…' 'Historical agreements are exceptions, not
+current policy…' 'The amount cannot be confirmed until the executed MSA is verified…'"*;
+then *"If the targeted validation passes, lock the change as AM-93."*
+
+**Amends:** `AM-89` r2/r4 narrowly (the answer is completed and cut-trimmed before its
+checks), `AM-91` r4 (a source-kind check held to every sentence) and `AM-92` r1 (two
+record rules). **Does not amend:** `AM-25` r5 (nothing unverified reaches a reader —
+completion adds only fixed wording, trimming only removes), `AM-28` r2, `AM-30` t1–t7,
+`AM-78` (a reader's figure is still compared in code), `AM-88`, `AM-90`, the Gemini cost
+guard. The production answer path is unchanged.
+
+```text
+r1   THE CUT ANSWER. The seam records the provider's finishReason. When it is
+     MAX_TOKENS, only the text after the last cited sentence is dropped — an unfinished
+     sentence is not a claim — and every finished sentence is checked as before. A text
+     the provider did NOT report as cut, with an uncited tail, still fails closed.
+
+r2   EVERY LAYER SAID. A finished answer that states a cited claim but never cites [A]
+     while a reader's figure is stated by no position, or never cites [M] while the
+     signed agreement is missing, gets the fixed sentence ("No company position states
+     6 months; that figure is the reader's account, not a verified term [A]." · "The
+     signed agreement is not available here, so its actual terms cannot be confirmed
+     [M]."). Never beside an empty or unfinished text, which stays failed.
+
+r3   THE READER'S FIGURE AGAINST EACH CLAIM'S OWN KIND. What the company positions
+     state is read claim by claim from the structured records (position units only),
+     not from a source's label — §31.15 holds a standard position (30 days' notice) AND
+     historical deals. The [A] line and the fixed answer's line use this finding.
+
+r4   NEVER SPEAKING FOR A SOURCE NOT CITED. A sentence naming the Constitution or the
+     company position cites a position claim or [A], unless the cited claim's own text
+     carries those words. The source-kind checks (kind named, law not from the reading,
+     history not current, position not called the reading, r4) apply to EVERY sentence,
+     including one naming the reader's figure as absent, which is still exempt from the
+     restatement checks. The kind's own attribution counts as grounding in the
+     verbatim-restatement exemption from the verdict screen.
+
+r5   RECORDS. A paragraph of an "Exceptions" provision names its group as its referent;
+     a lead-in announcing the positions below it ("has approved the following
+     approach …") is not a claim — the one such paragraph in the Constitution.
+```
+
+**Recorded 2026-09-26.** Full suite **2654 passed, 0 failed, 112 skipped** (1 xfailed);
+ruff and mypy clean. `tests/test_multi_source_reasoning.py` (8) drives `answer.respond`
+end to end on the golden five-layer bundle; `tests/test_claim_records.py` adds the two
+record rules. Evaluation: `tests/assist_eval/multi_source_eval_2026-09-26.json`.
+
+Zero-Gemini replay of the final run's saved answers (run 9, `AM-92`), its independent
+labels:
+
+| | run 9 as shown | with `AM-93` |
+|---|---|---|
+| Gemini answers shown | 49/65 | **53/65** |
+| bad sentences shown | 16 | **16** — every error type identical |
+| false rejects | 6 | **3** |
+| §13 layered cases shown (reader's figure or missing signed MSA) | 8/11 | **10/11** |
+| those carrying the [A] and [M] they need | — | **11/11** |
+| golden questions shown | 11/14 | **13/14** |
+| answers newly falling back | — | **0** |
+
+The four newly shown (GT-00, GT-11, H-03, A-03) carry no labelled error; GT-09 falls back
+on a real error. Targeted live validation — 5 Gemini calls (GT-00, GT-09, GT-11, H-03,
+A-03; corrective retry off to hold the budget), 12,637 prompt + 3,913 output tokens,
+p50 5.6 s: three real MAX_TOKENS cuts (GT-09, GT-11, A-03), each shown with its tail
+removed and no uncited sentence; every required [A]/[M] present (3/3); H-03's 30 days
+stated as the company position with no false "no company position states"; all 5
+shown; 56 sentences labelled — 50 supported, 3 partial, 0 unsupported or contradicted.
+It found ONE blended sentence (GT-00: "The Legal Constitution does not specify 6 months
+…, though historically … [10]", citing only a historical deal), which r4 now replaces
+with the approved record text — proven on that live text with zero calls, the full
+65-question replay unchanged. **Remaining, not blends:** GT-09's Negotiable range read
+as Section 13 as a whole and GT-11's s.143A scope (`AM-92`'s cross-reference
+limitation), and the known `AM-92` limitations. **Not in scope:** the production Ask
+path still runs the older single-source generation — wiring this pipeline in is
+roadmap PHASE 13.
+
+--------------------------------------------------------------------------------
+AM-93: multi-source legal reasoning — every layer said as itself

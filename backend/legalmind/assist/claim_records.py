@@ -66,6 +66,11 @@ _STATUS_LINE = re.compile(r"^\W*STATUS:", re.I)
 _DOC_TYPES = re.compile(r"^\W*Applicable Document Types:\W*(.+)$", re.I)
 _EVIDENCE = re.compile(r"^[\s*]*Evidence / Source:[\s*]*", re.I)
 _LETTERED = re.compile(r"^[A-Z]\.\s")
+# A lead-in that announces the positions below it ("The stakeholder has approved the
+# following approach for …; this was originally proposed as a draft …") — provenance,
+# not a claim; the lettered sub-parts that follow ARE the positions (run 9, GT-09).
+_LEAD_IN = re.compile(r"\b(?:has|have) approved the following\b|\bthe following "
+                      r"approach\b", re.I)
 _SCOPE_OF_APPLICATION = re.compile(r"^scope of application\b", re.I)
 # Antecedents outside the paragraph's own group: "matching the Scope of Application
 # above" (§14), "NOT DEFINED beyond the confirmed position" (the section's topic).
@@ -175,7 +180,8 @@ def _constitution(db, item_id: UUID) -> list[Unit] | None:
                         or _APPLICABILITY.match(heading[-1])):
             continue
         body = _clean(content)
-        if not body or _STATUS_LINE.match(content) or _DOC_TYPES.match(content):
+        if not body or _STATUS_LINE.match(content) or _DOC_TYPES.match(content) \
+                or _LEAD_IN.search(body):
             continue
         if _EVIDENCE.match(content):
             if authority != "HISTORICAL_EXCEPTION":
@@ -189,7 +195,9 @@ def _constitution(db, item_id: UUID) -> list[Unit] | None:
         scope = tuple(section_scope + ([f"{types} agreements"] if types else []))
         in_exceptions = bool(heading) and bool(_EXCEPTIONS.search(heading[-1]))
         own_exc = None if in_exceptions else " ".join(exceptions.get(group, [])) or None
-        referent = (group_head.get(group) if _ANTECEDENT.match(body)
+        # An exceptions paragraph qualifies its GROUP's position: said alone it reads as a
+        # general rule (run 9, A-01), so it names the group, like "this position" does.
+        referent = (group_head.get(group) if _ANTECEDENT.match(body) or in_exceptions
                     else f"Scope of Application: {scope_text}" if scope_text and
                     _SCOPE_ABOVE.search(body)
                     else section if section and _CONFIRMED.search(body) else None)

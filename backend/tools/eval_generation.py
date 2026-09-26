@@ -139,7 +139,7 @@ def score(case, plan, bundle, ans) -> dict:
         "latency_ms": ans.latency_ms, "prompt_tokens": ans.prompt_tokens,
         "output_tokens": ans.output_tokens, "text": ans.text, "draft": ans.draft,
         "model": ans.model, "calls": ans.calls, "verify_ms": ans.verify_ms,
-        "prepare_ms": ans.prepare_ms,
+        "prepare_ms": ans.prepare_ms, "finish_reason": ans.finish_reason,
         "first_draft": ans.first_draft,
     }
 
@@ -149,9 +149,14 @@ def replay(prior: dict):
     every check on stored drafts with zero Gemini calls (the cost guard)."""
     def generate(question, block, *, environment, prior_questions=(), request_id=None):
         r = prior[generate.case]
-        return generation.GenerationResult(r["draft"] or "", r["model"] or "replay",
+        text = r["draft"] or ""
+        # Runs saved before the seam recorded finishReason: a draft that stops
+        # mid-sentence was cut at the output cap, so it replays as MAX_TOKENS.
+        cut = r.get("finish_reason") or (
+            "MAX_TOKENS" if text.strip() and text.rstrip()[-1] not in ".!?]" else None)
+        return generation.GenerationResult(text, r["model"] or "replay",
                                            "replay", "", r["latency_ms"] or 0,
-                                           r["prompt_tokens"], r["output_tokens"])
+                                           r["prompt_tokens"], r["output_tokens"], cut)
     generate.case = ""
     return generate
 

@@ -29,6 +29,7 @@ import re
 from dataclasses import dataclass
 
 from legalmind.assist import (
+    claim_records,
     contracts,
     evidence,
     generation,
@@ -132,7 +133,8 @@ class Payload:
     framed: tuple[bool, ...] = ()
 
 
-def render(bundle: evidence.Bundle, question: str = "") -> Payload:
+def render(bundle: evidence.Bundle, question: str = "",
+           policy: list[str] | None = None) -> Payload:
     shown = bundle.shown()
     # One excerpt per distinct context: several paragraphs of one section share it.
     texts: list[str] = []
@@ -155,9 +157,14 @@ def render(bundle: evidence.Bundle, question: str = "") -> Payload:
     # code's finding of whether a company position states it — so "no 6-month lock-in
     # is stated" is reported, never computed by the model (`AM-78`). A figure the reader
     # gave travels only on this line.
-    policy_text = [s.context for s in shown if s.kind == qp.COMPANY_POSITION]
+    # `policy`: what the company positions state, claim by claim (`AM-92`) — a source
+    # holding a standard position AND historical deals (§31.15) is neither all position
+    # nor all history. Without it, a source's own label decides, as before.
+    policy_text = policy if policy is not None else [
+        s.context for s in shown if s.kind == qp.COMPANY_POSITION]
     figures = tuple(dict.fromkeys(
-        [f for a in bundle.assertions for f in a.unstated]
+        [f for a in bundle.assertions for f in a.unstated
+         if guardrails.unstated_figures(f, policy_text)]
         + guardrails.unstated_figures(question, policy_text)))
     # Always present (bundle-answer-4): the model cited [A] where none was listed.
     said = [f'The reader asked: "{question}"'] if question else []
@@ -219,6 +226,8 @@ class Answer:
     first_draft: str | None = None
     #: PHASE 12: time to build the claim contracts and the conflict map.
     prepare_ms: int = 0
+    #: The provider's finishReason for the last generation ("MAX_TOKENS" when cut).
+    finish_reason: str | None = None
 
 
 def fallback(bundle: evidence.Bundle) -> str:
@@ -362,9 +371,11 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
         # Likewise a sentence that IS the cited record's words (a whole sub-section, a
         # §14 paragraph on ss.73/74): approved source text judges no document.
         words = guardrails._content_words(claim)
+        # The kind's attribution ("Historically (a past negotiated deal, not current
+        # policy)") is the answer naming its source, not a word of the claim (H-03).
+        own = guardrails._content_words(" ".join([*cited, *contracts.SAY.values()]))
         restating_text = qp.CONTRACT not in cited_kinds and "A" not in marks and \
-            bool(words) and len(words & guardrails._content_words(" ".join(cited))) / \
-            len(words) >= VERBATIM
+            bool(words) and len(words & own) / len(words) >= VERBATIM
         judged = qp.CONTRACT in cited_kinds or "A" in marks or _SUBJECT.search(claim)
         if intent.is_verdict_statement(claim) and judged and not (
                 restating_frame or restating_text):
@@ -408,8 +419,15 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
         cited = [by_n[int(m)] for m in _MARKER.findall(sentence)
                  if m.isdigit() and int(m) in by_n]
         all_cited.append(cited)
-        if cited and not is_context(sentence, payload.question_figures):
-            contract_failures += contracts.check(sentence, cited)
+        if not cited:
+            continue
+        found = contracts.check(sentence, cited)
+        # A context sentence ("the position does not state 6 months [1]") is not a
+        # restatement, so grounding, conditions and modality do not apply to it — but
+        # which SOURCE it speaks for always does (roadmap §13: never blended).
+        if is_context(sentence, payload.question_figures):
+            found = [f for f in found if f.startswith(contracts.KIND_FAILURES)]
+        contract_failures += found
     return contract_failures, result.text
 
 
@@ -478,10 +496,10 @@ def contract_payload(bundle: evidence.Bundle, question: str, db=None
                      ) -> tuple[Payload, list[contracts.Contract]]:
     """The payload with the approved claim contracts as its numbered evidence — each
     [n] is one contract's exact span — and the parts renumbered to them."""
-    base = render(bundle, question)
     cs = contracts.build(bundle, question, db)
     if not cs:
-        return base, []
+        return render(bundle, question), []
+    base = render(bundle, question, _position_texts(bundle, db))
     by_ref: dict[str, list[int]] = {}
     for c in cs:
         by_ref.setdefault(c.ref, []).append(c.n)
@@ -499,15 +517,79 @@ def contract_payload(bundle: evidence.Bundle, question: str, db=None
                    tuple(bool(c.frame and contracts._frame(c.frame)) for c in cs)), cs
 
 
-def contract_fallback(bundle: evidence.Bundle, cs: list[contracts.Contract]) -> str:
+def _position_texts(bundle: evidence.Bundle, db) -> list[str]:
+    """What the company positions in the bundle state: every position claim of a
+    source that has structured records, and the whole text of one that does not."""
+    out: list[str] = []
+    for s in bundle.shown():
+        units = claim_records.units(db, s) if db is not None else None
+        if units is not None:
+            out += [u.text for u in units
+                    if contracts._kind_of_record(u) == contracts.POSITION]
+        elif s.kind == qp.COMPANY_POSITION:
+            out.append(s.context)
+    return out
+
+
+def contract_fallback(bundle: evidence.Bundle, cs: list[contracts.Contract],
+                      figures: tuple[str, ...] = ()) -> str:
     """The fixed grounded answer from the contracts: each claim with its kind and
-    citation, kinds kept apart, then what is asserted and what is missing."""
+    citation, kinds kept apart, then what is asserted and what is missing. `figures`
+    are the reader's figures no position claim states — the payload's own finding."""
     if not cs:
         return fallback(bundle)
-    out = [f"{contracts.SAY[c.kind]} — {c.citation}: {c.text}" for c in cs]
-    tail = fallback(bundle).split("\n")
-    return "\n".join(out + [t for t in tail if t.startswith(("No company position",
-                                                           "The signed agreement"))])
+    return "\n".join([f"{contracts.SAY[c.kind]} — {c.citation}: {c.text}" for c in cs]
+                     + _layer_lines(bundle, figures, marked=False))
+
+
+def _layer_lines(bundle: evidence.Bundle, figures: tuple[str, ...], *,
+                 marked: bool) -> list[str]:
+    """Roadmap §13: what the reader claimed and what is missing, each said as itself —
+    fixed wording, never the model's."""
+    out = []
+    # In the fixed answer, as before: only what someone ASSERTED. Beside a generated
+    # answer: every figure the reader gave that no position claim states.
+    claimed = list(figures) if marked else [
+        f for f in figures if any(f in a.unstated for a in bundle.assertions)]
+    if claimed:
+        out.append(f"No company position states {', '.join(claimed)}; that figure is "
+                   "the reader's account, not a verified term" + (" [A]." if marked
+                                                                   else "."))
+    if bundle.missing_document:
+        out.append("The signed agreement is not available here, so its actual terms "
+                   "cannot be confirmed" + (" [M]." if marked else "."))
+    return out
+
+
+#: The provider's finishReason when the output cap cut the text.
+_CUT = "MAX_TOKENS"
+_LAST_MARKED = re.compile(r"(?:\[(?:\d{1,2}|A|M)\])+[.!?]?")
+
+
+def complete(text: str, finish_reason: str | None, payload: Payload,
+             bundle: evidence.Bundle) -> str:
+    """A generated answer made whole before it is checked (roadmap §13).
+
+    Cut at the output cap, its unfinished last sentence is dropped — an unfinished
+    sentence is not a claim, and every sentence before it is still checked. A reader's
+    figure or a missing agreement the answer never mentions is then said in the fixed
+    wording, so no answer shown can omit either layer."""
+    if finish_reason == _CUT:
+        ends = list(_LAST_MARKED.finditer(text))
+        if ends:
+            text = text[:ends[-1].end()]
+    # Only beside a real answer — one that ends a sentence and states a cited claim. An
+    # empty or unfinished text is left exactly as it is, so it still fails closed: an
+    # appended line must never lend its marker to an unfinished, uncited fragment.
+    if not re.search(r"\[\d{1,2}\]", text) or text.rstrip()[-1:] not in ".!?]":
+        return text
+    needed = []
+    lines = _layer_lines(bundle, payload.reader_figures, marked=True)
+    if payload.reader_figures and "[A]" not in text:
+        needed += [x for x in lines if x.endswith("[A].")]
+    if bundle.missing_document and "[M]" not in text:
+        needed += [x for x in lines if x.endswith("[M].")]
+    return " ".join([text.rstrip(), *needed]) if needed else text
 
 
 def respond(bundle: evidence.Bundle, question: str, *, environment: str,
@@ -527,7 +609,8 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
         payload, cs = contract_payload(bundle, question, db)
     else:
         payload = render(bundle, question)
-    fixed = contract_fallback(bundle, cs) if cs else fallback(bundle)
+    fixed = (contract_fallback(bundle, cs, payload.reader_figures) if cs
+             else fallback(bundle))
     prepare_ms = int((time.perf_counter() - t_prep) * 1000)
     try:
         positions.screen_for_egress(payload.evidence)     # `AM-67` r7, now for all kinds
@@ -546,13 +629,14 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
         return Answer(fixed, False, [f"generation: {exc}"], payload.refs,
                       payload.kinds)
     t0 = time.perf_counter()
-    failures, shown = verify_answer(result.text, payload, bundle, cs)
+    text = complete(result.text, result.finish_reason, payload, bundle)
+    failures, shown = verify_answer(text, payload, bundle, cs)
     verify_ms = (time.perf_counter() - t0) * 1000
     calls, first, latency = 1, None, result.latency_ms
     tokens = [result.prompt_tokens or 0, result.output_tokens or 0]
     if failures and cs and SENTENCE_REPAIR:
         t0 = time.perf_counter()
-        repaired = repair_sentences(result.text, payload, bundle, cs)
+        repaired = repair_sentences(text, payload, bundle, cs)
         if repaired is not None:
             failures, shown = verify_answer(repaired, payload, bundle, cs)
         verify_ms += (time.perf_counter() - t0) * 1000
@@ -569,10 +653,12 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
             tokens = [tokens[0] + (second.prompt_tokens or 0),
                       tokens[1] + (second.output_tokens or 0)]
             t0 = time.perf_counter()
-            failures, shown = verify_answer(second.text, payload, bundle, cs)
+            failures, shown = verify_answer(
+                complete(second.text, second.finish_reason, payload, bundle), payload,
+                bundle, cs)
             verify_ms += (time.perf_counter() - t0) * 1000
             result = second
     return Answer(shown if not failures else fixed, not failures,
                   failures, payload.refs, payload.kinds, result.model, latency,
                   tokens[0], tokens[1], result.text, calls, int(verify_ms), first,
-                  prepare_ms)
+                  prepare_ms, result.finish_reason)

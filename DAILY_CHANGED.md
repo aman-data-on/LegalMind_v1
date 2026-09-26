@@ -1118,3 +1118,46 @@ presented as the position — all 3 source-kind errors shown; (3) A-03, one fals
 from the new record checks; (4) statute cross-reference reconstruction ("the period in
 sub-section (1)", state amendments, Schedule items); (5) the PHASE 11 verifier's false
 rejects.
+
+Commit: `88c598f`.
+
+## 2026-09-26 — Entry 17: Roadmap §13 — multi-source legal reasoning (`AM-93`)
+
+**Requirement (roadmap §13, v1.0).** One answer may need the Constitution, the executed
+MSA's availability, historical exception evidence, the law and the conversation — never
+blended, each said as itself: the Constitution position, what the customer is claiming,
+that the signed MSA is not available, that historical agreements are exceptions and not
+current policy, that the amount cannot be confirmed until the executed MSA is verified.
+
+**Already met (PHASE 9–12, reused):** kinds labelled apart, the reader's claim on [A],
+the missing document on [M], the conflict map, contract checks against blending. Where
+Gemini's answer was shown, the §13 labels were present every time.
+
+**What was wrong, measured on the saved runs:** (1) the longest multi-source answers hit
+the 900-token cap; the unfinished last sentence failed as "no citation" and the golden
+answer fell back to a source dump (GT-00, GT-09, GT-11); (2) §31.15 holds a position
+(30 days' notice) and historical deals, and read by the source's label the reader's
+"30 day" was "stated by no company position" — told to Gemini, and H-03 rejected in all
+three runs; (3) the history attribution counted against a verbatim restatement; (4)
+nothing guaranteed [A]/[M]; (5) two antecedent gaps (§31.14 exceptions; a lead-in).
+
+**Implemented:** finishReason recorded; a cut answer keeps its finished sentences; fixed
+[A]/[M] sentences when needed; reader figures compared per claim kind; no sentence
+speaking for a source it does not cite, source-kind checks on every sentence; two
+record rules.
+
+**Measured.** Zero-Gemini replay of run 9's saved answers: shown 49 → 53/65, bad sentences
+16 → 16 (identical types), false rejects 6 → 3, §13 layered cases 8 → 10/11 (all 11 carry
+the [A]/[M] they need), golden 11 → 13/14, none newly falling back. Live, 5 Gemini calls
+(12,637 + 3,913 tokens): three real MAX_TOKENS cuts shown with the tail removed, [A]/[M]
+3/3, H-03's 30 days stated as the company position, 50/56 sentences supported and none
+unsupported or contradicted — and ONE blended GT-00 sentence, closed by the new check and
+proven on that live text with zero calls.
+
+**Tested** — `tests/test_multi_source_reasoning.py` (8) + 2 record tests. Full suite
+**2654 passed, 0 failed, 112 skipped**; ruff + mypy clean. Eval:
+`backend/tests/assist_eval/multi_source_eval_2026-09-26.json`.
+
+**Remaining:** GT-09's Negotiable range and GT-11's s.143A scope (`AM-92`'s cross-reference
+limitation) and the other `AM-92` limitations. The production Ask path still runs the
+older generation — wiring this pipeline in is roadmap PHASE 13.
