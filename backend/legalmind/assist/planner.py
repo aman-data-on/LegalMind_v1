@@ -175,7 +175,8 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
      "automatic renewal renewal term", "Renewal (Auto-Renewal)"),
     (r"uptime|downtime|service credit|availability guarantee|how reliable",
      "service level availability uptime", "SLA / Service Levels"),
-    (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data",
+    (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data"
+     r"|kyc|customer registration",
      "data protection personal data", "Data Protection & Privacy"),
     (r"keep (?:it |things )?(?:secret|confidential)|nda|non.?disclos|trade secret",
      "confidentiality confidential information",
@@ -186,6 +187,7 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
      r"|force majeure",
      "force majeure", "Force Majeure"),
     (r"raise (?:the )?price|increase (?:the )?(?:price|fee)|late pay|payment term"
+     r"|non.?payment|payment nahi|not paid|(?:does|did) ?n.?o?t pay"
      r"|invoice|gst|tax",
      "payment terms fees taxes", "Payment Terms & Taxes"),
     (r"stop (?:providing|offering) the service|discontinu|sunset|shut (?:it )?down",
@@ -200,6 +202,11 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
 # guard that keeps the table vocabulary rather than invention.
 assert not TOPICS or all(topic in TOPICS for _, _, topic in _TERMS), \
     "planner._TERMS names a topic no ratified standard carries"
+
+#: Words of a canonical term too common to mean the reader already used the term: every
+#: hosting question says "service", and "service level availability uptime" placed
+#: "… when can we stop the service for non-payment?" under SLA (golden K-03, PHASE 13).
+_GENERIC_TERM_WORDS = frozenset({"service", "services"})
 
 _TERMS_COMPILED = tuple((re.compile(cue, re.IGNORECASE), term, topic)
                         for cue, term, topic in _TERMS)
@@ -250,7 +257,8 @@ def plan_lexical(question: str) -> QueryPlan | None:
         # reader who typed "liability" already has that lexical pass; a second
         # near-duplicate list of "limitation of liability cap" only dilutes the
         # gold share. Short words ("of", "cap") carry no retrieval signal.
-        has_term = any(w in lowered for w in term.casefold().split() if len(w) >= 5)
+        has_term = any(w in lowered for w in term.casefold().split()
+                       if len(w) >= 5 and w not in _GENERIC_TERM_WORDS)
         if not (by_cue or has_term):
             continue
         if topic is None:

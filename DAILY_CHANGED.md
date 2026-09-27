@@ -1259,3 +1259,18 @@ sides; six cases changed, all up. Residuals recorded: F-03/F-04 planner vocabula
 fix would reopen AM-86 r3 for two cases and expose three must-refuse ones), K-03, K-05,
 and a corpus with no second jurisdiction or not-yet-in-force statute to test beyond
 record statuses.
+
+Commit: `ed982ee`.
+
+## 2026-09-27 — Entry 20: planner vocabulary and instrument recognition (`AM-96`)
+
+Three golden misses had no planner topic: "KYC records" (no cue), "payment nahi kiya …
+service band" (every question containing "service" was placed under SLA through the
+canonical term "service level availability uptime"), and "reported to CERT-In?" (an
+Act's short name before punctuation named no instrument). Each cue now points at the
+topic its gold standard is configured with; "service" alone no longer counts; one shared
+alias pattern tolerates punctuation. With retrieval now reaching the named Income-tax
+Act, s. 199 answered "what did s. 194J say" — a section the text predates — so a named
+section absent from the text is answered by no other section. Golden recall@3 0.778 →
+0.815, F 0.5 → 0.83, K 0.6 → 0.8, wrong-source and false admission 0, H-02 refuses.
+Suite 2708 passed.

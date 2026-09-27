@@ -248,11 +248,7 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
 
 
 def _asked(plan: query_plan.QueryPlan) -> str:
-    from legalmind.assist.intent import ACT_ALIASES
-    asked = f" {plan.question.lower()} "
-    for short, full in ACT_ALIASES.items():
-        asked = asked.replace(f" {short} ", f" {short} {full} ")
-    return asked
+    return f" {statute_corpus.expand_aliases(plan.question)} "
 
 
 def _is_named_act(c: Candidate, asked: str) -> bool:
@@ -290,6 +286,16 @@ def exact_reference(c: Candidate, plan: query_plan.QueryPlan) -> bool:
     asked = _asked(plan)
     return (c.ref.rsplit(":", 1)[-1].lower() == plan.section_hint.lower()
             and _names_an_act(asked) and _is_named_act(c, asked))
+
+
+def named_section_absent(pool: Pool, plan: query_plan.QueryPlan) -> bool:
+    """The reader named a section of a named Act and no candidate IS that section:
+    "section 194J of the Income-tax Act, 1961" against a text that predates s. 194J.
+    Another section of the Act cannot say what the named one said (PHASE 13, H-02)."""
+    if not plan.section_hint or not _names_an_act(_asked(plan)):
+        return False
+    return not any(exact_reference(c, plan)
+                   for c in pool.by_domain.get(routing.Domain.STATUTES.value, []))
 
 
 def kind_of(c: Candidate) -> str:

@@ -117,7 +117,8 @@ class Bundle:
 
 
 def _judge(c: Candidate, context: str, relevance: float | None, *,
-           plan: query_plan.QueryPlan, pool: Pool, named: set[str]) -> str | None:
+           plan: query_plan.QueryPlan, pool: Pool, named: set[str],
+           absent: bool = False) -> str | None:
     """None when the unit supports; otherwise the first check it fails."""
     if c.status == "UNRATIFIED":
         return "UNRATIFIED"
@@ -129,6 +130,8 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return None
     if c.domain == routing.Domain.STATUTES.value and retrieval.names_other_act(c, plan):
         return "WRONG_ACT"
+    if c.domain == routing.Domain.STATUTES.value and absent:
+        return "NAMED_SECTION_ABSENT"
     if retrieval.exact_reference(c, plan):
         return None                 # the reader named this section of this Act
     if relevance is None:
@@ -145,6 +148,7 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
     from legalmind.assist import rerank as cross_encoder
 
     evidence = retrieval.with_context(db, selected)
+    absent = retrieval.named_section_absent(pool, plan)
     # Scored against the whole question AND each sub-question's query, keeping the
     # best: a sub-query carries the planner's English topic subject, which is what a
     # Hinglish question or a follow-up turn ("what if they say 6 months?") lacks.
@@ -173,7 +177,8 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
                       scores[i] if scores else None,
                       (reason := _judge(e.candidate, e.context,
                                         scores[i] if scores else None,
-                                        plan=plan, pool=pool, named=named)) is None,
+                                        plan=plan, pool=pool, named=named,
+                                        absent=absent)) is None,
                       reason)
                for i, e in enumerate(evidence)]
     no_document = plan.document_state == "UNAVAILABLE"

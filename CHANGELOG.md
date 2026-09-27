@@ -100,6 +100,7 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
   49/65 shown. Known limitations recorded for PHASE 13. Tests:
   `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
+* **Roadmap §6/§14/§17 / `AM-96`** — planner vocabulary: "service" alone no longer means SLA; KYC and non-payment cues at their gold standards' topics; Act short names before punctuation recognised (one shared pattern); an absent named section answered by no other (`NAMED_SECTION_ABSENT`). Golden recall@3 0.778 → 0.815, wrong-source and false admission 0.
 * **Roadmap §7/§14/§15/§17 / `AM-95`** — behaviour, not columns: `retrieval.exact_reference`
   (a named section of a named Act survives the rerank and the judge floor) and
   `retrieval.names_other_act` (`WRONG_ACT`); the planner receives every bounded earlier

@@ -17,8 +17,8 @@ Baseline: commit `608cbb6` (AM-94). Last updated 2026-09-27.
 | 3 | Hierarchical chunking, parent restored | AM-82 | `test_constitution_retrieval*` | PHASE 3 report | ✅ | — |
 | 4 | Embedding benchmarked, not assumed | AM-83 | `benchmark_embedders.py` | MiniLM kept on measurement | ✅ | — |
 | 5 | Postgres unless evidence says otherwise | AM-84 | `benchmark_storage.py` | exact pgvector at measured depth | ✅ | — |
-| 6 | Query understanding + decomposition | `query_plan.py` (AM-85) | `test_query_plan*` | `query_plan_eval_2026-09-25.json` | ✅ | — |
-| 7 | Broad hybrid retrieval, diversity, no top-3 dependency, exact reference | `retrieval.candidates/select` (AM-86), `exact_reference` (AM-95 r1) | `test_retrieval_pool.py` | pool recall 0.988; A-04 s. 74 now rank 1 | ✅ | F-03/F-04 planner-vocabulary gap (no topic, no lane, no route) |
+| 6 | Query understanding + decomposition | `query_plan.py` (AM-85), vocabulary + instrument recognition (AM-96) | `test_query_plan*`, `test_assist_planner.py` | F 0.5 → 0.83, K 0.6 → 0.8 | ✅ | K-05 |
+| 7 | Broad hybrid retrieval, diversity, no top-3 dependency, exact reference | `retrieval.candidates/select` (AM-86), `exact_reference` (AM-95 r1) | `test_retrieval_pool.py` | pool recall 0.988; A-04 s. 74 now rank 1 | ✅ | — (F-03/F-04 closed by AM-96) |
 | 8 | Rerank + parent context | `retrieval.rerank` (AM-87), length-sorted batching (AM-94 r8) | `test_retrieval_pool.py` | rerank p95 3.1 → 1.1 s | ✅ | — |
 | 9 | Evidence bundle: part states, kinds apart | `evidence.py` (AM-88) | `test_evidence_bundle.py` | wrong-source 0, false admission 0 | ✅ | — |
 | 10 | Grounded conversational generation | `generation.py`, `contract-answer-2` (AM-89/AM-94 r9) | `test_bundle_answer.py` | better on 5/6 judged | ✅ | O-03 (see §14) |
@@ -36,6 +36,6 @@ Baseline: commit `608cbb6` (AM-94). Last updated 2026-09-27.
 
 1. ~~§15 — follow-up fallback~~ fixed and measured (J 1.0).
 2. ~~§14 — `WRONG_ACT`~~ fixed; corpus limits recorded as residuals.
-3. ~~§16/§17~~ follow-up cases added; the existing tool already reports the counters. Open: K-03/K-05, F-03/F-04 planner vocabulary.
+3. ~~§16/§17~~ follow-up cases added; ~~F-03/F-04/K-03~~ closed (AM-96). Open: K-05; categories B, D, E, G, H, O below 0.75 recall@3.
 4. §11 — attack the remaining 12 shown bad sentences where the root cause is local.
 5. §18 — idle-host latency measurement; runbook numbers refreshed.

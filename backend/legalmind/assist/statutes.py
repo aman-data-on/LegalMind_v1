@@ -774,9 +774,9 @@ def expand_aliases(query: str) -> str:
     recognise that a question NAMES an instrument, and two copies would drift. The
     dependency runs from this module to that one, which imports nothing but `re`.
     """
-    from legalmind.assist.intent import ACT_ALIASES
+    from legalmind.assist.intent import _ALIAS_SPACE, ACT_ALIASES
 
-    lowered = f" {(query or '').lower()} "
+    lowered = f" {_ALIAS_SPACE.sub(' ', (query or '').lower())} "
     for short, full in ACT_ALIASES.items():
         if f" {short} " in lowered:
             lowered = lowered.replace(f" {short} ", f" {short} {full} ")

@@ -142,3 +142,26 @@ def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_ask
     assert reasons["STAT:Copyright Act, 1957:32B"] == "NOT_RELEVANT", "other kinds do not"
     english = query_plan.plan("What is our liability cap?", has_document=False)
     assert english.language == "en"
+
+
+def test_a_named_section_the_text_does_not_hold_is_answered_by_no_other(relevance):
+    """PHASE 13 (golden H-02): "section 194J of the Income-tax Act, 1961" against a
+    text that predates s. 194J showed s. 199 as the answer. When the named section of
+    the named Act is absent, the Act's other sections cannot say what it said; when
+    it is present, they stay admissible as context."""
+    plan = query_plan.plan("What did section 194J of the Income-tax Act, 1961 say?",
+                           has_document=False)
+    s199 = _c("STATUTES", "STAT:Income-tax Act, 1961:199", "credit for tax deducted",
+              authority="PRIMARY_LAW", status="REPEALED", lanes=(query_plan.LAW,))
+    relevance["credit for tax deducted"] = 9.0
+    pool = Pool(by_domain={"STATUTES": [s199]})
+    assert evidence.build(None, plan, pool, [s199]).sources[0].reason == \
+        "NAMED_SECTION_ABSENT"
+    named = _c("STATUTES", "STAT:Income-tax Act, 1961:194J", "fees for professional",
+               authority="PRIMARY_LAW", status="REPEALED", lanes=(query_plan.LAW,))
+    relevance["fees for professional"] = 9.0
+    both = Pool(by_domain={"STATUTES": [named, s199]})
+    reasons = {s.ref: s.reason for s in evidence.build(None, plan, both,
+                                                       [named, s199]).sources}
+    assert reasons["STAT:Income-tax Act, 1961:194J"] is None
+    assert reasons["STAT:Income-tax Act, 1961:199"] != "NAMED_SECTION_ABSENT"

@@ -21223,3 +21223,57 @@ and latest-not-effective cases are proven only by router refusal and record stat
 
 --------------------------------------------------------------------------------
 AM-95: exact references, named Acts, conversation topic and Roman-Hindi judging
+
+================================================================================
+AMENDMENT BATCH AB-46 — `AM-96`
+Planner vocabulary and instrument recognition (roadmap §6/§14/§17): three golden
+misses placed by the topics their own gold standards carry
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority)
+and the requirement matrix's open item "F-03/F-04 planner vocabulary; K-03". Every
+cue points at the topic its gold standard is configured with
+(`configuration.constitution.topic`); nothing authored (rule 21). No Gemini call.
+
+**Amends, narrowly:** `AM-85` r1 (the lexical vocabulary), `AM-95` r2 (named Act).
+**Does not amend:** `AM-86` r3 (kept: these questions now carry a topic, so nothing
+had to widen selection), `AM-25`, `AM-58`, the Gemini cost guard.
+
+```text
+r1   "service" alone is not the SLA term. A canonical term counted as already used
+     when the question held ANY of its 5+-letter words, so "service level
+     availability uptime" placed every question containing "service" under SLA —
+     "… service kab band kar sakte hain?" (non-payment suspension, golden K-03) among
+     them. "service"/"services" no longer count; uptime, service-credit and
+     service-level questions still read as SLA.
+
+r2   Two cues, each at its gold standard's topic: "KYC" / "customer registration" →
+     Data Protection & Privacy (KYC-RETENTION-TOS-001, §12, golden F-03); non-payment
+     wording including Roman-Hindi "payment nahi" → Payment Terms & Taxes
+     (SUSPENSION-NOTICE-CURE-MSA-001, §16, golden K-03).
+
+r3   Punctuation is a word boundary for an Act's short name: "reported to CERT-In?"
+     named no instrument because the alias match required a space after it (golden
+     F-04). One shared pattern (`intent._ALIAS_SPACE`) serves the instrument signal
+     and `statutes.expand_aliases`; `retrieval`'s named-Act test now reuses
+     `expand_aliases` rather than a third copy.
+
+r4   A named section the text does not hold is answered by no other section of that
+     Act (`retrieval.named_section_absent`, judge reason NAMED_SECTION_ABSENT). With r3,
+     "section 194J of the Income-tax Act, 1961" (which the supplied text predates, as
+     its own registry title records) reached the right Act and showed s. 199 as the
+     answer; it refuses again. When the named section IS present, the Act's other
+     sections stay admissible as context.
+```
+
+**Recorded 2026-09-27.** Zero-Gemini golden benchmark, new path, 79 cases, against
+`AM-95`: recall@3 0.778 → 0.815; F 0.5 → 0.83 (F-03, F-04 rank 1), K 0.6 → 0.8 (K-03
+rank 1); wrong-source 0, false admission 0; H-02 refuses as before. Full suite 2708
+passed, 0 failed, 112 skipped. Regression tests in test_assist_planner.py and
+test_evidence_bundle.py.
+
+**Residuals:** K-05 (Roman-Hindi NDA survival) still misses its standard; B, D, E, G,
+H, O below 0.75 recall@3, each to be traced from the matrix.
+
+--------------------------------------------------------------------------------
+AM-96: planner vocabulary, instrument recognition and the absent named section
