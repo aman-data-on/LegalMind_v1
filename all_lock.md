@@ -21408,3 +21408,60 @@ B-05, F-05, G-03, H-01, O-04, as the requirement matrix records.
 
 --------------------------------------------------------------------------------
 AM-99: of two instruments a question names, the more fully named ranks first
+
+================================================================================
+AMENDMENT BATCH AB-50 — `AM-100`
+The code's own restatement of an approved claim is always verifiable
+(roadmap §10/§11/§12)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority)
+and the owner's instruction to root-cause the three live fallbacks (D-04, A-01, C-04)
+without weakening any safeguard. Nothing authored (rule 21). 7 Gemini calls.
+
+**Amends, narrowly:** `AM-91` r6 (sentence repair) and `AM-78` r1 (the reader's
+figure). **Does not amend:** the entailment verifier, every contract check
+(conditions, scope, frame, modality, negation, kind, temporal status), `AM-25`, [A]/[M].
+
+```text
+r1   A sentence that is EXACTLY the code's restatement of the one claim it cites —
+     its own attribution, then a run of the record's own sentences in order, then its
+     own status notes (`answer.is_verbalisation`) — is approved source text. It skips
+     the entailment model and the compliance-verdict rule; every deterministic
+     contract check still applies. Measured: the code's own restatement of 20 of 553
+     approved claims failed verification, so a draft citing one could never be
+     repaired and the answer fell back. Now 0 of 547.
+
+r2   The verbatim test strips the repair's status note before the sentence's full
+     stop, including a note holding its own "(Section 28)"; the "not" of "(repealed —
+     historical, not current law)" is not the claim's polarity.
+
+r3   A reader's figure counts as stated only with its unit here too: "Section 12"
+     does not state "12 months" (`AM-97` r3's rule, applied to the second check).
+
+r4   An ellipsis never ends a sentence. The ratified quote "shall not, directly or
+     indirectly ... solicit ..." was cut at it, and the answer shown said the
+     Receiving Party "shall not, directly or indirectly" (C-04).
+```
+
+**Tried and rejected:** giving the verifier each claim's full attributed statement
+as its premise, and counting the attribution in the word-overlap bypass. It passed
+every restatement too, but let four independently labelled-bad run-9 sentences through
+that `AM-99` rejected (a dropped condition, two lost cross-references, unsupported
+content), because a long frame or scope label raised a paraphrase's overlap.
+
+**Recorded 2026-09-27.** Offline replay of run 9's 65 real Gemini answers against
+`AM-99`: fallbacks 14 → 2; answers shown 51 → 63; every independently labelled-bad
+sentence judged exactly as `AM-99` judged it; citation correctness 0.9955 → 0.9956;
+bad sentences shown 10 → 13 (2.23% → 2.31%) — all three extra are sentences `AM-99`
+also passed, in answers that had fallen back for another reason. Live: D-04, A-01 and
+C-04 each answered on the new path in one call. Golden retrieval unchanged (recall@3
+0.914, wrong-source 0, false admission 0). Five regression tests in
+test_claim_records.py, each failing on `AM-99`.
+
+**Residuals:** the three pre-existing verifier misses the replay exposed — a
+"should" restated as "requires" (E-02), a commencement note dropped (E-02), and C-04's
+truncated sentence (fixed at its source by r4 for every new answer).
+
+--------------------------------------------------------------------------------
+AM-100: the code's own restatement of an approved claim is always verifiable

@@ -264,3 +264,81 @@ def test_a_lead_in_that_announces_the_positions_is_not_a_claim(records):
     us = claim_records.units(records, _const(records, "31.14"))
     assert not any("approved the following approach" in u.text for u in us)
     assert any(u.heading[-1] == "A. MSA / Customer" for u in us), "the sub-parts stay"
+
+
+def _framed():
+    return _contract(ref="CONST:15", citation="§15", kind=contracts.POSITION,
+                     modality="STATEMENT", negated=True,
+                     text="NOT DEFINED beyond the confirmed position.",
+                     frame="Negotiable / Approval Required",
+                     referent="Section 15 (Confidentiality & Intellectual Property)")
+
+
+def _payload(c, monkeypatch, figures=()):
+    import dataclasses
+    monkeypatch.setattr(contracts, "build", lambda *a, **k: [c])
+    cand = Candidate("CONSTITUTION", c.ref, uuid.uuid4(), c.text, 0.0,
+                     "COMPANY_CONSTITUTION")
+    src = evidence.Source(qp.COMPANY_POSITION, cand, c.text, 5.0, True, None)
+    part = evidence.Part("q", (qp.COMPANY_POSITION,), evidence.SUPPORTED, (src,))
+    bundle = evidence.Bundle((part,), (src,), (), False)
+    payload, _ = answer.contract_payload(bundle, "What is our position?")
+    return dataclasses.replace(payload, reader_figures=figures), bundle
+
+
+def test_the_code_restating_an_approved_claim_is_always_verifiable(monkeypatch):
+    """2026-09-27 (golden C-04, A-01, D-04 fell back): the code's own restatement of 20
+    of 553 approved claims failed verification, so no repair could ever succeed. The
+    exact restatement is approved source text: the deterministic checks decide it."""
+    from legalmind.assist import verify
+    c = _framed()
+    payload, bundle = _payload(c, monkeypatch)
+    assert payload.evidence[0] == c.text, "the verifier's evidence stays the claim text"
+    seen = {}
+    monkeypatch.setattr(verify, "check_answer", lambda text, *a: seen.setdefault(
+        "flags", a[-1]) and verify.Result(True, text, [], []))
+    answer.verify_answer(answer.verbalise(c), payload, bundle, [c])
+    assert seen["flags"] == [True], "a verbatim restatement is not the model's to judge"
+
+
+def test_a_status_note_is_not_the_claims_negation():
+    """The repair's own "(in force: NOT YET IN FORCE — … (Section 28))" or "(repealed —
+    historical, not current law)" before the full stop is not the claim's polarity."""
+    for status in ("NOT YET IN FORCE — commences 13 May 2027 (Section 28)", "REPEALED"):
+        c = _contract(temporal=status)
+        assert not contracts.check(answer.verbalise(c), [c]), status
+
+
+def test_a_section_number_is_not_the_readers_figure(monkeypatch):
+    """GT-03: "Section 12" is not "12 months" — a number counts with its unit."""
+    c = _contract(kind=contracts.POSITION, modality="STATEMENT",
+                  text="Retention follows Section 12 for 5 years.")
+    payload, bundle = _payload(c, monkeypatch, figures=("12 months",))
+    ok = "The company position states: retention follows Section 12 for 5 years [1]."
+    assert not any("reader's figure" in f for f in answer.check(ok, payload, bundle))
+    bad = "The company position is 12 months [1]."
+    assert any("reader's figure" in f for f in answer.check(bad, payload, bundle))
+
+
+def test_an_ellipsis_never_ends_a_sentence_of_a_claim():
+    """C-04: the ratified quote "shall not, directly or indirectly ... solicit ..." was
+    cut at the ellipsis and the answer shown lost the verb it prohibits."""
+    from legalmind.assist import guardrails
+    quote = "The Party shall not, directly or indirectly ... solicit ... Next sentence."
+    assert guardrails._SENTENCES.split(quote) == [
+        "The Party shall not, directly or indirectly ... solicit ... Next sentence."]
+    c = _contract(kind=contracts.POSITION, modality="PROHIBITED",
+                  text="The Party shall not, directly or indirectly ... solicit ...")
+    assert answer.verbalise(c).endswith("solicit ... [1].")
+
+
+def test_only_the_codes_exact_restatement_is_trusted():
+    """A sentence that repeats a claim's attribution but says something else is judged
+    as a paraphrase — echoing long frame and scope labels must never skip the model
+    (a looser word-overlap test let four labelled-bad drafts through, 2026-09-27)."""
+    c = _framed()
+    assert answer.is_verbalisation(answer.verbalise(c), c)
+    lead = answer.verbalise(c).split(" states: ")[0]
+    assert not answer.is_verbalisation(f"{lead} states: everything is negotiable [1].", c)
+    assert not answer.is_verbalisation(
+        answer.verbalise(c).replace("NOT DEFINED", "DEFINED"), c)

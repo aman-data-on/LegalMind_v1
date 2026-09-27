@@ -485,10 +485,13 @@ def _verbatim(claim: str, c: Contract) -> bool:
     """The sentence's body is the record's own words (a repair, `answer.verbalise`):
     every run of four or more words between its separators occurs in the record."""
     body = claim.split(" states: ", 1)[1] if " states: " in claim else claim
-    body = re.sub(r"\s*\((?:in force|repealed|[^()]*\bbeing\b)[^()]*\)\s*$", "", body)
+    # The note verbalise appends, before the sentence's full stop; a commencement note
+    # may hold its own "(Section 28)".
+    body = re.sub(r"\s*\((?:in force|repealed|[^()]*\bbeing\b)(?:[^()]|\([^()]*\))*\)?"
+                  r"[\s.]*$", "", body)
     body = re.sub(r";\s*subject to these exceptions:.*$", "", body)
     own = " ".join(c.text.split())
-    pieces = [x.strip(" .") for x in re.split(r";\s+|(?<=[.!?])\s+", body)]
+    pieces = [x.strip(" .") for x in re.split(r";\s+|(?<=[.!?])(?<!\.\.\.)\s+", body)]
     pieces = [x for x in pieces if len(x.split()) >= 4]
     return bool(pieces) and all(x in own for x in pieces)
 
@@ -574,7 +577,7 @@ def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str
         # The exceptions are the record's own words, carried beside the claim: their
         # "should" is not the claim's modality.
         bare = claim
-        for part in re.split(r"(?<=[.!?])\s+", c.exceptions_text or ""):
+        for part in re.split(r"(?<=[.!?])(?<!\.\.\.)\s+", c.exceptions_text or ""):
             bare = bare.replace(part.rstrip(".") or "\0", "")
         mod, neg = modality(bare)
         own = guardrails._content_words(c.text)

@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit AM-99. Last updated 2026-09-27.
+Baseline: commit `608cbb6` (AM-94); last unit AM-100. Last updated 2026-09-27.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -22,7 +22,7 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-99. Last updated 2026-09-27.
 | 8 | Rerank + parent context | `retrieval.rerank` (AM-87), length-sorted batching (AM-94 r8) | `test_retrieval_pool.py` | rerank p95 3.1 → 1.1 s; statute ranked with its title (AM-98) recall@3 0.864 → 0.901 | ✅ | — |
 | 9 | Evidence bundle: part states, kinds apart | `evidence.py` (AM-88) | `test_evidence_bundle.py` | wrong-source 0, false admission 0; floor 8 + `OFF_TOPIC` (AM-97) recall@3 0.815 → 0.864 | ✅ | — |
 | 10 | Grounded conversational generation | `generation.py`, `contract-answer-2` (AM-89/AM-94 r9) | `test_bundle_answer.py` | better on 5/6 judged | ✅ | O-03 (see §14) |
-| 11 | Claim-level verification | `verify.py` (AM-90), contract checks (AM-91–93) | `test_claim_verification.py`, `test_claim_contracts.py` | run-9 replay: bad shown 16 → 12 | 🟡 | 12 bad sentences still shown in 65 (AM-92 cross-reference class) |
+| 11 | Claim-level verification | `verify.py` (AM-90), contract checks (AM-91–93) | `test_claim_verification.py`, `test_claim_contracts.py` | run-9 replay (65 real answers): fallbacks 14 → 2 (AM-100), bad sentences shown 2.3% of sentences, citation correctness 0.996 | 🟡 | 13 bad sentences shown in 63 answers, all passed by the verifier before AM-100 too: 6 cross-reference, 2 temporal, 2 unsupported, 1 each condition, modality, exception, contradiction |
 | 12 | Precise citations | markers assigned by code (AM-90), legend (AM-94 r3) | `test_ask_multi_source_rollout.py` | citation correctness 0.996 | ✅ | — |
 | 13 | Multi-source reasoning, never blended | AM-91–93 | `test_multi_source_reasoning.py` | [A]/[M] 11/11 on layered cases | ✅ | — |
 | 14 | Authority / jurisdiction / temporal behaviour | repealed status (AM-80), `wants_past`, `include_superseded`, `evidence._wrong_act` (a named section of a named Act is answered by that Act alone) | `test_evidence_bundle.py::…another_act` | H-04 historical → repealed Act; O-01/O-02 current → never repealed; H-02 no longer answered from CGST (75/76 byte-identical) | 🟡 | no NOT-YET-EFFECTIVE statute exists in the corpus to test "latest ≠ effective" beyond DPDP record status; no second jurisdiction supplied (wrong-jurisdiction proven only by router refusal) |

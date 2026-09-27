@@ -39,7 +39,10 @@ _MARKER = re.compile(r"\[(\d{1,2})\]")
 # The danda `।` and double danda `॥` are Devanagari full stops: without them a whole
 # Hindi answer was ONE sentence, so a single `[1]` anywhere in it satisfied the
 # marker check for every claim it made.
-_SENTENCES = re.compile(r"(?<=[.!?।॥])\s+")
+# An ellipsis is an omission inside a quotation, never a sentence end: splitting at
+# "directly or indirectly ... solicit ..." cut the verb from a ratified standard, and the
+# answer shown said the Receiving Party "shall not, directly or indirectly" (C-04).
+_SENTENCES = re.compile(r"(?<=[.!?।॥])(?<!\.\.\.)\s+")
 
 # The share of a claim's content words that must appear in its cited chunk for the
 # claim to count as grounded. This is NOT a legal threshold and NOT retrieval

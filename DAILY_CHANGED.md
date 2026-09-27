@@ -1307,3 +1307,15 @@ Companies Act, 1956 question benefits the same way. Both the new and the legacy 
 improve, and wrong-source and false admission do not move. A second idea, ignoring an
 Act's own title words inside it, helped s. 27 in the pool but changed no result, so it
 was dropped.
+
+## 2026-09-27 — Entry 24: the code's own restatement is always verifiable (`AM-100`)
+
+Three live questions fell back to the legacy path. Regenerating them with every draft
+captured showed a shared cause. When a draft sentence failed, the repair put the
+approved claim's own words in its place, but for 20 of 553 claims that restatement
+failed verification itself, so no repair could succeed. An exact restatement is now
+trusted as source text, with every deterministic check still applied. A looser version
+was tried first and rejected, because it let four known-bad draft sentences through.
+Separately, an ellipsis in a ratified quote had cut "solicit" out of the non-solicitation
+standard. Replaying 65 real answers: fallbacks 14 → 2, and every known-bad sentence is
+judged exactly as before. All three live cases now answer on the new path.

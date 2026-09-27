@@ -319,8 +319,11 @@ def _sentences(body: str) -> list[str]:
     return out
 
 
-def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
-    """The mechanical post-generation checks. [] means the answer may be shown."""
+def check(text: str, payload: Payload, bundle: evidence.Bundle,
+          restated: frozenset[str] = frozenset()) -> list[str]:
+    """The mechanical post-generation checks. [] means the answer may be shown.
+    `restated` — sentences that are the code's own restatement of a claim
+    (`is_verbalisation`): approved source text, never a verdict."""
     failures: list[str] = []
     body = (text or "").strip()
     if not body or body.upper().startswith("NOT FOUND"):
@@ -370,8 +373,9 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
             failures.append(f"figure {extra} not in the cited text: {sentence[:80]!r}")
         # A figure no company position states, said of the position without negation —
         # citing [A] beside it does not launder it ("our policy is 6 months [1][A]").
+        # Number WITH unit (`AM-78`): "Section 12" does not state "12 months" (GT-03).
         if policy and not _NEGATION.search(claim) and any(
-                f.split()[0] in guardrails._quantities(claim) for f in unstated):
+                not guardrails.unstated_figures(f, [claim]) for f in unstated):
             failures.append(f"a reader's figure stated as the position: "
                             f"{sentence[:80]!r}")
         # [A] alone never makes a reader's figure a fact: it is attributed or negated.
@@ -400,7 +404,7 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
             bool(words) and len(words & own) / len(words) >= VERBATIM
         judged = qp.CONTRACT in cited_kinds or "A" in marks or _SUBJECT.search(claim)
         if intent.is_verdict_statement(claim) and judged and not (
-                restating_frame or restating_text):
+                restating_frame or restating_text or sentence in restated):
             failures.append(f"compliance verdict: {sentence[:80]!r}")
     return failures
 
@@ -410,11 +414,15 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
     """Both layers, fail closed: PHASE 10's mechanical checks, then PHASE 11's claim
     verifier (`assist/verify.py`), which also assigns the citations. Returns (failures,
     the answer with the verifier's citations)."""
-    failures = check(text, payload, bundle)
+    sentences = _sentences(text)
+    by_n = {c.n: c for c in cs or []}
+    restated = frozenset(s for s in sentences if (cited := [
+        by_n[int(m)] for m in _MARKER.findall(s) if m.isdigit() and int(m) in by_n])
+        and len(cited) == 1 and is_verbalisation(s, cited[0]))
+    failures = check(text, payload, bundle, restated)
     if failures:
         return failures, text
-    sentences = _sentences(text)
-    flags = [is_context(s, payload.question_figures) for s in sentences]
+    flags = [is_context(s, payload.question_figures) or s in restated for s in sentences]
     if cs:
         # PHASE 12: a sentence that restates its cited contract nearly verbatim is
         # decided by the deterministic contract checks below (conditions, modality,
@@ -501,7 +509,8 @@ def _record_sentences(text: str) -> list[str]:
                                 text.strip()) if x.strip()]
 
 
-def _verbalise(c: contracts.Contract, text: str) -> str:
+def _lead(c: contracts.Contract) -> str:
+    """The claim's attribution — kind, frame, scope, referent — every part approved."""
     lead = contracts.SAY[c.kind]
     if c.frame:
         lead += f" ({c.frame})"
@@ -513,7 +522,10 @@ def _verbalise(c: contracts.Contract, text: str) -> str:
         lead += ", " + ", ".join(scope) + ","
     if c.referent:
         lead += f" (on {c.referent})"
-    body = "; ".join(x.rstrip(".") for x in _sentences(text.strip()))
+    return lead
+
+
+def _tail(c: contracts.Contract) -> str:
     tail = ""
     if c.exceptions_text:
         tail += "; subject to these exceptions: " + "; ".join(
@@ -524,7 +536,37 @@ def _verbalise(c: contracts.Contract, text: str) -> str:
     if c.antecedents:
         tail += " (" + "; ".join(f"{said} being {meant}"
                                  for said, meant in c.antecedents) + ")"
-    return f"{lead} states: {body}{tail} [{c.n}]."
+    return tail
+
+
+def is_verbalisation(sentence: str, c: contracts.Contract) -> bool:
+    """The sentence is exactly the code's restatement of `c` (`verbalise`): its own
+    attribution, then a run of the record's own sentences in order, then its own notes.
+    Such a sentence is approved source text — the entailment model called 20 of 553 of
+    them unsupported or contradicted, so a draft citing one could never be repaired
+    (golden C-04, A-01, D-04 fell back, 2026-09-27). Anything else, however alike, is
+    judged as a paraphrase."""
+    lead, end = f"{_lead(c)} states: ", f"{_tail(c)} [{c.n}]."
+    if not (sentence.startswith(lead) and sentence.endswith(end)):
+        return False
+    rest = sentence[len(lead):len(sentence) - len(end)]
+    for piece in (_unstop(x) for x in _sentences(c.text.strip())):
+        if rest == piece:
+            return True
+        if rest.startswith(piece + "; "):
+            rest = rest[len(piece) + 2:]
+    return False
+
+
+def _unstop(sentence: str) -> str:
+    """The sentence without its full stop — never an ellipsis ("… solicit ...")."""
+    return sentence[:-1] if sentence.endswith(".") and not sentence.endswith("..") \
+        else sentence
+
+
+def _verbalise(c: contracts.Contract, text: str) -> str:
+    body = "; ".join(_unstop(x) for x in _sentences(text.strip()))
+    return f"{_lead(c)} states: {body}{_tail(c)} [{c.n}]."
 
 
 def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
