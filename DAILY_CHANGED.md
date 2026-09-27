@@ -1296,3 +1296,14 @@ first showed no gain because the candidate merge rebuilt each candidate and drop
 title, and that merge now copies every field. Two reader phrasings of the liability cap
 and a price rise now place their topics. Golden recall@3 0.864 → 0.901, the golden
 questions reach 1.0, and wrong-source and false admission stay 0.
+
+## 2026-09-27 — Entry 23: the more fully named Act ranks first (`AM-99`)
+
+"What does the DPDP Act require of a data fiduciary?" names the DPDP Act, but it also
+matches most of the DPDP Rules' title, so the statute search treated both as named and
+let the Rules' sections take the slots on word count. DPDP s. 8 never reached the pool.
+Among named instruments, the one the question names more fully now ranks first. The
+Companies Act, 1956 question benefits the same way. Both the new and the legacy paths
+improve, and wrong-source and false admission do not move. A second idea, ignoring an
+Act's own title words inside it, helped s. 27 in the pool but changed no result, so it
+was dropped.

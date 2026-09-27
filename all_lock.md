@@ -21372,3 +21372,39 @@ off. E-02, E-03, F-05, G-03, H-01, O-04 miss rank 3.
 
 --------------------------------------------------------------------------------
 AM-98: a statute is ranked with its section title; two reader phrasings placed
+
+================================================================================
+AMENDMENT BATCH AB-49 — `AM-99`
+Of two instruments a question names, the more fully named ranks first
+(roadmap §7/§14/§17)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority)
+and the requirement matrix's open miss E-02. A ranking key in the statute search;
+nothing authored (rule 21). No Gemini call.
+
+**Amends, narrowly:** the statute search order `AM-50` r3 established and
+2026-09-21 revised. **Does not amend:** the majority rule (`act_match >= 0.5` still
+names an Act), the repealed-Act rule, `AM-25`, the Gemini cost guard.
+
+```text
+r1   Among the Acts a question names, the one it names more fully goes first. "The
+     DPDP Act" also majority-matches the DPDP Rules' title, and "the Companies Act,
+     1956" the Companies Act, 2013's, so the other instrument's sections shared the
+     slots on word count and took them: DPDP s. 8 never reached the pool for "what
+     does the DPDP Act require of a data fiduciary?" (golden E-02). A named section
+     still ranks first, as before.
+```
+
+**Recorded 2026-09-27.** Zero-Gemini golden benchmark, 79 cases, against `AM-98`:
+new path bundle recall@3 0.901 → 0.914, E 0.75 → 0.88; legacy path recall@3 0.568 →
+0.580; wrong-source and false admission unchanged (new path 0 and 0). Regression test
+in test_assist_statutes.py. Tried and not adopted: not counting the named Act's own
+title words when ranking its sections lifted s. 27 from 37th to 2nd for golden E-03
+but changed no measured result, because the cross-encoder still scores it low.
+
+**Residuals:** E-03 (the reranker scores s. 27 low for "a restraint like that"),
+B-05, F-05, G-03, H-01, O-04, as the requirement matrix records.
+
+--------------------------------------------------------------------------------
+AM-99: of two instruments a question names, the more fully named ranks first

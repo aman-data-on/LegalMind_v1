@@ -903,7 +903,14 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       -- Act, which `act_match >= 0.5` already means everywhere else in this query.
          WHERE NOT ({_repealed_sql('status')}) OR act_match >= 0.5
                OR {'TRUE' if include_superseded else 'FALSE'}
-         ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
+      --
+      -- Among the Acts a question names, the one it names MORE fully goes first
+      -- (2026-09-27): "the DPDP Act" also majority-matches the DPDP Rules' title, and
+      -- "the Companies Act, 1956" the 2013 Act's, so the other instrument's sections
+      -- shared the slots and took them (golden E-02 lost DPDP s. 8; H-04 the 1956 Act).
+         ORDER BY (act_match >= 0.5) DESC, exact_section DESC,
+                  (CASE WHEN act_match >= 0.5 THEN act_match END) DESC NULLS LAST,
+                  matched DESC,
                   ({_repealed_sql('status')}) ASC, act_match DESC, score DESC,
                   official_title, ordinal
          LIMIT :limit
