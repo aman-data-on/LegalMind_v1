@@ -1227,3 +1227,35 @@ section-kinds, minimal-repair, gap-guard, inline-drafting and Act-naming tests.
 paraphrased gap, O-03's Schedule-over-section retrieval); end-to-end latency of the new
 path remains several times legacy's because Gemini writes a longer verified answer; the
 document lane stays on legacy until it has its own benchmark.
+
+Commit: `608cbb6`.
+
+## 2026-09-27 — Entry 19: roadmap §7/§14/§15/§17 verified as behaviour (`AM-95`)
+
+A live requirement matrix now tracks every roadmap section from requirement to
+evidence (`docs/00-project/ROADMAP_REQUIREMENT_MATRIX.md`). Working it found five
+defects, each traced to the phase that caused it:
+
+* **§7/§8** — "section 74 of the Indian Contract Act" missed s. 74 even asked alone:
+  search ranked it first, the cross-encoder (reading "section 74" in the question, not
+  in the section) demoted it to tenth, and the judge's floor then rejected it. A named
+  section of a named Act now survives both.
+* **§14** — "section 194J of the Income-tax Act, 1961" (a section the supplied text
+  predates) was answered from the CGST Act. A named Act now answers alone; H-02 refuses.
+* **§15** — the roadmap's own follow-up example fell back to legacy: not anaphoric, so
+  production never gave the planner the earlier question (the benchmark always did);
+  and a three-turn chain lost its topic. The planner now sees every bounded earlier
+  question; only the topic carries.
+* **§15** — a changed topic ("section 74 …" after an early-exit question) inherited
+  "early exit". A turn that names its own source never inherits.
+* **§17 K** — Roman-Hindi questions retrieved the right sources and the English
+  cross-encoder rejected them. The planner's English topic is also scored, for kinds the
+  plan asked for only (an unscoped first version admitted the Copyright Act's
+  licence-termination section to a data-retention question).
+
+Zero-Gemini golden benchmark (79 cases, three new follow-up shapes): recall@3 0.728 →
+0.778; A 0.83 → 1.0, J 0.86 → 1.0, K 0.2 → 0.6; wrong-source and false admission 0 both
+sides; six cases changed, all up. Residuals recorded: F-03/F-04 planner vocabulary (the
+fix would reopen AM-86 r3 for two cases and expose three must-refuse ones), K-03, K-05,
+and a corpus with no second jurisdiction or not-yet-in-force statute to test beyond
+record statuses.

@@ -100,6 +100,13 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
   49/65 shown. Known limitations recorded for PHASE 13. Tests:
   `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
+* **Roadmap §7/§14/§15/§17 / `AM-95`** — behaviour, not columns: `retrieval.exact_reference`
+  (a named section of a named Act survives the rerank and the judge floor) and
+  `retrieval.names_other_act` (`WRONG_ACT`); the planner receives every bounded earlier
+  question and a turn naming its own source never inherits; a Roman-Hindi question is
+  also judged on its English topic for asked-for kinds; golden J-05–J-07; live matrix
+  `docs/00-project/ROADMAP_REQUIREMENT_MATRIX.md`. Golden recall@3 0.728 → 0.778,
+  wrong-source and false admission 0.
 * **Roadmap PHASE 13 / `AM-94`** — the validated multi-source Ask path wired into
   production behind `LEGALMIND_ASK_MULTI_SOURCE` (default off; `no_document`; `on` not
   approved) with `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` as a per-conversation canary share;

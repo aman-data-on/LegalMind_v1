@@ -240,10 +240,56 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
         # REPEALED Companies Act, 1956 is not the law on board powers today.
         if not plan.understood.temporal.wants_past:
             order.sort(key=lambda i: head[i].status != "CURRENT")
+        order.sort(key=lambda i: not exact_reference(head[i], plan))
         reranked[domain] = [dataclasses.replace(head[i], relevance=scores[i])
                             for i in order] + tail
     return Pool(by_domain=reranked, searched=pool.searched, primary=pool.primary,
                 document_gate=pool.document_gate)
+
+
+def _asked(plan: query_plan.QueryPlan) -> str:
+    from legalmind.assist.intent import ACT_ALIASES
+    asked = f" {plan.question.lower()} "
+    for short, full in ACT_ALIASES.items():
+        asked = asked.replace(f" {short} ", f" {short} {full} ")
+    return asked
+
+
+def _is_named_act(c: Candidate, asked: str) -> bool:
+    title = c.ref.split(":", 1)[1].rsplit(":", 1)[0].lower()
+    # Drop the registry's provenance suffixes ("(REPEALED …)", "— as enacted").
+    title = title.split(" (")[0].split(" \u2014 ")[0]
+    words = [w for w in title.replace(",", "").split()
+             if w not in {"the", "act", "rules", "of", "and", "code", "directions"}
+             and not w.isdigit()]
+    return bool(words) and all(w in asked for w in words)
+
+
+def _names_an_act(asked: str) -> bool:
+    return any(a in asked for a in ("act", "rules", "adhiniyam", "code", "directions"))
+
+
+def names_other_act(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+    """Roadmap §7/§14 (PHASE 13, `AM-94`): a question naming a section OF a named Act
+    is answered only by that Act — "section 194J of the Income-tax Act, 1961" (a
+    section the supplied text predates) was answered by the CGST Act."""
+    if not plan.section_hint or c.domain != routing.Domain.STATUTES.value:
+        return False
+    asked = _asked(plan)
+    return _names_an_act(asked) and not _is_named_act(c, asked)
+
+
+def exact_reference(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+    """The reader named this very section of this very Act (roadmap §7's exact-
+    reference retrieval). Search ranks it first; the cross-encoder, reading "section
+    74" in the question but not in the section's text, demoted s. 74 of the Contract
+    Act to tenth (golden A-04, PHASE 13) — so it sorts first after the rerank and the
+    evidence judge takes it as named, as it does a named Constitution section."""
+    if not plan.section_hint or c.domain != routing.Domain.STATUTES.value:
+        return False
+    asked = _asked(plan)
+    return (c.ref.rsplit(":", 1)[-1].lower() == plan.section_hint.lower()
+            and _names_an_act(asked) and _is_named_act(c, asked))
 
 
 def kind_of(c: Candidate) -> str:

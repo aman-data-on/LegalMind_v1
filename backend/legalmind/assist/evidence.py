@@ -127,6 +127,10 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return "NOT_CURRENT"
     if c.domain == CONSTITUTION and c.ref.removeprefix("CONST:") in named:
         return None
+    if c.domain == routing.Domain.STATUTES.value and retrieval.names_other_act(c, plan):
+        return "WRONG_ACT"
+    if retrieval.exact_reference(c, plan):
+        return None                 # the reader named this section of this Act
     if relevance is None:
         return "RELEVANCE_UNAVAILABLE"        # fail closed: no reranker, no support
     if relevance < RELEVANCE_FLOOR.get(c.domain, float("inf")):
@@ -149,6 +153,21 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
             dict.fromkeys([plan.question, *(s.query for s in plan.sub_questions)])]
     scores = [max(r[i] for r in runs if r) for i in range(len(contexts))] \
         if all(runs) else []
+    if scores and plan.language != "en":
+        # … but the sub-query is subject + the reader's own Roman-Hindi words, and the
+        # English cross-encoder scores those as noise: K-02 ("hamara liability cap
+        # kitna hai?") had §9 and LIABILITY-MSA-001 ranked first and rejected both
+        # (PHASE 13). The subject ALONE — the planner's topic phrase, read
+        # deterministically from the reader's words — is scored too, and counts only
+        # for a source of a KIND the plan asked for: scored for every kind it admitted
+        # the Copyright Act's licence-termination section to a data-retention question.
+        subjects = list(dict.fromkeys(
+            s.query[:-len(s.text)].strip() for s in plan.sub_questions
+            if s.query.endswith(s.text) and len(s.query) > len(s.text)))
+        for run in (cross_encoder.scores(q, contexts) for q in subjects):
+            if run:
+                scores = [max(x, run[i]) if kind_of(evidence[i].candidate) in plan.lanes
+                          else x for i, x in enumerate(scores)]
     named = set(retrieval.named_sections(plan.question))
     sources = [Source(kind_of(e.candidate), e.candidate, e.context,
                       scores[i] if scores else None,

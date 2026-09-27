@@ -133,3 +133,28 @@ def test_scores_many_returns_the_same_numbers_as_scores_per_query(monkeypatch):
     queries, texts = ["ab", "cdef"], ["x", "yy", "zzz"]
     assert rerank.scores_many(queries, texts) == [rerank.scores(q, texts) for q in queries]
     assert rerank.scores_many([], texts) is None and rerank.scores_many(queries, []) is None
+
+
+def test_a_named_section_of_a_named_act_survives_the_rerank(monkeypatch):
+    """Roadmap §7/§8 (PHASE 13, golden A-04): search ranks the named s. 74 first; the
+    cross-encoder, reading "section 74" in the question but not in the section's own
+    text, demoted it to tenth. The exact reference sorts first after the rerank."""
+    from legalmind.assist import rerank
+    plan = query_plan.plan("What does section 74 of the Indian Contract Act provide?",
+                           has_document=False)
+    s74 = Candidate("STATUTES", "STAT:Indian Contract Act, 1872:74", None,
+                    "When a contract has been broken, if a sum is named", 0.9, "PRIMARY_LAW")
+    s16 = Candidate("STATUTES", "STAT:Indian Contract Act, 1872:16", None,
+                    "undue influence defined", 0.5, "PRIMARY_LAW")
+    other = Candidate("STATUTES", "STAT:Companies Act, 2013:74", None, "deposits", 0.4,
+                      "PRIMARY_LAW")
+    monkeypatch.setattr(rerank, "scores", lambda q, texts, **k: [
+        {"undue influence defined": 5.0}.get(t, -5.0) for t in texts])
+    pool = retrieval.rerank(Pool(by_domain={"STATUTES": [s74, s16, other]}), plan)
+    order = [c.ref for c in pool.by_domain["STATUTES"]]
+    assert order[0] == "STAT:Indian Contract Act, 1872:74", order
+    assert retrieval.exact_reference(s74, plan)
+    assert not retrieval.exact_reference(other, plan), "same number, another Act"
+    assert retrieval.names_other_act(other, plan)
+    bare = query_plan.plan("What does section 74 provide?", has_document=False)
+    assert not retrieval.exact_reference(s74, bare), "no Act named: never pinned"

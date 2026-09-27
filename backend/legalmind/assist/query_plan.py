@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from legalmind.assist import planner, understanding
+from legalmind.assist import intent, planner, understanding
 
 COMPANY_POSITION = "COMPANY_POSITION"
 CONTRACT = "CONTRACT"
@@ -171,7 +171,13 @@ def plan(question: str, *, has_document: bool | None = None,
     # promised 6 months?" after an early-termination question is still about early
     # termination. Only the TOPIC carries; the prior turn's claims and figures do not,
     # and nothing from an earlier ANSWER is read (`AM-58` r2).
-    if (lexical is None or lexical.topic is None) and prior:
+    # A turn that names its own source — an Act, a section — has changed topic even
+    # when it names no topic word: "What does section 74 of the Contract Act
+    # provide?" after an early-exit question inherited "early exit" and missed s. 74
+    # (PHASE 13, golden J-06).
+    if (lexical is None or lexical.topic is None) and prior and not (
+            (lexical and lexical.section_hint)
+            or intent.legal_question_signals(text).names_instrument):
         for earlier in reversed(list(prior)):
             inherited = planner.plan_lexical(earlier)
             if inherited and inherited.topic:

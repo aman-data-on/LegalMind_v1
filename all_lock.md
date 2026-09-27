@@ -21143,3 +21143,83 @@ per stage. The document lane stays on legacy until it has its own benchmark.
 
 --------------------------------------------------------------------------------
 AM-94: the multi-source Ask path in production — flag, canary dial, trace, rehearsed rollout
+
+================================================================================
+AMENDMENT BATCH AB-45 — `AM-95`
+Roadmap §7/§14/§15/§17 verified as behaviour on the multi-source path: exact
+statute references survive the rerank, a named Act answers alone, conversation
+topic carries through the plan, and a Roman-Hindi question is judged on its topic
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority)
+and the owner's instruction to verify every roadmap section as behaviour, not
+columns, *"Do not re-audit everything. Do trace root causes wherever necessary."*
+Every defect below was found by the golden benchmark or a roadmap scenario test and
+traced to the phase that caused it.
+
+**Amends, narrowly:** `AM-85` r2 (topic inheritance), `AM-87` r1 (rerank order),
+`AM-88` r3 (the evidence judge), `AM-94` r2 (the planner's conversation input).
+**Does not amend:** `AM-86` r3 (an unplaced question draws only from the primary
+route — measured and kept, see residuals), `AM-25`, `AM-58`, `AM-78`, `AM-90`, the
+Gemini cost guard. No Gemini call was made.
+
+```text
+r1   EXACT REFERENCE (§7/§8). A statute section the reader names, of an Act the
+     reader names, sorts first after the cross-encoder rerank and passes the
+     evidence judge's relevance floor, as a named Constitution section already does
+     (`retrieval.exact_reference`). The cross-encoder reads "section 74" in the
+     question but not in the section's own text: search ranked s. 74 of the Contract
+     Act first and the rerank demoted it to tenth (golden A-04). A section number
+     with no Act named is never pinned.
+
+r2   A NAMED ACT ANSWERS ALONE (§14). A question naming a section OF a named Act takes
+     no evidence from another Act (`retrieval.names_other_act`, judge reason
+     WRONG_ACT): "section 194J of the Income-tax Act, 1961" — a section the supplied
+     text predates — was answered from the CGST Act (golden H-02, now refused).
+
+r3   CONVERSATION (§15). The planner is given every bounded earlier question of the
+     conversation (`AM-58`'s PRIOR_TURNS_SCANNED, questions only, never an answer),
+     so a turn that names no topic inherits the most recent one: "What if the
+     customer says they were promised 6 months?" was not anaphoric, received no
+     context in production (the benchmark always gave it) and fell back to legacy;
+     a three-turn chain lost its topic. The retrieval query and the model's context
+     are unchanged — only the plan's TOPIC carries, never a claim or figure.
+
+r4   A TURN THAT NAMES ITS OWN SOURCE NEVER INHERITS (§15). A named instrument or a
+     section hint ends inheritance (`query_plan.plan`): "section 74 of the Contract
+     Act" after an early-exit question inherited "early exit" and missed s. 74
+     (golden J-06). Asking ABOUT the law ("and what about the law on that?") is not
+     naming a source and still inherits.
+
+r5   ROMAN-HINDI (§17 K, DoD 12). For a non-English question the evidence judge also
+     scores the planner's English topic phrase — read deterministically from the
+     reader's own words — and counts it only for a source of a kind the plan asked
+     for. The English cross-encoder scored "hamara liability cap kitna hai?" as noise
+     and rejected §9 and LIABILITY-MSA-001, both retrieved first (golden K-02); an
+     unscoped version admitted the Copyright Act's licence-termination section to a
+     data-retention question, which the kind scope closes. English questions are
+     unchanged by construction.
+
+r6   GOLDEN SET (§17). Three follow-up shapes added from refs existing cases already
+     use (rule 21): J-05 a follow-up carrying an unverified claim, J-06 a changed
+     topic, J-07 a Roman-Hindi follow-up. 79 cases.
+```
+
+**Recorded 2026-09-27.** Zero-Gemini golden benchmark, the new path's evidence
+bundle, 79 cases: recall@3 0.728 → 0.778; category A 0.83 → 1.0, J 0.86 → 1.0, K
+0.2 → 0.6; wrong-source 0, false admission 0 before and after; six cases changed, all
+improvements. Scenario tests: tests/test_conversation_multi_source.py (5), and
+regression tests in test_retrieval_pool.py and test_evidence_bundle.py for each rule.
+The live requirement matrix is docs/00-project/ROADMAP_REQUIREMENT_MATRIX.md.
+
+**Residuals, measured, not forced:** F-03/F-04 ("KYC records", "cyber incident to
+CERT-In") carry no planner topic or lane and no primary route, so AM-86 r3 selects
+nothing; widening selection would reopen that measured rule to gain two cases with
+three must-refuse cases (M-03, M-04, O-02) exposed — a planner-vocabulary gap to close
+where the vocabulary lives. K-03's topic is misread ("service band" → SLA) and K-05
+still misses its survival standard. The corpus holds no second jurisdiction and no
+not-yet-in-force statute beyond the DPDP record statuses, so §14's wrong-jurisdiction
+and latest-not-effective cases are proven only by router refusal and record status.
+
+--------------------------------------------------------------------------------
+AM-95: exact references, named Acts, conversation topic and Roman-Hindi judging

@@ -91,3 +91,54 @@ def test_an_irrelevant_set_is_insufficient_and_shows_nothing(relevance):
     b = evidence.build(None, query_plan.plan("What is the weather in Pune today?"),
                        Pool(), [_c("POSITIONS", "POS:X", "governing law venue")])
     assert [p.state for p in b.parts] == [evidence.INSUFFICIENT] and b.shown() == []
+
+
+def test_a_named_section_of_a_named_act_is_never_answered_by_another_act(relevance):
+    """Roadmap §7/§14 (PHASE 13, `AM-94`): "section 194J of the Income-tax Act, 1961" —
+    a section the supplied 1961 text predates — was answered by the CGST Act. A
+    question naming an Act and a section takes evidence from that Act alone; when it
+    holds nothing, the lane is insufficient and the answer says so."""
+    q = "What did section 194J of the Income-tax Act, 1961 say about professional fees?"
+    plan = query_plan.plan(q, has_document=False)
+    assert plan.section_hint == "194J"
+    cgst = _c("STATUTES", "STAT:Central Goods and Services Tax Act, 2017:10",
+              "professional fees are chargeable", authority="PRIMARY_LAW",
+              lanes=(query_plan.LAW,))
+    relevance["professional fees are chargeable"] = 9.0
+    b = evidence.build(None, plan, Pool(), [cgst])
+    assert b.sources[0].reason == "WRONG_ACT" and not b.answerable
+    same_act = _c("STATUTES", "STAT:Income-tax Act, 1961:194", "the principal officer",
+                  authority="PRIMARY_LAW", lanes=(query_plan.LAW,))
+    relevance["the principal officer"] = 9.0
+    assert evidence.build(None, plan, Pool(), [same_act]).sources[0].reason != "WRONG_ACT"
+    # No Act named: a section number alone never makes any Act wrong.
+    bare = query_plan.plan("What does section 74 provide about penalties?",
+                           has_document=False)
+    assert evidence.build(None, bare, Pool(), [cgst]).sources[0].reason != "WRONG_ACT"
+
+
+def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_asked(
+        relevance, monkeypatch):
+    """PHASE 13 (golden K-02/K-04): the English cross-encoder scores Roman-Hindi words
+    as noise, so the right sources were retrieved and rejected. The planner's English
+    topic phrase is scored as well — but only for a source of a kind the plan asked
+    for, or a licence-termination statute passes for a data-retention question."""
+    from legalmind.assist import rerank
+    plan = query_plan.plan("hamara liability cap kitna hai?", has_document=False)
+    assert plan.language == "hinglish" and plan.topic
+    position = _c("CONSTITUTION", "CONST:9", "the standard 12-month liability cap",
+                  authority="COMPANY_CONSTITUTION", lanes=(query_plan.COMPANY_POSITION,))
+    statute = _c("STATUTES", "STAT:Copyright Act, 1957:32B", "termination of licence",
+                 authority="PRIMARY_LAW", lanes=(query_plan.LAW,))
+
+    def english_only(q, texts, **k):          # noise for Hinglish, signal for English
+        if any(w in q for w in ("hamara", "kitna")):
+            return [-8.0 for _ in texts]
+        return [8.0 for _ in texts]
+    monkeypatch.setattr(rerank, "scores", english_only)
+    b = evidence.build(None, plan, Pool(), [position, statute])
+    reasons = {s.ref: s.reason for s in b.sources}
+    assert reasons["CONST:9"] is None, "the asked-for kind passes on its English topic"
+    assert reasons["STAT:Copyright Act, 1957:32B"] == "NOT_RELEVANT", "other kinds do not"
+    english = query_plan.plan("What is our liability cap?", has_document=False)
+    assert english.language == "en"

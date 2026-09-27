@@ -1106,7 +1106,13 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if _ask_path(document_version_id, conversation_id) == MULTI_SOURCE:
         multi = _ask_multi_source(
             db, conversation_id=conversation_id, user_message_id=user_message_id,
-            question=question, resolved=resolved, prior_texts=prior_texts, route=route,
+            question=question, resolved=resolved, prior_texts=prior_texts,
+            # Every bounded earlier question, newest last: the planner takes the topic
+            # of the most recent one that HAS one, so FIRST → CLAIM → "and the law on
+            # that?" keeps FIRST's topic although CLAIM is the anchor. Whether a turn
+            # inherits at all is the planner's rule (`query_plan.plan`).
+            topic_context=[content for _, content in prior],
+            route=route,
             domains=domains, permissions=permissions,
             document_version_id=document_version_id, position_hits=position_hits,
             statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id)
@@ -1310,7 +1316,8 @@ MULTI_SOURCE_STRATEGY = "multi-source-1"
 
 
 def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: UUID,
-                      question: str, resolved: str, prior_texts: list[str], route,
+                      question: str, resolved: str, prior_texts: list[str],
+                      topic_context: list[str], route,
                       domains: tuple[str, ...], permissions: frozenset[str],
                       document_version_id: UUID | None, position_hits: list,
                       statute_hits: list, follow_up_of: list[UUID],
@@ -1344,8 +1351,14 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
     savepoint = db.begin_nested()
     try:
         with _stage("planning"):
+            # Roadmap §15: the planner inherits the earlier TOPIC when this turn names
+            # none — "What if the customer says they were promised 6 months?" after an
+            # early-termination question. That turn is not anaphoric, so `prior_texts`
+            # (which also reach the retrieval query and the model) stay empty; the
+            # topic still carries, exactly as the benchmark validated. Only the topic:
+            # the earlier question's claims and figures never do (`query_plan.plan`).
             plan = query_plan.plan(resolved, has_document=document_version_id is not None,
-                                   prior=tuple(prior_texts))
+                                   prior=tuple(topic_context))
         with _stage("retrieval"):
             pool = retrieval.candidates(db, plan, route, permissions=permissions,
                                         document_version_id=document_version_id)
