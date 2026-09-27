@@ -21329,3 +21329,46 @@ test_evidence_bundle.py (off-topic standard) and test_assist_am76_paraphrase_def
 
 --------------------------------------------------------------------------------
 AM-97: evidence floor 8, the off-topic standard, figures compared with their unit
+
+================================================================================
+AMENDMENT BATCH AB-48 — `AM-98`
+A statute is ranked with its section title; two reader phrasings placed
+(roadmap §6/§8/§17)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority)
+and the requirement matrix's open misses B-03, B-05, E-01 and GT-11. The section
+title is the statute's own marginal note, already stored at ingestion
+(`statute_chunks.marginal_note`); nothing authored (rule 21). No Gemini call.
+
+**Amends, narrowly:** `AM-87` (what the cross-encoder scores for a statute),
+`AM-85` r1 (two cues). **Does not amend:** `AM-25`, `AM-88`, the evidence text,
+the Gemini cost guard.
+
+```text
+r1   The cross-encoder scores a statute candidate as "<marginal note>. <chunk>".
+     A section's best-matching chunk may be an illustration: s. 73 of the Contract
+     Act matched on "suitable conveyance for the cargo" and ranked below unrelated
+     Acts for "what compensation can we recover". Only the ranking sees the title;
+     the evidence, the judge's context and every citation are unchanged. The
+     candidate merge now copies every field, which is why the note reaches the
+     reranker at all (it rebuilt candidates field by field and dropped it).
+
+r2   Two cues widened at the topics their gold standards carry: "the most we
+     will/would pay" → Liability (LIABILITY-MSA-001, B-03); "raise/increase our
+     prices" → Payment Terms & Taxes (PRICE-CHANGE-NOTICE-MSA-001, B-05).
+```
+
+**Recorded 2026-09-27.** Zero-Gemini golden benchmark, new path, 79 cases, against
+`AM-97`: bundle recall@3 0.864 → 0.901; B 0.6 → 0.8, E 0.62 → 0.75, golden 0.94 →
+1.0 (B-03, E-01, GT-11); reranked-pool recall@3 0.926; wrong-source 0, false
+admission 0. Rerank time not increased (p50 2.36 → 1.88 s, both on a shared host).
+Regression tests in test_retrieval_pool.py and test_assist_planner.py.
+
+**Residuals:** B-05 has its topic, but the cross-encoder scores "raise our prices"
+as irrelevant to "Prices may be changed with 30 days' written notice" (it scores
+"change our prices" as relevant); a synonym rewrite is query rewriting, which stays
+off. E-02, E-03, F-05, G-03, H-01, O-04 miss rank 3.
+
+--------------------------------------------------------------------------------
+AM-98: a statute is ranked with its section title; two reader phrasings placed

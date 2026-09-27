@@ -1285,3 +1285,14 @@ back to 0. The wider bundle then exposed a defect in the reader-figure check: it
 compared the number alone, so any "6" in a shown section counted as the company stating
 "6 months", and the answer stopped saying no position states it. Figures are now
 compared with their unit. D-01, D-02, I-02 and K-05 close; false admission stays 0.
+
+## 2026-09-27 — Entry 22: statutes ranked with their section title (`AM-98`)
+
+The cross-encoder scored each statute on its best-matching chunk alone. For "what
+compensation can we recover", s. 73 of the Contract Act matched on an illustration
+about a ship's cargo and ranked below unrelated Acts. It now scores the chunk with the
+section's own title, which ingestion already stores; the evidence is unchanged. The fix
+first showed no gain because the candidate merge rebuilt each candidate and dropped the
+title, and that merge now copies every field. Two reader phrasings of the liability cap
+and a price rise now place their topics. Golden recall@3 0.864 → 0.901, the golden
+questions reach 1.0, and wrong-source and false admission stay 0.

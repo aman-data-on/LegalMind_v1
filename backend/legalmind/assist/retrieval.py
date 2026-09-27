@@ -24,6 +24,7 @@ Nothing here decides whether the evidence suffices — that is PHASES 8–9.
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass, field
 from uuid import UUID
@@ -84,6 +85,11 @@ class Candidate:
     #: Every authority among the source's matching records (a Constitution section's
     #: children), when the search reports them; empty otherwise. `kinds_of`.
     authorities: tuple[str, ...] = ()
+    #: A statute section's marginal note (its title), scored with the chunk by the
+    #: cross-encoder: s. 73's best-matching chunk is an illustration about cargo, and
+    #: without its title the Contract Act's damages section ranked below unrelated Acts
+    #: (golden E-01, GT-11). Never shown; the evidence text is unchanged.
+    note: str = ""
 
 
 @dataclass
@@ -124,7 +130,8 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
     if domain == routing.Domain.STATUTES.value:
         return [Candidate(domain, f"STAT:{h.official_title.removeprefix('The ')}:"
                                   f"{h.section_number}", h.statute_chunk_id, h.content,
-                          h.score, *authority.of_statute(h.official_title))
+                          h.score, *authority.of_statute(h.official_title),
+                          note=h.marginal_note or "")
                 for h in statute_corpus.search_statutes(
                     db, query=query, permissions=permissions, limit=DEPTH,
                     embed_query=embed_query, candidates=True,
@@ -185,9 +192,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
             kept = best.setdefault(domain, {})
             prior = kept.get(c.ref)
             merged = tuple(sorted({*lanes, *(prior.lanes if prior else ())}))
-            kept[c.ref] = Candidate(c.domain, c.ref, c.item_id, c.text, c.score,
-                                    c.authority, c.status, merged,
-                                    authorities=c.authorities)
+            kept[c.ref] = dataclasses.replace(c, lanes=merged)
     # 3 — exact reference: a Constitution section named by number goes first.
     named = named_sections(plan.question)
     if named and CONSTITUTION in allowed:
@@ -223,14 +228,13 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
     behind every current one unless the question asks about the past (roadmap §14).
     Membership never changes; the tail keeps its fused order; with no reranker the pool
     is returned as it is."""
-    import dataclasses
-
     from legalmind.assist import rerank as cross_encoder
 
     reranked: dict[str, list[Candidate]] = {}
     for domain, cands in pool.by_domain.items():
         head, tail = cands[:RERANK_DEPTH], cands[RERANK_DEPTH:]
-        scores = (cross_encoder.scores(plan.question, [c.text for c in head])
+        scores = (cross_encoder.scores(plan.question, [f"{c.note}. {c.text}" if c.note
+                                                        else c.text for c in head])
                   if domain in RERANK_DOMAINS else None)
         if scores is None:
             reranked[domain] = cands
@@ -317,7 +321,6 @@ def kinds_of(c: Candidate) -> set[str]:
     candidate because its best-matching child was the position paragraph, so the
     history lane could never take it and §31.15's renewal deals were shown as the
     early-termination history instead. Labelling (`kind_of`) is unchanged."""
-    import dataclasses
     return {kind_of(c)} | {kind_of(dataclasses.replace(c, authority=a))
                            for a in c.authorities}
 

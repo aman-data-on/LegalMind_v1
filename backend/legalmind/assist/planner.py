@@ -168,7 +168,8 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
     (r"how much notice|notice (?:period|to terminate)|how long before.*(?:terminat"
       r"|cancel)",
      "notice period termination", "Termination & Suspension"),
-    (r"most we (?:can|could) (?:be liable|owe|lose)|maximum (?:we|they) (?:owe|pay)"
+    (r"most we (?:can|could|will|would) (?:be liable|owe|lose|pay)"
+     r"|maximum (?:we|they) (?:owe|pay)"
      r"|liability cap|cap on (?:liability|damages)|limit of liability|how much.*liable",
      "limitation of liability cap", "Liability"),
     (r"who pays if|cover us if|defend us|hold us harmless|third.?party claim|indemn",
@@ -189,7 +190,7 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
     (r"act of god|natural disaster|pandemic|strike|beyond (?:their|our) control"
      r"|force majeure",
      "force majeure", "Force Majeure"),
-    (r"raise (?:the )?price|increase (?:the )?(?:price|fee)|late pay|payment term"
+    (r"(?:raise|increase) (?:the |our )?(?:price|fee)|late pay|payment term"
      r"|non.?payment|payment nahi|not paid|(?:does|did) ?n.?o?t pay"
      r"|invoice|gst|tax",
      "payment terms fees taxes", "Payment Terms & Taxes"),

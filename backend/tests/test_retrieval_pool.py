@@ -158,3 +158,24 @@ def test_a_named_section_of_a_named_act_survives_the_rerank(monkeypatch):
     assert retrieval.names_other_act(other, plan)
     bare = query_plan.plan("What does section 74 provide?", has_document=False)
     assert not retrieval.exact_reference(s74, bare), "no Act named: never pinned"
+
+
+def test_the_cross_encoder_scores_a_statute_with_its_section_title(monkeypatch):
+    """Golden E-01/GT-11: s. 73's best chunk is an illustration about cargo; scored
+    without the marginal note, the damages section ranked below unrelated Acts. The
+    note survives the merge of lanes and is never the evidence text."""
+    from legalmind.assist import rerank as cross_encoder
+    seen = []
+    monkeypatch.setattr(cross_encoder, "scores",
+                        lambda q, texts, **_: seen.extend(texts) or [0.0] * len(texts))
+    s73 = Candidate("STATUTES", "STAT:Indian Contract Act, 1872:73", None,
+                    "A avails himself of those opportunities", 1.0,
+                    note="Compensation for loss or damage caused by breach of contract")
+    monkeypatch.setattr(retrieval, "_search", lambda *a, **k: [s73])
+    plan = query_plan.plan("What does the Contract Act say about compensation?")
+    pool = retrieval.candidates(None, plan, _route(plan.question),
+                                permissions=frozenset({"assist.ask"}) | PERMS)
+    out = retrieval.rerank(pool, plan)
+    assert "Compensation for loss or damage caused by breach of contract. A avails " \
+        "himself of those opportunities" in seen
+    assert out.by_domain["STATUTES"][0].text == "A avails himself of those opportunities"

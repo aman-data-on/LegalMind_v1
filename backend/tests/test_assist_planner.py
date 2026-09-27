@@ -364,3 +364,14 @@ def test_vocabulary_places_the_golden_misses_and_service_alone_is_not_sla():
         "Within how many hours must a cyber incident be reported to CERT-In?"
     ).names_instrument
     assert not intent.legal_question_signals("How quickly must we act?").names_instrument
+
+
+def test_a_readers_wording_of_the_cap_and_a_price_rise_places_the_topic():
+    """Golden B-03 and B-05: "the most we will pay out" and "raise our prices" had no
+    topic, so the liability and price-change standards ranked out of reach."""
+    from legalmind.assist import planner
+    assert planner.plan_lexical(
+        "What is the most we will pay out if something goes wrong under an MSA?"
+    ).topic == "Liability"
+    assert planner.plan_lexical("Can we raise our prices during the contract?").topic == \
+        "Payment Terms & Taxes"
