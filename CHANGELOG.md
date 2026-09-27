@@ -100,6 +100,7 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
   49/65 shown. Known limitations recorded for PHASE 13. Tests:
   `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
+* **Roadmap §11 / `AM-101`** — the noun "obligation" no longer makes a claim mandatory, so an advisory "should" restated as "requires" fails verification (run-9 E-02).
 * **Roadmap §10/§11/§12 / `AM-100`** — the three live fallbacks (D-04, A-01, C-04) root-caused: the code's own restatement of 20 of 553 approved claims could not pass verification, so no repair could succeed. An exact restatement is now approved source text (contract checks still apply); a status note's "not" is not a negation; a reader's figure only with its unit; an ellipsis never ends a sentence. Run-9 replay fallbacks 14 → 2 with every labelled-bad sentence judged as before.
 * **Roadmap §7/§14/§17 / `AM-99`** — of two instruments a question names, the more fully named ranks first, so "the DPDP Act" is answered from the Act, not the Rules. New path recall@3 0.901 → 0.914, legacy 0.568 → 0.580, wrong-source and false admission unchanged.
 * **Roadmap §6/§8/§17 / `AM-98`** — the cross-encoder ranks a statute with its section title (the stored marginal note), so an illustration chunk no longer buries its section; two reader phrasings placed at their gold topics. Golden recall@3 0.864 → 0.901, wrong-source and false admission 0.

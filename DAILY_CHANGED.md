@@ -1319,3 +1319,12 @@ was tried first and rejected, because it let four known-bad draft sentences thro
 Separately, an ellipsis in a ratified quote had cut "solicit" out of the non-solicitation
 standard. Replaying 65 real answers: fallbacks 14 → 2, and every known-bad sentence is
 judged exactly as before. All three live cases now answer on the new path.
+
+## 2026-09-27 — Entry 25: "obligations" is not a "must" (`AM-101`)
+
+The claim reader treated any word starting "obligat" as a binding modal, so "the vendor
+should provide ... flow-down obligations" was recorded as mandatory, and a sentence
+saying the position "requires" it passed. Only the verb forms bind now. With that false
+reading gone, one more stored answer shows in full, and two of its DPDP s. 33 sentences
+omit that the penalties commence only on 13 May 2027. The verifier cannot catch that,
+because the corpus has no per-section commencement data. That needs the owner.

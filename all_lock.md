@@ -21465,3 +21465,37 @@ truncated sentence (fixed at its source by r4 for every new answer).
 
 --------------------------------------------------------------------------------
 AM-100: the code's own restatement of an approved claim is always verifiable
+
+================================================================================
+AMENDMENT BATCH AB-51 — `AM-101`
+The noun "obligation" is not a mandatory modal (roadmap §11)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority);
+the run-9 replay's MODALITY_CHANGED miss exposed by `AM-100`. No Gemini call.
+
+**Amends, narrowly:** the claim-contract modality reader (`AM-91` r2).
+
+```text
+r1   "obligated", "is under an obligation" and "has an obligation to" bind; the noun
+     does not. "The vendor should provide ... flow-down obligations" was read as
+     MANDATORY, so a sentence saying the position "requires" it passed as its
+     restatement (run-9 E-02). It now reads ADVISORY, and the overstatement fails.
+```
+
+**Recorded 2026-09-27.** Run-9 replay (65 real answers) against `AM-100`: the
+MODALITY_CHANGED sentence is no longer shown; the restatement invariant stays 0 of
+547. Bad sentences shown 13 → 14: J-04's answer, no longer sunk by that false
+MANDATORY reading, now shows two DPDP s. 33 sentences without "not yet in force" —
+sentences the verifier passed before `AM-100` as well (see residual). Regression test
+in test_claim_contracts.py.
+
+**Residual (needs owner material or decision):** statute sections carry no
+per-section commencement. The corpus holds the DPDP Act as current, while the
+Constitution's reading (§28.2) records s. 33 and the Schedule as commencing 13 May
+2027. Either the commencement notification is supplied and ingested as a statute
+record, or the owner rules that the company's reading's status may be carried onto
+the statute it reads. Neither is a code default (rules 7, 21).
+
+--------------------------------------------------------------------------------
+AM-101: the noun "obligation" is not a mandatory modal

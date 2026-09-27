@@ -70,8 +70,13 @@ _MODAL = [
     ("PROHIBITED", re.compile(r"\b(?:must not|shall not|may not|cannot|can ?not|is not "
                               r"permitted|are not permitted|no [\w -]{1,30} is permitted|"
                               r"prohibited|not allowed|no right to)\b", re.I)),
+    # "obligated" or "has an obligation to" binds; the NOUN does not — "the vendor
+    # should provide ... flow-down obligations" was read as mandatory, so "requires"
+    # passed as its restatement (run-9 E-02, 2026-09-27).
     ("MANDATORY", re.compile(r"\b(?:must|shall|is required|are required|required to|"
-                             r"mandatory|obliged|obligat\w+|remains? (?:fully )?liable|"
+                             r"mandatory|obliged|obligated|(?:is|are) under (?:an |the )?"
+                             r"obligation|(?:has|have) (?:an |the )?obligation to|"
+                             r"remains? (?:fully )?liable|"
                              r"remains? payable|is payable|are payable)\b", re.I)),
     ("ADVISORY", re.compile(r"\b(?:should|recommended|consider\w*|appropriate|ought)\b",
                             re.I)),

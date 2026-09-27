@@ -192,3 +192,18 @@ def test_an_inline_illustrative_clause_in_a_standard_is_never_a_position():
                                                                "COMPANY_STANDARD"))]
     assert any("12-month liability cap" in s for s in got)
     assert not any("aggregate liability of either Party" in s for s in got)
+
+
+def test_the_noun_obligation_is_not_a_mandatory_modal():
+    """Run-9 E-02: "the vendor should provide ... flow-down obligations" was read as
+    mandatory, so "the position requires a vendor to provide" passed as its restatement."""
+    text = ("The vendor should provide security commitments and data-protection "
+            "flow-down obligations no less protective than the company's position.")
+    assert contracts.modality(text)[0] == "ADVISORY"
+    assert contracts.modality("The vendor is obligated to notify the company.")[0] == \
+        "MANDATORY"
+    c = _c(3, text)
+    assert any("modality advisory →" in f for f in contracts.check(
+        "The company position requires the vendor to provide security commitments and "
+        "data-protection flow-down obligations no less protective than the company's "
+        "position [3].", [c]))
