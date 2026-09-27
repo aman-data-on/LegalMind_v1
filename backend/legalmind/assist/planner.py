@@ -75,21 +75,26 @@ RATIFIED_STANDARDS_DIR = (pathlib.Path(__file__).resolve().parents[2]
                           / "config" / "company_standards")
 
 
-def _load_standard_topics() -> dict[str, str]:
-    """Each ratified standard's Constitution topic, by requirement code."""
+def _load_standard_topics() -> tuple[dict[str, str], dict[str, frozenset[str]]]:
+    """Each ratified standard's Constitution topic, by requirement code — and each
+    Constitution section's topics, from the standards that cite it."""
     out: dict[str, str] = {}
+    sections: dict[str, set[str]] = {}
     for path in sorted(RATIFIED_STANDARDS_DIR.glob("*.json")):
         try:
             data = json.loads(path.read_text())
-            topic = data["configuration"]["constitution"]["topic"]
+            where = data["configuration"]["constitution"]
+            topic = where["topic"]
         except (KeyError, TypeError, ValueError):
             continue
         if isinstance(topic, str) and topic.strip():
             out[data.get("requirement_code", path.stem)] = topic.strip()
-    return out
+            if where.get("section"):
+                sections.setdefault(str(where["section"]), set()).add(topic.strip())
+    return out, {k: frozenset(v) for k, v in sections.items()}
 
 
-STANDARD_TOPICS: dict[str, str] = _load_standard_topics()
+STANDARD_TOPICS, SECTION_TOPICS = _load_standard_topics()
 TOPICS: tuple[str, ...] = tuple(sorted(set(STANDARD_TOPICS.values())))
 
 

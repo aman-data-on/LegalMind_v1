@@ -359,6 +359,17 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
         # r3). Measured (PHASE 8): offering it every domain gained 2 of 78 slots and
         # tripled false admission 0.2 -> 0.6, wrong-source 0.026 -> 0.040.
         wanted, extras = [(None, d) for d in rest if d in pool.primary], []
+    from legalmind.assist import planner
+    asked = planner.topics_in(plan.question)
+
+    def placed(c: Candidate) -> bool:
+        # A Constitution section on a topic the question names answers for the
+        # company position whichever of its paragraphs matched: §14's note on ss.
+        # 73/74 matched "early termination of a fixed-term deal", its position did
+        # not, and §14 never answered the question it is about (2026-09-27, G-03).
+        return c.domain == CONSTITUTION and bool(
+            planner.SECTION_TOPICS.get(c.ref.removeprefix("CONST:"), frozenset()) & asked)
+
     taken: list[Candidate] = []
     refs: set[str] = set()
     depth = 0
@@ -373,7 +384,9 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
             ranked = [c for c in pool.by_domain[domain]
                       if c.ref not in refs
                       and (lane is None or ((lane in c.lanes or not c.lanes)
-                                            and lane in kinds_of(c)))]
+                                            and (lane in kinds_of(c) or (
+                                                lane == query_plan.COMPANY_POSITION
+                                                and placed(c)))))]
             if not ranked:
                 continue
             taken.append(ranked[0])

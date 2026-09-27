@@ -21530,3 +21530,51 @@ fails on `AM-101`); a frontend test renders the service's exact output through
 
 --------------------------------------------------------------------------------
 AM-102: the Sources legend — one number per source, rendered as a list
+
+================================================================================
+AMENDMENT BATCH AB-53 — `AM-103`
+A section on the asked topic answers for the position; a record splits only between
+its own sentences (roadmap §9/§11, UI end to end)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority);
+found asking "What does our Constitution say about early termination of a fixed-term
+deal?" through the real interface on the branch (scratch copy of the validation corpus,
+nothing live). Topics are the ratified standards' own `configuration.constitution`
+records; nothing authored (rule 21). 2 Gemini calls (the two browser asks).
+
+**Amends, narrowly:** `AM-86` r3 (selection), `AM-94` r2 (the hinted repair),
+`AM-100` r1 (what counts as the code's own restatement).
+
+```text
+r1   A Constitution section whose topic (from the ratified standards that cite it)
+     the question names may serve the company-position lane, whichever of its
+     paragraphs matched. §14's note on ss. 73/74 matched, its position did not, so
+     §14 was law only and the answer came from §13 — the wrong section. Law and
+     history lanes stay matching-only: counting every kind a section holds let §13
+     take golden GT-00's law slot from §28.4.1 (tried, rejected).
+
+r2   A record splits only between its own sentences: never inside parentheses,
+     never after an ellipsis, and never into a piece with no words. §13's "(CERT-In
+     logs 180 days; KYC … 5 years)" was cut in half on screen, and a quote's "..."
+     became a restatement with nothing in it ("… states: ... [5]").
+
+r3   A restatement is recognised word for word — whole record sentences in order,
+     however the repair joined them. 12 of 508 hinted repairs were not recognised.
+```
+
+**Recorded 2026-09-27.** Zero-Gemini golden benchmark against `AM-102`: bundle
+recall@3 0.914 → 0.926 (G-03 closed, GT-00 held), wrong-source 0, false admission 0.
+Every code restatement, hinted or not, verifies: 18 of 1,055 failed, now 0 of 1,005.
+Run-9 replay: fallbacks 2 → 1; bad sentences shown 14 → 16 — both are F-05 sentences
+the verifier judges identically at `AM-102` (checked with selection off), shown now
+because the repair that sank the rest of that answer works. Live in the browser: the
+question answers from §14 in one call, 10.2 s end to end, the legend rendered.
+
+**Residual (not a code default, rule 7):** the Constitution's "(Section 28)" in a
+commencement note is its own §28, and a model restated it as the Act's s. 28 (both
+F-05 sentences). Which instrument a bare "Section N" means is not stated in the text.
+
+--------------------------------------------------------------------------------
+AM-103: a section on the asked topic answers for the position; records split only
+between their own sentences

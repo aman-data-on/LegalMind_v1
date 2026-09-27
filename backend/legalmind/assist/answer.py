@@ -504,9 +504,20 @@ def verbalise(c: contracts.Contract, hint: str | None = None) -> str:
 
 def _record_sentences(text: str) -> list[str]:
     """A record's own sentences; a statute's semicolon-separated items count as
-    sentences too, so one item can answer for a whole Schedule."""
-    return [x for x in re.split(r"(?<=[.!?;])\s+(?=[A-Z(\[\u2018\u201c\"'])",
-                                text.strip()) if x.strip()]
+    sentences too, so one item can answer for a whole Schedule. Never split inside
+    parentheses or after an ellipsis, and never a piece with no words: §13's "(CERT-In
+    logs 180 days; KYC … 5 years)" was cut in half, and a quote's "..." became a
+    sentence of its own that passed every check with nothing in it (2026-09-27)."""
+    text = text.strip()
+    out, start = [], 0
+    for m in re.finditer(r"(?<=[.!?;])\s+(?=[A-Z(\[\u2018\u201c\"'])", text):
+        before = text[:m.start()]
+        if before.count("(") > before.count(")") or before.endswith(".."):
+            continue
+        out.append(text[start:m.start()])
+        start = m.end()
+    out.append(text[start:])
+    return [x.strip() for x in out if re.search(r"\w", x)]
 
 
 def _lead(c: contracts.Contract) -> str:
@@ -549,13 +560,16 @@ def is_verbalisation(sentence: str, c: contracts.Contract) -> bool:
     lead, end = f"{_lead(c)} states: ", f"{_tail(c)} [{c.n}]."
     if not (sentence.startswith(lead) and sentence.endswith(end)):
         return False
-    rest = sentence[len(lead):len(sentence) - len(end)]
-    for piece in (_unstop(x) for x in _sentences(c.text.strip())):
-        if rest == piece:
-            return True
-        if rest.startswith(piece + "; "):
-            rest = rest[len(piece) + 2:]
-    return False
+    # Word for word — the repair rejoins the record's sentences with "; ", and a hinted
+    # repair takes only some of them: the body must be whole record sentences, in the
+    # record's order, and nothing else. A negation is a word, so none can differ.
+    words = re.findall(r"\w+", sentence[len(lead):len(sentence) - len(end)])
+    at = 0
+    for piece in _record_sentences(c.text):
+        own = re.findall(r"\w+", piece)
+        if own and words[at:at + len(own)] == own:
+            at += len(own)
+    return bool(words) and at == len(words)
 
 
 def _unstop(sentence: str) -> str:

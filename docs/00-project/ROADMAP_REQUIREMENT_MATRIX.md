@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit AM-102. Last updated 2026-09-27.
+Baseline: commit `608cbb6` (AM-94); last unit AM-103. Last updated 2026-09-27.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-102. Last updated 2026-09-27.
 | 6 | Query understanding + decomposition | `query_plan.py` (AM-85), vocabulary + instrument recognition (AM-96) | `test_query_plan*`, `test_assist_planner.py` | F 0.5 → 0.83, K 0.6 → 0.8 | ✅ | K-05 |
 | 7 | Broad hybrid retrieval, diversity, no top-3 dependency, exact reference | `retrieval.candidates/select` (AM-86), `exact_reference` (AM-95 r1) | `test_retrieval_pool.py` | pool recall 0.988; A-04 s. 74 now rank 1; the more fully named Act first (AM-99) recall@3 0.901 → 0.914 | ✅ | — (F-03/F-04 closed by AM-96) |
 | 8 | Rerank + parent context | `retrieval.rerank` (AM-87), length-sorted batching (AM-94 r8) | `test_retrieval_pool.py` | rerank p95 3.1 → 1.1 s; statute ranked with its title (AM-98) recall@3 0.864 → 0.901 | ✅ | — |
-| 9 | Evidence bundle: part states, kinds apart | `evidence.py` (AM-88) | `test_evidence_bundle.py` | wrong-source 0, false admission 0; floor 8 + `OFF_TOPIC` (AM-97) recall@3 0.815 → 0.864 | ✅ | — |
+| 9 | Evidence bundle: part states, kinds apart | `evidence.py` (AM-88) | `test_evidence_bundle.py` | wrong-source 0, false admission 0; floor 8 + `OFF_TOPIC` (AM-97) recall@3 0.815 → 0.864; topic-named section serves the position (AM-103) → 0.926 | ✅ | — |
 | 10 | Grounded conversational generation | `generation.py`, `contract-answer-2` (AM-89/AM-94 r9) | `test_bundle_answer.py` | better on 5/6 judged | ✅ | O-03 (see §14) |
 | 11 | Claim-level verification | `verify.py` (AM-90), contract checks (AM-91–93) | `test_claim_verification.py`, `test_claim_contracts.py` | run-9 replay (65 real answers): fallbacks 14 → 2 (AM-100), bad sentences shown 2.3% of sentences, citation correctness 0.996 | 🟡 | 14 bad sentences shown in 63 answers after AM-101 (modality miss fixed); all were passed by the verifier before AM-100 too: 6 cross-reference, 4 temporal, 2 unsupported, 1 each condition, exception, contradiction. The 4 temporal ones need per-section commencement data (§14, owner) |
 | 12 | Precise citations | markers assigned by code (AM-90), legend (AM-94 r3) | `test_ask_multi_source_rollout.py` | citation correctness 0.996; legend one number per source, rendered as a list (AM-102) | ✅ | — |
@@ -40,7 +40,7 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-102. Last updated 2026-09-27.
    - B-05 — rerank: the cross-encoder scores "raise our prices" irrelevant to "Prices may be changed"; synonym rewriting is query rewriting (off).
    - ~~E-02~~ closed (AM-99). F-05 — statute part: DPDP s. 33 is in the pool but below the relevance floor, and the Schedule holding the figure is not in the pool.
    - E-03 — rerank: s. 27 ranks 37th because the Act's own name words match every section; not counting them lifts it to 2nd, but the cross-encoder still scores it low for "a restraint like that", so the change was not adopted (AM-99).
-   - G-03 — selection: §13's matching paragraph is a legal-validation note, so the section is kind LAW only and never taken for the position lane. Changing that touches kind separation (§13), so it needs its own measured unit.
+   - ~~G-03~~ closed (AM-103): a section on the asked topic serves the position lane.
    - H-01 — selection: §4.1 is 9th in the Constitution pool, which is not cross-encoder ranked (AM-87).
    - O-04 — corpus: IT Act s. 70B is absent from the supplied text.
 4. §11 — attack the remaining 12 shown bad sentences where the root cause is local.

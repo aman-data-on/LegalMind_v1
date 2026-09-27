@@ -1337,3 +1337,14 @@ appear three times. The legend was also one block starting with "Sources", which
 answer view renders as a single run-on paragraph. Each source now has one number, and
 the legend is its own list, which the existing view already knows how to show. No
 interface code changed. The status documents now record the whole roadmap effort.
+
+## 2026-09-27 — Entry 27: tested in the real interface (`AM-103`)
+
+The new Ask was run end to end on the branch: a scratch copy of the corpus, the branch
+API and a production build of the interface, with a real browser. Asking about early
+termination of a fixed-term deal worked, but it answered from §13 instead of §14,
+because §14's best-matching paragraph was its legal note. A Constitution section on the
+topic the question names may now answer for the company position. The same run showed
+a restatement split inside a parenthesis. Records now split only between their own
+sentences, never at an ellipsis or into an empty piece. Asked again, it answers from
+§14 in one Gemini call and about 10 seconds.

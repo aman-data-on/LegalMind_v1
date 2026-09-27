@@ -179,3 +179,18 @@ def test_the_cross_encoder_scores_a_statute_with_its_section_title(monkeypatch):
     assert "Compensation for loss or damage caused by breach of contract. A avails " \
         "himself of those opportunities" in seen
     assert out.by_domain["STATUTES"][0].text == "A avails himself of those opportunities"
+
+
+def test_a_section_on_the_asked_topic_answers_for_the_position_whatever_matched():
+    """§14's note on ss. 73/74 matched "early termination of a fixed-term deal", its
+    position paragraph did not, so §14 was law only and never answered the question it
+    is about (2026-09-27, golden G-03). A section on another topic is not lifted."""
+    plan = query_plan.plan("What does our Constitution say about early termination of a "
+                           "fixed-term deal?", has_document=False)
+    reading = {"authority": "SECONDARY_REFERENCE", "lanes": (query_plan.COMPANY_POSITION,)}
+    pool = Pool(by_domain={"CONSTITUTION": [
+        Candidate("CONSTITUTION", "CONST:14", None, "", 1.0, **reading),
+        Candidate("CONSTITUTION", "CONST:9", None, "", 0.9, **reading)]},
+        primary={"CONSTITUTION"})
+    refs = [c.ref for c in retrieval.select(pool, plan)]
+    assert "CONST:14" in refs and "CONST:9" not in refs

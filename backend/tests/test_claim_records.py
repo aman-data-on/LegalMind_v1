@@ -342,3 +342,23 @@ def test_only_the_codes_exact_restatement_is_trusted():
     assert not answer.is_verbalisation(f"{lead} states: everything is negotiable [1].", c)
     assert not answer.is_verbalisation(
         answer.verbalise(c).replace("NOT DEFINED", "DEFINED"), c)
+
+
+def test_a_record_splits_only_between_its_own_sentences():
+    """§13's "(CERT-In logs 180 days; KYC … 5 years)" was cut in half, and a quote's
+    "..." became a sentence of its own that passed every check with nothing in it."""
+    assert answer._record_sentences(
+        "Kept 30 days (logs 180 days; KYC 5 years). Next one. ... More text.") == [
+        "Kept 30 days (logs 180 days; KYC 5 years).", "Next one. ... More text."]
+
+
+def test_a_hinted_restatement_is_trusted_only_word_for_word():
+    """A hinted repair takes some of a record's sentences — a statute's semicolon items
+    among them — and the exact-string test did not recognise it (12 of 508 failed)."""
+    c = _contract(kind=contracts.POSITION, modality="STATEMENT",
+                  text="Logs are kept for 180 days; Records are kept for 5 years. "
+                       "Data is deleted after 30 days.")
+    hinted = answer.verbalise(c, "records are kept for 5 years")
+    assert "180" not in hinted, "the hint chose one item, not the whole record"
+    assert answer.is_verbalisation(hinted, c)
+    assert not answer.is_verbalisation(hinted.replace("are kept", "are not kept"), c)
