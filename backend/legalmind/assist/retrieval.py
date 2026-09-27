@@ -81,6 +81,9 @@ class Candidate:
     #: The cross-encoder's relevance to the reader's whole question (PHASE 8);
     #: None when not reranked. Orders evidence; never shown, never a verdict.
     relevance: float | None = None
+    #: Every authority among the source's matching records (a Constitution section's
+    #: children), when the search reports them; empty otherwise. `kinds_of`.
+    authorities: tuple[str, ...] = ()
 
 
 @dataclass
@@ -109,7 +112,7 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
             embed_query, pool: Pool | None = None, question: str = "") -> list[Candidate]:
     if domain == CONSTITUTION:
         return [Candidate(domain, f"CONST:{h.section_path}", h.item_id, h.content,
-                          h.score, h.authority, h.status)
+                          h.score, h.authority, h.status, authorities=h.authorities)
                 for h in constitution.search(db, query=query, permissions=permissions,
                                              limit=DEPTH, embed_query=embed_query)]
     if domain == routing.Domain.POSITIONS.value:
@@ -183,7 +186,8 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
             prior = kept.get(c.ref)
             merged = tuple(sorted({*lanes, *(prior.lanes if prior else ())}))
             kept[c.ref] = Candidate(c.domain, c.ref, c.item_id, c.text, c.score,
-                                    c.authority, c.status, merged)
+                                    c.authority, c.status, merged,
+                                    authorities=c.authorities)
     # 3 — exact reference: a Constitution section named by number goes first.
     named = named_sections(plan.question)
     if named and CONSTITUTION in allowed:
@@ -254,6 +258,18 @@ def kind_of(c: Candidate) -> str:
     return query_plan.COMPANY_POSITION
 
 
+def kinds_of(c: Candidate) -> set[str]:
+    """Every kind the source can serve: its own (`kind_of`) and one per further
+    authority its matching records hold. PHASE 13 (`AM-94`): before this, §31.2 —
+    the golden question's historical-exception source — was a COMPANY_POSITION
+    candidate because its best-matching child was the position paragraph, so the
+    history lane could never take it and §31.15's renewal deals were shown as the
+    early-termination history instead. Labelling (`kind_of`) is unchanged."""
+    import dataclasses
+    return {kind_of(c)} | {kind_of(dataclasses.replace(c, authority=a))
+                           for a in c.authorities}
+
+
 def evidence_size(plan: query_plan.QueryPlan) -> int:
     """5–12 units, growing with the number of things asked (roadmap §7)."""
     return max(5, min(12, 3 * len(plan.sub_questions)))
@@ -297,7 +313,7 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
             ranked = [c for c in pool.by_domain[domain]
                       if c.ref not in refs
                       and (lane is None or ((lane in c.lanes or not c.lanes)
-                                            and kind_of(c) == lane))]
+                                            and lane in kinds_of(c)))]
             if not ranked:
                 continue
             taken.append(ranked[0])

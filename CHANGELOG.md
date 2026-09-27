@@ -100,6 +100,18 @@ adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step lo
   cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
   49/65 shown. Known limitations recorded for PHASE 13. Tests:
   `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
+* **Roadmap PHASE 13 / `AM-94`** — the validated multi-source Ask path wired into
+  production behind `LEGALMIND_ASK_MULTI_SOURCE` (default off; `no_document`; `on` not
+  approved) with `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` as a per-conversation canary share;
+  one branch point after the existing screens, a verified answer or the legacy path;
+  `assist.ask.trace` per request (ids, versions, counts, tokens, latency — no text);
+  rollback = flag off + API restart. Rehearsed, never applied: migrations (downgrade of
+  `a7d3e9b1c5f2` fixed), Constitution and AM-80 statute ingestion. A §31.2 counterparty
+  name the redaction missed → "[Customer A]" (`tests/test_constitution_redaction.py`).
+  Length-sorted cross-encoder/NLI batching (rerank p95 3.1 → 1.1 s), a Constitution
+  section serves every lane its children hold, `contract-answer-2`, minimal verbatim
+  repairs, three false-reject checks corrected. Runbook:
+  `docs/09-implementation/MULTI_SOURCE_ROLLOUT_RUNBOOK.md`.
 * **Roadmap §13 / `AM-93`** — multi-source legal reasoning: `generation` records the
   provider's `finishReason`; `answer.complete` drops only an output-cap cut's unfinished
   tail and says the reader's claim [A] and the missing signed agreement [M] in fixed

@@ -39,5 +39,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     schema = config.assist_schema()
-    op.drop_constraint('ck_statutes_status', 'statutes', schema=schema)
+    # The metadata naming convention (ck_%(table_name)s_%(constraint_name)s) made
+    # upgrade's constraint `ck_statutes_ck_statutes_status`; op.f() drops that exact
+    # name. Found rehearsing the downgrade against a production-like copy, PHASE 13.
+    op.drop_constraint(op.f('ck_statutes_ck_statutes_status'), 'statutes', type_='check',
+                       schema=schema)
     op.drop_column('statutes', 'status', schema=schema)

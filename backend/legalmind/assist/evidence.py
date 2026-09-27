@@ -183,7 +183,8 @@ def _state(needed: list[str], sources: tuple[Source, ...], no_document: bool) ->
         return SUPPORTED if any(s.supports for s in sources) else INSUFFICIENT
     unavailable = {query_plan.CONTRACT} if no_document else set()
     covered = {lane for lane in needed
-               if any(s.supports and s.kind == lane for s in sources)}
+               if any(s.supports and lane in retrieval.kinds_of(s.candidate)
+                      for s in sources)}
     open_lanes = [lane for lane in needed if lane not in unavailable]
     if open_lanes and all(lane in covered for lane in open_lanes):
         return SUPPORTED

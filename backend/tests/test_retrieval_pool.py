@@ -75,3 +75,61 @@ def test_a_span_missing_from_its_context_is_appended_never_dropped():
     pos = Candidate("POSITIONS", "POS:P", None, "the ratified quote", 1.0)
     [ev] = retrieval.with_context(None, [pos])
     assert ev.context == "the ratified quote"
+
+
+GOLDEN = ("A client says their signed MSA mentions 6 months of compensation for early "
+          "termination, but we cannot find the final signed copy. What does our Legal "
+          "Constitution say about early termination compensation?")
+
+
+def test_a_section_holding_history_serves_the_history_lane():
+    """PHASE 13 (`AM-94`): the golden question's history lives in §31.2, whose best-
+    matching child is its POSITION paragraph. Read by that child alone the section
+    could never serve the history lane, and §31.15's renewal deals — a section whose
+    best child happened to be historical — were shown as the early-exit history."""
+    plan = query_plan.plan(GOLDEN, has_document=False)
+    assert query_plan.HISTORICAL_EXCEPTION in plan.lanes
+    lanes = tuple(sorted(plan.lanes))
+    s14 = Candidate("CONSTITUTION", "CONST:14", None, "full committed-term value", 0.03,
+                    "COMPANY_CONSTITUTION", lanes=lanes,
+                    authorities=("COMPANY_CONSTITUTION", "SECONDARY_REFERENCE"))
+    s312 = Candidate("CONSTITUTION", "CONST:31.2", None, "no early exit without the fee",
+                     0.03, "COMPANY_CONSTITUTION", lanes=lanes,
+                     authorities=("COMPANY_CONSTITUTION", "HISTORICAL_EXCEPTION"))
+    s3115 = Candidate("CONSTITUTION", "CONST:31.15", None, "[Customer B] 6-month renewal",
+                      0.01, "HISTORICAL_EXCEPTION", lanes=lanes,
+                      authorities=("COMPANY_CONSTITUTION", "HISTORICAL_EXCEPTION"))
+    assert retrieval.kinds_of(s312) == {query_plan.COMPANY_POSITION,
+                                        query_plan.HISTORICAL_EXCEPTION}
+    assert retrieval.kind_of(s312) == query_plan.COMPANY_POSITION, "labelling unchanged"
+    pool = Pool(by_domain={"CONSTITUTION": [s14, s312, s3115]}, primary={"CONSTITUTION"})
+    picked = [c.ref for c in retrieval.select(pool, plan, k=2)]
+    assert picked == ["CONST:14", "CONST:31.2"], picked
+
+
+def test_the_constitution_search_reports_every_kind_a_section_holds(db):
+    constitution.ingest(db)
+    hits = constitution.search(db, query="signed MSAs 30-day no-penalty exit historical "
+                               "exceptions early termination", permissions=PERMS,
+                               limit=12, embed_query=lambda _q: None)
+    s312 = next(h for h in hits if h.section_path == "31.2")
+    assert "HISTORICAL_EXCEPTION" in s312.authorities
+    assert "COMPANY_CONSTITUTION" in s312.authorities
+
+
+def test_scores_many_returns_the_same_numbers_as_scores_per_query(monkeypatch):
+    """PHASE 13 (`AM-94`): contracts are scored in one batched call; the numbers must
+    be exactly what a per-query `scores` call gives, row per query, in order."""
+    from legalmind.assist import rerank
+
+    class Backend:
+        def pair_logits(self, pairs):
+            return [[float(len(q) * 10 + len(t))] for q, t in pairs]
+
+        def score(self, query, passages):
+            return [row[0] for row in self.pair_logits([(query, p) for p in passages])]
+    monkeypatch.setattr(rerank, "_load", lambda: Backend())
+    monkeypatch.setattr(rerank.config, "rerank_enabled", lambda: True)
+    queries, texts = ["ab", "cdef"], ["x", "yy", "zzz"]
+    assert rerank.scores_many(queries, texts) == [rerank.scores(q, texts) for q in queries]
+    assert rerank.scores_many([], texts) is None and rerank.scores_many(queries, []) is None

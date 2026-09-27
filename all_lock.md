@@ -21007,3 +21007,139 @@ roadmap PHASE 13.
 
 --------------------------------------------------------------------------------
 AM-93: multi-source legal reasoning — every layer said as itself
+
+================================================================================
+AMENDMENT BATCH AB-44 — `AM-94`
+The validated multi-source Ask path in production, behind a flag and a canary dial;
+the per-request trace; a rehearsed migration/ingestion path; latency, evidence and
+answer-shape fixes measured against the `AM-93` baseline
+================================================================================
+
+**Owner decision, 2026-09-26/27** — the master RAG roadmap (`AM-79`'s owner authority)
+PHASE 13, *Production rollout + observability + rollback*, and the owner's PHASE 13A
+instructions: `no_document` scope only, no `knowledge_item_id` schema change, production
+untouched, *"take the current Phase 13A implementation from 'technically working but not
+canary-ready' to a measured, production-ready state that is safe to canary … Do not stop
+early because the first solution failed."*
+
+**Amends:** `AM-89` r2 narrowly (prompt `contract-answer-2`: the answer is shaped to the
+question, not to the list of claims); `AM-91` r5 and `AM-93` r4 narrowly (a repair is the
+smallest run of the record's own sentences that passes every check, one excerpt per
+contract; a verbatim excerpt carries its own modality); `AM-92` r2 narrowly ("IN FORCE
+since …" is the ordinary state of a current provision, not a qualifier a sentence must
+repeat; a condition keeps an abbreviation before a number — "subject to Cl. 5.1"); `AM-87`
+r1 narrowly (the Constitution search reports every authority a section's matching
+children hold, and evidence selection lets a section serve every lane it holds — its
+LABEL, `kind_of`, is unchanged). **Does not amend:** `AM-25` r5/r6, `AM-28` r2, `AM-30`
+t1–t7, `AM-45` r1, `AM-88`, `AM-90`, the Gemini cost guard, rule 18 or the append-only
+audit. Every existing screen in `service._ask` runs unchanged before the branch point.
+
+```text
+r1   THE FLAG. LEGALMIND_ASK_MULTI_SOURCE = off (default; any unreadable value) ·
+     no_document · on. `on` is NOT approved: the document lane has no benchmark.
+     LEGALMIND_ASK_MULTI_SOURCE_PERCENT (0–100, default 100) is the canary dial inside
+     what the flag admits: a conversation takes the new path when a SHA-256 of its id
+     falls below the share, so a reader's thread stays on one path; unreadable → 0.
+
+r2   ONE BRANCH POINT, after every existing screen (general knowledge, capability,
+     unmet prerequisite, the evaluator's question). `service._ask_multi_source` runs
+     plan → candidates (the caller's LIVE permissions, the same permission-checked
+     searches the legacy path uses) → rerank → evidence bundle → `answer.respond`. It
+     answers only with a VERIFIED generated answer; otherwise — nothing answerable,
+     generation unavailable, verification failing, any error (rolled back to a
+     savepoint) — it returns None and the legacy path answers exactly as today. It
+     can add a verified answer; it can never add a refusal or a new fallback text.
+
+r3   THE RESPONSE CONTRACT IS UNCHANGED. Markers renumbered in order of first use;
+     [A]/[M] removed with their punctuation; a deterministic "Sources" legend; cited
+     standards in `positions`, cited statutes in `statutes`, `citations` (document-
+     only) empty; Constitution refs in `retrieval_runs.results` (`strategy_version`
+     multi-source-1, `filters.path`), no citation column added. Every egress audited.
+
+r4   ONE `assist.ask.trace` PER REQUEST: request/conversation/message ids, route
+     domains, flag, canary share, selected_path AND the path that answered,
+     fallback_kind, plan lanes/parts, retrievers, candidate count, evidence and cited
+     refs, generated, verification failure kinds, verifier model/revision, Gemini
+     calls/failed calls, prompt/output tokens, provider finishes, prompt versions,
+     model, estimated USD, total and per-stage latency. Never a question, an answer,
+     a retrieved or a document text; a failure by its KIND, never its sentence. A
+     legacy `path` under a multi-source `selected_path` is a fallback, never a
+     success.
+
+r5   ROLLBACK: the flag to `off` (or the share to 0) in /root/.legalmind.env and
+     `systemctl restart legalmind-api` — applied when the process restarts, seconds,
+     requests in flight during the restart interrupted; no deploy, no data change, no
+     schema downgrade (the legacy path never reads the new tables). Verified in tests:
+     flag off never enters the new path and the trace records legacy.
+
+r6   PREREQUISITES, REHEARSED ON A PRODUCTION-LIKE COPY, NEVER APPLIED TO PRODUCTION:
+     migrations e9f2b6c4a173 → f4c1e8a2b7d9 → a7d3e9b1c5f2 → b8e2f6a4d1c3 (upgrade,
+     downgrade, re-upgrade clean — the rehearsal found and fixed a7d3e9b1c5f2's
+     downgrade naming its check constraint wrongly); Constitution ingest 701 items /
+     404 embeddings; AM-80 statute re-ingest 17 Acts / 5036 section-4 chunks — every
+     count matching the validated corpus; evidence selection on the copy identical
+     (61/76) or a strict superset (15/76, no company standards on the copy) of the
+     validated corpus. The runbook is docs/09-implementation/MULTI_SOURCE_ROLLOUT_
+     RUNBOOK.md.
+
+r7   PRIVACY. The canonical L1.10 carried, in one §31.2 emphasis line, a counterparty
+     name the `AM-59` redaction pass missed, where the same paragraph already used
+     "[Customer A]". Replaced by that placeholder — legal meaning unchanged — re-
+     ingested (the ingest is idempotent by SHA-256), and pinned by
+     tests/test_constitution_redaction.py: the SHA-256 of the lower-cased name against
+     every word of the canonical file and of every ingested record. The name never
+     enters the repository again. Legacy never showed Constitution text; the new path
+     does, which is why this is a PHASE 13 gate.
+
+r8   LATENCY AND EVIDENCE, MEASURED (zero Gemini, 75 questions): cross-encoder and
+     NLI pairs are scored in length order (scores byte-identical; 587 real pairs 15.2
+     s → 10.2 s): rerank p95 3069 → 1071 ms, bundle p95 1218 → 449 ms, contracts p95
+     1077 → 599 ms, verify p95 3329 → 2875 ms. §31.2 (a company position AND three
+     historical exceptions) was a COMPANY_POSITION candidate by its best-matching
+     child, so the history lane could never take it and §31.15's renewal deals were
+     shown as the early-exit history: with r-`AM-87` above, GT-00 shows §31.2, gold
+     coverage 53 → 54 of 73 groups, every other case byte-identical.
+
+r9   ANSWER SHAPE. `contract-answer-2` shapes the answer to the question (a simple one:
+     direct answer, short explanation, markers; a multi-part one: direct answer,
+     distinction, known, missing, next step; ~180 words); a repair is the smallest run
+     of the record's own sentences that passes every check, one per contract, joined
+     without splitting an abbreviation. Live on six questions (6 calls): 428 → 325,
+     405 → 291, 214 → 81, 2366 → 580 words; Gemini p50 2.7 s. Independent judgement:
+     the new answer better on 5 of 6 (direct answer first, layers labelled, the
+     reader's 6 months never the policy, 40–85% shorter, no irrelevant sections);
+     O-03 worse — a question whose gold sources retrieval never reaches (a known
+     `AM-92` statute residual), where the fixed answer now leads with a statute
+     Schedule instead of its "cannot confirm" line.
+
+r10  FALSE REJECTS. Three checks were rejecting correct sentences: "IN FORCE since …"
+     read as a qualifier, "subject to Cl. 5.1" truncated to "subject to Cl", and a
+     statute's Act demanded again in every later sentence. Zero-Gemini replay of run
+     9's saved drafts against the `AM-93` baseline replay, after every fix: shown
+     53 → 53, bad sentences shown 16 → 12 (the three "[Illustrative clause:]"
+     source-kind errors and one cross-reference gone; every other type identical),
+     answers with a bad sentence 13 → 9, false rejects 3 → 3 (A-03: the corrective
+     retry's saved draft fails the checks, as fail-closed intends), citations 0.996;
+     an inline "[Illustrative clause:]" in a standard file is no longer a position
+     (`AM-92`'s known limitation, closed); a gap sentence may not call unconfirmed
+     what a shown claim states in its own words. Contract building scores every
+     (query, sentence) pair in ONE batched call (GT-00: 50 calls, 2.5 s → 1 call;
+     contracts byte-identical on ten questions).
+```
+
+**Recorded 2026-09-27.** Full suite 2694 passed, 0 failed, 112 skipped (1 xfailed);
+ruff and mypy clean. New tests: tests/test_ask_multi_source_rollout.py (32 — flag,
+routing, document path preserved, authorization scoping, fail-closed fallback, trace
+content, rollback, citation mapping, canary dial), tests/test_constitution_redaction.py
+(3), section-kinds (2), minimal repair (2), gap guard, inline drafting, Act naming. Legacy
+baseline through production `service.ask` (4 no-document questions, 4 calls): p50 1.8 s,
+3/4 answered (H-03 a false refusal), 5,630 prompt + 225 output tokens.
+
+**Known residuals, recorded, not hidden:** `AM-92`'s statute cross-reference class
+(GT-09's Negotiable range, GT-11's s.143A scope, E-04's paraphrased gap, O-03's
+Schedule-over-section retrieval); the end-to-end latency of the new path stays several
+times legacy's because Gemini writes a longer, verified answer — the trace measures it
+per stage. The document lane stays on legacy until it has its own benchmark.
+
+--------------------------------------------------------------------------------
+AM-94: the multi-source Ask path in production — flag, canary dial, trace, rehearsed rollout

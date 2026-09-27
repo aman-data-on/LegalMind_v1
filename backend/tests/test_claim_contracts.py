@@ -176,3 +176,19 @@ def test_a_company_position_is_never_called_the_companys_reading():
     assert any("called the company's reading" in f for f in contracts.check(
         "The company's reading of the law is that either party may terminate for "
         "convenience with 30 days' written notice [2].", [MAY]))
+
+
+def test_an_inline_illustrative_clause_in_a_standard_is_never_a_position():
+    # `AM-92`'s known limitation, closed in PHASE 13: standard-file chunks carry their
+    # drafting text inline after "[Illustrative clause:]"; run 9 showed it as the
+    # company position three times (D-01, I-04, N-03).
+    text = ("LIABILITY-MSA-001 §9 Liability — Company Position (final, closed) (MSA) the "
+            "standard 12-month liability cap applies unless a specific agreement approved "
+            "by the company expressly provides otherwise. The cap applies mutually to both "
+            "parties. [Illustrative clause:] the aggregate liability of either Party shall "
+            "not exceed the total fees paid or payable by Customer in the twelve (12) months "
+            "immediately preceding the event giving rise to the claim.")
+    got = [s for s, _, _, _ in contracts._statements(_source(text, "POS:LIABILITY-MSA-001",
+                                                               "COMPANY_STANDARD"))]
+    assert any("12-month liability cap" in s for s in got)
+    assert not any("aggregate liability of either Party" in s for s in got)

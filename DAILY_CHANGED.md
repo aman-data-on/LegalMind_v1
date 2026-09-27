@@ -1161,3 +1161,69 @@ proven on that live text with zero calls.
 **Remaining:** GT-09's Negotiable range and GT-11's s.143A scope (`AM-92`'s cross-reference
 limitation) and the other `AM-92` limitations. The production Ask path still runs the
 older generation — wiring this pipeline in is roadmap PHASE 13.
+
+Commit: `dbb7e38`.
+
+## 2026-09-27 — Entry 18: Roadmap PHASE 13A — the multi-source Ask path in production, canary-ready (`AM-94`)
+
+**Wiring.** `LEGALMIND_ASK_MULTI_SOURCE` (off by default; `no_document` is the approved
+scope; `on` is not) and `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` (a per-conversation SHA-256
+canary share, unreadable → 0). One branch point in `service._ask` after every existing
+screen; `_ask_multi_source` runs the validated PHASE 9–12 path with the caller's live
+permissions and answers only with a verified generated answer — otherwise legacy answers
+exactly as today. Response contract unchanged; Constitution refs in
+`retrieval_runs.results`; every egress audited. One `assist.ask.trace` per request
+(ids, route, flag, share, selected vs answering path, fallback kind, counts, tokens,
+finishes, versions, per-stage latency; no text). Rollback = flag off + API restart.
+
+**Rehearsed, never applied to production:** migrations `e9f2b6c4a173 → f4c1e8a2b7d9 →
+a7d3e9b1c5f2 → b8e2f6a4d1c3` up/down/up clean (the downgrade of `a7d3e9b1c5f2` named its
+check constraint wrongly — fixed); Constitution ingest 701 items / 404 embeddings;
+AM-80 statute re-ingest 17 Acts / 5036 chunks; evidence selection on the copy identical
+(61/76) or a strict superset (15/76) of the validated corpus. Runbook:
+`docs/09-implementation/MULTI_SOURCE_ROLLOUT_RUNBOOK.md`.
+
+**Privacy.** A §31.2 emphasis line still carried a counterparty name the `AM-59`
+redaction missed; replaced by the "[Customer A]" placeholder its own paragraph uses,
+re-ingested, pinned by `tests/test_constitution_redaction.py` (SHA-256 of the name against
+every word of the file and of every record). Legacy never showed Constitution text; the
+new path does.
+
+**Latency (zero Gemini, 75 questions, p50/p95 ms):** rerank 1095/3069 → 801/1071, bundle
+381/1218 → 381/449, contracts 122/1077 → 98/599, verify 459/3329 → 432/2875 — length-
+sorted cross-encoder/NLI batching, scores byte-identical. Live Gemini p50 2.7 s on the
+`contract-answer-2` prompt (was 4.0–4.4 s).
+
+**Evidence.** §31.2 holds a company position AND three historical exceptions; labelled
+by its best-matching child it could never serve the history lane, so §31.15's renewal
+deals were shown as the early-exit history. The Constitution search now reports every
+authority a section's children hold and selection lets a section serve every lane it
+holds (its label unchanged): GT-00 shows §31.2, gold coverage 53 → 54 / 73, every other
+case byte-identical.
+
+**Answer shape.** `contract-answer-2` shapes the answer to the question; a repair is the
+smallest run of the record's own sentences that passes every check, one per contract,
+joined without splitting "Cl. 5.1". Live, six questions (6 calls): 428 → 325, 405 → 291,
+214 → 81, 2366 → 580 words. Independent judgement: the new answer better on 5 of 6
+(direct answer first, layers labelled, the reader's figure never the policy, 40–85%
+shorter, no irrelevant sections); O-03 worse — its gold sources are never retrieved
+(`AM-92` statute residual) and the fixed answer now leads with a Schedule.
+
+**False rejects.** "IN FORCE since …" no longer a qualifier; "subject to Cl. 5.1" no
+longer truncated; an Act named once need not be renamed every sentence; a verbatim
+excerpt carries its own modality; an inline "[Illustrative clause:]" is never a
+position; a gap sentence may not call unconfirmed what a shown claim states. Zero-Gemini
+replay of run 9 vs the `AM-93` baseline replay, after every fix: shown 53 → 53, bad
+sentences 16 → 12 (three `[Illustrative clause:]` source-kind errors and one cross-
+reference gone), answers with one 13 → 9, false rejects 3 → 3 (A-03's corrective-retry
+draft fails the checks, as fail-closed intends). Contract building scores every (query,
+sentence) pair in one batched call — GT-00: 50 calls → 1, contracts byte-identical.
+
+**Tests.** Full suite **2694 passed, 0 failed, 112 skipped**; ruff + mypy clean. New:
+`test_ask_multi_source_rollout.py` (32), `test_constitution_redaction.py` (3), and
+section-kinds, minimal-repair, gap-guard, inline-drafting and Act-naming tests.
+
+**Residuals, recorded:** `AM-92`'s statute cross-reference class (GT-09, GT-11, E-04's
+paraphrased gap, O-03's Schedule-over-section retrieval); end-to-end latency of the new
+path remains several times legacy's because Gemini writes a longer verified answer; the
+document lane stays on legacy until it has its own benchmark.

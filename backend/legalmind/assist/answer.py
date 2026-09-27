@@ -266,9 +266,25 @@ _ABOUT_SOURCES = re.compile(r"\b(?:provided|available|supplied) (?:materials?|so
                             r"do ?n[o']t|does ?n[o']t)\b", re.I)
 
 
-_LIMIT = re.compile(r"\b(?:cannot|can ?n[o']t|unable to|does not|do not|did not)\s+"
-                    r"(?:be\s+)?(?:confirm|verif|determin|establish|state|specify|say|"
-                    r"address)\w*", re.I)
+def _covered(claim: str, payload: Payload) -> bool:
+    """The gap sentence's SUBJECT words (what it says is unconfirmed) are largely the
+    words of one shown claim: that claim answers it."""
+    m = _LIMIT.search(claim)
+    subject = claim[:m.start()] if m else claim
+    # The subject up to the verb ("… is not confirmed"): a copula before the negation
+    # ends it, so "the available sources" after it never dilutes the words.
+    subject = re.split(r"\b(?:is|are|was|were|remains?|has|have)\s*$", subject.strip())[0]
+    need = guardrails._content_words(subject) - {"specific", "provided", "material",
+                                                 "exact", "actual", "precise"}
+    if len(need) < 3:
+        return False
+    return any(len(need & guardrails._content_words(e)) / len(need) >= 0.6
+               for e in payload.evidence)
+
+
+_LIMIT = re.compile(r"\b(?:cannot|can ?n[o']t|unable to|does not|do not|did not|is not|"
+                    r"are not|was not|remains? un)\s*(?:be\s+)?(?:confirm|verif|determin|"
+                    r"establish|state|specify|say|address)\w*", re.I)
 
 
 def is_context(sentence: str, question_figures: tuple[str, ...]) -> bool:
@@ -334,6 +350,12 @@ def check(text: str, payload: Payload, bundle: evidence.Bundle) -> list[str]:
         if set(marks) == {"M"} and not (_NEGATION.search(claim)
                                         or _NEXT_STEP.search(claim)):
             failures.append(f"a fact cited only to what is missing: {sentence[:80]!r}")
+        # … and never of something the shown claims DO state (run 9, E-04: "the time
+        # frame is not confirmed by the available sources [M]" beside s.29A(1)'s twelve
+        # months). A subject the claims cover cannot be called unconfirmed.
+        if set(marks) == {"M"} and _LIMIT.search(claim) and _covered(claim, payload):
+            failures.append(f"calls unconfirmed what a shown claim states: "
+                            f"{sentence[:80]!r}")
         # A figure is a number WITH its unit (`AM-78`'s own rule) — "§14" or "section
         # 73" is a reference, and flagging it failed every answer that cited a section.
         extra = guardrails.unstated_figures(claim, cited)
@@ -415,13 +437,16 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
     by_n = {c.n: c for c in cs}
     contract_failures = []
     all_cited = []
+    preceding: list[str] = []
     for sentence in _sentences(result.text):
         cited = [by_n[int(m)] for m in _MARKER.findall(sentence)
                  if m.isdigit() and int(m) in by_n]
         all_cited.append(cited)
         if not cited:
+            preceding.append(sentence)
             continue
-        found = contracts.check(sentence, cited)
+        found = contracts.check(sentence, cited, " ".join(preceding))
+        preceding.append(sentence)
         # A context sentence ("the position does not state 6 months [1]") is not a
         # restatement, so grounding, conditions and modality do not apply to it — but
         # which SOURCE it speaks for always does (roadmap §13: never blended).
@@ -438,9 +463,45 @@ REPAIR = True
 SENTENCE_REPAIR = True
 
 
-def verbalise(c: contracts.Contract) -> str:
+def verbalise(c: contracts.Contract, hint: str | None = None) -> str:
     """An approved contract as a sentence: its kind, frame, scope and the source's own
-    words, cited. It passes every check by construction."""
+    words, cited. It passes every check by construction.
+
+    `hint` — the failing sentence this replaces (PHASE 13, `AM-94`): the body is then
+    the SMALLEST run of the record's own sentences that covers the hint and still
+    passes every contract check — conditions, frame, scope, modality, kind — growing a
+    sentence at a time, the whole record when nothing smaller passes. Measured live
+    2026-09-27: whole-record repairs were 60–95% of the words a reader saw (an 831-word
+    statute Schedule for one failing sentence); a paraphrase is never made."""
+    if hint:
+        pieces = _record_sentences(c.text)
+        if len(pieces) > 1:
+            # Grow by what the hint says first, then by what the checks will ask for
+            # — the record's own conditions and exceptions — so a condition that lives
+            # in another sentence is reached before an unrelated one.
+            words = guardrails._content_words(hint)
+            asked = set().union(set(), *(guardrails._content_words(x)
+                                        for x in (*c.conditions, *c.exceptions)))
+            ranked = sorted(range(len(pieces)), key=lambda i: (
+                -len(words & guardrails._content_words(pieces[i])),
+                -len(asked & guardrails._content_words(pieces[i])), i))
+            chosen: set[int] = set()
+            for i in ranked:
+                chosen.add(i)
+                said = _verbalise(c, " ".join(pieces[j] for j in sorted(chosen)))
+                if not contracts.check(said, [c]):
+                    return said
+    return _verbalise(c, c.text)
+
+
+def _record_sentences(text: str) -> list[str]:
+    """A record's own sentences; a statute's semicolon-separated items count as
+    sentences too, so one item can answer for a whole Schedule."""
+    return [x for x in re.split(r"(?<=[.!?;])\s+(?=[A-Z(\[\u2018\u201c\"'])",
+                                text.strip()) if x.strip()]
+
+
+def _verbalise(c: contracts.Contract, text: str) -> str:
     lead = contracts.SAY[c.kind]
     if c.frame:
         lead += f" ({c.frame})"
@@ -452,11 +513,11 @@ def verbalise(c: contracts.Contract) -> str:
         lead += ", " + ", ".join(scope) + ","
     if c.referent:
         lead += f" (on {c.referent})"
-    body = re.sub(r"(?<=[.!?])\s+", "; ", c.text.strip().rstrip("."))
+    body = "; ".join(x.rstrip(".") for x in _sentences(text.strip()))
     tail = ""
     if c.exceptions_text:
-        tail += "; subject to these exceptions: " + re.sub(
-            r"(?<=[.!?])\s+", "; ", c.exceptions_text.rstrip("."))
+        tail += "; subject to these exceptions: " + "; ".join(
+            x.rstrip(".") for x in _sentences(c.exceptions_text))
     if c.temporal:
         tail += (f" (in force: {c.temporal.rstrip('.')})" if c.temporal != "REPEALED"
                  else " (repealed — historical, not current law)")
@@ -473,17 +534,30 @@ def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
     in its place). No unverified sentence survives: what is shown is either verified or
     the approved source text itself."""
     by_n = {c.n: c for c in cs}
-    out = []
-    for sentence in _sentences(text):
-        failures, _ = verify_answer(sentence, payload, bundle, cs)
+    verdicts = [(sentence, verify_answer(sentence, payload, bundle, cs)[0])
+                for sentence in _sentences(text)]
+    # One excerpt per contract, however many failing sentences cite it — grown to
+    # cover all of them together, so a claim is never restated three times.
+    hints: dict[int, list[str]] = {}
+    for sentence, failures in verdicts:
+        if failures:
+            for m in dict.fromkeys(_MARKER.findall(sentence)):
+                if m.isdigit() and int(m) in by_n:
+                    hints.setdefault(int(m), []).append(sentence)
+    out: list[str] = []
+    done: set[int] = set()
+    for sentence, failures in verdicts:
         if not failures:
             out.append(sentence)
             continue
-        cited = [by_n[int(m)] for m in dict.fromkeys(_MARKER.findall(sentence))
+        cited = [int(m) for m in dict.fromkeys(_MARKER.findall(sentence))
                  if m.isdigit() and int(m) in by_n]
         if not cited:
             return None
-        out += [verbalise(c) for c in cited if verbalise(c) not in out]
+        for n in cited:
+            if n not in done:
+                done.add(n)
+                out.append(verbalise(by_n[n], " ".join(hints[n])))
     return " ".join(out)
 #: PHASE 12 (`AM-91`): Gemini verbalises claim contracts instead of raw evidence.
 CONTRACTS = True

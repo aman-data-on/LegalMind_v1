@@ -272,6 +272,11 @@ class ConstitutionHit:
     authority: str
     status: str
     score: float
+    #: The authorities of EVERY matching child of this hit's parent, not only the best
+    #: one's (PHASE 13, `AM-94`): §31.2 holds a company position AND three historical
+    #: exceptions, and which child matched best must not decide which lanes the
+    #: section can serve.
+    authorities: tuple[str, ...] = ()
 
 
 CANDIDATES = 100
@@ -328,6 +333,9 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
         for rank, r in enumerate(ranked, start=1):
             fused[r.id] = fused.get(r.id, 0.0) + 1 / (calibration.RRF_K + rank)
             rows.setdefault(r.id, r)
+    held: dict = {}
+    for r in rows.values():
+        held.setdefault(r.parent_id, set()).add(r.authority)
     hits, parents = [], set()
     for item_id in sorted(fused, key=lambda i: -fused[i]):
         r = rows[item_id]
@@ -335,7 +343,8 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
             continue
         parents.add(r.parent_id)
         hits.append(ConstitutionHit(r.id, r.parent_id, r.section_path, r.breadcrumb,
-                                    r.content, r.authority, r.status, fused[item_id]))
+                                    r.content, r.authority, r.status, fused[item_id],
+                                    tuple(sorted(held[r.parent_id]))))
         if len(hits) == limit:
             break
     return hits

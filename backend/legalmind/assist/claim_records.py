@@ -85,9 +85,13 @@ _ABOVE = re.compile(r"\bthe (?:[\w-]+ ){0,3}?(?:sum|amount|fees?|value) stated a
 _VALUE = r"\b(?:a|an|the) (?:[\w-]+ ){0,3}?(?:sum|amount|fees?|value)\b"
 _ANTECEDENT = re.compile(r"^\W*(?:this|these|such)\s+(?:position|entry|entries|section|"
                          r"rule|approach|obligations?)\b", re.I)
+# A status that CHANGES what applies today — not yet in force, commencing on a date,
+# repealed (`_statute`). Plain "IN FORCE" and "IN FORCE since <date/Act>" are the
+# ordinary state of a current provision and qualify nothing a sentence must repeat:
+# read as qualifiers they rejected A-03's correct IT Act paraphrase (PHASE 13,
+# `AM-94`, narrowing `AM-92` r2).
 _TEMPORAL = re.compile(r"NOT YET IN FORCE[^|.]*|commences? (?:on )?\d{1,2} \w+ \d{4}"
-                       r"[^|.]*|(?:in force|effective) (?:from|since|on) \d{1,2} \w+ "
-                       r"\d{4}", re.I)
+                       r"[^|.]*", re.I)
 # Field-table rows that are advice to the reader or to Counsel, not claims.
 _ADVISORY_ROWS = re.compile(r"^(?:recommended legal mind response|human / legal review|"
                             r"counsel validation|source / citation|legal source|"
@@ -262,7 +266,7 @@ def _field_rows(content: str, base: dict) -> list[Unit]:
     temporal = None
     if status:
         m = _TEMPORAL.search(status)
-        temporal = _clean(m.group(0)) if m else status[:120]
+        temporal = _clean(m.group(0)) if m else None
     return [Unit(text=f"{k}: {v}", temporal=temporal, **base)
             for k, v in rows.items() if not _ADVISORY_ROWS.match(k)]
 

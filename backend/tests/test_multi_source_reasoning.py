@@ -12,7 +12,7 @@ import uuid
 
 import pytest
 
-from legalmind.assist import answer, constitution, evidence, generation, verify
+from legalmind.assist import answer, constitution, contracts, evidence, generation, verify
 from legalmind.assist import query_plan as qp
 from legalmind.assist.retrieval import Candidate
 
@@ -198,3 +198,54 @@ def test_the_company_position_is_never_stated_from_a_historical_deal(golden):
                  f"allowed exit after 6 months with no fee [A][{h}]."):
         assert fine in _respond(golden, _layered(n).split(". Historically")[0] + ". "
                                 + fine).text, fine
+
+
+TEXT13 = ("Either party may terminate for convenience with ninety days' written notice. "
+          "Termination for cause requires a thirty-day cure period once the breach is "
+          "notified. Following termination, the customer has a thirty-day window to "
+          "export its data before deletion, free of charge.")
+
+
+def _repairable(*conditions):
+    from legalmind.assist import contracts as cx
+    return cx.Contract(1, "CONST:13", "§13", cx.POSITION, "CURRENT", TEXT13, "", "", "",
+                       "PERMITTED", False, tuple(conditions), (), None)
+
+
+def test_a_repair_uses_the_smallest_run_of_the_records_own_sentences():
+    # PHASE 13 (`AM-94`): a failing sentence was replaced by the WHOLE record — for one
+    # statute sentence, an 831-word Schedule. The replacement is now the record's own
+    # sentence(s) that cover the failing one, grown only until every check passes.
+    c = _repairable()
+    said = answer.verbalise(c, "Customers get a month to take their data out [1].")
+    assert "thirty-day window to export its data" in said
+    assert "terminate for convenience" not in said and "cure period" not in said, said
+    assert not contracts.check(said, [c])
+    # A condition that lives in another sentence of the record: the check demands it,
+    # so that sentence is added — and nothing else.
+    guarded = _repairable("once the breach is notified")
+    kept = answer.verbalise(guarded, "Customers get a month to take their data out [1].")
+    assert "export its data" in kept and "once the breach is notified" in kept
+    assert "terminate for convenience" not in kept
+    assert answer.verbalise(c) == answer._verbalise(c, c.text), "no hint: the record"
+
+
+def test_a_repair_never_paraphrases():
+    c = _repairable("once the breach is notified")
+    for hint in ("Customers get a month to take their data out [1].", "anything [1]."):
+        said = answer.verbalise(c, hint)
+        body = said.split(" states: ", 1)[1].rsplit(" [", 1)[0]
+        assert all(piece.rstrip(".") in c.text for piece in body.split("; ")), body
+
+
+def test_a_gap_sentence_cannot_call_unconfirmed_what_a_shown_claim_states(golden):
+    # Run 9 (E-04): "the time frame … is not confirmed by the available sources [M]"
+    # beside a claim that states it. The guard fires when the gap's subject is largely
+    # a shown claim's own words; E-04's paraphrase ("time frame … make its award" for
+    # "award … within twelve months") stays below it and is a recorded residual.
+    payload, cs = answer.contract_payload(golden, GOLDEN)
+    assert any("calls unconfirmed" in f for f in answer.check(
+        "The full remaining committed-term value payable on early exit is not confirmed "
+        "by the available sources [M].", payload, golden))
+    assert not any("calls unconfirmed" in f for f in answer.check(
+        "The signed MSA's actual fee schedule cannot be confirmed [M].", payload, golden))

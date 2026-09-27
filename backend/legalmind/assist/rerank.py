@@ -105,6 +105,28 @@ def scores(query: str, texts: list[str], *,
         return None
 
 
+def scores_many(queries: list[str], texts: list[str], *,
+                request_id: str | None = None) -> list[list[float]] | None:
+    """`scores` for several queries over the same texts in ONE backend call — one
+    padded batch stream instead of one per query — returning a row per query in the
+    caller's order, or None when the reranker cannot run. Same numbers as `scores`."""
+    if not config.rerank_enabled() or not texts or not queries:
+        return None
+    backend = _load()
+    if backend is None:
+        return None
+    try:
+        flat = backend.pair_logits([(q, t) for q in queries for t in texts])
+    except Exception as exc:
+        log_event("assist.rerank.failed", level=logging.WARNING,
+                  operational_failure=True, reason=type(exc).__name__,
+                  request_id=request_id)
+        return None
+    n = len(texts)
+    return [[float(row[0] if len(row) == 1 else row[-1])
+             for row in flat[i * n:(i + 1) * n]] for i in range(len(queries))]
+
+
 def reorder(query: str, hits: list, *, request_id: str | None = None) -> list:
     """The same hits, best first. Returns the SAME list object when it cannot run.
 

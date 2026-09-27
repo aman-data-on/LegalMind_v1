@@ -83,7 +83,10 @@ _CONDITION = re.compile(
     r"\b(?:unless|provided that|provided|if|where|subject to|only if|only where|"
     r"in the absence of|for any reason not|to the extent|so long as|as long as|with a "
     r"fixed|within \d+|at least \d+|before the (?:end|expiry)|after (?:written )?notice)"
-    r"\b(?:\s+[^\s,;.:()]+){1,8}", re.I)
+    # A token may keep an abbreviation's period when a number follows ("subject to
+    # Cl. 5.1", "under s. 74"): read as "subject to Cl", the condition could never be
+    # found in a sentence and every restatement of §31.2 was replaced (PHASE 13).
+    r"\b(?:\s+(?:[A-Za-z]{1,4}\.(?=\s*\d)|[^\s,;.:()]+)){1,8}", re.I)
 _EXCEPTION = re.compile(r"\b(?:except(?: for)?|other than|excluding|save for)\b"
                         r"(?:\s+[^\s;.:()]+){1,8}", re.I)
 _SKIP = re.compile(r"^(?:\*\*?STATUS|STATUS:|Applicable Document Types|Purpose:|Scope of "
@@ -99,6 +102,7 @@ _POSITION_HEAD = re.compile(r"^[A-Z0-9_-]+-\d{3}\s.*?\((?:MSA|TOS|NDA|SLA|Partne
                             r"Agreement|Vendor Agreement|Distribution Agreement|Order "
                             r"Form|Amendment)\)\s+")
 _DRAFTING = re.compile(r"illustrative|drafting notes|not yet in any signed", re.I)
+_INLINE_DRAFTING = re.compile(r"\[Illustrative clause:\].*$", re.I | re.M)
 # Headings whose content is not a position: what the section is for, who it covers,
 # where it came from, and notes addressed to counsel.
 _NOT_POSITION = re.compile(r"purpose|entity|counsel|validation|source|notes?\b|"
@@ -225,6 +229,10 @@ def _statements(source: evidence.Source) -> list[tuple[str, str, bool, str | Non
     # and the header skip then discarded the heading with it.
     body = "\n".join(x for x in source.context.split("\n")
                      if not _HEADER.match(x.strip()))
+    # A standard file's chunk carries its drafting text INLINE, after "[Illustrative
+    # clause:]" — never a position (`AM-92`'s known limitation, closed PHASE 13): the
+    # marker and everything after it on that line is dropped before any sentence is read.
+    body = _INLINE_DRAFTING.sub("", body)
     for raw in _WRAP.sub(" ", body).split("\n"):
         line = raw.strip().strip("*").strip()
         if not line or _SKIP.match(line):
@@ -351,6 +359,7 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
     queries = list(dict.fromkeys([question, *(p.question for p in bundle.parts)]))
     from legalmind.assist import claim_records
     recorded: dict = {}
+    per_source: list[tuple] = []
     for source in bundle.shown():
         units = claim_records.units(db, source) if db is not None else None
         if units:
@@ -359,18 +368,28 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
             recorded.update({(source.ref, u.text): u for u in units})
         else:
             rows = _statements(source)
-        if not rows:
-            continue
+        if rows:
+            per_source.append((source, rows))
+    # Best over the whole question and each part of it: one long question ranked a
+    # provenance line above "the full committed-term value remains payable". ONE
+    # batched call for every (query, sentence) pair (PHASE 13, `AM-94`): as fifty
+    # per-source, per-query calls of 3–15 sentences, GT-00's contracts took 2.5 s of
+    # under-filled batches; the scores are the same numbers.
+    every = [s for _, rows in per_source for s, _, _, _ in rows]
+    scored = cross_encoder.scores_many(queries, every) if every else None
+    at = 0
+    for source, rows in per_source:
         sents = [(s, k) for s, k, _, _ in rows]
-        # Best over the whole question and each part of it: one long question ranked a
-        # provenance line above "the full committed-term value remains payable".
-        runs = [cross_encoder.scores(q, [s for s, _ in sents]) for q in queries]
-        scores = ([max(r[i] for r in runs if r) for i in range(len(sents))]
-                  if all(runs) else
-                  [len(words & guardrails._content_words(s)) for s, _ in sents])
+        n = len(sents)
+        if scored is not None:
+            scores = [max(scored[q][at + i] for q in range(len(queries)))
+                      for i in range(n)]
+        else:
+            scores = [float(len(words & guardrails._content_words(s))) for s, _ in sents]
+        at += n
         scores = [x + (POSITION_BONUS if rows[i][2] else 0.0)
                   for i, x in enumerate(scores)]
-        order = sorted(range(len(sents)), key=lambda i: -scores[i])[:PER_SOURCE]
+        order = sorted(range(n), key=lambda i: -scores[i])[:PER_SOURCE]
         picked += [(source, *sents[i], rows[i][3]) for i in sorted(order)]
     return [_contract(n, s, t, k, f, recorded.get((s.ref, t)))
             for n, (s, t, k, f) in enumerate(picked[:MAX_CONTRACTS], 1)]
@@ -462,8 +481,22 @@ def render(contracts: list[Contract], rels: list[Relation]) -> str:
     return "APPROVED CLAIMS:\n" + "\n".join(lines)
 
 
-def check(sentence: str, cited: list[Contract]) -> list[str]:
-    """The sentence against the contracts it cites — deterministic (`AM-91` r4)."""
+def _verbatim(claim: str, c: Contract) -> bool:
+    """The sentence's body is the record's own words (a repair, `answer.verbalise`):
+    every run of four or more words between its separators occurs in the record."""
+    body = claim.split(" states: ", 1)[1] if " states: " in claim else claim
+    body = re.sub(r"\s*\((?:in force|repealed|[^()]*\bbeing\b)[^()]*\)\s*$", "", body)
+    body = re.sub(r";\s*subject to these exceptions:.*$", "", body)
+    own = " ".join(c.text.split())
+    pieces = [x.strip(" .") for x in re.split(r";\s+|(?<=[.!?])\s+", body)]
+    pieces = [x for x in pieces if len(x.split()) >= 4]
+    return bool(pieces) and all(x in own for x in pieces)
+
+
+def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str]:
+    """The sentence against the contracts it cites — deterministic (`AM-91` r4).
+    `preceding` — the answer so far: a statute's Act, once named there, need not be
+    named again in every later sentence (PHASE 13, `AM-94`)."""
     from legalmind.assist import answer
     claim = answer._MARKER.sub("", sentence)
     failures = []
@@ -490,8 +523,10 @@ def check(sentence: str, cited: list[Contract]) -> list[str]:
                             f"{sentence[:80]!r}")
         if c.referent:
             need = guardrails._content_words(c.referent) - {"stakeholder", "confirmed"}
-            if need and len(need & guardrails._content_words(claim)) / len(need) < \
-                    CONDITION_KEPT:
+            named = guardrails._content_words(claim)
+            if c.kind == LAW:                      # the Act, named anywhere before
+                named |= guardrails._content_words(preceding)
+            if need and len(need & named) / len(need) < CONDITION_KEPT:
                 failures.append(f"'this' of [{c.n}] not resolved ({c.referent[:40]!r}): "
                                 f"{sentence[:80]!r}")
         for said, meant in c.antecedents:
@@ -544,6 +579,10 @@ def check(sentence: str, cited: list[Contract]) -> list[str]:
         mod, neg = modality(bare)
         own = guardrails._content_words(c.text)
         restating = len(own & words) / max(1, len(own)) >= 0.5
+        if _verbatim(claim, c):
+            # The record's own sentences carry their own modality and polarity; the
+            # contract's were read off its WHOLE text, which may hold several.
+            continue
         if c.modality != "STATEMENT" and mod != "STATEMENT" and _STRENGTH[mod] != \
                 _STRENGTH[c.modality]:
             failures.append(f"modality {c.modality.lower()} → {mod.lower()} of [{c.n}]: "
