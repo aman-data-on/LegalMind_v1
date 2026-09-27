@@ -165,3 +165,35 @@ def test_a_named_section_the_text_does_not_hold_is_answered_by_no_other(relevanc
                                                        [named, s199]).sources}
     assert reasons["STAT:Income-tax Act, 1961:194J"] is None
     assert reasons["STAT:Income-tax Act, 1961:199"] != "NAMED_SECTION_ABSENT"
+
+
+def test_a_standard_on_another_topic_is_never_evidence(relevance):
+    """PHASE 13 (golden GT-03's trap): with more evidence selected, the §9 12-month
+    LIABILITY cap passed the relevance floor for "do we charge 12 months of fees on
+    early exit?". A ratified standard whose Constitution topic is none of the topics
+    the question's words place is judged out; a two-topic question keeps both."""
+    plan = query_plan.plan("Do we charge 12 months of fees if a customer exits a "
+                           "fixed-term contract early?", has_document=False)
+    cap = _c("POSITIONS", "POS:LIABILITY-MSA-001", "liability shall not exceed 12 months",
+             authority="COMPANY_STANDARD", lanes=(query_plan.COMPANY_POSITION,))
+    exit_ = _c("POSITIONS", "POS:EARLY-TERM-RESTRICTION-MSA-001", "remaining term fees",
+               authority="COMPANY_STANDARD", lanes=(query_plan.COMPANY_POSITION,))
+    relevance["liability shall not exceed 12 months"] = 9.0
+    relevance["remaining term fees"] = 9.0
+    reasons = {s.ref: s.reason for s in evidence.build(None, plan, Pool(),
+                                                       [cap, exit_]).sources}
+    assert reasons == {"POS:LIABILITY-MSA-001": "OFF_TOPIC",
+                       "POS:EARLY-TERM-RESTRICTION-MSA-001": None}
+    both = query_plan.plan("Our liability cap does not apply to indemnity obligations. "
+                           "What indemnity do customers owe us?", has_document=False)
+    assert evidence.build(None, both, Pool(), [cap]).sources[0].reason is None
+    unplaced = query_plan.plan("What is the weather in Pune today?", has_document=False)
+    assert evidence.build(None, unplaced, Pool(), [cap]).sources[0].reason != "OFF_TOPIC"
+    # filed under Payment Terms, but its own text is about suspension (golden G-03)
+    cure = _c("POSITIONS", "POS:SUSPENSION-NOTICE-CURE-MSA-001",
+              "we may suspend the services after a 30-day cure notice",
+              authority="COMPANY_STANDARD", lanes=(query_plan.COMPANY_POSITION,))
+    relevance["we may suspend the services after a 30-day cure notice"] = 9.0
+    suspend = query_plan.plan("Can we suspend service immediately, without the 30-day "
+                              "cure period?", has_document=False)
+    assert evidence.build(None, suspend, Pool(), [cure]).sources[0].reason is None

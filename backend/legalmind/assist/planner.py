@@ -75,19 +75,22 @@ RATIFIED_STANDARDS_DIR = (pathlib.Path(__file__).resolve().parents[2]
                           / "config" / "company_standards")
 
 
-def _load_topics() -> tuple[str, ...]:
-    topics: set[str] = set()
+def _load_standard_topics() -> dict[str, str]:
+    """Each ratified standard's Constitution topic, by requirement code."""
+    out: dict[str, str] = {}
     for path in sorted(RATIFIED_STANDARDS_DIR.glob("*.json")):
         try:
-            topic = json.loads(path.read_text())["configuration"]["constitution"]["topic"]
+            data = json.loads(path.read_text())
+            topic = data["configuration"]["constitution"]["topic"]
         except (KeyError, TypeError, ValueError):
             continue
         if isinstance(topic, str) and topic.strip():
-            topics.add(topic.strip())
-    return tuple(sorted(topics))
+            out[data.get("requirement_code", path.stem)] = topic.strip()
+    return out
 
 
-TOPICS: tuple[str, ...] = _load_topics()
+STANDARD_TOPICS: dict[str, str] = _load_standard_topics()
+TOPICS: tuple[str, ...] = tuple(sorted(set(STANDARD_TOPICS.values())))
 
 
 @dataclass(frozen=True)
@@ -168,7 +171,7 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
     (r"most we (?:can|could) (?:be liable|owe|lose)|maximum (?:we|they) (?:owe|pay)"
      r"|liability cap|cap on (?:liability|damages)|limit of liability|how much.*liable",
      "limitation of liability cap", "Liability"),
-    (r"who pays if|cover us if|defend us|hold us harmless|third.?party claim",
+    (r"who pays if|cover us if|defend us|hold us harmless|third.?party claim|indemn",
      "indemnification indemnify", "Indemnification"),
     (r"roll(?:s|ed)? over|renew(?:s|al)? automatic|automatic(?:ally)? renew"
       r"|keep going after",
@@ -225,6 +228,26 @@ _AMBIGUOUS = re.compile(
     re.IGNORECASE)
 
 
+def _match(pattern, term: str, text_in: str, lowered: str) -> tuple[bool, bool]:
+    """(the reader's words matched the cue, the reader already used the term). A
+    question may arrive in a reader's words or already in a lawyer's; either places
+    the topic. "Already said it" is per DISTINCTIVE word, not the whole phrase: a
+    reader who typed "liability" already has that lexical pass, and a second list of
+    "limitation of liability cap" only dilutes the gold share."""
+    return (bool(pattern.search(text_in)),
+            any(w in lowered for w in term.casefold().split()
+                if len(w) >= 5 and w not in _GENERIC_TERM_WORDS))
+
+
+def topics_in(question: str) -> frozenset[str]:
+    """Every topic the vocabulary places in the question — a question may span two
+    ("our liability cap … what indemnity do they owe?")."""
+    text_in = (question or "").strip()
+    lowered = text_in.casefold()
+    return frozenset(topic for pattern, term, topic in _TERMS_COMPILED
+                     if any(_match(pattern, term, text_in, lowered)))
+
+
 def plan_lexical(question: str) -> QueryPlan | None:
     """A plan for nothing, or None. No provider call, no network, no I/O.
 
@@ -249,16 +272,7 @@ def plan_lexical(question: str) -> QueryPlan | None:
     queries: list[str] = []
     subject = ""
     for pattern, term, cue_topic in _TERMS_COMPILED:
-        # A question may arrive in a reader's words (the cue) or already in a
-        # lawyer's (the canonical term). Either places the TOPIC; only the
-        # first is missing the term.
-        by_cue = bool(pattern.search(text_in))
-        # "Already said it" is per DISTINCTIVE word, not the whole phrase. A
-        # reader who typed "liability" already has that lexical pass; a second
-        # near-duplicate list of "limitation of liability cap" only dilutes the
-        # gold share. Short words ("of", "cap") carry no retrieval signal.
-        has_term = any(w in lowered for w in term.casefold().split()
-                       if len(w) >= 5 and w not in _GENERIC_TERM_WORDS)
+        by_cue, has_term = _match(pattern, term, text_in, lowered)
         if not (by_cue or has_term):
             continue
         if topic is None:

@@ -323,8 +323,13 @@ def kinds_of(c: Candidate) -> set[str]:
 
 
 def evidence_size(plan: query_plan.QueryPlan) -> int:
-    """5–12 units, growing with the number of things asked (roadmap §7)."""
-    return max(5, min(12, 3 * len(plan.sub_questions)))
+    """8–12 units selected, growing with the number of things asked (roadmap §7) — the
+    evidence judge then decides what is shown. Measured 2026-09-27 (79 golden cases,
+    zero Gemini): a floor of 5 lost gold ranked 3rd–5th in its domain (recall@3
+    0.815); 8 reaches 0.864 with wrong-source and false admission at 0 once off-topic
+    standards are judged out (`evidence._off_topic`), the median shown unchanged at
+    3, +~250 ms in the evidence layer and +~20% prompt tokens; 10 gained nothing more."""
+    return max(8, min(12, 3 * len(plan.sub_questions)))
 
 
 def select(pool: Pool, plan: query_plan.QueryPlan,

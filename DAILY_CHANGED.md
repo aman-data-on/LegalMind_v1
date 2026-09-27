@@ -1274,3 +1274,14 @@ Act, s. 199 answered "what did s. 194J say" — a section the text predates — 
 section absent from the text is answered by no other section. Golden recall@3 0.778 →
 0.815, F 0.5 → 0.83, K 0.6 → 0.8, wrong-source and false admission 0, H-02 refuses.
 Suite 2708 passed.
+
+## 2026-09-27 — Entry 21: evidence floor 8 and figures with their unit (`AM-97`)
+
+A zero-Gemini sweep of the evidence floor showed 8 units reach recall@3 0.864 against
+0.815 at 5, and 10 gains nothing more at a higher prompt size. Floor 8 alone let a
+liability standard into two questions on other topics, so a standard whose configured
+topic the question does not name is no longer evidence (`OFF_TOPIC`); wrong-source is
+back to 0. The wider bundle then exposed a defect in the reader-figure check: it
+compared the number alone, so any "6" in a shown section counted as the company stating
+"6 months", and the answer stopped saying no position states it. Figures are now
+compared with their unit. D-01, D-02, I-02 and K-05 close; false admission stays 0.

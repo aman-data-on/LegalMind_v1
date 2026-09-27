@@ -134,6 +134,8 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return "NAMED_SECTION_ABSENT"
     if retrieval.exact_reference(c, plan):
         return None                 # the reader named this section of this Act
+    if c.domain == routing.Domain.POSITIONS.value and _off_topic(c, plan):
+        return "OFF_TOPIC"
     if relevance is None:
         return "RELEVANCE_UNAVAILABLE"        # fail closed: no reranker, no support
     if relevance < RELEVANCE_FLOOR.get(c.domain, float("inf")):
@@ -200,6 +202,22 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
         assertions.append(Assertion(claim, figs, tuple(
             unstated(claim, query_plan.COMPANY_POSITION)), stated_by))
     return Bundle(tuple(parts), tuple(sources), tuple(assertions), no_document)
+
+
+def _off_topic(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+    """A ratified standard whose Constitution topic is none of the topics the
+    question's own words place is not evidence for it, however alike the wording: the
+    §9 12-month LIABILITY cap passed the relevance floor for "do we charge 12 months
+    of fees on early exit?" (golden GT-03's trap) once more evidence was selected
+    (PHASE 13). A question the vocabulary places nowhere is never filtered, and a
+    standard whose OWN text addresses an asked topic stays: the suspension-cure
+    standard is filed under Payment Terms yet answers "can we suspend without the
+    cure period?" (golden G-03)."""
+    from legalmind.assist import planner
+    asked = planner.topics_in(plan.question)
+    topic = planner.STANDARD_TOPICS.get(c.ref.removeprefix("POS:"))
+    return (bool(asked) and topic is not None and topic not in asked
+            and not planner.topics_in(c.text) & asked)
 
 
 def _state(needed: list[str], sources: tuple[Source, ...], no_document: bool) -> str:

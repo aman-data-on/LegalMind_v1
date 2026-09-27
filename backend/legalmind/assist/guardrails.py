@@ -335,6 +335,16 @@ def _quantities(text: str) -> set[str]:
     return out
 
 
+def _figures(text: str) -> set[tuple[str, str]]:
+    """(number, unit) pairs a text states: "six (6) months" and "12 preceding months"
+    each state one. The number ALONE is never a figure — "Section 6" does not state
+    "6 months" (2026-09-27: a wider bundle hid the reader's figure behind a bare 6)."""
+    ws = _words(text)
+    return {(w if w[0].isdigit() else _NUMBER_WORDS[w], _norm(u))
+            for i, w in enumerate(ws) if w[0].isdigit() or w in _NUMBER_WORDS
+            for u in ws[i + 1:i + 3] if u in _UNIT_WORDS}
+
+
 def unstated_figures(question: str, evidence: list[str]) -> list[str]:
     """Figures the READER gave — "6 months", "six weeks" — that no evidence states.
 
@@ -345,13 +355,13 @@ def unstated_figures(question: str, evidence: list[str]) -> list[str]:
     unevidenced figure at all, and this names it instead. A number counts only with
     its unit, so "clause 7" is never read as a figure.
     """
-    stated = set().union(set(), *(_quantities(c) for c in evidence))
+    stated = set().union(set(), *(_figures(c) for c in evidence))
     ws = _words(question)
     found: list[str] = []
     for i, w in enumerate(ws[:-1]):
         number = w if w[0].isdigit() else _NUMBER_WORDS.get(w)
         unit = ws[i + 1]
-        if number and unit in _UNIT_WORDS and number not in stated:
+        if number and unit in _UNIT_WORDS and (number, _norm(unit)) not in stated:
             phrase = f"{w} {unit}"
             if phrase not in found:
                 found.append(phrase)

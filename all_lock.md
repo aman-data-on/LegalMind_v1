@@ -21277,3 +21277,55 @@ H, O below 0.75 recall@3, each to be traced from the matrix.
 
 --------------------------------------------------------------------------------
 AM-96: planner vocabulary, instrument recognition and the absent named section
+
+================================================================================
+AMENDMENT BATCH AB-47 — `AM-97`
+Evidence floor 8, the off-topic standard, and figures compared with their unit
+(roadmap §9/§13/§15/§17)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority)
+and the requirement matrix's open item "B, D, E, G, H, O below 0.75; K-05". Chosen on
+a zero-Gemini sweep of the evidence floor (5, 8, 10). Every topic is the one each
+standard is configured with (`configuration.constitution.topic`); nothing authored
+(rule 21). No Gemini call.
+
+**Amends, narrowly:** `AM-86` r3 (the selection floor), `AM-88` (one judge reason),
+`AM-78` r1 (how a stated figure is recognised). **Does not amend:** `AM-25`, `AM-58`,
+`AM-85`, the Gemini cost guard.
+
+```text
+r1   At least 8 units are selected for the evidence bundle (was 5), still at most
+     12. Measured: floor 5 recall@3 0.815; floor 8 0.864; floor 10 0.864 at a higher
+     prompt p95 (2868 → 4279 est. tokens). 8 is the smallest floor at the best recall.
+
+r2   A company standard whose configured topic is not among the topics the question
+     names is not evidence (judge reason OFF_TOPIC). Floor 8 alone admitted
+     LIABILITY-MSA-001 to two golden questions on other topics (wrong-source 0 → 2);
+     r2 returns it to 0. A question naming no topic is unaffected, so nothing
+     narrows where the planner is silent, and a standard whose own text addresses
+     an asked topic stays (the suspension-cure standard, filed under Payment Terms,
+     answers "can we suspend without the cure period?", golden G-03). The topic list is read from the ratified
+     standards (`planner.STANDARD_TOPICS`); one cue added: "indemn" →
+     Indemnification.
+
+r3   A reader's figure counts as stated only when the evidence states the same
+     NUMBER WITH ITS UNIT ("six (6) months", "12 preceding months"). The comparison
+     was by number alone, so "Section 6" or any bare 6 in a newly shown section made
+     "6 months" read as a company position, and the [A] line stopped saying "No
+     company position states 6 months" (found by the §15 scenario test under r1).
+     This is the fail-closed direction: it can only name more figures as unstated.
+```
+
+**Recorded 2026-09-27.** Zero-Gemini golden benchmark, new path, 79 cases, against
+`AM-96`: bundle recall@3 0.815 → 0.864; D-01, D-02, I-02 and K-05 now within rank 3;
+wrong-source 0, false admission 0; H-02 refuses as before. Evidence build p50 392 →
+646 ms, prompt p50 est. 1044 → 1261 tokens. Regression tests in
+test_evidence_bundle.py (off-topic standard) and test_assist_am76_paraphrase_default.py
+(bare number is not a figure); the five §15 scenarios pass.
+
+**Residuals:** B-03, B-05, E-01, E-02, E-03, F-05, G-03, GT-11, H-01, O-04 miss rank
+3; B, E, G, H, O below 0.75 recall@3.
+
+--------------------------------------------------------------------------------
+AM-97: evidence floor 8, the off-topic standard, figures compared with their unit
