@@ -30,7 +30,7 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-103. Last updated 2026-09-27.
 | 16 | Evaluation per layer | `rag_benchmark.py` (retrieval + wrong-source/false-admission per stage and category), `eval_generation.py` (generation) | — | recall@3/10, hit@1, MRR, nDCG@5, wrong-source, false admission per stage | ✅ | conversation metrics are category J of the same tool; no separate tool needed |
 | 17 | Permanent golden suite A–O | `tests/assist_eval/rag_benchmark.json` (79 cases) | benchmark tool | all 15 categories; K 0.2 → 1.0 (AM-95 r5, AM-96, AM-97) | 🟡 | B 0.8, G 0.67, H 0.5, O 0.67 recall@3 (E 0.88 since AM-99); must-refuse is scored by empty gold + must_not, not a flag |
 | 18 | Deployment discipline | flag + canary share + trace + rollback (AM-94) | `test_ask_multi_source_rollout.py` | rehearsed, never applied; idle-host stage timing 2026-09-27 (AM-99, 78 cases, zero Gemini): candidates p50 0.21 s / p95 0.43 s, rerank 0.86 / 1.03 s, bundle 0.63 / 0.97 s, verify 0.65 / 7.8 s | 🟡 | production steps need owner authorisation. Verify tail rose from 2.9 s (AM-94) to 7.8 s p95: its stage 3 re-scores an unsupported claim against every other evidence item (200 of 256 pairs in D-04), and floor 8 (AM-97) added evidence. Measured on the deterministic stand-in answer, which fails more claims than a real one. Tried: concurrent judges −5–13% (CPU-bound, not adopted); scoring only the top-4 items by word overlap (loses 4 of 19 rescues, not adopted). Live run 2026-09-27 (10 questions, 16 Gemini calls, 38k prompt + 3.6k output tokens, validation corpus, rolled back): 7 answered on the new path in one call, verify median 1.5 s / max 4.2 s, request 4.0–12.1 s; 3 (D-04, A-01, C-04) failed verification after repair and fell back to legacy at 3 calls and 10.7–23.4 s. The fallbacks, not verification of good answers, are the latency tail |
-| 20 | Definition of done | — | — | — | 🟡 | follows from the rows above |
+| 20 | Definition of done | branch `feat/legalmind-rag-production`, main merged in locally (clean) | backend 2722 passed / 0 failed; frontend 530 passed; lint, mypy, tsc clean | golden recall@3 0.926, wrong-source 0, false admission 0; run-9 replay fallbacks 1/65, bad shown 2.8%; live 1 Gemini call/answer; real-browser run verified | 🟡 | release-ready on the branch; remaining steps are owner actions (below) and the owner-material residuals |
 
 ## Open work, in dependency order
 
@@ -45,3 +45,12 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-103. Last updated 2026-09-27.
    - O-04 — corpus: IT Act s. 70B is absent from the supplied text.
 4. §11 — attack the remaining 12 shown bad sentences where the root cause is local.
 5. §18 — ~~idle-host latency measurement~~ done (verify tail recorded above); real-answer timing measured; the open item is the fallback rate (3 of 10 in that run).
+
+## Release actions that need the owner (2026-09-27)
+
+1. Push `feat/legalmind-rag-production` and open the PR; CI must pass on the ruleset.
+2. Merge after CI (the branch already merges main cleanly).
+3. Production: back up the DB, apply migrations `e9f2b6c4a173` → `b8e2f6a4d1c3`, run the corpus ingestion rehearsed on `legalmind_prod_rehearsal` (`AM-94` r6), restart the API.
+4. Enable `LEGALMIND_ASK_MULTI_SOURCE=no_document` with a small `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` canary, watch `assist.ask.trace` (path, fallback_kind, gemini_calls, verify_ms), widen. Rollback = the flag off.
+
+Owner material or rulings still open: DPDP per-section commencement (s. 33 from 13 May 2027), IT Act s. 70B text, and which instrument a bare "Section N" in the Constitution means.
