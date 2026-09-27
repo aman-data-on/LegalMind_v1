@@ -111,7 +111,7 @@ def test_a_no_document_question_is_answered_by_the_validated_path(db, user, tmp_
     (trace,) = _traces(caplog)
     assert trace["path"] == service.MULTI_SOURCE, trace
     assert out.answer_state.value == "ANSWERED"
-    assert "[1]" in out.text and "\n\nSources\n[1] " in out.text
+    assert "[1]" in out.text and "\n\nSources\n\n" in out.text
     assert "[A]" not in out.text and "[M]" not in out.text, "internal markers removed"
     assert out.citations == [], "no document evidence, so no document sources"
     assert out.statutes and out.statutes["citations"][0]["section_number"] == "3"
@@ -225,7 +225,7 @@ def test_markers_are_renumbered_in_first_use_and_resolved_by_the_legend():
         answer_mod.citation = orig
     assert refs == ["STAT:Act:3", "POS:X-1"], "CONST:14 was never cited"
     assert text_out.startswith("Law first [1]. Then position [2]. Missing. Again [1].")
-    assert text_out.endswith("Sources\n[1] label of STAT:Act:3\n[2] label of POS:X-1")
+    assert text_out.endswith("Sources\n\n- [1] label of STAT:Act:3\n- [2] label of POS:X-1")
 
 
 def test_removing_the_internal_markers_leaves_no_stray_comma():
@@ -278,3 +278,20 @@ def test_a_later_sentence_need_not_rename_an_act_already_named():
     assert any("not resolved" in f for f in cx.check(later, [c]))
     assert not any("not resolved" in f for f in cx.check(
         later, [c], "Under the Synthetic Widgets Act, 2099, handlers have duties."))
+
+
+def test_claims_of_one_source_share_one_number_in_the_legend():
+    """Three claims of §16 were three identical "§16" lines in the legend."""
+    from legalmind.assist import answer as answer_mod
+    bundle = NS(shown=lambda: [NS(ref="CONST:16"), NS(ref="POS:X-1")])
+    ans = NS(text="Notice [1][2]. Position [3]. Cure [2].",
+             refs=["CONST:16", "CONST:16", "POS:X-1"])
+    orig = answer_mod.citation
+    try:
+        answer_mod.citation = lambda s: f"label of {s.ref}"
+        text_out, refs = service._multi_source_text(ans, bundle)
+    finally:
+        answer_mod.citation = orig
+    assert refs == ["CONST:16", "POS:X-1"]
+    assert text_out.startswith("Notice [1]. Position [2]. Cure [1].")
+    assert text_out.endswith("Sources\n\n- [1] label of CONST:16\n- [2] label of POS:X-1")

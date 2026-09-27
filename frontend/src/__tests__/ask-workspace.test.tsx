@@ -39,6 +39,16 @@ describe("AnswerProse", () => {
     expect(html).toContain("<li>Governing law: India</li>");
   });
 
+  it("renders the multi-source answer's Sources legend as its own list", () => {
+    // The exact shape `service._multi_source_text` returns (2026-09-27).
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"The cap is 12 months [1].\n\nSources\n\n- [1] Legal Constitution L1.10 §9\n- [2] Company Standard LIABILITY-MSA-001"} />,
+    );
+    expect(html).toContain("<p class=\"ws-ask__text\">Sources</p>");
+    expect(html).toContain("<li>[1] Legal Constitution L1.10 §9</li>");
+    expect(html).toContain("<li>[2] Company Standard LIABILITY-MSA-001</li>");
+  });
+
   it("invents no markup from prose punctuation — asterisks and hashes stay text", () => {
     const html = renderToStaticMarkup(<AnswerProse text={"# 17.2 applies *only* to fees"} />);
     expect(html).toContain("# 17.2 applies *only* to fees");

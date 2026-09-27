@@ -21499,3 +21499,34 @@ the statute it reads. Neither is a code default (rules 7, 21).
 
 --------------------------------------------------------------------------------
 AM-101: the noun "obligation" is not a mandatory modal
+
+================================================================================
+AMENDMENT BATCH AB-52 — `AM-102`
+The multi-source answer's Sources legend: one number per source, rendered as a list
+(roadmap §12, UI end to end)
+================================================================================
+
+**Owner decision, 2026-09-27** — the master RAG roadmap (`AM-79`'s owner authority);
+a presentation defect found verifying the answer end to end. Presentation only: no
+evidence, claim, check or citation target changes. No Gemini call. The UI source is
+untouched (the 2026-08-31 freeze allows defect fixes; this one needed none).
+
+**Amends, narrowly:** `AM-94` r3 (the legend's format).
+
+```text
+r1   One number per SOURCE. Markers numbered claims, so three claims of §16 were
+     three identical "§16" lines; each marker now takes its source's number in order
+     of first use, and a repeated "[1] [1]" collapses. What each sentence cites is
+     unchanged.
+
+r2   The legend is its own block of "- " lines. The answer renderer lists a block
+     only when every line is a list line, so the legend ran into one paragraph
+     ("Sources [1] … [2] …"). A single source stays one plain line.
+```
+
+**Recorded 2026-09-27.** Backend tests in test_ask_multi_source_rollout.py (the new one
+fails on `AM-101`); a frontend test renders the service's exact output through
+`AnswerProse` and finds the list items.
+
+--------------------------------------------------------------------------------
+AM-102: the Sources legend — one number per source, rendered as a list

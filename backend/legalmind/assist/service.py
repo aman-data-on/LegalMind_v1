@@ -1453,24 +1453,30 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
     from legalmind.assist import answer as answer_mod
 
     by_ref = {s.ref: s for s in bundle.shown()}
-    order: list[int] = []
+    # One number per SOURCE, not per claim: three claims of §16 were listed as three
+    # identical "§16" lines in the legend (2026-09-27).
+    refs: list[str] = []
     for m in re.finditer(r"\[(\d{1,2})\]", ans.text):
         n = int(m.group(1))
-        if 1 <= n <= len(ans.refs) and n not in order:
-            order.append(n)
-    renumber = {n: i for i, n in enumerate(order, 1)}
+        if 1 <= n <= len(ans.refs) and ans.refs[n - 1] not in refs:
+            refs.append(ans.refs[n - 1])
 
     def _marker(m: re.Match) -> str:                  # [A]/[M]: removed with their comma
         key = m.group(1)
-        return f" [{renumber[int(key)]}]" if key and int(key) in renumber else ""
+        ok = key and 1 <= int(key) <= len(ans.refs)
+        return f" [{refs.index(ans.refs[int(key) - 1]) + 1}]" if ok else ""
     text_out = _ANSWER_MARKER.sub(_marker, ans.text).strip()
-    refs = [ans.refs[n - 1] for n in order]
+    text_out = re.sub(r"(\[\d{1,2}\])(?:\s?\1)+", r"\1", text_out)   # "[1] [1]" → "[1]"
     labels = []
     for i, ref in enumerate(refs, 1):
         source = by_ref.get(ref)
         labels.append(f"[{i}] " + (answer_mod.citation(source) if source else ref))
     if labels:
-        text_out += "\n\nSources\n" + "\n".join(labels)
+        # Its own block, one "- " line per source: the answer renderer lists a block
+        # only when every line is a list line, so "Sources" on the first line ran the
+        # whole legend into one paragraph ("Sources [1] … [2] …").
+        text_out += "\n\nSources\n\n" + "\n".join(
+            f"- {x}" if len(labels) > 1 else x for x in labels)
     return text_out, refs
 
 

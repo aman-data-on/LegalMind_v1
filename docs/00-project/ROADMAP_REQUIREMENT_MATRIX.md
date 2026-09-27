@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit AM-101. Last updated 2026-09-27.
+Baseline: commit `608cbb6` (AM-94); last unit AM-102. Last updated 2026-09-27.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -23,7 +23,7 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-101. Last updated 2026-09-27.
 | 9 | Evidence bundle: part states, kinds apart | `evidence.py` (AM-88) | `test_evidence_bundle.py` | wrong-source 0, false admission 0; floor 8 + `OFF_TOPIC` (AM-97) recall@3 0.815 → 0.864 | ✅ | — |
 | 10 | Grounded conversational generation | `generation.py`, `contract-answer-2` (AM-89/AM-94 r9) | `test_bundle_answer.py` | better on 5/6 judged | ✅ | O-03 (see §14) |
 | 11 | Claim-level verification | `verify.py` (AM-90), contract checks (AM-91–93) | `test_claim_verification.py`, `test_claim_contracts.py` | run-9 replay (65 real answers): fallbacks 14 → 2 (AM-100), bad sentences shown 2.3% of sentences, citation correctness 0.996 | 🟡 | 14 bad sentences shown in 63 answers after AM-101 (modality miss fixed); all were passed by the verifier before AM-100 too: 6 cross-reference, 4 temporal, 2 unsupported, 1 each condition, exception, contradiction. The 4 temporal ones need per-section commencement data (§14, owner) |
-| 12 | Precise citations | markers assigned by code (AM-90), legend (AM-94 r3) | `test_ask_multi_source_rollout.py` | citation correctness 0.996 | ✅ | — |
+| 12 | Precise citations | markers assigned by code (AM-90), legend (AM-94 r3) | `test_ask_multi_source_rollout.py` | citation correctness 0.996; legend one number per source, rendered as a list (AM-102) | ✅ | — |
 | 13 | Multi-source reasoning, never blended | AM-91–93 | `test_multi_source_reasoning.py` | [A]/[M] 11/11 on layered cases | ✅ | — |
 | 14 | Authority / jurisdiction / temporal behaviour | repealed status (AM-80), `wants_past`, `include_superseded`, `evidence._wrong_act` (a named section of a named Act is answered by that Act alone) | `test_evidence_bundle.py::…another_act` | H-04 historical → repealed Act; O-01/O-02 current → never repealed; H-02 no longer answered from CGST (75/76 byte-identical) | 🟡 | statute sections carry no commencement: DPDP s. 33 is shown as operative while the Constitution §28.2 records it commencing 13 May 2027 (needs the notification as source material, or an owner ruling); no NOT-YET-EFFECTIVE statute exists in the corpus to test "latest ≠ effective" beyond DPDP record status; no second jurisdiction supplied (wrong-jurisdiction proven only by router refusal) |
 | 15 | Conversation intelligence | anchor (`_resolve_follow_up`) for the retrieval query; planner fed every bounded prior question; a turn naming its own source never inherits (AM-95 r3/r4) | `test_assist_conversation_memory.py`; `test_conversation_multi_source.py` (5) | golden J 7 cases, recall@3 1.0, wrong-context 0 | ✅ | AM-97 r3: a reader's figure is stated only with its unit (a bare 6 had hidden "6 months"). Earlier fix: the §15 example was not anaphoric so production never gave the planner the prior question (the benchmark always did) — it fell back to legacy; and a 3-turn chain lost the topic. Needs golden follow-up cases (§17) for a measurement |

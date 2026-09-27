@@ -1328,3 +1328,12 @@ saying the position "requires" it passed. Only the verb forms bind now. With tha
 reading gone, one more stored answer shows in full, and two of its DPDP s. 33 sentences
 omit that the penalties commence only on 13 May 2027. The verifier cannot catch that,
 because the corpus has no per-section commencement data. That needs the owner.
+
+## 2026-09-27 — Entry 26: the Sources legend reads as a list (`AM-102`)
+
+Checking the new answer as the interface shows it found two presentation faults. The
+legend under an answer numbered claims, not sources, so one Constitution section could
+appear three times. The legend was also one block starting with "Sources", which the
+answer view renders as a single run-on paragraph. Each source now has one number, and
+the legend is its own list, which the existing view already knows how to show. No
+interface code changed. The status documents now record the whole roadmap effort.
