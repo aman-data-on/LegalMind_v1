@@ -28,6 +28,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Bell,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -111,3 +112,4 @@ export const IconX = decorative(X);
 export const IconPlus = decorative(Plus);
 export const IconPaperclip = decorative(Paperclip);
 export const IconMessage = decorative(MessageSquare);
+export const IconBell = decorative(Bell);
