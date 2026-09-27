@@ -1348,3 +1348,13 @@ topic the question names may now answer for the company position. The same run s
 a restatement split inside a parenthesis. Records now split only between their own
 sentences, never at an ellipsis or into an empty piece. Asked again, it answers from
 §14 in one Gemini call and about 10 seconds.
+
+## 2026-09-27 — Entry 28: the records brought up to date
+
+A check of every record file found stale figures in three status documents. They said
+fallbacks fell from 14 to 2 with 14 bad sentences, still listed K-05 as open, and quoted
+category recall from before `AM-103`. They now carry the measured figures: fallbacks
+14 → 1, 16 of 571 bad sentences with each judged exactly as before, and category recall
+re-run at `AM-103`. They also stop calling the branch release-ready. A security review,
+a fresh migration and rollback rehearsal, a trace check and CI are still owed. The
+CLAUDE.md narrative now covers `AM-97` to `AM-103`, and HANDOFF.md points to the tracker.
