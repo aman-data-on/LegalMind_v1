@@ -152,6 +152,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                embed_query=None) -> Pool:
     from legalmind.assist import embedding_runtime
 
+    lexical_only = embed_query is None and not embedding_runtime.available()
     embed_query = embed_query or embedding_runtime.embed_query
     allowed = _authorized(route, permissions)
     pool = Pool(primary={d for routed in route.domains
@@ -163,6 +164,14 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
         for lane in sub.lanes:
             for domain in LANE_DOMAINS.get(lane, ()):
                 jobs.append((domain, sub.query, (lane,)))
+                # With no vectors, its topic phrase alone as well: lexical-only, "early
+                # exit fixed-term commitment What if the customer says they were
+                # promised 6 months?" ranked §27 and §31.15 above §14 on "customer" and
+                # "months", and a follow-up lost its topic (roadmap §15; CI has no
+                # model). With vectors the extra list costs recall — measured 0.952 →
+                # 0.893 (PR #121) — so it runs only in the degraded mode it repairs.
+                if lexical_only and sub.subject:
+                    jobs.append((domain, sub.subject, (lane,)))
     # The whole question is searched too, in every authorized domain its lanes reach —
     # a decomposition must be able to add recall, never remove it — and always in the
     # router's own primary domains, so a question the plan cannot place (no lane:

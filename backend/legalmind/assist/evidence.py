@@ -168,9 +168,7 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
         # deterministically from the reader's words — is scored too, and counts only
         # for a source of a KIND the plan asked for: scored for every kind it admitted
         # the Copyright Act's licence-termination section to a data-retention question.
-        subjects = list(dict.fromkeys(
-            s.query[:-len(s.text)].strip() for s in plan.sub_questions
-            if s.query.endswith(s.text) and len(s.query) > len(s.text)))
+        subjects = list(dict.fromkeys(s.subject for s in plan.sub_questions if s.subject))
         for run in (cross_encoder.scores(q, contexts) for q in subjects):
             if run:
                 scores = [max(x, run[i]) if kind_of(evidence[i].candidate) in plan.lanes

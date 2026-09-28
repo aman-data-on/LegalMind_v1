@@ -21683,3 +21683,42 @@ the owner.
 --------------------------------------------------------------------------------
 AM-104: retrieval misses fixed at their stage; commencement beside the law, labelled
 as the Constitution's date; the verifier catches what it missed
+
+================================================================================
+AMENDMENT BATCH AB-55 — `AM-105`
+CI shape: lexical-only retrieval keeps a follow-up's topic; the test pins its intent
+(roadmap §15, §18; PR #121)
+================================================================================
+
+**Owner decision, 2026-09-28** — the release authorisation for PR #121 ("review … if
+yes then take ownership and do whatever needed … merge and deploy"). Found by the
+branch's first CI run. No Gemini call.
+
+**Amends, narrowly:** `AM-86` (the candidate jobs, degraded mode only).
+
+```text
+r1   When no vector search is available (no embedder injected and the runtime has
+     no model — CI, or a production model failure), each sub-question's topic
+     phrase is also searched on its own. Lexical-only, "early exit fixed-term
+     commitment What if the customer says they were promised 6 months?" ranked §27
+     and §31.15 above §14 on "customer" and "months", so the follow-up lost its topic.
+     With vectors the extra list costs recall (0.952 → 0.893, measured and
+     rejected), so it runs only in the mode it repairs; with vectors, retrieval is
+     byte-identical to AM-104 (recall@3 0.952, hit@1 0.903).
+
+r2   `SubQuestion.subject` is the planner's topic phrase, one definition shared by
+     retrieval and the judge (which derived it inline).
+
+r3   The three-turn follow-up test accepts either home of the early-exit topic:
+     §14 (the position) or §28.4.1 (the company's reading of ss. 73/74 on
+     early-termination compensation, which "And what about the law on that?" asks
+     for). Which leads depends on vector ranking, which CI does not have.
+```
+
+Also in this change, not behaviour: SQLAlchemy pinned `<2.1` (production and every
+local run are 2.0.52; CI's fresh install took 2.1.1 and its typing failed mypy on 21
+untouched lines), and the Documents visual baseline masks the time-of-day greeting
+(`.ws-dashhero__greeting`), which failed any run at another hour than the baseline's.
+
+--------------------------------------------------------------------------------
+AM-105: lexical-only retrieval keeps a follow-up's topic; CI tests what production runs

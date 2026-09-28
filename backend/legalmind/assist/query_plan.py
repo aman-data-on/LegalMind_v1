@@ -100,6 +100,13 @@ class SubQuestion:
     lanes: tuple[str, ...]
     query: str
 
+    @property
+    def subject(self) -> str:
+        """The planner's topic phrase the query leads with, or "" when it adds none."""
+        if self.query.endswith(self.text) and len(self.query) > len(self.text):
+            return self.query[:-len(self.text)].strip()
+        return ""
+
 
 @dataclass(frozen=True)
 class QueryPlan:

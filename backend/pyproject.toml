@@ -10,7 +10,10 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "pydantic>=2.9",
-    "sqlalchemy>=2.0",
+    # <2.1: production and every local run are 2.0.52. CI installs fresh, took the
+    # 2.1.1 release on 2026-09-28, and its new typing failed mypy on 21 untouched
+    # lines (PR #121) — CI was testing a version nothing runs. Lift on purpose.
+    "sqlalchemy>=2.0,<2.1",
     "alembic>=1.13",
     "psycopg2-binary>=2.9",
     # Document parsing (locked Step 39 stack). Imported lazily inside

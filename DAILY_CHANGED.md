@@ -1405,3 +1405,15 @@ non-solicit to restraint of trade and "maximum penalty" to the Schedule's amount
 wider evidence set fixes E-03 but adds 17% more evidence to every answer, so it was
 not adopted. H-02's s. 194J is not in the accepted 1961 text. Four bad sentences are
 generation faults no deterministic check can see.
+
+## 2026-09-28 — Entry: the first CI run of the release PR (`AM-105`)
+
+PR #121 ran CI for the first time and three jobs failed, none for a reason in the new
+Ask. CI installed a new SQLAlchemy release, 2.1.1, because nothing pinned it, and its
+typing broke 21 lines no one had touched; it is now pinned to the 2.0 line production
+runs. Two conversation tests quietly relied on vector search, which CI does not have,
+and a production model failure would have lost a follow-up's topic the same way. Now,
+when no vectors are available, the topic phrase is also searched on its own. Doing
+that always was tried and cost recall, so it runs only in the degraded mode. The
+dashboard screenshot failed because the greeting says "Good morning" or "Good
+afternoon" by time of day, and it is now masked. Retrieval with vectors is unchanged.

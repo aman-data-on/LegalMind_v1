@@ -151,6 +151,11 @@ test.describe("the new UI at the freeze (counsel)", () => {
         page.locator("tbody td:first-child"),
         page.locator("tbody td:nth-child(6)"),
         page.locator("tbody td:last-child"),
+        /* The greeting is the viewer's time of day (#120's hero): the baseline read
+           "Good afternoon" and a 06:28 UTC run read "Good morning", failing a commit
+           that touched no dashboard code (PR #121, 2026-09-28). The heading is a
+           block, so its box is the same width whichever greeting it holds. */
+        page.locator(".ws-dashhero__greeting"),
       ],
     });
   });

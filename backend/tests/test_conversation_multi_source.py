@@ -103,7 +103,12 @@ def test_an_ambiguous_follow_up_keeps_the_last_self_contained_anchor(corpus, use
                                  caplog=caplog)
     third = _query(corpus, conv, 4)
     assert FIRST not in third, "the whole history is never injected into the query"
-    assert any(r.startswith("CONST:14") for r in traces[2]["evidence_refs"]), \
+    # The early-exit topic has two homes: §14 (the position) and §28.4.1 (the
+    # company's reading of Contract Act ss. 73/74 on early-termination compensation).
+    # "And what about the law on that?" asks for the second; which of the two leads
+    # depends on vector ranking, which CI does not have (2026-09-28, PR #121).
+    assert any(r.startswith(("CONST:14", "CONST:28.4.1"))
+               for r in traces[2]["evidence_refs"]), \
         "three turns on, the first turn's topic still carries"
 
 
