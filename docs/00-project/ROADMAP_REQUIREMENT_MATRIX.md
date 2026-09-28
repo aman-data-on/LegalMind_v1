@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit **AM-106** (one Ask for every reader, built and validated, **not yet in production**). Production runs `ad0b3a5` with the 10% canary until the owner authorises AM-106. Last updated 2026-09-28.
+Baseline: commit `608cbb6` (AM-94); last unit **AM-106** (one Ask for every reader, **deployed 2026-09-28**, `c9a2876`). Production runs every Ask conversation on the verified path. Last updated 2026-09-28.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -51,7 +51,9 @@ Baseline: commit `608cbb6` (AM-94); last unit **AM-106** (one Ask for every read
 
 Widen the share on trace evidence (`selected_path` vs `path`, `fallback_kind`, `latency_ms`). Rollback: `LEGALMIND_ASK_MULTI_SOURCE=off` in `/root/.legalmind.env` and `systemctl restart legalmind-api`; the pre-canary env file is kept at `/root/.legalmind/preserved/`.
 
-## One Ask for every reader (`AM-106`, 2026-09-28) — built and validated, awaiting production authorisation
+## One Ask for every reader (`AM-106`, 2026-09-28) — DEPLOYED 2026-09-28
+
+**DEPLOYED 2026-09-28** — PR #123 merge `c9a2876`; the canary lines removed from `/root/.legalmind.env` (backup `/root/.legalmind/preserved/legalmind.env.before-am106-2026-09-28`); live check on production, writes rolled back: `flag` `on`, a no-document and a document question both `selected_path` `multi_source`, ANSWERED in one Gemini call each (9.3 s, 15.8 s), the document answer with 4 clause citations.
 
 The owner withdrew the 10% canary: every authorised reader, with or without a document, gets the verified path. `LEGALMIND_ASK_MULTI_SOURCE` defaults to `on`; `off` is the emergency rollback, `no_document` a partial rollback; the share and the hash are removed.
 

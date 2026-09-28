@@ -11,6 +11,7 @@
 > was withdrawn. There is no percentage, no conversation hash and no cohort: every
 > conversation, with or without a document, takes the verified path unless production is
 > deliberately rolled back.
+> **DEPLOYED 2026-09-28** — PR #123 merge `c9a2876`; the canary lines removed from `/root/.legalmind.env` (backup `/root/.legalmind/preserved/legalmind.env.before-am106-2026-09-28`); live check on production, writes rolled back: `flag` `on`, a no-document and a document question both `selected_path` `multi_source`, ANSWERED in one Gemini call each (9.3 s, 15.8 s), the document answer with 4 clause citations.
 
 `LEGALMIND_ASK_MULTI_SOURCE` selects the Ask path (`config.ask_multi_source`):
 
