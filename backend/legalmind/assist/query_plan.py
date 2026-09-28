@@ -199,6 +199,7 @@ def plan(question: str, *, has_document: bool | None = None,
     subject = lexical.subject if lexical else ""
     sentences = [s for s in _SENTENCE.split(text) if s.strip()]
     claims = tuple(s for s in sentences if _CLAIM.search(s))
+    document_lane = {CONTRACT} if has_document else set()
     subs: list[SubQuestion] = []
     for sentence in sentences:
         for part in _CLAUSE.split(sentence):
@@ -206,7 +207,12 @@ def plan(question: str, *, has_document: bool | None = None,
             asks = part.endswith("?") or bool(_QUESTION.match(part))
             if not asks or (part in claims and not part.endswith("?")):
                 continue            # context, not a question: a claim or a statement
-            lanes = _lanes(part, topic)
+            # With a document open, the reader asks about that document first: every
+            # part carries the CONTRACT lane, so the document is searched and selected
+            # as a source in its own right, not as a one-slot extra — 26 of 44 ratified
+            # document questions missed their clause without it (2026-09-28; the
+            # judge still decides whether any clause is relevant).
+            lanes = _lanes(part, topic) | document_lane
             # The whole question's topic carries into a part that does not name one
             # ("Does it specify 6 months …?" is still about early exit); a part that
             # names its own keeps it: "Our liability cap does not apply to indemnity.
@@ -216,7 +222,7 @@ def plan(question: str, *, has_document: bool | None = None,
                                          part) if x)
             subs.append(SubQuestion(part, tuple(sorted(lanes)), query))
     if not subs:
-        subs = [SubQuestion(text, tuple(sorted(_lanes(text, topic))),
+        subs = [SubQuestion(text, tuple(sorted(_lanes(text, topic) | document_lane)),
                             " ".join(x for x in (subject, text) if x))]
     # Context sentences (a claim, "we cannot find the signed copy") add their lanes to
     # the plan without becoming questions of their own.

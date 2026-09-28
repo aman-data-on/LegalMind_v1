@@ -59,3 +59,14 @@ def test_a_claim_about_signed_paper_opens_the_historical_record():
     q = "A client says their signed MSA mentions 6 months. What is our policy?"
     assert Q.HISTORICAL_EXCEPTION in Q.plan(q).lanes
     assert Q.HISTORICAL_EXCEPTION not in Q.plan("What is our early exit policy?").lanes
+
+
+def test_with_a_document_open_every_part_asks_the_document():
+    """`AM-106`: 26 of 44 ratified document questions missed their clause because the
+    plan gave them only the company-position lane; the document entered as a one-slot
+    extra. Without a document the lane is not added."""
+    q = "Can we walk away from the agreement before it expires, and what would it cost us?"
+    with_doc = Q.plan(q, has_document=True)
+    assert all(Q.CONTRACT in s.lanes for s in with_doc.sub_questions)
+    without = Q.plan("What is our liability cap?", has_document=False)
+    assert all(Q.CONTRACT not in s.lanes for s in without.sub_questions)

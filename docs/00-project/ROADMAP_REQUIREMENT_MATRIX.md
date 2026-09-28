@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit AM-105. **Deployed to production 2026-09-28 (`ad0b3a5`), canary 10%.** Last updated 2026-09-28.
+Baseline: commit `608cbb6` (AM-94); last unit **AM-106** (one Ask for every reader, built and validated, **not yet in production**). Production runs `ad0b3a5` with the 10% canary until the owner authorises AM-106. Last updated 2026-09-28.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -27,7 +27,7 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-105. **Deployed to production 2
 | 13 | Multi-source reasoning, never blended | AM-91–93 | `test_multi_source_reasoning.py` | [A]/[M] 11/11 on layered cases | ✅ | — |
 | 14 | Authority / jurisdiction / temporal behaviour | repealed status (AM-80), `wants_past`, `include_superseded`, `_wrong_act`; commencement records from Constitution §28.2 (AM-104 r4) | `test_evidence_bundle.py::…another_act`, `test_retrieval_misses_am104.py` | DPDP s. 33/Schedule shown NOT YET IN FORCE until 13 May 2027 (live F-05, O-05, J-04), labelled as the Constitution's date | ✅ | tranche 3's described (unnumbered) obligations carry no record (rule 7); the Gazette notification is not in the supplied material; no second jurisdiction supplied |
 | 15 | Conversation intelligence | anchor (`_resolve_follow_up`) for the retrieval query; planner fed every bounded prior question; a turn naming its own source never inherits (AM-95 r3/r4) | `test_assist_conversation_memory.py`; `test_conversation_multi_source.py` (5) | golden J 7 cases, recall@3 1.0, wrong-context 0 | ✅ | AM-97 r3: a reader's figure is stated only with its unit (a bare 6 had hidden "6 months"). Earlier fix: the §15 example was not anaphoric so production never gave the planner the prior question (the benchmark always did) — it fell back to legacy; and a 3-turn chain lost the topic. Needs golden follow-up cases (§17) for a measurement |
-| 16 | Evaluation per layer | `rag_benchmark.py` (retrieval + wrong-source/false-admission per stage and category), `eval_generation.py` (generation) | — | recall@3/10, hit@1, MRR, nDCG@5, wrong-source, false admission per stage | ✅ | conversation metrics are category J of the same tool; no separate tool needed |
+| 16 | Evaluation per layer | `rag_benchmark.py` (retrieval + wrong-source/false-admission per stage and category), `eval_generation.py` (generation), **`benchmark_document_lane.py` (the document lane, AM-106)** | — | recall@3/10, hit@1, MRR, nDCG@5, wrong-source, false admission per stage | ✅ | conversation metrics are category J of the same tool; no separate tool needed |
 | 17 | Permanent golden suite A–O | `tests/assist_eval/rag_benchmark.json` (81 cases) | benchmark tool | O-05 (DPDP commencement) and O-06 (s. 70B) added; B-05 accepts §16, F-05's Schedule ref corrected (AM-104) | ✅ | misses left: E-03, F-05, O-05 statute slot (cross-encoder), H-02 (s. 194J not in the accepted text) |
 | 18 | Deployment discipline | flag + canary share + trace + rollback (AM-94); egress audited on failure, trace failures as kinds (AM-104 r8) | `test_ask_multi_source_rollout.py` | migrations down/up twice + Constitution (701/404) and statute (5,011, `section-5`) ingestion rehearsed 2026-09-28 on a clone of the AM-94 prod-like copy; idle rerank p50/p95 866/1,084 ms; live generation p50 2.8 s; browser Ask 6–21 s per answer through a production-like proxy (host partly loaded); `assist.ask.trace` fields checked on real requests (path, fallback_kind, gemini_calls, latency, verify/gemini/prepare ms; no text) | 🟡 | a FRESH production snapshot for the rehearsal was not taken (dumping production needs owner authorisation); production steps need the owner |
 | 20 | Definition of done | branch `feat/legalmind-rag-production`, main merged in locally (clean) | backend 2747 passed / 112 skipped / 0 failed; frontend 531 passed; ruff, mypy, tsc, forbidden-terms clean | golden recall@3 0.951 (79) / 0.952 (81), wrong-source 0, false admission 0; run-9 replay bad shown 0.7%, fallbacks 2/65; live 18/20 in one call; real browser upload → review → findings → Ask → history → 390 px clean; security review done (3 fixes, AM-104 r8); migration + ingestion rehearsed; trace fields checked | ✅ | **released 2026-09-28**: PR #121 merged at `ad0b3a5` after CI 15/15 green (run 3; runs 1–2 fixed by AM-105), deployed, production migrated, Constitution and statutes ingested, canary `no_document` at 10%. Production search matches the validated corpus exactly (recall@3 0.952). Residuals: item 3 of Open work |
@@ -50,3 +50,16 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-105. **Deployed to production 2
 6. Canary: `LEGALMIND_ASK_MULTI_SOURCE=no_document`, `LEGALMIND_ASK_MULTI_SOURCE_PERCENT=10`, API restarted. Live check (production code and DB, forced path in one process, all writes rolled back, 3 Gemini calls): 3/3 answered on the new path in one call, 4.6–9.1 s; the DPDP answer says NOT in force until 13 May 2027, credited to the Constitution.
 
 Widen the share on trace evidence (`selected_path` vs `path`, `fallback_kind`, `latency_ms`). Rollback: `LEGALMIND_ASK_MULTI_SOURCE=off` in `/root/.legalmind.env` and `systemctl restart legalmind-api`; the pre-canary env file is kept at `/root/.legalmind/preserved/`.
+
+## One Ask for every reader (`AM-106`, 2026-09-28) — built and validated, awaiting production authorisation
+
+The owner withdrew the 10% canary: every authorised reader, with or without a document, gets the verified path. `LEGALMIND_ASK_MULTI_SOURCE` defaults to `on`; `off` is the emergency rollback, `no_document` a partial rollback; the share and the hash are removed.
+
+| Evidence | Result |
+|---|---|
+| Document lane, 44 ratified answerable questions (`benchmark_document_lane.py`) | gold clause shown 18 → **38** (previous path 41 in its document top-10); not-found questions admitting document text **0 of 10** |
+| No-document golden benchmark | unchanged: recall@3 0.952, wrong-source 0, false admission 0 |
+| Real API scenarios, no flag set | 9 of 9 selected the verified path; 8 answered by it, the nonsense question declined into the standard refusal; document answers carry page/clause citations; a reloaded history keeps them |
+| Real browser, fresh upload | answer leads with MSA §7.2; 4 live citation links; "Sources — this document" §7.2 p.7, §7.3 p.7 |
+
+**Production change required (owner authorisation):** merge, remove `LEGALMIND_ASK_MULTI_SOURCE` and `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` from `/root/.legalmind.env`, deploy. **Rollback:** `LEGALMIND_ASK_MULTI_SOURCE=off` and an API restart — never by deleting the line, which now means `on`. **Remaining:** follow-up topic drift; 3 document clauses the previous path's top-10 reaches and the verified path does not; 7–30 s per answer.

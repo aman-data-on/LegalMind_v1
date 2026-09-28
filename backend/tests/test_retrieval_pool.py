@@ -194,3 +194,60 @@ def test_a_section_on_the_asked_topic_answers_for_the_position_whatever_matched(
         primary={"CONSTITUTION"})
     refs = [c.ref for c in retrieval.select(pool, plan)]
     assert "CONST:14" in refs and "CONST:9" not in refs
+
+
+def test_the_document_lane_takes_two_picks_a_round():
+    """`AM-106`: a document conversation's own document gets its share of the evidence
+    even for a question the planner reads as a company-position question — before, the
+    document was a one-slot extra (1 of 8 units here)."""
+    plan = query_plan.plan("Can we walk away before it expires, and what would it cost us?",
+                           has_document=True)
+    docs = [Candidate("DOCUMENT", f"DOC:{i}", None, "", 1.0,
+                      lanes=(query_plan.CONTRACT,)) for i in range(6)]
+    lane = (query_plan.COMPANY_POSITION,)
+    pool = Pool(by_domain={
+        "DOCUMENT": docs,
+        "POSITIONS": [Candidate("POSITIONS", f"POS:P{i}", None, "", 1.0,
+                                "COMPANY_STANDARD", lanes=lane) for i in range(6)],
+        "CONSTITUTION": [Candidate("CONSTITUTION", f"CONST:{i}", None, "", 1.0,
+                                   "COMPANY_CONSTITUTION", lanes=lane) for i in range(6)],
+        "STATUTES": [Candidate("STATUTES", f"STAT:Act:{i}", None, "", 1.0,
+                               lanes=(query_plan.LAW,)) for i in range(6)]},
+        primary={"DOCUMENT", "POSITIONS", "CONSTITUTION"})
+    refs = [c.ref for c in retrieval.select(pool, plan, k=8)]
+    assert sum(r.startswith("DOC:") for r in refs) >= 3, refs
+
+
+def test_the_document_gate_gets_the_pin_and_the_rescue_of_the_previous_path(monkeypatch):
+    """`AM-106`: the gate on the reader's own question is opened by a Finding's cited
+    clauses, or by the rescue judge when it is shut — `service.retrieve_document`'s
+    two openings — and by nothing else."""
+    import dataclasses
+    import uuid
+
+    from legalmind.assist import rescue, store
+    shut = store.RetrievalOutcome(hits=[], gate_open=False, lexical_hit=False,
+                                  vector_top_score=None, vector_peak_gap=None,
+                                  strategy_version="t", embedding_model=None)
+    monkeypatch.setattr(store, "search_hybrid", lambda *a, **k: shut)
+    asked = []
+    monkeypatch.setattr(rescue, "reconsider",
+                        lambda r, q, **k: asked.append(q) or dataclasses.replace(r))
+    pool = Pool()
+    retrieval._search(None, "DOCUMENT", "q", permissions=frozenset(), route=None,
+                      document_version_id=uuid.uuid4(), embed_query=None, pool=pool,
+                      question="q")
+    assert asked == ["q"] and pool.document_gate is False, "a refused rescue stays shut"
+    asked.clear()
+    retrieval._search(None, "DOCUMENT", "q plus topic", permissions=frozenset(),
+                      route=None, document_version_id=uuid.uuid4(), embed_query=None,
+                      pool=pool, question="q")
+    assert asked == [], "only the reader's own question decides the gate"
+    cited = store.SearchHit(uuid.uuid4(), uuid.uuid4(), "the cited clause", None, "7",
+                            None, "DOCUMENT", 1.0)
+    monkeypatch.setattr(store, "chunks_for_evidence", lambda *a, **k: [cited])
+    out = retrieval._search(None, "DOCUMENT", "q", permissions=frozenset(), route=None,
+                            document_version_id=uuid.uuid4(), embed_query=None,
+                            pool=pool, question="q", pinned_evidence=(uuid.uuid4(),))
+    assert pool.document_gate is True and out[0].ref == f"DOC:{cited.chunk_id}"
+    assert asked == [], "a pinned Finding needs no rescue"

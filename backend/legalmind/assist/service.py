@@ -24,7 +24,6 @@ import contextlib
 import contextvars
 import dataclasses
 import functools
-import hashlib
 import logging
 import os
 import re
@@ -851,7 +850,6 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     usage: dict[str, Any] = {}
     trace: dict[str, Any] = {"selected_path": LEGACY, "path": LEGACY,
                              "flag": config.ask_multi_source(),
-                             "canary_percent": config.ask_multi_source_percent(),
                              "has_document": document_version_id is not None}
     token = _TIMINGS.set(timings)
     usage_token = generation.USAGE.set(usage)
@@ -901,21 +899,13 @@ def _emit_trace(trace: dict, usage: dict, timings: dict, outcome: AskOutcome,
               stages_ms={k: v for k, v in timings.items() if k != "total"})
 
 
-def _ask_path(document_version_id: UUID | None, conversation_id: UUID | None = None
-              ) -> str:
-    """`LEGALMIND_ASK_MULTI_SOURCE`: off → legacy for all; no_document → the
-    multi-source path only where no document is in the conversation; on → all — and
-    within that, `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` of conversations, chosen by a
-    stable hash of the conversation id (the canary dial; 100 by default)."""
+def _ask_path(document_version_id: UUID | None) -> str:
+    """`LEGALMIND_ASK_MULTI_SOURCE` (`AM-106`): on (default) → the multi-source path
+    for every conversation; no_document → it only where no document is in scope;
+    off → the previous path for all. No share, no hash, no cohort."""
     flag = config.ask_multi_source()
     if flag == "on" or (flag == "no_document" and document_version_id is None):
-        share = config.ask_multi_source_percent()
-        if share >= 100:
-            return MULTI_SOURCE
-        if share > 0 and conversation_id is not None:
-            digest = hashlib.sha256(str(conversation_id).encode()).digest()
-            if int.from_bytes(digest[:2], "big") % 100 < share:
-                return MULTI_SOURCE
+        return MULTI_SOURCE
     return LEGACY
 
 
@@ -1103,7 +1093,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # knowledge, capability, unmet prerequisite, the evaluator's question), none of
     # which it changes. `None` means the multi-source path declined, and the question
     # continues below exactly as it always has.
-    if _ask_path(document_version_id, conversation_id) == MULTI_SOURCE:
+    if _ask_path(document_version_id) == MULTI_SOURCE:
         multi = _ask_multi_source(
             db, conversation_id=conversation_id, user_message_id=user_message_id,
             question=question, resolved=resolved, prior_texts=prior_texts,
@@ -1115,7 +1105,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
             route=route,
             domains=domains, permissions=permissions,
             document_version_id=document_version_id, position_hits=position_hits,
-            statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id)
+            statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id,
+            pinned_evidence=cited_evidence)
         if multi is not None:
             return multi
 
@@ -1321,7 +1312,9 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                       domains: tuple[str, ...], permissions: frozenset[str],
                       document_version_id: UUID | None, position_hits: list,
                       statute_hits: list, follow_up_of: list[UUID],
-                      request_id: str | None) -> AskOutcome | None:
+                      request_id: str | None,
+                      pinned_evidence: list[UUID] | tuple[UUID, ...] = (),
+                      ) -> AskOutcome | None:
     """The validated PHASE 9–12 path (`AM-85`–`AM-93`) in production: plan → broad
     authorized candidates → rerank → evidence bundle → claim contracts → Gemini →
     every check → the verified answer.
@@ -1361,7 +1354,8 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                                    prior=tuple(topic_context))
         with _stage("retrieval"):
             pool = retrieval.candidates(db, plan, route, permissions=permissions,
-                                        document_version_id=document_version_id)
+                                        document_version_id=document_version_id,
+                                        pinned_evidence=tuple(pinned_evidence))
         with _stage("rerank"):
             pool = retrieval.rerank(pool, plan)
         bundle = evidence_mod.build(db, plan, pool, retrieval.select(pool, plan))
@@ -1417,6 +1411,17 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                                              generation.CONTRACT_PROMPT_TEMPLATE),
         latency_ms=ans.latency_ms)
     _persist_position_citations(db, answer_id, cited_positions)
+    # The document's cited clauses as citations, in marker order ([1]..[d]), recorded
+    # in `answer_citations` so a reloaded conversation shows the same links.
+    doc_hits = store.chunks_by_id(
+        db, document_version_id=document_version_id,
+        chunk_ids=[UUID(r.removeprefix("DOC:")) for r in cited_refs
+                   if r.startswith("DOC:")]) if document_version_id else []
+    _persist_citations(db, answer_id, list(range(1, len(doc_hits) + 1)), doc_hits)
+    citations = [CitationView(chunk_id=h.chunk_id, evidence_id=h.evidence_id,
+                              page_number=h.page_number, section_ref=h.section_ref,
+                              excerpt=h.content[:240], text=h.content,
+                              retrieval_score=h.retrieval_score) for h in doc_hits]
     statute_section = None
     if cited_statutes:
         cited_idx = list(range(1, len(cited_statutes) + 1))
@@ -1431,6 +1436,7 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
               positions=str(len(cited_positions)))
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=text_out,
+                      citations=citations,
                       positions=_position_views(cited_positions), domains=domains,
                       statutes=statute_section)
 
@@ -1472,6 +1478,11 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
         n = int(m.group(1))
         if 1 <= n <= len(ans.refs) and ans.refs[n - 1] not in refs:
             refs.append(ans.refs[n - 1])
+    # The reader's own document first (`AM-106`): its clauses take [1]..[d], so they
+    # line up with the answer's `citations` — the list the document view links a
+    # marker to — and the Constitution, standards and law follow in the legend.
+    refs = [r for r in refs if r.startswith("DOC:")] + \
+        [r for r in refs if not r.startswith("DOC:")]
 
     def _marker(m: re.Match) -> str:                  # [A]/[M]: removed with their comma
         key = m.group(1)
@@ -1481,6 +1492,8 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
     text_out = re.sub(r"(\[\d{1,2}\])(?:\s?\1)+", r"\1", text_out)   # "[1] [1]" → "[1]"
     labels = []
     for i, ref in enumerate(refs, 1):
+        if ref.startswith("DOC:"):
+            continue        # the document's clauses are the answer's citation cards
         source = by_ref.get(ref)
         labels.append(f"[{i}] " + (answer_mod.citation(source) if source else ref))
     if labels:

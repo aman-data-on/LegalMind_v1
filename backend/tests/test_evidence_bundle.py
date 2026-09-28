@@ -197,3 +197,16 @@ def test_a_standard_on_another_topic_is_never_evidence(relevance):
     suspend = query_plan.plan("Can we suspend service immediately, without the 30-day "
                               "cure period?", has_document=False)
     assert evidence.build(None, suspend, Pool(), [cure]).sources[0].reason is None
+
+
+def test_an_open_document_gate_admits_a_clause_the_cross_encoder_scores_low(relevance):
+    """`AM-106`: the web-trained cross-encoder scores lay questions against contract
+    drafting at -5 to -11, below its floor, so gold clauses the document's own gate had
+    opened for were rejected. The gate decides; a shut gate still refuses."""
+    relevance["the customer shall have no right to terminate before the term"] = -9.0
+    doc = _c("DOCUMENT", "DOC:1", "the customer shall have no right to terminate before the term")
+    plan = query_plan.plan("Can we walk away before it expires?", has_document=True)
+    assert evidence.build(None, plan, Pool(document_gate=True), [doc]).sources[0].reason \
+        is None
+    assert evidence.build(None, plan, Pool(document_gate=False), [doc]).sources[0].reason \
+        == "DOCUMENT_GATE_CLOSED"
