@@ -21722,3 +21722,9 @@ untouched lines), and the Documents visual baseline masks the time-of-day greeti
 
 --------------------------------------------------------------------------------
 AM-105: lexical-only retrieval keeps a follow-up's topic; CI tests what production runs
+
+AM-105 correction (2026-09-28, same PR): the Documents visual baseline does NOT mask
+the greeting. A mask was tried and failed CI again, because the heading's box is as
+wide as the greeting it holds ("Good morning" and "Good afternoon" differ). Instead
+that one shot runs in a fixed-offset browser zone where it is 15:00 at test time, so
+the greeting always matches the existing baseline; no baseline image was replaced.

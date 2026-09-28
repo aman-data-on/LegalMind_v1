@@ -1416,4 +1416,4 @@ and a production model failure would have lost a follow-up's topic the same way.
 when no vectors are available, the topic phrase is also searched on its own. Doing
 that always was tried and cost recall, so it runs only in the degraded mode. The
 dashboard screenshot failed because the greeting says "Good morning" or "Good
-afternoon" by time of day, and it is now masked. Retrieval with vectors is unchanged.
+afternoon" by time of day. Masking it failed, because the heading is as wide as its greeting, so that one screenshot now runs in a zone where it is afternoon. Retrieval with vectors is unchanged.
