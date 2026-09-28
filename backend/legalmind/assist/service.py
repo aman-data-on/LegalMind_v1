@@ -1383,26 +1383,18 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                     template=generation.CONTRACT_PROMPT_TEMPLATE)))
     except Exception as exc:                  # the legacy path is the proven one
         savepoint.rollback()
+        _audit_calls(db, calls, conversation_id, request_id, 0)   # egress happened
         _trace(path=LEGACY, fallback_kind=f"multi_source_error:{type(exc).__name__}")
         log_event("assist.ask.multi_source_failed", level=logging.WARNING,
                   request_id=request_id, error=type(exc).__name__,
                   conversation_id=str(conversation_id), operational_failure=True)
         return None
-    # AM-30 t5 — every egress audited, whether or not its text is shown.
-    from legalmind.security import audit as audit_log
-    for result in calls:
-        audit_log.record(
-            db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
-            entity_id=conversation_id, request_id=request_id,
-            after={"model": result.model, "prompt_version": result.prompt_version,
-                   "payload_sha256": result.payload_sha256,
-                   "evidence_chunks": len(ans.refs)})
+    _audit_calls(db, calls, conversation_id, request_id, len(ans.refs))
     _trace(generated=ans.generated, gemini_ms=ans.latency_ms, prepare_ms=ans.prepare_ms,
            verify_ms=ans.verify_ms, verifier=config.nli_model_repo(),
            verifier_revision=config.nli_model_revision(),
            provider_finish=ans.finish_reason,
-           verification_failures=sorted({f.split(":")[0].split(" of [")[0][:60]
-                                         for f in ans.failures}))
+           verification_failures=sorted({_failure_kind(f) for f in ans.failures}))
     if not ans.generated:
         savepoint.commit()
         _trace(path=LEGACY, fallback_kind="multi_source_not_verified")
@@ -1441,6 +1433,26 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                       answer_state=AssistAnswerState.ANSWERED, text=text_out,
                       positions=_position_views(cited_positions), domains=domains,
                       statutes=statute_section)
+
+
+def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -> None:
+    """AM-30 t5 — every egress audited, whether or not its text is shown, and also
+    when the path fails after the provider returned (it fell back unaudited before)."""
+    from legalmind.security import audit as audit_log
+    for result in calls:
+        audit_log.record(
+            db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
+            entity_id=conversation_id, request_id=request_id,
+            after={"model": result.model, "prompt_version": result.prompt_version,
+                   "payload_sha256": result.payload_sha256,
+                   "evidence_chunks": evidence_chunks})
+
+
+def _failure_kind(failure: str) -> str:
+    """A verification failure's KIND for the trace — cut before any quoted, cited or
+    bracketed part, so no evidence text reaches the log ("antecedent of 'that sum' in
+    [2] lost ('...')" kept 60 characters of source text before)."""
+    return re.split(r"""[:(\["]| '| of \[""", failure, maxsplit=1)[0].strip()[:60]
 
 
 def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:

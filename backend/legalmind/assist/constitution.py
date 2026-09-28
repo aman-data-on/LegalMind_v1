@@ -246,10 +246,13 @@ def _source(db, schema, version, status, path, sha, supersedes=None, effective_t
     return new_id
 
 
-def item_for_section(db: DBSession, section: str):
+def item_for_section(db: DBSession, section: str, *, permissions: frozenset[str]):
     """The current Constitution's heading item for a section path — how a ratified
     standard's `configuration.constitution.section` points back to its source and
-    surrounding context (roadmap §1). None when the section does not exist."""
+    surrounding context (roadmap §1). None when the section does not exist, or when the
+    caller may not read company positions (LEGAL-02, checked here as every search is)."""
+    if not can_search(permissions):
+        return None
     schema = config.assist_schema()
     return db.execute(text(f"""
         SELECT i.id, i.clause FROM "{schema}".knowledge_items i

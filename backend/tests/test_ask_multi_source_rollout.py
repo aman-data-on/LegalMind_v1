@@ -295,3 +295,27 @@ def test_claims_of_one_source_share_one_number_in_the_legend():
     assert refs == ["CONST:16", "POS:X-1"]
     assert text_out.startswith("Notice [1]. Position [2]. Cure [1].")
     assert text_out.endswith("Sources\n\n- [1] label of CONST:16\n- [2] label of POS:X-1")
+
+
+def test_an_error_after_the_provider_returned_still_audits_the_call(
+        db, user, tmp_path, monkeypatch):
+    """AM-30 t5: the egress happened, so it is audited even when the new path then
+    fails and the legacy answer is shown (security review, `AM-104`)."""
+    from legalmind.assist import answer
+    _synthetic_statute(db, tmp_path)
+    _flag(monkeypatch, "no_document")
+    monkeypatch.setattr(answer, "verify_answer",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    _ask(db, user)
+    versions = db.execute(text("SELECT after_state->>'prompt_version' FROM audit_events "
+                               "WHERE action = :a"),
+                          {"a": "assist.generation_called"}).scalars().all()
+    assert "offline" in versions, versions   # the stub's own call, audited
+
+
+def test_a_failure_quoting_evidence_reaches_the_trace_as_its_kind_only():
+    said = ("antecedent of 'that sum' in [2] lost ('the fee of five lakh rupees'): "
+            "'The fee is payable'")
+    assert service._failure_kind(said) == "antecedent of"
+    assert service._failure_kind("temporal status of [1] lost ('NOT YET')") == \
+        "temporal status"

@@ -182,11 +182,18 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
             continue
         seen.add((domain, query))
         pool.searched.add(domain)
+        listed: set[str] = set()
         for rank, c in enumerate(_search(db, domain, query, permissions=permissions,
                                          route=route,
                                          document_version_id=document_version_id,
                                          embed_query=embed_query, pool=pool,
                                          question=plan.question), 1):
+            # A source counts once per list, at its best rank: §18's four sub-headings
+            # share one section number, and summing them put four long sections above
+            # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
+            if c.ref in listed:
+                continue
+            listed.add(c.ref)
             scores = fused.setdefault(domain, {})
             scores[c.ref] = scores.get(c.ref, 0.0) + 1 / (calibration.RRF_K + rank)
             kept = best.setdefault(domain, {})
@@ -198,7 +205,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
     if named and CONSTITUTION in allowed:
         for section in named:
             ref = f"CONST:{section}"
-            hit = constitution.item_for_section(db, section)
+            hit = constitution.item_for_section(db, section, permissions=permissions)
             if hit is not None:
                 fused.setdefault(CONSTITUTION, {})[ref] = 1.0
                 best.setdefault(CONSTITUTION, {}).setdefault(
@@ -233,7 +240,8 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
     reranked: dict[str, list[Candidate]] = {}
     for domain, cands in pool.by_domain.items():
         head, tail = cands[:RERANK_DEPTH], cands[RERANK_DEPTH:]
-        scores = (cross_encoder.scores(plan.question, [f"{c.note}. {c.text}" if c.note
+        scores = (cross_encoder.scores(statute_corpus.with_agency_names(plan.question),
+                                       [f"{c.note}. {c.text}" if c.note
                                                         else c.text for c in head])
                   if domain in RERANK_DOMAINS else None)
         if scores is None:

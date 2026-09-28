@@ -240,8 +240,10 @@ def _match(pattern, term: str, text_in: str, lowered: str) -> tuple[bool, bool]:
     the topic. "Already said it" is per DISTINCTIVE word, not the whole phrase: a
     reader who typed "liability" already has that lexical pass, and a second list of
     "limitation of liability cap" only dilutes the gold share."""
+    # At a word's start: "force" inside "enforceable" placed a DPDP penalty question
+    # under Force Majeure (golden O-05, `AM-104`).
     return (bool(pattern.search(text_in)),
-            any(w in lowered for w in term.casefold().split()
+            any(re.search(rf"\b{re.escape(w)}", lowered) for w in term.casefold().split()
                 if len(w) >= 5 and w not in _GENERIC_TERM_WORDS))
 
 

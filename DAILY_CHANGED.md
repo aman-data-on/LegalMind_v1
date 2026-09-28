@@ -1358,3 +1358,50 @@ category recall from before `AM-103`. They now carry the measured figures: fallb
 re-run at `AM-103`. They also stop calling the branch release-ready. A security review,
 a fresh migration and rollback rehearsal, a trace check and CI are still owed. The
 CLAUDE.md narrative now covers `AM-97` to `AM-103`, and HANDOFF.md points to the tracker.
+
+## 2026-09-28 — Entry 29: the remaining misses fixed where they happen (`AM-104`)
+
+Every remaining golden miss was traced stage by stage before anything was changed.
+
+**Retrieval.** H-01 was a real defect: one Constitution section number could appear
+several times in one search result, and each repeat added to its score, so four long
+sections outranked §4.1. Each source now counts once per list. D-01 was searched under
+the topic of the sentence before the question; a question part now keeps its own
+topic. E-03: statute sections are now matched on their titles too, and inside an Act
+the question names, that Act's own title words no longer decide the order (s. 27 moved
+from 42nd to 4th). That briefly let the repealed 1956 Companies Act outrank the 2013
+Act, so "current before repealed" now comes before the word count. O-04: "CERT-In" is
+now spelled out as the name s. 70B uses, for search and for the reranker (32nd → 1st).
+§70B was never missing from the supplied text; it is absent only from the live corpus,
+which still runs the old parser.
+
+**Statutes.** A section that says "penalty specified in the Schedule" now carries the
+Schedule that names it back. The parser (`section-5`) drops the Bill's Statement of
+Objects and Reasons, which eight Acts had stored as law. DPDP s. 33 and its Schedule
+are shown as not yet in force until 13 May 2027, labelled as the date the Constitution
+§28.2 states, not the Act's own commencement (`config/statutes/commencement.json`,
+every quote checked against the Constitution file). Provisions the Constitution only
+describes are not mapped to section numbers.
+
+**Claims and verification.** 219 statute sections had lost their sub-section (1),
+including s. 29A's twelve-month rule; 34 remain, all in-text references. The verifier
+now catches a section number its claims do not name, a sentence that stops at "shall
+not", and a status that was only the word "effective" in the statute. Checked on the
+same claims: seven more bad sentences caught and no good one rejected. Three rendering
+faults found in live answers are fixed ("G.S.R; 843(E)", "[2, A]", a footnote marker).
+
+**Security review.** A Gemini call is now audited even when the new path fails
+afterwards, and the trace carries a failure's kind, never quoted evidence.
+
+**Measured.** Golden recall@3 0.926 → 0.951 (79 cases); 0.952 on the re-ingested corpus
+with two new cases; wrong-source and false admission 0. Run-9 replay: bad sentences
+shown 16 → 4 of 574. Live: 18 of 20 targeted questions answered in one call (27
+evaluator calls, 71.3k prompt / 7.2k output tokens). Real browser through a
+production-like proxy: upload, review, findings, Ask with follow-ups, history, phone
+width, all clean. Migrations and ingestion rehearsed on a clone of the AM-94 copy.
+
+**Not fixed, and why.** E-03 and the DPDP statute slot need the reranker to link a
+non-solicit to restraint of trade and "maximum penalty" to the Schedule's amounts; a
+wider evidence set fixes E-03 but adds 17% more evidence to every answer, so it was
+not adopted. H-02's s. 194J is not in the accepted 1961 text. Four bad sentences are
+generation faults no deterministic check can see.

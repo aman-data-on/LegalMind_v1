@@ -458,7 +458,7 @@ def generate_bundle_repair(question: str, bundle_block: str, draft: str,
                         max_output_tokens=900)
 
 
-CONTRACT_PROMPT_VERSION = "contract-answer-2"
+CONTRACT_PROMPT_VERSION = "contract-answer-3"
 CONTRACT_PROMPT_TEMPLATE = """You are LegalMind, answering a colleague who is not a \
 lawyer. The material below is a list of APPROVED CLAIMS, each already checked against \
 its source, with the source's own sentence as TEXT. You do not interpret the sources: \

@@ -21578,3 +21578,108 @@ F-05 sentences). Which instrument a bare "Section N" means is not stated in the 
 --------------------------------------------------------------------------------
 AM-103: a section on the asked topic answers for the position; records split only
 between their own sentences
+
+================================================================================
+AMENDMENT BATCH AB-54 — `AM-104`
+The last golden retrieval misses localized and fixed at their stage; commencement is
+not statutory text; the claim verifier catches what it missed (roadmap §6/§7/§9/§11/
+§13/§14/§18)
+================================================================================
+
+**Owner authority, 2026-09-27/28** — the master RAG roadmap (`AM-79`) and the owner's
+instruction of this session: localize every remaining miss before calling it a model
+limit; treat the ratified Constitution's DPDP commencement position (13 May 2027) as
+authoritative for LegalMind's recorded interpretation, keeping statutory text distinct
+from commencement information; research IT Act s. 70B; fix imperfect sentences without
+weakening the verifier. Nothing authored (rule 21): every commencement record quotes
+Constitution L1.10 §28.2 verbatim. Scratch copies only; production untouched.
+
+**Amends, narrowly:** `AM-86` r4 (fusion), `AM-85` (sub-question subject),
+`AM-80`/`AM-94` r6 (statute chunker `section-4` → `section-5`), `AM-47` (named-Act
+ranking), `AM-88` (scoring query), `AM-92` r2 (claim records), `AM-90`/`AM-91` r4
+(claim checks), `AM-94` r2/r5 (trace, audit).
+
+```text
+r1   RETRIEVAL. A source counts once per ranked list, at its best rank — §18's four
+     sub-headings shared one number and summed four times (H-01: §4.1 10th → 1st). A
+     question part that names its own topic is searched under it (D-01). A section's
+     title counts in the lexical match, and inside a NAMED Act that Act's own title
+     words order nothing (E-03: s. 27 42nd → 4th); version before relevance moves
+     ahead of the lexeme count, so "the Companies Act" never ranks the repealed 1956
+     Act first (L-03 guard). An agency's short name is spelled out for search and for
+     the cross-encoder — "CERT-In" → the name s. 70B uses (O-04: 32nd → 1st, 4.4).
+     The planner's "already used the term" test matches at a word start ("force" in
+     "enforceable" placed 3 of 234 evaluation questions under Force Majeure).
+
+r2   EVIDENCE. A section citing "the Schedule" carries, labelled, the Schedule of
+     the same Act that names it back ("[See section 33 (1)]") within the context
+     budget — both references explicit, nothing inferred (F-05).
+
+r3   INGESTION (`section-5`). An India Code print's closing STATEMENT OF OBJECTS AND
+     REASONS is editorial matter, not law, and is cut when it opens a line in the
+     closing quarter (8 Acts carried it under a Schedule or a last section; Copyright
+     s. 79 was quarantined by it and is recovered). Rehearsed: 17 Acts, 5,011 chunks.
+
+r4   COMMENCEMENT (roadmap §14). `config/statutes/commencement.json` records the
+     provisions Constitution §28.2 NAMES as not yet in force — DPDP s. 33 and the
+     Schedule (13 May 2027), s. 6(9) and s. 27(1)(d) (13 November 2026) — each
+     `quote` sliced verbatim and tested against the canonical file. The status is
+     computed against today's date and shown beside the statutory text, labelled as
+     the date the Constitution states — the company's reading, never the Act's own
+     commencement. Tranche 3's DESCRIBED obligations (notice, consent, …) carry no
+     record: mapping a description to section numbers would be inventing law
+     (rule 7). The Gazette notification itself is not in the supplied material.
+
+r5   CLAIM RECORDS. Sub-section (1) after a title's dash, a footnote marker or a
+     margin title is a claim (219 sections lost it; 34 left, in-text references);
+     the record starts at "(1)" without the print's footnote marker. A dot ends a
+     status only where it ends a sentence ("(Section 28.2.1)" was cut to "(Section
+     28" and read as the Act's s. 28).
+
+r6   VERIFICATION. A section a sentence names must be one its cited claims name,
+     whole numbers; a status is stated only by a phrase that states one (not the
+     statute's own "proportionate and effective"); a sentence stopping at its modal
+     has dropped what the modal governs; an exception phrase ends at a modal; a
+     claim's own status words are its own for attribution; a combined marker "[2, A]"
+     is split before any check. Isolated on identical claims (run 9, 670 labelled
+     sentences): 7 correct new catches, 0 false rejects, 0 bad sentences admitted.
+
+r7   PRESENTATION. A dotted initialism or an open parenthesis does not end a
+     sentence ("G.S.R; 843(E)"); a §31.x topic does not repeat its section number in
+     a Finding's citation.
+
+r8   SECURITY (fresh review of the branch). An egress is audited even when the new
+     path fails after the provider returned (AM-30 t5 — it fell back unaudited); a
+     verification failure reaches the trace as its kind only, never quoted evidence;
+     `constitution.item_for_section` checks the positions permission itself.
+```
+
+**Recorded 2026-09-28.** Zero-Gemini golden benchmark (79 cases, same corpus as
+`AM-103`): bundle recall@3 0.926 → 0.951, hit@1 0.857 → 0.886, wrong-source 0, false
+admission 0. On the re-ingested `section-5` corpus with two added cases (81): recall@3
+0.952, hit@1 0.903, golden 14 recall 1.0; rerank p50/p95 866/1,084 ms idle. Run-9
+replay: imperfect sentences shown 16 → 4 of 574 (2.8% → 0.7%), answers with one
+12 → 4, citation correctness 0.993; fallbacks 2 of 65, one of them N-02 (a prompt
+injection) now refused instead of answered from §15. Live (scratch corpus, 27 Gemini
+calls in the evaluator, 71.3k prompt / 7.2k output tokens, plus 16 one-call browser
+asks): 18 of 20 targeted questions answered on the
+new path in one call; F-05, O-05, J-04 state the commencement with its label, E-04
+answers s. 29A(1)'s twelve months, C-04 keeps "solicit". Real browser through a
+production-like proxy: upload → review → 35 findings → Ask (four turns: follow-up,
+a newly named Act, Hinglish) → history → 390 px, every answer free of internal refs,
+markers and broken parentheses. Migration down/up twice and the ingestion rehearsed on
+a clone of the `AM-94` production-like copy.
+
+**Residuals, each localized:** E-03 and F-05/O-05's statute slot — the local
+cross-encoder scores the right section below the floor (−2.5 against −2.0; a
+non-solicit as a restraint of TRADE); widening evidence to 10 fixes E-03 at +17%
+evidence per answer and was not adopted; F-05/O-05 are answered from §28.2. H-02 —
+s. 194J is absent from the accepted 1961 as-enacted text (fails closed correctly).
+Four imperfect sentences are generation faults the deterministic checks cannot see
+(garbled antecedent, dropped statute reference, spliced provisos). The Gazette
+commencement notification and a fresh production snapshot for the rehearsal need
+the owner.
+
+--------------------------------------------------------------------------------
+AM-104: retrieval misses fixed at their stage; commencement beside the law, labelled
+as the Constitution's date; the verifier catches what it missed

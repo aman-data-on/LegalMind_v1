@@ -201,8 +201,12 @@ def plan(question: str, *, has_document: bool | None = None,
                 continue            # context, not a question: a claim or a statement
             lanes = _lanes(part, topic)
             # The whole question's topic carries into a part that does not name one
-            # ("Does it specify 6 months …?" is still about early exit).
-            query = " ".join(x for x in (subject, part) if x)
+            # ("Does it specify 6 months …?" is still about early exit); a part that
+            # names its own keeps it: "Our liability cap does not apply to indemnity.
+            # What indemnity do customers owe us?" asked about indemnity (golden D-01).
+            own = planner.plan_lexical(part)
+            query = " ".join(x for x in (own.subject if own and own.topic else subject,
+                                         part) if x)
             subs.append(SubQuestion(part, tuple(sorted(lanes)), query))
     if not subs:
         subs = [SubQuestion(text, tuple(sorted(_lanes(text, topic))),

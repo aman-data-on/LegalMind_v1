@@ -6,7 +6,7 @@ import re
 from tools import rag_benchmark as rb
 
 CASES = json.loads(rb.DATASET.read_text())["cases"]
-REF = re.compile(r"^(POS:[A-Z0-9_-]+|CONST:[0-9.]+|STAT:[^:]+:[0-9A-Za-z*]+|POS:\*|STAT:\*)$")
+REF = re.compile(r"^(POS:[A-Z0-9_-]+|CONST:[0-9.]+|STAT:[^:]+:[0-9A-Za-z*][0-9A-Za-z* ]*|POS:\*|STAT:\*)$")
 
 
 def test_dataset_is_well_formed_and_covers_every_roadmap_category():

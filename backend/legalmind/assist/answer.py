@@ -48,6 +48,7 @@ _KIND_LABEL = {
                              "policy)",
 }
 _MARKER = re.compile(r"\[(\d{1,2}|A|M)\]")
+_COMBINED_MARKER = re.compile(r"\[((?:\d{1,2}|A|M)(?:\s*,\s*(?:\d{1,2}|A|M))+)\]")
 _SUBJECT = re.compile(
     r"\b(?:this|that|these|the|their|your|his|her|client'?s|customer'?s|counterparty'?s|"
     r"signed|executed|proposed|uploaded|attached)\s+(?:\w+\s+)?(?:agreement|contract|"
@@ -86,6 +87,7 @@ _COMPARATIVE = re.compile(r"\b(?:more|less|fewer|greater|longer|shorter) than\b|
                           r"minimum)\b", re.I)
 _ABBREVIATION = re.compile(r"\b(?:Pvt|Ltd|Co|Inc|No|s|ss|e\.g|i\.e|viz|cf|vs|Sec|Cl|"
                            r"Art|Para)\.$", re.I)
+_INITIALISM = re.compile(r"(?:\b[A-Z]\.){2,}$")
 _NEGATION = re.compile(r"\b(?:not|no|never|neither|nor|does ?n[o']t|cannot|isn't|"
                        r"without|missing|absent|nothing|none|unknown|unconfirmed|"
                        r"unverified|lacks?|rather than|instead of)\b", re.I)
@@ -309,10 +311,13 @@ def is_context(sentence: str, question_figures: tuple[str, ...]) -> bool:
 
 def _sentences(body: str) -> list[str]:
     """Sentences, rejoined where the split fell after an abbreviation ("Pvt. Ltd.",
-    "s. 74") — a company name split in two read as two uncited claims."""
+    "s. 74") — a company name split in two read as two uncited claims — after a dotted
+    initialism ("G.S.R. 843(E)" became "G.S.R; 843(E)" on screen, `AM-104`), or inside
+    an open parenthesis (`AM-103` r2's rule for records)."""
     out: list[str] = []
     for piece in (p.strip() for p in guardrails._SENTENCES.split(body) if p.strip()):
-        if out and _ABBREVIATION.search(out[-1]):
+        if out and (_ABBREVIATION.search(out[-1]) or _INITIALISM.search(out[-1])
+                    or out[-1].count("(") > out[-1].count(")")):
             out[-1] = f"{out[-1]} {piece}"
         else:
             out.append(piece)
@@ -542,8 +547,10 @@ def _tail(c: contracts.Contract) -> str:
         tail += "; subject to these exceptions: " + "; ".join(
             x.rstrip(".") for x in _sentences(c.exceptions_text))
     if c.temporal:
-        tail += (f" (in force: {c.temporal.rstrip('.')})" if c.temporal != "REPEALED"
-                 else " (repealed — historical, not current law)")
+        t = c.temporal.rstrip(".")
+        tail += (" (repealed — historical, not current law)" if t == "REPEALED"
+                 else f" ({t})" if re.search(r"not yet in force|commenc", t, re.I)
+                 else f" (in force: {t})")
     if c.antecedents:
         tail += " (" + "; ".join(f"{said} being {meant}"
                                  for said, meant in c.antecedents) + ")"
@@ -703,7 +710,12 @@ def complete(text: str, finish_reason: str | None, payload: Payload,
     Cut at the output cap, its unfinished last sentence is dropped — an unfinished
     sentence is not a claim, and every sentence before it is still checked. A reader's
     figure or a missing agreement the answer never mentions is then said in the fixed
-    wording, so no answer shown can omit either layer."""
+    wording, so no answer shown can omit either layer.
+
+    A combined marker is split first: "[2, A]" read as no citation at all and sank a
+    correct answer (live, H-01, `AM-104`); each marker is still checked on its own."""
+    text = _COMBINED_MARKER.sub(
+        lambda m: "".join(f"[{x.strip()}]" for x in m.group(1).split(",")), text or "")
     if finish_reason == _CUT:
         ends = list(_LAST_MARKED.finditer(text))
         if ends:

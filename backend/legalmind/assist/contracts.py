@@ -92,8 +92,12 @@ _CONDITION = re.compile(
     # Cl. 5.1", "under s. 74"): read as "subject to Cl", the condition could never be
     # found in a sentence and every restatement of §31.2 was replaced (PHASE 13).
     r"\b(?:\s+(?:[A-Za-z]{1,4}\.(?=\s*\d)|[^\s,;.:()]+)){1,8}", re.I)
+# An exception phrase ends at a modal: "other than international commercial
+# arbitration shall be made …" swallowed s. 29A(1)'s "shall", so the proviso's "may"
+# set its modality and "the tribunal shall make the award" failed (live, E-04; `AM-104`).
 _EXCEPTION = re.compile(r"\b(?:except(?: for)?|other than|excluding|save for)\b"
-                        r"(?:\s+[^\s;.:()]+){1,8}", re.I)
+                        r"(?:\s+(?!(?:shall|must|may|should|will|can)\b)[^\s;.:()]+){1,8}",
+                        re.I)
 _SKIP = re.compile(r"^(?:\*\*?STATUS|STATUS:|Applicable Document Types|Purpose:|Scope of "
                    r"Application:|\| ?:?-|Legal Mind —)|Conflicts Register|Stakeholder "
                    r"Version|^Evidence / Source:\W*$", re.I)
@@ -468,7 +472,8 @@ def render(contracts: list[Contract], rels: list[Relation]) -> str:
             fields.append(f"SCOPE: {c.scope.replace('_', ' ')} agreements only (say so)")
         fields.append(f"STATUS: {c.status.lower()}")
         if c.temporal:
-            fields.append(f"IN FORCE: {c.temporal} (say so)" if c.temporal != "REPEALED"
+            fields.append(f"TEMPORAL STATUS: {c.temporal} (say so)"
+                          if c.temporal != "REPEALED"
                           else "REPEALED — historical, not current law (say so)")
         if c.referent:
             fields.append(f"'THIS' REFERS TO: {c.referent} (name it)")
@@ -492,8 +497,9 @@ def _verbatim(claim: str, c: Contract) -> bool:
     body = claim.split(" states: ", 1)[1] if " states: " in claim else claim
     # The note verbalise appends, before the sentence's full stop; a commencement note
     # may hold its own "(Section 28)".
-    body = re.sub(r"\s*\((?:in force|repealed|[^()]*\bbeing\b)(?:[^()]|\([^()]*\))*\)?"
-                  r"[\s.]*$", "", body)
+    body = re.sub(r"\s*\((?:in force|repealed|not yet in force|sub-section \(|clause \(|"
+                  r"[^()]*\bbeing\b)(?:[^()]|\([^()]*\))*\)?"
+                  r"[\s.]*$", "", body, flags=re.I)
     body = re.sub(r";\s*subject to these exceptions:.*$", "", body)
     own = " ".join(c.text.split())
     pieces = [x.strip(" .") for x in re.split(r";\s+|(?<=[.!?])(?<!\.\.\.)\s+", body)]
@@ -522,11 +528,31 @@ def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str
             r"\b(?:current|today|now)\b", claim, re.I) and not re.search(
             r"\bnot (?:the )?current\b|\bno longer\b", claim, re.I):
         failures.append(f"a historical exception stated as current: {sentence[:80]!r}")
+    # A sentence that stops at its modal has dropped what the modal governs: "the
+    # Receiving Party shall not, directly or indirectly [4]." lost "solicit" (run 9,
+    # C-04; `AM-104`) and passed as a verbatim prefix of the record.
+    if _DANGLING_MODAL.search(claim):
+        failures.append(f"stops at its modal, the act it governs dropped: "
+                        f"{sentence[:80]!r}")
+    # A section the sentence names is one its cited claims name — whole numbers, so
+    # "commencing 13 May 2027 under Section 28" for the Constitution's "(Section
+    # 28.2.1)" reads as the Act's s. 28 and fails (run 9, F-05; `AM-104`).
+    own = {n for c in cited for n in _SECTION_REF.findall(
+        " ".join((c.text, c.citation, c.temporal or "", c.frame or "", *c.heading)))}
+    for n in dict.fromkeys(_SECTION_REF.findall(claim)):
+        if cited and n not in own:
+            failures.append(f"section {n} is not one its cited claims name: "
+                            f"{sentence[:80]!r}")
     for c in cited:
         dates = "".join("|" + re.escape(d) for d in re.findall(r"\d{1,2} \w+ \d{4}",
                                                                c.temporal or ""))
-        if c.temporal and not re.search(r"not yet in force|in force|commenc|effective|"
-                                        r"repeal" + dates, claim, re.I):
+        # A phrase that STATES a status: s. 33(2)'s own "proportionate and effective"
+        # and "for the time being in force" passed as its commencement (run 9, J-04;
+        # `AM-104`).
+        if c.temporal and not re.search(r"\b(?:not yet in force|(?<!time being )in force|"
+                                        r"commenc\w*|effective (?:from|on|date)|takes? "
+                                        r"effect|with effect from|repeal\w*)\b" + dates,
+                                        claim, re.I):
             failures.append(f"temporal status of [{c.n}] lost ({c.temporal[:40]!r}): "
                             f"{sentence[:80]!r}")
         if c.referent:
@@ -553,7 +579,10 @@ def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str
     # [A] carries the code's own finding of what no position states, so it may be cited.
     if kinds and POSITION not in kinds and "[A]" not in sentence and \
             _SPEAKS_FOR_POSITION.search(claim) and not any(
-                _SPEAKS_FOR_POSITION.search(c.text) for c in cited):
+                # …and so is a status the record carries ("the date Constitution
+                # §28.2 states", `AM-104`).
+                _SPEAKS_FOR_POSITION.search(f"{c.text} {c.temporal or ''}")
+                for c in cited):
         failures.append(f"the company position stated without a position claim: "
                         f"{sentence[:80]!r}")
     if ATTRIBUTION[READING].search(claim) and READING not in kinds and kinds & {
@@ -660,6 +689,11 @@ _SCOPE_WORDS = {
     "VENDOR_AGREEMENT": r"vendor", "DISTRIBUTION_AGREEMENT": r"distribut",
     "ORDER_FORM": r"order form|purchase order", "AMENDMENT": r"amendment|addend"}
 
+
+_DANGLING_MODAL = re.compile(r"\b(?:(?:shall|must)(?:\s+not)?|(?:may|will|should)\s+not)"
+                             r"(?:,?\s+(?:either\s+)?directly\s+or\s+indirectly)?"
+                             r"[\s,;:.—-]*$", re.I)
+_SECTION_REF = re.compile(r"(?:\bsections?|\bs\.|§)\s*(\d+(?:\.\d+)*[A-Z]?)\b", re.I)
 
 #: Speaking for the organisation's current position — not "not current policy", which
 #: is how a historical exception is named.

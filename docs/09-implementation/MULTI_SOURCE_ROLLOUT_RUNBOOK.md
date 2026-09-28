@@ -44,7 +44,11 @@ verification failing, or any error), the existing path answers exactly as it doe
    whose `knowledge_sources` row predates it must be re-ingested before the flag is
    turned on, and `tests/test_constitution_redaction.py` is the check.
 5. **Re-ingest the statutes under `AM-80`** — `python3 -m tools.ingest_statutes` (190 s
-   rehearsed; re-points existing statute citations to the new chunks).
+   rehearsed; re-points existing statute citations to the new chunks). Since `AM-104` the
+   chunker is `section-5` (the Bill's Statement of Objects and Reasons is not stored as
+   law): rehearsed 2026-09-28 at 17 Acts / **5,011** chunks, every row `section-5`. The
+   live corpus is still `section-1`, so IT Act s. 70B reaches readers only after this step.
+   `backend/config/statutes/commencement.json` ships with the code — no ingestion step.
 6. **Provision** the entailment model `cross-encoder/nli-deberta-v3-small` at the pinned
    revision in the API's model directory; the reranker is already on in production.
 
@@ -71,10 +75,10 @@ SELECT count(*) FROM assist.knowledge_item_embeddings;          -- 404
 After step 5 (the tool reports 17 files, no `REFUSED` line, exit code 0):
 
 ```sql
-SELECT count(*) FROM assist.statute_chunks;                     -- 5036
+SELECT count(*) FROM assist.statute_chunks;                     -- 5011 (AM-104)
 SELECT chunking_algorithm_version, count(*) FROM assist.statute_chunks GROUP BY 1;
-                                                               -- section-4 5036 only
-SELECT count(*) FROM assist.statute_chunk_embeddings;           -- 5036
+                                                               -- section-5 5011 only
+SELECT count(*) FROM assist.statute_chunk_embeddings;           -- 5011
 SELECT count(*) FROM assist.answer_citations c
   LEFT JOIN assist.statute_chunks s ON s.id = c.statute_chunk_id
  WHERE c.statute_chunk_id IS NOT NULL AND s.id IS NULL;         -- 0 (none orphaned)

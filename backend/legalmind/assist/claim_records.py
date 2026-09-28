@@ -35,6 +35,7 @@ from uuid import UUID
 from sqlalchemy import text as sql
 
 from legalmind import config
+from legalmind.assist import statutes as statute_corpus
 
 
 @dataclass(frozen=True)
@@ -90,8 +91,10 @@ _ANTECEDENT = re.compile(r"^\W*(?:this|these|such)\s+(?:position|entry|entries|s
 # ordinary state of a current provision and qualify nothing a sentence must repeat:
 # read as qualifiers they rejected A-03's correct IT Act paraphrase (PHASE 13,
 # `AM-94`, narrowing `AM-92` r2).
-_TEMPORAL = re.compile(r"NOT YET IN FORCE[^|.]*|commences? (?:on )?\d{1,2} \w+ \d{4}"
-                       r"[^|.]*", re.I)
+# A dot ends the status only where it ends a sentence: "(Section 28.2.1)" was cut to
+# "(Section 28" and read as the Act's s. 28 (run 9, F-05; `AM-104`).
+_TEMPORAL = re.compile(r"NOT YET IN FORCE(?:[^|.]|\.(?=\S))*|commences? (?:on )?"
+                       r"\d{1,2} \w+ \d{4}(?:[^|.]|\.(?=\S))*", re.I)
 # Field-table rows that are advice to the reader or to Counsel, not claims.
 _ADVISORY_ROWS = re.compile(r"^(?:recommended legal mind response|human / legal review|"
                             r"counsel validation|source / citation|legal source|"
@@ -285,7 +288,12 @@ def _table_rows(content: str) -> str:
 _FOOTNOTES = re.compile(r"(?mi)^\d{1,2}\.\s[^\n]*\b(?:subs\.|ins\.|rep\.|omitted|see|"
                         r"cf\.|w\.e\.f|by Act \d)[^\n]*(?:\n(?!\d{1,4}\s*$)[^\n]*)*?"
                         r"(?:\n\d{1,4}\s*$|\Z)")
-_SUBSECTION = re.compile(r"(?m)^\s*(?:\d+\[)?\((\d+[A-Z]?)\)\s|[\u2013\u2014]\((1)\)")
+# After the title's dash, a space or a footnote marker may come first: "definitions. —
+# (1)", "award.— 3 [(1)" — sub-section (1) of 219 sections (DPDP ss. 1–23, Arbitration
+# s. 29A's twelve months) read as a bare title and was dropped (run 9, E-04; `AM-104`).
+_AFTER_DASH = r"[\u2013\u2014]+\s*(?:\d+\s*\[)?"
+_SUBSECTION = re.compile(r"(?m)^\s*(?:\d+\[)?\((\d+[A-Z]?)\)\s|"
+                         + _AFTER_DASH + r"\((1)\)")
 
 
 def _statute(db, chunk_id: UUID) -> list[Unit] | None:
@@ -295,7 +303,7 @@ def _statute(db, chunk_id: UUID) -> list[Unit] | None:
     rows = db.execute(sql(f"""
         WITH hit AS (SELECT statute_id, section_number FROM "{schema}".statute_chunks
                       WHERE id = :id)
-        SELECT c.content, c.marginal_note, s.official_title, s.status
+        SELECT c.content, c.marginal_note, s.official_title, s.status, c.section_number
           FROM "{schema}".statute_chunks c
           JOIN "{schema}".statutes s ON s.id = c.statute_id, hit
          WHERE c.statute_id = hit.statute_id AND c.section_number = hit.section_number
@@ -320,16 +328,29 @@ def _statute(db, chunk_id: UUID) -> list[Unit] | None:
     out = []
     for order, piece in enumerate(pieces):
         body = _clean(piece)
-        m = re.match(r"^(?:\d+\[)?\((\d+[A-Z]?)\)", body) or re.search(
-            r"[\u2013\u2014]\((\d+)\)", body[:200])
+        # …or straight after the number where the title sits in the margin ("100. (1)",
+        # the Gazette print of the Income-tax Act, 1961).
+        m = re.match(r"^(?:\d+\[)?\((\d+[A-Z]?)\)|^\d+[A-Z]*\.\s*\((1)\)", body) or \
+            re.search(_AFTER_DASH + r"\((\d+)\)", body[:200])
+        sub = next((g for g in m.groups() if g), None) if m else None
+        if m and m.re.pattern.startswith(_AFTER_DASH):
+            # The title before the dash is the unit's frame already; the record starts
+            # at "(1)", without the print's footnote marker ("— 3 [(1) … ]" was shown
+            # to readers, `AM-104`).
+            body = body[m.end() - len(f"({sub})"):]
+            if body.count("]") > body.count("["):
+                body = re.sub(r"\]([\s.;:]*)$", r"\1", body)
         if len(body.split()) < 5 or (not m and len(pieces) > 1):
             continue            # a bare section title is not a claim
         temporal = _TEMPORAL.search(body)
+        # Commencement is not in the statutory text (`AM-104`): DPDP s. 33 read as
+        # operative law while the Constitution records it commencing 13 May 2027.
+        starts = statute_corpus.commencement(rows[0][2], rows[0][4], sub)
         out.append(Unit(text=body, authority="PRIMARY_LAW",
                         status="REPEALED" if repealed else "CURRENT",
                         heading=(note,) if note else (), frame=note or None,
                         referent=act,          # "this Act" is the Act, named
-                        temporal="REPEALED" if repealed else
-                        _clean(temporal.group(0)) if temporal else None,
-                        citation_suffix=f"({m.group(1)})" if m else "", order=order))
+                        temporal="REPEALED" if repealed else starts or (
+                            _clean(temporal.group(0)) if temporal else None),
+                        citation_suffix=f"({sub})" if sub else "", order=order))
     return out

@@ -155,7 +155,8 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
     # best: a sub-query carries the planner's English topic subject, which is what a
     # Hinglish question or a follow-up turn ("what if they say 6 months?") lacks.
     contexts = [e.context for e in evidence]
-    runs = [cross_encoder.scores(q, contexts) for q in
+    from legalmind.assist.statutes import with_agency_names
+    runs = [cross_encoder.scores(with_agency_names(q), contexts) for q in
             dict.fromkeys([plan.question, *(s.query for s in plan.sub_questions)])]
     scores = [max(r[i] for r in runs if r) for i in range(len(contexts))] \
         if all(runs) else []

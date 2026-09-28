@@ -68,7 +68,7 @@
     {"id": "B-04", "category": "B", "question": "When does a customer have to pay an invoice?",
      "gold": [["POS:PAYMENT-PERIOD-MSA-001", "CONST:16"]], "must_not": [], "source": "Constitution §16"},
     {"id": "B-05", "category": "B", "question": "Can we raise our prices during the contract?",
-     "gold": [["POS:PRICE-CHANGE-NOTICE-MSA-001"]], "must_not": [], "source": "Constitution §16"},
+     "gold": [["POS:PRICE-CHANGE-NOTICE-MSA-001", "CONST:16"]], "must_not": [], "source": "Constitution §16 — CONST:16 added 2026-09-27 (AM-104): §16 states the position verbatim, which the standard quotes; a section is accepted beside its standard as in C-01"},
 
     {"id": "C-01", "category": "C", "question": "What is our limitation of liability position?",
      "gold": [["POS:LIABILITY-MSA-001", "POS:LIABILITY-TOS-001", "CONST:9"]], "must_not": [], "source": "Constitution §9"},
@@ -108,7 +108,7 @@
     {"id": "F-04", "category": "F", "question": "Within how many hours must a cyber incident be reported to CERT-In?",
      "gold": [["STAT:CERT-In Directions:ii"]], "must_not": [], "source": "CERT-In Directions (ii)"},
     {"id": "F-05", "category": "F", "question": "What is the maximum penalty under the DPDP Act?",
-     "gold": [["STAT:Digital Personal Data Protection Act, 2023:33", "STAT:Digital Personal Data Protection Act, 2023:Schedule"]], "must_not": [], "source": "DPDP s.33 + Schedule"},
+     "gold": [["STAT:Digital Personal Data Protection Act, 2023:33", "STAT:Digital Personal Data Protection Act, 2023:The Schedule"]], "must_not": [], "source": "DPDP s.33 + Schedule (ref corrected 2026-09-27, AM-104: the corpus names it The Schedule)"},
 
     {"id": "G-01", "category": "G", "question": "Are there any cases where our liability cap does not apply?",
      "gold": [["CONST:9", "POS:LIABILITY-MSA-001"]], "must_not": ["POS:LIAB-CARVEOUTS-MSA-001"], "source": "Constitution §9: the cap applies unless an approved agreement provides otherwise, no super-cap for exceptional claims; corrected 2026-09-25 — LIAB-CARVEOUTS-MSA-001 is RETIRED (AM-65)"},
@@ -186,6 +186,10 @@
      "gold": [["STAT:Bharatiya Sakshya Adhiniyam, 2023:*", "CONST:28.4.3"]], "must_not": [], "source": "Constitution §28.4.3; BSA 2023"},
     {"id": "O-04", "category": "O", "question": "What does the IT Act say about CERT-In's role?",
      "gold": [["STAT:Information Technology Act, 2000:70B"]], "must_not": [], "source": "IT Act s.70B (section-1 corpus glues footnote digits: 70B absent)"},
+    {"id": "O-05", "category": "O", "question": "Are the DPDP Act's penalties enforceable today?",
+     "gold": [["CONST:28.2"], ["STAT:Digital Personal Data Protection Act, 2023:33", "STAT:Digital Personal Data Protection Act, 2023:The Schedule"]], "must_not": [], "source": "Constitution §28.2: s. 33 and the Schedule commence 13 May 2027 (AM-104) — the answer must not present them as in force"},
+    {"id": "O-06", "category": "O", "question": "What does section 70B of the IT Act provide?",
+     "gold": [["STAT:Information Technology Act, 2000:70B"]], "must_not": [], "source": "IT Act s.70B, in the supplied India Code print (AM-104: absent only from the live section-1 corpus)"},
     {"id": "J-05", "category": "J", "after": "What is our liability cap?", "question": "What if they say we agreed to 24 months?",
      "gold": [["POS:LIABILITY-MSA-001", "CONST:9"]], "must_not": [], "answer": {"distinguish": ["COMPANY_POSITION", "USER_ASSERTION"], "must_not_state_as_policy": ["24 months"]}, "source": "roadmap §15: a follow-up carrying an unverified claim, NOT anaphoric — the topic carries through the plan, the claim stays a claim"},
     {"id": "J-06", "category": "J", "after": "What does our Constitution say about early termination?", "question": "What does section 74 of the Indian Contract Act provide?",

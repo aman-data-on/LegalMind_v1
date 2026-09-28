@@ -87,8 +87,12 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
         f'SELECT s.version, o.version FROM "{schema}".knowledge_sources s '
         f'LEFT JOIN "{schema}".knowledge_sources o ON o.id = s.supersedes_id')).all())
     assert rows == {"L1.10": "L1.5", "L1.5": None}
-    found = constitution.item_for_section(db, "14")
+    found = constitution.item_for_section(
+        db, "14", permissions=frozenset({"assist.ask", "legal_position.view"}))
     assert found and found[1].startswith("14. Fixed-Term Commitments")
+    # LEGAL-02: without the positions permission it returns nothing (`AM-104`).
+    assert constitution.item_for_section(db, "14",
+                                         permissions=frozenset({"assist.ask"})) is None
 
 
 # --- PHASE 3 / AM-82: child retrieval records, breadcrumbs, parent expansion -------
