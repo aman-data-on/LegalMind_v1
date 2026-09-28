@@ -1,0 +1,224 @@
+{
+ "_about": "PHASE 12 (AM-91) claim contracts + evidence/conflict map, measured. Every shown sentence labelled independently (Claude annotator subagents; not the verifier, not Gemini; development labels, not owner-reviewed) with one error-type schema, applied identically to the Phase 11 baseline answers. Rates are per shown sentence. No claim text recorded (54.6).",
+ "phase11_baseline": {
+  "shown": 56,
+  "claims_shown": 519,
+  "bad_claims": 38,
+  "bad_rate": 0.0732,
+  "answers_with_bad": 26,
+  "citation_ok": 0.9971,
+  "fallbacks": 9,
+  "false_fallbacks": 5,
+  "per_type_counts": {
+   "CONDITION_DROPPED": 20,
+   "MODALITY_CHANGED": 2,
+   "OTHER_KIND": 12,
+   "READING_AS_LAW": 5,
+   "UNSUPPORTED_CONTENT": 2
+  },
+  "per_type_per_1000_claims": {
+   "CONDITION_DROPPED": 38.5,
+   "MODALITY_CHANGED": 3.9,
+   "OTHER_KIND": 23.1,
+   "READING_AS_LAW": 9.6,
+   "UNSUPPORTED_CONTENT": 3.9
+  }
+ },
+ "runs": {
+  "run1": {
+   "gemini_calls": 110,
+   "repaired": 45,
+   "repaired_then_shown": 13,
+   "answered_of_answerable_bundles": 0.5,
+   "latency_ms": {
+    "p50": 6289,
+    "p95": 9570
+   },
+   "verify_ms": {
+    "p50": 761,
+    "p95": 3015
+   },
+   "prepare_ms": null,
+   "tokens": {
+    "prompt": 169728,
+    "output": 42823,
+    "prompt_per_call": 2611
+   }
+  },
+  "run2": {
+   "gemini_calls": 101,
+   "repaired": 36,
+   "repaired_then_shown": 11,
+   "answered_of_answerable_bundles": 0.629,
+   "latency_ms": {
+    "p50": 5549,
+    "p95": 8752
+   },
+   "verify_ms": {
+    "p50": 549,
+    "p95": 2703
+   },
+   "prepare_ms": {
+    "p50": 129,
+    "p95": 483
+   },
+   "tokens": {
+    "prompt": 151112,
+    "output": 38542,
+    "prompt_per_call": 2324
+   }
+  },
+  "run3": {
+   "gemini_calls": 105,
+   "repaired": 40,
+   "repaired_then_shown": 14,
+   "answered_of_answerable_bundles": 0.629,
+   "latency_ms": {
+    "p50": 5339,
+    "p95": 8739
+   },
+   "verify_ms": {
+    "p50": 381,
+    "p95": 2337
+   },
+   "prepare_ms": {
+    "p50": 135,
+    "p95": 572
+   },
+   "tokens": {
+    "prompt": 162429,
+    "output": 40723,
+    "prompt_per_call": 2498
+   }
+  },
+  "run4": {
+   "gemini_calls": 104,
+   "repaired": 39,
+   "repaired_then_shown": 9,
+   "answered_of_answerable_bundles": 0.5323,
+   "latency_ms": {
+    "p50": 5725,
+    "p95": 9421
+   },
+   "verify_ms": {
+    "p50": 595,
+    "p95": 3135
+   },
+   "prepare_ms": {
+    "p50": 134,
+    "p95": 542
+   },
+   "tokens": {
+    "prompt": 168649,
+    "output": 43347,
+    "prompt_per_call": 2594
+   }
+  },
+  "run5": {
+   "gemini_calls": 77,
+   "repaired": 12,
+   "repaired_then_shown": 1,
+   "answered_of_answerable_bundles": 0.8387,
+   "latency_ms": {
+    "p50": 3622,
+    "p95": 7625
+   },
+   "verify_ms": {
+    "p50": 928,
+    "p95": 4450
+   },
+   "prepare_ms": {
+    "p50": 149,
+    "p95": 539
+   },
+   "tokens": {
+    "prompt": 117128,
+    "output": 32720,
+    "prompt_per_call": 1801
+   }
+  }
+ },
+ "annotated": {
+  "run2": {
+   "answers": 65,
+   "shown": 40,
+   "claims_shown": 377,
+   "factual_claims_shown": 267,
+   "per_type_per_1000_claims": {
+    "CONDITION_DROPPED": 103.4,
+    "CONTRADICTION": 8.0,
+    "MODALITY_CHANGED": 8.0,
+    "OTHER_KIND": 15.9,
+    "UNSUPPORTED_CONTENT": 5.3
+   },
+   "per_type_counts": {
+    "CONDITION_DROPPED": 39,
+    "CONTRADICTION": 3,
+    "MODALITY_CHANGED": 3,
+    "OTHER_KIND": 6,
+    "UNSUPPORTED_CONTENT": 2
+   },
+   "bad_claims": 49,
+   "bad_rate": 0.13,
+   "answers_with_bad": 31,
+   "citation_ok": 0.9775,
+   "fallbacks": 25,
+   "false_fallbacks": 7
+  },
+  "run3": {
+   "answers": 65,
+   "shown": 39,
+   "claims_shown": 368,
+   "factual_claims_shown": 259,
+   "per_type_per_1000_claims": {
+    "CONDITION_DROPPED": 73.4,
+    "MODALITY_CHANGED": 5.4,
+    "OTHER_KIND": 16.3,
+    "UNSUPPORTED_CONTENT": 8.2
+   },
+   "per_type_counts": {
+    "CONDITION_DROPPED": 27,
+    "MODALITY_CHANGED": 2,
+    "OTHER_KIND": 6,
+    "UNSUPPORTED_CONTENT": 3
+   },
+   "bad_claims": 35,
+   "bad_rate": 0.0951,
+   "answers_with_bad": 23,
+   "citation_ok": 0.9653,
+   "fallbacks": 26,
+   "false_fallbacks": 13
+  },
+  "run5": {
+   "answers": 65,
+   "shown": 54,
+   "claims_shown": 547,
+   "factual_claims_shown": 409,
+   "per_type_per_1000_claims": {
+    "CONDITION_DROPPED": 36.6,
+    "OTHER_KIND": 14.6,
+    "UNSUPPORTED_CONTENT": 11.0
+   },
+   "per_type_counts": {
+    "CONDITION_DROPPED": 20,
+    "OTHER_KIND": 8,
+    "UNSUPPORTED_CONTENT": 6
+   },
+   "bad_claims": 31,
+   "bad_rate": 0.0567,
+   "answers_with_bad": 17,
+   "citation_ok": 0.9951,
+   "fallbacks": 11,
+   "false_fallbacks": 7
+  }
+ },
+ "run4_sentence_repair_recheck": {
+  "answered": 0.8548,
+  "note": "run-4 drafts re-checked with zero calls: sentence repair lifted answered 0.532 -> 0.855; bad 7.9% -> 6.8% with the modality/grounding tightening"
+ },
+ "gemini_phase12": {
+  "calls": 497,
+  "prompt_tokens": 769046,
+  "output_tokens": 198155
+ }
+}

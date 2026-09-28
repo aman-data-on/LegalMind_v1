@@ -39,7 +39,10 @@ _MARKER = re.compile(r"\[(\d{1,2})\]")
 # The danda `।` and double danda `॥` are Devanagari full stops: without them a whole
 # Hindi answer was ONE sentence, so a single `[1]` anywhere in it satisfied the
 # marker check for every claim it made.
-_SENTENCES = re.compile(r"(?<=[.!?।॥])\s+")
+# An ellipsis is an omission inside a quotation, never a sentence end: splitting at
+# "directly or indirectly ... solicit ..." cut the verb from a ratified standard, and the
+# answer shown said the Receiving Party "shall not, directly or indirectly" (C-04).
+_SENTENCES = re.compile(r"(?<=[.!?।॥])(?<!\.\.\.)\s+")
 
 # The share of a claim's content words that must appear in its cited chunk for the
 # claim to count as grounded. This is NOT a legal threshold and NOT retrieval
@@ -273,7 +276,9 @@ _CONDITIONAL = frozenset((
 _NUMBER_WORDS = {
     "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6",
     "seven": "7", "eight": "8", "nine": "9", "ten": "10", "eleven": "11",
-    "twelve": "12", "fifteen": "15", "twenty": "20", "thirty": "30", "forty": "40",
+    "twelve": "12", "thirteen": "13", "fourteen": "14", "fifteen": "15",
+    "sixteen": "16", "seventeen": "17", "eighteen": "18", "nineteen": "19",
+    "twenty": "20", "thirty": "30", "forty": "40",
     "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80", "ninety": "90",
     "hundred": "100", "thousand": "1000", "million": "1000000",
     "billion": "1000000000",
@@ -284,8 +289,21 @@ _UNIT_WORDS = frozenset((
 ))
 
 
+_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+         "seventy": 70, "eighty": 80, "ninety": 90}
+_COMPOUND = re.compile(r"\b(" + "|".join(_TENS) + r")[- ](one|two|three|four|five|six|"
+                       r"seven|eight|nine)\b")
+
+
 def _words(text: str) -> list[str]:
-    return re.findall(r"[a-z%]+|\d[\d.,]*", text.lower())
+    """Tokens, with the statute book's spellings of a quantity made comparable:
+    "twenty-four per cent." is "24 percent" (PHASE 10: the CGST Act's "eighteen per
+    cent." did not support a correct "18%", and the answer was refused)."""
+    text = _COMPOUND.sub(lambda m: str(_TENS[m.group(1)]
+                                       + int(_NUMBER_WORDS[m.group(2)])),
+                         text.lower())
+    text = re.sub(r"\bper\s?cent\b", "percent", text)
+    return re.findall(r"[a-z%]+|\d[\d.,]*", text)
 
 
 def _norm(w: str) -> str:
@@ -304,8 +322,12 @@ def _quantities(text: str) -> set[str]:
     out = set()
     for i, w in enumerate(ws):
         if w[0].isdigit():
-            # "Clause 20.5" and "the Act, 1996" are REFERENCES, not quantities.
-            if "." in w or (len(w) == 4 and w.isdigit() and w.startswith(("19", "20"))):
+            # "Clause 20.5" and "the Act, 1996" are REFERENCES, not quantities — but a
+            # decimal WITH its unit ("99.9%", "1.5 months") is a figure (PHASE 12: a
+            # correct 99.9% uptime was refused as unevidenced).
+            unit_next = i + 1 < len(ws) and ws[i + 1] in _UNIT_WORDS
+            if ("." in w and not unit_next) or (
+                    len(w) == 4 and w.isdigit() and w.startswith(("19", "20"))):
                 continue
             out.add(_norm(w))
         elif w in _UNIT_WORDS:
@@ -314,6 +336,16 @@ def _quantities(text: str) -> set[str]:
                 x in _UNIT_WORDS or x[0].isdigit() for x in ws[i + 1:i + 3]):
             out.add(_NUMBER_WORDS[w])
     return out
+
+
+def _figures(text: str) -> set[tuple[str, str]]:
+    """(number, unit) pairs a text states: "six (6) months" and "12 preceding months"
+    each state one. The number ALONE is never a figure — "Section 6" does not state
+    "6 months" (2026-09-27: a wider bundle hid the reader's figure behind a bare 6)."""
+    ws = _words(text)
+    return {(w if w[0].isdigit() else _NUMBER_WORDS[w], _norm(u))
+            for i, w in enumerate(ws) if w[0].isdigit() or w in _NUMBER_WORDS
+            for u in ws[i + 1:i + 3] if u in _UNIT_WORDS}
 
 
 def unstated_figures(question: str, evidence: list[str]) -> list[str]:
@@ -326,13 +358,13 @@ def unstated_figures(question: str, evidence: list[str]) -> list[str]:
     unevidenced figure at all, and this names it instead. A number counts only with
     its unit, so "clause 7" is never read as a figure.
     """
-    stated = set().union(set(), *(_quantities(c) for c in evidence))
+    stated = set().union(set(), *(_figures(c) for c in evidence))
     ws = _words(question)
     found: list[str] = []
     for i, w in enumerate(ws[:-1]):
         number = w if w[0].isdigit() else _NUMBER_WORDS.get(w)
         unit = ws[i + 1]
-        if number and unit in _UNIT_WORDS and number not in stated:
+        if number and unit in _UNIT_WORDS and (number, _norm(unit)) not in stated:
             phrase = f"{w} {unit}"
             if phrase not in found:
                 found.append(phrase)
@@ -416,7 +448,8 @@ def _best_span(claim_words: set[str], chunk: str) -> str:
 
 
 def _entailment_failure(sentence: str, claim_words: set[str],
-                        cited_chunks: list[str]) -> str | None:
+                        cited_chunks: list[str], *,
+                        quantities: bool = True) -> str | None:
     """Why this claim is not entailed by its cited span(s), or None if it is.
 
     Both screens only ever REFUSE — they can turn an answer into a refusal and
@@ -437,8 +470,10 @@ def _entailment_failure(sentence: str, claim_words: set[str],
     # REFERENCE, not a quantity, and lives elsewhere in the same chunk. A changed
     # or fabricated figure is absent from the chunk entirely, so the screen keeps
     # all four quantity mutations and stops refusing real citations.
+    # `quantities=False` — PHASE 11's verifier asks only for polarity and modality:
+    # its figures are screened number-with-unit by `answer.check` (`AM-78`).
     invented = _quantities(sentence) - set().union(
-        *(_quantities(c) for c in cited_chunks))
+        *(_quantities(c) for c in cited_chunks)) if quantities else set()
     if invented:
         return (f"claim states a quantity its cited text does not "
                 f"({', '.join(sorted(invented))}): {sentence[:80]!r}")

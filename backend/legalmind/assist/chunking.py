@@ -329,6 +329,50 @@ def _excluded_rows(contents: list[str]) -> set[int]:
             if c and len(c) < MIN_CHUNK_CHARS and short[c] >= FURNITURE_REPEATS}
 
 
+# Integrity gate (roadmap PHASE 2 §2: "No document becomes searchable until ingestion
+# integrity checks pass"). A folded heading (≤3 lines under MIN_CHUNK_CHARS) and a
+# folded tail may legitimately sit on top of a capped piece.
+OVERSIZE_CHARS = MAX_CHUNK_CHARS + 4 * MIN_CHUNK_CHARS
+COVERAGE_FLOOR = 0.95
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.replace("\u200b", " ").split())
+
+
+def integrity_failures(rows: list, chunks: list[Chunk]) -> list[str]:
+    """The checks a chunk set must pass before it is written. Empty means it passes.
+
+    FABRICATED_TEXT  a chunk whose text is not in its own evidence row — a bad join,
+                     a label the parser never read
+    OVERSIZED        a chunk over the cap plus what folding may add
+    REPEATED_TEXT    one clause-length text repeated like page furniture
+    CONTENT_LOSS     the chunks cover under COVERAGE_FLOOR of the indexable text
+    """
+    by_id = {row.id: _norm(row.content or "") for row in rows}
+    failures = []
+    fabricated = sum(1 for c in chunks
+                     if _norm(c.content) not in by_id.get(c.evidence_id, ""))
+    if fabricated:
+        failures.append(f"FABRICATED_TEXT: {fabricated} chunk(s) not in their evidence")
+    oversized = sum(1 for c in chunks if len(c.content) > OVERSIZE_CHARS)
+    if oversized:
+        failures.append(f"OVERSIZED: {oversized} chunk(s) over {OVERSIZE_CHARS} chars")
+    repeats = Counter(_norm(c.content) for c in chunks
+                      if len(c.content) >= MIN_CHUNK_CHARS)
+    exploded = [n for n in repeats.values() if n >= FURNITURE_REPEATS]
+    if exploded:
+        failures.append(f"REPEATED_TEXT: {len(exploded)} text(s) repeated "
+                        f"{FURNITURE_REPEATS}+ times")
+    contents = [(row.content or "").strip() for row in rows]
+    excluded = _excluded_rows(contents)
+    indexable = sum(len(_norm(c)) for i, c in enumerate(contents) if i not in excluded)
+    covered = sum(len(_norm(c.content)) for c in chunks)
+    if indexable and covered / indexable < COVERAGE_FLOOR:
+        failures.append(f"CONTENT_LOSS: chunks cover {covered / indexable:.1%}")
+    return failures
+
+
 def chunk_evidence(rows: list) -> list[Chunk]:
     """Turn committed evidence rows into chunks, in document order.
 

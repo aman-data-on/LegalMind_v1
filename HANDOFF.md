@@ -19,6 +19,12 @@ restating it. Where a number appears here it was measured on 2026-08-18, not rem
 > (plain language, with a "Picking up where we left off" block at the top) and
 > [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) for build state.
 > This pack is kept as the record of the V1 stabilization review, not superseded by it.
+>
+> **2026-09-27 — the RAG production roadmap (`AM-79`–`AM-103`)** is built and measured
+> on branch `feat/legalmind-rag-production`, local commits only, NOT pushed or deployed.
+> Its live tracker, every requirement to its test and measurement, and the release
+> actions awaiting the owner are in
+> [ROADMAP_REQUIREMENT_MATRIX.md](docs/00-project/ROADMAP_REQUIREMENT_MATRIX.md).
 
 ---
 

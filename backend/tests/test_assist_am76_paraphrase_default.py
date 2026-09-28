@@ -220,6 +220,9 @@ def test_a_figure_the_reader_gave_that_no_position_states_is_named_exactly():
     assert guardrails.unstated_figures(
         "is the cap twelve months?", ["capped at the fees paid in the twelve (12) months"]) == []
     assert guardrails.unstated_figures("what does clause 7 say?", [EARLY_EXIT]) == []
+    # a bare number is not the figure: "Section 6" never states "6 months"
+    assert guardrails.unstated_figures(
+        "promised 6 months?", ["Section 6 applies for 12 months"]) == ["6 months"]
 
 
 def test_the_verifier_still_refuses_the_readers_figure_as_policy():

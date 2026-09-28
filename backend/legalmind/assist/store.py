@@ -395,6 +395,39 @@ def write_embeddings(db: DBSession, *, chunk_ids: list[UUID],
     return len(rows)
 
 
+def embed_into(db: DBSession, *, table: str, fk: str,
+               rows: list[tuple[UUID, str]]) -> int:
+    """Embed `(row id, text)` pairs with the calibrated model into one of the
+    `*_embeddings` tables, best-effort: no model, no vectors, no error — lexical
+    retrieval works without them. One implementation for every domain (Domain A,
+    Domain C, the Constitution), so the model registration and the vector literal
+    cannot drift between them. Returns the number of vectors written."""
+    import uuid as _uuid
+
+    from legalmind.assist import calibration, embedding_runtime
+
+    if not rows or not embedding_runtime.available():
+        return 0
+    vectors = embedding_runtime.embed_texts([t for _, t in rows])
+    if not vectors:
+        return 0
+    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
+    name, _, revision = identity.partition("@")
+    model_id = register_embedding_model(
+        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
+        dimensions=calibration.EMBEDDING_DIMENSIONS,
+        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
+    schema = config.assist_schema()
+    db.execute(text(f"""
+        INSERT INTO "{schema}".{table} (id, {fk}, embedding_model_id, embedding)
+        VALUES (:i, :c, :m, CAST(:v AS {vector_type(db)}))
+        ON CONFLICT ({fk}, embedding_model_id) DO NOTHING
+    """), [{"i": _uuid.uuid4(), "c": rid, "m": model_id,
+            "v": "[" + ",".join(f"{x:.6f}" for x in vec) + "]"}
+           for (rid, _), vec in zip(rows, vectors, strict=True)])
+    return len(rows)
+
+
 def count_embeddings(db: DBSession, document_version_id: UUID) -> int:
     schema = config.assist_schema()
     return db.execute(text(f"""
@@ -591,6 +624,34 @@ def _redirect_fragments(db: DBSession, document_version_id: UUID,
     return out[:limit]
 
 
+def expand_chunk(db: DBSession, chunk_id: UUID, *, window: int = 1,
+                 max_chars: int = 4000) -> str:
+    """A retrieved document chunk with its neighbours from the SAME evidence row —
+    roadmap §3's parent context, assembled at READ time: a stored chunk still
+    references exactly one evidence row (`AM-27` r4, owner ruling 2026-09-10), and the
+    row is the clause-bearing unit the parser recorded. Headed by the section the
+    evidence row records, when it records one."""
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT n.content, n.id = :c AS hit, ev.section_number, ev.section_title
+          FROM "{schema}".chunks c
+          JOIN "{schema}".chunks n ON n.evidence_id = c.evidence_id
+                                  AND abs(n.ordinal - c.ordinal) <= :w
+          JOIN document_evidence ev ON ev.id = c.evidence_id
+         WHERE c.id = :c ORDER BY n.ordinal"""), {"c": chunk_id, "w": window}).all()
+    if not rows:
+        return ""
+    body, size = [], 0
+    for r in sorted(rows, key=lambda r: not r.hit):          # the hit first, always
+        if r.hit or size + len(r.content) <= max_chars:
+            body.append(r)
+            size += len(r.content)
+    kept = [r.content for r in rows if r in body]
+    first = rows[0]
+    head = " · ".join(str(x) for x in (first.section_number, first.section_title) if x)
+    return (head + "\n" if head else "") + "\n".join(kept)
+
+
 def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
                         evidence_ids: list[UUID], limit: int = 4) -> list[SearchHit]:
     """The chunks cut from named evidence rows, inside ONE document version.
@@ -647,7 +708,8 @@ def _rrf(lists: list[list[SearchHit]], limit: int, k: int) -> list[SearchHit]:
 
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                   embed_query, limit: int | None = None,
-                  extra_queries: tuple[str, ...] | list[str] = ()) -> RetrievalOutcome:
+                  extra_queries: tuple[str, ...] | list[str] = (),
+                  candidates: bool = False) -> RetrievalOutcome:
     """Hybrid retrieval within ONE authorized document version, gated.
 
     ``extra_queries`` (2026-09-17) — the query planner's reformulations. Each is
@@ -746,6 +808,16 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     top = scores[0] if scores else None
     gap = (scores[0] - sum(scores[1:]) / len(scores[1:])) if len(scores) > 1 else None
     open_ = gate_is_open(lexical_hit, scores)
+    if candidates:
+        # PHASE 7 (`AM-86`): a candidate pool — lexical and UNGATED vector lists fused;
+        # the gate is still computed and reported, and decides nothing here
+        # (`AM-84` r4). The default path below is unchanged.
+        return RetrievalOutcome(
+            hits=_rrf([lexical_hits, *[as_hits(rows, None) for rows in vector_lists]],
+                      limit, RRF_K),
+            gate_open=open_, lexical_hit=lexical_hit, vector_top_score=top,
+            vector_peak_gap=gap, strategy_version=RETRIEVAL_STRATEGY_VERSION,
+            embedding_model=model_identity)
 
     if not open_:
         # Gate shut: `hits` is empty, as every caller relies on. The candidates are

@@ -52,6 +52,11 @@ EXPECTED_TABLES = frozenset({
     "obligation_extractions",
     # The grounded explanation layer — AM-49 (AB-15), owner 2026-09-09.
     "finding_explanations",
+    # The canonical knowledge/source model — AM-79 (AB-29), roadmap PHASE 1, 2026-09-24.
+    "knowledge_sources",
+    "knowledge_items",
+    # Its retrieval-record vectors — AM-82, roadmap PHASE 3, 2026-09-24.
+    "knowledge_item_embeddings",
 })
 
 # The nine values `AM-29` r2 forbids an assist-lane state from reusing.

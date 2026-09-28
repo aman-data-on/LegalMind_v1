@@ -326,6 +326,18 @@ def rerank_model_revision() -> str:
                           "233902d25c440f23af6f7d6e94d2946bac0bee0a")
 
 
+def nli_model_repo() -> str:
+    """PHASE 11 (`AM-90`) — the local entailment model the claim verifier reads with.
+    Selected by measurement against the annotated PHASE 10 claims (see `AM-90`)."""
+    return os.environ.get("LEGALMIND_NLI_MODEL", "cross-encoder/nli-deberta-v3-small")
+
+
+def nli_model_revision() -> str:
+    """A commit sha, never a floating alias (`AM-30` t7's reasoning)."""
+    return os.environ.get("LEGALMIND_NLI_REVISION",
+                          "fa2804872c3b4bd748f38c0185cc85775361e735")
+
+
 def query_planner_enabled() -> bool:
     """Whether a question is PLANNED before retrieval — `assist/planner.py`. OFF.
 
@@ -389,6 +401,34 @@ def query_expansion_enabled() -> bool:
     """
     value = os.environ.get("LEGALMIND_QUERY_EXPANSION", "off")
     return value.lower() in {"1", "true", "on"}
+
+
+def ask_multi_source() -> str:
+    """Which Ask path answers (roadmap PHASE 13, `AM-94`): ``off`` (default) — the
+    existing path for every conversation; ``no_document`` — the validated PHASE 9–12
+    multi-source path for conversations with no document, the scope it was measured
+    on; ``on`` — every conversation. Anything else is ``off``: an unreadable value
+    falls back to the path production already runs.
+
+    Read per request from the process environment, so a change takes effect when the
+    API process restarts with the new value (systemd reloads its environment file on
+    restart) — not the moment the file is edited.
+    """
+    value = os.environ.get("LEGALMIND_ASK_MULTI_SOURCE", "off").strip().lower()
+    return value if value in {"off", "no_document", "on"} else "off"
+
+
+def ask_multi_source_percent() -> int:
+    """The canary share, 0–100 (default 100): of the conversations the flag admits, the
+    multi-source path takes those whose id hashes below this share — deterministic per
+    conversation, so a reader's thread stays on one path. Unreadable or out of range
+    means 0: a canary setting that cannot be read admits nobody."""
+    raw = os.environ.get("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", "100").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 0
+    return value if 0 <= value <= 100 else 0
 
 
 def evidence_rescue_enabled() -> bool:

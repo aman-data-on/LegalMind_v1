@@ -21,7 +21,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from legalmind import config
-from legalmind.assist.statutes import StatuteIngestRefused, ingest_statute
+from legalmind.assist.statutes import (
+    StatuteIngestRefused,
+    ingest_statute,
+    withdraw_statute,
+)
 
 REGISTRY = Path(__file__).resolve().parents[1] / "config" / "statutes" / "registry.json"
 
@@ -52,7 +56,11 @@ def main() -> int:
             except StatuteIngestRefused as exc:
                 db.rollback()
                 failures += 1
-                print(f"REFUSED {exc}", file=sys.stderr)
+                withdrawn = withdraw_statute(db, path=base / entry["file"],
+                                             provenance=provenance)
+                db.commit()
+                print(f"REFUSED {exc}" + (f" — {withdrawn} existing row(s) WITHDRAWN"
+                                          if withdrawn else ""), file=sys.stderr)
     return 1 if failures else 0
 
 

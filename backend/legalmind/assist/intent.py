@@ -291,6 +291,10 @@ _INSTRUMENT_NOUNS = ("statute", "statutor", "adhiniyam", "ordinance", "regulatio
 # Short names people type for the Acts in the corpus. `statutes.expand_aliases` maps
 # them to official-title words for the title match; here their presence IS the
 # instrument reference, so the two uses share one table rather than two drifting ones.
+#: Everything but letters, digits, hyphens and spaces — separates an alias from the
+#: punctuation after it ("the DPDP?", "CERT-In."), shared with `statutes.expand_aliases`.
+_ALIAS_SPACE = re.compile(r"[^\w\s-]+")
+
 ACT_ALIASES = {
     "dpdp": "digital personal data protection",
     "dpdpa": "digital personal data protection",
@@ -529,7 +533,8 @@ def _instrument_reference(question: str, tokens: list[str]) -> bool:
         return True
     if _hits(tokens, _INSTRUMENT_NOUNS):
         return True
-    lowered = f" {question.lower()} "
+    # Punctuation is a word boundary: "reported to CERT-In?" names the Directions.
+    lowered = f" {_ALIAS_SPACE.sub(' ', question.lower())} "
     if any(f" {short} " in lowered for short in ACT_ALIASES):
         return True
     # "act" and "rules" are an instrument only next to a determiner or an Act's name —

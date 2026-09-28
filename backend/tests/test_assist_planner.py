@@ -346,3 +346,32 @@ def test_the_cheap_path_leaves_the_recorded_fields_neutral():
 def test_the_cheap_path_still_returns_nothing_when_the_flag_is_off(monkeypatch):
     monkeypatch.delenv("LEGALMIND_QUERY_PLANNER", raising=False)
     assert planner.plan("how much time do we get to fix a breach?") is None
+
+
+def test_vocabulary_places_the_golden_misses_and_service_alone_is_not_sla():
+    """PHASE 13 (golden F-03, F-04, K-03): each cue points at the topic its gold
+    standard is configured with — never an authored one."""
+    from legalmind.assist import intent, planner
+    assert planner.plan_lexical("How many years must KYC records be kept?").topic == \
+        "Data Protection & Privacy"
+    hinglish = "customer ne payment nahi kiya toh service kab band kar sakte hain?"
+    assert planner.plan_lexical(hinglish).topic == "Payment Terms & Taxes", \
+        "the word 'service' alone never makes a question an SLA question"
+    assert planner.plan_lexical("What is our uptime service credit?").topic == \
+        "SLA / Service Levels"
+    # An alias followed by punctuation still names the instrument.
+    assert intent.legal_question_signals(
+        "Within how many hours must a cyber incident be reported to CERT-In?"
+    ).names_instrument
+    assert not intent.legal_question_signals("How quickly must we act?").names_instrument
+
+
+def test_a_readers_wording_of_the_cap_and_a_price_rise_places_the_topic():
+    """Golden B-03 and B-05: "the most we will pay out" and "raise our prices" had no
+    topic, so the liability and price-change standards ranked out of reach."""
+    from legalmind.assist import planner
+    assert planner.plan_lexical(
+        "What is the most we will pay out if something goes wrong under an MSA?"
+    ).topic == "Liability"
+    assert planner.plan_lexical("Can we raise our prices during the contract?").topic == \
+        "Payment Terms & Taxes"

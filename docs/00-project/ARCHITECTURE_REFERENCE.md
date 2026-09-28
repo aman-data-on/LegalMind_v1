@@ -112,7 +112,9 @@ standard?" — that routes to the evaluator. Full description:
 
 `AM-43` made the **Legal Constitution** the governing source of company positions — as
 *configuration source, never runtime corpus*: it is not chunked, indexed or retrieved, and its
-positions enter as ratified Company Standards citing their section. `AM-59` moved the canonical
+positions enter as ratified Company Standards citing their section. ⚠️ **Since `AM-79` (AB-29, 2026-09-24)** the
+Constitution is ALSO a canonical, structured, retrievable source (`knowledge_sources` /
+`knowledge_items`, `assist/constitution.py`); the standards remain the evaluator's yardstick. `AM-59` moved the canonical
 text to **L1.10** and put a `constitution` block on every standard. `AM-65` retired the seven
 standards the Constitution does not define. Provenance and retirement:
 [COMPANY_STANDARDS.md](../02-legal-domain/COMPANY_STANDARDS.md).

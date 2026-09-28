@@ -317,7 +317,10 @@ export function constitutionCitation(finding: Pick<Finding, "requirement">): str
     : c.basis === "APPLICABLE_LAW" ? " · applicable law"
     : c.basis === "NOT_ADOPTED" ? " · not currently adopted"
     : "";
-  return `Constitution, Section ${c.section}${c.topic ? ` · ${c.topic}` : ""}${qualifier}`;
+  // §31.x topics open with their own number ("Section 31.12 — Amendment / Addendum"),
+  // which read "Section 31.12 · Section 31.12 — …" beside the section (AM-104).
+  const topic = c.topic?.replace(new RegExp(`^Section ${c.section.replace(/\./g, "\\.")}\\s*—\\s*`), "");
+  return `Constitution, Section ${c.section}${topic ? ` · ${topic}` : ""}${qualifier}`;
 }
 
 export function determinationLabel(classification: string): string | null {

@@ -38,7 +38,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.assist import store
-from legalmind.assist.chunking import CHUNKING_ALGORITHM_VERSION, chunk_evidence
+from legalmind.assist.chunking import (
+    CHUNKING_ALGORITHM_VERSION,
+    chunk_evidence,
+    integrity_failures,
+)
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain import enums as E
@@ -97,6 +101,15 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
         return IndexResult(document_version_id, 0, True, "no evidence to index")
 
     chunks = chunk_evidence(list(rows))
+    # Roadmap PHASE 2: a chunk set that fails integrity is never written, so the
+    # version is not searchable (and a reindex leaves the previous chunks in place).
+    failures = integrity_failures(list(rows), chunks)
+    if failures:
+        log_event("assist.index.integrity_refused", level=logging.WARNING,
+                  document_version_id=str(document_version_id),
+                  checks=",".join(f.split(":")[0] for f in failures))
+        return IndexResult(document_version_id, 0, True,
+                           "integrity: " + "; ".join(failures))
     if existing and reindex:
         # Id-preserving: a citation recorded against a clause keeps pointing at that
         # clause (rule 17), even though the clause's chunk may now carry its heading.

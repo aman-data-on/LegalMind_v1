@@ -45,6 +45,14 @@ const SHOT = {
   animations: "disabled" as const,
 };
 
+/** A fixed-offset zone where the local time is about 15:00 at this moment. */
+const AFTERNOON_TZ = (() => {
+  let offset = 15 - new Date().getUTCHours();
+  if (offset > 14) offset -= 24;
+  if (offset < -12) offset += 24;
+  return offset === 0 ? "Etc/GMT" : offset > 0 ? `Etc/GMT-${offset}` : `Etc/GMT+${-offset}`;
+})();
+
 test.use({
   viewport: { width: 1280, height: 900 },
   colorScheme: "light",
@@ -126,6 +134,14 @@ test.describe("the new UI at the freeze (counsel)", () => {
     return conversationId;
   };
 
+  /* The dashboard greets by the viewer's local hour (#120's hero), so this shot read
+     "Good afternoon" or "Good morning" by when CI ran and failed a commit that
+     touched no dashboard code (PR #121, 2026-09-28). A mask is no fix: the heading's
+     box is as wide as the greeting it holds. Instead the browser runs in a zone
+     where it is 15:00 now, so the greeting is always the baseline's. Relative times
+     ("just now") compare instants, so no other pixel depends on the zone. */
+  test.describe("at a local afternoon", () => {
+  test.use({ timezoneId: AFTERNOON_TZ });
   test("documents landing — intake and list", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await createAnalysedReview(page);
@@ -153,6 +169,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
         page.locator("tbody td:last-child"),
       ],
     });
+  });
   });
 
   test("reviews queue — filters and rows", async ({ page }) => {

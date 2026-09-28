@@ -416,10 +416,8 @@ def embed_positions(db: DBSession) -> int:
     no lexeme with "terminated by either Party … thirty (30) days' notice" — and
     the calibrated gate decides whether a vector-only neighbour is evidence at all.
     """
-    from legalmind.assist import calibration, embedding_runtime, store
+    from legalmind.assist import store
 
-    if not embedding_runtime.available():
-        return 0
     schema = config.assist_schema()
     rows = db.execute(sql_text(f"""
         SELECT pc.id, pc.content FROM "{schema}".position_chunks pc
@@ -427,35 +425,27 @@ def embed_positions(db: DBSession) -> int:
                             WHERE e.position_chunk_id = pc.id)
          ORDER BY pc.standard_code, pc.ordinal
     """)).all()
-    if not rows:
+    written = store.embed_into(db, table="position_chunk_embeddings",
+                               fk="position_chunk_id", rows=[(r[0], r[1]) for r in rows])
+    if not written:
         return 0
-    vectors = embedding_runtime.embed_texts([r[1] for r in rows])
-    if vectors is None:
-        return 0
-    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
-    name, _, revision = identity.partition("@")
-    model_id = store.register_embedding_model(
-        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
-        dimensions=calibration.EMBEDDING_DIMENSIONS,
-        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
-    vtype = store.vector_type(db)
-    db.execute(sql_text(f"""
-        INSERT INTO "{schema}".position_chunk_embeddings
-            (id, position_chunk_id, embedding_model_id, embedding)
-        VALUES (:i, :c, :m, CAST(:v AS {vtype}))
-        ON CONFLICT (position_chunk_id, embedding_model_id) DO NOTHING
-    """), [{"i": str(uuid4()), "c": r[0], "m": model_id,
-            "v": "[" + ",".join(f"{x:.6f}" for x in vec) + "]"}
-           for r, vec in zip(rows, vectors, strict=True)])
-    log_event("assist.positions.embedded", count=len(rows))
-    return len(rows)
+    log_event("assist.positions.embedded", count=written)
+    return written
+
+
+def can_read(permissions: frozenset[str]) -> bool:
+    """Who may read the organization's positions — Domain A and the Constitution alike
+    (`AM-44`, `AM-79` r2): assist.ask AND (configuration.view OR legal_position.view)."""
+    return P.ASSIST_ASK in permissions and (
+        P.CONFIGURATION_VIEW in permissions or P.LEGAL_POSITION_VIEW in permissions)
 
 
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                      limit: int = 10, embed_query=None,
                      topic: str | None = None,
                      allow_relax: bool = True,
-                     require_semantic: bool = False) -> list[PositionHit]:
+                     require_semantic: bool = False,
+                     candidates: bool = False) -> list[PositionHit]:
     """Domain A hybrid retrieval, authorization inside the function (r5).
 
     Without assist.ask AND (configuration.view OR legal_position.view) the result is
@@ -492,8 +482,7 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     """
     # `AM-32` r5 as amended by `AM-44` (2026-09-08): `configuration.view` OR
     # `legal_position.view` — see `routing.positions_permitted` for the reasoning.
-    if P.ASSIST_ASK not in permissions or not (
-            P.CONFIGURATION_VIEW in permissions or P.LEGAL_POSITION_VIEW in permissions):
+    if not can_read(permissions):
         return []
     schema = config.assist_schema()
     # OR-semantics with a match floor (2026-09-08). `plainto_tsquery` ANDs every
@@ -633,8 +622,11 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                            standard_version=r.version_number,
                            ratification_status=r.ratification)
                for r in rows]
-    vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
-                                topic=topic, named=named)
+    # The default call is exactly today's; only a candidate pool passes `gated`.
+    vector = (_vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                 topic=topic, named=named, gated=False) if candidates
+              else _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                      topic=topic, named=named))
     if require_semantic and not vector:
         lexical = []
     # THE SEMANTIC BRANCH IS THE RELEVANCE SIGNAL; THE LEXICAL BRANCH IS RECALL COVER.
@@ -663,7 +655,10 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # gap for the owner to see, not a constant to invent from ten points. Junk on an
     # unheld subject is stopped upstream instead: provenance is no longer indexed, and
     # `named_document_type` filters a paper we hold no position for.
-    hits = _fuse([] if vector else lexical, vector, limit)
+    # `candidates` (PHASE 7, `AM-86`): a CANDIDATE POOL for a reranker wants recall,
+    # so both branches are fused and vector neighbours are ungated — similarity
+    # produces candidates, it does not decide (`AM-84` r4). The default is unchanged.
+    hits = _fuse(lexical if candidates or not vector else [], vector, limit)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is
@@ -684,7 +679,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
         return search_positions(db, query=query, permissions=permissions, limit=limit,
                                 embed_query=embed_query, topic=None,
                                 allow_relax=allow_relax,
-                                require_semantic=require_semantic)
+                                require_semantic=require_semantic,
+                                candidates=candidates)
     log_event("assist.positions.searched", hits=len(hits), lexical=len(lexical),
               vector=len(vector), topic=topic or "", level=logging.DEBUG)
     return hits
@@ -692,7 +688,8 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
                        embed_query=None, topic: str | None = None,
-                       named: str | None = None) -> list[PositionHit]:
+                       named: str | None = None,
+                       gated: bool = True) -> list[PositionHit]:
     """Gated nearest neighbours over `position_chunk_embeddings`. [] when no model
     is available, when nothing is embedded, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -726,14 +723,15 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K),
            "topic": topic, "named": named}).all()
     scores = [float(r.cosine) for r in rows]
-    if not calibration.gate_is_open(False, scores):
+    if gated and not calibration.gate_is_open(False, scores):
         return []
     return [PositionHit(position_chunk_id=r.id, standard_code=r.standard_code,
                         document_type=r.document_type, source_clause=r.source_clause,
                         content=r.content, score=float(r.cosine),
                         standard_version=r.version_number,
                         ratification_status=r.ratification)
-            for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
+            for r in rows
+            if not gated or float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
 
 
 def _fuse(lexical: list[PositionHit], vector: list[PositionHit],

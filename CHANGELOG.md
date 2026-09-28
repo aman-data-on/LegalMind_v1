@@ -10,6 +10,136 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
+
+Master roadmap [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md)
+adopted as the authoritative Ask/RAG target (owner, 2026-09-24); step-by-step log in
+[DAILY_CHANGED.md](DAILY_CHANGED.md). On `feat/legalmind-rag-production`, **not deployed**.
+
+* **PHASE 0** — `tools/rag_benchmark.py` + `tests/assist_eval/rag_benchmark.json`: 76-case
+  multi-source benchmark (categories A–O, 14 golden early-termination cases), zero Gemini,
+  read-only; baseline recall@3 0.494, golden 0.333, multi-source completeness 0.000.
+* **PHASE 1 / `AM-79`** (amends `AM-43` r2) — the Constitution becomes a canonical,
+  structured source: migration `f4c1e8a2b7d9` (`knowledge_sources`, `knowledge_items`),
+  `assist/constitution.py` + `tools/ingest_constitution.py`, `assist/authority.py`.
+  Historical exceptions, the company's reading of law and §31.6a are labelled apart from
+  current policy.
+* **PHASE 2 / `AM-80`** (amends `AM-48` r5) — nothing becomes searchable until it passes
+  ingestion integrity: `statutes.check_integrity` quarantines folded / mis-numbered /
+  duplicate sections and refuses an Act over a 20% ceiling; `chunking.integrity_failures`
+  gates document indexing; `section-4` bounds statute chunks at 2,000 characters;
+  bilingual prints read in English; `statutes.status` column (migration `a7d3e9b1c5f2`).
+  Folded sections 30 → 0, oversized chunks 806 → 0; Income-tax Act 1961 print refused.
+* **PHASE 2 closed / `AM-81`** — the Income-tax Act 1961 obtained from India Code (as
+  enacted, 1961 Gazette) and searchable; Gazette Schedules parsed (DPDP Rules: 7 Schedules,
+  0 quarantined); a refused re-ingest withdraws; 17/17 Acts searchable.
+* **PHASE 3 / `AM-82`** — hierarchical retrieval records: Constitution children with
+  breadcrumbs (migration `b8e2f6a4d1c3`), `constitution.search` / `expand`,
+  `statutes.expand_section`, `store.expand_chunk`, one statute chunk per section;
+  shared `store.embed_into`. Constitution lane recall@3 0.878, MRR 0.810.
+* **PHASE 4 / `AM-83`** (amends `AM-26` r2) — embedder benchmark MiniLM · bge-m3 ·
+  Qwen3-0.6B (`tools/benchmark_embedders.py`, zero Gemini): bge-m3/Qwen3 rank higher but
+  add no pool-depth recall on 3 of 4 domains and separate the refusal gate worse (45 vs
+  31 vs 41 of 64 kept); **MiniLM stays**, Qwen3 rejected (13.8 GB), bge-m3 kept as a
+  Domain C candidate. Backend: CLS/last-token pooling, KV-cache exports, full-manifest
+  verification; provisioner streams and resumes.
+* **PHASE 5 / `AM-84`** — Postgres + exact pgvector stays, measured at the PHASE 7–8
+  depths (`tools/benchmark_storage.py`): KNN ~2 ms at k ≤ 100, 16 clients ~800–1,000 q/s,
+  ×40 growth 106 ms; exact = numpy ground truth; all lanes compose in one statement
+  (20.5 ms). Rule recorded: similarity produces candidates, never the answer.
+* **PHASE 6 / `AM-85`** — deterministic structured query plan (`assist/query_plan.py`,
+  `tools/eval_query_plan.py`): language, figures, claims, missing-document state, source
+  lanes, sub-questions; early-exit paraphrases converge on §14. Lane recall 22/23, false
+  positives 0; sub-queries lift Constitution MRR 0.695 → 0.822. No model used.
+* **PHASE 7 / `AM-86`** — `assist/retrieval.py`: plan-driven candidate pools (depth 50,
+  all authorized domains incl. the Constitution, exact section reference, RRF per domain,
+  one parent one place) and diversity-first 5–12 evidence; candidate mode in the three
+  search functions (defaults unchanged). Pool recall 0.987, golden 1.000; evidence 0.705
+  vs production 0.577. Six gold entries naming retired standards corrected.
+* **PHASE 8 / `AM-87`** — `retrieval.rerank`: cross-encoder over the top 30 of the
+  statute and document pools (whole question), version before relevance;
+  `retrieval.with_context`: read-time parent context (Constitution section with history
+  and law labelled, statute section, document neighbours). Evidence recall 0.705 → 0.756,
+  MRR 0.645 → 0.690, multi-source 0 → 0.2, wrong-source and false admission unchanged.
+  bge-m3 re-tested for statutes after reranking (`tools/retest_statute_embedder.py`): no
+  material gain, MiniLM stays.
+* **PHASE 9 / `AM-88`** — `assist/evidence.py`: the evidence bundle — per-part states
+  (SUPPORTED · PARTIALLY_SUPPORTED · INSUFFICIENT · UNAVAILABLE), source kinds kept
+  apart, reader assertions recorded with the figures no company position states;
+  sufficiency per unit by authority/version, cross-encoder relevance on parent context
+  and (documents) the calibrated gate. Kind-aware selection; a claim about signed paper
+  opens the historical lane. Wrong-source 0.026 → 0, false admission 0.2 → 0,
+  precision 0.267 → 0.457, golden recall 0.889.
+* **PHASE 10 / `AM-89`** — `assist/answer.py` + `generation.generate_bundle_answer`
+  (prompt `bundle-answer-5`): conversational answers over the PHASE 9 bundle only, each
+  excerpt labelled by kind, the reader's assertions and what is missing as [A]/[M]
+  lines, checked outside the model and failing closed to a deterministic answer;
+  `tools/eval_generation.py` (offline stub, `--live`, zero-call `--recheck`). Measured:
+  0.984 of answerable bundles answered; 0 unsupported claims, verdicts, contradictions
+  or assertions-as-evidence shown; p95 4.1 s. `guardrails` now reads "eighteen per
+  cent." and "twenty-four" as figures.
+* **PHASE 11 / `AM-90`** — `assist/verify.py`: claims verified against their cited
+  evidence by a local NLI cross-encoder (`nli-deberta-v3-small`, provisioned and pinned)
+  plus verb-scoped negation/obligation and kind checks; citations assigned by code; one
+  corrective generation (`generate_bundle_repair`) then the fixed grounded answer.
+  Prompt `bundle-answer-6`. `onnx_backend.pair_logits`; `tools/eval_verification.py`.
+  Live: bad claims shown 4.2% → 3.1%, claim citations 0.966 → 1.000, 56/65 answered.
+* **PHASE 12 / `AM-91`** (partially met) — `assist/contracts.py`: claim contracts
+  (modality, negation, conditions, exceptions, scope, frame, status, kind per statement)
+  and the evidence/conflict map; `generation.generate_contract_answer`
+  (`contract-answer-1`); deterministic contract checks and sentence repair in
+  `answer.py`; `guardrails` reads a decimal with its unit as a figure. Over shown
+  sentences: modality and reading-as-law errors to 0, other kind 23 → 15 per 1,000, bad
+  7.3% → 5.7%; condition drops unchanged (37 per 1,000), unsupported content up.
+* **PHASE 12 / `AM-92`** (complete) — `assist/claim_records.py`: claim contracts built
+  from the structured records (`knowledge_items`, `statute_chunks`) — heading, scope
+  (narrowed by a lettered sub-part, none on history), in-force/repealed status,
+  exceptions, referents and local antecedents, in the records' words; statute units are
+  whole sub-sections, footnotes removed. Three further contract checks; repair appends
+  only the records' own qualifiers. Final run vs run 7, per 1,000 shown sentences:
+  cross-reference/scope 31.4 → 17.6, conditions 9.8 → 0, bad sentences 6.3% → 3.5%;
+  49/65 shown. Known limitations recorded for PHASE 13. Tests:
+  `tests/test_claim_records.py`; eval `tests/assist_eval/contract_records_eval_2026-09-26.json`.
+* **Roadmap §15/§18 / `AM-105` (2026-09-28, PR #121's first CI run)** — three red CI jobs, each root-caused. Job 1: CI installed SQLAlchemy 2.1.1 (unpinned), whose typing failed mypy on 21 untouched lines; pinned `<2.1` to match production 2.0.52. Job 13: two follow-up tests needed vectors CI does not have; lexical-only retrieval now also searches each sub-question's topic phrase (degraded mode only: always-on cost recall 0.952 → 0.893 and was rejected), and the three-turn test accepts either home of the topic (§14 or §28.4.1). Job 15: the Documents screenshot runs in a browser zone where it is afternoon, so its time-of-day greeting always matches the baseline (a mask was tried and failed: the heading is as wide as its greeting). Retrieval with vectors is identical to `AM-104`.
+* **Roadmap §6/§7/§9/§11/§13/§14/§18 / `AM-104` (2026-09-28)** — the last golden misses traced and fixed at their stage: a source counted once per ranked list (H-01), a question part searched under its own topic (D-01), statute section titles in the lexical match and a named Act's own title words ignored for ordering (E-03), CERT-In spelled out for search and rerank (O-04), a cited Schedule carried in its section's context (F-05). Statute chunker `section-5` drops the Bill's Statement of Objects and Reasons (8 Acts; Copyright s. 79 recovered). DPDP s. 33 and the Schedule shown NOT YET IN FORCE until 13 May 2027, labelled as the Constitution §28.2 date (`backend/config/statutes/commencement.json`). Claim records recover sub-section (1) in 219 sections; seven verifier catches with no false reject; three rendering faults fixed; egress audited on failure and trace failures reduced to kinds (security review); a §31.x Finding citation no longer repeats its section. Golden recall@3 0.926 → 0.951, imperfect sentences 16 → 4 of 574, wrong-source and false admission 0. Prompt `contract-answer-3`.
+* **Records synced to `AM-103` (2026-09-27, documentation only)** — ROADMAP_REQUIREMENT_MATRIX, IMPLEMENTATION_STATUS and LEGALMIND_PROJECT_STATE carried stale figures ("fallbacks 14 → 2", 14 bad sentences, K-05 open, pre-`AM-103` category recall); now fallbacks 14 → 1, 16 of 571 bad sentences with each judged as before, per-category recall measured at `AM-103`. The branch is stated as a release CANDIDATE: security review, a fresh migration + rollback rehearsal, a trace check and CI are still owed. CLAUDE.md's amendment narrative gains AB-47–AB-53; HANDOFF.md points to the roadmap tracker.
+* **Roadmap §9/§11 / `AM-103`** — found in the real interface: the early-termination question answered from §13 instead of §14. A Constitution section on the asked topic now serves the position lane; records no longer split inside parentheses or after an ellipsis; hinted restatements are recognised word for word. Golden recall@3 0.914 → 0.926, wrong-source and false admission 0.
+* **Roadmap §12 / `AM-102`** — the multi-source answer's Sources legend numbers each source once and renders as a list in the existing answer view (it ran into one paragraph). Status documents brought current: IMPLEMENTATION_STATUS unit 12 and LEGALMIND_PROJECT_STATE now record the RAG roadmap work (`AM-79`–`AM-102`), measured and not deployed.
+* **Roadmap §11 / `AM-101`** — the noun "obligation" no longer makes a claim mandatory, so an advisory "should" restated as "requires" fails verification (run-9 E-02).
+* **Roadmap §10/§11/§12 / `AM-100`** — the three live fallbacks (D-04, A-01, C-04) root-caused: the code's own restatement of 20 of 553 approved claims could not pass verification, so no repair could succeed. An exact restatement is now approved source text (contract checks still apply); a status note's "not" is not a negation; a reader's figure only with its unit; an ellipsis never ends a sentence. Run-9 replay fallbacks 14 → 2 with every labelled-bad sentence judged as before.
+* **Roadmap §7/§14/§17 / `AM-99`** — of two instruments a question names, the more fully named ranks first, so "the DPDP Act" is answered from the Act, not the Rules. New path recall@3 0.901 → 0.914, legacy 0.568 → 0.580, wrong-source and false admission unchanged.
+* **Roadmap §6/§8/§17 / `AM-98`** — the cross-encoder ranks a statute with its section title (the stored marginal note), so an illustration chunk no longer buries its section; two reader phrasings placed at their gold topics. Golden recall@3 0.864 → 0.901, wrong-source and false admission 0.
+* **Roadmap §9/§13/§15/§17 / `AM-97`** — evidence floor 8 (was 5); a company standard on a topic the question does not name is not evidence (`OFF_TOPIC`); a reader's figure is stated only by the same number with its unit. Golden recall@3 0.815 → 0.864, K-05 closed, wrong-source and false admission 0.
+* **Roadmap §6/§14/§17 / `AM-96`** — planner vocabulary: "service" alone no longer means SLA; KYC and non-payment cues at their gold standards' topics; Act short names before punctuation recognised (one shared pattern); an absent named section answered by no other (`NAMED_SECTION_ABSENT`). Golden recall@3 0.778 → 0.815, wrong-source and false admission 0.
+* **Roadmap §7/§14/§15/§17 / `AM-95`** — behaviour, not columns: `retrieval.exact_reference`
+  (a named section of a named Act survives the rerank and the judge floor) and
+  `retrieval.names_other_act` (`WRONG_ACT`); the planner receives every bounded earlier
+  question and a turn naming its own source never inherits; a Roman-Hindi question is
+  also judged on its English topic for asked-for kinds; golden J-05–J-07; live matrix
+  `docs/00-project/ROADMAP_REQUIREMENT_MATRIX.md`. Golden recall@3 0.728 → 0.778,
+  wrong-source and false admission 0.
+* **Roadmap PHASE 13 / `AM-94`** — the validated multi-source Ask path wired into
+  production behind `LEGALMIND_ASK_MULTI_SOURCE` (default off; `no_document`; `on` not
+  approved) with `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` as a per-conversation canary share;
+  one branch point after the existing screens, a verified answer or the legacy path;
+  `assist.ask.trace` per request (ids, versions, counts, tokens, latency — no text);
+  rollback = flag off + API restart. Rehearsed, never applied: migrations (downgrade of
+  `a7d3e9b1c5f2` fixed), Constitution and AM-80 statute ingestion. A §31.2 counterparty
+  name the redaction missed → "[Customer A]" (`tests/test_constitution_redaction.py`).
+  Length-sorted cross-encoder/NLI batching (rerank p95 3.1 → 1.1 s), a Constitution
+  section serves every lane its children hold, `contract-answer-2`, minimal verbatim
+  repairs, three false-reject checks corrected. Runbook:
+  `docs/09-implementation/MULTI_SOURCE_ROLLOUT_RUNBOOK.md`.
+* **Roadmap §13 / `AM-93`** — multi-source legal reasoning: `generation` records the
+  provider's `finishReason`; `answer.complete` drops only an output-cap cut's unfinished
+  tail and says the reader's claim [A] and the missing signed agreement [M] in fixed
+  wording when an answer omits them; reader figures compared per claim kind from the
+  records; `contracts.check` rejects a sentence speaking for the company position
+  without citing one, and source-kind checks now hold for every sentence; two record
+  rules in `claim_records`. Replay of run 9: 49 → 53/65 shown, bad sentences unchanged,
+  false rejects 6 → 3; live 5 calls. Tests: `tests/test_multi_source_reasoning.py`;
+  eval `tests/assist_eval/multi_source_eval_2026-09-26.json`.
+
 ### 2026-09-23 (later) — `AM-78`: Ask answers the reader's situation, and a reader's figure is compared in code
 
 Owner request: plain English, the answer first, the company position separated from

@@ -197,15 +197,17 @@
       "gazette_reference": null
     },
     {
-      "file": "Income_Tax_Act_1961.pdf",
-      "official_title": "The Income-tax Act, 1961 (REPEALED w.e.f. 1 April 2026 by the Income-tax Act, 2025 — cited by Constitution §6.1 for ss. 194J/194C)",
-      "act_number_year": "Act No. 43 of 1961 (repealed 01.04.2026)",
-      "source": "Dept. of Revenue (dor.gov.in) hosted 2011 Taxmann edition — NOT India Code, NOT current; fetched 2026-09-08",
-      "source_ref": "https://dor.gov.in/files/acts_files/IT%20Act%20(English)_0_0.pdf",
-      "as_amended_date": "2011 edition (as stated in the file) — NOT current",
-      "file_sha256": "1ec6e4c38dc1d524d1d40b1fd35d13ac1336c8fc549cef2af1bf723a999c822b",
-      "total_sections": 23,
-      "gazette_reference": null
+      "file": "Income_Tax_Act_1961_indiacode.pdf",
+      "official_title": "The Income-tax Act, 1961 — as enacted, 13 September 1961 (REPEALED w.e.f. 1 April 2026 by the Income-tax Act, 2025; later amendments NOT included — ss. 194J/194C cited by Constitution §6.1 postdate this text)",
+      "act_number_year": "Act No. 43 of 1961 (repealed 01.04.2026, Act 30 of 2025)",
+      "source": "India Code (indiacode.gov.in), original Gazette No. 47 of 14 Sep 1961; obtained 2026-09-24",
+      "source_ref": "India Code handle 123456789/620179, bitstream 2014b1cd-7c61-420b-9b63-dca1f478a253, file 1961-43.pdf",
+      "as_amended_date": "as enacted 13 September 1961 (no later amendment in this text)",
+      "file_sha256": "f21154ca2c37c90fc4bfe0b464e3ab6b0b5ad84dda641b9383a87aa38e75ec66",
+      "total_sections": 265,
+      "gazette_reference": "Gazette of India Extraordinary, Part II-Section 1, No. 47, 14 September 1961",
+      "note": "Obtained via the India Code repository API. Replaces, as the corpus text, the 2011 Taxmann print from dor.gov.in (still on disk as Income_Tax_Act_1961.pdf), which the AM-80 integrity gate refuses (22 of 27 sections fail). The consolidated as-amended text is published only at incometaxindia.gov.in, which returned HTTP 403 (Akamai) to this host on 2026-09-24; India Code holds no sectional text for this Act. The India Code item's declared checksum (MD5 a6deb881…, 6,993,040 bytes) does not match the served file (7,169,125 bytes, MD5 0e581fdf…); the SHA-256 below is of the file as obtained. Scanned Gazette: OCR text layer, with character errors.",
+      "replaces_file_sha256": "1ec6e4c38dc1d524d1d40b1fd35d13ac1336c8fc549cef2af1bf723a999c822b"
     }
   ]
 }

@@ -23,7 +23,10 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import dataclasses
+import functools
+import hashlib
 import logging
+import os
 import re
 import time
 import uuid
@@ -134,6 +137,20 @@ class AskOutcome:
 # simply records nothing. Accumulates, because positions can be searched twice.
 _TIMINGS: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "assist_timings", default=None)
+
+# PHASE 13 (`AM-94`) — the per-request trace: which path answered and why, what it
+# retrieved and cited (identifiers only), what it cost. Filled as the ask runs and
+# emitted once, as `assist.ask.trace`, by `ask`.
+_TRACE: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "assist_trace", default=None)
+LEGACY = "legacy"
+MULTI_SOURCE = "multi_source"
+
+
+def _trace(**fields: Any) -> None:
+    trace = _TRACE.get()
+    if trace is not None:
+        trace.update(fields)
 
 
 # The ten-stage pipeline's order, for reporting. Stages that did not run for a given
@@ -831,7 +848,14 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     the same numbers on the outcome, so the release gate can report p50/p95 per
     stage through the production path rather than the provider call alone."""
     timings: dict[str, int] = {}
+    usage: dict[str, Any] = {}
+    trace: dict[str, Any] = {"selected_path": LEGACY, "path": LEGACY,
+                             "flag": config.ask_multi_source(),
+                             "canary_percent": config.ask_multi_source_percent(),
+                             "has_document": document_version_id is not None}
     token = _TIMINGS.set(timings)
+    usage_token = generation.USAGE.set(usage)
+    trace_token = _TRACE.set(trace)
     started = time.monotonic()
     try:
         outcome = _ask(db, conversation_id=conversation_id,
@@ -840,11 +864,59 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                        finding_id=finding_id)
     finally:
         _TIMINGS.reset(token)
+        generation.USAGE.reset(usage_token)
+        _TRACE.reset(trace_token)
     timings["total"] = int((time.monotonic() - started) * 1000)
     stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
     log_event("assist.ask.timings", request_id=request_id,
               conversation_id=str(conversation_id), **stage_fields)
+    _emit_trace(trace, usage, timings, outcome, request_id, conversation_id)
     return dataclasses.replace(outcome, timings=dict(timings))
+
+
+def _emit_trace(trace: dict, usage: dict, timings: dict, outcome: AskOutcome,
+                request_id: str | None, conversation_id: UUID) -> None:
+    """One `assist.ask.trace` per question (roadmap §18). Identifiers, versions,
+    counts, tokens and latency only — no question text, no retrieved or document
+    text, no answer text; a failure is recorded by its KIND, never its sentence."""
+    rate_in = os.environ.get("LEGALMIND_GEMINI_USD_PER_M_IN")
+    rate_out = os.environ.get("LEGALMIND_GEMINI_USD_PER_M_OUT")
+    cost = None
+    if rate_in and rate_out:
+        with contextlib.suppress(ValueError):
+            cost = round(usage.get("prompt_tokens", 0) * float(rate_in) / 1e6
+                         + usage.get("output_tokens", 0) * float(rate_out) / 1e6, 6)
+    log_event("assist.ask.trace", request_id=request_id,
+              conversation_id=str(conversation_id), message_id=str(outcome.message_id),
+              answer_state=outcome.answer_state.value,
+              domains=list(outcome.domains), **trace,
+              gemini_calls=usage.get("calls", 0),
+              gemini_failed_calls=usage.get("failed_calls", 0),
+              prompt_tokens=usage.get("prompt_tokens", 0),
+              output_tokens=usage.get("output_tokens", 0),
+              provider_finishes=usage.get("finish_reasons", []),
+              prompt_versions=usage.get("prompt_versions", []),
+              model=generation._model(), estimated_usd=cost,
+              latency_ms=timings.get("total"),
+              stages_ms={k: v for k, v in timings.items() if k != "total"})
+
+
+def _ask_path(document_version_id: UUID | None, conversation_id: UUID | None = None
+              ) -> str:
+    """`LEGALMIND_ASK_MULTI_SOURCE`: off → legacy for all; no_document → the
+    multi-source path only where no document is in the conversation; on → all — and
+    within that, `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` of conversations, chosen by a
+    stable hash of the conversation id (the canary dial; 100 by default)."""
+    flag = config.ask_multi_source()
+    if flag == "on" or (flag == "no_document" and document_version_id is None):
+        share = config.ask_multi_source_percent()
+        if share >= 100:
+            return MULTI_SOURCE
+        if share > 0 and conversation_id is not None:
+            digest = hashlib.sha256(str(conversation_id).encode()).digest()
+            if int.from_bytes(digest[:2], "big") % 100 < share:
+                return MULTI_SOURCE
+    return LEGACY
 
 
 def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
@@ -1026,6 +1098,26 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                           text=route_text, routed_to_evaluator=True,
                           comparison=comparison, positions=_position_views(position_hits),
                           domains=domains)
+
+    # PHASE 13 (`AM-94`) — THE branch point, after every screen above (general
+    # knowledge, capability, unmet prerequisite, the evaluator's question), none of
+    # which it changes. `None` means the multi-source path declined, and the question
+    # continues below exactly as it always has.
+    if _ask_path(document_version_id, conversation_id) == MULTI_SOURCE:
+        multi = _ask_multi_source(
+            db, conversation_id=conversation_id, user_message_id=user_message_id,
+            question=question, resolved=resolved, prior_texts=prior_texts,
+            # Every bounded earlier question, newest last: the planner takes the topic
+            # of the most recent one that HAS one, so FIRST → CLAIM → "and the law on
+            # that?" keeps FIRST's topic although CLAIM is the anchor. Whether a turn
+            # inherits at all is the planner's rule (`query_plan.plan`).
+            topic_context=[content for _, content in prior],
+            route=route,
+            domains=domains, permissions=permissions,
+            document_version_id=document_version_id, position_hits=position_hits,
+            statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id)
+        if multi is not None:
+            return multi
 
     if document_version_id is None or not route.has(routing.Domain.DOCUMENT):
         # No document in scope: statutes and/or positions are what can answer. The
@@ -1216,6 +1308,222 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                       text=answer_text, citations=citations,
                       positions=_position_views(position_hits, position_findings),
                       domains=domains, statutes=statute_section)
+
+
+#: The multi-source answer's own markers, and the legend that resolves them.
+_ANSWER_MARKER = re.compile(r"\s?\[(\d{1,2})\]|[\s,]*\[(?:A|M)\]")
+MULTI_SOURCE_STRATEGY = "multi-source-1"
+
+
+def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: UUID,
+                      question: str, resolved: str, prior_texts: list[str],
+                      topic_context: list[str], route,
+                      domains: tuple[str, ...], permissions: frozenset[str],
+                      document_version_id: UUID | None, position_hits: list,
+                      statute_hits: list, follow_up_of: list[UUID],
+                      request_id: str | None) -> AskOutcome | None:
+    """The validated PHASE 9–12 path (`AM-85`–`AM-93`) in production: plan → broad
+    authorized candidates → rerank → evidence bundle → claim contracts → Gemini →
+    every check → the verified answer.
+
+    It answers only when that path produced a VERIFIED generated answer. Otherwise
+    — nothing answerable, generation unavailable, or verification failing — it
+    returns None and the legacy path below answers or refuses exactly as it does
+    today, so this path can only add a verified answer, never a new refusal or a
+    new kind of fallback text. The caller's live permissions scope every search
+    (`retrieval.candidates` → the same permission-checked searches the legacy path
+    uses); nothing here reads a domain the router did not authorize.
+    """
+    from legalmind.assist import answer as answer_mod
+    from legalmind.assist import evidence as evidence_mod
+    from legalmind.assist import query_plan, retrieval
+
+    _trace(selected_path=MULTI_SOURCE, path=MULTI_SOURCE)
+    calls: list[generation.GenerationResult] = []
+
+    def _recorded(fn):
+        def wrapped(*args, **kwargs):
+            result = fn(*args, **kwargs)
+            calls.append(result)
+            return result
+        return wrapped
+
+    savepoint = db.begin_nested()
+    try:
+        with _stage("planning"):
+            # Roadmap §15: the planner inherits the earlier TOPIC when this turn names
+            # none — "What if the customer says they were promised 6 months?" after an
+            # early-termination question. That turn is not anaphoric, so `prior_texts`
+            # (which also reach the retrieval query and the model) stay empty; the
+            # topic still carries, exactly as the benchmark validated. Only the topic:
+            # the earlier question's claims and figures never do (`query_plan.plan`).
+            plan = query_plan.plan(resolved, has_document=document_version_id is not None,
+                                   prior=tuple(topic_context))
+        with _stage("retrieval"):
+            pool = retrieval.candidates(db, plan, route, permissions=permissions,
+                                        document_version_id=document_version_id)
+        with _stage("rerank"):
+            pool = retrieval.rerank(pool, plan)
+        bundle = evidence_mod.build(db, plan, pool, retrieval.select(pool, plan))
+        _trace(plan_lanes=sorted(plan.lanes), plan_parts=len(plan.sub_questions),
+               retrievers=sorted(pool.searched), candidates=len(pool.refs()),
+               evidence_refs=[x.ref for x in bundle.shown()],
+               answerable=bundle.answerable)
+        if not bundle.answerable:
+            savepoint.rollback()
+            _trace(path=LEGACY, fallback_kind="multi_source_not_answerable")
+            return None
+        with _stage("generation"):
+            ans = answer_mod.respond(
+                bundle, question, environment=config.environment(),
+                prior_questions=tuple(prior_texts), request_id=request_id, db=db,
+                generate=_recorded(generation.generate_contract_answer),
+                repair=_recorded(functools.partial(
+                    generation.generate_bundle_repair,
+                    template=generation.CONTRACT_PROMPT_TEMPLATE)))
+    except Exception as exc:                  # the legacy path is the proven one
+        savepoint.rollback()
+        _audit_calls(db, calls, conversation_id, request_id, 0)   # egress happened
+        _trace(path=LEGACY, fallback_kind=f"multi_source_error:{type(exc).__name__}")
+        log_event("assist.ask.multi_source_failed", level=logging.WARNING,
+                  request_id=request_id, error=type(exc).__name__,
+                  conversation_id=str(conversation_id), operational_failure=True)
+        return None
+    _audit_calls(db, calls, conversation_id, request_id, len(ans.refs))
+    _trace(generated=ans.generated, gemini_ms=ans.latency_ms, prepare_ms=ans.prepare_ms,
+           verify_ms=ans.verify_ms, verifier=config.nli_model_repo(),
+           verifier_revision=config.nli_model_revision(),
+           provider_finish=ans.finish_reason,
+           verification_failures=sorted({_failure_kind(f) for f in ans.failures}))
+    if not ans.generated:
+        savepoint.commit()
+        _trace(path=LEGACY, fallback_kind="multi_source_not_verified")
+        return None
+    savepoint.commit()
+    text_out, cited_refs = _multi_source_text(ans, bundle)
+    run_id = _persist_multi_source_run(db, user_message_id, resolved, plan, pool, bundle,
+                                       cited_refs, document_version_id, domains,
+                                       follow_up_of)
+    cited_codes = {r.removeprefix("POS:") for r in cited_refs if r.startswith("POS:")}
+    cited_positions = [h for h in position_hits if h.standard_code in cited_codes]
+    cited_statutes = [h for h in statute_hits
+                      if f"STAT:{h.official_title.removeprefix('The ')}:"
+                         f"{h.section_number}" in cited_refs]
+    ordinal = _next_ordinal(db, conversation_id)
+    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", text_out)
+    answer_id = _persist_answer(
+        db, reply_id, run_id, AssistAnswerState.ANSWERED, model=ans.model,
+        prompt_version_id=_prompt_version_id(db, generation.CONTRACT_PROMPT_VERSION,
+                                             generation.CONTRACT_PROMPT_TEMPLATE),
+        latency_ms=ans.latency_ms)
+    _persist_position_citations(db, answer_id, cited_positions)
+    statute_section = None
+    if cited_statutes:
+        cited_idx = list(range(1, len(cited_statutes) + 1))
+        _persist_statute_citations(db, answer_id, cited_statutes, cited_idx)
+        statute_section = {"text": "", "citations": _statute_views(cited_statutes,
+                                                                    cited_idx)}
+    _trace(cited_refs=cited_refs, cited_positions=len(cited_positions),
+           cited_statutes=len(cited_statutes),
+           cited_constitution=sum(r.startswith("CONST:") for r in cited_refs))
+    log_event("assist.ask.answered", request_id=request_id,
+              conversation_id=str(conversation_id), citations=str(len(cited_refs)),
+              positions=str(len(cited_positions)))
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=AssistAnswerState.ANSWERED, text=text_out,
+                      positions=_position_views(cited_positions), domains=domains,
+                      statutes=statute_section)
+
+
+def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -> None:
+    """AM-30 t5 — every egress audited, whether or not its text is shown, and also
+    when the path fails after the provider returned (it fell back unaudited before)."""
+    from legalmind.security import audit as audit_log
+    for result in calls:
+        audit_log.record(
+            db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
+            entity_id=conversation_id, request_id=request_id,
+            after={"model": result.model, "prompt_version": result.prompt_version,
+                   "payload_sha256": result.payload_sha256,
+                   "evidence_chunks": evidence_chunks})
+
+
+def _failure_kind(failure: str) -> str:
+    """A verification failure's KIND for the trace — cut before any quoted, cited or
+    bracketed part, so no evidence text reaches the log ("antecedent of 'that sum' in
+    [2] lost ('...')" kept 60 characters of source text before)."""
+    return re.split(r"""[:(\["]| '| of \[""", failure, maxsplit=1)[0].strip()[:60]
+
+
+def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
+    """The verified answer for the existing response contract: its claim markers
+    renumbered in order of first use, [A]/[M] (internal to the payload) removed, and
+    a deterministic Sources legend — each number's citation label, nothing else —
+    because the main answer's markers resolve only against a DOCUMENT's sources in
+    the current UI, and a no-document answer has none. Returns the cited refs in
+    that order (what `retrieval_runs.results` records)."""
+    from legalmind.assist import answer as answer_mod
+
+    by_ref = {s.ref: s for s in bundle.shown()}
+    # One number per SOURCE, not per claim: three claims of §16 were listed as three
+    # identical "§16" lines in the legend (2026-09-27).
+    refs: list[str] = []
+    for m in re.finditer(r"\[(\d{1,2})\]", ans.text):
+        n = int(m.group(1))
+        if 1 <= n <= len(ans.refs) and ans.refs[n - 1] not in refs:
+            refs.append(ans.refs[n - 1])
+
+    def _marker(m: re.Match) -> str:                  # [A]/[M]: removed with their comma
+        key = m.group(1)
+        ok = key and 1 <= int(key) <= len(ans.refs)
+        return f" [{refs.index(ans.refs[int(key) - 1]) + 1}]" if ok else ""
+    text_out = _ANSWER_MARKER.sub(_marker, ans.text).strip()
+    text_out = re.sub(r"(\[\d{1,2}\])(?:\s?\1)+", r"\1", text_out)   # "[1] [1]" → "[1]"
+    labels = []
+    for i, ref in enumerate(refs, 1):
+        source = by_ref.get(ref)
+        labels.append(f"[{i}] " + (answer_mod.citation(source) if source else ref))
+    if labels:
+        # Its own block, one "- " line per source: the answer renderer lists a block
+        # only when every line is a list line, so "Sources" on the first line ran the
+        # whole legend into one paragraph ("Sources [1] … [2] …").
+        text_out += "\n\nSources\n\n" + "\n".join(
+            f"- {x}" if len(labels) > 1 else x for x in labels)
+    return text_out, refs
+
+
+def _persist_multi_source_run(db: DBSession, message_id: UUID, query: str, plan, pool,
+                              bundle, cited_refs: list[str],
+                              document_version_id: UUID | None,
+                              domains: tuple[str, ...], follow_up_of: list[UUID]) -> UUID:
+    """`retrieval_runs` for a multi-source answer — identifiers and scores only (r6):
+    the candidates, the evidence the bundle showed and what the answer cited,
+    Constitution refs included (no citation column exists for them, owner 2026-09-26)."""
+    import json as _json
+
+    run_id = uuid.uuid4()
+    filters: dict = {"document_version_id": (str(document_version_id)
+                                             if document_version_id else None),
+                     "domains": list(domains), "path": MULTI_SOURCE,
+                     "plan": {"lanes": sorted(plan.lanes),
+                              "parts": len(plan.sub_questions)}}
+    if follow_up_of:
+        filters["follow_up_of"] = [str(i) for i in follow_up_of]
+    results = {
+        "candidates": [{"ref": c.ref, "item_id": str(c.item_id), "domain": c.domain}
+                       for cs in pool.by_domain.values() for c in cs][:100],
+        "evidence": [{"ref": x.ref, "item_id": str(x.candidate.item_id),
+                      "kind": x.kind} for x in bundle.shown()],
+        "cited": cited_refs,
+        "constitution_cited": [r for r in cited_refs if r.startswith("CONST:")],
+    }
+    db.execute(text(f"""
+        INSERT INTO "{config.assist_schema()}".retrieval_runs
+            (id, message_id, query_text, filters, results, strategy_version)
+        VALUES (:i, :m, :q, CAST(:f AS jsonb), CAST(:r AS jsonb), :v)
+    """), {"i": run_id, "m": message_id, "q": query, "f": _json.dumps(filters),
+           "r": _json.dumps(results), "v": MULTI_SOURCE_STRATEGY})
+    return run_id
 
 
 STATUTES_ONLY_TEXT = ("Answered from the approved statute corpus, cited by Act and "

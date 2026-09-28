@@ -318,3 +318,107 @@ def test_a_citation_follows_its_TEXT_when_a_section_is_renumbered(db, tmp_path):
     assert landed[0].section_number == "3A", \
         f"citation followed document order to s. {landed[0].section_number}, not its text"
     assert DISTINCT[:60] in " ".join(landed[0].content.split())
+
+
+# --- section-4 / roadmap PHASE 2: bounded chunks and the integrity gate -----------
+
+from legalmind.assist import statutes as _st  # noqa: E402
+
+
+def _c(num, sub=None, text=None, start=0, end=10):
+    return _st.StatuteChunk(num, sub, None, text or f"{num}{sub} {BODY}", start, end)
+
+
+def test_every_statute_piece_is_bounded_and_nothing_is_lost():
+    long = "word " * 2000                        # one sub-section, no markers at all
+    pieces = _st._windows(long)
+    assert "".join(pieces) == long and all(len(p) <= _st.MAX_SECTION_CHARS for p in pieces)
+    assert all(len(p) <= _st.MAX_SECTION_CHARS for _, p in _st._split_long(
+        "(1) " + "x " * 3000 + "\n(2) short"))
+
+
+def test_a_folded_unit_is_quarantined_and_the_rest_of_the_act_kept():
+    chunks = [_c(str(n)) for n in range(1, 12)] + [
+        _c("12", "(2)"), _c("12", "(6)"), _c("12", "(2)")]        # Orders under "s.12"
+    ig = _st.check_integrity(chunks, 10)
+    assert ig.quarantined == {"12": "SUBSECTION_RESTART"} and ig.refused is None
+    assert all(c.section_number != "12" for c in ig.kept)
+
+
+def test_leaving_the_acts_numbering_quarantines_what_follows_but_not_a_schedule():
+    chunks = [_c(str(n)) for n in range(1, 20)] + [_c("158"), _c("310"), _c("311"),
+                                                   _c("The First Schedule", "(2)"),
+                                                   _c("The First Schedule", "(1)")]
+    ig = _st.check_integrity(chunks, 10)
+    assert set(ig.quarantined) == {"158", "310", "311"}
+    assert "The First Schedule" not in ig.quarantined      # a Schedule has no sub-sections
+
+
+def test_an_act_mostly_failing_integrity_is_refused_whole():
+    chunks = [_c("1"), _c("2", "(3)"), _c("2", "(1)"), _c("3", "(2)"), _c("3", "(1)")]
+    assert _st.check_integrity(chunks, 10).refused
+
+
+def test_duplicate_text_and_lost_text_are_caught():
+    same = _c("2", text="identical " * 40)
+    assert _st.check_integrity([_c("1"), same, _c("2", text=same.content)],
+                               10).quarantined == {"2": "DUPLICATE_TEXT"}
+    thin = _st.check_integrity([_c("1", start=0, end=10)], text_length=1000)
+    assert thin.refused and "cover" in thin.refused
+
+
+def test_a_bilingual_print_is_read_in_english():
+    hindi, english = "धारा " * 50, "Section " * 50
+    assert _st._prefer_latin([hindi, hindi, english]) == [english]
+    assert _st._prefer_latin([hindi]) == [hindi]          # nothing else to read
+
+
+# --- Gazette Schedules (AM-80 r10) --------------------------------------------------
+
+def test_schedules_of_an_instrument_without_an_arrangement_are_their_own_units():
+    """The DPDP Rules shape: no arrangement table, 1 → N, then seven Schedules over the
+    last half of the text, each restarting its own numbering. The old closing-quarter
+    rule dropped the early Schedules into the last rule; ordinal names must also keep
+    document order ("FOURTH" sorts below "THIRD")."""
+    rules = "".join(f"{n}. Rule {n}.—{BODY}\n" for n in range(1, 6))
+    schedules = "".join(f"{name} SCHEDULE\n1. {BODY}\n2. {BODY}\n3. {BODY}\n"
+                        for name in ("FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH"))
+    units = list(dict.fromkeys(c.section_number for c in chunk_statute_text(rules + schedules)))
+    assert units == ["1", "2", "3", "4", "5", "First Schedule", "Second Schedule",
+                     "Third Schedule", "Fourth Schedule", "Fifth Schedule"]
+
+
+@pytest.mark.skipif(not _present(DOCS / "DPDP_Rules_2025.pdf"),
+                    reason="supplied statute not present on this machine")
+def test_the_dpdp_rules_schedules_are_not_folded_into_rule_23():
+    from legalmind.assist.statutes import _pdf_text, check_integrity
+    text = _pdf_text(DOCS / "DPDP_Rules_2025.pdf")
+    chunks = chunk_statute_text(text)
+    units = list(dict.fromkeys(c.section_number for c in chunks))
+    assert [u for u in units if "Schedule" in u] == [
+        f"{n} Schedule" for n in ("First", "Second", "Third", "Fourth", "Fifth",
+                                  "Sixth", "Seventh")]
+    assert sum(len(c.content) for c in chunks if c.section_number == "23") < 2000
+    assert check_integrity(chunks, len(text)).quarantined == {}
+
+
+@pytest.mark.skipif(not _present(DOCS / "Income_Tax_Act_1961_indiacode.pdf"),
+                    reason="supplied statute not present on this machine")
+def test_the_india_code_income_tax_act_passes_integrity():
+    from legalmind.assist.statutes import _pdf_text, check_integrity
+    text = _pdf_text(DOCS / "Income_Tax_Act_1961_indiacode.pdf")
+    integrity = check_integrity(chunk_statute_text(text), len(text))
+    assert integrity.refused is None and len(integrity.quarantined) <= 10
+
+
+def test_every_registry_entry_fits_the_statutes_columns():
+    """A provenance string longer than its column fails only at ingestion, on the one
+    Act that carries it (measured 2026-09-24: a 150-character `source`)."""
+    import json
+    registry = json.loads((Path(__file__).resolve().parents[1] / "config" / "statutes"
+                           / "registry.json").read_text())
+    limits = {"official_title": 512, "act_number_year": 128, "source": 128,
+              "source_ref": 1024, "as_amended_date": 64}
+    for entry in registry["statutes"]:
+        for field, limit in limits.items():
+            assert len(entry.get(field) or "") <= limit, (entry["file"], field)

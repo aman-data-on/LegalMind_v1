@@ -142,11 +142,13 @@ def _statute(db, title: str, sections: list[tuple[str, int]]) -> None:
     from legalmind import config
     schema = config.assist_schema()
     sid = uuid.uuid4()
+    from legalmind.assist import authority
     db.execute(sql(f'INSERT INTO "{schema}".statutes (id, official_title, act_number_year,'
                    " jurisdiction, source, source_ref, as_amended_date, file_sha256,"
-                   " supplied_by, supplied_at) VALUES (:i, :t, 'Act No. 0 of 2099',"
-                   " 'TEST', 'synthetic', 'none', 'n/a', :h, 'test', now())"),
-               {"i": sid, "t": title, "h": uuid.uuid4().hex * 2})
+                   " supplied_by, supplied_at, status) VALUES (:i, :t, 'Act No. 0 of 2099',"
+                   " 'TEST', 'synthetic', 'none', 'n/a', :h, 'test', now(), :st)"),
+               {"i": sid, "t": title, "h": uuid.uuid4().hex * 2,
+                "st": authority.of_statute(title)[1]})   # as ingestion writes it
     n = 0
     for number, count in sections:
         for _ in range(count):
@@ -239,14 +241,14 @@ def test_one_repeal_predicate_governs_both_retrieval_paths(db, monkeypatch):
     # LEXICAL — neutralise the one predicate; the exclusion must collapse with it.
     # A predicate that never matches, not the constant `false` — a bare constant is a
     # positional reference in ORDER BY and Postgres rejects it.
-    never = "official_title LIKE '%__NOTHING_MATCHES_THIS__%'"
-    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.official_title": never)
+    never = "status = '__NOTHING_MATCHES_THIS__'"
+    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.status": never)
     assert any("REPEALED" in t for t in titles()), \
         "the LEXICAL path does not depend on _repealed_sql"
 
     # VECTOR — the same helper, and it is the only use of it in that query.
-    sentinel = "official_title LIKE '%__SABOTAGED__%'"
-    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.official_title": sentinel)
+    sentinel = "status = '__SABOTAGED__'"
+    monkeypatch.setattr(st, "_repealed_sql", lambda column="s.status": sentinel)
     captured: list[str] = []
     real = st.sql_text
     monkeypatch.setattr(st, "sql_text", lambda s: (captured.append(s), real(s))[1])
@@ -260,7 +262,8 @@ def test_one_repeal_predicate_governs_both_retrieval_paths(db, monkeypatch):
 def test_no_second_copy_of_the_repeal_predicate_exists():
     """The duplication this replaced was found in a validation pass, not by a test.
     A literal `LIKE '%REPEALED%'` anywhere outside the one helper is that bug coming
-    back, so it is asserted against directly."""
+    back, so it is asserted against directly. Since `a7d3e9b1c5f2` (2026-09-24) the
+    predicate reads the `status` column; the title marker is read once, at ingestion."""
     import pathlib
 
     from legalmind.assist import statutes as st
@@ -268,10 +271,50 @@ def test_no_second_copy_of_the_repeal_predicate_exists():
     source = pathlib.Path(st.__file__).read_text()
     body = "\n".join(line for line in source.splitlines()
                      if not line.lstrip().startswith(("#", "--")))
-    assert body.count("LIKE '%{_REPEALED_MARKER}%'") == 1, "the helper is the one copy"
+    assert body.count("= 'REPEALED'") == 1, "the helper is the one copy"
     assert "LIKE '%REPEALED%'" not in body, "a hardcoded repeal predicate came back"
 
 
 def _ask():
     from legalmind.security import permissions as perms
     return perms.ASSIST_ASK
+
+
+def test_an_act_refused_on_reingest_stops_being_served(db, tmp_path):
+    """`AM-80` r9: refusing a re-ingest must not leave the old chunks answering."""
+    from legalmind.assist import statutes as st
+    title = "The Synthetic Widgets Act, 2099"
+    _statute(db, title, [("1", 1)])
+    assert _sections(db, "handler shall record the outcome with care")
+    provenance = {"official_title": title}
+    assert st.withdraw_statute(db, path=tmp_path / "absent.pdf", provenance=provenance) == 1
+    assert not _sections(db, "handler shall record the outcome with care")
+
+
+def test_a_replacement_source_takes_over_the_row_it_replaces(db):
+    """A better copy of an Act names the file it replaces; it must re-chunk THAT row
+    (citations re-pointed) rather than stand beside the refused one, still searchable."""
+    from sqlalchemy import text as sql
+
+    from legalmind import config
+    from legalmind.assist import statutes as st
+    _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — old print)", [("1", 1)])
+    schema = config.assist_schema()
+    old_sha = db.execute(sql(f'SELECT file_sha256 FROM "{schema}".statutes')).scalar()
+    rows = st._prior_rows(db, schema, sha="f" * 64, provenance={
+        "official_title": "The Synthetic Widgets Act, 1899 — as enacted",
+        "replaces_file_sha256": old_sha})
+    assert len(rows) == 1
+
+
+def test_one_section_takes_one_slot_and_expands_back_whole(db):
+    """PHASE 3: children of one section collapse to its best chunk, and the section is
+    rebuilt for generation by `expand_section` — the dropped siblings lose no text."""
+    from legalmind.assist import statutes as st
+    _statute(db, "The Synthetic Widgets Act, 2099", [("1", 3), ("2", 1)])
+    hits = st.search_statutes(db, query="handler shall record the outcome with care",
+                              permissions=frozenset({_ask()}), embed_query=lambda q: None)
+    assert [h.section_number for h in hits] == ["1", "2"]
+    whole = st.expand_section(db, hits[0].statute_chunk_id)
+    assert whole.startswith("The Synthetic Widgets Act, 2099 · Section 1")
+    assert whole.count("synthetic widget") == 3

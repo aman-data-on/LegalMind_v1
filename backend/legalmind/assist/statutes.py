@@ -24,10 +24,13 @@ or position text (`AM-45` r2).
 
 from __future__ import annotations
 
+import functools
 import hashlib
+import json
 import logging
 import re
 from dataclasses import dataclass
+from datetime import date
 from itertools import pairwise
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -36,10 +39,11 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
+from legalmind.assist import authority
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-STATUTE_CHUNKING_ALGORITHM_VERSION = "section-3"
+STATUTE_CHUNKING_ALGORITHM_VERSION = "section-5"
 # A section body shorter than this is an arrangement-of-sections entry or a footnote,
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
@@ -192,32 +196,79 @@ def _marginal_note(body: str) -> str | None:
     return note[:200] or None
 
 
+def _windows(text: str) -> list[str]:
+    """Cut text into pieces of at most MAX_SECTION_CHARS, at a blank where one exists.
+
+    `section-4` (2026-09-24, roadmap PHASE 2): a single sub-section longer than the cap
+    used to be kept whole — 26 CGST chunks over 2,000 characters, one CPC chunk of
+    126,670 — so the cap was a packing target, not a bound. The pieces concatenate back
+    to `text` exactly, so no character is lost and offsets stay true."""
+    out = []
+    while len(text) > MAX_SECTION_CHARS:
+        cut = text.rfind(" ", MAX_SECTION_CHARS // 2, MAX_SECTION_CHARS)
+        cut = cut if cut > 0 else MAX_SECTION_CHARS
+        out.append(text[:cut])
+        text = text[cut:]
+    return [*out, text] if text else out
+
+
 def _split_long(section: str) -> list[tuple[str | None, str]]:
-    """Split an over-long section at its sub-section markers, greedily packed."""
+    """Split an over-long section at its sub-section markers, greedily packed; every
+    piece is then bounded by MAX_SECTION_CHARS (`_windows`)."""
     parts = [p for p in _SUBSECTION.split(section) if p.strip()]
-    if len(parts) <= 1:
-        return [(None, section[i:i + MAX_SECTION_CHARS])
-                for i in range(0, len(section), MAX_SECTION_CHARS)]
-    out: list[tuple[str | None, str]] = []
+    packed: list[tuple[str | None, str]] = []
     current = ""
     current_sub: str | None = None
-    for part in parts:
+    for part in parts or [section]:
         sub = re.match(r"[ \t]*(\(\d{1,2}\))", part)
         if current and len(current) + len(part) > MAX_SECTION_CHARS:
-            out.append((current_sub, current))
+            packed.append((current_sub, current))
             current, current_sub = part, sub.group(1) if sub else None
         else:
             if not current:
                 current_sub = sub.group(1) if sub else None
             current += part
     if current:
-        out.append((current_sub, current))
-    return out
+        packed.append((current_sub, current))
+    return [(sub, piece) for sub, body in packed for piece in _windows(body)]
+
+
+def _body_from(text: str, bounds: list, keys: list) -> int:
+    """Where the body begins. India Code PDFs open with an ARRANGEMENT OF SECTIONS —
+    one line per section, the same numbers — and footnotes carry numbers of their
+    own, so the first "1." is not the Act's first section. The body starts at the
+    first occurrence of the LOWEST section number whose piece is a body (long) and
+    whose successor is a higher-numbered body: arrangement entries fail the second
+    test (their successors are one-liners), footnotes come later. Everything before
+    that point is front matter and is not a section."""
+    def piece_len(i: int) -> int:
+        return len(text[bounds[i][0]:bounds[i + 1][0]].strip())
+    lowest = min(keys) if keys else None
+    for i, key in enumerate(keys):
+        if key == lowest and piece_len(i) >= MIN_SECTION_CHARS and i + 1 < len(keys) \
+                and keys[i + 1] > key and piece_len(i + 1) >= MIN_SECTION_CHARS:
+            return i
+    return 0
+
+
+_END_MATTER = re.compile(r"^[ \t]*STATEMENT OF OBJECTS AND REASONS[ \t]*$", re.MULTILINE)
+
+
+def strip_end_matter(text: str) -> str:
+    """`section-5` (2026-09-27): an India Code print closes with the Bill's STATEMENT
+    OF OBJECTS AND REASONS — editorial matter, not law. It was stored under the last
+    Schedule or section of eight Acts (the DPDP Schedule, IGST s. 25), where it could be
+    cited as statute. Cut at that heading when it opens a line in the closing quarter;
+    measured at 93.5–98.8% of every print that has one."""
+    text = text or ""
+    ends = [m.start() for m in _END_MATTER.finditer(text)
+            if m.start() > len(text) * SCHEDULE_TAIL_FRACTION]
+    return text[:ends[0]] if ends else text
 
 
 def chunk_statute_text(text: str) -> list[StatuteChunk]:
     """Section-based chunks of an Act's text, in the Act's own order and numbering."""
-    text = text or ""
+    text = strip_end_matter(text)
     numbered = [(m.start(), m.group("num")) for m in _SECTION_START.finditer(text)]
     roman = len(numbered) < 2
     if roman:
@@ -227,33 +278,42 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
         keyfn = lambda n: (0, n)  # noqa: E731 — roman order is the document's order
     else:
         keyfn = _section_key
+    # A Schedule follows the Act's LAST section. `section-4`: the floor is where that
+    # section's body begins, read from the Act's own arrangement (its ceiling) — the
+    # DPDP Rules, 2025 carry seven Schedules over the last HALF of the text, so the
+    # old "closing quarter" rule dropped the First to Fourth and folded them under
+    # rule 23. With no arrangement to read, the closing quarter still applies.
+    plain = [*sorted(numbered), (len(text), None)]
+    plain_keys = [keyfn(num) for _, num in plain[:-1]]
+    first = _body_from(text, plain, plain_keys)
+    floor: float = len(text) * SCHEDULE_TAIL_FRACTION
+    if not roman and first:
+        top = max(plain_keys[:first])
+        last = next((plain[i][0] for i in range(first, len(plain_keys))
+                     if plain_keys[i] == top), None)
+        if last is not None:
+            floor = last
+    elif not roman:
+        # No arrangement (the DPDP Rules print has none): the Rules' own numbering
+        # shows where they end — it climbs 1 → 23, then restarts at 1 inside the First
+        # Schedule. The last section is the running maximum at that first restart.
+        running, running_at = (0, ""), None
+        for position, num in plain[:-1]:
+            key = keyfn(num)
+            if key[0] == 1 and running[0] > 1 and running_at is not None:
+                floor = running_at
+                break
+            if key > running:
+                running, running_at = key, position
     schedules = [] if roman else [
         (m.start(), _schedule_label(m.group()))
-        for m in _SCHEDULE_START.finditer(text)
-        if m.start() > len(text) * SCHEDULE_TAIL_FRACTION]
+        for m in _SCHEDULE_START.finditer(text) if m.start() > floor]
     if schedules:
         # Inside a Schedule, `1.` and `2.` number its ENTRIES, not the Act's sections.
         numbered = [b for b in numbered if b[0] < schedules[0][0]]
     bounds = [*sorted(numbered + schedules), (len(text), None)]
-
-    def _piece_len(i: int) -> int:
-        return len(text[bounds[i][0]:bounds[i + 1][0]].strip())
-
-    # Where the body begins. India Code PDFs open with an ARRANGEMENT OF SECTIONS —
-    # one line per section, the same numbers — and footnotes carry numbers of their
-    # own, so the first "1." is not the Act's first section. The body starts at the
-    # first occurrence of the LOWEST section number whose piece is a body (long) and
-    # whose successor is a higher-numbered body: arrangement entries fail the second
-    # test (their successors are one-liners), footnotes come later. Everything before
-    # that point is front matter and is not a section.
     keys = [keyfn(num) for _, num in bounds[:-1]]
-    lowest = min(keys) if keys else None
-    body_from = 0
-    for i, key in enumerate(keys):
-        if key == lowest and _piece_len(i) >= MIN_SECTION_CHARS and i + 1 < len(keys) \
-                and keys[i + 1] > key and _piece_len(i + 1) >= MIN_SECTION_CHARS:
-            body_from = i
-            break
+    body_from = _body_from(text, bounds, keys)
 
     # The Act's own arrangement of sections is everything before the body, so its
     # highest number is the ceiling a body number cannot exceed (`section-3`).
@@ -267,12 +327,15 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     ordered = [*_repair_glued_markers(numbered_body, ceiling), bounds[-1]]
 
     # Fold footnotes: a piece that is too short, or whose number falls below the
-    # running section, belongs to the section before it.
+    # running section, belongs to the section before it. Two Schedules are never
+    # compared by name — they run in document order, and "FOURTH" sorts below "THIRD".
     sections: list[list] = []          # [num, start, end]
     for (s, num), (nxt, _) in pairwise(ordered):
         piece = text[s:nxt]
-        if sections and (len(piece.strip()) < MIN_SECTION_CHARS
-                         or keyfn(num) < keyfn(sections[-1][0])):
+        both_schedules = sections and min(keyfn(num)[0], keyfn(sections[-1][0])[0]) \
+            >= _SCHEDULE_RANK
+        if sections and (len(piece.strip()) < MIN_SECTION_CHARS or (
+                not both_schedules and keyfn(num) < keyfn(sections[-1][0]))):
             sections[-1][2] = nxt
             continue
         if len(piece.strip()) < MIN_SECTION_CHARS:
@@ -294,6 +357,78 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
                                        offset + len(part)))
             offset += len(part)
     return chunks
+
+
+# Integrity gate (roadmap PHASE 2, §2 "No document becomes searchable until ingestion
+# integrity checks pass"). A section failing a check is QUARANTINED — never written,
+# so never searchable, never cited — and the Act is REFUSED when too much of it fails
+# or its text is not covered. Thresholds measured on the 17-Act corpus, 2026-09-24:
+# the largest genuine forward gap is 49 (Contract Act ss. 75 → 124, the Sale of Goods
+# sections moved out in 1930); the CPC's First Schedule read as sections jumps 158 → 310.
+NUMBERING_JUMP_LIMIT = 100
+QUARANTINE_CEILING = 0.20
+COVERAGE_FLOOR = 0.95
+
+
+@dataclass(frozen=True)
+class Integrity:
+    kept: list[StatuteChunk]
+    quarantined: dict[str, str]           # section → first failing check
+    coverage: float
+    refused: str | None
+
+
+def check_integrity(chunks: list[StatuteChunk], text_length: int) -> Integrity:
+    """Per-section checks, then per-Act ones. Deterministic; reads only the chunks.
+
+    SUBSECTION_RESTART  a section's sub-sections run (2), (6), (2): several units were
+                        folded under one number — the CPC's Orders under "s. 158"
+    NUMBERING_JUMP      a forward gap over the limit: the parser left the Act's own
+                        numbering, so the rest (Schedules excepted) is not trusted
+    DUPLICATE_TEXT      the same text twice in one Act (a repeated-text explosion)
+    OVERSIZED           a chunk over MAX_SECTION_CHARS (`_windows` makes this a bug)
+    """
+    bad: dict[str, str] = {}
+    sections: dict[str, list[StatuteChunk]] = {}
+    for c in chunks:
+        sections.setdefault(c.section_number, []).append(c)
+    for num, cs in sections.items():
+        if _section_key(num)[0] >= _SCHEDULE_RANK:    # a Schedule has no sub-sections
+            continue
+        subs = [int(m.group()) for c in cs
+                if c.sub_section and (m := re.search(r"\d+", c.sub_section))]
+        if any(b < a for a, b in pairwise(subs)):
+            bad[num] = "SUBSECTION_RESTART"
+    numeric = [n for n in sections if 0 < _section_key(n)[0] < _SCHEDULE_RANK]
+    for i, (a, b) in enumerate(pairwise(numeric)):
+        if _section_key(b)[0] - _section_key(a)[0] > NUMBERING_JUMP_LIMIT:
+            for n in numeric[i + 1:]:
+                bad.setdefault(n, "NUMBERING_JUMP")
+            break
+    seen: set[str] = set()
+    for c in chunks:
+        if c.content in seen:
+            bad.setdefault(c.section_number, "DUPLICATE_TEXT")
+        seen.add(c.content)
+        if len(c.content) > MAX_SECTION_CHARS:
+            bad.setdefault(c.section_number, "OVERSIZED")
+    kept = [c for c in chunks if c.section_number not in bad]
+    covered, end = 0, 0
+    for c in sorted(chunks, key=lambda c: c.char_start):
+        covered += max(0, c.char_end - max(c.char_start, end))
+        end = max(end, c.char_end)
+    body = text_length - (chunks[0].char_start if chunks else 0)
+    coverage = covered / body if body > 0 else 0.0
+    refused = None
+    # The ceiling counts SECTIONS — the unit a citation names. One folded blob of 500
+    # chunks is one untrustworthy section, not proof the other 150 are wrong.
+    if sections and len(bad) / len(sections) > QUARANTINE_CEILING:
+        refused = (f"{len(bad)} of {len(sections)} sections fail integrity "
+                   f"— over the {QUARANTINE_CEILING:.0%} ceiling")
+    elif coverage < COVERAGE_FLOOR:
+        refused = (f"chunks cover {coverage:.1%} of the Act's text, "
+                   f"under {COVERAGE_FLOOR:.0%}")
+    return Integrity(kept, bad, round(coverage, 4), refused)
 
 
 def _page_text(page) -> str:
@@ -324,11 +459,26 @@ def _page_text(page) -> str:
     return "\n".join(b[4].strip() for b in blocks if b[4].strip())
 
 
+_DEVANAGARI = re.compile(r"[ऀ-ॿ]")
+_LATIN = re.compile(r"[A-Za-z]")
+
+
 def _pdf_text(path: Path) -> str:
+    """The instrument's text. A BILINGUAL Gazette print (the DPDP Rules, 2025: 23 Hindi
+    pages, then 18 English) carries the same instrument twice, each numbered 1 → 23, so
+    the fold rule filed the whole English half under "rule 23". Where both scripts hold
+    whole pages, the English pages are the text chunked.
+    ponytail: the Hindi version is then not indexed; index it as its own statute row
+    if Hindi-language retrieval is ever asked for."""
     import pymupdf
 
-    doc = pymupdf.open(str(path))
-    return "\n".join(_page_text(page) for page in doc.pages())
+    return "\n".join(_prefer_latin(
+        [_page_text(page) for page in pymupdf.open(str(path)).pages()]))
+
+
+def _prefer_latin(pages: list[str]) -> list[str]:
+    latin = [p for p in pages if len(_LATIN.findall(p)) >= len(_DEVANAGARI.findall(p))]
+    return latin if latin else pages
 
 
 def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
@@ -347,7 +497,8 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
         raise StatuteIngestRefused(
             f"{path.name}: SHA-256 differs from the registry entry")
 
-    chunks = chunk_statute_text(_pdf_text(path))
+    full_text = strip_end_matter(_pdf_text(path))
+    chunks = chunk_statute_text(full_text)
     if not chunks:
         raise StatuteIngestRefused(
             f"{path.name}: no numbered sections found — a Domain C citation is Act + "
@@ -359,6 +510,10 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
             f"{path.name}: {sections} sections, registry declares {declared_sections} "
             f"— below the {SECTION_COUNT_FLOOR:.0%} floor, so the extraction lost part "
             "of the Act rather than merely re-drawing a boundary")
+    integrity = check_integrity(chunks, len(full_text))
+    if integrity.refused:
+        raise StatuteIngestRefused(f"{path.name}: integrity — {integrity.refused}")
+    chunks = integrity.kept
 
     schema = config.assist_schema()
     statute_id = _upsert_statute(db, schema, sha=sha, provenance=provenance)
@@ -366,10 +521,38 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
     embedded = _embed(db, statute_id)
     log_event("assist.statutes.ingested", statute_id=str(statute_id),
               chunks=len(chunks), embedded=embedded,
+              quarantined=len(integrity.quarantined),
               citations_repointed=repointed)              # counts only (53.3)
     return {"statute_id": str(statute_id), "chunks": len(chunks), "sections": sections,
             "embedded": embedded, "file_sha256": sha,
-            "citations_repointed": repointed}
+            "citations_repointed": repointed, "coverage": integrity.coverage,
+            "quarantined": integrity.quarantined}
+
+
+def _prior_rows(db: DBSession, schema: str, *, sha: str, provenance: dict) -> list:
+    """The existing row(s) for this registry entry: the same file, the same title, or
+    the file a replacement source declares it replaces (`replaces_file_sha256`,
+    `AM-80` r8) — so a better copy of an Act re-chunks ITS row, citations re-pointed,
+    rather than standing beside the one it supersedes."""
+    return list(db.execute(sql_text(
+        f'SELECT id FROM "{schema}".statutes WHERE file_sha256 IN (:sha, :replaces) '
+        'OR official_title = :title ORDER BY created_at'),
+        {"sha": sha, "title": provenance["official_title"],
+         "replaces": provenance.get("replaces_file_sha256") or sha}).scalars().all())
+
+
+def withdraw_statute(db: DBSession, *, path: Path, provenance: dict) -> int:
+    """An Act REFUSED on re-ingest must not keep serving what it held before
+    (`AM-80` r9): its existing row is marked WITHDRAWN, which both retrieval paths
+    exclude. Nothing is deleted — citations recorded against it stay intact (rule 17).
+    Returns the number of rows withdrawn."""
+    schema = config.assist_schema()
+    sha = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+    ids = _prior_rows(db, schema, sha=sha, provenance=provenance)
+    for statute_id in ids:
+        db.execute(sql_text(f"UPDATE \"{schema}\".statutes SET status = 'WITHDRAWN' "
+                            "WHERE id = :i"), {"i": statute_id})
+    return len(ids)
 
 
 def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -> UUID:
@@ -384,10 +567,9 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
               "act": provenance["act_number_year"], "jur": provenance["jurisdiction"],
               "src": provenance["source"], "ref": provenance["source_ref"],
               "amended": provenance["as_amended_date"], "sha": sha,
-              "by": provenance["supplied_by"], "at": provenance["supplied_at"]}
-    prior = db.execute(sql_text(
-        f'SELECT id FROM "{schema}".statutes WHERE file_sha256 = :sha '
-        'OR official_title = :title ORDER BY created_at'), fields).scalars().all()
+              "by": provenance["supplied_by"], "at": provenance["supplied_at"],
+              "status": authority.of_statute(provenance["official_title"])[1]}
+    prior = _prior_rows(db, schema, sha=sha, provenance=provenance)
     # A second row matching on the other key is a duplicate of the same Act; it has no
     # reconcilable identity of its own, so it goes as before.
     for duplicate in prior[1:]:
@@ -398,7 +580,8 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
             UPDATE "{schema}".statutes
                SET official_title = :title, act_number_year = :act, jurisdiction = :jur,
                    source = :src, source_ref = :ref, as_amended_date = :amended,
-                   file_sha256 = :sha, supplied_by = :by, supplied_at = :at
+                   file_sha256 = :sha, supplied_by = :by, supplied_at = :at,
+                   status = :status
              WHERE id = :id
         """), {**fields, "id": prior[0]})
         return prior[0]
@@ -406,8 +589,8 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
     db.execute(sql_text(f"""
         INSERT INTO "{schema}".statutes
             (id, official_title, act_number_year, jurisdiction, source, source_ref,
-             as_amended_date, file_sha256, supplied_by, supplied_at)
-        VALUES (:id, :title, :act, :jur, :src, :ref, :amended, :sha, :by, :at)
+             as_amended_date, file_sha256, supplied_by, supplied_at, status)
+        VALUES (:id, :title, :act, :jur, :src, :ref, :amended, :sha, :by, :at, :status)
     """), {**fields, "id": statute_id})
     return statute_id
 
@@ -513,37 +696,37 @@ def _replace_statute_chunks(db: DBSession, schema: str, statute_id: UUID,
     return repointed
 
 
-def _embed(db: DBSession, statute_id: UUID) -> int:
-    """Best-effort vectors for the section chunks — lexical retrieval works without."""
-    from legalmind.assist import calibration, embedding_runtime, store
+def breadcrumb(official_title: str, section_number: str,
+               marginal_note: str | None) -> str:
+    """Where a statute chunk sits: Act · section · marginal note. It heads the parent
+    context `expand_section` hands to generation, and is never stored in or cited as
+    the chunk's content. It is deliberately NOT embedded (measured 2026-09-24): over
+    breadcrumb + text the MiniLM-calibrated gate opened on noise — "the current law on
+    TDS for professional fees", which must refuse, drew six Companies Act and
+    Arbitration Act units — for one rank gained on one question. The repeal
+    annotation is provenance, not name, and stays out."""
+    act = re.sub(r"\s*\((?:REPEALED|Rep\.).*$", "", official_title).split(" — ")[0]
+    unit = section_number if "chedule" in section_number else f"Section {section_number}"
+    return " · ".join(p for p in (act, unit, marginal_note) if p)
 
-    if not embedding_runtime.available():
-        return 0
+
+def _embed(db: DBSession, statute_id: UUID) -> int:
+    """Vectors for the section chunks, best-effort — lexical retrieval works without.
+    The Act's existing vectors are replaced, so a re-ingest never leaves a vector
+    beside chunk text it no longer matches; vectors are derived and nothing cites
+    them."""
+    from legalmind.assist import store
+
     schema = config.assist_schema()
     rows = db.execute(sql_text(f"""
         SELECT id, content FROM "{schema}".statute_chunks
          WHERE statute_id = :s ORDER BY ordinal"""), {"s": statute_id}).all()
-    vectors = embedding_runtime.embed_texts([r[1] for r in rows]) if rows else None
-    if not vectors:
-        return 0
-    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
-    name, _, revision = identity.partition("@")
-    model_id = store.register_embedding_model(
-        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
-        dimensions=calibration.EMBEDDING_DIMENSIONS,
-        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
-    vtype = store.vector_type(db)
-    written = 0
-    for (chunk_id, _), vector in zip(rows, vectors, strict=True):
-        literal = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
-        db.execute(sql_text(f"""
-            INSERT INTO "{schema}".statute_chunk_embeddings
-                (id, statute_chunk_id, embedding_model_id, embedding)
-            VALUES (:id, :c, :m, CAST(:v AS {vtype}))
-            ON CONFLICT (statute_chunk_id, embedding_model_id) DO NOTHING
-        """), {"id": uuid4(), "c": chunk_id, "m": model_id, "v": literal})
-        written += 1
-    return written
+    db.execute(sql_text(f"""
+        DELETE FROM "{schema}".statute_chunk_embeddings WHERE statute_chunk_id IN
+          (SELECT id FROM "{schema}".statute_chunks WHERE statute_id = :s)"""),
+        {"s": statute_id})
+    return store.embed_into(db, table="statute_chunk_embeddings", fk="statute_chunk_id",
+                            rows=[(r[0], r[1]) for r in rows])
 
 
 def jurisdictions(db: DBSession) -> frozenset[str]:
@@ -601,6 +784,22 @@ class StatuteHit:
         return f"{self.official_title}, s. {self.section_number}{sub}"
 
 
+#: An agency's short name, expanded to the name the Act gives it: IT Act s. 70B says
+#: "Indian Computer Emergency Response Team", never "CERT-In", and ranked 32nd for
+#: "what does the IT Act say about CERT-In's role?" (golden O-04). Retrieval only —
+#: the router's instrument vocabulary (`intent.ACT_ALIASES`) is untouched.
+AGENCY_NAMES = {"cert-in": "indian computer emergency response team"}
+_AGENCY = re.compile(r"\b(" + "|".join(map(re.escape, AGENCY_NAMES)) + r")\b", re.I)
+
+
+def with_agency_names(question: str) -> str:
+    """The reader's words with each agency's statutory name after its short one, for
+    the cross-encoder, which scored s. 70B at -7.0 for "CERT-In's role" and at 4.4
+    with the name spelled out. Never the question the gate or the reader sees."""
+    return _AGENCY.sub(lambda m: f"{m.group(1)} ({AGENCY_NAMES[m.group(1).lower()]})",
+                       question or "")
+
+
 def expand_aliases(query: str) -> str:
     """Short names people type for Acts, expanded to the words the official title
     uses so the title match can see them. Names only — no law.
@@ -609,10 +808,10 @@ def expand_aliases(query: str) -> str:
     recognise that a question NAMES an instrument, and two copies would drift. The
     dependency runs from this module to that one, which imports nothing but `re`.
     """
-    from legalmind.assist.intent import ACT_ALIASES
+    from legalmind.assist.intent import _ALIAS_SPACE, ACT_ALIASES
 
-    lowered = f" {(query or '').lower()} "
-    for short, full in ACT_ALIASES.items():
+    lowered = f" {_ALIAS_SPACE.sub(' ', (query or '').lower())} "
+    for short, full in (*ACT_ALIASES.items(), *AGENCY_NAMES.items()):
         if f" {short} " in lowered:
             lowered = lowered.replace(f" {short} ", f" {short} {full} ")
     return lowered.strip()
@@ -630,24 +829,27 @@ def expand_aliases(query: str) -> str:
 #
 # So the marker and the predicate are defined once here. `_repealed_sql` takes the
 # column expression because the lexical query reads it from a sub-select (bare
-# `official_title`) and the vector query from the joined table (`s.official_title`);
-# the POLICY is identical and there is now exactly one place to change it.
+# `status`) and the vector query from the joined table (`s.status`); the POLICY is
+# identical and there is exactly one place to change it.
 #
-# The label is the corpus's own, recorded in `official_title` at ingestion. No
-# repeal is inferred here and none may be — which Act is in force is law, not an
-# engineering judgement (rule 7).
+# The label is the corpus's own: the registry title's "(REPEALED …)" marker, written
+# to `statutes.status` at ingestion (`a7d3e9b1c5f2`, 2026-09-24). No repeal is
+# inferred here and none may be — which Act is in force is law, not an engineering
+# judgement (rule 7).
 _REPEALED_MARKER = "REPEALED"
 
 
-def _repealed_sql(column: str = "s.official_title") -> str:
-    """SQL predicate: is this source's Act repealed?"""
-    return f"{column} LIKE '%{_REPEALED_MARKER}%'"
+def _repealed_sql(column: str = "s.status") -> str:
+    """SQL predicate: is this source's Act repealed? Reads the `status` column
+    (`a7d3e9b1c5f2`), written at ingestion from the registry title's own marker."""
+    return f"{column} = 'REPEALED'"
 
 
 def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                     limit: int = 6, embed_query=None,
                     require_semantic: bool = False,
-                    include_superseded: bool = False) -> list[StatuteHit]:
+                    include_superseded: bool = False,
+                    candidates: bool = False) -> list[StatuteHit]:
     """Lexical retrieval over the statute corpus, authorized inside the function.
 
     A section number named in the question ("section 43A") ranks its exact section
@@ -676,10 +878,16 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       SELECT * FROM (
         WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex),
         {quarantine}
-        SELECT sc.id, s.official_title, s.act_number_year, sc.section_number,
+        SELECT sc.id, s.official_title, s.act_number_year, s.status, sc.section_number,
                sc.sub_section, sc.marginal_note, sc.content, sc.ordinal,
-               (SELECT count(*) FROM q, unnest(tsvector_to_array(sc.content_tsv)) l
-                 WHERE l = ANY(q.lex)) AS matched,
+               -- The section's title counts with its text: s. 27's says "restraint of
+               -- trade" where its text says "restrained", which stems apart (E-03).
+               coalesce(cardinality(m.hit), 0) AS matched,
+               -- ...of which the Act's own title words: inside the Act a question
+               -- names, "contract" matches nearly every section of the Contract Act
+               -- and orders nothing (s. 27 ranked 42nd, E-03).
+               (SELECT count(*) FROM unnest(m.hit) h WHERE h = ANY(tl.words))
+                   AS title_matched,
                ts_rank(sc.content_tsv,
                        to_tsquery('english', (SELECT array_to_string(lex, ' | ') FROM q)))
                    AS score,
@@ -715,6 +923,12 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
                    AS act_match
           FROM "{schema}".statute_chunks sc
           JOIN "{schema}".statutes s ON s.id = sc.statute_id
+          CROSS JOIN LATERAL (SELECT tsvector_to_array(to_tsvector('english',
+                                     s.official_title)) AS words) tl
+          CROSS JOIN LATERAL (SELECT array_agg(l) AS hit FROM q, unnest(
+                  tsvector_to_array(sc.content_tsv || to_tsvector('english',
+                                    coalesce(sc.marginal_note, '')))) l
+                WHERE l = ANY(q.lex)) m
          WHERE (SELECT cardinality(lex) FROM q) > 0
            AND {not_suspect}
       ) ranked
@@ -733,10 +947,23 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
       -- Repealed law is not served as current law. It stays reachable the one way
       -- AM-71 keeps a superseded position reachable: when the question NAMES that
       -- Act, which `act_match >= 0.5` already means everywhere else in this query.
-         WHERE NOT ({_repealed_sql('official_title')}) OR act_match >= 0.5
+         WHERE NOT ({_repealed_sql('status')}) OR act_match >= 0.5
                OR {'TRUE' if include_superseded else 'FALSE'}
-         ORDER BY (act_match >= 0.5) DESC, exact_section DESC, matched DESC,
-                  ({_repealed_sql('official_title')}) ASC, act_match DESC, score DESC,
+      --
+      -- Among the Acts a question names, the one it names MORE fully goes first
+      -- (2026-09-27): "the DPDP Act" also majority-matches the DPDP Rules' title, and
+      -- "the Companies Act, 1956" the 2013 Act's, so the other instrument's sections
+      -- shared the slots and took them (golden E-02 lost DPDP s. 8; H-04 the 1956 Act).
+         ORDER BY (act_match >= 0.5) DESC, exact_section DESC,
+                  (CASE WHEN act_match >= 0.5 THEN act_match END) DESC NULLS LAST,
+                  -- Version before relevance: "the Companies Act" names the 1956 and
+                  -- the 2013 Act alike, and once section titles counted, s. 293 of the
+                  -- REPEALED 1956 Act ("powers of Board") outranked s. 179 (L-03).
+                  ({_repealed_sql('status')}
+                   AND {'FALSE' if include_superseded else 'TRUE'}) ASC,
+                  matched - (CASE WHEN act_match >= 0.5 THEN title_matched ELSE 0 END)
+                      DESC,
+                  ({_repealed_sql('status')}) ASC, act_match DESC, score DESC,
                   official_title, ordinal
          LIMIT :limit
     """), {"q": query or "", "wanted": wanted or [""], "limit": limit * 6}).all()
@@ -744,10 +971,11 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     # A question that names the Act ("What is the DPDP Act?") is answered from
     # that Act even when no section's text repeats the question's words: a
     # majority title-lexeme match alone admits its opening sections (AM-50 r3).
-    hits = [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
-                       r.sub_section, r.marginal_note, r.content, float(r.score))
-            for r in rows
-            if r.exact_section or r.matched >= floor or r.act_match >= 0.5][:limit]
+    hits = _one_per_section([
+        StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
+                   r.sub_section, r.marginal_note, r.content, float(r.score))
+        for r in rows
+        if r.exact_section or r.matched >= floor or r.act_match >= 0.5])[:limit]
     # Vector increment (2026-09-09): a paraphrase that names no Act, section or
     # statutory word — "can a company process someone's personal data without
     # asking them?" — has no lexeme to match. The stored section vectors (`AM-32`'s
@@ -756,21 +984,30 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
     # FILL the slots the lexical ranking left empty — they never displace an exact
     # section or a named Act, so the ranking `AM-47` locked stays lexical-first.
     named = any(r.exact_section or r.act_match >= 0.5 for r in rows)
+    if named and candidates:
+        # A candidate pool (PHASE 7) keeps the named Act's lexical order whole and
+        # APPENDS the vector neighbours instead of filling only the empty slots: its job
+        # is recall, and "restraint" does not stem to "restrained" (s. 27). Measured:
+        # rank-fusing the two under the cap instead cost IT Act s. 70B its place.
+        return _one_per_section([*hits, *_vector_neighbours(
+            db, query, limit=limit, embed_query=embed_query,
+            include_superseded=include_superseded, gated=False)])[:2 * limit]
     if named:
         # A named section or Act: lexical-first stands; vectors only fill the rest.
         if len(hits) < limit:
-            seen = {h.statute_chunk_id for h in hits}
-            hits += [h for h in _vector_neighbours(db, query, limit=limit,
-                                                   embed_query=embed_query,
-                                                   include_superseded=include_superseded)
-                     if h.statute_chunk_id not in seen][:limit - len(hits)]
+            hits = _one_per_section([*hits, *_vector_neighbours(
+                db, query, limit=limit, embed_query=embed_query,
+                include_superseded=include_superseded)])[:limit]
     else:
         # Nothing named: a two-lexeme OR match is a weak signal ("company" and
         # "person" reach the Companies Act for a question about personal data),
         # while a gated cosine is a strong one. Reciprocal rank fusion, the
         # vector side winning an exact tie.
-        vector = _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
-                                    include_superseded=include_superseded)
+        vector = (_vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                     include_superseded=include_superseded, gated=False)
+                  if candidates else
+                  _vector_neighbours(db, query, limit=limit, embed_query=embed_query,
+                                     include_superseded=include_superseded))
         if require_semantic and not vector:
             log_event("assist.statutes.searched", hits=0, level=logging.DEBUG,
                       cause="no_semantic_evidence")
@@ -789,7 +1026,7 @@ def search_statutes(db: DBSession, *, query: str, permissions: frozenset[str],
             by_id.setdefault(h.statute_chunk_id, h)
         order = list(fused)                      # insertion order = vector first on ties
         ranked = sorted(order, key=lambda i: (-fused[i], order.index(i)))
-        hits = [by_id[i] for i in ranked][:limit]
+        hits = _one_per_section([by_id[i] for i in ranked])[:limit]
     log_event("assist.statutes.searched", hits=len(hits), level=logging.DEBUG)
     return hits
 
@@ -825,20 +1062,139 @@ _QUARANTINE_CTE = """
         suspect AS MATERIALIZED (
             SELECT statute_id, section_number
               FROM "{schema}".statute_chunks
+             -- A Schedule is not a section and may be long (Companies Act, 2013
+             -- Schedule III: 98 bounded chunks); folds are caught at ingestion now.
+             WHERE section_number NOT ILIKE '%schedule%'
              GROUP BY 1, 2 HAVING count(*) > {cap}
         )"""
 
+# ...and a WITHDRAWN Act (refused on re-ingest, `AM-80` r9) is served by neither path.
 _NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
                      WHERE suspect.statute_id = sc.statute_id
-                       AND suspect.section_number = sc.section_number)"""
+                       AND suspect.section_number = sc.section_number)
+           AND s.status <> 'WITHDRAWN'"""
 
 
 
+
+
+def _one_per_section(hits: list[StatuteHit]) -> list[StatuteHit]:
+    """The best-ranked child per (Act, section) — roadmap §3: "duplicate child hits
+    from one parent do not crowd out other sources". The parent is recovered at
+    generation time by `expand_section`, so dropping a sibling loses no text."""
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for h in hits:
+        key = (h.official_title, h.section_number)
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+    return out
+
+
+_COMMENCEMENT = Path(__file__).resolve().parents[2] / "config/statutes/commencement.json"
+
+
+@functools.cache
+def _commencements() -> tuple[dict, ...]:
+    return tuple(json.loads(_COMMENCEMENT.read_text())["entries"])
+
+
+def commencement(official_title: str, section: str, sub_section: str | None = None, *,
+                 today: date | None = None) -> str | None:
+    """Roadmap §14 (`AM-104`): whether an enacted provision is NOT YET IN FORCE, as the
+    ratified Constitution records it (`config/statutes/commencement.json`). DPDP s. 33
+    was served as operative law while Constitution §28.2 records it commencing 13 May
+    2027. With `sub_section` None, any not-yet-commenced part of the section counts;
+    once the date passes, nothing is returned and the provision reads as enacted."""
+    today = today or date.today()
+    out = []
+    for e in _commencements():
+        starts = date.fromisoformat(e["commences"])
+        if (e["act"] != official_title or e["section"] != section or starts <= today
+                or (sub_section is not None
+                    and e["sub_section"] not in (None, sub_section))):
+            continue
+        clause = f"clause ({e['clause']}) " if e.get("clause") else ""
+        part = (f"sub-section ({e['sub_section']}) {clause}"
+                if e["sub_section"] and sub_section is None else clause)
+        # Labelled as the Constitution's stated date — the company's reading, never
+        # the Act's own commencement (statutory text and commencement kept apart).
+        out.append(f"{part}NOT YET IN FORCE — commences {starts.day} "
+                   f"{starts.strftime('%B %Y')} (the date {e['cite']} states; the "
+                   f"company's reading, not the Act's text)")
+    return "; ".join(out) or None
+
+
+def expand_section(db: DBSession, statute_chunk_id: UUID, *,
+                   max_chars: int = 4000) -> str:
+    """The parent of a retrieved chunk: its whole section (every sibling chunk, in the
+    Act's order), windowed around the hit when the section is longer than
+    `max_chars`. Headed by the breadcrumb, so the Act and section travel with it."""
+    schema = config.assist_schema()
+    rows = db.execute(sql_text(f"""
+        SELECT s.official_title, sib.section_number, sib.marginal_note, sib.content,
+               sib.id = :c AS hit
+          FROM "{schema}".statute_chunks c
+          JOIN "{schema}".statute_chunks sib ON sib.statute_id = c.statute_id
+                                            AND sib.section_number = c.section_number
+          JOIN "{schema}".statutes s ON s.id = c.statute_id
+         WHERE c.id = :c ORDER BY sib.ordinal"""), {"c": statute_chunk_id}).all()
+    if not rows:
+        return ""
+    at = next(n for n, r in enumerate(rows) if r.hit)
+    lo = hi = at
+    size = len(rows[at].content)
+    while True:
+        grew = False
+        if hi + 1 < len(rows) and size + len(rows[hi + 1].content) <= max_chars:
+            hi, size, grew = hi + 1, size + len(rows[hi + 1].content), True
+        if lo > 0 and size + len(rows[lo - 1].content) <= max_chars:
+            lo, size, grew = lo - 1, size + len(rows[lo - 1].content), True
+        if not grew:
+            break
+    head = breadcrumb(rows[at].official_title, rows[at].section_number,
+                      rows[at].marginal_note)
+    status = commencement(rows[at].official_title, rows[at].section_number)
+    if status:        # commencement is not in the statutory text: say it beside it
+        head += f"\n[Commencement: {status}]"
+    body = "\n".join(r.content for r in rows[lo:hi + 1])
+    return head + "\n" + body + _schedule_cross_reference(
+        db, statute_chunk_id, rows[at].section_number, body, max_chars - size)
+
+
+def _schedule_cross_reference(db: DBSession, statute_chunk_id: UUID, section: str,
+                              body: str, budget: int) -> str:
+    """Roadmap §9 (cross-references preserved): a section that imposes "such monetary
+    penalty specified in the Schedule" states no amount — DPDP s. 33's is in the
+    Schedule headed "[See section 33 (1)]" (golden F-05). A Schedule of the same Act
+    whose own header names this section back is appended, labelled, within the
+    remaining budget. Both references must be explicit in the text; nothing is
+    inferred."""
+    if "schedule" in section.lower() or "schedule" not in body.lower() or budget <= 0:
+        return ""
+    schema = config.assist_schema()
+    rows = db.execute(sql_text(f"""
+        SELECT sib.section_number, sib.content
+          FROM "{schema}".statute_chunks c
+          JOIN "{schema}".statute_chunks sib ON sib.statute_id = c.statute_id
+         WHERE c.id = :c AND sib.section_number ILIKE '%schedule%'
+         ORDER BY sib.ordinal"""), {"c": statute_chunk_id}).all()
+    back = re.compile(rf"\bsee\s+sections?\b[^\]]{{0,60}}?\b{re.escape(section)}\b",
+                      re.IGNORECASE)
+    named = {r.section_number for r in rows if back.search(r.content[:200])}
+    out = ""
+    for r in rows:
+        if r.section_number in named and len(out) + len(r.content) <= budget:
+            out += ("" if out else f"\n[Cross-reference: {r.section_number}]") \
+                + "\n" + r.content
+    return out
 
 
 def _vector_neighbours(db: DBSession, query: str, *, limit: int,
                        embed_query=None,
-                       include_superseded: bool = False) -> list[StatuteHit]:
+                       include_superseded: bool = False,
+                       gated: bool = True) -> list[StatuteHit]:
     """Gated nearest neighbours over `statute_chunk_embeddings`; [] without a model,
     without vectors, or when the calibrated gate stays shut."""
     from legalmind.assist import calibration, embedding_runtime, store
@@ -867,8 +1223,9 @@ def _vector_neighbours(db: DBSession, query: str, *, limit: int,
          LIMIT :lim
     """), {"q": literal, "lim": max(limit, calibration.RETRIEVAL_TOP_K)}).all()
     scores = [float(r.cosine) for r in rows]
-    if not calibration.gate_is_open(False, scores):
+    if gated and not calibration.gate_is_open(False, scores):
         return []
     return [StatuteHit(r.id, r.official_title, r.act_number_year, r.section_number,
                        r.sub_section, r.marginal_note, r.content, float(r.cosine))
-            for r in rows if float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]
+            for r in rows
+            if not gated or float(r.cosine) >= calibration.EVIDENCE_COSINE_FLOOR][:limit]

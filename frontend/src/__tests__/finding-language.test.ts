@@ -511,6 +511,15 @@ describe("constitutionCitation", () => {
     expect(constitutionCitation(withBlock({ section: "31.11", topic: "Orders", basis: "LEGALMIND_RULE" })))
       .toBe("Constitution, Section 31.11 · Orders · analysis rule, not company-evidenced");
   });
+
+  it("does not repeat the section when the topic opens with it (AM-104)", () => {
+    expect(constitutionCitation(withBlock({
+      section: "31.12", topic: "Section 31.12 — Amendment / Addendum", basis: "LEGALMIND_RULE" })))
+      .toBe("Constitution, Section 31.12 · Amendment / Addendum · analysis rule, not company-evidenced");
+    expect(constitutionCitation(withBlock({
+      section: "31.1", topic: "Section 31.12 — Other", basis: "STAKEHOLDER_CONFIRMED" })))
+      .toContain("Section 31.12 — Other");
+  });
 });
 
 describe("constitutionCitation — retired standards (AM-65)", () => {
