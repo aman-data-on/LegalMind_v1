@@ -1429,3 +1429,18 @@ as often as in testing. The new engine now answers 10% of conversations that hav
 document attached. Three real questions all answered on it in one Gemini call each.
 The DPDP penalties are correctly described as not yet in force. Switching it off is
 one setting and a restart.
+
+## 2026-09-28 — Entry: one Ask for every reader (`AM-106`)
+
+The owner asked for the 10% canary to go: every authorised reader should get the new
+Ask engine, with or without a document. The routing change itself is small. The flag now
+defaults to on, the share and the conversation hash are gone, and "off" stays as the
+emergency switch. The document lane had never been measured, so a benchmark was built on
+the 44 approved document questions. At first the new engine showed the right clause for
+only 18 of them. It planned document questions as company-policy questions, gave the
+document one slot in eight, skipped the rescue check today's Ask runs on a weak search,
+and let a web-trained relevance model veto clauses the document's own gate had accepted.
+With each fixed at its stage it reaches 38, against 41 for today's path. It never admits
+document text for a question the document does not answer. Document answers now carry
+page and clause citations, which also come back when a conversation is reopened. Tested
+through the real API and a real browser on a scratch copy; production is unchanged.

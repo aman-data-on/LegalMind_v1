@@ -115,7 +115,8 @@ def _authorized(route: routing.RoutePlan, permissions: frozenset[str]) -> set[st
 
 
 def _search(db, domain: str, query: str, *, permissions, route, document_version_id,
-            embed_query, pool: Pool | None = None, question: str = "") -> list[Candidate]:
+            embed_query, pool: Pool | None = None, question: str = "",
+            pinned_evidence: tuple[UUID, ...] = ()) -> list[Candidate]:
     if domain == CONSTITUTION:
         return [Candidate(domain, f"CONST:{h.section_path}", h.item_id, h.content,
                           h.score, h.authority, h.status, authorities=h.authorities)
@@ -140,16 +141,39 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
         outcome = store.search_hybrid(db, document_version_id=document_version_id,
                                       query=query, limit=DEPTH, candidates=True,
                                       embed_query=embed_query)
+        hits = outcome.hits
         if pool is not None and query == question:
-            pool.document_gate = outcome.gate_open
+            # The gate decides on the reader's own question, and gets the same two
+            # openings today's path gives it (`service.retrieve_document`): a
+            # Finding's cited clauses, already recorded against this version, and the
+            # rescue judge's second look at a SHUT gate, over the question's own top-K
+            # as it was calibrated. Neither admits anything past the judge, the claim
+            # contracts or the verifier. Without them 14 of 44 ratified document
+            # questions lost their clause at the gate (2026-09-28).
+            gate = outcome.gate_open
+            pinned = store.chunks_for_evidence(
+                db, document_version_id=document_version_id,
+                evidence_ids=list(pinned_evidence),
+                limit=len(pinned_evidence)) if pinned_evidence else []
+            if not gate and not pinned:
+                from legalmind.assist import rescue
+                refused = dataclasses.replace(
+                    outcome, hits=[], candidates=hits[:calibration.RETRIEVAL_TOP_K])
+                second = rescue.reconsider(refused, question)
+                if second.gate_open:
+                    gate, pinned = True, list(second.hits)
+            if pinned:
+                seen = {h.chunk_id for h in pinned}
+                gate, hits = True, [*pinned, *[h for h in hits if h.chunk_id not in seen]]
+            pool.document_gate = gate
         return [Candidate(domain, f"DOC:{h.chunk_id}", h.chunk_id, h.content,
-                          h.retrieval_score, "DOCUMENT") for h in outcome.hits]
+                          h.retrieval_score, "DOCUMENT") for h in hits]
     return []
 
 
 def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                permissions: frozenset[str], document_version_id: UUID | None = None,
-               embed_query=None) -> Pool:
+               embed_query=None, pinned_evidence: tuple[UUID, ...] = ()) -> Pool:
     from legalmind.assist import embedding_runtime
 
     lexical_only = embed_query is None and not embedding_runtime.available()
@@ -196,7 +220,8 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                                          route=route,
                                          document_version_id=document_version_id,
                                          embed_query=embed_query, pool=pool,
-                                         question=plan.question), 1):
+                                         question=plan.question,
+                                         pinned_evidence=pinned_evidence), 1):
             # A source counts once per list, at its best rank: §18's four sub-headings
             # share one section number, and summing them put four long sections above
             # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
@@ -368,6 +393,13 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
     # reach the evidence set. Whether any of it is SHOWN is the sufficiency decision
     # (PHASE 9, `AM-84` r4), not this one.
     wanted = list(dict.fromkeys(wanted))
+    # The reader's own document is the primary source of a document conversation: its
+    # lane takes two picks a round, so about half the evidence is the document, and
+    # the Constitution, standards and law still get theirs. With one, a clause ranked
+    # second to seventh in the document never reached the bundle (2026-09-28).
+    wanted = [w for pair in wanted
+              for w in ((pair, pair) if pair[1] == routing.Domain.DOCUMENT.value
+                        else (pair,))]
     rest = sorted(pool.by_domain, key=lambda d: d not in pool.primary)
     extras: list[tuple[str | None, str]] = [(None, d) for d in rest
                                             if all(w[1] != d for w in wanted)]

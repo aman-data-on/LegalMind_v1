@@ -7,24 +7,38 @@
 
 ## What is being rolled out
 
+> **`AM-106` (2026-09-28, owner): one Ask for every authorised reader.** The 10% canary
+> was withdrawn. There is no percentage, no conversation hash and no cohort: every
+> conversation, with or without a document, takes the verified path unless production is
+> deliberately rolled back.
+
 `LEGALMIND_ASK_MULTI_SOURCE` selects the Ask path (`config.ask_multi_source`):
 
 | Value | Behaviour |
 |---|---|
-| `off` (default; any unknown value) | every conversation uses the existing path |
-| `no_document` | a conversation with no document uses the validated PHASE 9–12 path (`service._ask_multi_source`); a document conversation uses the existing path |
-| `on` | every conversation uses the new path. **Not approved** — the document lane has no benchmark |
+| `on` (**default**; the variable unset) | every conversation — with or without a document — uses the verified multi-source path (`service._ask_multi_source`) |
+| `off` | **emergency rollback**: every conversation uses the previous path |
+| `no_document` | **partial rollback**: document conversations use the previous path, document-free ones the verified path |
+| any unreadable value | treated as `off` — the proven path, never a guess |
 
-`LEGALMIND_ASK_MULTI_SOURCE_PERCENT` (0–100, default 100) is the canary dial inside
-whatever the flag admits: a conversation takes the new path when a SHA-256 of its id
-falls below the share, so one reader's thread stays on one path for its whole life. A
-value that cannot be read, or is out of range, admits nobody. Both values are recorded
-on every `assist.ask.trace` (`flag`, `canary_percent`) beside `selected_path` and the
-`path` that actually answered.
+`LEGALMIND_ASK_MULTI_SOURCE_PERCENT` is **no longer read** (`AM-106` removed it and the
+hash). A leftover line in the environment file changes nothing, but remove it so the file
+says what production does. Every `assist.ask.trace` records `flag` beside `selected_path`
+and the `path` that actually answered.
 
-The new path runs after every existing screen and answers only with a verified
-generated answer. When it declines (nothing answerable, generation unavailable,
-verification failing, or any error), the existing path answers exactly as it does today.
+The verified path runs after every existing screen (general knowledge, capability, an
+unmet prerequisite, the evaluator's compliance question) and answers only with a verified
+generated answer. When it declines — nothing answerable, generation unavailable,
+verification failing, or any error — the previous path answers or refuses exactly as it
+does today. A declined turn shows in the trace as `selected_path` multi_source, `path`
+legacy, with the reason in `fallback_kind`.
+
+**The document lane** (`AM-106` r2–r4): a document question carries the CONTRACT lane,
+the document takes two picks a round, its gate gets the Finding pin and the rescue judge
+exactly as `service.retrieve_document` gives them, and its cited clauses come back as the
+answer's `citations` (page, clause), numbered [1]..[d] and stored for history. Measured on
+the 44 ratified document questions: gold clause shown 38 of 44 (previous path 41), not-found
+questions admitting document text 0 of 10.
 
 ## Prerequisites — in this order
 
@@ -90,15 +104,23 @@ and statute evidence as the validated corpus (`legalmind_rag_p2`). Rehearsed: 61
 identical; the other 15 a strict superset, because the rehearsal copy holds no company
 standards and the freed evidence slots filled with the next Constitution/statute units.
 
-## Canary
+## Switching production to one Ask (`AM-106`)
 
-With the prerequisites verified, set `LEGALMIND_ASK_MULTI_SOURCE=no_document` and a
-small `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` (say 10) in `/root/.legalmind.env`, restart
-the API (`systemctl restart legalmind-api`), and widen the share only on the trace
-evidence. Watch `assist.ask.trace`: `selected_path` vs `path` (a legacy `path` under a
-multi-source `selected_path` is a fallback, never a success), `fallback_kind`,
-`generated`, `verification_failures`, `gemini_calls`, token counts, `latency_ms` and
-`stages_ms`. Kill switch: the share to 0, or the flag to `off`, and a restart.
+The code ships with the verified path as the default, but production's environment file
+still carries the 2026-09-28 canary lines (`LEGALMIND_ASK_MULTI_SOURCE=no_document`,
+`LEGALMIND_ASK_MULTI_SOURCE_PERCENT=10`). With `AM-106` deployed and those lines left in
+place, document-free conversations would ALL take the verified path (the share is no longer
+read) and document conversations none. So the change is one step, done with the deploy:
+
+1. Back up the environment file (`/root/.legalmind/preserved/`).
+2. Delete both lines from `/root/.legalmind.env` (the default is `on`).
+3. Deploy (`sudo legalmind-deploy`), which restarts the API with the new environment.
+4. Verify in `assist.ask.trace`: `flag` `on`, and `selected_path` multi_source for both
+   document and document-free conversations.
+
+No migration and no ingestion are needed: `AM-106` changes code only.
+
+(Earlier, `AM-94` introduced a canary with a share; the owner withdrew it on 2026-09-28.)
 
 ## Measured before the canary (2026-09-27, `AM-94`)
 
@@ -120,13 +142,18 @@ within what the product accepts.
 
 ## Rollback
 
-* **Answer path** — set `LEGALMIND_ASK_MULTI_SOURCE=off` (or remove it) in
-  `/root/.legalmind.env` and `systemctl restart legalmind-api`. The flag is read per
-  request from the process environment, and systemd loads the environment file only at
-  start, so the change applies once the process restarts — seconds, with requests in
-  flight during the restart interrupted. No deploy and no data change is needed; every
-  answer records which path produced it (`retrieval_runs.filters.path`,
-  `strategy_version` `multi-source-1`).
+* **Emergency, the whole Ask** — set `LEGALMIND_ASK_MULTI_SOURCE=off` in
+  `/root/.legalmind.env` and `systemctl restart legalmind-api`. Every conversation returns
+  to the previous path within seconds; no deploy and no data change.
+* **Documents only** — `LEGALMIND_ASK_MULTI_SOURCE=no_document` and a restart: document
+  conversations return to the previous path, document-free ones stay on the verified path.
+* ⚠️ **Never "remove the line" to roll back.** Since `AM-106` the unset default is `on`:
+  deleting the flag switches the verified path ON. Roll back only by setting `off` (or
+  `no_document`) explicitly. The flag is read per request from the process environment,
+  and systemd loads the file only at start, so a change applies once the API restarts —
+  seconds, with requests in flight during the restart interrupted. Every answer records
+  which path produced it (`retrieval_runs.filters.path`, `strategy_version`
+  `multi-source-1`).
 * **Schema/data** — not needed to restore the old path: the old path never reads the
   new tables. If the schema itself must go: `python3 -m alembic downgrade e9f2b6c4a173`
   (rehearsed clean). Statute re-ingestion is not undone by a downgrade; restore the

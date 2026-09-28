@@ -138,10 +138,16 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return "OFF_TOPIC"
     if relevance is None:
         return "RELEVANCE_UNAVAILABLE"        # fail closed: no reranker, no support
+    if c.domain == routing.Domain.DOCUMENT.value:
+        # The reader's own document is admitted by ITS gate — calibrated on these
+        # clauses, or reopened by the rescue judge — exactly as the previous path
+        # admits it; the claim contracts and the verifier still decide every
+        # sentence. The web-trained cross-encoder scores lay questions against
+        # contract drafting at -5 to -11, so its floor rejected gold clauses the
+        # gate had opened for (2026-09-28, `AM-106`); it still ORDERS them.
+        return None if pool.document_gate else "DOCUMENT_GATE_CLOSED"
     if relevance < RELEVANCE_FLOOR.get(c.domain, float("inf")):
         return "NOT_RELEVANT"
-    if c.domain == routing.Domain.DOCUMENT.value and not pool.document_gate:
-        return "DOCUMENT_GATE_CLOSED"
     return None
 
 

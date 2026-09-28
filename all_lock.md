@@ -21728,3 +21728,74 @@ the greeting. A mask was tried and failed CI again, because the heading's box is
 wide as the greeting it holds ("Good morning" and "Good afternoon" differ). Instead
 that one shot runs in a fixed-offset browser zone where it is 15:00 at test time, so
 the greeting always matches the existing baseline; no baseline image was replaced.
+
+================================================================================
+AMENDMENT BATCH AB-56 — `AM-106`
+One Ask for every authorised reader: the verified path is the default, with or
+without a document; the 10% canary is withdrawn (roadmap §7/§9/§12/§15/§18)
+================================================================================
+
+**Owner decision, 2026-09-28:** "I do NOT want: 10% canary, random/hash-based routing,
+selected users vs other users … ALL Ask conversations should use the NEW verified RAG +
+LLM Ask engine by default … no document + question, document + question, follow-up …
+Keep every existing safeguard … preserve an emergency rollback." Built and validated
+locally; the production change waits for the owner's explicit authorisation.
+
+**Amends:** `AM-94` r1/r2 (the flag's default and the canary share — the share is
+withdrawn, not merely set to 100), `AM-86` r3 and `AM-88` for the document lane only,
+`AM-89`/`AM-94` r3 (numbering and the legend). **Does not amend:** any screen before
+the branch point (general knowledge, capability, unmet prerequisite, the evaluator's
+question — a compliance question still goes to the evaluator), the calibrated document
+gate, the rescue judge, the claim contracts, the verifier, authorisation, `AM-25`,
+`AM-30`, [A]/[M].
+
+```text
+r1   `LEGALMIND_ASK_MULTI_SOURCE` defaults to `on`: every conversation, with or
+     without a document, takes the verified multi-source path. `off` is the emergency
+     rollback (the previous path for every conversation); `no_document` a partial
+     rollback (the previous path for document conversations only). An unreadable
+     value is `off`. `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` and the conversation hash
+     are removed; the variable is no longer read. When the verified path declines
+     (nothing answerable, generation unavailable, verification failing, any error)
+     the existing path answers or refuses exactly as before.
+
+r2   With a document open, every question part carries the CONTRACT lane, so the
+     document is searched and selected as a source in its own right; its lane takes
+     two picks a round. A third pick was measured and gained nothing.
+
+r3   The document gate on the reader's own question gets the previous path's two
+     openings (`service.retrieve_document`): a Finding's cited clauses, and the rescue
+     judge's second look at a shut gate over the question's calibrated top-K. An
+     open gate admits the document's chunks without the web-trained cross-encoder's
+     floor (it scores lay questions against contract drafting at -5 to -11); the
+     cross-encoder still orders them, and a shut gate still refuses.
+
+r4   The document's cited clauses are the answer's `citations` (page, clause,
+     evidence id), numbered first [1]..[d] so the document view links each marker;
+     they are recorded in `answer_citations` in that order, so a reloaded
+     conversation shows the same links. The text legend names only the Constitution,
+     standards and law, numbered after them.
+```
+
+**Measured 2026-09-28.** Document lane — the owner-ratified document questions
+(`questions_draft.json`, 44 answerable, 10 not found), new `tools/benchmark_document_lane.py`
+on a scratch copy with the 8 supplied documents ingested through the production pipeline:
+gold clause shown 18 → 38 of 44 with the rescue live (27 without it, where the previous
+path's own top-10 reached 28); the previous path with its rescue 41 of 44 in its top-10
+document chunks; not-found questions admitting document text 0 of 10 throughout.
+No-document golden benchmark unchanged (recall@3 0.952, wrong-source 0, false admission
+0). Real API scenarios (branch API, scratch database, no flag set): a no-document
+Constitution question, a document question, follow-ups with and without a document, a
+multi-source question with a document, a not-found question, a nonsense question, and a
+document attached mid-thread — every one selected the verified path, every answer but the
+nonsense question was produced by it (that one declined and the standard refusal
+followed), document answers carried page/clause citations, and the reloaded history held
+the same citations. A real browser on a fresh upload: the answer led with the MSA's §7.2,
+4 live citation links, "Sources — this document" §7.2 p.7 and §7.3 p.7.
+
+**Residuals:** follow-ups can drift to a neighbouring topic ("promised 6 months?" →
+renewal); the previous path's document top-10 still reaches 3 more gold clauses; latency
+7–30 s per answer (1–2 Gemini calls, one more when the rescue judges a shut gate).
+
+--------------------------------------------------------------------------------
+AM-106: one Ask for every authorised reader — the verified path by default

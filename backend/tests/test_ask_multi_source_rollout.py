@@ -63,9 +63,12 @@ def _ask(db, user, question=QUESTION, contract=None, version=None,
 
 
 @pytest.mark.parametrize("value, expected", [
-    (None, "off"), ("off", "off"), ("no_document", "no_document"), ("ON", "on"),
+    (None, "on"), ("off", "off"), ("no_document", "no_document"), ("ON", "on"),
     ("yes", "off"), ("", "off")])
-def test_the_flag_defaults_off_and_an_unknown_value_is_off(monkeypatch, value, expected):
+def test_the_new_path_is_the_default_and_an_unknown_value_is_off(monkeypatch, value,
+                                                                  expected):
+    """`AM-106`: every reader gets the verified path unless production is rolled back;
+    a value that cannot be read rolls back to the proven path rather than guessing."""
     _flag(monkeypatch, value)
     assert config.ask_multi_source() == expected
 
@@ -241,30 +244,20 @@ def test_removing_the_internal_markers_leaves_no_stray_comma():
     assert text_out.startswith("No position states 6 months [1]. Missing.")
 
 
-@pytest.mark.parametrize("raw, share", [(None, 100), ("100", 100), ("0", 0), ("25", 25),
-                                        ("101", 0), ("-1", 0), ("x", 0), ("", 0)])
-def test_the_canary_share_defaults_to_all_and_fails_to_nobody(monkeypatch, raw, share):
-    if raw is None:
+@pytest.mark.parametrize("share", [None, "0", "10", "50", "x"])
+def test_no_percentage_splits_readers_between_engines(monkeypatch, share):
+    """`AM-106` withdrew the 10% canary: every conversation, with or without a
+    document, takes the same path, and a leftover share setting changes nothing."""
+    import uuid
+    monkeypatch.delenv("LEGALMIND_ASK_MULTI_SOURCE", raising=False)
+    if share is None:
         monkeypatch.delenv("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", raising=False)
     else:
-        monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", raw)
-    assert config.ask_multi_source_percent() == share
-
-
-def test_the_canary_share_is_deterministic_per_conversation(monkeypatch):
-    import uuid
-    _flag(monkeypatch, "no_document")
-    ids = [uuid.uuid4() for _ in range(400)]
-    monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", "0")
-    assert all(service._ask_path(None, i) == service.LEGACY for i in ids)
-    monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", "50")
-    first = [service._ask_path(None, i) for i in ids]
-    assert first == [service._ask_path(None, i) for i in ids], "stable per conversation"
-    taken = first.count(service.MULTI_SOURCE)
-    assert 120 < taken < 280, taken
-    assert service._ask_path(None, None) == service.LEGACY, "no id, no canary"
-    monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", "100")
-    assert service._ask_path(None, None) == service.MULTI_SOURCE
+        monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE_PERCENT", share)
+    for _ in range(200):
+        assert service._ask_path(None) == service.MULTI_SOURCE
+        assert service._ask_path(uuid.uuid4()) == service.MULTI_SOURCE
+    assert not hasattr(config, "ask_multi_source_percent")
 
 
 def test_a_later_sentence_need_not_rename_an_act_already_named():
@@ -319,3 +312,22 @@ def test_a_failure_quoting_evidence_reaches_the_trace_as_its_kind_only():
     assert service._failure_kind(said) == "antecedent of"
     assert service._failure_kind("temporal status of [1] lost ('NOT YET')") == \
         "temporal status"
+
+
+def test_the_documents_own_clauses_take_the_first_numbers():
+    """`AM-106`: the document view links marker [n] to the answer's n-th citation, and
+    only the document's clauses are citations — so they are numbered first."""
+    from legalmind.assist import answer as answer_mod
+    bundle = NS(shown=lambda: [NS(ref="CONST:14"), NS(ref="DOC:c1"), NS(ref="DOC:c2")])
+    ans = NS(text="Position [1]. Clause [2]. Another clause [3]. Position again [1].",
+             refs=["CONST:14", "DOC:c1", "DOC:c2"])
+    orig = answer_mod.citation
+    try:
+        answer_mod.citation = lambda s: f"label of {s.ref}"
+        text_out, refs = service._multi_source_text(ans, bundle)
+    finally:
+        answer_mod.citation = orig
+    assert refs == ["DOC:c1", "DOC:c2", "CONST:14"]
+    assert text_out.startswith("Position [3]. Clause [1]. Another clause [2]. Position again [3].")
+    # the clauses are the answer's citation cards, so the text legend names only the rest
+    assert text_out.endswith("Sources\n\n[3] label of CONST:14")

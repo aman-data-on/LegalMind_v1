@@ -670,7 +670,24 @@ def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
     one request" — the same kind of object the search path returns, obtained by a
     more direct route.
     """
-    if not evidence_ids:
+    return _version_chunks(db, document_version_id, "c.evidence_id", evidence_ids, limit)
+
+
+def chunks_by_id(db: DBSession, *, document_version_id: UUID,
+                 chunk_ids: list[UUID]) -> list[SearchHit]:
+    """Named chunks inside ONE document version, in the order asked — the multi-source
+    answer's cited clauses as citations (`AM-106`). The version is a WHERE clause, so
+    this can only return chunks the caller was already authorised for."""
+    found = {h.chunk_id: h for h in _version_chunks(
+        db, document_version_id, "c.id", chunk_ids, len(chunk_ids))}
+    return [found[c] for c in chunk_ids if c in found]
+
+
+def _version_chunks(db: DBSession, document_version_id: UUID, column: str,
+                    ids: list[UUID], limit: int) -> list[SearchHit]:
+    if column not in {"c.id", "c.evidence_id"}:          # interpolated below
+        raise ValueError(f"not a chunk key: {column}")
+    if not ids:
         return []
     schema = config.assist_schema()
     rows = db.execute(text(f"""
@@ -678,13 +695,12 @@ def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
                e.section_title, e.source_type::text
           FROM "{schema}".chunks c
           JOIN document_evidence e ON e.id = c.evidence_id
-         WHERE c.document_version_id = :dv AND c.evidence_id = ANY(:ids)
+         WHERE c.document_version_id = :dv AND {column} = ANY(:ids)
          ORDER BY e.page_number NULLS LAST, c.id
          LIMIT :lim
-    """), {"dv": document_version_id, "ids": list(evidence_ids), "lim": limit}).all()
-    # `retrieval_score` is 1.0 because these were not ranked — they are the rows the
-    # evaluator itself cited. It is still a RETRIEVAL score and still never rendered
-    # as legal weight (`AI-03` item 16).
+    """), {"dv": document_version_id, "ids": list(ids), "lim": limit}).all()
+    # `retrieval_score` is 1.0 because these were not ranked by this query. It is
+    # still a RETRIEVAL score and still never rendered as legal weight (`AI-03` 16).
     return [SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
                       section_number=r[4], section_title=r[5], source_type=r[6],
                       retrieval_score=1.0)
