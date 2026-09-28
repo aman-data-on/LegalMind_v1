@@ -21799,3 +21799,243 @@ renewal); the previous path's document top-10 still reaches 3 more gold clauses;
 
 --------------------------------------------------------------------------------
 AM-106: one Ask for every authorised reader — the verified path by default
+
+================================================================================
+AMENDMENT BATCH AB-57 — `AM-107`
+The answer leads with the directly applicable position; every other layer is kept
+apart and brief (roadmap §12/§13/§14)
+================================================================================
+
+**Owner instruction, 2026-09-28,** after a production answer to "What does our
+Constitution say about early termination? Please give the applicable company standard
+and cite the relevant Constitution section." mixed §31.2's fixed-term MSA rule, §13's
+non-fixed-term rules, a Distribution Agreement standard, a historical Customer A note,
+the Constitution's reading of the Contract Act and four sections in one paragraph:
+"Lead with the directly applicable current company position … Only include additional
+termination rules when they are relevant … Keep historical negotiated deals clearly
+separated … Keep general legal authority separate … Do not merge different document
+families into the primary answer … Do NOT hardcode this answer … fix the underlying
+answer-selection … layer that is actually responsible … Simple and easy for a normal
+business user to understand … Primary answer → relevant supporting detail →
+citations."
+
+**Root cause, traced on the production trace and reproduced with zero Gemini calls.**
+Retrieval and the evidence bundle were right (§31.2 relevance 6.5, the best source) and
+verification passed; the failure was in the step between them. `contracts.build` gave
+EVERY shown source up to three claims, in source order, to a 12-claim cap, with no notion
+of a direct answer: Companies Act s. 466 (Company Law Board dissolution, relevance -1.6)
+and the Vendor and Distribution standards received as many claims as §31.2. And a claim
+built from a structured record (`AM-92`) was the record's WHOLE paragraph, so a concise,
+correct sentence "dropped a condition" belonging to another rule of the same paragraph
+(§13's cure period beside its convenience notice; s. 74's illustrations), failed its
+check, and was replaced by the paragraph itself — the verbatim blocks the reader saw.
+Measured over the 72 answerable golden-benchmark cases (`tools/benchmark_answer_focus.py`,
+zero Gemini): 398 of 675 claims (59%) came from sources no gold slot names; 9.4 claims
+per answer.
+
+**Amends:** `AM-91` (claim selection: which claims the model is given, and in what
+order), `AM-92` r1 (a record is claimed a sentence at a time, carrying the record's
+heading, scope, status, referent and exceptions — the records are unchanged),
+`AM-94` (the per-source quota), `AM-102` (the answer's layout), `AM-104` (the sentence
+splitter's abbreviations). **Does not amend:** retrieval, the evidence bundle and its
+sufficiency (`AM-86`–`AM-88` — a source dropped from the claims stays in the bundle),
+the calibrated gates, the rescue judge, every contract check and the verifier
+(`AM-90`/`AM-91` checks unchanged), [A]/[M] (`AM-93`), authorisation, `AM-25`, `AM-30`,
+`AM-106`'s routing.
+
+```text
+r1   Claims are chosen in answer order. Per question part and per source kind the part
+     asks for (the reader's document, then the company position, then the law, then
+     history), the ANCHOR is the first such source in evidence order unless another
+     scores ANCHOR_MARGIN (1.5) higher; a section the reader names exactly leads; in
+     the law lane the statute leads the company's reading of it. An anchor gives up to
+     three claims. Sources are ranked by their PHASE 9 relevance (the cross-encoder on
+     the whole context), never by a bare sentence's score.
+
+r2   A source written for another document family never gives a claim — by the
+     Constitution's own §31.4 split: Partner/Reseller/Distribution arrangements;
+     Vendor agreements; the company's normal/end-customer paper. A question naming no
+     type is read as about the company's customer paper. The source stays in the
+     bundle. Priority only: no position's content changes.
+
+r3   Another source of an asked kind and a fitting family gives ONE related claim (at
+     most three such sources, most relevant first), unless it is a standard filed under
+     a topic the question does not place (`evidence.off_topic`); a source of a kind no
+     part asked for must score within FOCUS_MARGIN (3.0) of the part's best source.
+
+r4   Each claim carries its LAYER — PRIMARY (the direct answer), RELATED, HISTORY, LAW —
+     and a claim is OPTIONAL when it is related, or history or law the question did not
+     ask for. History is asked for when the plan asks or the reader's own figure is
+     stated only in a past deal. Unasked history is at most one claim, from the direct
+     answer's own source, preferring the Constitution's labelled summary; unasked law
+     at most one claim. When the reader's document is the direct answer, every chunk of
+     it in focus is part of it (a clause spans chunks: §17.3's exclusions belong to
+     §17.2's cap).
+
+r5   A record is claimed a sentence at a time: a sentence that refers back ("This…", a
+     proviso, an Explanation) stays with the one before it; a statute's "Exception.—"
+     is its own claim; a fragment under five words joins the next. A statute's
+     Illustrations, a record's provenance, a bare pointer ("See Section 27, Item 4.")
+     and a note addressed to the tool ("⚠ IMPORTANT — CORRECT READING …", "Legal Mind
+     must not …") are chosen last and never pad a source's claims. A leading label
+     ("Established Company Position:") is not part of the claim's text.
+
+r6   A sentence that fails verification and cites only OPTIONAL claims is left out; one
+     citing a direct-answer claim is still replaced by the approved record text (`AM-91`
+     r6). A "sentence" that is only markers is dropped before verification; "Rs." does
+     not end a sentence. Nothing unverified is ever shown.
+
+r7   The shown answer is laid out by the layer of the first claim each verified
+     sentence cites: the direct answer first, then "Also relevant", "Historical context
+     — past negotiated deals, not current policy", "Legal background", then Sources —
+     each under the server's fixed label, a lone sentence as a paragraph, several as a
+     list. Every sentence is word for word as verified, except a leading connective
+     ("Additionally,") removed under a heading; a sentence that only restates the
+     question and cites nothing is left out. The frontend renders exactly these labels
+     as headings (`AnswerProse.SECTION_LABELS`); model prose never becomes one.
+
+r8   The generation prompt (`contract-answer-4`) names each claim's ROLE, asks for the
+     direct answer first in one to three sentences — the first naming its citation —
+     and the other layers only where they help, said apart; a statute's claim is said
+     as its Act ("Under the Indian Contract Act, 1872"). The prompt shapes; code
+     decides what is shown.
+```
+
+**Measured 2026-09-28.** Claim selection, 72 answerable golden-benchmark cases, zero
+Gemini (`tools/benchmark_answer_focus.py`, production database read-only): first claim
+from the question's first gold slot 44 → 52; gold slots with a claim 77 → 79 of 84;
+off-gold claims 398 → 168; claims per answer 9.4 → 5.2; must-not claims 0 → 0.
+Retrieval unchanged (`tools.rag_benchmark`, bundle recall@3 0.952, hit@1 0.903,
+wrong-source 0, false admission 0). Document lane (44 ratified questions, `tools/benchmark_document_lane.py`): the right clause as the answer's first claim 8 → 22 of 44, among its claims 26 → 27, not-found questions claiming document text 0 → 0 (zero Gemini, rescue off, same bundle). Six owner scenarios
+through `service.ask` on production data (writes rolled back), one Gemini call each,
+every one verified on the new path: the observed question now leads with §31.2 in two
+sentences, §13 as one related line, the past deals under their own heading (107–160
+words with Sources, from a one-paragraph ~330-word answer); non-fixed-term termination
+leads with §13's 30 days' notice; the historical question separates current policy from
+the two past deals; the Distribution question answers with the Distribution standard;
+"what does s. 74 provide?" answers with s. 74 and its Exception, the illustrations gone,
+and stays on the new path (it had fallen back); the 6-month client-claim question keeps
+the reader's claim and the missing signed MSA. Real API scenarios on a scratch copy
+(9): every document and no-document answer on the new path, document answers citing
+page and clause (§17.2 with §17.3's exclusions), reloaded history unchanged, the
+nonsense question refused. Real browser: the direct answer first, each layer under its
+heading.
+
+**Residuals:** Gemini is not deterministic — a run whose draft fails a direct-answer
+check shows the repaired record text for that sentence ("The company position, for MSA
+agreements, states: …"), correct but stiffer, and does not always name the section in
+prose (the Sources legend does); a sentence about the reader's claim may restate the
+question ("The reader asked whether …") — kept, because `AM-93` requires the reader's
+claim said; a not-found document question may still add the company's liability
+position beside "cannot be confirmed" (unchanged from before); the cross-encoder scores
+bare Constitution sentences poorly, so which related sentence is chosen can be the
+second-best of a record.
+
+--------------------------------------------------------------------------------
+AM-107: the answer leads with the directly applicable position; every other layer apart
+
+================================================================================
+AMENDMENT BATCH AB-58 — `AM-108`
+The reader's instruction shapes the answer — task, form, length, register — and a
+whole document is a subject; it never shapes the evidence (roadmap §12/§13/§18)
+================================================================================
+
+**Owner brief, 2026-09-28 (night):** "Make the new LegalMind Ask engine behave like a
+proper production AI document assistant … Document attached + user instruction …
+'Give me a short summary.' 'Summarize this in 5 bullet points.' 'Make a comparison
+table.' 'List only the termination clauses.' 'Explain this in simple language.' 'What
+are the key risks?' 'Tell me what the agreement says, without comparing it to our
+standard.' … The user's instruction controls presentation/task format, but MUST NOT
+override evidence, authorization, verification, or fail-closed rules. Do NOT hardcode
+individual questions."
+
+**Measured before (zero Gemini, scratch copy with the supplied MSA):** every
+whole-document instruction — a summary, five bullets, "explain this", "key risks" —
+refused (`INSUFFICIENT`: the instruction names no topic, so document retrieval had
+nothing to search and the gate shut); "… without comparing it to our standard" went to
+the evaluator (the comparison detector ignored the negation); no format, length or
+register was read anywhere; the contract prompt forbade lists.
+
+**Amends:** `AM-85` (the query plan carries the instruction; a document task is planned
+on the document), `AM-86` r3 and `AM-88` for a whole-document task only (the outline
+replaces search; the gate is open for it), `AM-91`/`AM-107` (document-wide claims; the
+prompt's form rules), `AM-102`/`AM-107` r7 (bullets and tables in the layout), the
+general-knowledge screen (`AM-45`'s successors) for a document task with a document
+open, `intent.is_comparison_question` (negation). **Does not amend:** `AM-25` r4 — a
+comparison still goes to the evaluator and Ask never performs one; every contract
+check, the verifier, [A]/[M], authorization, `AM-30`, the refusal behaviour, `AM-106`.
+
+```text
+r1   `presentation.read` reads the instruction once, from the question's own words:
+     task ANSWER · SUMMARY · LIST · EXPLAIN · RISKS; form PROSE · BULLETS · TABLE; a
+     count; SHORT; SIMPLE; "without comparing"; and the TOPIC — what is left once the
+     instruction's own words are removed. It controls presentation and task scope
+     only.
+
+r2   A negated comparison ("without comparing", "do not compare") rules the evaluator
+     out: the words are read as the lookup they are. Any other comparison still goes
+     to the evaluator (`AM-25` r4, unchanged).
+
+r3   With a document open, a document task (summary, list, explanation, risks, or
+     "without comparing") is planned on the document alone, searched by its topic; the
+     company position and the law are searched only when the reader brings them in.
+     A document task is not a general-knowledge question.
+
+r4   A document task with no topic is WHOLE-DOCUMENT: the DOCUMENT lane takes the
+     document's outline — each top-level section's first substantive chunk, in
+     document order, sections on a ratified topic (the organization's own vocabulary)
+     first — instead of a search, the gate is open for it, and evidence is selected
+     from the document alone. The claims are one operative sentence per section, at
+     most eight; a RISKS task takes only the sections on a ratified topic. Every
+     sentence is then verified exactly as prose is.
+
+r5   The prompt (`contract-answer-5`) carries a PRESENTATION line in fixed words. Form
+     is enforced in code, never trusted: extra bullets beyond the count are cut, fewer
+     are kept (the evidence sets the number); a "short" answer over 90 words is sent
+     back once, and if the retry fails verification the verified first draft is shown;
+     a list and a set of risks default to bullets, a summary or explanation to prose.
+
+r6   A table is verified row by row — each row read as "<item> — <header>: <cell>",
+     carrying the row's markers — so the header must name the source kind and every
+     cell is held to the claims the row cites. The table is rebuilt with the
+     verifier's markers; a lead-in sentence around it stands only if it verifies on
+     its own; a table with a failing row fails closed. The frontend renders a table
+     only from a block of pipe rows, which model prose never is.
+
+r7   The conversation reads as two speakers: the reader's question is a right-set
+     bubble, the answer opens with a monogram voice line, the page headline is not a
+     third copy of the question, cited passages open on request, and the reader's
+     label stays for screen readers.
+```
+
+**Measured 2026-09-28/29 (one Gemini matrix on the scratch stack, real API, real MSA):**
+every case below refused, misrouted or went unshaped before.
+Document + "Give me a short summary." → the new path, 1 call, 86 words, 4 document
+sources (first run 53 words, 3 sources). "Summarize this in 5 bullet points." → exactly
+5 bullets, 5 sources, 1 call. "Put the termination clauses in a table." → a 5-row table,
+every row verified, 1 call (two earlier runs lost the whole table to one failing row or
+lead-in — the reason r6 repairs or drops a row and drops a lead-in). "List only the
+termination clauses." → 6 bullets, document only. "And how much notice would we have to
+give?" after the table → prose on the document's notice terms with §13 as one related
+line (before the fix the follow-up was forced into the anchor's table and fell back).
+"Explain the liability clause in simple language." → the document's liability clause in
+prose (before: the general-knowledge refusal). "What are the key risks?" → 8 bullets,
+one per topical provision. "Tell me what the agreement says about liability, without
+comparing it to our standard." → 6 bullets from the document alone (before: sent to the
+evaluator). "Compare this agreement with our Constitution." → the evaluator, as locked.
+Real browser, desktop 1440 and mobile 390: no headline copy of the question, one voice
+line per answer, the reader's bubble, passages collapsed, a table rendered and kept on
+reload, the refusal wording unchanged, 8 turns after reload. Retrieval (`tools.rag_benchmark`)
+and claim selection (`tools.benchmark_answer_focus`) unchanged — unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10.
+
+**Residuals:** "in simple language" is honoured only in part — the verifier refuses a
+paraphrase that loses a condition, so the model stays close to the clause's own words;
+a whole-document summary is drawn from each section's first operative sentence, so a
+section whose substance sits in a later paragraph is summarised by its opening; a "list
+only" answer is as long as the clauses it lists; Gemini varies between runs, so a table
+may lose a row to repair or omission (the answer then says less, never something
+unverified); the outline is by top-level section number and a document the parser left
+unnumbered falls back to the ordinary search.
+
+--------------------------------------------------------------------------------
+AM-108: the reader's instruction shapes the answer; a whole document is a subject

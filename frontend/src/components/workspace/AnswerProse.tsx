@@ -10,8 +10,10 @@ import type { ReactNode } from "react";
  * retrieved passages, and a parser that invented headings, links or emphasis from
  * stray punctuation would be putting formatting into a legal answer that nobody
  * wrote. Blank lines separate paragraphs; a run of lines opening with a bullet or a
- * number becomes a list. Nothing else is interpreted, and every character of the
- * original text survives.
+ * number becomes a list, a block of pipe rows becomes a table (`PipeTable`), and a
+ * block that is exactly one of the server's own section labels (`SECTION_LABELS`)
+ * becomes a heading. Nothing else is interpreted, and every
+ * character of the original text survives.
  *
  * Extracted from `TranscriptTurn` (2026-09-15) so the live dock can use it too. It
  * rendered `result.text` in a single flat `<p>`, so the SAME answer was laid out one
@@ -39,6 +41,18 @@ import type { ReactNode } from "react";
  *  the captured group, so every character of the original survives the round trip. */
 const MARKER = /(\[\d+\])/g;
 
+/** The section labels the SERVER writes between the parts of a verified answer
+ *  (`service.LAYER_LABELS` and the Sources legend, `AM-107`): the direct answer
+ *  first, then these, each on its own. Only a block that IS one of these exact
+ *  strings becomes a heading — model prose never does, so nothing is interpreted
+ *  that the server did not deliberately emit. Keep in step with `service.py`. */
+export const SECTION_LABELS: ReadonlySet<string> = new Set([
+  "Also relevant",
+  "Historical context — past negotiated deals, not current policy",
+  "Legal background",
+  "Sources",
+]);
+
 export function AnswerProse({
   text,
   citeCount = 0,
@@ -59,6 +73,17 @@ export function AnswerProse({
     <>
       {blocks.map((block, index) => {
         const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+        const label = lines.length === 1 ? lines[0] : undefined;
+        if (label !== undefined && SECTION_LABELS.has(label)) {
+          return (
+            <h3 key={index} className="ws-ask__section">
+              {label}
+            </h3>
+          );
+        }
+        if (lines.length > 1 && lines.every((line) => /^\|.*\|$/.test(line))) {
+          return <PipeTable key={index} lines={lines} citeCount={citeCount} citeTargetId={citeTargetId} />;
+        }
         const bullets = lines.every((line) => /^([-*•]|\d+[.)])\s+/.test(line));
         if (bullets && lines.length > 1) {
           return (
@@ -78,6 +103,47 @@ export function AnswerProse({
         );
       })}
     </>
+  );
+}
+
+/** A table the SERVER emitted (`AM-108`: every line of the block is a pipe row, which
+ *  model prose never is — a table reaches here only when the reader asked for one and
+ *  every row passed verification). The first row is the header; a `|---|` rule line is
+ *  skipped; cells keep their markers as references. */
+function PipeTable({
+  lines,
+  citeCount,
+  citeTargetId,
+}: {
+  lines: string[];
+  citeCount: number;
+  citeTargetId?: ((n: number) => string) | undefined;
+}) {
+  const rows = lines
+    .filter((line) => !/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line))
+    .map((line) => line.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()));
+  const head = rows[0];
+  const body = rows.slice(1);
+  if (head === undefined || body.length === 0) {
+    return <p className="ws-ask__text">{lines.join(" ")}</p>;
+  }
+  return (
+    <div className="ws-ask__tablewrap">
+      <table className="ws-ask__table">
+        <thead>
+          <tr>{head.map((cell, i) => <th key={i} scope="col">{cell}</th>)}</tr>
+        </thead>
+        <tbody>
+          {body.map((cells, r) => (
+            <tr key={r}>
+              {cells.map((cell, c) => (c === 0
+                ? <th key={c} scope="row">{withMarkers(cell, citeCount, citeTargetId)}</th>
+                : <td key={c}>{withMarkers(cell, citeCount, citeTargetId)}</td>))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

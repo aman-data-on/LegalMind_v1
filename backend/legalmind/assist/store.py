@@ -683,6 +683,42 @@ def chunks_by_id(db: DBSession, *, document_version_id: UUID,
     return [found[c] for c in chunk_ids if c in found]
 
 
+def outline_chunks(db: DBSession, *, document_version_id: UUID,
+                   limit: int) -> list[SearchHit]:
+    """The document's OUTLINE (`AM-108`): its first chunk per top-level section, in
+    document order — what a whole-document task (a summary, "the key risks", "explain
+    this") is about when the reader named no topic. Nothing is ranked by a query: the
+    `retrieval_score` is 1.0 and is never legal weight (`AI-03` 16). A section's
+    top-level number is the integer before its first dot ("17.2" → 17); rows the parser
+    left unnumbered belong to the section before them."""
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT c.id, c.evidence_id, c.content, e.page_number, e.section_number,
+               e.section_title, e.source_type::text
+          FROM "{schema}".chunks c
+          JOIN document_evidence e ON e.id = c.evidence_id
+         WHERE c.document_version_id = :dv
+         ORDER BY e.page_number NULLS LAST, c.ordinal, c.id
+    """), {"dv": document_version_id}).all()
+    out: list[SearchHit] = []
+    seen: set[str] = set()
+    for r in rows:
+        number = (r[4] or "").split(".", 1)[0].strip()
+        # The section's first SUBSTANTIVE chunk: a heading row ("7. TERM AND
+        # TERMINATION") is its own chunk and states nothing a summary can say.
+        body = " ".join((r[2] or "").split())
+        if (not number or not number[0].isdigit() or number in seen
+                or len(body.split()) < 12 or body.upper() == body):
+            continue
+        seen.add(number)
+        out.append(SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2],
+                             page_number=r[3], section_number=r[4], section_title=r[5],
+                             source_type=r[6], retrieval_score=1.0))
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _version_chunks(db: DBSession, document_version_id: UUID, column: str,
                     ids: list[UUID], limit: int) -> list[SearchHit]:
     if column not in {"c.id", "c.evidence_id"}:          # interpolated below

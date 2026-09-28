@@ -36,7 +36,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from legalmind.assist import evidence, guardrails
+from legalmind.assist import evidence, guardrails, routing
+from legalmind.assist import presentation as presentation_mod
 from legalmind.assist import query_plan as qp
 from legalmind.assist.verify import _HISTORY_LABEL, _READING_LABEL, _WRAP
 
@@ -65,6 +66,82 @@ ATTRIBUTION = {
 
 MAX_CONTRACTS = 12
 PER_SOURCE = 3
+#: The answer's layers (`AM-107`) — what each claim is FOR in the answer the reader sees:
+#: the direct answer, related context, a past negotiated deal, the law.
+PRIMARY, RELATED, HISTORY_LAYER, LAW_LAYER = "PRIMARY", "RELATED", "HISTORY", "LAW"
+#: Which kind leads when a part asks for several: the reader's own document, then the
+#: company position, then the law, then history.
+LANE_PRIORITY = (qp.CONTRACT, qp.COMPANY_POSITION, qp.LAW, qp.HISTORICAL_EXCEPTION)
+_LAYER_KIND = {qp.CONTRACT: CONTRACT, qp.COMPANY_POSITION: POSITION, qp.LAW: LAW,
+               qp.HISTORICAL_EXCEPTION: HISTORY}
+#: How the prompt names each layer (`generation.CONTRACT_PROMPT_TEMPLATE` rule 7).
+ROLE = {PRIMARY: "direct answer", RELATED: "related — only if it helps",
+        HISTORY_LAYER: "historical context — only if it helps, said apart",
+        LAW_LAYER: "legal background — only if it helps, said apart"}
+#: A source whose best sentence scores this far (cross-encoder logits) below the best
+#: source of its own kind for some part of the question gives the answer no claim. It
+#: stays in the bundle — sufficiency is PHASE 9's and is not reopened — it only stops
+#: crowding the direct answer: "what does our Constitution say about early
+#: termination?" was given the Distribution and Vendor standards, the incident
+#: register and Companies Act s. 466 beside §31.2, three claims each (2026-09-28).
+FOCUS_MARGIN = 3.0
+#: The anchor of a kind is the first such source in evidence order (PHASE 9's own
+#: ranking) unless another scores this much higher; a source the reader named leads.
+ANCHOR_MARGIN = 1.5
+#: Claims a whole-document task is given (`AM-108`): one per section, the sections
+#: on a ratified topic first.
+DOCUMENT_WIDE_CLAIMS = 8
+#: Claims from a source that is not the best of its kind for any part of the question,
+#: and how many such sources the answer may draw on — the most relevant first.
+RELATED_CLAIMS = 1
+RELATED_SOURCES = 3
+#: Historical-exception and company's-reading-of-the-law claims when the question did
+#: not ask for that layer: kept as separate context, never the bulk of the answer.
+UNASKED_LAYER_CLAIMS = 1
+
+# Document families, in the Constitution's own terms: §31.4 sets "Partner, Reseller, and
+# Distribution arrangements" apart from "MSA, NDA, SLA, or other normal/end-customer
+# agreements", and a Vendor Agreement is paper the company signs as the customer. A
+# question naming no type is read as about the company's own customer paper — so a
+# Partner, Distribution or Vendor rule is never the direct answer to it, and gives a
+# claim only when it scores as close as a source of an unasked kind must (`AM-107`).
+# Priority only: what any position says is untouched.
+_CHANNEL, _VENDOR, _CUSTOMER = "CHANNEL", "VENDOR", "CUSTOMER"
+_ROLE_WORDS = re.compile(r"\b(?:(vendors?|suppliers?)|(distributors?|resellers?))\b",
+                         re.I)
+_APPLICABLE = re.compile(r"Applicable Document Types:\W*([^\n]+)", re.I)
+
+
+def _families(types: set[str]) -> set[str]:
+    return {_CHANNEL if t in ("PARTNER_AGREEMENT", "DISTRIBUTION_AGREEMENT") else
+            _VENDOR if t == "VENDOR_AGREEMENT" else _CUSTOMER for t in types}
+
+
+def _types_named(text: str) -> set[str]:
+    from legalmind.assist import positions
+    return {positions._TYPE_BY_PHRASE[m.group(1).lower()]
+            for m in positions._TYPE_PATTERN.finditer(text)}
+
+
+def question_families(question: str) -> set[str]:
+    """The families the question names, or the customer family when it names none."""
+    found = _families(_types_named(question))
+    for vendor, _channel in _ROLE_WORDS.findall(question):
+        found.add(_VENDOR if vendor else _CHANNEL)
+    return found or {_CUSTOMER}
+
+
+def source_families(source: evidence.Source) -> set[str]:
+    """The families a source is written for — a standard's own type, a Constitution
+    section's "Applicable Document Types" (before any "NOT applicable to") — or none
+    for a general section, a statute or the reader's own document."""
+    scope = _SCOPE_CODE.search(source.ref)
+    if scope:
+        return _families({scope.group(1)})
+    m = _APPLICABLE.search(source.context) if source.ref.startswith("CONST:") else None
+    if not m:
+        return set()
+    return _families(_types_named(re.split(r"\bNOT\b", m.group(1))[0]))
 
 _MODAL = [
     ("PROHIBITED", re.compile(r"\b(?:must not|shall not|may not|cannot|can ?not|is not "
@@ -148,6 +225,12 @@ class Contract:
     referent: str | None = None
     from_records: bool = False
     antecedents: tuple[tuple[str, str], ...] = ()
+    #: PRIMARY · RELATED · HISTORY · LAW — where the claim sits in the answer.
+    layer: str = PRIMARY
+    #: Context the answer may leave out: a related source, or a historical or law
+    #: layer the question did not ask for. A sentence restating it that fails a check
+    #: is dropped rather than replaced by the record's text (`answer.repair_sentences`).
+    optional: bool = False
 
     @property
     def authority(self) -> str:
@@ -323,7 +406,8 @@ def section_scope(source: evidence.Source) -> str | None:
 
 
 def _contract(n: int, source: evidence.Source, text: str, kind: str,
-              frame: str | None = None, unit=None) -> Contract:
+              frame: str | None = None, unit=None, layer: str = PRIMARY,
+              optional: bool = False) -> Contract:
     from legalmind.assist import answer
     mod, neg = modality(text)
     subject, action, obj = _parts(text)
@@ -354,54 +438,290 @@ def _contract(n: int, source: evidence.Source, text: str, kind: str,
                     scope.group(1) if scope else None, frame,
                     unit.heading if unit else (), unit.temporal if unit else None,
                     unit.exceptions if unit else None, unit.referent if unit else None,
-                    unit is not None, unit.antecedents if unit else ())
+                    unit is not None, unit.antecedents if unit else (), layer,
+                    optional)
 
 
 def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
-    """The approved claims: per supporting source, its PER_SOURCE sentences most relevant
-    to the question (the local reranker orders; lexical overlap when it is absent), at
-    most MAX_CONTRACTS in all, in source order. Selection only — sufficiency, authority
-    and version were decided by PHASE 9 and are not reopened."""
-    from legalmind.assist import rerank as cross_encoder
-    picked: list[tuple[evidence.Source, str, str, str | None]] = []
-    words = guardrails._content_words(question)
-    queries = list(dict.fromkeys([question, *(p.question for p in bundle.parts)]))
+    """The approved claims, in answer order (`AM-107`).
+
+    Every supporting source's sentences are scored against the whole question and each
+    part of it (the local reranker; lexical overlap when it is absent). Then, per part
+    and per source kind the part asks for, the best source is that part's ANCHOR and
+    gives up to PER_SOURCE claims; another source of the same kind gives RELATED_CLAIMS
+    only when it scores within FOCUS_MARGIN of that anchor, and a source of a kind the
+    part did not ask for must come that close to the part's best source of any kind.
+    Historical and reading-of-the-law sentences the question did not ask for give at
+    most UNASKED_LAYER_CLAIMS each. The first part's first anchor leads, and every
+    claim carries its LAYER — primary, related, historical, law — so the answer can put
+    the direct answer first and keep the rest apart. Selection only: sufficiency,
+    authority and version were decided by PHASE 9 and are not reopened."""
     from legalmind.assist import claim_records
+    from legalmind.assist import rerank as cross_encoder
+
+    words = guardrails._content_words(question)
+    parts = bundle.parts or (evidence.Part(question, (), "", ()),)
+    shape = bundle.presentation
+    if shape.document_wide:
+        return _document_wide(bundle, question, db, shape)
+    queries = list(dict.fromkeys([question, *(p.question for p in parts)]))
     recorded: dict = {}
     per_source: list[tuple] = []
     for source in bundle.shown():
+        if shape.document_task and source.kind != qp.CONTRACT and not (
+                bundle.parts and any(qp.COMPANY_POSITION in p.lanes or qp.LAW in p.lanes
+                                     for p in bundle.parts)):
+            continue    # a task about the document: the document alone answers it
         units = claim_records.units(db, source) if db is not None else None
         if units:
-            rows = [(u.text, _kind_of_record(u), bool(u.frame) or
-                     "position" in " ".join(u.heading).lower(), u.frame) for u in units]
-            recorded.update({(source.ref, u.text): u for u in units})
+            # One claim per SENTENCE of a record, each carrying the record's heading,
+            # scope, status, referent and exceptions (`AM-107`). A whole paragraph as
+            # one claim made every concise sentence "drop a condition" of a different
+            # rule in it — §13's cure period, s. 74's illustrations — so a correct
+            # answer was replaced by the paragraph itself (2026-09-28).
+            rows = []
+            for u in units:
+                for piece in pieces(u.text):
+                    labelled = _LABELLED_POSITION.match(piece)
+                    # "Established Company Position: No early exit …" — the label is
+                    # the claim's kind, said by its SAY AS phrase; left in, a repair
+                    # read "states: Established Company Position: No early exit".
+                    claim = piece[labelled.end():].strip() if labelled else piece
+                    rows.append((claim, _kind_of_record(u), bool(u.frame) or
+                                 "position" in " ".join(u.heading).lower()
+                                 or bool(labelled), u.frame))
+                    recorded[(source.ref, claim)] = u
         else:
             rows = _statements(source)
         if rows:
             per_source.append((source, rows))
-    # Best over the whole question and each part of it: one long question ranked a
-    # provenance line above "the full committed-term value remains payable". ONE
-    # batched call for every (query, sentence) pair (PHASE 13, `AM-94`): as fifty
-    # per-source, per-query calls of 3–15 sentences, GT-00's contracts took 2.5 s of
-    # under-filled batches; the scores are the same numbers.
+    # ONE batched call for every (query, sentence) pair (PHASE 13, `AM-94`).
     every = [s for _, rows in per_source for s, _, _, _ in rows]
     scored = cross_encoder.scores_many(queries, every) if every else None
     at = 0
+    table = []            # (source, rows, per-query sentence scores)
     for source, rows in per_source:
-        sents = [(s, k) for s, k, _, _ in rows]
-        n = len(sents)
+        n = len(rows)
         if scored is not None:
-            scores = [max(scored[q][at + i] for q in range(len(queries)))
-                      for i in range(n)]
+            by_q = [[scored[q][at + i] for i in range(n)] for q in range(len(queries))]
         else:
-            scores = [float(len(words & guardrails._content_words(s))) for s, _ in sents]
+            lexical = [float(len(words & guardrails._content_words(r[0]))) for r in rows]
+            by_q = [lexical for _ in queries]
         at += n
-        scores = [x + (POSITION_BONUS if rows[i][2] else 0.0)
-                  for i, x in enumerate(scores)]
-        order = sorted(range(n), key=lambda i: -scores[i])[:PER_SOURCE]
-        picked += [(source, *sents[i], rows[i][3]) for i in sorted(order)]
-    return [_contract(n, s, t, k, f, recorded.get((s.ref, t)))
-            for n, (s, t, k, f) in enumerate(picked[:MAX_CONTRACTS], 1)]
+        by_q = [[x + (POSITION_BONUS if rows[i][2] else 0.0) for i, x in enumerate(q)]
+                for q in by_q]
+        table.append((source, rows, by_q))
+
+    from legalmind.assist import retrieval
+    asked_any = {lane for p in parts for lane in p.lanes}
+    # What each source can serve — every authority among its matching records, not
+    # only its label: §31.2 is labelled historical when its history paragraph matched,
+    # yet holds the early-termination position (`retrieval.kinds_of`, `AM-94`).
+    serves = [retrieval.kinds_of(src.candidate) | {src.kind} for src, _, _ in table]
+    wanted = question_families(question)
+    fits = [not (f := source_families(src)) or bool(f & wanted) for src, _, _ in table]
+    anchors: list[int] = []
+    in_focus: set[int] = set()
+    # A SOURCE is ranked by its PHASE 9 relevance — the cross-encoder on its whole
+    # context and breadcrumbs — never by its best bare sentence: out of context, §31.2's
+    # "No early exit is permitted from a confirmed fixed-term commitment" scored -4.9
+    # against the question it answers while a Distribution standard's one-line rule
+    # scored 1.1 (2026-09-28). Sentence scores only choose sentences within a source.
+    best = [src.relevance if src.relevance is not None else max(max(q) for q in by_q)
+            for src, _, by_q in table]
+    anchor_lane: dict[int, str] = {}
+    for p in parts:
+        lanes = [lane for lane in LANE_PRIORITY if lane in p.lanes]
+        top = max(best) if best else 0.0
+        lane_top: dict[str, float] = {}
+        for lane in lanes:
+            mine = [i for i in range(len(table)) if lane in serves[i]]
+            if mine:
+                mine = [i for i in mine if fits[i]] or mine
+                if lane == qp.LAW:
+                    # The law itself leads the law layer; the company's reading of it
+                    # (a Constitution section) supports it — golden E-01's s. 74 was
+                    # outranked by Constitution §14's reading of s. 74.
+                    statute = routing.Domain.STATUTES.value
+                    mine = [i for i in mine
+                            if table[i][0].candidate.domain == statute] or mine
+                named_here = [i for i in mine if table[i][0].named]
+                strongest = max(mine, key=lambda i: best[i])
+                anchor = (named_here[0] if named_here else strongest
+                          if best[strongest] > best[mine[0]] + ANCHOR_MARGIN else mine[0])
+                lane_top[lane] = max(best[i] for i in mine)
+                if anchor not in anchors:
+                    anchors.append(anchor)
+                    anchor_lane[anchor] = lane
+        for i, (src, _, _) in enumerate(table):
+            # A source of a kind this part asks for, written for the paper the question
+            # is about, always keeps one claim: its score is too noisy to cut on (golden
+            # J-03's gold §16 scored 1.6 beside a 4.1 anchor). Any other source must
+            # come within FOCUS_MARGIN of what it competes with.
+            served = [lane for lane in serves[i] if lane in lane_top]
+            if not fits[i]:
+                continue          # another family's rule: in the bundle, never the answer
+            # A standard filed under a topic the question does not place (a Payment
+            # Terms standard beside a termination question) earns no automatic claim.
+            if (served and not evidence.off_topic(src.candidate, question)) \
+                    or best[i] >= top - FOCUS_MARGIN:
+                in_focus.add(i)
+    in_focus |= {i for i, (src, _, _) in enumerate(table) if src.named}
+    if not anchors and table:             # no part names a lane: the best source leads
+        anchors = [max(range(len(table)), key=lambda i: (fits[i], best[i]))]
+    in_focus |= set(anchors)
+    if anchors and anchor_lane.get(anchors[0]) == qp.CONTRACT:
+        # The reader's document IS the answer, and one clause spans several chunks:
+        # every chunk of it in focus answers with it — §17.3's exclusions belong to
+        # §17.2's cap. As related context they were one optional claim each, and the
+        # liability answer lost its carve-outs (scenario 4, 2026-09-28).
+        more = [i for i in sorted(in_focus)
+                if i not in anchors and qp.CONTRACT in serves[i]]
+        anchors += more
+    else:
+        more = []
+    # What the direct answer IS: the kind of the first part's first anchor, in
+    # LANE_PRIORITY order — the reader's own document, else the company position, else
+    # the law, else history. A claim of that kind from an anchor is the direct answer;
+    # from another source it is related; a claim of another kind is its own layer.
+    lead = _LAYER_KIND[anchor_lane.get(anchors[0], qp.COMPANY_POSITION)] if anchors \
+        else POSITION
+
+    def layer_of(i: int, kind: str) -> str:
+        own = (HISTORY if kind == HISTORY else LAW if kind in (LAW, READING)
+               else CONTRACT if kind == CONTRACT else POSITION)
+        if own == lead:
+            return PRIMARY if i in anchors else RELATED
+        return {HISTORY: HISTORY_LAYER, LAW: LAW_LAYER}.get(own, RELATED)
+
+    # History is asked for when the plan asks, or when the reader's own figure is
+    # stated only in a past negotiated deal — "their signed MSA mentions 6 months".
+    history_asked = qp.HISTORICAL_EXCEPTION in asked_any or any(
+        qp.HISTORICAL_EXCEPTION in a.stated_by for a in bundle.assertions)
+    capped = {HISTORY_LAYER: not history_asked, LAW_LAYER: qp.LAW not in asked_any}
+    used = {HISTORY_LAYER: 0, LAW_LAYER: 0}
+    order = anchors + sorted((i for i in in_focus if i not in anchors),
+                             key=lambda i: -best[i])[:RELATED_SOURCES]
+    picked: list[tuple] = []
+    for i in order:
+        source, rows, by_q = table[i]
+        # A further chunk of the reader's document takes two claims, so a clause over
+        # four chunks cannot fill MAX_CONTRACTS before the law the reader also asked.
+        budget = (PER_SOURCE - 1 if i in more else PER_SOURCE if i in anchors
+                  else RELATED_CLAIMS)
+        score = [max(q[k] for q in by_q) for k in range(len(rows))]
+        # A record's provenance ("Evidence / Source: Legal Conflicts Register, C-04 …")
+        # and a statute's Illustrations are chosen last: the one names documents and
+        # states nothing, the others are examples of the rule, not the rule — s. 74's
+        # illustrations (a) and (f) were two of its three claims (2026-09-28).
+        illustrative = next((k for k, r in enumerate(rows)
+                             if re.match(r"^Illustrations?\b", r[0])), len(rows))
+        cited_only = [k >= illustrative or bool(_TO_THE_TOOL.match(r[0])) or bool(
+            getattr(recorded.get((source.ref, r[0])), "extra", {}).get("provenance"))
+            for k, r in enumerate(rows)]
+        chosen: list[int] = []
+        # The one unasked historical sentence is the Constitution's own labelled summary
+        # ("Historical exceptions: A review of actual signed MSAs found …") when there is
+        # one: the cross-encoder scores such a summary -7.7 against a policy question,
+        # below the clause-by-clause notes around it.
+        later = [not (capped[HISTORY_LAYER] and r[1] == HISTORY and r[2]) for r in rows]
+        for k in sorted(range(len(rows)),
+                        key=lambda k: (cited_only[k], later[k], -score[k])):
+            if len(chosen) == budget or (cited_only[k] and chosen):
+                break                      # an example or a provenance line never pads
+            layer = layer_of(i, rows[k][1])
+            if layer in used and capped[layer]:
+                # History nobody asked for is shown only as the direct answer's own
+                # context — §31.2's past deals beside §31.2, never beside §13. Law is
+                # kept to sources within FOCUS_MARGIN instead: golden E-04's tribunal
+                # deadline IS s. 29A, though the plan asked for no law lane.
+                if used[layer] >= UNASKED_LAYER_CLAIMS or (
+                        layer == HISTORY_LAYER and i not in anchors):
+                    continue
+                used[layer] += 1
+            chosen.append(k)
+        picked += [(source, rows[k][0], rows[k][1], rows[k][3], layer_of(i, rows[k][1]))
+                   for k in sorted(chosen)]
+    return [_contract(n, s, t, k, f, recorded.get((s.ref, t)), layer,
+                      layer == RELATED or capped.get(layer, False))
+            for n, (s, t, k, f, layer) in enumerate(picked[:MAX_CONTRACTS], 1)]
+
+
+# A note the Constitution addresses to the product, not to the reader ("⚠ IMPORTANT —
+# CORRECT READING OF …", "Legal Mind must not read a 90-day clause as …"), or a bare
+# pointer ("See Section 27, Item 4."). Chosen last, and never to pad: shown alone the
+# one reads as a rule about the reader's deal, the other says nothing.
+_TO_THE_TOOL = re.compile(r"^\W*(?:⚠\s*)?(?:IMPORTANT\b|Legal ?Mind\s+(?:must|should|"
+                          r"may|will|shall|states|treats|does)\b|See (?:also )?"
+                          r"(?:Section|Appendix|§)[^.]{0,40}\.?$)", re.I)
+# A sentence the Constitution labels as what it is — "Established Company Position:",
+# "Historical exceptions:" — is its kind's own statement, preferred over its neighbours.
+_LABELLED_POSITION = re.compile(r"^[^:]{0,40}\b(?:position|historical?)\b[^:]{0,20}:",
+                                re.I)
+_REFERS_BACK = re.compile(r"^\W*(?:it|this|these|that|such|which|and|or|provided(?: "
+                          r"further)? that|provided|explanation)\b|^[—-]", re.I)
+
+
+def pieces(text: str) -> list[str]:
+    """A record's claims: its own sentences (`answer._record_sentences`), with a
+    sentence that refers back ("This is the same position …", a proviso, an
+    Explanation) kept with the one before it, and a fragment under five words ("74.")
+    kept with the one after it."""
+    from legalmind.assist import answer
+    out: list[str] = []
+    carry = ""
+    # A statute's "Exception.—" is its own rule with its own modality ("shall be liable
+    # … the whole sum"); glued to s. 74's "is entitled to … reasonable compensation" it
+    # made a faithful restatement of the rule read as a change of modality.
+    chunks = re.split(r"(?<=[.\]])\s+(?=Exception\.?\s?[—-])", text)
+    for piece in (x for chunk in chunks for x in answer._record_sentences(chunk)):
+        piece = f"{carry} {piece}".strip() if carry else piece
+        carry = ""
+        if len(piece.split()) < 5:
+            carry = piece
+        elif out and _REFERS_BACK.match(piece):
+            out[-1] = f"{out[-1]} {piece}"
+        else:
+            out.append(piece)
+    if carry:
+        if out:
+            out[-1] = f"{out[-1]} {carry}"
+        else:
+            out.append(carry)
+    return out
+
+
+def _document_wide(bundle: evidence.Bundle, question: str, db,
+                   shape) -> list[Contract]:
+    """A whole-document task (`AM-108`): one claim per outline chunk — the clause's
+    first substantive sentence, the operative statement a summary is made of — in
+    document order, so the answer covers the document instead of restating one
+    section. Sections that touch a ratified topic (the organization's own vocabulary,
+    `planner.topics_in`) come first; a RISKS task takes only those. Up to
+    MAX_CONTRACTS; the model then chooses which to say and every sentence is verified
+    exactly as prose is."""
+    from legalmind.assist import planner
+    picked: list[tuple[evidence.Source, str]] = []
+    for source in bundle.shown():
+        if source.kind != qp.CONTRACT:
+            continue
+        first = next((t for t, _ in statements(source)
+                      if len(t.split()) >= 8 and not t.rstrip(":").isupper()), None)
+        if first:
+            picked.append((source, first))
+    topical = [(s, t) for s, t in picked if planner.topics_in(s.context)]
+    if shape.task == presentation_mod.RISKS:
+        picked = topical
+    else:
+        rest = [x for x in picked if x not in topical]
+        picked = topical + rest if len(topical) < MAX_CONTRACTS else topical
+    # Eight sections at most — a summary of twelve read as the document itself — and
+    # four when the reader asked for a SHORT one: brevity set at the source, not
+    # hoped for from the model.
+    limit = (DOCUMENT_WIDE_CLAIMS // 2 if shape.length == presentation_mod.SHORT
+             else DOCUMENT_WIDE_CLAIMS)
+    return [_contract(n, s, t, CONTRACT, None, None, PRIMARY)
+            for n, (s, t) in enumerate(picked[:limit], 1)]
 
 
 def _kind_of_record(u) -> str:
@@ -456,7 +776,13 @@ CONFLICT_SIMILAR = 0.6
 def render(contracts: list[Contract], rels: list[Relation]) -> str:
     lines = []
     for c in contracts:
-        fields = [f"SAY AS: {SAY[c.kind]}", f"MODALITY: {c.modality.lower()}",
+        # A statute's claim is said as its Act — "Under the Indian Contract Act, 1872" —
+        # since "this Act" must be resolved in the sentence; "The law provides …" failed
+        # the check that holds it (live, s. 74, `AM-107`).
+        say = (f"Under the {c.referent}" if c.kind == LAW and c.referent
+               else SAY[c.kind])
+        fields = [f"ROLE: {ROLE[c.layer]}", f"SAY AS: {say}",
+                  f"MODALITY: {c.modality.lower()}",
                   f"NEGATED: {'yes' if c.negated else 'no'}"]
         own = [x for x in c.conditions if _SCOPE_TAG not in x]
         covered = [x.replace(_SCOPE_TAG, "")[4:] for x in c.conditions if _SCOPE_TAG in x]

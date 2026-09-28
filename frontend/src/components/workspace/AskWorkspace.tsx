@@ -72,7 +72,7 @@ import {
   IconSparkle,
   IconX,
 } from "./icons";
-import { TranscriptTurn } from "./TranscriptTurn";
+import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
  *  intake's pre-check — a friendly message before a 25 MB round trip. The
@@ -472,7 +472,11 @@ export function AskWorkspace() {
       {/* ---- the conversation -------------------------------------------- */}
       <section className="ws-chat__main" aria-label="Conversation">
         <header className="ws-chat__head">
-          <h1 className="ws-chat__title">
+          {/* The question is the conversation's first turn and the rail's title; a
+              third copy as a page headline was the same words read three times
+              (owner, 2026-09-28). The heading stays for the document outline and a
+              screen reader; the visible header is the scope alone. */}
+          <h1 className="ws-visually-hidden">
             {activeId && conversations
               ? (conversations.find((c) => c.id === activeId)
                   ? chatTitle(conversations.find((c) => c.id === activeId)!)
@@ -562,10 +566,11 @@ export function AskWorkspace() {
               <>
                 <div className="ws-turn ws-turn--user">
                   <p className="ws-ask__q">
-                    <span className="ws-ask__role">You</span> {pending}
+                    <span className="ws-ask__role ws-visually-hidden">You</span> {pending}
                   </p>
                 </div>
-                <div className="ws-turn">
+                <div className="ws-turn ws-turn--ai">
+                  <AiVoice />
                   <div className="ws-ask__answer" aria-busy="true">
                     <p className="ws-pane__note" role="status" aria-live="polite">
                       Looking this up and checking citations…

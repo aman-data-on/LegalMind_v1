@@ -27,9 +27,10 @@ permissions (`AM-45` r1).
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from legalmind.assist import intent, planner, understanding
+from legalmind.assist import presentation as presentation_mod
 
 COMPANY_POSITION = "COMPANY_POSITION"
 CONTRACT = "CONTRACT"
@@ -121,6 +122,10 @@ class QueryPlan:
     lanes: frozenset[str]
     sub_questions: tuple[SubQuestion, ...]
     section_hint: str | None
+    #: `AM-108`: the reader's presentation instruction — task, shape, count, length,
+    #: register — read once, from the question's own words.
+    presentation: presentation_mod.Presentation = field(
+        default_factory=presentation_mod.Presentation)
 
     @property
     def complex(self) -> bool:
@@ -165,14 +170,19 @@ def _lanes(text: str, topic: str | None) -> set[str]:
 
 
 def plan(question: str, *, has_document: bool | None = None,
-         prior: tuple[str, ...] | list[str] = ()) -> QueryPlan:
+         prior: tuple[str, ...] | list[str] = (),
+         instruction: str | None = None) -> QueryPlan:
     """`has_document` is the router's fact (`AM-25` r4): when the question needs the
     contract and none is in scope, the controlling paper is UNAVAILABLE even though
     the reader never said "missing" — "what is the cap in our signed contract with
     this customer?" asked with no document open. None means unknown: nothing added."""
     text = (question or "").strip()
     u = understanding.understand(text)
-    lexical = planner.plan_lexical(text)
+    # The instruction is THIS turn's: a follow-up resolved onto "put the termination
+    # clauses in a table" must not itself be forced into a table (`AM-108`).
+    shape = presentation_mod.read(text if instruction is None else instruction)
+    lexical = planner.plan_lexical(shape.topic if has_document and shape.document_task
+                                   and shape.topic else text)
     # Conversation (roadmap §15, within `AM-58`): a turn that names no topic inherits
     # the most recent prior USER question's — "What if the customer says they were
     # promised 6 months?" after an early-termination question is still about early
@@ -224,10 +234,22 @@ def plan(question: str, *, has_document: bool | None = None,
     if not subs:
         subs = [SubQuestion(text, tuple(sorted(_lanes(text, topic) | document_lane)),
                             " ".join(x for x in (subject, text) if x))]
+    if has_document and shape.document_task:
+        # A task ABOUT THE DOCUMENT ("list only the termination clauses", "give me a
+        # short summary"): the document is its subject, searched by the instruction's
+        # topic — not by "give me a short summary" — and the company position is not
+        # searched for it unless the reader brought the organization in (`AM-108`).
+        keep = {CONTRACT} | ({COMPANY_POSITION} if u.mentions_organization
+                             and not shape.no_comparison else set()) | (
+            {LAW} if u.signals.general_law else set())
+        subs = [SubQuestion(text, tuple(sorted(keep)),
+                            " ".join(x for x in (subject, shape.topic or text) if x))]
     # Context sentences (a claim, "we cannot find the signed copy") add their lanes to
     # the plan without becoming questions of their own.
     all_lanes = set().union(*(s.lanes for s in subs), *(_lanes(s, topic)
                                                           for s in sentences))
+    if has_document and shape.document_task:
+        all_lanes = set().union(*(s.lanes for s in subs))
     if has_document is False and CONTRACT in all_lanes:
         all_lanes.add(MISSING_DOCUMENT)
     return QueryPlan(
@@ -238,4 +260,5 @@ def plan(question: str, *, has_document: bool | None = None,
         claims=claims,
         document_state="UNAVAILABLE" if MISSING_DOCUMENT in all_lanes else None,
         lanes=frozenset(all_lanes), sub_questions=tuple(subs),
-        section_hint=lexical.section_hint if lexical else None)
+        section_hint=lexical.section_hint if lexical else None,
+        presentation=shape)

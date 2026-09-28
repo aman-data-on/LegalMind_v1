@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from legalmind import config
-from legalmind.assist import understanding
+from legalmind.assist import presentation, understanding
 from legalmind.domain.document_types import readable as _readable_document_type
 from legalmind.security import permissions as P
 
@@ -173,7 +173,10 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # Unlike the capability route this needs no flag — NOT searching is always safe,
     # and it is what stops "what is an NDA?" being answered with three Company
     # Standards. What it may SAY is a separate question (see `service`).
-    if u.general_knowledge:
+    # … but "explain the liability clause in simple language" with a document open is
+    # a task about THAT document, not a request for a definition (`AM-108`).
+    if u.general_knowledge and not (has_document
+                                    and presentation.read(question).document_task):
         return RoutePlan(comparison=False, domains=(), statute_shaped=False,
                          fallback=(), general_knowledge=True)
     candidates: set[Domain] = set()
