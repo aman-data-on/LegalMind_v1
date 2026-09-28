@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit AM-104. Last updated 2026-09-28.
+Baseline: commit `608cbb6` (AM-94); last unit AM-105. **Deployed to production 2026-09-28 (`ad0b3a5`), canary 10%.** Last updated 2026-09-28.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -30,19 +30,23 @@ Baseline: commit `608cbb6` (AM-94); last unit AM-104. Last updated 2026-09-28.
 | 16 | Evaluation per layer | `rag_benchmark.py` (retrieval + wrong-source/false-admission per stage and category), `eval_generation.py` (generation) | — | recall@3/10, hit@1, MRR, nDCG@5, wrong-source, false admission per stage | ✅ | conversation metrics are category J of the same tool; no separate tool needed |
 | 17 | Permanent golden suite A–O | `tests/assist_eval/rag_benchmark.json` (81 cases) | benchmark tool | O-05 (DPDP commencement) and O-06 (s. 70B) added; B-05 accepts §16, F-05's Schedule ref corrected (AM-104) | ✅ | misses left: E-03, F-05, O-05 statute slot (cross-encoder), H-02 (s. 194J not in the accepted text) |
 | 18 | Deployment discipline | flag + canary share + trace + rollback (AM-94); egress audited on failure, trace failures as kinds (AM-104 r8) | `test_ask_multi_source_rollout.py` | migrations down/up twice + Constitution (701/404) and statute (5,011, `section-5`) ingestion rehearsed 2026-09-28 on a clone of the AM-94 prod-like copy; idle rerank p50/p95 866/1,084 ms; live generation p50 2.8 s; browser Ask 6–21 s per answer through a production-like proxy (host partly loaded); `assist.ask.trace` fields checked on real requests (path, fallback_kind, gemini_calls, latency, verify/gemini/prepare ms; no text) | 🟡 | a FRESH production snapshot for the rehearsal was not taken (dumping production needs owner authorisation); production steps need the owner |
-| 20 | Definition of done | branch `feat/legalmind-rag-production`, main merged in locally (clean) | backend 2747 passed / 112 skipped / 0 failed; frontend 531 passed; ruff, mypy, tsc, forbidden-terms clean | golden recall@3 0.951 (79) / 0.952 (81), wrong-source 0, false admission 0; run-9 replay bad shown 0.7%, fallbacks 2/65; live 18/20 in one call; real browser upload → review → findings → Ask → history → 390 px clean; security review done (3 fixes, AM-104 r8); migration + ingestion rehearsed; trace fields checked | 🟡 | engineering and validation done for this branch; CI never run (needs a push). Remaining: the owner's release actions below, and the localized residuals (item 3 of Open work) |
+| 20 | Definition of done | branch `feat/legalmind-rag-production`, main merged in locally (clean) | backend 2747 passed / 112 skipped / 0 failed; frontend 531 passed; ruff, mypy, tsc, forbidden-terms clean | golden recall@3 0.951 (79) / 0.952 (81), wrong-source 0, false admission 0; run-9 replay bad shown 0.7%, fallbacks 2/65; live 18/20 in one call; real browser upload → review → findings → Ask → history → 390 px clean; security review done (3 fixes, AM-104 r8); migration + ingestion rehearsed; trace fields checked | ✅ | **released 2026-09-28**: PR #121 merged at `ad0b3a5` after CI 15/15 green (run 3; runs 1–2 fixed by AM-105), deployed, production migrated, Constitution and statutes ingested, canary `no_document` at 10%. Production search matches the validated corpus exactly (recall@3 0.952). Residuals: item 3 of Open work |
 
 ## Open work, in dependency order
 
 1. ~~§15, §14 `WRONG_ACT`, §16/§17 cases, §11 live fallbacks~~ done (AM-95–AM-103).
 2. ~~H-01, D-01, O-04, B-05 (gold), F-05 context, DPDP commencement, s. 70B, "bare Section N"~~ done (AM-104). "Section 28" was a code defect (a status cut at the dot in "28.2.1"), not an ambiguity; s. 70B was always in the supplied text.
 3. Residuals, each localized (2026-09-28): E-03 and the F-05/O-05 statute slot — the local cross-encoder; H-02 — source absent; 4 generation-only bad sentences; E-02 and H-01 can fall back live when a draft fails a strict check (safe: the legacy answer is shown).
-4. §20 — CI (needs a push) and the owner's release actions below.
+4. ~~§20 — CI and release~~ done 2026-09-28 (below).
+5. Found in the live check (2026-09-28), none unsafe: a follow-up "promised 6 months?" after an early-termination question answered from the 6-month RENEWAL history (the reader's claim still kept as a claim, the history still labelled); a duplicated marker "[1], [1]" (the legend collapses "[1] [1]" but not the comma form); a Constitution sentence addressed to the system ("Legal Mind must not treat …") shown in the DPDP answer.
 
-## Release actions that need the owner (2026-09-28)
+## Release record (2026-09-28)
 
-1. Push `feat/legalmind-rag-production` and open the PR; CI must pass on the ruleset.
-2. Merge after CI.
-3. Production: back up the DB, apply migrations `e9f2b6c4a173` → `b8e2f6a4d1c3`, run `tools.ingest_constitution` and `tools.ingest_statutes` (the live corpus is still `section-1`: s. 70B and the `section-5` fixes arrive only with this re-ingest), then `tools.import_ratified_standards` if needed, restart the API.
-4. Enable `LEGALMIND_ASK_MULTI_SOURCE=no_document` with a small `LEGALMIND_ASK_MULTI_SOURCE_PERCENT` canary, watch `assist.ask.trace` (path, fallback_kind, gemini_calls, verify_ms), widen. Rollback = the flag off.
-5. Optional: authorise a fresh production snapshot for one more rehearsal; supply the DPDP commencement Gazette notification (G.S.R. 843(E)) if the statute record should cite it rather than the Constitution.
+1. PR #121 opened, CI 15/15 green on run 3 (`fcffb02`). Run 1 failed jobs 1, 13 and 15, run 2 failed job 15: SQLAlchemy 2.1.1 typing, two tests needing vectors CI lacks, and a time-of-day greeting in a screenshot — all fixed at root (`AM-105`). Merged through the ruleset (no override) at `ad0b3a5`; branch deleted.
+2. Fresh backup `legalmind_v1_dev-20260928-1249.dump`, local and off-server (encrypted, read back, decrypts). Alembic head before: `e9f2b6c4a173`.
+3. `sudo legalmind-deploy`: migrations `e9f2b6c4a173` → `f4c1e8a2b7d9` → `a7d3e9b1c5f2` → `b8e2f6a4d1c3`; API healthy, worker active, frontend build `VMCzWuTTrt811Ry2tmVjp` swapped atomically.
+4. `tools.ingest_constitution`: items 701, embedded 404; sources 2; 0 of 701 records carry a redacted name. `tools.ingest_statutes`: 17 files, 0 refused, 5,011 `section-5` chunks and embeddings, 0 orphaned citations, IT Act s. 70B now live. Standards already live (72 active), no import needed.
+5. Search health check on production, zero Gemini: new path recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0 — identical to the validated corpus.
+6. Canary: `LEGALMIND_ASK_MULTI_SOURCE=no_document`, `LEGALMIND_ASK_MULTI_SOURCE_PERCENT=10`, API restarted. Live check (production code and DB, forced path in one process, all writes rolled back, 3 Gemini calls): 3/3 answered on the new path in one call, 4.6–9.1 s; the DPDP answer says NOT in force until 13 May 2027, credited to the Constitution.
+
+Widen the share on trace evidence (`selected_path` vs `path`, `fallback_kind`, `latency_ms`). Rollback: `LEGALMIND_ASK_MULTI_SOURCE=off` in `/root/.legalmind.env` and `systemctl restart legalmind-api`; the pre-canary env file is kept at `/root/.legalmind/preserved/`.

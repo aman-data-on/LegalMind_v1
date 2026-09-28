@@ -1417,3 +1417,15 @@ when no vectors are available, the topic phrase is also searched on its own. Doi
 that always was tried and cost recall, so it runs only in the degraded mode. The
 dashboard screenshot failed because the greeting says "Good morning" or "Good
 afternoon" by time of day. Masking it failed, because the heading is as wide as its greeting, so that one screenshot now runs in a zone where it is afternoon. Retrieval with vectors is unchanged.
+
+## 2026-09-28 — Entry: the new Ask engine is live as a canary
+
+After the review and the three CI fixes, PR #121 was merged and deployed. A fresh
+backup came first, checked both on the server and off it. The deploy moved the
+database through three migrations. Then the Constitution was loaded, 701 records with
+no redacted name among them, and the law library was rebuilt, 17 Acts with IT Act
+s. 70B now present. On the live database, the search finds the right source exactly
+as often as in testing. The new engine now answers 10% of conversations that have no
+document attached. Three real questions all answered on it in one Gemini call each.
+The DPDP penalties are correctly described as not yet in force. Switching it off is
+one setting and a restart.
