@@ -1444,3 +1444,7 @@ With each fixed at its stage it reaches 38, against 41 for today's path. It neve
 document text for a question the document does not answer. Document answers now carry
 page and clause citations, which also come back when a conversation is reopened. Tested
 through the real API and a real browser on a scratch copy; production is unchanged.
+
+## 2026-09-28 — Entry: `AM-106` deployed
+
+Owner "go". PR #123 merged through the ruleset (`c9a2876`, 15/15, 0 behind, 0 open threads). `LEGALMIND_ASK_MULTI_SOURCE=no_document` and `..._PERCENT=10` removed from `/root/.legalmind.env` (backup in `/root/.legalmind/preserved/`); `legalmind-deploy` shipped `c9a2876`, no migration. Checks: the API process carries no ASK flag, `config.ask_multi_source()` = `on`, `_ask_path` = `multi_source` with and without a document; `/health` 200, `/login` 200, no API errors in the journal. Two real questions through `service.ask` on the production DB, writes rolled back: no document → `multi_source`, ANSWERED, 1 Gemini call, 9.3 s; document → `multi_source`, ANSWERED, 1 Gemini call, 15.8 s, 4 clause citations. Rollback: add `LEGALMIND_ASK_MULTI_SOURCE=off`, restart `legalmind-api`.
