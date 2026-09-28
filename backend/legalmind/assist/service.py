@@ -1351,7 +1351,7 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
             # topic still carries, exactly as the benchmark validated. Only the topic:
             # the earlier question's claims and figures never do (`query_plan.plan`).
             plan = query_plan.plan(resolved, has_document=document_version_id is not None,
-                                   prior=tuple(topic_context))
+                                   prior=tuple(topic_context), instruction=question)
         with _stage("retrieval"):
             pool = retrieval.candidates(db, plan, route, permissions=permissions,
                                         document_version_id=document_version_id,
@@ -1471,10 +1471,11 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
     from legalmind.assist import answer as answer_mod
 
     by_ref = {s.ref: s for s in bundle.shown()}
+    body = _layered(ans.text, getattr(ans, "layers", ()))
     # One number per SOURCE, not per claim: three claims of §16 were listed as three
     # identical "§16" lines in the legend (2026-09-27).
     refs: list[str] = []
-    for m in re.finditer(r"\[(\d{1,2})\]", ans.text):
+    for m in re.finditer(r"\[(\d{1,2})\]", body):
         n = int(m.group(1))
         if 1 <= n <= len(ans.refs) and ans.refs[n - 1] not in refs:
             refs.append(ans.refs[n - 1])
@@ -1488,7 +1489,8 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
         key = m.group(1)
         ok = key and 1 <= int(key) <= len(ans.refs)
         return f" [{refs.index(ans.refs[int(key) - 1]) + 1}]" if ok else ""
-    text_out = _ANSWER_MARKER.sub(_marker, ans.text).strip()
+    text_out = "\n\n".join(_ANSWER_MARKER.sub(_marker, block).strip()
+                           for block in body.split("\n\n"))
     text_out = re.sub(r"(\[\d{1,2}\])(?:\s?\1)+", r"\1", text_out)   # "[1] [1]" → "[1]"
     labels = []
     for i, ref in enumerate(refs, 1):
@@ -1503,6 +1505,69 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
         text_out += "\n\nSources\n\n" + "\n".join(
             f"- {x}" if len(labels) > 1 else x for x in labels)
     return text_out, refs
+
+
+#: `AM-107`: how the verified answer is laid out — the direct answer first, then each
+#: other layer under its own fixed label, so related rules, past negotiated deals and
+#: the law never read as part of the direct answer.
+LAYER_LABELS = (("RELATED", "Also relevant"),
+                ("HISTORY", "Historical context — past negotiated deals, not current "
+                            "policy"),
+                ("LAW", "Legal background"))
+
+
+# "Additionally, …" / "Finally, …" linked a sentence to the one before it in the
+# model's paragraph; under its own heading it links to nothing. Only the connective
+# goes — a discourse word, never a term of the claim.
+_CONNECTIVE = re.compile(r"^(?:Additionally|Furthermore|Moreover|Finally|Also|In "
+                         r"addition|Separately),\s+(\w)")
+_RESTATES_QUESTION = re.compile(r"^(?:The (?:reader|user|question) (?:asked|asks|wants)|"
+                                r"You (?:asked|want to know))\b", re.I)
+
+
+def _layered(text: str, layers: tuple[str, ...]) -> str:
+    """The verified sentences grouped by the layer of the first claim each cites, in
+    their own order within a layer. Nothing is reworded, added or dropped: the words
+    are exactly what verification passed. A sentence citing no claim ([A], [M]) stays
+    with the direct answer; one that only restates the question, citing nothing, is
+    left out. With no layers recorded, the text is returned unchanged."""
+    from legalmind.assist import answer as answer_mod
+
+    if not layers:
+        return text
+    groups: dict[str, list[str]] = {}
+    # A table (`AM-108`) is one verified unit: it stays whole, with the direct answer.
+    prose, table = answer_mod.split_table(text)
+    sentences = answer_mod._sentences(prose)
+    for sentence in sentences:
+        others = "".join(x for x in sentences if x != sentence)
+        if _RESTATES_QUESTION.match(sentence) \
+                and not re.search(r"\[\d{1,2}\]", sentence) \
+                and all(m in others for m in re.findall(r"\[[AM]\]", sentence)):
+            continue            # "The reader asked whether …": no claim, only delay
+        cited = [int(n) for n in re.findall(r"\[(\d{1,2})\]", sentence)
+                 if 1 <= int(n) <= len(layers)]
+        groups.setdefault(layers[cited[0] - 1] if cited else "PRIMARY",
+                          []).append(sentence.strip())
+    def joined(sents: list[str]) -> str:       # bullet lines stay lines
+        return ("\n" if any(answer_mod._BULLET.match(x) for x in sents)
+                else " ").join(sents)
+    lead = groups.pop("PRIMARY", [])
+    blocks = [joined(lead)] if lead else []
+    if table:
+        blocks.append(table)
+    for layer, label in LAYER_LABELS:
+        said = groups.get(layer)
+        if not said:
+            continue
+        if not blocks and layer == "RELATED":       # nothing primary: this IS the answer
+            blocks.append(joined(said))
+            continue
+        blocks.append(label)
+        said = [_CONNECTIVE.sub(lambda m: m.group(1).upper(), x) for x in said]
+        blocks.append("\n".join(x if answer_mod._BULLET.match(x) else f"- {x}"
+                                 for x in said) if len(said) > 1 else said[0])
+    return "\n\n".join(blocks)
 
 
 def _persist_multi_source_run(db: DBSession, message_id: UUID, query: str, plan, pool,

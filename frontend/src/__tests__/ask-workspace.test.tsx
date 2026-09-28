@@ -44,9 +44,50 @@ describe("AnswerProse", () => {
     const html = renderToStaticMarkup(
       <AnswerProse text={"The cap is 12 months [1].\n\nSources\n\n- [1] Legal Constitution L1.10 §9\n- [2] Company Standard LIABILITY-MSA-001"} />,
     );
-    expect(html).toContain("<p class=\"ws-ask__text\">Sources</p>");
+    expect(html).toContain("<h3 class=\"ws-ask__section\">Sources</h3>");
     expect(html).toContain("<li>[1] Legal Constitution L1.10 §9</li>");
     expect(html).toContain("<li>[2] Company Standard LIABILITY-MSA-001</li>");
+  });
+
+  it("heads each layer of a verified answer with the server's own label (AM-107)", () => {
+    // The shape `service._layered` returns: the direct answer, then each layer apart.
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"No early exit is permitted [1].\n\nAlso relevant\n\nEither party may terminate on notice [2].\n\nHistorical context — past negotiated deals, not current policy\n\nTwo past deals differed [1]."} />,
+    );
+    expect(html).toContain("<p class=\"ws-ask__text\">No early exit is permitted [1].</p>");
+    expect(html).toContain("<h3 class=\"ws-ask__section\">Also relevant</h3>");
+    expect(html).toContain(
+      "<h3 class=\"ws-ask__section\">Historical context — past negotiated deals, not current policy</h3>");
+    expect(html.indexOf("No early exit")).toBeLessThan(html.indexOf("Also relevant"));
+  });
+
+  it("never makes a heading of model prose that merely contains a label", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Also relevant is the notice period [2].\n\nSources vary."} />,
+    );
+    expect(html).not.toContain("<h3");
+    expect(html).toContain("Also relevant is the notice period [2].");
+  });
+
+  it("renders a server-shaped pipe table as a table, markers as references (AM-108)", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse
+        text={"Two clauses govern exit [1].\n\n| Clause | What the agreement says |\n|---|---|\n| Term | It runs for the committed term [1] |\n| Exit | An early exit fee is payable [2] |"}
+        citeCount={2}
+        citeTargetId={(n) => `c-${n}`}
+      />,
+    );
+    expect(html).toContain("<table class=\"ws-ask__table\">");
+    expect(html).toContain("<th scope=\"col\">What the agreement says</th>");
+    expect(html).toContain("<th scope=\"row\">Term</th>");
+    expect(html).toContain("aria-label=\"Go to source 2\"");
+    expect(html).not.toContain("|---|");
+  });
+
+  it("leaves a lone pipe line as text — a table needs a header and a row", () => {
+    const html = renderToStaticMarkup(<AnswerProse text={"| just | one |"} />);
+    expect(html).not.toContain("<table");
+    expect(html).toContain("| just | one |");
   });
 
   it("invents no markup from prose punctuation — asterisks and hashes stay text", () => {
@@ -54,6 +95,39 @@ describe("AnswerProse", () => {
     expect(html).toContain("# 17.2 applies *only* to fees");
     expect(html).not.toContain("<h1");
     expect(html).not.toContain("<em");
+  });
+});
+
+describe("the two speakers (AM-108)", () => {
+  it("names the answer's voice and keeps the reader's label for screen readers only", () => {
+    const user = renderToStaticMarkup(
+      <TranscriptTurn contractId={null} turn={turn({ id: "u", role: "USER", content: "What is the cap?" })} />,
+    );
+    expect(user).toContain("ws-turn--user");
+    expect(user).toContain("<span class=\"ws-ask__role ws-visually-hidden\">You</span>");
+    const ai = renderToStaticMarkup(
+      <TranscriptTurn contractId={null} turn={turn({ content: "Twelve months of fees [1]." })} />,
+    );
+    expect(ai).toContain("ws-turn--ai");
+    expect(ai).toContain("<p class=\"ws-ask__voice\" aria-hidden=\"true\">");
+    expect(ai).toContain("LegalMind");
+    expect(ai).not.toContain("sparkle");
+  });
+
+  it("keeps a cited passage behind its clause reference", () => {
+    const html = renderToStaticMarkup(
+      <TranscriptTurn
+        contractId="ct-7"
+        turn={turn({
+          content: "Ninety days [1].",
+          citations: [{ chunk_id: "ch-1", evidence_id: "ev-9", page_number: 18, section_ref: "18.1",
+                        excerpt: "Either party may terminate on ninety days notice.", retrieval_score: 0.6 }],
+        })}
+      />,
+    );
+    expect(html).toContain("<details class=\"ws-ask__passage\">");
+    expect(html).toContain("<summary>Show the passage</summary>");
+    expect(html).toContain("Either party may terminate on ninety days notice.");
   });
 });
 

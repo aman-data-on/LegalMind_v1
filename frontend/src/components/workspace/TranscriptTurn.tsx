@@ -52,7 +52,7 @@ export function TranscriptTurn({
     return (
       <div className="ws-turn ws-turn--user">
         <p className="ws-ask__q">
-          <span className="ws-ask__role">You</span> {turn.content}
+          <span className="ws-ask__role ws-visually-hidden">You</span> {turn.content}
         </p>
       </div>
     );
@@ -60,7 +60,8 @@ export function TranscriptTurn({
 
   if (turn.routed_to_evaluator) {
     return (
-      <div className="ws-turn">
+      <div className="ws-turn ws-turn--ai">
+        <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}>
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
           <p>{turn.content}</p>
@@ -76,7 +77,8 @@ export function TranscriptTurn({
 
   if (turn.answer_state !== "ANSWERED") {
     return (
-      <div className="ws-turn">
+      <div className="ws-turn ws-turn--ai">
+        <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}>
           <p>{turn.content}</p>
         </div>
@@ -85,7 +87,8 @@ export function TranscriptTurn({
   }
 
   return (
-    <div className="ws-turn">
+    <div className="ws-turn ws-turn--ai">
+      <AiVoice />
       <div className="ws-ask__answer" data-state="ANSWERED">
         {/* The marker in the prose and the item in the list are one sequence — the
             server renumbered them together after verification — so the marker can
@@ -133,7 +136,13 @@ export function TranscriptTurn({
                     <span className="ws-mono">[{index + 1}]</span> {citeLabel(citation.section_ref, citation.page_number)}
                   </span>
                 )}
-                <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>
+                {/* The passage is here to check the answer against, not to read
+                    first: four excerpts in full under every reply made the answer
+                    the smallest thing on the screen (owner, 2026-09-28). */}
+                <details className="ws-ask__passage">
+                  <summary>Show the passage</summary>
+                  <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>
+                </details>
               </li>
             ))}
           </ol>
@@ -144,6 +153,18 @@ export function TranscriptTurn({
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>
+  );
+}
+
+/** The answer's voice line — a monogram and the product's name — so a reader tells
+ *  the two speakers apart at a glance without a frame around either. A monogram, not a
+ *  sparkle: DESIGN.md rules sparkle icons out because they read as "an AI-generated
+ *  result", which `AI-01` forbids this interface from implying. */
+export function AiVoice() {
+  return (
+    <p className="ws-ask__voice" aria-hidden="true">
+      <span className="ws-ask__voicemark">L</span> LegalMind
+    </p>
   );
 }
 

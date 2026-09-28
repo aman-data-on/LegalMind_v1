@@ -116,7 +116,8 @@ def _authorized(route: routing.RoutePlan, permissions: frozenset[str]) -> set[st
 
 def _search(db, domain: str, query: str, *, permissions, route, document_version_id,
             embed_query, pool: Pool | None = None, question: str = "",
-            pinned_evidence: tuple[UUID, ...] = ()) -> list[Candidate]:
+            pinned_evidence: tuple[UUID, ...] = (), outline: bool = False
+            ) -> list[Candidate]:
     if domain == CONSTITUTION:
         return [Candidate(domain, f"CONST:{h.section_path}", h.item_id, h.content,
                           h.score, h.authority, h.status, authorities=h.authorities)
@@ -138,6 +139,21 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
                     embed_query=embed_query, candidates=True,
                     include_superseded=route.include_superseded)]
     if domain == routing.Domain.DOCUMENT.value and document_version_id is not None:
+        if outline:
+            # A whole-document task names nothing to search for: the document's
+            # outline IS the subject, and the gate is open for it — the claim
+            # contracts and the verifier still decide every sentence (`AM-108`).
+            from legalmind.assist import planner
+            if pool is not None:
+                pool.document_gate = True
+            sections = store.outline_chunks(db, document_version_id=document_version_id,
+                                            limit=DEPTH)
+            # Sections on a topic the organization holds a position on first (its own
+            # vocabulary, `planner.topics_in`), then the rest in document order — so
+            # a 21-section agreement's summary is its terms, not its definitions.
+            sections.sort(key=lambda h: not planner.topics_in(h.content))
+            return [Candidate(domain, f"DOC:{h.chunk_id}", h.chunk_id, h.content,
+                              h.retrieval_score, "DOCUMENT") for h in sections]
         outcome = store.search_hybrid(db, document_version_id=document_version_id,
                                       query=query, limit=DEPTH, candidates=True,
                                       embed_query=embed_query)
@@ -221,7 +237,8 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                                          document_version_id=document_version_id,
                                          embed_query=embed_query, pool=pool,
                                          question=plan.question,
-                                         pinned_evidence=pinned_evidence), 1):
+                                         pinned_evidence=pinned_evidence,
+                                         outline=plan.presentation.document_wide), 1):
             # A source counts once per list, at its best rank: §18's four sub-headings
             # share one section number, and summing them put four long sections above
             # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
@@ -372,8 +389,10 @@ def evidence_size(plan: query_plan.QueryPlan) -> int:
     evidence judge then decides what is shown. Measured 2026-09-27 (79 golden cases,
     zero Gemini): a floor of 5 lost gold ranked 3rd–5th in its domain (recall@3
     0.815); 8 reaches 0.864 with wrong-source and false admission at 0 once off-topic
-    standards are judged out (`evidence._off_topic`), the median shown unchanged at
+    standards are judged out (`evidence.off_topic`), the median shown unchanged at
     3, +~250 ms in the evidence layer and +~20% prompt tokens; 10 gained nothing more."""
+    if plan.presentation.document_wide:
+        return 12                     # the document's sections, as many as fit
     return max(8, min(12, 3 * len(plan.sub_questions)))
 
 
@@ -403,6 +422,10 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
     rest = sorted(pool.by_domain, key=lambda d: d not in pool.primary)
     extras: list[tuple[str | None, str]] = [(None, d) for d in rest
                                             if all(w[1] != d for w in wanted)]
+    document = routing.Domain.DOCUMENT.value
+    if plan.presentation.document_wide and document in pool.by_domain:
+        # A whole-document task is answered from the document alone (`AM-108`).
+        wanted, extras = [(query_plan.CONTRACT, document)], []
     if not wanted:
         # An unplaced question draws only from the router's PRIMARY domains (`AM-86`
         # r3). Measured (PHASE 8): offering it every domain gained 2 of 78 slots and

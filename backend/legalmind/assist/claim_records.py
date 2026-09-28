@@ -190,7 +190,8 @@ def _constitution(db, item_id: UUID) -> list[Unit] | None:
         if not body or _STATUS_LINE.match(content) or _DOC_TYPES.match(content) \
                 or _LEAD_IN.search(body):
             continue
-        if _EVIDENCE.match(content):
+        provenance = bool(_EVIDENCE.match(content))
+        if provenance:
             if authority != "HISTORICAL_EXCEPTION":
                 continue            # provenance of a position, not a claim
             body = _EVIDENCE.sub("", body)
@@ -212,7 +213,7 @@ def _constitution(db, item_id: UUID) -> list[Unit] | None:
         base = {"authority": authority, "status": status, "heading": heading,
                 "scope": scope, "exceptions": own_exc, "referent": referent,
                 "antecedents": _antecedents(body, earlier), "frame": frame,
-                "order": order}
+                "order": order, "extra": {"provenance": True} if provenance else {}}
         earlier.append(body)
         if body.startswith("| Field |"):
             out += _field_rows(content, base)

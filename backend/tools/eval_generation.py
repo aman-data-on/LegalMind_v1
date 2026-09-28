@@ -43,7 +43,8 @@ _FIRST = re.compile(r"^(.{20,300}?[.;:])(?:\s|$)", re.S)
 _CONTRACT = re.compile(r"^\[(\d+)\] (.*?SAY AS: ([^·]+?) ·.*?)\n\s+TEXT: (.+)$", re.M)
 
 
-def stub(question, block, *, environment, prior_questions=(), request_id=None):
+def stub(question, block, *, environment, prior_questions=(), request_id=None,
+         presentation=""):
     """A deterministic 'model': each excerpt's first sentence, cited — or, for a PHASE 12
     contract block, each contract verbatim under its SAY AS — then [A] and [M]."""
     out = []
@@ -95,7 +96,7 @@ def stub(question, block, *, environment, prior_questions=(), request_id=None):
 
 
 def stub_repair(question, block, draft, failures, *, environment, prior_questions=(),
-                request_id=None):
+                request_id=None, presentation=""):
     """Offline repair: the stub's own answer again — never the network."""
     return stub(question, block, environment=environment)
 

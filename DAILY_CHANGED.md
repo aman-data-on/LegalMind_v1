@@ -1448,3 +1448,59 @@ through the real API and a real browser on a scratch copy; production is unchang
 ## 2026-09-28 — Entry: `AM-106` deployed
 
 Owner "go". PR #123 merged through the ruleset (`c9a2876`, 15/15, 0 behind, 0 open threads). `LEGALMIND_ASK_MULTI_SOURCE=no_document` and `..._PERCENT=10` removed from `/root/.legalmind.env` (backup in `/root/.legalmind/preserved/`); `legalmind-deploy` shipped `c9a2876`, no migration. Checks: the API process carries no ASK flag, `config.ask_multi_source()` = `on`, `_ask_path` = `multi_source` with and without a document; `/health` 200, `/login` 200, no API errors in the journal. Two real questions through `service.ask` on the production DB, writes rolled back: no document → `multi_source`, ANSWERED, 1 Gemini call, 9.3 s; document → `multi_source`, ANSWERED, 1 Gemini call, 15.8 s, 4 clause citations. Rollback: add `LEGALMIND_ASK_MULTI_SOURCE=off`, restart `legalmind-api`.
+
+## 2026-09-28 — Entry: the answer leads with the direct answer (`AM-107`)
+
+The owner saw a production answer to "What does our Constitution say about early
+termination? Please give the applicable company standard and cite the relevant
+Constitution section." that had the right evidence but read as one long paragraph
+mixing §31.2's fixed-term MSA rule, §13's non-fixed-term rules, a Distribution standard,
+a historical Customer A note, the Contract Act reading and four sections.
+
+**Root cause (production trace + zero-Gemini reproduction).** Retrieval and the evidence
+bundle were right (§31.2 relevance 6.5, the top source) and verification passed. The
+fault was claim selection (`contracts.build`): every shown source got up to three
+claims, in source order, to a 12-claim cap, with no direct answer — Companies Act s. 466
+(relevance -1.6) got as many as §31.2. And a claim from a structured record was the
+record's whole paragraph, so a concise, correct sentence "dropped a condition" of a
+different rule in it and was replaced by the paragraph — the verbatim blocks the reader
+saw. 398 of 675 claims (59%) over 72 golden cases came from sources no gold slot names.
+
+**Fix (`AM-107`).** One anchor per asked kind leads (evidence order unless another is
+1.5 better; a named section leads; the statute leads the law lane); another document
+family's rule never gives a claim (the Constitution's own §31.4 split); other sources
+give one related claim, off-topic standards and unasked kinds only when close; each
+claim carries a layer (primary / related / history / law) and an optional flag; a record
+is claimed sentence by sentence; illustrations, provenance, pointers and notes to the
+tool never pad; a failing optional sentence is dropped rather than pasted; the shown
+answer is grouped direct answer → Also relevant → Historical context → Legal background
+→ Sources under fixed server labels, rendered as headings. Prompt `contract-answer-4`.
+
+**Measured.** Claims (72 cases, zero Gemini): primary from gold 44 → 52, gold slots
+claimed 77 → 79/84, off-gold 398 → 168, claims per answer 9.4 → 5.2, must-not 0.
+Retrieval unchanged (bundle recall@3 0.952, wrong-source 0, false admission 0).
+Document lane: the right clause as the answer's first claim 8 → 22 of 44, among its claims 26 → 27, not-found questions claiming document text 0 → 0 (zero Gemini, rescue off, same bundle). Six owner scenarios through `service.ask` on production data,
+writes rolled back: all verified on the new path in one Gemini call; the observed
+question is two sentences on §31.2 + one related line + the past deals under their own
+heading. 9 API scenarios on a scratch copy: all on the new path, document answers cite
+page/clause. Real browser: the layers render as headings. Tests: `tests/test_answer_focus.py`
+(14, all failing on main), frontend `ask-workspace.test.tsx`; full backend suite 2762 passed, 0 failed; CI shape (no embedding model) 198 assist tests passed.
+
+## 2026-09-28/29 — Entry: the instruction shapes the answer (`AM-108`)
+
+Owner brief (night): make Ask a production AI document assistant — document + instruction,
+follow-ups, requested format and length — with the chat reading as a conversation, and
+own the loop to deployment. Zero-Gemini probe on the scratch copy found the gaps: every
+whole-document instruction refused (no topic → gate shut), "without comparing" went to the
+evaluator, no format was read, the prompt forbade lists. Built `assist/presentation.py`
+(task/form/count/short/simple/no-comparison/topic), the negated-comparison rule, document
+tasks planned on the document, the outline for whole-document tasks, one claim per section,
+prompt `contract-answer-5`, code-enforced form (bullet count, short retry, table rows
+verified/repaired/dropped), layout for bullets and tables; frontend: no headline copy,
+speaker hierarchy, collapsed passages, tables, and the chat grid held at viewport height
+(pre-existing: `flex: 1` let an 8-turn chat grow the page to 3000px). One Gemini matrix
+through the real API (9 cases) plus two browser flows at 1440/390 — all recorded with
+screenshots in `docs/ASK_PRODUCT_COMPLETION_PLAN.md`. Regressions caught and fixed on the
+way: the follow-up inherited the anchor's table instruction; "explain the liability clause"
+hit the general-knowledge screen; the anchor "key risks" re-triggered the comparison; the
+Gemini seam stub in `tools/eval_generation` needed the new kwarg. Benchmarks unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10.

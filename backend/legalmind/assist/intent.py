@@ -182,6 +182,25 @@ def _hits(tokens: list[str], stems: tuple[str, ...]) -> set[int]:
     return {i for i, tok in enumerate(tokens) if tok.startswith(stems)}
 
 
+_COMPARISON_NEGATORS = frozenset({"without", "not", "dont", "never", "no", "nor"})
+_NEGATOR_SPAN = 3
+
+
+def _without_negated_comparison(tokens: list[str]) -> list[str]:
+    """The tokens with every comparison signal that a negator governs removed, along
+    with the negator — "without comparing it to our standard" leaves "it to our
+    standard", a position reference with no comparison signal outside it."""
+    signals = _comparison_signals(tokens) | _hits(tokens, _UNAMBIGUOUS_STEMS) | {
+        i for i, t in enumerate(tokens) if t in _UNAMBIGUOUS_WORDS}
+    drop: set[int] = set()
+    for i, t in enumerate(tokens):
+        if t in _COMPARISON_NEGATORS:
+            governed = [j for j in signals if i < j <= i + _NEGATOR_SPAN]
+            if governed:
+                drop |= {i, *governed}
+    return [t for i, t in enumerate(tokens) if i not in drop]
+
+
 def _comparison_signals(tokens: list[str]) -> set[int]:
     """Indices of tokens that signal a comparison, in any supported script."""
     signal = _hits(tokens, _VERB_STEMS) | _hits(tokens, _NOUN_STEMS)
@@ -224,6 +243,11 @@ def is_comparison_question(question: str) -> bool:
     tokens = _stems(question or "")
     if not tokens:
         return False
+    # "… without comparing it to our standard", "don't compare" — the reader named the
+    # comparison to rule it OUT (`AM-108`). A negated signal is no signal: the words
+    # after it are read as the lookup they are.
+    if _without_negated_comparison(tokens) != tokens:
+        return False          # the reader ruled the comparison out in so many words
     present = set(tokens)
 
     # (C) A verb that means nothing else here. No object required.

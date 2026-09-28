@@ -35,9 +35,10 @@ cross-encoder; no Gemini.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from legalmind.assist import guardrails, query_plan, retrieval, routing
+from legalmind.assist import presentation as presentation_mod
 from legalmind.assist.retrieval import CONSTITUTION, Candidate, Pool, kind_of
 
 SUPPORTED, PARTIALLY_SUPPORTED, CONFLICTING = ("SUPPORTED", "PARTIALLY_SUPPORTED",
@@ -68,6 +69,9 @@ class Source:
     supports: bool
     #: Why a unit does NOT support — None when it does.
     reason: str | None
+    #: The reader named this very section — a Constitution section by number, or a
+    #: section of a named Act. It leads its kind in the answer (`AM-107`).
+    named: bool = False
 
     @property
     def ref(self) -> str:
@@ -104,6 +108,10 @@ class Bundle:
     assertions: tuple[Assertion, ...]
     #: The controlling paper the reader says is missing, or that is not attached.
     missing_document: bool
+    #: `AM-108`: the reader's presentation instruction, carried to the claims and the
+    #: answer so they can be shaped to it; never a source of evidence.
+    presentation: presentation_mod.Presentation = field(
+        default_factory=lambda: presentation_mod.Presentation())
 
     @property
     def answerable(self) -> bool:
@@ -134,7 +142,7 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return "NAMED_SECTION_ABSENT"
     if retrieval.exact_reference(c, plan):
         return None                 # the reader named this section of this Act
-    if c.domain == routing.Domain.POSITIONS.value and _off_topic(c, plan):
+    if c.domain == routing.Domain.POSITIONS.value and off_topic(c, plan.question):
         return "OFF_TOPIC"
     if relevance is None:
         return "RELEVANCE_UNAVAILABLE"        # fail closed: no reranker, no support
@@ -186,7 +194,10 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
                                         scores[i] if scores else None,
                                         plan=plan, pool=pool, named=named,
                                         absent=absent)) is None,
-                      reason)
+                      reason,
+                      (e.candidate.domain == CONSTITUTION
+                       and e.candidate.ref.removeprefix("CONST:") in named)
+                      or retrieval.exact_reference(e.candidate, plan))
                for i, e in enumerate(evidence)]
     no_document = plan.document_state == "UNAVAILABLE"
     parts = []
@@ -206,10 +217,11 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
                           if figs and len(unstated(claim, k)) < len(figs))
         assertions.append(Assertion(claim, figs, tuple(
             unstated(claim, query_plan.COMPANY_POSITION)), stated_by))
-    return Bundle(tuple(parts), tuple(sources), tuple(assertions), no_document)
+    return Bundle(tuple(parts), tuple(sources), tuple(assertions), no_document,
+                  plan.presentation)
 
 
-def _off_topic(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+def off_topic(c: Candidate, question: str) -> bool:
     """A ratified standard whose Constitution topic is none of the topics the
     question's own words place is not evidence for it, however alike the wording: the
     §9 12-month LIABILITY cap passed the relevance floor for "do we charge 12 months
@@ -219,7 +231,7 @@ def _off_topic(c: Candidate, plan: query_plan.QueryPlan) -> bool:
     standard is filed under Payment Terms yet answers "can we suspend without the
     cure period?" (golden G-03)."""
     from legalmind.assist import planner
-    asked = planner.topics_in(plan.question)
+    asked = planner.topics_in(question)
     topic = planner.STANDARD_TOPICS.get(c.ref.removeprefix("POS:"))
     return (bool(asked) and topic is not None and topic not in asked
             and not planner.topics_in(c.text) & asked)

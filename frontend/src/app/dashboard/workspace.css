@@ -857,6 +857,9 @@
   margin: 0 0 var(--ws-s3) auto; max-width: 85%; width: fit-content;
   padding: var(--ws-s2) var(--ws-s3); border-radius: var(--ws-radius);
   background: var(--ws-paper); font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+  /* A hairline: on the canvas the paper tint alone was near-invisible, and the
+     question read as a stray line of text rather than the reader's turn. */
+  border: 1px solid var(--ws-ink-100);
 }
 .ws-ask__role { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-right: 6px; }
 .ws-ask__answer { padding: 0 0 var(--ws-s2); }
@@ -1484,6 +1487,44 @@
    pane's answer/citation classes; only the turn frame is new. */
 .ws-transcript { max-width: 46rem; display: grid; gap: 14px; }
 .ws-turn--user { margin-top: 6px; }
+/* Two speakers, told apart at a glance (owner, 2026-09-28): the reader's question is
+   a right-set bubble on the paper tint (`.ws-ask__q`), the answer opens with the
+   product's voice line and runs full width — no frame around either, so a long,
+   cited legal answer keeps its reading measure. */
+.ws-turn--ai { display: flex; flex-direction: column; gap: 6px; }
+.ws-ask__voice {
+  margin: 0; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ws-mono); font-size: var(--ws-text-xs); letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ws-ink-500);
+}
+.ws-ask__voicemark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+  font-family: var(--ws-sans); font-size: 11px; font-weight: 700; letter-spacing: 0;
+}
+/* A cited passage, collapsed behind its clause reference; the excerpt keeps its
+   quotation styling once opened. */
+.ws-ask__passage { margin-top: 2px; }
+.ws-ask__passage > summary {
+  cursor: pointer; list-style: none; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  width: fit-content;
+}
+.ws-ask__passage > summary::-webkit-details-marker { display: none; }
+.ws-ask__passage > summary::before { content: "▸ "; }
+.ws-ask__passage[open] > summary::before { content: "▾ "; }
+.ws-ask__passage > summary:hover { color: var(--ws-ink-900); text-decoration: underline; text-underline-offset: 3px; }
+/* A table the reader asked for (`AM-108`): the workspace's own dense table grammar,
+   scrolling sideways at phone width rather than breaking the page. */
+.ws-ask__tablewrap { margin: var(--ws-s2) 0 0; overflow-x: auto; }
+.ws-ask__table { border-collapse: collapse; width: 100%; font-size: var(--ws-text-sm); line-height: 1.5; }
+.ws-ask__table th, .ws-ask__table td {
+  text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-ask__table thead th { font-weight: 600; color: var(--ws-ink-700); border-bottom: 1px solid var(--ws-ink-300); }
+/* The row header wraps: kept on one line, "EARLY TERMINATION RESTRICTION" took the
+   phone's width and left the clause a column four words wide (2026-09-28). */
+.ws-ask__table tbody th { font-weight: 600; color: var(--ws-ink-900); width: 28%; min-width: 7rem; }
 
 /* ---- slice 6: the Legal area ------------------------------------------- */
 
@@ -4959,7 +5000,12 @@
 }
 
 .ws-chat {
-  flex: 1; min-height: 0;
+  /* `flex: none`, not `flex: 1`: inside `.ws-main` — a column whose height is
+     indefinite — a `flex: 1` item is sized to its CONTENT and the height below is
+     ignored, so a conversation of eight turns grew the page to 3000px, the window
+     scrolled, and the composer left the screen (measured 2026-09-28). With the
+     grid held at the viewport, the log is the one thing that scrolls. */
+  flex: none; min-height: 0;
   display: grid; grid-template-columns: var(--ws-chat-rail-w) minmax(0, 1fr);
   height: calc(100vh - var(--ws-shell-h));
   height: calc(100dvh - var(--ws-shell-h));
@@ -5047,7 +5093,7 @@ a.ws-chat__railitem[aria-current="page"] {
 /* ---- the conversation --------------------------------------------------- */
 .ws-chat__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .ws-chat__head {
-  flex: none; padding: var(--ws-s3) var(--ws-s5);
+  flex: none; padding: var(--ws-s2) var(--ws-s5);
   border-bottom: 1px solid var(--ws-ink-100); background: var(--ws-surface);
 }
 .ws-chat__title {
@@ -5058,7 +5104,7 @@ a.ws-chat__railitem[aria-current="page"] {
 /* Normal text flow, not a flex row: as a flex item the icon becomes its own
    wrappable box and ends up alone on a line above the sentence at phone width. */
 .ws-chat__scope {
-  margin: 3px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
   line-height: 1.5;
 }
 .ws-chat__scope svg { display: inline; vertical-align: -2px; margin-right: 5px; }
@@ -5077,6 +5123,16 @@ a.ws-chat__railitem[aria-current="page"] {
    plain text with its sources beneath a hairline. One pattern, two surfaces —
    a second alignment for the same object would read as a second product. */
 .ws-chat__thread .ws-ask__text + .ws-ask__text { margin-top: var(--ws-s3); }
+/* The server's own section labels inside a verified answer (`AM-107`): the direct
+   answer reads first, and each further layer — related rules, past negotiated deals,
+   the law, the sources — opens under a quiet heading, so none of them reads as part
+   of the answer. Sentence case: a long safeguard label ("… not current policy") has
+   to be read, not scanned, which rules out the small mono capitals. */
+.ws-ask__section {
+  margin: var(--ws-s5) 0 0; font-size: var(--ws-text-sm); font-weight: 600;
+  color: var(--ws-ink-700); line-height: 1.4; letter-spacing: 0;
+}
+.ws-ask__section + .ws-ask__text, .ws-ask__section + .ws-ask__bullets { margin-top: var(--ws-s2); }
 .ws-ask__bullets {
   margin: var(--ws-s2) 0 0; padding-left: var(--ws-s5);
   display: flex; flex-direction: column; gap: 5px;

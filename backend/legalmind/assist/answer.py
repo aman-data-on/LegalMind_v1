@@ -38,6 +38,7 @@ from legalmind.assist import (
     positions,
     verify,
 )
+from legalmind.assist import presentation as presentation_mod
 from legalmind.assist import query_plan as qp
 
 _KIND_LABEL = {
@@ -85,8 +86,10 @@ _ABSENT = re.compile(r"\b(?:does ?n[o']t|do ?n[o']t|not|no|never)\b[^.]{0,40}?\b
 _COMPARATIVE = re.compile(r"\b(?:more|less|fewer|greater|longer|shorter) than\b|"
                           r"\b(?:up to|at (?:most|least)|exceed\w*|within|maximum|"
                           r"minimum)\b", re.I)
+# "Rs." too: "not exceeding Rs. 1,000" split into an uncited "… Rs." and a "1,000 …"
+# naming no source, and one uncited sentence sinks the whole answer (s. 74, `AM-107`).
 _ABBREVIATION = re.compile(r"\b(?:Pvt|Ltd|Co|Inc|No|s|ss|e\.g|i\.e|viz|cf|vs|Sec|Cl|"
-                           r"Art|Para)\.$", re.I)
+                           r"Art|Para|Rs)\.$", re.I)
 _INITIALISM = re.compile(r"(?:\b[A-Z]\.){2,}$")
 _NEGATION = re.compile(r"\b(?:not|no|never|neither|nor|does ?n[o']t|cannot|isn't|"
                        r"without|missing|absent|nothing|none|unknown|unconfirmed|"
@@ -133,6 +136,8 @@ class Payload:
     #: PHASE 12: excerpts whose meaning is a heading's ("Acceptable position") — a
     #: sentence restating one says "acceptable" of the position, not of a document.
     framed: tuple[bool, ...] = ()
+    #: `AM-107`: each excerpt's place in the answer — PRIMARY · RELATED · HISTORY · LAW.
+    layers: tuple[str, ...] = ()
 
 
 def render(bundle: evidence.Bundle, question: str = "",
@@ -230,6 +235,8 @@ class Answer:
     prepare_ms: int = 0
     #: The provider's finishReason for the last generation ("MAX_TOKENS" when cut).
     finish_reason: str | None = None
+    #: `AM-107`: the layer of each claim [n] — how the shown answer is grouped.
+    layers: tuple[str, ...] = ()
 
 
 def fallback(bundle: evidence.Bundle) -> str:
@@ -469,6 +476,130 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
     return contract_failures, result.text
 
 
+# ---- shaped answers (`AM-108`) ---------------------------------------------------
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_TABLE_RULE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$")
+_BULLET = re.compile(r"^\s*[-•*]\s+")
+#: A short answer's ceiling before one corrective regeneration is asked for.
+SHORT_WORDS = 90
+
+
+def split_table(text: str) -> tuple[str, str]:
+    """(the prose, the pipe table) of an answer — the table's lines in order, the
+    rest joined; "" when there is no table."""
+    lines = (text or "").split("\n")
+    table = [x.strip() for x in lines if _TABLE_ROW.match(x)]
+    prose = [x.strip() for x in lines if not _TABLE_ROW.match(x) and x.strip()]
+    return "\n".join(prose), "\n".join(table)
+
+
+def _cells(row: str) -> list[str]:
+    return [c.strip() for c in row.strip().strip("|").split("|")]
+
+
+def table_sentences(table: str) -> list[str]:
+    """Each data row as ONE sentence for verification — "<item> — <header>: <cell>;
+    …" carrying the row's markers — so a table is held to the same checks as prose:
+    the header names the source kind, every cell is checked against the claims the
+    row cites. Rows without markers are sentences with no citation, and fail."""
+    rows = [r for r in table.split("\n") if r.strip() and not _TABLE_RULE.match(r)]
+    if len(rows) < 2:
+        return []
+    header = _cells(rows[0])
+    out = []
+    for row in rows[1:]:
+        cells = _cells(row)
+        marks = "".join(f"[{m}]" for m in dict.fromkeys(_MARKER.findall(row)))
+        body = "; ".join(f"{header[j] if j < len(header) else ''}: "
+                         f"{_unstop(_MARKER.sub('', c).strip()).strip()}"
+                         for j, c in enumerate(cells[1:], 1) if c.strip())
+        label = _MARKER.sub("", cells[0]).strip() if cells else ""
+        out.append(f"{label} — {body} {marks}.".replace(" .", "."))
+    return out
+
+
+def rebuild_table(table: str, verified: list[str]) -> str:
+    """The table with each row's markers replaced by its verified sentence's — the
+    verifier assigns citations, and the table must show the ones it assigned."""
+    rows = [r for r in table.split("\n") if r.strip()]
+    out: list[str] = []
+    i = 0
+    for row in rows:
+        if _TABLE_RULE.match(row) or (i == 0 and not out):
+            out.append(row)            # the header, and any rule line
+            if not _TABLE_RULE.match(row):
+                i = 0
+            continue
+        cells = [" ".join(_MARKER.sub("", c).split()) for c in _cells(row)]
+        marks = "".join(f"[{m}]" for m in dict.fromkeys(
+            _MARKER.findall(verified[i]))) if i < len(verified) else ""
+        if cells and marks:
+            cells[-1] = f"{_unstop(cells[-1]).rstrip()} {marks}".strip()
+        out.append("| " + " | ".join(cells) + " |")
+        i += 1
+    return "\n".join(out)
+
+
+def trim_bullets(text: str, count: int | None) -> str:
+    """At most `count` bullet lines — the reader asked for five, the model wrote six.
+    Every bullet was verified on its own, so dropping the extra loses nothing that was
+    promised; fewer than asked are kept as they are, since the evidence sets the
+    number, not the request."""
+    if not count:
+        return text
+    out, seen = [], 0
+    for line in (text or "").split("\n"):
+        if _BULLET.match(line):
+            seen += 1
+            if seen > count:
+                continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def _with_table(text: str, verify, repair_cell=None) -> tuple[list[str], str]:
+    """Verify an answer that holds a table: each row as a sentence. A row that fails
+    and cites exactly one claim is repaired to that claim's own words (`repair_cell`,
+    `AM-91` r6's rule for a sentence); a row that still fails is left out. The table
+    stands when at least one row is verified, rebuilt with the verifier's markers; a
+    lead-in around it stands only if it verifies on its own. Nothing unverified is
+    ever shown; a table with no verified row fails closed."""
+    prose, table = split_table(text)
+    if not table:
+        return verify(text)
+    rows = [r for r in table.split("\n") if r.strip() and not _TABLE_RULE.match(r)]
+    header, data = rows[0], rows[1:]
+    if not data:
+        return ["a table with no rows"], text
+    kept: list[str] = []
+    verified: list[str] = []
+    for row in data:
+        sentence = table_sentences("\n".join([header, row]))[0]
+        failures, shown = verify(sentence)
+        if failures and repair_cell is not None:
+            cited = [m for m in dict.fromkeys(_MARKER.findall(row)) if m.isdigit()]
+            if len(cited) == 1 and (own := repair_cell(int(cited[0]))):
+                cells = _cells(row)
+                cells[-1] = f"{_unstop(own)} [{cited[0]}]."
+                row = "| " + " | ".join(cells) + " |"
+                sentence = table_sentences("\n".join([header, row]))[0]
+                failures, shown = verify(sentence)
+        if failures:
+            continue
+        kept.append(row)
+        verified.append(_sentences(shown)[-1] if _sentences(shown) else sentence)
+    if not kept:
+        return ["no table row verified"], text
+    rebuilt = rebuild_table("\n".join([header, *kept]), verified)
+    if not prose:
+        return [], rebuilt
+    # The words around the table stand only if they verify on their own: a lead-in
+    # that cites every row ("The contract sets out six termination clauses [1]…[6]")
+    # restates none of them and fails; the verified table answers without it.
+    lead_failures, lead = verify(prose)
+    return [], (f"{lead}\n\n{rebuilt}" if not lead_failures else rebuilt)
+
+
 #: PHASE 11: one corrective generation when verification fails, then fail closed.
 REPAIR = True
 #: PHASE 12 (`AM-91` r6): a sentence that fails a check and cites approved contracts is
@@ -594,8 +725,11 @@ def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
                      cs: list[contracts.Contract]) -> str | None:
     """Every sentence that fails, replaced by the verbalisation of the contracts it
     cites — or None when a failing sentence cites no contract (nothing approved to put
-    in its place). No unverified sentence survives: what is shown is either verified or
-    the approved source text itself."""
+    in its place). A failing sentence that cites only OPTIONAL context (`AM-107`: a
+    related source, or history or law the question did not ask for) is left out instead
+    — pasting that record's text beside the direct answer is what buried it. No
+    unverified sentence survives: what is shown is either verified or the approved
+    source text itself."""
     by_n = {c.n: c for c in cs}
     verdicts = [(sentence, verify_answer(sentence, payload, bundle, cs)[0])
                 for sentence in _sentences(text)]
@@ -617,11 +751,14 @@ def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
                  if m.isdigit() and int(m) in by_n]
         if not cited:
             return None
+        if all(by_n[n].optional for n in cited):
+            continue          # optional context it could not say faithfully: left out
+        dash = "- " if _BULLET.match(sentence) else ""
         for n in cited:
             if n not in done:
                 done.add(n)
-                out.append(verbalise(by_n[n], " ".join(hints[n])))
-    return " ".join(out)
+                out.append(dash + verbalise(by_n[n], " ".join(hints[n])))
+    return ("\n" if any(_BULLET.match(x) for x in out) else " ").join(out)
 #: PHASE 12 (`AM-91`): Gemini verbalises claim contracts instead of raw evidence.
 CONTRACTS = True
 #: Share of a sentence's content words drawn from its cited contracts above which it
@@ -651,7 +788,8 @@ def contract_payload(bundle: evidence.Bundle, question: str, db=None
     return Payload([c.text for c in cs], [c.plan_kind for c in cs], [c.ref for c in cs],
                    base.assertion_line, base.missing_line, block, base.reader_figures,
                    base.question_figures, tuple(c.authority for c in cs),
-                   tuple(bool(c.frame and contracts._frame(c.frame)) for c in cs)), cs
+                   tuple(bool(c.frame and contracts._frame(c.frame)) for c in cs),
+                   tuple(c.layer for c in cs)), cs
 
 
 def _position_texts(bundle: evidence.Bundle, db) -> list[str]:
@@ -716,6 +854,9 @@ def complete(text: str, finish_reason: str | None, payload: Payload,
     correct answer (live, H-01, `AM-104`); each marker is still checked on its own."""
     text = _COMBINED_MARKER.sub(
         lambda m: "".join(f"[{x.strip()}]" for x in m.group(1).split(",")), text or "")
+    # A "sentence" that is only markers ("… [3]. [M]") states nothing and cites nothing a
+    # repair could restate; left in, it sank a verified s. 74 answer (`AM-107`).
+    text = re.sub(r"(?<=[.!?\]])\s+(?:\[(?:\d{1,2}|A|M)\]\s*)+$", "", text.rstrip())
     if finish_reason == _CUT:
         ends = list(_LAST_MARKED.finditer(text))
         if ends:
@@ -764,29 +905,52 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
     fix = repair or (functools.partial(generation.generate_bundle_repair,
                                        template=generation.CONTRACT_PROMPT_TEMPLATE)
                      if cs else generation.generate_bundle_repair)
+    shape = bundle.presentation
+    described = shape.describe()
+
+    def checked(draft: str) -> tuple[list[str], str]:
+        """Verified as prose, or row by row when the draft holds a table; then the
+        shape the reader asked for is enforced in code — extra bullets cut, a short
+        answer that ran long sent back once. Never the other way round: no shape ever
+        admits a sentence verification refused."""
+        by_n = {c.n: c for c in cs}
+        failures, shown = _with_table(
+            draft, lambda t: verify_answer(t, payload, bundle, cs),
+            repair_cell=lambda n: by_n[n].text if n in by_n else None)
+        if not failures:
+            shown = trim_bullets(shown, shape.count)
+        return failures, shown
+
     try:
         result = call(question, payload.block, environment=environment,
-                      prior_questions=prior_questions, request_id=request_id)
+                      prior_questions=prior_questions, request_id=request_id,
+                      presentation=described)
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
         return Answer(fixed, False, [f"generation: {exc}"], payload.refs,
                       payload.kinds)
     t0 = time.perf_counter()
     text = complete(result.text, result.finish_reason, payload, bundle)
-    failures, shown = verify_answer(text, payload, bundle, cs)
+    failures, shown = checked(text)
     verify_ms = (time.perf_counter() - t0) * 1000
     calls, first, latency = 1, None, result.latency_ms
     tokens = [result.prompt_tokens or 0, result.output_tokens or 0]
-    if failures and cs and SENTENCE_REPAIR:
+    if failures and cs and SENTENCE_REPAIR and not split_table(text)[1]:
         t0 = time.perf_counter()
         repaired = repair_sentences(text, payload, bundle, cs)
         if repaired is not None:
-            failures, shown = verify_answer(repaired, payload, bundle, cs)
+            failures, shown = checked(repaired)
         verify_ms += (time.perf_counter() - t0) * 1000
+    # A verified answer that is longer than the reader asked for is sent back once;
+    # if the second attempt fails verification, the first — verified — is shown.
+    verified_first = shown if not failures else None
+    if not failures and shape.length == presentation_mod.SHORT \
+            and len(_MARKER.sub("", shown).split()) > SHORT_WORDS:
+        failures = [f"longer than asked: {len(shown.split())} words for a short answer"]
     if failures and REPAIR:
         try:
             second = fix(question, payload.block, result.text, failures,
                          environment=environment, prior_questions=prior_questions,
-                         request_id=request_id)
+                         request_id=request_id, presentation=described)
         except (generation.GenerationRefused, generation.GenerationUnavailable):
             second = None
         if second is not None:
@@ -795,12 +959,15 @@ def respond(bundle: evidence.Bundle, question: str, *, environment: str,
             tokens = [tokens[0] + (second.prompt_tokens or 0),
                       tokens[1] + (second.output_tokens or 0)]
             t0 = time.perf_counter()
-            failures, shown = verify_answer(
-                complete(second.text, second.finish_reason, payload, bundle), payload,
-                bundle, cs)
+            failures, shown = checked(
+                complete(second.text, second.finish_reason, payload, bundle))
             verify_ms += (time.perf_counter() - t0) * 1000
             result = second
+            if failures and verified_first is not None:
+                failures, shown = [], verified_first
+        elif verified_first is not None:
+            failures, shown = [], verified_first
     return Answer(shown if not failures else fixed, not failures,
                   failures, payload.refs, payload.kinds, result.model, latency,
                   tokens[0], tokens[1], result.text, calls, int(verify_ms), first,
-                  prepare_ms, result.finish_reason)
+                  prepare_ms, result.finish_reason, payload.layers)

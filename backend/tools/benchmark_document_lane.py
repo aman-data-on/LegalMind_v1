@@ -28,7 +28,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import evidence, query_plan, retrieval, routing, statutes
+from legalmind.assist import contracts, evidence, query_plan, retrieval, routing, statutes
 from legalmind.ingestion.storage import LocalFilesystemStorage
 from tools.benchmark_retrieval import (
     _chunks,
@@ -55,7 +55,11 @@ def document_case(db, question: str, document_version_id) -> dict:
         db, plan, route, permissions=PERMISSIONS,
         document_version_id=document_version_id), plan)
     bundle = evidence.build(db, plan, pool, retrieval.select(pool, plan))
+    # What the answer may SAY (`AM-107`): the approved claims, in answer order.
+    claims = [c.ref for c in contracts.build(bundle, question, db)] \
+        if bundle.answerable else []
     return {"screen": None, "ms": round((time.perf_counter() - t) * 1000),
+            "claims": claims,
             "answerable": bundle.answerable,
             "shown": [s.ref for s in bundle.shown()],
             "doc_units": [(s.ref, s.reason) for s in bundle.sources
@@ -90,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         shown = out.get("shown", [])
         rank = next((i for i, r in enumerate(shown, 1) if r in gold), None)
         rows.append({"id": q["id"], "expected": q["expected"], "document": q["document"],
-                     "gold_rank": rank, **out,
+                     "gold_rank": rank, "gold": gold, **out,
                      "doc_admitted": [r for r in shown if r.startswith("DOC:")]})
     db.rollback()
 
@@ -102,6 +106,12 @@ def main(argv: list[str] | None = None) -> int:
         "screened": sum(r["screen"] is not None for r in answerable),
         "gold_shown": sum(r["gold_rank"] is not None for r in scored),
         "gold_at_3": sum(bool(r["gold_rank"] and r["gold_rank"] <= 3) for r in scored),
+        # The gold clause among the claims the answer may state, and as its first claim.
+        "gold_claimed": sum(bool(set(r.get("claims", [])) & r["gold"]) for r in scored),
+        "gold_first_claim": sum(bool(r.get("claims")) and r["claims"][0] in r["gold"]
+                                for r in scored),
+        "not_found_doc_claimed": [r["id"] for r in not_found
+                                  if any(x.startswith("DOC:") for x in r.get("claims", []))],
         "bundle_answerable": sum(bool(r.get("answerable")) for r in scored),
         "not_found": len(not_found),
         "not_found_doc_admitted": [r["id"] for r in not_found if r.get("doc_admitted")],
@@ -111,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(summary, indent=1))
     if args.json:
         pathlib.Path(args.json).write_text(json.dumps({"summary": summary, "rows": rows},
-                                                      indent=1, default=str))
+                                                      indent=1, default=lambda o: sorted(o) if isinstance(o, set) else str(o)))
     return 0
 
 
