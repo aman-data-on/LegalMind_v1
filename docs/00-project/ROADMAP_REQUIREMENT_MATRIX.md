@@ -8,7 +8,7 @@
 
 Status: ✅ met with evidence · 🟡 partly met / evidence thin · 🔴 defect open · ⬜ not started
 
-Baseline: commit `608cbb6` (AM-94); last unit **AM-108** (the reader's instruction shapes the answer; branch `fix/ask-answer-focus`, NOT yet deployed — PR pending). Production runs `c9a2876` (AM-106): every Ask conversation on the verified path. Last updated 2026-09-28.
+Baseline: commit `608cbb6` (AM-94); last unit **AM-108** (the reader's instruction shapes the answer; **deployed 2026-09-28**, PR #125 `080b4a7`). Production runs `c9a2876` (AM-106): every Ask conversation on the verified path. Last updated 2026-09-28.
 
 | § | Requirement | Implementation | Test | Benchmark / evidence | Status | Remaining issue |
 |---|---|---|---|---|---|---|
@@ -51,7 +51,7 @@ Baseline: commit `608cbb6` (AM-94); last unit **AM-108** (the reader's instructi
 
 Widen the share on trace evidence (`selected_path` vs `path`, `fallback_kind`, `latency_ms`). Rollback: `LEGALMIND_ASK_MULTI_SOURCE=off` in `/root/.legalmind.env` and `systemctl restart legalmind-api`; the pre-canary env file is kept at `/root/.legalmind/preserved/`.
 
-## The instruction shapes the answer (`AM-108`, 2026-09-28/29) — built and validated, NOT yet deployed — PR pending
+## The instruction shapes the answer (`AM-108`, 2026-09-28/29) — DEPLOYED 2026-09-28 (PR #125, `080b4a7`)
 
 Owner brief: a production AI document assistant — document + instruction, follow-ups,
 requested format and length. Zero-Gemini probe before: every whole-document instruction
@@ -72,7 +72,7 @@ refused; "without comparing" misrouted; no format read. Work log and screenshots
 | Browser 1440 / 390 | question repeated 3×, two look-alike text blocks, page scrolled | two speakers, passages collapsed, table rendered and kept on reload, log scrolls not the page |
 | Retrieval / claims benchmarks | — | unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10 |
 
-## The answer leads with the direct answer (`AM-107`, 2026-09-28) — built and validated, not committed
+## The answer leads with the direct answer (`AM-107`, 2026-09-28) — DEPLOYED 2026-09-28 with `AM-108`
 
 Observed in production: the right evidence, one long paragraph mixing the fixed-term MSA
 rule, non-fixed-term rules, a Distribution standard, history and the law. Root cause:

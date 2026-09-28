@@ -50,6 +50,12 @@ def no_models(monkeypatch):
      "termination clauses"),
     ("What does our Constitution say about early termination?", pr.ANSWER, pr.PROSE,
      None, None, None, "does say early termination"),
+    ("What does our Constitution say about early termination? Please give the applicable "
+     "company standard and cite the relevant Constitution section.", pr.ANSWER, pr.PROSE,
+     None, None, None, "does say early termination applicable company cite relevant "
+     "section"),
+    ("Show me the termination provisions as bullet points.", pr.LIST, pr.BULLETS, None,
+     None, None, "termination provisions"),
 ])
 def test_the_instruction_is_read_from_the_readers_words(question, task, shape, count,
                                                         length, register, topic):
