@@ -36,8 +36,12 @@ _TABLE = re.compile(r"\b(?:tables?|tabular|tabulate|in columns|side[- ]by[- ]sid
 _SUMMARY = re.compile(r"\b(?:summar\w*|overview|tl;?dr|gist|brief me|recap|"
                       r"key (?:points|terms|takeaways))\b", re.I)
 _LIST = re.compile(r"\b(?:list(?: only| out| all| me)?|enumerate|which clauses|what "
-                   r"clauses|extract|the \w+(?: \w+)? (?:clauses?|provisions?|"
-                   r"sections?))\b", re.I)
+                   r"clauses|extract)\b", re.I)
+# "Put the termination clauses in a table": a clause word with a bullets or table
+# shape is a list of clauses. A clause word ALONE is not — "cite the relevant
+# Constitution section" is a plain question, and was read as a list on the first
+# production smoke test (2026-09-28).
+_CLAUSE_WORD = re.compile(r"\b(?:clauses?|provisions?)\b", re.I)
 _EXPLAIN = re.compile(r"\b(?:explain|walk me through|what does (?:this|it|that) mean|"
                       r"help me understand|break (?:this|it) down)\b", re.I)
 _RISKS = re.compile(r"\b(?:risks?|risky|exposures?|concerns?|red flags?|watch out|"
@@ -143,6 +147,8 @@ def read(question: str) -> Presentation:
     shape = (TABLE if _TABLE.search(text)
              else BULLETS if _BULLETS.search(text) or count or task in (LIST, RISKS)
              else PROSE)
+    if task == ANSWER and shape != PROSE and _CLAUSE_WORD.search(text):
+        task = LIST
     topic = " ".join(_INSTRUCTION_WORDS.sub(" ", _PUNCT.sub(" ", text)).split())
     return Presentation(task=task, shape=shape, count=count,
                         length=SHORT if _SHORT.search(text) else None,

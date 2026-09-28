@@ -171,7 +171,7 @@ words (recorded as a residual, not fixed by loosening verification).
 | full backend suite | 2787 passed, 112 skipped, 1 xfailed, 0 failed (18 min, sharing the CPU with the benchmarks) |
 | frontend `vitest` | 537 passed (39 files); `tsc` clean; forbidden-terms clean |
 | ruff · mypy (130 files) | clean |
-| retrieval / claims / document-lane benchmarks (zero Gemini) | unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10 |
+| retrieval / claims / document-lane benchmarks | unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10 |
 | Gemini calls spent | ~35 (matrix ×3 partial runs, 4 browser flows) |
 
 ## 7. Stale test state
@@ -194,11 +194,31 @@ migrations and configuration: untouched.
 - [x] G1–G8 fixed with regression tests (`test_presentation.py`, `ask-workspace.test.tsx`)
 - [x] Gemini-backed matrix run; every actual answer inspected and recorded (§5)
 - [x] Browser validation, desktop and mobile, with screenshots recorded (§5)
-- [ ] Retrieval and claim benchmarks unchanged or better; full backend + frontend suites green
-- [ ] Stale test state removed (§7), canonical data untouched
-- [ ] Records: `all_lock.md` (`AM-108`), registry, CHANGELOG, DAILY_CHANGED, status, project state, matrix, CLAUDE.md
-- [ ] Committed, pushed, PR, CI 15/15, merged through the ruleset, deployed, production smoke test
+- [x] Retrieval and claim benchmarks unchanged; full backend (2787) + frontend (537) suites green
+- [x] Stale test state removed (§7), canonical data untouched
+- [x] Records: `all_lock.md` (AB-57 `AM-107`, AB-58 `AM-108`), registry, CHANGELOG, DAILY_CHANGED, status, project state, matrix, CLAUDE.md, docs/README
+- [x] Committed (`363fbd9`, baselines `1c1e4f5`), PR #125, CI 15/15 (job 10 flaked once — the known socket hang-up — and passed on the rerun; the two Ask visual baselines adopted from CI's own actuals), merged through the ruleset as `080b4a7`, deployed with `sudo legalmind-deploy`, production smoke test passed
 
 ## 9. Final answers (filled at the end)
 
-{FINAL108}
+**What was broken?** Claim selection had no direct answer (`AM-107`); with a document open every whole-document instruction refused, "without comparing" went to the evaluator, no format was read; the Ask page repeated the question three times, the two speakers looked alike, and a long chat scrolled the whole page.
+
+**What was changed?** `AM-107` (answer-order claim selection, layered layout) and `AM-108` (`assist/presentation.py`, document tasks planned on the document, the outline for whole-document tasks, prompt `contract-answer-5`, code-enforced form, row-verified tables; frontend hierarchy, collapsed passages, tables, viewport-held grid). Nothing in evidence sufficiency, the gates, the contract checks, the verifier, authorization, the refusals or `AM-25` r4 changed.
+
+**What tests were added?** `tests/test_answer_focus.py` (14), `tests/test_presentation.py` (27 after the follow-up), `ask-workspace.test.tsx` (+6); `tools/benchmark_answer_focus.py`; claim scoring in `tools/benchmark_document_lane.py`.
+
+**Which Gemini-backed cases were actually tested?** Nine instruction cases through the real API (three partial passes while fixing), four browser flows (desktop/mobile ×2), the six `AM-107` scenarios on production data, and the production smoke test — ~40 calls in all; every answer read and recorded in §5.
+
+**Before/after?** §2 and §5, and the roadmap matrix: every instruction case answered as asked on the verified path; claims primary-from-gold 44 → 52, off-gold 398 → 168; retrieval unchanged.
+
+**Documents + instructions handled correctly?** Yes for summary, N bullets, table, list-only, plain language (partly — see residuals), key risks, "without comparing"; a comparison still goes to the evaluator by design.
+
+**Follow-up/context working?** Yes — a follow-up after a table stays on the document and keeps its own (not the anchor's) instruction; the thread reloads with the same turns and table.
+
+**UI understandable?** Yes, at 1440 and 390 (screenshots in §5): two speakers, answer first, sources folded, tables, the log scrolls.
+
+**Stale test state removed?** Yes (§7); the other sessions' scratch databases are listed, not deleted.
+
+**What remains?** The residuals in the `AM-108` lock record: "simple language" only partly honoured (the verifier keeps the model close to the clause's words); a summary is drawn from each section's first operative sentence; Gemini variance can cost a table a row (dropped, never shown unverified); the one production smoke observation — a plain question with "cite the relevant section" read as a list — fixed in the follow-up PR.
+
+**Production deployment safe?** Deployed 2026-09-28 (`080b4a7`), no migration, no flag, smoke test passed; rollback is the previous deploy.
