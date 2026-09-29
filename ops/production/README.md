@@ -228,7 +228,7 @@ Exercised end to end on this host, production untouched throughout:
 | Local retention | **PASS** — 15- and 40-day files pruned, 1/5/13-day kept |
 | Remote retention guard | **PASS** — 7 unit tests, including refusal to delete every object |
 | Credential handling | **PASS** — a missing-credential error names the *variables*, never a value |
-| **Upload / download to CloudPe** | **NOT RUN — credentials not yet supplied.** This is the one untested stage. |
+| **Upload / download to CloudPe** | **PASS, nightly since 2026-09-15** — credentials were supplied that day, and every 02:30 run since uploads the encrypted dump, downloads it back, compares the SHA-256 and decrypts it (`/var/log/legalmind-backup.log`: `off-server ok: … (encrypted, uploaded, read back, decrypts)`, checked 2026-09-29). The row above already proves the decrypted bytes restore. |
 
 ## Outstanding — and who has to act
 
@@ -305,9 +305,15 @@ Exercised end to end on this host, production untouched throughout:
   one breaks the app silently. The next security step, and a code change rather than a
   config one.
 * **pgvector 0.6.0 → 0.8.0+** before relying on an ANN index over a large pre-filtered set.
-* **Rate limiting is in-process**, correct for a single worker only. A multi-worker
-  deployment needs the shared Redis behind it — Redis is now running, so this is a small
-  change when a second worker appears.
+* **Rate limiting is in-process** — exact for the ONE uvicorn process the unit runs
+  (`legalmind-api.service` sets no `--workers`). The Redis-backed limiter exists since
+  2026-09-29 (`LEGALMIND_RATELIMIT_BACKEND=redis`, sharing the broker's Redis); set it
+  BEFORE a second API process or host, and set `LEGALMIND_STORAGE_BACKEND=s3` with it —
+  local-disk documents are the other thing a second host cannot share.
+* **The unit files are in the repository** since 2026-09-29: `legalmind-api.service`,
+  `legalmind-frontend.service` and both `*.service.d/10-hardening.conf` drop-ins, verbatim
+  copies of what is installed, so the restart policy and isolation are verifiable from
+  source. Refresh the installed copies from here, never the other way round.
 
 ## Deploying AB-20 — COMPLETE (code 2026-09-14, standards published 2026-09-15)
 

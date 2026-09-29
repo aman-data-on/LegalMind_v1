@@ -39,9 +39,9 @@ from legalmind.security.errors import NotVisible
 
 router = APIRouter(tags=["assist"], route_class=CommitBeforeResponse)
 
-# In-process for a single worker; a multi-worker deployment backs this with the
-# shared Redis (see ratelimit.InProcessRateLimiter's docstring).
-_limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
+# In-process for a single worker; Redis-backed when LEGALMIND_RATELIMIT_BACKEND=redis
+# (see ratelimit.limiter_from_env).
+_limiter: ratelimit.RateLimiter = ratelimit.limiter_from_env()
 
 
 def _latest_document_version(guard: Guard, contract_id: UUID) -> M.DocumentVersion:

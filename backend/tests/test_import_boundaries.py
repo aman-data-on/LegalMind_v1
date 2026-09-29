@@ -129,6 +129,18 @@ EGRESS_ALLOWED: dict[str, str] = {
     "legalmind.security.oidc":
         "47.1.3 / SEC-01 (OD-9) mandates OIDC; egress to the IdP is inherent to it. "
         "Registered as C-17 pending the owner's reading of AM-30 t10",
+    # THIRD, ADDED 2026-09-29: the document store itself. Locked Step 39 names
+    # S3-compatible object storage as the production document store, and the code
+    # said so in comments for a month while only a local-disk backend existed
+    # (system design review §5.2). `S3Storage` carries the uploaded bytes to the
+    # organization's OWN bucket — a locked stack component, not a third-party
+    # provider — and is selected only by `LEGALMIND_STORAGE_BACKEND=s3`; the
+    # default `local` never imports the client. Same t2/t3 reading as the OIDC
+    # entry: no chunk, no clause text and no internal legal position is ever a
+    # storage key or header; the document bytes are what the store exists to hold.
+    "legalmind.ingestion.storage":
+        "Locked Step 39 — S3-compatible object storage is the production document "
+        "store; design review §5.2 (2026-09-29). Opt-in, own bucket, no provider",
 }
 
 
@@ -151,23 +163,27 @@ def test_no_outbound_network_client_is_imported(package):
         )
 
 
-def test_the_egress_allowlist_names_exactly_the_two_authorized_modules():
+def test_the_egress_allowlist_names_exactly_the_authorized_modules():
     """A guard on the guard.
 
-    TWO modules may reach the network, and no third may appear without this test
-    failing. Each entry must cite the record that mandates it:
+    THREE modules may reach the network, and no fourth may appear without this
+    test failing. Each entry must cite the record that mandates it:
 
     * `AM-30` t1's generation adapter — the assist lane's one AI egress;
     * the OIDC provider flow, which locked 47.1.3 mandates and which cannot exist
       without an IdP call. Registered as **C-17**, because `AM-30` t10's "the
       provider call is the only external call in the stack" reads against it and
-      rule 5 forbids resolving that here.
+      rule 5 forbids resolving that here;
+    * the document store — locked Step 39's S3-compatible object storage, the
+      organization's own bucket, opt-in (2026-09-29).
 
     An empty list means a module moved without its authorization moving with it.
     """
     assert set(EGRESS_ALLOWED) == {"legalmind.assist.generation",
-                                    "legalmind.security.oidc"}
+                                    "legalmind.security.oidc",
+                                    "legalmind.ingestion.storage"}
     assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.generation"]
+    assert "Step 39" in EGRESS_ALLOWED["legalmind.ingestion.storage"]
     assert "C-17" in EGRESS_ALLOWED["legalmind.security.oidc"]
     assert "47.1.3" in EGRESS_ALLOWED["legalmind.security.oidc"]
 

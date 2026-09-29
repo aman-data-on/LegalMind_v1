@@ -50,6 +50,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from legalmind.observability.logs import log_event
@@ -573,6 +574,18 @@ def generate(question: str, evidence: list[str], *,
 USAGE: contextvars.ContextVar[dict | None] = contextvars.ContextVar("gemini_usage",
                                                                    default=None)
 
+#: Called once, immediately before the network request, by every call through this
+#: seam — whichever lane made it. The Ask service sets it to COMMIT the request's
+#: transaction, so the pooled database connection is returned for the duration of
+#: the provider round-trip (system design review §6.4, 2026-09-29): a connection
+#: held across a 60 s network wait is the mechanism by which one slow provider
+#: starves every other endpoint of the process. This module stays free of any
+#: database import — the hook is an opaque callable, set only by the lane that owns
+#: the transaction and knows what may be committed at that point. Unset (the
+#: analysis lane, the worker, a tool), nothing happens.
+BEFORE_EGRESS: contextvars.ContextVar[Callable[[], None] | None] = (
+    contextvars.ContextVar("before_egress", default=None))
+
 
 def _count(outcome: str, prompt_version: str, prompt_tokens=None, output_tokens=None,
            finish: str | None = None) -> None:
@@ -598,6 +611,10 @@ def generate_raw(prompt: str, *, prompt_version: str, environment: str,
     (AM-30 t1): every gate, payload screen, pin check and audit-hash rule applies
     identically whatever the prompt — a second prompt shape must never mean a
     second network path.
+
+    One FUNCTION, not one call per question: a document question can reach here
+    up to five times (rescue judge, the answer, a statute answer, one repair, the
+    planner when it is on) and every call is counted in `USAGE` and audited.
     """
     import time
 
@@ -636,6 +653,9 @@ def generate_raw(prompt: str, *, prompt_version: str, environment: str,
         headers={"Content-Type": "application/json", "x-goog-api-key": key},
         method="POST")
 
+    release = BEFORE_EGRESS.get()
+    if release is not None:
+        release()                 # every gate and screen above has passed
     started = time.monotonic()
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as response:

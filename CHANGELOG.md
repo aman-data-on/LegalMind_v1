@@ -10,6 +10,18 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-29 — Production system design review, and its P0/P1 fixes (branch `feat/production-hardening`, NOT deployed)
+
+The review: [docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md](docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md) — 27 sections, every finding tagged CONFIRMED / INFERRED / NEEDS MEASUREMENT, with an execution record of what was then done. No locked decision is amended. What changed in the repository:
+
+- **The pooled connection is released for every Gemini round-trip** (§6.4, the one P0). `generation.BEFORE_EGRESS` — a hook the Ask service sets to commit the request's transaction immediately before the network call; the multi-source path closes its savepoint before generating (`answer.prepare` split out of `respond` so nothing touches a table after it). Everything written after the call — answer, citations, the audit row — stays one transaction. The analysis lane is untouched: the hook is unset there. Pinned by `tests/test_ask_connection_release.py` on both paths.
+- **A simultaneous second turn is a 409, not a 500** (§9): `service._append_turn` retries the ordinal once under a savepoint and raises `ConversationConflict` on a second collision.
+- **Pool sizing is a recorded decision** (§6.3): `LEGALMIND_DB_POOL_SIZE` / `_MAX_OVERFLOW` / `_POOL_TIMEOUT_S`, SQLAlchemy's defaults unchanged.
+- **Scale-safe when a second API process appears** (§5): `RedisRateLimiter` behind the existing protocol (`LEGALMIND_RATELIMIT_BACKEND=redis`, the broker's Redis, fails open with a warning) and `S3Storage` beside `LocalFilesystemStorage` (`LEGALMIND_STORAGE_BACKEND=s3`, refuses to start without a bucket). Both opt-in; single-process behaviour byte-identical. `legalmind.ingestion.storage` joins the egress register citing locked Step 39.
+- **The API and frontend unit files and both hardening drop-ins are in `ops/production/`**, verbatim from the host (§10.3/§11.10).
+- Records corrected: the off-server backup leg has run and verified nightly since 2026-09-15 (§16.4 was stale); the worker has been installed since 2026-09-14; §12.1's "retrieval is not logged" overstated — `assist.ask.timings` and the trace's `stages_ms` already carry every stage.
+- Not applicable, with evidence: §14.4 (no escalation endpoint returns 409 — both are idempotent 2xx; the latent gap is a missing partial unique index on `escalations`, an owner decision); §14.3 (`AskDock` remounts on a contract switch and its transcript is contract-scoped and per-turn versioned by design). Measured and deferred: a Gemini retry/breaker (1 failure in 117 calls over 14 days, an HTTP 402), the `audit_events.action` index (3,411 rows, 2 MB). Review §28 has every row.
+
 ### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
 
 Master roadmap [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md)
