@@ -89,20 +89,20 @@ def test_refusal_wording_names_every_source_consulted_and_nothing_else():
     document and the corpus's public availability — never of whether a chunk exists.
     Since fallbacks are always consulted, the wording names them too."""
     assert refusal_text(plan("x?", has_document=True, permissions=NOPOS)) == (
-        "Information not found in the selected document. "
-        "The available material does not answer this question.")
+        "I couldn't find an answer in the selected document, so I won't guess.")
     assert refusal_text(plan("x?", has_document=True, permissions=USER)) == (
-        "Information not found in the selected document or in the organization's "
-        "approved positions. The available material does not answer this question.")
+        "I couldn't find an answer in the selected document or the organization's "
+        "approved positions, so I won't guess.")
     assert refusal_text(plan("x?", has_document=True, permissions=USER,
                              statutes_available=True)) == (
-        "Information not found in the selected document or in the organization's "
-        "approved positions or in the approved statute corpus. The available material "
-        "does not answer this question.")
+        "I couldn't find an answer in the selected document or the organization's "
+        "approved positions or the approved statutes, so I won't guess.")
     # No document, but the positions were searched: say so, and say what is missing.
     text = refusal_text(plan("Who are the parties?", has_document=False, permissions=USER))
-    assert text.startswith("Information not found in the organization's approved positions.")
-    assert text.endswith("No document is attached to this conversation.")
+    assert text.startswith("I couldn't find an answer in the organization's approved "
+                           "positions,")
+    assert text.endswith("No document is attached to this conversation. Attach one "
+                         "with Add files to ask about it.")
     # Nothing at all to search: the old guidance stands.
     assert refusal_text(plan("Who are the parties?", has_document=False,
                              permissions=NOPOS)).startswith("No document is attached")

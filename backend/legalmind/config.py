@@ -424,7 +424,7 @@ def ask_multi_source() -> str:
 
 
 def evidence_rescue_enabled() -> bool:
-    """Whether a gate refusal gets a second look from the model. OFF by default.
+    """Whether a gate refusal gets a second look from the model. ON by default.
 
     Measured 2026-09-16: the gate refuses 21 of 64 answerable questions and 15 of those
     already have the gold chunk retrieved, so recall 0.625 could reach 0.859 by fixing

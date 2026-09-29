@@ -458,9 +458,8 @@ _LEGAL_ANCHOR_STEMS = ("clause", "contract", "agreement", "liabilit", "indemnit"
 def is_capability_question(question: str) -> bool:
     """True when the question asks what the PRODUCT can do, not what the law says.
 
-    `AM-68` is not approved, so nothing routes on this yet — `routing.plan` consults it
-    only when the capability route is explicitly enabled. Shipping the classifier dark
-    keeps it measurable and reviewable without changing a single answer.
+    `routing.plan` routes on it while the capability route is on — the default since
+    `AM-68` was approved; `LEGALMIND_CAPABILITY_ROUTE=off` is the rollback.
     """
     tokens = _stems(question or "")
     if not tokens:
@@ -836,6 +835,15 @@ _DETERMINED = frozenset({"agreement", "contract", "document", "clause", "section
                          # Hindi nouns that take the same determiners
                          "samjhauta", "dastavez", "anubandh",
                          "समझौता", "दस्तावेज", "अनुबंध", "खंड", "धारा"})
+
+
+def has_no_subject(question: str) -> bool:
+    """True when nothing in the question names what it is about — "what about it?",
+    "tell me more", "why?" — so it can only mean something already discussed. A digit
+    ("clause 7") is a subject; `_stems` keeps letters only, so it is checked here."""
+    tokens = _stems(question or "")
+    return (bool(tokens) and not re.search(r"\d", question)
+            and all(t in _STOP or t in _ANAPHORA or t in _OPENERS for t in tokens))
 
 
 def is_follow_up(question: str) -> bool:

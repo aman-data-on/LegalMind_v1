@@ -53,6 +53,21 @@ export const SECTION_LABELS: ReadonlySet<string> = new Set([
   "Sources",
 ]);
 
+/** The position reading aid (`AM-67`) cites its spans `[1]..[n]` in the order the
+ *  company-standard cards are shown and has no Sources legend; a verified answer
+ *  always carries its own. Only the former numbers the cards. */
+export function citesPositions(text: string, citations: number, positions: number): boolean {
+  return citations === 0 && positions > 0 && /\[\d+\]/.test(text)
+    && !/(^|\n)Sources(\n|$)/.test(text);
+}
+
+/** The answer has no reading of its own — no document source, no marker: the fixed
+ *  "quoted below" sentence of `AM-76` r4, where the paraphrase did not verify. The
+ *  quote IS the answer then, so it opens, on reload too. */
+export function quotesAreTheAnswer(text: string, citations: number): boolean {
+  return citations === 0 && !/\[\d+\]/.test(text);
+}
+
 export function AnswerProse({
   text,
   citeCount = 0,

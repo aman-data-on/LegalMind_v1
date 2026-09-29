@@ -200,6 +200,10 @@ def test_a_sentence_restating_the_question_is_left_out_unless_it_carries_a_claim
                              "The reader asked whether 6 months holds [A].",
                              ("PRIMARY",))
     assert shown.startswith("No early exit [1].") and "[A]" in shown
+    # Its only [A], but nothing of the reader's to answer: left out too.
+    bare = service._layered("The reader asked about data breach notification [A]. "
+                            "The Board acts on an intimation [1].", ("PRIMARY",))
+    assert bare == "The Board acts on an intimation [1]."
 
 
 def test_an_optional_sentence_that_fails_is_dropped_and_a_direct_one_is_repaired(
@@ -231,3 +235,49 @@ def test_a_marker_only_tail_and_a_rupee_amount_never_become_uncited_sentences():
     payload = answer.Payload([], [], [], None, None, "")
     b = evidence.Bundle((), (), (), False)
     assert answer.complete("A rule [1]. [M]", None, payload, b) == "A rule [1]."
+
+
+# DPDP Act 2023 s. 2 and s. 27, as the corpus holds them (abridged to three definitions).
+DPDP_S2 = ("(r) “notification” means a notification published in the Official Gazette;\n"
+           "(t) “personal data” means any data about an individual who is identifiable;\n"
+           "(u) “personal data breach” means any unauthorised processing of personal "
+           "data;\n(y) “she” in relation to an individual includes the reference to such "
+           "individual irrespective of gender;")
+DPDP_S27 = ("(a) on receipt of an intimation of personal data breach under sub-section (6) "
+            "of section 8, to direct any urgent remedial or mitigation measures in the "
+            "event of a personal data breach.")
+
+
+def _dpdp(question, monkeypatch):
+    """Through the records path production uses — a statute is claimed one record
+    sentence at a time (`claim_records.units`)."""
+    import dataclasses
+
+    from legalmind.assist import claim_records
+    monkeypatch.setattr(claim_records, "units", lambda db, src: [
+        claim_records.Unit(line, "PRIMARY_LAW", "CURRENT")
+        for line in src.candidate.text.split("\n")])
+    s2 = _src("STAT:Digital Personal Data Protection Act, 2023:2", DPDP_S2, qp.LAW, 3.8,
+              domain="STATUTES", authority="PRIMARY_LAW")
+    s2 = dataclasses.replace(s2, candidate=dataclasses.replace(s2.candidate,
+                                                              note="Definitions"))
+    s27 = _src("STAT:Digital Personal Data Protection Act, 2023:27", DPDP_S27, qp.LAW,
+               3.0, domain="STATUTES", authority="PRIMARY_LAW")
+    return contracts.build(_bundle(question, (qp.LAW,), s2, s27), question, db=object())
+
+
+def test_a_definitions_section_does_not_lead_a_question_about_what_the_law_requires(
+        monkeypatch):
+    """DPDP s. 2 led "data breach notification" with the definitions of "notification"
+    and "she" (browser, 2026-09-29)."""
+    claims = _dpdp("What does the DPDP Act say about personal data breach notification?",
+                   monkeypatch)
+    assert claims[0].ref.endswith(":27")
+    defined = " ".join(c.text for c in claims if c.ref.endswith(":2"))
+    assert "“she”" not in defined and "“personal data”" not in defined
+
+
+def test_a_meaning_question_is_answered_by_the_definition_of_its_own_term(monkeypatch):
+    claims = _dpdp("What does personal data breach mean under the DPDP Act?", monkeypatch)
+    assert claims[0].ref.endswith(":2") and "“personal data breach”" in claims[0].text
+    assert not any("“personal data”" in c.text or "“she”" in c.text for c in claims)

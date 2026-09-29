@@ -67,12 +67,12 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 import { classificationLabel } from "@/lib/labels";
 
-import { ApiError, api, describeError } from "@/lib/api";
+import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, ConversationTurn } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
-import { AnswerProse } from "./AnswerProse";
+import { AnswerProse, citesPositions, quotesAreTheAnswer } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -252,11 +252,17 @@ export function AskDock({
     if (node) node.scrollTop = node.scrollHeight;
   }, [open, turns.length, pending]);
 
-  const submit = useCallback(async () => {
-    const asked = question.trim();
+  const submit = useCallback(async (again?: string) => {
+    const asked = (again ?? question).trim();
     if (!asked || busy) return;
     setPending(asked);
     setQuestion("");
+    // A retry replaces the failed turn rather than stacking a second copy of it.
+    if (again !== undefined) {
+      setTurns((previous) => previous.filter((turn) => !(turn.error && turn.question === again)));
+    }
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
     try {
       if (!conversationRef.current) {
         const conversation = await api.createConversation(contractId);
@@ -267,7 +273,7 @@ export function AskDock({
       const findingId = draftFinding.current ?? undefined;
       draftFinding.current = null;
       const result = await api.ask(conversationRef.current, asked,
-                                   documentVersionId ?? undefined, findingId);
+                                   documentVersionId ?? undefined, findingId, abort.signal);
       setTurns((previous) => [...previous, {
         question: asked,
         result,
@@ -276,15 +282,29 @@ export function AskDock({
         documentVersionId: result.document_version_id,
       }]);
     } catch (error) {
-      const message = error instanceof ApiError ? describeError(error) : "The question could not be sent.";
+      const message = abort.signal.aborted
+        ? "The answer took too long to arrive."
+        : error instanceof ApiError ? describeError(error) : "The question could not be sent.";
       setTurns((previous) => [...previous, {
         question: asked, result: null, error: message,
         versionNumber: null, documentVersionId: null,
       }]);
     } finally {
+      window.clearTimeout(timer);
       setPending(null);
     }
   }, [busy, contractId, documentVersionId, question]);
+
+  /* The input is disabled while an answer is found, which drops focus; it comes
+   * back once the input is enabled again, unless the reader moved on (AM-109). */
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busy && open && (document.activeElement === document.body
+                                             || document.activeElement === null)) {
+      inputRef.current?.focus();
+    }
+    wasBusy.current = busy;
+  }, [busy, open]);
 
   const turnCount = turns.length;
 
@@ -348,7 +368,7 @@ export function AskDock({
               {isLatest ? " (latest)" : ", the version you are reading"}.
             </>
           ) : (
-            <>Answers come from the <strong>approved statute corpus</strong> and the organization&rsquo;s approved positions — cited by Act and section.</>
+            <>Answers come from the <strong>approved statutes</strong> and the organization&rsquo;s approved positions — cited by Act and section.</>
           )}
         </p>
 
@@ -362,6 +382,10 @@ export function AskDock({
                 {turn.error ? (
                   <div className="ws-state ws-state--error" role="alert">
                     <p>{turn.error}</p>
+                    <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                            onClick={() => void submit(turn.question)}>
+                      Try again
+                    </button>
                   </div>
                 ) : turn.result ? (
                   <>
@@ -521,12 +545,15 @@ export function WsAnswerView({
     result.version_number > 0 &&
     result.version_number !== openVersionNumber;
 
+  const numbered = citesPositions(result.text, result.citations.length,
+    (result.positions ?? []).length);
+
   return (
     <div className="ws-ask__answer" data-state="ANSWERED">
       <AnswerProse
         text={result.text}
-        citeCount={result.citations.length}
-        citeTargetId={(n) => `cite-${result.message_id}-${n}`}
+        citeCount={numbered ? (result.positions ?? []).length : result.citations.length}
+        citeTargetId={(n) => `${numbered ? "position" : "cite"}-${result.message_id}-${n}`}
       />
       {result.citations.length > 0 ? (
         <ol className="ws-ask__citations" aria-label="Sources in this document">
@@ -572,7 +599,9 @@ export function WsAnswerView({
         </ol>
       ) : null}
       <PositionsSection positions={result.positions ?? []} contractId={contractId}
-          exactTextRequested={result.exact_text_requested ?? false} />
+          exactTextRequested={result.exact_text_requested ?? false}
+          open={quotesAreTheAnswer(result.text, result.citations.length)}
+          idPrefix={numbered ? result.message_id : undefined} />
       <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
     </div>
   );
@@ -633,6 +662,8 @@ export function PositionsSection({
   positions,
   contractId,
   exactTextRequested = false,
+  open = false,
+  idPrefix,
 }: {
   positions: AssistPosition[];
   /** Lets the assessment line open the Finding it names — a control, not prose. */
@@ -642,6 +673,12 @@ export function PositionsSection({
    *  answer above is the explanation, and a wall of clause text under every reply
    *  is what `AM-76` supersedes. */
   exactTextRequested?: boolean;
+  /** The quote is the answer even though the reader did not ask for the wording
+   *  (`quotesAreTheAnswer`): it opens, under the ordinary label. */
+  open?: boolean;
+  /** Set when the answer's markers index these cards (`citesPositions`): each card
+   *  shows its number and is the marker's focus target. Absent, no numbers. */
+  idPrefix?: string | undefined;
 }) {
   if (positions.length === 0) return null;
   return (
@@ -652,9 +689,15 @@ export function PositionsSection({
           : "Company standard — the ratified position behind this answer"}
       </p>
       <ol className="ws-ask__citations">
-        {positions.map((position) => (
-          <li key={position.position_chunk_id} className="ws-ask__citation">
+        {positions.map((position, index) => (
+          <li
+            key={position.position_chunk_id}
+            className="ws-ask__citation"
+            id={idPrefix ? `position-${idPrefix}-${index + 1}` : undefined}
+            tabIndex={idPrefix ? -1 : undefined}
+          >
             <span className="ws-ask__cite ws-ask__cite--static">
+              {idPrefix ? <span className="ws-mono">[{index + 1}] </span> : null}
               <span className="ws-mono">{position.standard_code}</span>
               {position.source_clause ? ` · ${position.source_clause}` : ""}
               {` · ${position.document_type}`}
@@ -675,7 +718,7 @@ export function PositionsSection({
                 keyboard-operable, correctly announced, and open/closed without a
                 custom ARIA widget. `open` is the server's deterministic reading of
                 the question (`AM-76` r2), not a guess made here. */}
-            <details className="ws-ask__exact" open={exactTextRequested}>
+            <details className="ws-ask__exact" open={exactTextRequested || open}>
               <summary className="ws-ask__exact-toggle">Show exact wording</summary>
               <blockquote className="ws-ask__excerpt">{position.content}</blockquote>
             </details>

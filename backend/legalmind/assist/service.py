@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.assist import (
     capability,
+    conversational,
     embedding_runtime,
     generation,
     guardrails,
@@ -57,7 +58,7 @@ from legalmind.assist import (
 # `intent.is_comparison_question` (2026-09-08): the regex it replaced passed every
 # natural phrasing of the manager's own question, and each was then refused as "not
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
-from legalmind.assist.state import REFUSAL_TEXT, AssistAnswerState  # noqa: F401
+from legalmind.assist.state import AssistAnswerState
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
@@ -233,6 +234,34 @@ PRIOR_TURNS_SCANNED = 4       # how far back a follow-up looks for its anchor
 PRIOR_QUESTION_CHARS = 300
 
 
+def _social_reply(db: DBSession, conversation_id: UUID, ordinal: int,
+                  social: conversational.Social | None,
+                  request_id: str | None) -> AskOutcome:
+    """`AM-109` — the fixed reply to a social turn, persisted like any other answer.
+    States no legal content, so it is ANSWERED with no domain, as the capability
+    route is (`AM-68`). `social` None is an out-of-scope request: the scope sentence,
+    recorded as the refusal it is."""
+    state = AssistAnswerState.ANSWERED
+    if social is None:
+        text_out, state = conversational.SCOPE_REPLY, \
+            AssistAnswerState.NO_EVIDENCE_RETRIEVED
+    else:
+        text_out = conversational.REPLY.get(social, "")
+    if social is conversational.Social.IDENTITY:
+        try:
+            text_out = capability.answer()
+        except capability.CapabilityManifestUnavailable:
+            text_out = conversational.REPLY[conversational.Social.GREETING]
+    reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT", text_out)
+    _persist_answer(db, reply_id, None, state,
+                    model=None, prompt_version_id=None, latency_ms=None)
+    log_event("assist.ask.social", request_id=request_id,
+              conversation_id=str(conversation_id),
+              kind=social.value if social else "OFF_SCOPE")
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=state, text=text_out, domains=())
+
+
 def _prior_questions(db: DBSession, conversation_id: UUID,
                      exclude_message_id: UUID) -> list[tuple[UUID, str]]:
     """The requester's last `PRIOR_TURNS_SCANNED` questions in THIS conversation, oldest
@@ -243,8 +272,11 @@ def _prior_questions(db: DBSession, conversation_id: UUID,
          WHERE conversation_id = :c AND role = 'USER' AND id <> :m
          ORDER BY ordinal DESC LIMIT :n
     """), {"c": conversation_id, "m": exclude_message_id, "n": PRIOR_TURNS_SCANNED}).all()
-    return [(r[0], (r[1] or "")[:PRIOR_QUESTION_CHARS].strip()) for r in reversed(rows)
-            if (r[1] or "").strip()]
+    # A social turn ("hi", "thanks") is not a question: it anchors no follow-up and
+    # carries no topic (`AM-109`); a social lead is dropped from one that is.
+    return [(r[0], conversational.strip_social((r[1] or "")[:PRIOR_QUESTION_CHARS]))
+            for r in reversed(rows)
+            if (r[1] or "").strip() and conversational.kind(r[1]) is None]
 
 
 def _resolve_follow_up(prior: list[tuple[UUID, str]],
@@ -930,6 +962,21 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     ordinal = _next_ordinal(db, conversation_id)
     user_message_id = _persist_turn(db, conversation_id, ordinal, "USER", question)
 
+    # `AM-109` — a turn that is ONLY social is answered here, before a follow-up can
+    # resolve against it and before any retrieval: "thanks" re-answered the previous
+    # legal question, and "hi" came back as a statute-corpus refusal. Fixed wording,
+    # no source, no model; "who are you" / "help" take the capability manifest.
+    social = conversational.kind(question)
+    if social is not None:
+        return _social_reply(db, conversation_id, ordinal, social, request_id)
+    # A social lead around a real question is not part of it ("Hi, what is our cap?").
+    # The stored turn above keeps the reader's own words.
+    question = conversational.strip_social(question)
+    if conversational.off_scope(question):
+        # A poem or the weather was searched, and a topic inherited from earlier turns
+        # turned "write me a poem" into a confidentiality answer (`AM-109`).
+        return _social_reply(db, conversation_id, ordinal, None, request_id)
+
     # Conversation memory (2026-09-10). A follow-up — "what about clause 7?" — is
     # resolved by the requester's own earlier questions: they widen the RETRIEVAL
     # query and the routing input, and they are listed to the model as context.
@@ -938,6 +985,11 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # (`routing.plan` still takes the caller's live permission set), and an earlier
     # ANSWER is never read (`AM-30` t2). The persisted USER turn is the raw question.
     prior = _prior_questions(db, conversation_id, user_message_id)
+    if not prior and document_version_id is None and intent.has_no_subject(question):
+        # "what about it?" with nothing before it and no document: searching it
+        # returned whatever shares the most stop words. Ask what they mean instead.
+        return _social_reply(db, conversation_id, ordinal,
+                             conversational.Social.UNCLEAR, request_id)
     # An EXACT-TEXT request is always about something already discussed — "the
     # clause", "that wording", "it". It carries no subject of its own, so left
     # unresolved its retrieval query is "quote ... clause ... verbatim", which matches
@@ -983,9 +1035,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     domains = tuple(d.value for d in route.domains)
     # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
     # enforcement: nothing below this line can reach a document, a position, a statute
-    # or a Finding, so the guarantee is structural rather than a promise. Disabled by
-    # default; `routing.plan` only sets `capability` when the flag is on, and the
-    # amendment is not approved.
+    # or a Finding, so the guarantee is structural rather than a promise. On by
+    # default since `AM-68` was approved; `LEGALMIND_CAPABILITY_ROUTE=off` rolls it back.
     # `AM-25` r5 — a general explanation resolves to no retrieved evidence, so it is not
     # generated. The question is still RECOGNISED, which is the fix: it no longer falls
     # through to the POSITIONS fallback and comes back as three Company Standards.
@@ -1541,9 +1592,13 @@ def _layered(text: str, layers: tuple[str, ...]) -> str:
     sentences = answer_mod._sentences(prose)
     for sentence in sentences:
         others = "".join(x for x in sentences if x != sentence)
+        # An [A] with no figure carries nothing of the reader's to answer ("The reader
+        # asked about data breach notifications under the DPDP Act [A]", browser,
+        # 2026-09-29, `AM-109`); one naming the reader's figure, or a gap [M], stays.
         if _RESTATES_QUESTION.match(sentence) \
                 and not re.search(r"\[\d{1,2}\]", sentence) \
-                and all(m in others for m in re.findall(r"\[[AM]\]", sentence)):
+                and all(m in others or (m == "[A]" and not re.search(r"\d", sentence))
+                        for m in re.findall(r"\[[AM]\]", sentence)):
             continue            # "The reader asked whether …": no claim, only delay
         cited = [int(n) for n in re.findall(r"\[(\d{1,2})\]", sentence)
                  if 1 <= int(n) <= len(layers)]

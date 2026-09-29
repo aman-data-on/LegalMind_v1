@@ -68,7 +68,7 @@ test.describe("documentation screenshots", () => {
       await ask.fill("What is the moon made of?");
       await page.getByRole("button", { name: "Ask" }).click();
       const answer = page.locator(".ask-answer--refusal").first();
-      await expect(answer).toContainText("Information not found");
+      await expect(answer).toContainText("I couldn't find an answer");
       await page.locator(".ask-turn").first().screenshot({
         path: join(ASSETS, "refusal-state.png"),
       });

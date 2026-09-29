@@ -248,6 +248,16 @@ def attach_document(conversation_id: UUID, body: ConversationDocument,
     return data({"id": str(conversation_id), "contract_id": str(contract.id)})
 
 
+def _chat_title(questions: list[str] | None) -> str | None:
+    """The first question that is one — a chat opened with "hi" was titled "hi" in
+    Recent chats for ever (`AM-109`). A chat that is only social keeps its first."""
+    from legalmind.assist import conversational
+    questions = [q for q in (questions or []) if (q or "").strip()]
+    real = next((q for q in questions if conversational.kind(q) is None), None)
+    return conversational.strip_social(real) if real else (questions[0] if questions
+                                                          else None)
+
+
 @router.get("/conversations")
 def list_conversations(guard: Guard = Depends(get_guard),
                        page: Page = Depends(page_params),
@@ -270,9 +280,10 @@ def list_conversations(guard: Guard = Depends(get_guard),
         SELECT c.id, c.contract_id, c.created_at,
                (SELECT count(*) FROM "{schema}".messages m
                  WHERE m.conversation_id = c.id) AS turns,
-               (SELECT m.content FROM "{schema}".messages m
-                 WHERE m.conversation_id = c.id AND m.role = 'USER'
-                 ORDER BY m.ordinal LIMIT 1) AS first_question
+               (SELECT array_agg(f.content ORDER BY f.ordinal) FROM (
+                    SELECT m.content, m.ordinal FROM "{schema}".messages m
+                     WHERE m.conversation_id = c.id AND m.role = 'USER'
+                     ORDER BY m.ordinal LIMIT 10) f) AS first_questions
           FROM "{schema}".conversations c
          WHERE {where}
          ORDER BY c.created_at DESC, c.id DESC
@@ -296,7 +307,7 @@ def list_conversations(guard: Guard = Depends(get_guard),
         "contract_id": str(r[1]) if r[1] else None,
         "created_at": r[2].isoformat() if r[2] else None,
         "message_count": r[3],
-        "first_question": r[4],
+        "first_question": _chat_title(r[4]),
         "document_name": (names[r[1]].name if r[1] and r[1] in names else None),
         # Whether the workspace this row links to will open for THIS caller —
         # the same READ rule the workspace itself applies (`can_read_contract`).

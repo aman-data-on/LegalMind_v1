@@ -1504,3 +1504,62 @@ screenshots in `docs/ASK_PRODUCT_COMPLETION_PLAN.md`. Regressions caught and fix
 way: the follow-up inherited the anchor's table instruction; "explain the liability clause"
 hit the general-knowledge screen; the anchor "key risks" re-triggered the comparison; the
 Gemini seam stub in `tools/eval_generation` needed the new kwarg. Benchmarks unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10.
+
+## 2026-09-29 — Entry: Ask as a conversation (`AM-109`)
+
+The owner handed over the whole Ask page. Two reported problems ("hi" gets a refusal, the
+reader and the answer look alike) turned out to be symptoms of wider ones, found by
+reading the code end to end and by using the page in a real browser on a scratch copy.
+
+**Conversation.** Ask had no idea of small talk. "hi" was searched and refused, and a
+mid-chat "thanks" was read as a follow-up and re-answered the last legal question.
+Greetings, thanks, goodbyes and acknowledgements now get a fixed reply with no search and
+no model call; "who are you" gets the capability list; a greeting in front of a real
+question is dropped. A poem or weather request gets one clear sentence saying what Ask
+is for; before, it inherited a topic from earlier turns and was answered from the
+Constitution. Refusals now read "I couldn't find an answer in …, so I won't guess."
+
+**Answers.** "and for NDAs?" after a liability question was answered with the NDA
+survival period, because "NDA" was read as a topic; a document type is now a scope. Every
+sentence repeated "The company position (Liability — …), for MSA agreements, states:";
+the source is now named once per paragraph. A related Constitution section that said the
+same thing as the standard is no longer repeated. A document liability answer pasted in
+force majeure, compliance and indemnity; it now keeps to the asked clause, and a clause
+is read with its heading, so "force majeure" finds clause 16.1.
+
+**Page.** The reader's question sat on the page's own background colour; it is now a
+blue bubble at full size. "Try again" did nothing; it now resends. An answer could land in
+another chat after switching; it no longer can. The first answer re-fetched its own chat,
+focus was lost after every send, answers were never announced to a screen reader, and a
+chat opened with "hi" was titled "hi". All fixed, with a 150-second timeout added.
+
+**Measured.** Retrieval unchanged (recall@3 0.953, no wrong source, no false admission);
+document questions slightly better (right clause first 22 → 23 of 44); claim selection
+unchanged except the new J-08 case. Backend 2843 and frontend 538 tests pass, plus 57
+browser specs. About ten Gemini calls in all. Record:
+`docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md`.
+
+
+## 2026-09-29 — Entry: Ask second pass (`AM-109` addendum)
+
+The owner asked for the rest of the review list to be finished: the document-side dock,
+long conversations, accessibility, mobile, research, security, instructions, latency and
+a final pass as a first-time user.
+
+**Found and fixed.** The dock's "Try again" and timeout were missing; added, with focus
+returning to its input. A 24-turn chat reloaded fast and kept its context, but the page
+itself grew 5,000 px tall because hidden citation labels escaped the scroll area; the
+scroll now stays inside the conversation. The only unlabelled tab stop was the hidden
+file input. A first turn like "what about it?" with nothing before it was searched; it is
+now asked what it means. The final pass asked the DPDP Act about breach notification and
+got three definitions ("notification", "she") as the answer: a Definitions section now
+leads only a question about meaning. The same answer repeated "(… NOT YET IN FORCE …)"
+after every sentence and ended with a model sentence restating the question; both gone.
+A company-standard answer whose explanation did not verify said "quoted below" with the
+quotes folded shut; they now open. A background security review of every Ask change found
+no P0/P1; its P2 (retry after a failed first question with a file) is fixed.
+
+**Measured.** Answer focus unchanged (53 primary gold, 80/85 slots, 167 off-gold, 0
+must-not). Latency over 20 live answers: p50 9.5 s, p95 33 s, generation 78% of it.
+Backend 2858 passed / 112 skipped / 0 failed (one pre-existing test stub fixed for the heading lookup); frontend 542 passed; 61 browser specs. About 12 Gemini calls in this pass.
+Record: `docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md` § Second pass.

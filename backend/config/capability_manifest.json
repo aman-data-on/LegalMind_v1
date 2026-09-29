@@ -1,5 +1,5 @@
 {
-  "_status": "DRAFT — NOT APPROVED. AM-68 is a proposed amendment; nothing reads this file while LEGALMIND_CAPABILITY_ROUTE is unset. See docs/00-project/CAPABILITY_MANIFEST_PROPOSAL.md and AB21_PROPOSED_AMENDMENTS.md.",
+  "_status": "APPROVED (AM-68, AB-21) and read by the capability route, on by default; LEGALMIND_CAPABILITY_ROUTE=off rolls it back. Every entry names its evidence. History: docs/00-project/CAPABILITY_MANIFEST_PROPOSAL.md.",
   "_rule": "AM-68 r4 — every entry names behaviour that is BUILT and covered by a test. No future, planned, roadmap, partial or speculative capability. Rule 7's discipline: an invented capability is as bad as an invented legal rule.",
   "version": 1,
   "capabilities": [
